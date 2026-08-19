@@ -16,6 +16,7 @@ import pytest
 from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
 from ddtrace.internal.opentelemetry.span import Span
+from ddtrace.internal.otel_sampling import _random_value
 
 
 @pytest.mark.snapshot(wait_for_num_traces=3)
@@ -265,7 +266,9 @@ def test_otel_get_span_context(oteltracer):
     # By default ddtrace set sampled=True for all spans
     assert span_context.trace_flags == TraceFlags.SAMPLED
     # Default tracestate values set on all Datadog Spans
-    assert span_context.trace_state.to_header() == "dd=p:{:016x};s:1;t.dm:-0".format(span_context.span_id)
+    assert span_context.trace_state.to_header() == "dd=p:{:016x};s:1;t.dm:-0,ot=rv:{:014x};th:0".format(
+        span_context.span_id, _random_value(span_context.trace_id)
+    )
 
 
 def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
@@ -277,7 +280,9 @@ def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
     span_context = otelspan.get_span_context()
     assert (
         span_context.trace_state.to_header()
-        == "dd=p:{:016x};s:1;t.dm:-0;t.congo:t61rcWkgMzE;t.some_val:tehehe".format(span_context.span_id)
+        == "dd=p:{:016x};s:1;t.dm:-0;t.congo:t61rcWkgMzE;t.some_val:tehehe,ot=rv:{:014x};th:0".format(
+            span_context.span_id, _random_value(span_context.trace_id)
+        )
     )
 
 

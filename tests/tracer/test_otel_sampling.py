@@ -92,6 +92,21 @@ def test_inbound_threshold_does_not_fabricate_random_value():
     assert context._tracestate == "dd=s:1,ot=th:e6666666666668"
 
 
+def test_inbound_threshold_keeps_trace_id_randomness_usable():
+    context = Context(
+        trace_id=1,
+        span_id=1,
+        sampling_priority=1,
+        meta={
+            "traceparent": "00-00000000000000000000000000000001-0000000000000001-03",
+            "tracestate": "ot=th:e6666666666668",
+        },
+    )
+
+    assert context._traceparent.endswith("-03")
+    assert context._tracestate == "dd=s:1,ot=th:e6666666666668"
+
+
 def test_inherited_sampling_decision_without_otel_fields_does_not_fabricate_them():
     context = Context(trace_id=1, span_id=1, sampling_priority=1, meta={"tracestate": "congo=value"})
 
@@ -180,6 +195,39 @@ def test_otel_member_is_dropped_when_leading_members_exceed_byte_cap():
     context = Context(meta={"tracestate": "{},{}".format(dd_member, ot_member)})
 
     assert context._tracestate == dd_member
+
+
+def test_inherited_otel_fields_remain_authoritative_over_local_sampling_state():
+    context = Context(
+        trace_id=1,
+        span_id=1,
+        sampling_priority=USER_KEEP,
+        meta={"tracestate": "ot=rv:1234567890abcd;th:8;future:value"},
+    )
+    context._otel_sampling_state.set_probabilistic_decision(0.1)
+
+    assert context._tracestate == "dd=s:2,ot=rv:1234567890abcd;th:8;future:value"
+
+
+def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_member_cap():
+    oversized_future_field = "future:" + ("x" * 220)
+    context = Context(
+        trace_id=1,
+        span_id=1,
+        sampling_priority=USER_KEEP,
+        meta={"tracestate": "ot={};next:value".format(oversized_future_field)},
+    )
+    assert len(context._meta["tracestate"]) <= 256
+    context._otel_sampling_state.set_probabilistic_decision(0.1)
+
+    ot_member = context._tracestate.split(",")[1]
+
+    assert len(ot_member) <= 256
+    assert _ot_fields(ot_member) == {
+        "rv": "f0948a54d43b8e",
+        "th": "e6666666666668",
+        "next": "value",
+    }
 
 
 def test_probability_sampling_state_is_shared_with_existing_child_contexts():

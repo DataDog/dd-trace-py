@@ -10,6 +10,7 @@ from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 
 _MAX_THRESHOLD = 1 << 56
 _MAX_ENCODABLE_THRESHOLD = _MAX_THRESHOLD - 1
+_MAX_OTEL_TRACESTATE_MEMBER_CHARS = 256
 _VALID_RANDOM_VALUE = re.compile(r"^[0-9a-f]{14}$")
 _VALID_THRESHOLD = re.compile(r"^[0-9a-f]{1,14}$")
 
@@ -95,6 +96,10 @@ def _random_value(trace_id: int) -> int:
 
 
 def _threshold(sample_rate: float) -> int:
+    if sample_rate == 1.0:
+        return 0
+    if sample_rate == 0.0:
+        return _MAX_ENCODABLE_THRESHOLD
     # Python's round uses ties-to-even. OTEP 235 requires ties away from zero.
     threshold = math.floor((1.0 - sample_rate) * _MAX_THRESHOLD + 0.5)
     return min(_MAX_ENCODABLE_THRESHOLD, max(0, threshold))
@@ -110,9 +115,9 @@ def _resolve_otel_fields(
     sampling_priority: Optional[float],
     otel_sampling_state: Optional[OtelSamplingState],
 ) -> tuple[Optional[str], Optional[str], list[str]]:
-    # AIDEV-NOTE: Inbound rv/th always win over local derivation. A local rate is recorded only
-    # when this tracer actually made the probability decision, so inherited sampled flags never
-    # acquire fabricated OTel sampling fields here.
+    # AIDEV-NOTE: Valid inherited sampling fields remain authoritative because the tracer follows
+    # the upstream sampled bit. Only an explicit non-probabilistic decision invalidates inherited
+    # th; otherwise a local rate is used only when no inherited OTel sampling field exists.
     random_value, threshold, unknown_fields = _parse_otel_fields(ot_value)
 
     if otel_sampling_state is not None and otel_sampling_state.is_probabilistic is False:
@@ -122,22 +127,22 @@ def _resolve_otel_fields(
         return random_value, threshold, unknown_fields
 
     if (
-        trace_id is None
-        or sampling_priority is None
-        or otel_sampling_state is None
-        or otel_sampling_state.sample_rate is None
+        trace_id is not None
+        and sampling_priority is not None
+        and otel_sampling_state is not None
+        and otel_sampling_state.sample_rate is not None
     ):
-        return None, None, unknown_fields
+        threshold_value = _threshold(otel_sampling_state.sample_rate)
+        random_value_int = _random_value(trace_id)
+        kept = sampling_priority > 0
+        if kept and random_value_int < threshold_value:
+            random_value_int = threshold_value
+        elif not kept and random_value_int >= threshold_value:
+            random_value_int = max(0, threshold_value - 1)
 
-    threshold_value = _threshold(otel_sampling_state.sample_rate)
-    random_value_int = _random_value(trace_id)
-    kept = sampling_priority > 0
-    if kept and random_value_int < threshold_value:
-        random_value_int = threshold_value
-    elif not kept and random_value_int >= threshold_value:
-        random_value_int = max(0, threshold_value - 1)
+        return "{:014x}".format(random_value_int), _format_threshold(threshold_value), unknown_fields
 
-    return "{:014x}".format(random_value_int), _format_threshold(threshold_value), unknown_fields
+    return random_value, threshold, unknown_fields
 
 
 def _build_otel_member(
@@ -146,15 +151,49 @@ def _build_otel_member(
     sampling_priority: Optional[float],
     otel_sampling_state: Optional[OtelSamplingState],
 ) -> str:
+    # AIDEV-NOTE: A locally generated member is the common injection path. Avoid allocating
+    # the parsed-field tuple and field list used for inbound ot= values on this hot path.
+    if ot_value is None:
+        if (
+            trace_id is None
+            or sampling_priority is None
+            or otel_sampling_state is None
+            or otel_sampling_state.sample_rate is None
+            or otel_sampling_state.is_probabilistic is False
+        ):
+            return ""
+
+        random_value_int = _random_value(trace_id)
+        if otel_sampling_state.sample_rate == 1.0:
+            return "rv:{:014x};th:0".format(random_value_int)
+
+        threshold_value = _threshold(otel_sampling_state.sample_rate)
+        if sampling_priority > 0 and random_value_int < threshold_value:
+            random_value_int = threshold_value
+        elif sampling_priority <= 0 and random_value_int >= threshold_value:
+            random_value_int = max(0, threshold_value - 1)
+
+        return "rv:{:014x};th:{}".format(random_value_int, _format_threshold(threshold_value))
+
     random_value, threshold, unknown_fields = _resolve_otel_fields(
         ot_value, trace_id, sampling_priority, otel_sampling_state
     )
-    fields = []
+    candidate_fields: list[str] = []
     if random_value is not None:
-        fields.append("rv:{}".format(random_value))
+        candidate_fields.append("rv:{}".format(random_value))
     if threshold is not None:
-        fields.append("th:{}".format(threshold))
-    fields.extend(unknown_fields)
+        candidate_fields.append("th:{}".format(threshold))
+    candidate_fields.extend(unknown_fields)
+
+    # OTel limits the complete ot= list-member to 256 characters. Keep whole sub-fields,
+    # prioritizing rv/th, instead of emitting or truncating an invalid member.
+    fields: list[str] = []
+    member_chars = len("ot=")
+    for field in candidate_fields:
+        field_chars = len(field) + (1 if fields else 0)
+        if member_chars + field_chars <= _MAX_OTEL_TRACESTATE_MEMBER_CHARS:
+            fields.append(field)
+            member_chars += field_chars
     return ";".join(fields)
 
 

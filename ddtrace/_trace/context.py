@@ -113,7 +113,11 @@ class Context(object):
             # Note: self._lock is not serializable
         )
 
-    def __setstate__(self, state: _ContextState) -> None:
+    def __setstate__(self, state: tuple[Any, ...]) -> None:
+        # Context is public and pickle-compatible. State produced before OTel sampling support
+        # has eight fields, so normalize it before unpacking the current nine-field state.
+        if len(state) == 8:
+            state = (*state, None)
         (
             self.trace_id,
             self.span_id,
@@ -168,10 +172,17 @@ class Context(object):
         if tp:
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
+            # W3C Trace Context Level 2 requires the random trace-id flag to survive when
+            # the trace ID is continued. Other currently-reserved flags are cleared.
+            trace_flags = int(tp.split("-")[3], 16) & 0x2
         else:
             trace_id = f"{self.trace_id:032x}"
+            trace_flags = 0
 
-        return f"00-{trace_id}-{self.span_id:016x}-{self._traceflags}"
+        if self.sampling_priority and self.sampling_priority > 0:
+            trace_flags |= 0x1
+
+        return f"00-{trace_id}-{self.span_id:016x}-{trace_flags:02x}"
 
     @property
     def _traceflags(self) -> str:

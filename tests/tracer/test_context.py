@@ -129,6 +129,17 @@ def test_context_serializable_reactivate():
     assert context._reactivate == serialized_context._reactivate
 
 
+def test_context_accepts_legacy_pickle_state():
+    context = Context(trace_id=123, span_id=321, sampling_priority=1, meta={"meta": "value"})
+    legacy_state = context.__getstate__()[:-1]
+    restored = Context.__new__(Context)
+
+    restored.__setstate__(legacy_state)
+
+    assert restored == context
+    assert restored._otel_sampling_state_data is None
+
+
 def test_copy_populates_every_getstate_slot(tracer):
     """Guard against a future slot-drop in ``Context.copy()``.
 
@@ -164,6 +175,18 @@ def test_copy_populates_every_getstate_slot(tracer):
         assert hasattr(child_ctx, slot), f"copy() must set slot {slot!r}"
     # __getstate__ itself must not raise (reads all of the above at once).
     assert child_ctx.__getstate__() == pickle.loads(pickle.dumps(child_ctx)).__getstate__()
+
+
+@pytest.mark.parametrize(("sampling_priority", "expected_flags"), [(0, "02"), (1, "03")])
+def test_traceparent_preserves_inherited_random_trace_id_flag(sampling_priority, expected_flags):
+    context = Context(
+        trace_id=11803532876627986230,
+        span_id=67667974448284343,
+        sampling_priority=sampling_priority,
+        meta={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03"},
+    )
+
+    assert context._traceparent == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{}".format(expected_flags))
 
 
 @pytest.mark.parametrize(
