@@ -6,9 +6,6 @@ import sys
 import typing
 import weakref
 
-from ddtrace._trace import context
-from ddtrace._trace import span as ddspan
-from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 
 
@@ -31,7 +28,7 @@ class LogicalSpanTarget(typing.NamedTuple):
 class _SpanLinkContext(typing.NamedTuple):
     generation: int
     span_info: _SpanInfo
-    span_ref: typing.Optional[typing.Callable[[], typing.Optional[ddspan.Span]]]
+    span_ref: typing.Optional[typing.Callable[[], typing.Optional[typing.Any]]]
 
 
 _LogicalSpanProvider = typing.Callable[[], typing.Optional[LogicalSpanTarget]]
@@ -103,25 +100,6 @@ def _current_logical_span_target() -> typing.Optional[LogicalSpanTarget]:
     return None
 
 
-def _span_info(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]) -> typing.Optional[_SpanInfo]:
-    if isinstance(span, ddspan.Span):
-        span_id = span.span_id
-        # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
-        # the new span, so read distributed local-root metadata from the parent Context.
-        if span._parent is None and span.parent_id is not None and span._parent_context is not None:
-            propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(span._parent_context)
-            local_root_span_id = propagated_root_span_id or span._local_root.span_id
-            local_root_span_type = propagated_root_span_type or span._local_root.span_type
-        else:
-            local_root_span_id = span._local_root.span_id
-            local_root_span_type = span._local_root.span_type
-        return _SpanInfo(span_id, local_root_span_id, local_root_span_type)
-    if isinstance(span, context.Context) and span.span_id is not None:
-        local_root_span_id, span_type = context_meta.read_profiler_link(span)
-        return _SpanInfo(span.span_id, local_root_span_id, span_type)
-    return None
-
-
 def _publish_span(target: typing.Optional[LogicalSpanTarget], span_info: _SpanInfo) -> None:
     if target is None:
         stack.link_span(span_info.span_id, span_info.local_root_span_id, span_info.span_type)
@@ -142,34 +120,17 @@ def _clear_span(target: typing.Optional[LogicalSpanTarget]) -> None:
         stack.clear_logical_span(target.domain, target.identifier)
 
 
-def link_span(span: typing.Optional[typing.Union[context.Context, ddspan.Span]]) -> None:
+def link_span(span_info: typing.Optional[_SpanInfo], source: typing.Optional[typing.Any]) -> None:
     """Route a tracing activation to its physical thread or native-tracked logical context."""
     if not _span_linking_enabled:
         return
     target = _current_logical_span_target()
-    span_info = _span_info(span)
     if span_info is None:
         _set_active_span_link(None)
         _clear_span(target)
     else:
-        span_ref = weakref.ref(span) if isinstance(span, ddspan.Span) else None
+        span_ref = weakref.ref(source) if source is not None else None
         _set_active_span_link(_SpanLinkContext(_span_link_generation, span_info, span_ref))
-        _publish_span(target, span_info)
-
-
-def link_logical_span(
-    domain: SpanLinkDomain,
-    logical_id: int,
-    span: typing.Optional[typing.Union[context.Context, ddspan.Span]],
-) -> None:
-    """Seed or update attribution for a native-tracked logical execution context."""
-    if not _span_linking_enabled:
-        return
-    target = LogicalSpanTarget(domain, logical_id)
-    span_info = _span_info(span)
-    if span_info is None:
-        _clear_span(target)
-    else:
         _publish_span(target, span_info)
 
 
@@ -199,7 +160,7 @@ def clear_logical_span(domain: SpanLinkDomain, logical_id: int) -> None:
     stack.clear_logical_span(domain, logical_id)
 
 
-def _unlink_finished_span(span: ddspan.Span) -> None:
+def unlink_finished_span(span_id: int) -> None:
     """Atomically remove every current target derived from a finished span."""
     if _span_linking_enabled:
-        stack.unlink_finished_span(span.span_id)
+        stack.unlink_finished_span(span_id)

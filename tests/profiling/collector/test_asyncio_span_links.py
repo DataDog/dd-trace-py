@@ -34,14 +34,16 @@ def test_completed_task_clears_mapping_before_object_finalization(monkeypatch: p
     class Task:
         callback = None
 
-        def add_done_callback(self, callback):
+        def add_done_callback(self, callback, *, context):
             self.callback = callback
+            self.context = context
 
     task = Task()
     assert profiling_asyncio._ensure_task_span_finalizer(task)
     assert task.callback is not None
+    assert not list(task.context)
 
-    task.callback(task)
+    task.context.run(task.callback, task)
 
     assert cleared == [id(task)]
     assert id(task) not in profiling_asyncio._task_span_finalizers
@@ -69,7 +71,7 @@ def test_nested_creation_wrappers_publish_task_only_once() -> None:
 
 def test_fork_reset_detaches_finalizers() -> None:
     class Task:
-        def add_done_callback(self, callback):
+        def add_done_callback(self, callback, *, context):
             self.callback = callback
 
     task = Task()

@@ -9,6 +9,8 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <exception>
+#include <new>
 #include <string_view>
 #include <utility>
 
@@ -261,8 +263,15 @@ stack_link_logical_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         return nullptr;
     }
 
-    SpanLinks::get_instance().link_logical_span(
-      domain, logical_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
+    try {
+        SpanLinks::get_instance().link_logical_span(
+          domain, logical_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
+    } catch (const std::bad_alloc&) {
+        return PyErr_NoMemory();
+    } catch (const std::exception& e) {
+        PyErr_SetString(PyExc_RuntimeError, e.what());
+        return nullptr;
+    }
 
     Py_RETURN_NONE;
 }

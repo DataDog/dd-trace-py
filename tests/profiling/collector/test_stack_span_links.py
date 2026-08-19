@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import contextvars
 import sys
+import typing
 from unittest.mock import Mock
 
 import pytest
@@ -11,6 +12,7 @@ import pytest
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.profiling import _asyncio
 from ddtrace.profiling import _span_links
 from ddtrace.profiling.collector import stack as stack_collector
 
@@ -42,12 +44,16 @@ def _target(domain: _span_links.SpanLinkDomain, identifier: int) -> _span_links.
     return _span_links.LogicalSpanTarget(domain, identifier)
 
 
+def _info(span_id: int, local_root_span_id: typing.Optional[int] = None) -> _span_links._SpanInfo:
+    return _span_links._SpanInfo(span_id, local_root_span_id or span_id, None)
+
+
 def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.MonkeyPatch) -> None:
     cleared = []
     monkeypatch.setattr(_span_links.stack, "clear_span", lambda: cleared.append(True))
 
     _span_links.enable_span_linking()
-    _span_links.link_span(None)
+    _span_links.link_span(None, None)
 
     assert cleared == [True]
 
@@ -67,9 +73,9 @@ def test_span_activation_uses_highest_priority_logical_provider(monkeypatch: pyt
     _span_links.register_logical_span_provider(high_priority_provider, priority=20)
     _span_links.enable_span_linking()
 
-    _span_links.link_span(Context(trace_id=1, span_id=101))
+    _span_links.link_span(_info(101), None)
     _span_links.unregister_logical_span_provider(high_priority_provider)
-    _span_links.link_span(Context(trace_id=2, span_id=202))
+    _span_links.link_span(_info(202), None)
 
     assert linked == [
         (_span_links.SpanLinkDomain.ASYNCIO_TASK, 22, 101, 101, None),
@@ -97,8 +103,8 @@ def test_logical_detachment_does_not_clear_thread_link(monkeypatch: pytest.Monke
 
     _span_links.register_logical_span_provider(lambda: _target(_span_links.SpanLinkDomain.GEVENT_GREENLET, 33))
     _span_links.enable_span_linking()
-    _span_links.link_span(Context(trace_id=1, span_id=303))
-    _span_links.link_span(None)
+    _span_links.link_span(_info(303), None)
+    _span_links.link_span(None, None)
 
     assert linked == [(_span_links.SpanLinkDomain.GEVENT_GREENLET, 33, 303, 303, None)]
     assert cleared == [(_span_links.SpanLinkDomain.GEVENT_GREENLET, 33)]
@@ -112,7 +118,7 @@ def test_inherited_context_seeds_logical_span_for_current_generation(monkeypatch
     monkeypatch.setattr(_span_links.stack, "clear_logical_span", lambda *args: cleared.append(args))
 
     _span_links.enable_span_linking()
-    _span_links.link_span(Context(trace_id=1, span_id=701))
+    _span_links.link_span(_info(701), None)
     inherited_context = contextvars.copy_context()
     assert _span_links.link_logical_span_context(_span_links.SpanLinkDomain.ASYNCIO_TASK, 71, inherited_context)
 
@@ -133,7 +139,7 @@ def test_inherited_context_rejects_finished_span(monkeypatch: pytest.MonkeyPatch
 
     span = Span("test")
     _span_links.enable_span_linking()
-    _span_links.link_span(span)
+    _span_links.link_span(_info(span.span_id), span)
     inherited_context = contextvars.copy_context()
     span.finish()
 
@@ -147,7 +153,7 @@ def test_postfork_reset_invalidates_all_inherited_span_link_state(monkeypatch: p
     monkeypatch.setattr(_span_links.stack, "reset_span_links", lambda: resets.append(True))
 
     _span_links.enable_span_linking()
-    _span_links.link_span(Context(trace_id=1, span_id=701))
+    _span_links.link_span(_info(701), None)
     generation = _span_links._span_link_generation
     _span_links._reset_span_link_state()
 
@@ -162,11 +168,12 @@ def test_collector_postfork_reset_restores_active_span(monkeypatch: pytest.Monke
     tracer.context_provider.active.return_value = active
     calls = []
     monkeypatch.setattr(_span_links, "_reset_span_link_state", lambda: calls.append(("reset", None)))
-    monkeypatch.setattr(_span_links, "link_span", lambda span: calls.append(("link", span)))
+    monkeypatch.setattr(_asyncio, "link_existing_loop_to_current_thread", lambda: calls.append(("loop", None)))
+    monkeypatch.setattr(_span_links, "link_span", lambda info, source: calls.append(("link", info)))
 
     stack_collector.StackCollector(tracer=tracer)._child_after_fork()
 
-    assert calls == [("reset", None), ("link", active)]
+    assert calls == [("reset", None), ("loop", None), ("link", _info(701))]
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 12), reason="safe ContextVar setter is only needed before Python 3.12")

@@ -10,8 +10,10 @@ from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal import forksafe
+from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
+from ddtrace.profiling import _asyncio
 from ddtrace.profiling import _span_links
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
@@ -20,6 +22,28 @@ from ddtrace.trace import Tracer
 
 
 LOG = logging.getLogger(__name__)
+
+
+def _span_info(span: typing.Optional[typing.Union[Context, Span]]) -> typing.Optional[_span_links._SpanInfo]:
+    if isinstance(span, Span):
+        # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
+        # the new span, so read distributed local-root metadata from the parent Context.
+        if span._parent is None and span.parent_id is not None and span._parent_context is not None:
+            propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(span._parent_context)
+            local_root_span_id = propagated_root_span_id or span._local_root.span_id
+            local_root_span_type = propagated_root_span_type or span._local_root.span_type
+        else:
+            local_root_span_id = span._local_root.span_id
+            local_root_span_type = span._local_root.span_type
+        return _span_links._SpanInfo(span.span_id, local_root_span_id, local_root_span_type)
+    if isinstance(span, Context) and span.span_id is not None:
+        local_root_span_id, span_type = context_meta.read_profiler_link(span)
+        return _span_links._SpanInfo(span.span_id, local_root_span_id, span_type)
+    return None
+
+
+def _unlink_finished_span(span: Span) -> None:
+    _span_links.unlink_finished_span(span.span_id)
 
 
 class StackCollector(collector.Collector):
@@ -96,11 +120,11 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
-                core.on("trace.span_finish", _span_links._unlink_finished_span)
+                core.on("trace.span_finish", _unlink_finished_span)
                 _span_links.enable_span_linking()
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-                core.reset_listeners("trace.span_finish", _span_links._unlink_finished_span)
+                core.reset_listeners("trace.span_finish", _unlink_finished_span)
                 raise
             # Register after the tracer's fork hook so reset is followed by republishing its restored active context.
             forksafe.register(self._child_after_fork)
@@ -111,14 +135,15 @@ class StackCollector(collector.Collector):
         span: typing.Optional[typing.Union[Context, Span]],
     ) -> None:
         if self.tracer is not None and provider is self.tracer.context_provider:
-            _span_links.link_span(span)
+            _span_links.link_span(_span_info(span), span if isinstance(span, Span) else None)
 
     def _child_after_fork(self) -> None:
         _span_links._reset_span_link_state()
+        _asyncio.link_existing_loop_to_current_thread()
         if self.tracer is not None:
             active = self.tracer.context_provider.active()
             if active is not None:
-                _span_links.link_span(active)
+                self._link_span(self.tracer.context_provider, active)
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
@@ -137,7 +162,7 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             forksafe.unregister(self._child_after_fork)
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-            core.reset_listeners("trace.span_finish", _span_links._unlink_finished_span)
+            core.reset_listeners("trace.span_finish", _unlink_finished_span)
         _span_links.disable_span_linking()
         LOG.debug("Profiling StackCollector stopped")
 

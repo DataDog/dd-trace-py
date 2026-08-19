@@ -54,7 +54,7 @@ def _ensure_task_span_finalizer(task: asyncio.Task[typing.Any]) -> bool:
     finalizer.atexit = False
     _task_span_finalizers[task_id] = finalizer
     try:
-        task.add_done_callback(lambda _: finalizer())
+        task.add_done_callback(lambda _: finalizer(), context=contextvars.Context())
     except Exception:
         _task_span_finalizers.pop(task_id, None)
         finalizer.detach()
@@ -248,6 +248,8 @@ def _(asyncio: ModuleType) -> None:
         # Asyncio tasks take precedence over gevent when both schedulers run on one physical thread.
         _span_links.register_logical_span_provider(_current_task_span_target, priority=20)
 
+        # ponytail: Direct asyncio.Task(...) construction bypasses loop APIs; add a native construction hook if this
+        # discouraged path needs attribution without adding overhead to every event-loop callback.
         base_event_loop_class = sys.modules["asyncio.base_events"].BaseEventLoop
 
         @partial(wrap, base_event_loop_class.run_forever)
