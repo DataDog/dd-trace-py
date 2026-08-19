@@ -136,10 +136,9 @@ MICROVM_RUN_HOOK_METHOD = "POST"
 MICROVM_RUN_HOOK_PATH = "/aws/lambda-microvms/runtime/v1/run"
 
 # Same env var #18017 uses to detect a MicroVM at runtime (rand64bits() OS-entropy fallback).
-# Read once at import, like that fix does, so maybe_refresh_identity() is a single cached
-# comparison off the hot request path everywhere else, and a true no-op outside a MicroVM --
-# this exact method+path is otherwise just an unauthenticated trigger on every ddtrace user's
-# request-dispatch path, MicroVM or not.
+# Read once at import, like that fix does, so listener registration is skipped outside a
+# MicroVM. This exact method+path is otherwise just an unauthenticated trigger on every
+# ddtrace user's request-dispatch path, MicroVM or not.
 _IS_AWS_LAMBDA_MICROVM = env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN") is not None
 # Multiple instrumented request layers can observe the same MicroVM /run hook
 # (for example, Werkzeug's http.server layer plus Flask). Refresh identity once
@@ -150,22 +149,24 @@ _IDENTITY_REFRESH_HOOK_REFRESH_LOCK = threading.Lock()
 
 def listen_for_identity_refresh_hooks() -> None:
     """Refresh MicroVM identity from request events emitted before root span creation."""
+    if not _IS_AWS_LAMBDA_MICROVM:
+        return
     core.on(core.WEB_REQUEST_STARTING, maybe_refresh_identity)
 
 
 def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
     """Call refresh_identity() if this request is the AWS Lambda MicroVM "/run" hook.
 
-    Called from every instrumented web framework's request-dispatch patch with that
-    request's method and path, so the platform-defined hook path only needs to be
-    matched in one place. A no-op outside a MicroVM (see _IS_AWS_LAMBDA_MICROVM).
+    Called from every instrumented web framework's request-dispatch patch in a MicroVM
+    with that request's method and path, so the platform-defined hook path only needs
+    to be matched in one place.
     ``method``/``path`` may be ``None`` -- some callers read them straight off a raw
     request/environ mapping (e.g. ``environ.get("REQUEST_METHOD")``) that has no guarantee
     either key is present.
     """
     if not method or not path:
         return
-    if not _IS_AWS_LAMBDA_MICROVM or method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
+    if method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
         return
 
     with _IDENTITY_REFRESH_HOOK_REFRESH_LOCK:

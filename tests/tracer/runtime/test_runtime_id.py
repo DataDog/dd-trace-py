@@ -429,14 +429,16 @@ def test_maybe_refresh_identity_ignores_other_requests():
 
 
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None}, err=None)
-def test_maybe_refresh_identity_noop_outside_microvm():
-    """Without the MicroVM env var, this method+path is otherwise just an unauthenticated
-    trigger reachable on every ddtrace user's request-dispatch path -- it must be a no-op.
-    """
+def test_listen_for_identity_refresh_hooks_noop_outside_microvm():
+    """Outside a MicroVM, do not register the request-event listener."""
+    from ddtrace.internal import core
     import ddtrace.internal.runtime as runtime
+
+    core.reset_listeners(core.WEB_REQUEST_STARTING)
+    runtime.listen_for_identity_refresh_hooks()
 
     runtime_id = runtime.get_runtime_id()
 
-    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+    core.dispatch(core.WEB_REQUEST_STARTING, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH))
 
     assert runtime.get_runtime_id() == runtime_id
