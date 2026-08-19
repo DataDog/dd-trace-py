@@ -1501,11 +1501,18 @@ def test_otel_semantics_error_statuses_defaults():
 
     # server: only 5xx
     assert tag(SpanTypes.WEB, 404) == (0, None)
+    assert tag(SpanTypes.WEB, 499) == (0, None)
     assert tag(SpanTypes.WEB, 500) == (1, "500")
     # client: 4xx and 5xx, which is where OTel diverges from the Datadog default
+    assert tag(SpanTypes.HTTP, 399) == (0, None)
     assert tag(SpanTypes.HTTP, 404) == (1, "404")
     assert tag(SpanTypes.HTTP, 503) == (1, "503")
     assert tag(SpanTypes.HTTP, 302) == (0, None)
+    # "any other code the client failed to interpret" is an error for both kinds, so neither
+    # range closes at 599.
+    for status_code in (599, 600, 999):
+        assert tag(SpanTypes.WEB, status_code) == (1, str(status_code))
+        assert tag(SpanTypes.HTTP, status_code) == (1, str(status_code))
 
 
 @pytest.mark.subprocess(
@@ -1527,6 +1534,11 @@ def test_otel_semantics_server_error_statuses_configured():
 
     span = Span("web.request", span_type=SpanTypes.WEB)
     set_http_meta(span, cfg.myint, status_code=500)
+    assert span.error == 0
+
+    # A configured range is used as given, so it also closes the open end above 599.
+    span = Span("web.request", span_type=SpanTypes.WEB)
+    set_http_meta(span, cfg.myint, status_code=600)
     assert span.error == 0
 
 
