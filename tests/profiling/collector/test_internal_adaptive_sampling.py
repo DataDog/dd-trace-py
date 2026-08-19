@@ -13,7 +13,6 @@ import pytest
 )
 def test_internal_adaptive_sampling():
     import asyncio
-    import glob
     import json
     import os
     import time
@@ -22,6 +21,7 @@ def test_internal_adaptive_sampling():
     from ddtrace import ext
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     sleep_time = 0.2
     loop_run_time = 4
@@ -52,7 +52,7 @@ def test_internal_adaptive_sampling():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
 
     # With adaptive sampling enabled, the sampling interval can grow up to 1 second
     # (g_max_sampling_period_us). Since the upload interval is also 1 second, the

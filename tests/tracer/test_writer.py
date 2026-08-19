@@ -1241,6 +1241,37 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_not_called()
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_TAGS": "team:apm,tier:backend,service:ignored,env:ignored,version:ignored,runtime_id:ignored",
+        "DD_TRACE_STATS_ADDITIONAL_TAGS": "customer.tier,region",
+    }
+)
+def test_otlp_metric_tags_configured():
+    from unittest import mock
+
+    from ddtrace.internal import native
+    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+
+    mock_builder = mock.Mock()
+    for method_name in [
+        "set_url",
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_client_computed_top_level",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
+        _build_base_exporter_builder("http://localhost:8126", None, False, False, True)
+
+    mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
+    mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
+
+
 class TestSafelog:
     """Tests for the _safelog function that handles closed I/O streams gracefully."""
 
