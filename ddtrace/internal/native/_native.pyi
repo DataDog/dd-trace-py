@@ -174,6 +174,14 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    def register_context_watcher() -> bool:
+        """Register the Python context watcher if a watcher slot is available."""
+        ...
+    def is_context_watcher_registered() -> bool:
+        """Return whether the Python context watcher is registered."""
+        ...
+
 if sys.platform == "linux":
     def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
@@ -640,6 +648,9 @@ class TraceExporterBuilder:
         :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
         """
         ...
+    def set_tracer_tags(self, tracer_tags: list[str]) -> TraceExporterBuilder:
+        """Set tracer tags on the OTLP metrics resource."""
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -707,6 +718,10 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def set_additional_metric_tag_keys(self, tag_keys: list[str]) -> TraceExporterBuilder:
+        """Set span tag keys included in computed stats."""
+        ...
 
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """
@@ -1027,6 +1042,8 @@ class SpanData:
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    @property
+    def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...

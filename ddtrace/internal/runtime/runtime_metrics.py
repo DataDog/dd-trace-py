@@ -8,6 +8,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
+from ddtrace.vendor.dogstatsd.base import ENTITY_ID_TAG_NAME
 
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
@@ -99,6 +100,13 @@ class RuntimeWorker(periodic.PeriodicService):
             self._platform_tags = self._format_tags(PlatformTags())
 
         self._process_tags: list[str] = list(ProcessTags())
+        # Only dd.internal.entity_id needs preserving here: service/env/version are already
+        # refreshed fresh every flush via TracerTags(), so keeping them too would risk sending a
+        # stale value alongside the current one.
+        entity_id_prefix = ENTITY_ID_TAG_NAME + ":"
+        self._client_constant_tags: list[str] = [
+            tag for tag in (self._dogstatsd_client.constant_tags or []) if tag.startswith(entity_id_prefix)
+        ]
 
     @classmethod
     def disable(cls) -> None:
@@ -138,8 +146,11 @@ class RuntimeWorker(periodic.PeriodicService):
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
-        log.debug("Sending runtime metrics with the following tags: %s", runtime_tags)
-        self._dogstatsd_client.constant_tags = runtime_tags
+        # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
+        # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
+        constant_tags = list(dict.fromkeys(self._client_constant_tags + runtime_tags))
+        log.debug("Sending runtime metrics with the following tags: %s", constant_tags)
+        self._dogstatsd_client.constant_tags = constant_tags
 
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:

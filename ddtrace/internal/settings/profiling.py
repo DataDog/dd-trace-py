@@ -74,6 +74,14 @@ def _check_for_stack_available() -> tuple[str, bool]:
     return (stack.failure_msg, stack.is_available)
 
 
+def _check_for_native_heap_available() -> tuple[str, bool]:
+    # Importing heap_gotter dlopen's the gotter cdylib but does NOT install
+    # anything; installation is an explicit, separate call. Import never raises.
+    from ddtrace.internal.datadog.profiling import heap_gotter
+
+    return (heap_gotter.failure_msg, heap_gotter.is_available)
+
+
 def _injection_enabled_has_profiler() -> bool:
     """Return True if DD_INJECTION_ENABLED contains the 'profiler' token."""
     injection_enabled = env.get("DD_INJECTION_ENABLED")
@@ -385,6 +393,19 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    max_tasks = DDConfig.v(
+        int,
+        "max_tasks",
+        default=50,
+        validator=validators.range(0, 1000),
+        help_type="Integer",
+        help=(
+            "Maximum number of leaf asyncio tasks/greenlets to sample per cycle. "
+            "Uses reservoir sampling when exceeded. 0 = unlimited."
+        ),
+        private=True,
+    )
+
     uvloop = DDConfig.v(
         bool,
         "uvloop",
@@ -527,6 +548,22 @@ class ProfilingConfigHeap(DDConfig):
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 
 
+class ProfilingConfigNativeHeap(DDConfig):
+    __item__ = __prefix__ = "native_heap"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to enable experimental native (C/C++) heap profiling. "
+            "Requires DD_PROFILING_ENABLED=true, Linux, and a wheel built with "
+            "DD_PROFILING_NATIVE_HEAP_ENABLED=1. Disabled by default."
+        ),
+    )
+
+
 def _validate_non_negative_int(value: int) -> None:
     if value < 0:
         raise ValueError("value must be non negative")
@@ -605,6 +642,7 @@ ProfilingConfig.include(ProfilingConfigStack, namespace="stack")
 ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
+ProfilingConfig.include(ProfilingConfigNativeHeap, namespace="native_heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
@@ -655,6 +693,20 @@ exception_failure_msg, exception_is_available = _check_for_exception_available()
 if not exception_is_available and config.exception.enabled:
     config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
+# Native heap profiling only arms USDT probes via the gotter cdylib.
+# Check availability lazily (only when requested) so the common disabled path
+# never dlopen's the gotter library. Disable the feature if it can't be loaded.
+if config.native_heap.enabled:
+    native_heap_failure_msg, native_heap_is_available = _check_for_native_heap_available()
+    if not native_heap_is_available:
+        msg = native_heap_failure_msg or "native heap gotter not available"
+        logger.warning("Native heap profiling requested but unavailable (%s), disabling", msg)
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            f"Native heap profiling requested but unavailable ({msg}), disabling",
+        )
+        config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
 # Report configuration after all availability overrides so telemetry
 # reflects the effective state.
 report_configuration(config)
@@ -676,6 +728,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("mem")
     if config.heap.sample_size > 0:
         configured_features.append("heap")
+    if config.native_heap.enabled:
+        configured_features.append("nativeheap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
     if config.exception.enabled:
