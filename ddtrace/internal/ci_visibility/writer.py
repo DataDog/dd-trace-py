@@ -15,10 +15,10 @@ from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 from ddtrace.version import __version__
 
 from .. import service
-from .._identity import get_runtime_id
 from ..evp_proxy.constants import EVP_PROXY_AGENT_ENDPOINT
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_COVERAGE_VALUE
 from ..evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
 from .constants import AGENTLESS_BASE_URL

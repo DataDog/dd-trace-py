@@ -9,8 +9,6 @@ import uuid
 import ddtrace
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
-from ddtrace.internal._identity import get_runtime_id
-from ddtrace.internal._identity import on_runtime_id_change
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
@@ -18,6 +16,8 @@ from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer

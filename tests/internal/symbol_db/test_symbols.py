@@ -534,7 +534,7 @@ def test_symbols_identity_refresh_updates_runtime_id():
     """
     import typing as t
 
-    from ddtrace.internal import _identity as runtime
+    import ddtrace.internal.runtime as runtime
     from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
     SymbolDatabaseUploader.install()

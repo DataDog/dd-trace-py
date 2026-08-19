@@ -106,8 +106,8 @@ def test_crashtracker_identity_refresh_reconfigures_metadata():
 
     import mock
 
-    from ddtrace.internal import _identity as runtime
     from ddtrace.internal.core import crashtracking
+    import ddtrace.internal.runtime as runtime
 
     init_args = (object(), object(), object())
     refresh_args = (object(), object(), object())
