@@ -50,7 +50,7 @@ notify_datadog_release:
   image: ${PYPI_PUBLISH_IMAGE}
   id_tokens:
     DD_STS_OIDC_TOKEN:
-      aud: rapid-seceng-sit
+      aud: dd-sts
   tags: [ "arch:amd64" ]
   before_script:
     - apt-get update && apt-get install --no-install-recommends -y curl jq
