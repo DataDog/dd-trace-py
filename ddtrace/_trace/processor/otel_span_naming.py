@@ -38,6 +38,18 @@ RESOURCE_SET_BY_USER = "_dd.resource_set_by_user"
 RESOURCE_SET_BY_OTEL = "_dd.resource_set_by_otel"
 
 
+def otel_http_resource(method: str, target: Optional[str]) -> str:
+    """Compose the OTel HTTP resource from a normalized method and an optional target.
+
+    Shared with the integrations that resolve their target early enough to name the span
+    before sampling. Both paths must produce the same string: `before_sampling` tells its own
+    value apart from a user-set resource by comparing them, so any drift here would make the
+    processor mistake its own name for a user's and stop renaming.
+    """
+    method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
+    return f"{method_token} {target}" if target else method_token
+
+
 class OtelSpanNamingProcessor(SpanProcessor):
     """Derive the HTTP span name from the span's own attributes under OTel semantics.
 
@@ -119,9 +131,7 @@ class OtelSpanNamingProcessor(SpanProcessor):
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
             return
 
-        method_token = _UNKNOWN_METHOD_SPAN_NAME if method == _UNKNOWN_METHOD else method
-        target = self._target(span)
-        resource = f"{method_token} {target}" if target else method_token
+        resource = otel_http_resource(method, self._target(span))
         span.resource = resource
         span._set_ctx_item(RESOURCE_SET_BY_OTEL, resource)
 

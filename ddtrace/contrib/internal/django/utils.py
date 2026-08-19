@@ -2,6 +2,7 @@ import io
 import json
 from typing import Any  # noqa:F401
 from typing import Mapping  # noqa:F401
+from typing import Optional
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 import uuid
@@ -13,10 +14,12 @@ from wrapt import FunctionWrapper
 from ddtrace import config
 from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
 from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_USER
+from ddtrace._trace.processor.otel_span_naming import otel_http_resource
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
 from ddtrace.contrib.internal.django.compat import user_is_authenticated
+from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
 from ddtrace.internal import compat
@@ -249,6 +252,25 @@ def _set_resolver_tags(pin, span, request):
             # otherwise recomputes the name from the span's attributes and would undo the
             # user's choice under DD_TRACE_OTEL_SEMANTICS_ENABLED.
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
+
+
+def _early_otel_route_and_resource(request: Any) -> tuple[Optional[str], Optional[str]]:
+    """Resolve the low-cardinality Django route before child propagation samples the trace."""
+    if not config._otel_trace_semantics_enabled:
+        return None, None
+
+    try:
+        resolver = get_resolver(getattr(request, "urlconf", None))
+        resolver_match = resolver.resolve(request.path_info)
+        route = get_django_2_route(request, resolver_match) if DJANGO22 else None
+    except Resolver404:
+        return None, None
+
+    if not route:
+        return None, None
+
+    normalized_method, _ = _normalize_http_method(request.method)
+    return route, otel_http_resource(normalized_method, route)
 
 
 def _before_request_tags(pin, span, request):
