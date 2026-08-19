@@ -19,6 +19,7 @@ from ddtrace.contrib.internal.futures.patch import patch as futures_patch
 from ddtrace.contrib.internal.futures.patch import unpatch as futures_unpatch
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack as stack_module
+from ddtrace.profiling import _span_links
 from ddtrace.profiling.collector import stack
 from ddtrace.trace import Tracer
 from tests.profiling.collector import pprof_utils
@@ -39,17 +40,17 @@ def patch_futures():
 
 @pytest.fixture
 def span_linking_enabled():
-    was_enabled = stack_module._span_linking_enabled
-    generation = stack_module._span_link_generation
-    active_span_link = stack_module._active_span_link.get()
-    stack_module.enable_span_linking()
+    was_enabled = _span_links._span_linking_enabled
+    generation = _span_links._span_link_generation
+    active_span_link = _span_links._active_span_link.get()
+    _span_links.enable_span_linking()
     try:
         yield
     finally:
-        stack_module.disable_span_linking()
-        stack_module._span_linking_enabled = was_enabled
-        stack_module._span_link_generation = generation
-        stack_module._set_active_span_link(active_span_link)
+        _span_links.disable_span_linking()
+        _span_links._span_linking_enabled = was_enabled
+        _span_links._span_link_generation = generation
+        _span_links._set_active_span_link(active_span_link)
 
 
 def test_link_span_plain_context_uses_span_id_as_local_root(
@@ -60,9 +61,9 @@ def test_link_span_plain_context_uses_span_id_as_local_root(
         pytest.skip("stack profiler not available")
 
     calls = []
-    monkeypatch.setattr(stack_module._stack, "link_span", lambda *args: calls.append(args))
+    monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
-    stack_module.link_span(ctx)
+    _span_links.link_span(ctx)
 
     assert calls == [(456, 456, None)]
 
@@ -75,10 +76,10 @@ def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, 
         pytest.skip("stack profiler not available")
 
     calls = []
-    monkeypatch.setattr(stack_module._stack, "link_span", lambda *args: calls.append(args))
+    monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
     context_meta.attach_profiler_link(ctx, local_root_span_id=789, span_type="web")
-    stack_module.link_span(ctx)
+    _span_links.link_span(ctx)
 
     assert calls == [(456, 789, "web")]
 

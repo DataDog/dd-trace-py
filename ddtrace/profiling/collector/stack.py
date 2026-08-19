@@ -12,6 +12,7 @@ from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
+from ddtrace.profiling import _span_links
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
@@ -95,11 +96,11 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
-                core.on("trace.span_finish", stack._unlink_finished_span)
-                stack.enable_span_linking()
+                core.on("trace.span_finish", _span_links._unlink_finished_span)
+                _span_links.enable_span_linking()
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-                core.reset_listeners("trace.span_finish", stack._unlink_finished_span)
+                core.reset_listeners("trace.span_finish", _span_links._unlink_finished_span)
                 raise
             # Register after the tracer's fork hook so reset is followed by republishing its restored active context.
             forksafe.register(self._child_after_fork)
@@ -110,14 +111,14 @@ class StackCollector(collector.Collector):
         span: typing.Optional[typing.Union[Context, Span]],
     ) -> None:
         if self.tracer is not None and provider is self.tracer.context_provider:
-            stack.link_span(span)
+            _span_links.link_span(span)
 
     def _child_after_fork(self) -> None:
-        stack._reset_span_link_state()
+        _span_links._reset_span_link_state()
         if self.tracer is not None:
             active = self.tracer.context_provider.active()
             if active is not None:
-                stack.link_span(active)
+                _span_links.link_span(active)
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
@@ -136,8 +137,8 @@ class StackCollector(collector.Collector):
         if self.tracer is not None:
             forksafe.unregister(self._child_after_fork)
             core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
-            core.reset_listeners("trace.span_finish", stack._unlink_finished_span)
-        stack.disable_span_linking()
+            core.reset_listeners("trace.span_finish", _span_links._unlink_finished_span)
+        _span_links.disable_span_linking()
         LOG.debug("Profiling StackCollector stopped")
 
         # Tell the native thread running the v2 sampler to stop
