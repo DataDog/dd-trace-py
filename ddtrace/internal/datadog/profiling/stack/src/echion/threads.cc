@@ -667,13 +667,22 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
         if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
             return;
 
+        snapshots.reserve(greenlet_info_map.size());
+
         std::unordered_set<GreenletInfo::ID> parent_greenlets;
+        parent_greenlets.reserve(greenlet_parent_map.size());
 
         // Collect all parent greenlets
         std::transform(greenlet_parent_map.cbegin(),
                        greenlet_parent_map.cend(),
                        std::inserter(parent_greenlets, parent_greenlets.begin()),
                        [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
+
+        // Reuse visited set for cycle detection across all leaf greenlets to minimize allocations
+        // The limit here is arbitrary, but it should be more than enough for most use cases.
+        const size_t MAX_GREENLET_DEPTH = 512;
+        std::unordered_set<GreenletInfo::ID> visited;
+        visited.reserve(MAX_GREENLET_DEPTH);
 
         // Snapshot the leaf greenlets and precompute their parent chains
         for (auto& [gid, greenlet] : greenlet_info_map) {
@@ -690,10 +699,8 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
 
             // Precompute parent chain while we still hold the lock
             auto current_id = gid;
-            std::unordered_set<GreenletInfo::ID> visited;
-            // The limit here is arbitrary, but it should be more than enough for
-            // most use cases.
-            const size_t MAX_GREENLET_DEPTH = 512;
+            visited.clear();
+
             // Safety: prevent infinite loops from cycles or corrupted parent maps
             for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
                 // Check for cycles
