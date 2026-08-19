@@ -48,6 +48,9 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.native import HttpIoError
+from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
@@ -73,7 +76,14 @@ _SKIPPABLE_ITEM_ID_TYPE = t.Union[TestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = dict[str, t.Union[str, dict[str, str]]]
 _KNOWN_TESTS_TYPE = set[TestId]
 
-_NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
+_NETWORK_ERRORS = (
+    TimeoutError,
+    socket.timeout,
+    RemoteDisconnected,
+    ConnectionFailedError,
+    TimedOutError,
+    HttpIoError,
+)
 
 _RETRIABLE_ERRORS = (*_NETWORK_ERRORS, CIVisibilityAPIServerError)
 
