@@ -723,10 +723,11 @@ class LLMObs(Service):
                 # Built here rather than when the annotation ran, so a context wrapping many spans
                 # pays for the agent spans among them instead of all of them. Runs before
                 # llmobs_meta is read below, so the manifest is in place when the user processor's
-                # metadata is folded back in. A manifest an integration already built is replaced:
-                # the caller declared this one by hand.
+                # metadata is folded back in.
                 agent_manifest = build_manual_agent_manifest(declared_agent)
                 if agent_manifest:
+                    # dict() rather than a cast: the consumer takes a plain mapping, and a TypedDict
+                    # is not assignable to dict[str, Any] because a dict value is invariant.
                     _annotate_llmobs_span_data(span, agent_manifest=dict(agent_manifest))
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
@@ -1939,15 +1940,13 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param name: set to override the span name for any spans annotated within the returned context.
-        :param agent: A dictionary declaring the agent running in this context, of the form
-                      `{"version": "...", "name": "...", "instructions": "...", "model": "...",
-                      "model_settings": {"temperature": 0.1}, "tools": [{"name": "...",
-                      "description": "...", "parameters": {"city": {"type": "string",
-                      "required": True}}}]}`. Can also be set using the ``ddtrace.llmobs.Agent``
-                      class. ``version`` is set as an ``agent_version`` tag and the remaining keys
-                      as the agent's manifest, both on agent spans created within the context;
-                      other span kinds are unaffected. Every key is optional, and a value that
-                      cannot be reported is dropped rather than raising.
+        :param agent: A dictionary declaring the agent running in this context, accepting
+                      ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
+                      ``tools``. Can also be set using the ``ddtrace.llmobs.Agent`` class, which
+                      documents the full shape. ``version`` is set as an ``agent_version`` tag and
+                      the remaining keys as the agent's manifest, both on agent spans created
+                      within the context; other span kinds are unaffected. Every key is optional,
+                      and a value that cannot be reported is dropped rather than raising.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2997,14 +2996,12 @@ class LLMObs(Service):
                                    and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
-        :param agent: A dictionary declaring the agent this span represents, of the form
-                      `{"version": "...", "name": "...", "instructions": "...", "model": "...",
-                      "model_settings": {"temperature": 0.1}, "tools": [{"name": "...",
-                      "description": "...", "parameters": {"city": {"type": "string",
-                      "required": True}}}]}`. Can also be set using the ``ddtrace.llmobs.Agent``
-                      class. ``version`` is set as an ``agent_version`` tag and the remaining keys
-                      as the agent's manifest, both only on agent spans. Every key is optional, and
-                      a value that cannot be reported is dropped rather than raising.
+        :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
+                      ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``. Can
+                      also be set using the ``ddtrace.llmobs.Agent`` class, which documents the
+                      full shape. ``version`` is set as an ``agent_version`` tag and the remaining
+                      keys as the agent's manifest, both only on agent spans. Every key is
+                      optional, and a value that cannot be reported is dropped rather than raising.
         """
         error = None
         try:

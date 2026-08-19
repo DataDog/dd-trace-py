@@ -917,6 +917,33 @@ class TestManualAgentManifest:
             }
         ]
 
+    def test_tool_parameter_type_is_string_only(self):
+        """wire_value coerces rather than drops, so an ungated type ships whatever the caller set.
+
+        A nested mapping survives it intact, which is how a declared type could carry arbitrary
+        caller data into the manifest.
+        """
+        manifest = build_manual_agent_manifest(
+            {
+                "tools": [
+                    {
+                        "name": "book",
+                        "parameters": {
+                            "city": {"type": "string"},
+                            "count": {"type": 123},
+                            "blob": {"type": {"secret": "hunter2"}},
+                            "flag": {"type": True, "required": True},
+                        },
+                    }
+                ]
+            }
+        )
+
+        assert manifest["tools"] == [
+            {"name": "book", "parameters": {"city": {"type": "string"}, "flag": {"required": True}}}
+        ]
+        assert "hunter2" not in safe_json(manifest)
+
     def test_tool_parameters_that_cannot_ship_are_dropped(self):
         """An unencodable value does not fail politely: the encoder reprs it into the payload."""
         manifest = build_manual_agent_manifest(

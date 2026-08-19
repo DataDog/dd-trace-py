@@ -21,8 +21,7 @@ log = get_logger(__name__)
 MANUAL_FRAMEWORK_NAME = "LLMObs SDK"
 
 # The keys build_manual_agent_manifest reads. The annotation path checks this before holding on to
-# a caller's mapping, so an agent declaring only a version costs nothing. Adding a key to a section
-# below means adding it here too, which test_manual_manifest_keys_match_the_builder enforces.
+# a caller's mapping, so an agent declaring only a version costs nothing.
 MANUAL_MANIFEST_KEYS = frozenset({"name", "instructions", "model", "model_settings", "tools"})
 
 
@@ -178,9 +177,7 @@ def build_manual_agent_manifest(agent: Any) -> AgentManifest:
     type and unreportable values are dropped rather than raised. Sections are built independently so
     one malformed field cannot blank the rest.
 
-    Never raises. This runs while the span event is being assembled, where the only handler catches
-    KeyError, TypeError and ValueError and drops the whole event, so a caller's malformed mapping
-    would otherwise cost the span rather than just its manifest.
+    Never raises: the caller of this path drops the whole span event on an exception.
     """
     if not isinstance(agent, dict):
         return {}
@@ -188,7 +185,7 @@ def build_manual_agent_manifest(agent: Any) -> AgentManifest:
     for name, section in (
         ("labels", _manual_labels),
         ("model", _manual_model),
-        ("capabilities", _manual_tools),
+        ("tools", _manual_tools),
     ):
         try:
             manifest.update(section(agent))
@@ -277,7 +274,11 @@ def _manual_tool_parameters(parameters: Any) -> dict[str, Any]:
     for param, spec in parameters.items():
         entry: dict[str, Any] = {}
         if isinstance(spec, dict):
-            entry["type"] = spec.get("type")
+            # str-only for the reason given on _manual_labels: wire_value coerces a non-str rather
+            # than dropping it, so an int or a whole nested mapping would otherwise ship as the type.
+            declared_type = spec.get("type")
+            if isinstance(declared_type, str):
+                entry["type"] = declared_type
             # Omitted rather than false, so a required parameter is the only one carrying the key
             # and the shape matches what the auto path emits.
             if spec.get("required") is True:
