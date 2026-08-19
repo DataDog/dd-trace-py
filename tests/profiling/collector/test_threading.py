@@ -1972,23 +1972,27 @@ class TestGenericLockProfiling(LockCollectorTestBase):
 
     def test_lock_profiling_overhead_reasonable(self) -> None:
         """Test that profiling overhead with 0% capture is bounded."""
-        # Measure without profiling (collector stopped)
-        regular_lock: LockTypeInst = self.lock_class()
-        start: float = time.perf_counter()
         iterations: int = 10000  # More iterations for stable measurement
-        for _ in range(iterations):
-            regular_lock.acquire()
-            regular_lock.release()
-        regular_time: float = time.perf_counter() - start
+        repeats: int = 3
+
+        def time_acquire_release(lock: LockTypeInst) -> float:
+            start: float = time.process_time()
+            for _ in range(iterations):
+                lock.acquire()
+                lock.release()
+            return time.process_time() - start
+
+        def best_time(lock: LockTypeInst) -> float:
+            # warm up run first
+            time_acquire_release(lock)
+            return min(time_acquire_release(lock) for _ in range(repeats))
+
+        # Measure without profiling (collector stopped)
+        regular_time: float = best_time(self.lock_class())
 
         # Measure with profiling at 0% capture (should skip profiling logic)
         with self.collector_class(capture_pct=0):
-            profiled_lock: LockTypeInst = self.lock_class()
-            start = time.perf_counter()
-            for _ in range(iterations):
-                profiled_lock.acquire()
-                profiled_lock.release()
-            profiled_time_zero: float = time.perf_counter() - start
+            profiled_time_zero: float = best_time(self.lock_class())
 
         # With 0% capture, there's still wrapper overhead but should be reasonable
         # This is a smoke test to catch egregious performance issues, not a precise benchmark
