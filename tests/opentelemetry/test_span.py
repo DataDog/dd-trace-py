@@ -297,13 +297,18 @@ def test_otel_get_span_context_with_default_trace_state(oteltracer):
 
 
 @pytest.mark.parametrize(("sampling_priority", "expected_flags"), [(0, 0x2), (1, 0x3)])
-def test_otel_get_span_context_preserves_inherited_random_trace_id_flag(oteltracer, sampling_priority, expected_flags):
+@pytest.mark.parametrize(("version", "future_fields"), [("00", ""), ("01", "-what-the-future-looks-like")])
+def test_otel_get_span_context_preserves_inherited_random_trace_id_flag(
+    oteltracer, sampling_priority, expected_flags, version, future_fields
+):
     otelspan = oteltracer.start_span("otel-server")
     context = otelspan._ddspan.context
     context.sampling_priority = sampling_priority
-    context._meta[W3C_TRACEPARENT_KEY] = "00-{:032x}-{:016x}-03".format(
+    context._meta[W3C_TRACEPARENT_KEY] = "{}-{:032x}-{:016x}-03{}".format(
+        version,
         context.trace_id,
         context.span_id,
+        future_fields,
     )
     context._meta[W3C_TRACESTATE_KEY] = "ot=th:8"
 

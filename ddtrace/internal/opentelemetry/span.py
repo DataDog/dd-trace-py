@@ -66,7 +66,7 @@ def _ddmap(span, attribute, value):
 def _get_trace_flags(sampling_priority, traceparent=None):
     # type: (Optional[NumericType], Optional[str]) -> TraceFlags
     """Return the sampled flag while preserving inherited trace-ID randomness."""
-    trace_flags = int(traceparent.rsplit("-", 1)[-1], 16) & 0x2 if traceparent else 0
+    trace_flags = int(traceparent.split("-")[3], 16) & 0x2 if traceparent else 0
     if sampling_priority is not None and sampling_priority > 0:
         trace_flags |= 0x1
     return TraceFlags(trace_flags)

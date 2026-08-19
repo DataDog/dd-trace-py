@@ -1,3 +1,6 @@
+from concurrent.futures import ThreadPoolExecutor
+from threading import Event
+
 import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
@@ -6,6 +9,8 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
+from ddtrace.internal.otel_sampling import OtelSamplingState
+from ddtrace.internal.sampling import _set_sampling_tags
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 
@@ -26,6 +31,43 @@ def test_otel_sampling_state_is_allocated_lazily():
     context._otel_sampling_state.set_probabilistic_decision(0.1)
 
     assert context._otel_sampling_state_data is not None
+
+
+def test_sampling_priority_is_published_after_otel_state(monkeypatch):
+    span = Span("test", trace_id=1, span_id=1)
+    otel_sampling_state = span.context._otel_sampling_state
+    state_update_started = Event()
+    allow_state_update = Event()
+    original_set_probabilistic_decision = OtelSamplingState.set_probabilistic_decision
+
+    def blocking_set_probabilistic_decision(state, sample_rate):
+        state_update_started.set()
+        assert allow_state_update.wait(2)
+        original_set_probabilistic_decision(state, sample_rate)
+
+    monkeypatch.setattr(OtelSamplingState, "set_probabilistic_decision", blocking_set_probabilistic_decision)
+
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        sampling = executor.submit(
+            _set_sampling_tags,
+            span,
+            True,
+            0.1,
+            SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        )
+        assert state_update_started.wait(2)
+        lock_acquired = span.context._lock.acquire(False)
+        if lock_acquired:
+            span.context._lock.release()
+        try:
+            assert span.context.sampling_priority is None
+            assert lock_acquired is False
+        finally:
+            allow_state_update.set()
+        sampling.result()
+
+    assert span.context.sampling_priority == USER_KEEP
+    assert otel_sampling_state.sample_rate == 0.1
 
 
 @pytest.mark.parametrize(
