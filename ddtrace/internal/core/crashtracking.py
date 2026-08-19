@@ -12,6 +12,7 @@ from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal._identity import get_runtime_id
+from ddtrace.internal._identity import on_runtime_id_change
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
@@ -33,12 +34,20 @@ try:
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
+    from ddtrace.internal.native._native import crashtracker_reconfigure
     from ddtrace.internal.native._native import crashtracker_report_unhandled_exception
     from ddtrace.internal.native._native import crashtracker_status
 
     is_available = True
 except ImportError:  # pragma: no cover
     is_available = False
+
+
+_identity_refresh_additional_tags: Optional[dict[str, str]] = None
+
+
+def _on_identity_refresh(_new_runtime_id: str) -> None:
+    _reconfigure_for_identity_refresh(_identity_refresh_additional_tags)
 
 
 def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
@@ -211,7 +220,20 @@ def is_started() -> bool:
     return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
+def _reconfigure_for_identity_refresh(additional_tags: Optional[dict[str, str]]) -> None:
+    if not is_started():
+        return
+
+    config, receiver_config, metadata = _get_args(additional_tags)
+    if config is None or receiver_config is None or metadata is None:
+        log.error("Failed to reconfigure crashtracker after identity refresh: failed to construct configuration")
+        return
+    crashtracker_reconfigure(config, receiver_config, metadata)
+
+
 def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
+    global _identity_refresh_additional_tags
+
     if not is_available:
         return False
     if not crashtracker_config.enabled:
@@ -256,6 +278,8 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             crashtracker_on_fork(config, receiver_config, metadata)
 
         forksafe.register(crashtracker_fork_handler)
+        _identity_refresh_additional_tags = additional_tags
+        on_runtime_id_change(_on_identity_refresh)
     except Exception:
         log.exception("Failed to start crashtracker")
         return False

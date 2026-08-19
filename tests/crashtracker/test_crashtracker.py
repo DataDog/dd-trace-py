@@ -99,6 +99,46 @@ def test_crashtracker_started():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess(err=None)
+@pytest.mark.parametrize("auto_enable_crashtracking", [False])
+def test_crashtracker_identity_refresh_reconfigures_metadata():
+    from contextlib import ExitStack
+
+    import mock
+
+    from ddtrace.internal import _identity as runtime
+    from ddtrace.internal.core import crashtracking
+
+    init_args = (object(), object(), object())
+    refresh_args = (object(), object(), object())
+    tags = {"service": "identity-refresh"}
+    initialized = object()
+    status = type("CrashtrackerStatus", (), {"Initialized": initialized})
+    get_args = mock.Mock(side_effect=[init_args, refresh_args])
+    init = mock.Mock()
+    reconfigure = mock.Mock()
+
+    with ExitStack() as stack:
+        stack.enter_context(mock.patch.object(crashtracking, "is_available", True))
+        stack.enter_context(mock.patch.object(crashtracking, "crashtracker_config", mock.Mock(enabled=True)))
+        stack.enter_context(mock.patch.object(crashtracking, "CrashtrackerStatus", status, create=True))
+        stack.enter_context(mock.patch.object(crashtracking, "_identity_refresh_additional_tags", None))
+        stack.enter_context(mock.patch.object(crashtracking, "_get_args", get_args))
+        stack.enter_context(mock.patch.object(crashtracking, "crashtracker_init", init, create=True))
+        stack.enter_context(mock.patch.object(crashtracking, "crashtracker_reconfigure", reconfigure, create=True))
+        stack.enter_context(
+            mock.patch.object(crashtracking, "crashtracker_status", mock.Mock(return_value=initialized), create=True)
+        )
+
+        assert crashtracking.start(tags)
+        runtime.refresh_identity()
+
+    assert get_args.call_args_list == [mock.call(tags), mock.call(tags)]
+    init.assert_called_once_with(*init_args)
+    reconfigure.assert_called_once_with(*refresh_args)
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_receiver_not_in_path():
     import os
