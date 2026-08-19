@@ -760,16 +760,25 @@ class LazyWrappingContext(WrappingContext):
 
 def _exec_lazy_init(f: FunctionType, module_globals: dict[str, t.Any]) -> None:
     """Run a @lazy initializer body in module scope without bytecode wrapping."""
-    import ast
-    import inspect
+    fn = FunctionType(f.__code__, module_globals, f.__name__, f.__defaults__, f.__closure__)
+    frame_locals: dict[str, t.Any] = {}
 
-    source = inspect.getsource(f)
-    tree = ast.parse(source)
-    func_def = tree.body[0]
-    if not isinstance(func_def, ast.FunctionDef):
-        raise TypeError("lazy() expects a function definition")
-    mod = ast.Module(body=func_def.body, type_ignores=[])
-    exec(compile(mod, f.__code__.co_filename, "exec"), module_globals)
+    old_trace = sys.gettrace()
+
+    def _trace(frame, event, arg):
+        if event == "return" and frame.f_code is f.__code__:
+            frame_locals.update(frame.f_locals)
+        if old_trace is not None:
+            return old_trace(frame, event, arg)
+        return _trace
+
+    sys.settrace(_trace)
+    try:
+        fn()
+    finally:
+        sys.settrace(old_trace)
+
+    module_globals.update(frame_locals)
 
 
 def lazy(f: t.Callable[[], None]) -> None:

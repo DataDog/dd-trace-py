@@ -41,6 +41,16 @@ def test_lazy_module_decorator_without_bytecode_wrap():
     assert lazy_module.new_value == 42
 
 
+def test_exec_lazy_init_without_source():
+    from ddtrace.internal.module import _exec_lazy_init
+
+    ns: dict[str, object] = {}
+    exec(compile("def init():\n    exported = 123\n", "<test>", "exec"), ns)
+    module_globals: dict[str, object] = {"__name__": "test_lazy_init"}
+    _exec_lazy_init(ns["init"], module_globals)
+    assert module_globals["exported"] == 123
+
+
 @pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} debugging products degrade")
 def test_debugging_products_load_without_failure():
     from ddtrace.internal.products import ProductManager
