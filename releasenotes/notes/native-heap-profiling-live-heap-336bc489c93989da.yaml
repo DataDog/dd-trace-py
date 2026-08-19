@@ -2,6 +2,4 @@
 features:
   - |
     profiling: Add experimental native (C/C++) heap profiling for Python processes
-    on Linux (manylinux/glibc wheels only). Enabled with ``DD_PROFILING_NATIVE_HEAP_ENABLED=true``.
-    It is a no-op when disabled or when the artifact is absent, i.e.
-    ddtrace binary size is unaffected.
+    on Linux (glibc only). Enabled with ``DD_PROFILING_NATIVE_HEAP_ENABLED=true``.
