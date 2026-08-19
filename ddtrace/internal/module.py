@@ -758,13 +758,38 @@ class LazyWrappingContext(WrappingContext):
         return super().__return__(value)
 
 
+def _exec_lazy_init(f: FunctionType, module_globals: dict[str, t.Any]) -> None:
+    """Run a @lazy initializer body in module scope without bytecode wrapping."""
+    import ast
+    import inspect
+
+    source = inspect.getsource(f)
+    tree = ast.parse(source)
+    func_def = tree.body[0]
+    if not isinstance(func_def, ast.FunctionDef):
+        raise TypeError("lazy() expects a function definition")
+    mod = ast.Module(body=func_def.body, type_ignores=[])
+    exec(compile(mod, f.__code__.co_filename, "exec"), module_globals)
+
+
 def lazy(f: t.Callable[[], None]) -> None:
-    LazyWrappingContext(t.cast(FunctionType, f)).wrap()
+    from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+    from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
     _globals = sys._getframe(1).f_globals
+    _initialized = False
+
+    if PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO:
+        LazyWrappingContext(t.cast(FunctionType, f)).wrap()
 
     def __getattr__(name: str) -> t.Any:
-        f()
+        nonlocal _initialized
+        if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
+            if not _initialized:
+                _exec_lazy_init(t.cast(FunctionType, f), _globals)
+                _initialized = True
+        else:
+            f()
         try:
             return _globals[name]
         except KeyError:

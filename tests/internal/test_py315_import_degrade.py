@@ -34,6 +34,28 @@ def test_wrap_raises_not_implemented_on_315():
         wrap(f, wrapper)
 
 
+@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} lazy module degrade")
+def test_lazy_module_decorator_without_bytecode_wrap():
+    import tests.internal.lazy as lazy_module
+
+    assert lazy_module.new_value == 42
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} debugging products degrade")
+def test_debugging_products_load_without_failure():
+    from ddtrace.internal.products import ProductManager
+
+    product_manager = ProductManager()
+    product_manager._load_products()
+    for product_name in (
+        "code-origin-for-spans",
+        "dynamic-instrumentation",
+        "exception-replay",
+        "live-debugger",
+    ):
+        assert product_name not in product_manager._failed
+
+
 @pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} inject_hook degrade")
 def test_inject_hook_raises_not_implemented_on_315():
     from ddtrace.internal.bytecode_injection import inject_hook
