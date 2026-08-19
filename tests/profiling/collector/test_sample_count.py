@@ -10,7 +10,6 @@ import pytest
 )
 def test_sample_count():
     import asyncio
-    import glob
     import json
     import os
     import time
@@ -19,6 +18,7 @@ def test_sample_count():
     from ddtrace import ext
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     sleep_time = 0.2
     loop_run_time = 2
@@ -49,7 +49,7 @@ def test_sample_count():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
 
     found_at_least_one_with_more_samples_than_sampling_events = False
     for i, f in enumerate(files):
