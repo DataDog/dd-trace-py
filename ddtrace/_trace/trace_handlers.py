@@ -81,7 +81,6 @@ from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.runtime import listen_for_identity_refresh_hooks
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -1972,7 +1971,6 @@ def listen():
     core.on("context.started.google_cloud_pubsub.receive", _on_pubsub_receive_start)
 
     # web frameworks general handlers
-    listen_for_identity_refresh_hooks()
     core.on("web.request.start", _on_web_framework_start_request)
     core.on("web.request.finish", _on_web_framework_finish_request)
     core.on("web.request.final_tags", _on_web_request_final_tags)

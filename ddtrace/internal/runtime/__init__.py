@@ -177,6 +177,9 @@ def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> No
     refresh_identity()
 
 
+listen_for_identity_refresh_hooks()
+
+
 def get_runtime_id() -> str:
     """Return a unique string identifier for this runtime.
 

@@ -357,9 +357,6 @@ def test_identity_refresh_hook_runs_before_root_span_creation():
     from ddtrace.internal import core
     import ddtrace.internal.runtime as runtime
 
-    core.reset_listeners(core.WEB_REQUEST_STARTING)
-    runtime.listen_for_identity_refresh_hooks()
-
     runtime_id = runtime.get_runtime_id()
     core.dispatch(core.WEB_REQUEST_STARTING, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH))
 
