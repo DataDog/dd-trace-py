@@ -600,3 +600,35 @@ def test_unpatch_restores_trace_callback_in_other_native_thread() -> None:
 
     assert customer_trace_events, "The watcher did not chain the existing trace callback"
     assert customer_trace_restored, "Unpatch left the Datadog watcher installed in the worker thread"
+
+
+@pytest.mark.subprocess()
+def test_context_switch_watcher_coexists_with_profiler_tracer() -> None:
+    """Both the contrib watcher and the profiler's greenlet tracer fire on switch."""
+    import gevent
+
+    from ddtrace.internal import core
+    from ddtrace.profiling import _gevent as profiler_gevent
+    from tests.contrib.gevent.utils import gevent_patched
+
+    switch_events: list[None] = []
+    profiler_events: list[str] = []
+
+    # Wrap the profiler tracer to record calls without changing behavior.
+    def profiling_spy(event, args):
+        profiler_events.append(event)
+        profiler_gevent.greenlet_tracer(event, args)
+
+    def record_context_switch():
+        switch_events.append(None)
+
+    profiler_gevent.greenlet_tracer = profiling_spy
+    with gevent_patched(force_context_switch=True):
+        # Install the profiler tracer on top of the contrib watcher.
+        profiler_gevent.patch()
+        core.on("python.context.switch", record_context_switch)
+        # Trigger a switch so the contrib watcher self-heals around the profiler.
+        gevent.sleep(0)
+
+        assert switch_events, "Contrib watcher did not fire"
+        assert profiler_events, "Profiler tracer did not fire"
