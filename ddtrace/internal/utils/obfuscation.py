@@ -25,11 +25,8 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.threads import Lock
-
-
-if t.TYPE_CHECKING:
-    from ddtrace.internal.module import BaseModuleWatchdog
 
 
 # Legacy PyArmor (<= 8.x, "RFT"/restrict mode) calls into module-level
@@ -53,7 +50,7 @@ _obfuscation_runtime_seen: bool = False
 _obfuscation_watchdog_installed: bool = False
 # Set to the watchdog class below once it has been installed, so that it can
 # be uninstalled again as soon as it has served its purpose.
-_obfuscation_runtime_watchdog_cls: "t.Optional[type[BaseModuleWatchdog]]" = None
+_obfuscation_runtime_watchdog_cls: t.Optional[type[BaseModuleWatchdog]] = None
 # Guards the one-time sys.modules scan/watchdog install below, so a concurrent
 # caller cannot observe the in-progress state as a confirmed negative (i.e.
 # get a stale ``False`` before the scan/watchdog install has completed).
@@ -93,11 +90,6 @@ def _obfuscation_runtime_loaded() -> bool:
             return False
 
         _obfuscation_watchdog_installed = True
-
-        # ddtrace.internal.module imports us transitively (via
-        # wrapping.context), so this has to be a deferred import to avoid a
-        # circular import.
-        from ddtrace.internal.module import BaseModuleWatchdog
 
         # Snapshot the keys: sys.modules can mutate (e.g. a concurrent
         # import) as we iterate it. This is the one, unavoidable full scan:
