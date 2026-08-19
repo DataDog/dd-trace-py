@@ -615,9 +615,11 @@ def test_context_switch_watcher_coexists_with_profiler_tracer() -> None:
     profiler_events: list[str] = []
 
     # Wrap the profiler tracer to record calls without changing behavior.
+    original_tracer = profiler_gevent.greenlet_tracer
+
     def profiling_spy(event, args):
         profiler_events.append(event)
-        profiler_gevent.greenlet_tracer(event, args)
+        original_tracer(event, args)
 
     def record_context_switch():
         switch_events.append(None)
