@@ -4,7 +4,7 @@ from types import CodeType
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import NEXT_PY_VERSION
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
 from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 
 
@@ -716,7 +716,7 @@ else:
 
 def wrap_async(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
     if PY >= NEXT_PY_VERSION_INFO:
-        raise NotImplementedError("This version of CPython is not supported yet: %s" % (NEXT_PY_VERSION,))
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
     if (bc.CompilerFlags.ASYNC_GENERATOR | bc.CompilerFlags.COROUTINE) & code.co_flags:
         if ASYNC_HEAD_ASSEMBLY is not None:
             instrs[0:0] = ASYNC_HEAD_ASSEMBLY.bind(lineno=lineno)

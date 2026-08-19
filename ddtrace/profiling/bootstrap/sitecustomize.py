@@ -5,20 +5,19 @@ import platform
 import sys
 
 from ddtrace.internal.logger import get_logger
+import ddtrace.profiling as profiling
 from ddtrace.profiling import bootstrap
-from ddtrace.profiling import failure_msg
-from ddtrace.profiling import is_available
 
 
 LOG = get_logger(__name__)
 
 
 def start_profiler() -> None:
-    if not is_available:
+    if not profiling.is_available:
         LOG.warning(
             "The Datadog Profiler could not be started because native extensions are not "
             "available on this Python version: %s",
-            failure_msg,
+            profiling.failure_msg,
         )
         return
 
