@@ -592,7 +592,6 @@ Sampler::frame_cache_capacity() const
 Sampler::Sampler()
   : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {
-    echion->set_max_frames(g_default_max_nframes);
 }
 
 Sampler&
