@@ -918,6 +918,31 @@ def test_encoder_buffer_item_size_limit(encoder_cls):
         encoder.put([span])
 
 
+def test_v05_encoding_string_table_between_65536_and_131072_entries():
+    # A string table with 65536 to 131071 entries needs a 5-byte array32 header, not a
+    # 3-byte array16 header. A narrower header overwrites the start of the table and
+    # corrupts the payload.
+    encoder = MsgpackEncoderV05(128 << 20, 128 << 20)
+
+    span = Span("s1", service="svc", resource="res")
+    for i in range(35000):
+        span.set_tag("k%d" % i, "v%d" % i)
+    span.finish()
+
+    encoder.put([span])
+    [(payload, num_traces)] = encoder.encode()
+    assert num_traces == 1
+
+    string_table = msgpack.unpackb(payload, raw=True, strict_map_key=False)[0]
+    assert 65536 <= len(string_table) < 131072
+
+    decoded_trace = decode(payload)
+    assert len(decoded_trace) == 1
+    decoded_tags = decoded_trace[0][0][9]
+    for i in range(35000):
+        assert decoded_tags[("k%d" % i).encode()] == ("v%d" % i).encode()
+
+
 def test_custom_msgpack_encode_v05():
     encoder = MsgpackEncoderV05(2 << 20, 2 << 20)
     assert encoder.max_size == 2 << 20

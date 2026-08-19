@@ -34,6 +34,7 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -41,6 +42,10 @@ from ddtrace.testing.internal.pytest.hookspecs import TestOptHooks
 from ddtrace.testing.internal.pytest.report_links import print_test_report_links
 from ddtrace.testing.internal.pytest.utils import _get_test_parameters_json
 from ddtrace.testing.internal.pytest.utils import item_to_test_ref
+from ddtrace.testing.internal.pytest.xdist import XdistManifest
+from ddtrace.testing.internal.pytest.xdist import cleanup_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import generate_xdist_manifest
+from ddtrace.testing.internal.pytest.xdist import resolve_inherited_manifest_env
 from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
 from ddtrace.testing.internal.retry_handlers import RetryHandler
 from ddtrace.testing.internal.session_manager import SessionManager
@@ -99,12 +104,14 @@ ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
 
 try:
     SESSION_MANAGER_STASH_KEY = pytest.StashKey[SessionManager]()
+    XDIST_MANIFEST_STASH_KEY = pytest.StashKey[XdistManifest]()
     _HAS_STASH = True
 except AttributeError:
     # pytest < 7.0 does not have StashKey/Config.stash; fall back to a plain attribute name.
     # Do not check pytest.Config.stash at class level: on supported pytest versions, stash is an instance attribute.
     _HAS_STASH = False
     SESSION_MANAGER_STASH_KEY = "session_manager_key"
+    XDIST_MANIFEST_STASH_KEY = "xdist_manifest_key"
 
 
 def _stash_set(config, key, value):
@@ -278,7 +285,7 @@ else:
     _ReportGroup = dict
 
 
-class TestOptPlugin:
+class TestOptPlugin(TestOptPluginProtocol):
     """
     pytest plugin for test optimization.
     """
@@ -343,6 +350,7 @@ class TestOptPlugin:
 
         self.manager = session_manager
         self.session = self.manager.session
+        self.xdist_manifest: t.Optional[XdistManifest] = None
 
         self.extra_failed_reports: list[pytest.TestReport] = []
 
@@ -421,7 +429,9 @@ class TestOptPlugin:
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
         self.session.set_status(
-            TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+            TestStatus.FAIL
+            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
+            else TestStatus.PASS
         )
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
@@ -431,6 +441,20 @@ class TestOptPlugin:
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
+        # AIDEV-NOTE: This hook runs in every process, so an xdist session uploads one report per process, each
+        # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
+        # for a session, so the partial uploads add up to full coverage.
+        #
+        # Do NOT "fix" this by restricting the upload to the controller. Which process holds which data depends on who
+        # owns coverage.py:
+        #   - with pytest-cov, workers ship their data to the controller and pytest-cov merges it in its
+        #     pytest_runtestloop wrapper, i.e. before this hook, so the controller's report is complete;
+        #   - without pytest-cov, ddtrace starts coverage.py per process in pytest_configure and nothing merges across
+        #     processes, so the controller (which runs no tests under xdist) has an empty report and the workers hold
+        #     all the real data.
+        # Controller-only upload would therefore be harmless in the first case and lose everything in the second.
+        # Uploading once from the controller would only save bandwidth, and would first require implementing the
+        # cross-process merge that pytest-cov does for us in the first case but nobody does in the second.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
             # Create upload function wrapper for manager
             def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
@@ -482,6 +506,11 @@ class TestOptPlugin:
             self._logs_writer = None
 
         self.manager.finish()
+
+        if self.xdist_manifest is not None:
+            # All workers have finished, so the generated manifest cache is no longer needed.
+            cleanup_xdist_manifest(self.xdist_manifest, self.manager.env_tags)
+            self.xdist_manifest = None
 
     def pytest_collection_modifyitems(
         self, session: pytest.Session, config: pytest.Config, items: list[pytest.Item]
@@ -1541,6 +1570,9 @@ def pytest_load_initial_conftests(
 
     setup_logging()
 
+    # An inherited manifest env var only applies to this process if our own controller generated it.
+    resolve_inherited_manifest_env()
+
     session = TestSession(name=TEST_FRAMEWORK)
     session.set_attributes(
         test_command=_get_test_command(early_config),
@@ -1554,6 +1586,9 @@ def pytest_load_initial_conftests(
         log.error("%s", e)
         yield
         return
+
+    # When running with xdist, let the workers reuse what this controller fetched instead of querying the backend.
+    _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
 
     _stash_set(early_config, SESSION_MANAGER_STASH_KEY, session_manager)
 
@@ -1635,6 +1670,7 @@ def pytest_configure(config: pytest.Config) -> None:
 
     try:
         plugin = plugin_class(session_manager=session_manager)
+        plugin.xdist_manifest = _stash_get(config, XDIST_MANIFEST_STASH_KEY, None)
     except Exception:
         log.exception("Error setting up Test Optimization plugin")
         return

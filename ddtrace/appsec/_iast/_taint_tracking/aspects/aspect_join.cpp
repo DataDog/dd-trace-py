@@ -146,26 +146,28 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
     PyObject* sep = args[0];
     PyObject* arg0 = args[1];
-    bool decref_arg0 = false;
+    py::object owned_arg0;
 
     if (PyIter_Check(arg0) or PySet_Check(arg0) or PyFrozenSet_Check(arg0)) {
-        PyObject* iterator = PyObject_GetIter(arg0);
+        py::object iterator = py::reinterpret_steal<py::object>(PyObject_GetIter(arg0));
+        if (!iterator) {
+            return nullptr;
+        }
 
-        if (iterator != nullptr) {
-            PyObject* item;
-            PyObject* list_aux = PyList_New(0);
-            if (list_aux == nullptr) {
-                Py_DECREF(iterator);
+        py::list list_aux = py::reinterpret_steal<py::list>(PyList_New(0));
+        if (!list_aux) {
+            return nullptr;
+        }
+        while (py::object item = py::reinterpret_steal<py::object>(PyIter_Next(iterator.ptr()))) {
+            if (PyList_Append(list_aux.ptr(), item.ptr()) < 0) {
                 return nullptr;
             }
-            while ((item = PyIter_Next(iterator))) {
-                PyList_Append(list_aux, item);
-                Py_DECREF(item);
-            }
-            arg0 = list_aux;
-            Py_DECREF(iterator);
-            decref_arg0 = true;
         }
+        if (PyErr_Occurred()) {
+            return nullptr;
+        }
+        owned_arg0 = std::move(list_aux);
+        arg0 = owned_arg0.ptr();
     }
     PyObject* result = nullptr;
     if (PyUnicode_Check(sep)) {
@@ -173,19 +175,14 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     } else if (PyBytes_Check(sep)) {
         py::bytes result_ptr =
           py::reinterpret_borrow<py::bytes>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.ptr();
-        Py_INCREF(result);
+        result = result_ptr.release().ptr();
     } else if (PyByteArray_Check(sep)) {
         py::bytearray result_ptr =
           py::reinterpret_borrow<py::bytearray>(sep).attr("join")(py::reinterpret_borrow<py::object>(arg0));
-        result = result_ptr.ptr();
-        Py_INCREF(result);
+        result = result_ptr.release().ptr();
     }
 
     if (has_pyerr()) {
-        if (decref_arg0) {
-            Py_DECREF(arg0);
-        }
         return nullptr;
     }
 
@@ -195,15 +192,8 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         auto ctx_map = safe_get_tainted_object_map_from_list_of_pyobjects({ sep, arg0 });
         if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
             // Empty result cannot have taint ranges
-            if (decref_arg0) {
-                Py_DECREF(arg0);
-            }
             return result;
         }
-        auto res = aspect_join(sep, result, arg0, ctx_map);
-        if (decref_arg0) {
-            Py_DECREF(arg0);
-        }
-        return res;
+        return aspect_join(sep, result, arg0, ctx_map);
     });
 }

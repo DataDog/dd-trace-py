@@ -9,8 +9,10 @@ from typing import Optional
 
 import torch
 
+from ddtrace.contrib.internal.pytorch._utils import distributed_available
 from ddtrace.contrib.internal.pytorch._utils import get_cached_job_id
 from ddtrace.contrib.internal.pytorch._utils import job_id_env_set
+from ddtrace.contrib.internal.pytorch._utils import reset_cached_backend
 from ddtrace.contrib.internal.pytorch._utils import resolve_job_id_from_env
 from ddtrace.contrib.internal.pytorch._utils import set_cached_job_id
 from ddtrace.contrib.internal.trace_utils import unwrap as _unwrap
@@ -36,8 +38,6 @@ _rank_ctx: contextvars.ContextVar[Optional[core.ExecutionContext[Any]]] = contex
     "pytorch_rank_ctx", default=None
 )
 
-_cached_distributed_backend: Optional[str] = None
-
 
 def _step_profiling_enabled() -> bool:
     return env.get("DD_TRAINING_STEP_PROFILING", "false").lower() in ("true", "1")
@@ -53,12 +53,7 @@ _RAY_RUN_METADATA_ENV = "_DD_RAY_RUN_METADATA"
 
 
 def _reset_child_state() -> None:
-    global \
-        _no_env_job_id_warned, \
-        _cached_distributed_backend, \
-        _fsdp_hook_registered, \
-        _deepspeed_hook_registered, \
-        _optimizer_wrapped
+    global _no_env_job_id_warned, _fsdp_hook_registered, _deepspeed_hook_registered, _optimizer_wrapped
     ctx = _rank_ctx.get()
     if ctx is not None:
         _rank_ctx.set(None)
@@ -72,36 +67,13 @@ def _reset_child_state() -> None:
         except Exception:  # nosec B110
             pass
     _no_env_job_id_warned = False
-    _cached_distributed_backend = None
+    reset_cached_backend()
     _fsdp_hook_registered = False
     _deepspeed_hook_registered = False
     _optimizer_wrapped = False
 
 
 forksafe.register(_reset_child_state)
-
-
-def _distributed_available() -> bool:
-    try:
-        return bool(torch.distributed.is_available())
-    except Exception:
-        return False
-
-
-def _get_cached_backend() -> Optional[str]:
-    """One-shot lookup of ``torch.distributed.get_backend()``. Caches the
-    result on first successful call. The backend (nccl/gloo/mpi) does not
-    change during the lifetime of a process group.
-    """
-    global _cached_distributed_backend
-    if _cached_distributed_backend is not None:
-        return _cached_distributed_backend
-    try:
-        if _distributed_available() and torch.distributed.is_initialized():
-            _cached_distributed_backend = str(torch.distributed.get_backend())
-    except Exception:
-        return None
-    return _cached_distributed_backend
 
 
 def _populate_ray_run_metadata() -> None:
@@ -123,19 +95,6 @@ def _populate_ray_run_metadata() -> None:
         set_cached_run_metadata(submission_id=sub, run_name=rn, metadata=metadata or None)
 
 
-def _detect_launcher() -> Optional[str]:
-    """Return a best-guess launcher name from env, or None."""
-    if env.get("TORCHELASTIC_RUN_ID"):
-        return "torchrun"
-    if env.get("RAY_JOB_ID"):
-        return "ray"
-    if env.get("SLURM_JOB_ID"):
-        return "slurm"
-    if env.get("KUBEFLOW_TRAINING_JOB_ID"):
-        return "kubeflow"
-    return None
-
-
 def _bootstrap_distributed() -> None:
     """Capture rank/world_size and open the pytorch.rank span.
 
@@ -152,7 +111,7 @@ def _bootstrap_distributed() -> None:
     rank: int = 0
     world_size: int = 1
     try:
-        if _distributed_available() and torch.distributed.is_initialized():
+        if distributed_available() and torch.distributed.is_initialized():
             rank = torch.distributed.get_rank()
             world_size = torch.distributed.get_world_size()
     except Exception:
@@ -209,8 +168,8 @@ def _wrapped_init_process_group(wrapped: Any, instance: Any, args: Any, kwargs: 
     result = wrapped(*args, **kwargs)  # let exceptions propagate; do NOT open context yet
 
     if not already:
-        ctx = core.context_with_data("pytorch.rank", _dispatch_end_event=False)  # type: ignore[no-untyped-call]
-        # AIDEV-NOTE: __enter__() updates _CURRENT_CONTEXT so child spans are parented here; _dispatch_end_event=False
+        ctx = core.context_with_data("pytorch.rank", dispatch_end_event=False)  # type: ignore[no-untyped-call]
+        # AIDEV-NOTE: __enter__() updates _CURRENT_CONTEXT so child spans are parented here; dispatch_end_event=False
         # defers the ended event — dispatch_ended_event() + __exit__() are called in _wrapped_destroy_process_group.
         ctx.__enter__()
         _rank_ctx.set(ctx)
@@ -261,8 +220,7 @@ def _wrapped_destroy_process_group(wrapped: Any, instance: Any, args: Any, kwarg
                 ctx.dispatch_ended_event()
                 ctx.__exit__(None, None, None)
                 _rank_ctx.set(None)
-            global _cached_distributed_backend
-            _cached_distributed_backend = None
+            reset_cached_backend()
             try:
                 from ddtrace.contrib.internal.pytorch._utils import set_cached_job_id  # noqa: PLC0415
 
@@ -444,9 +402,9 @@ def install() -> None:
     if _installed:
         return
     _installed = True
-    if _distributed_available() and hasattr(torch.distributed, "init_process_group"):
+    if distributed_available() and hasattr(torch.distributed, "init_process_group"):
         _wrap("torch.distributed", "init_process_group", _wrapped_init_process_group)
-    if _distributed_available() and hasattr(torch.distributed, "destroy_process_group"):
+    if distributed_available() and hasattr(torch.distributed, "destroy_process_group"):
         _wrap("torch.distributed", "destroy_process_group", _wrapped_destroy_process_group)
     _install_ddp()
     _install_fsdp()
@@ -454,10 +412,10 @@ def install() -> None:
     _install_optimizer_step()
     # Late-patch bootstrap: if init_process_group was called before patch(),
     # our wrapper will never fire. Run bootstrap now.
-    if _distributed_available():
+    if distributed_available():
         try:
             if torch.distributed.is_initialized() and _rank_ctx.get() is None:
-                ctx = core.context_with_data("pytorch.rank", _dispatch_end_event=False)  # type: ignore[no-untyped-call]
+                ctx = core.context_with_data("pytorch.rank", dispatch_end_event=False)  # type: ignore[no-untyped-call]
                 ctx.__enter__()
                 _rank_ctx.set(ctx)
                 _bootstrap_distributed()
@@ -469,7 +427,7 @@ def uninstall() -> None:
     global _installed, _fsdp_hook_registered, _deepspeed_hook_registered
     if _installed:
         _installed = False
-        if _distributed_available():
+        if distributed_available():
             for fn in ("destroy_process_group", "init_process_group"):
                 if hasattr(torch.distributed, fn):
                     try:
@@ -512,6 +470,6 @@ def uninstall() -> None:
         _utils_mod._tls_job_id = threading.local()
     except Exception:
         log.debug("pytorch: failed to reset cached job id on uninstall", exc_info=True)
-    global _no_env_job_id_warned, _cached_distributed_backend
+    global _no_env_job_id_warned
     _no_env_job_id_warned = False
-    _cached_distributed_backend = None
+    reset_cached_backend()

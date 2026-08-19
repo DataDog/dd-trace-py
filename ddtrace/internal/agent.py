@@ -27,8 +27,7 @@ def process_info_headers(resp):
         log.debug("Could not compute base hash: %s", e)
 
 
-def info(url=None):
-    agent_url = config.trace_agent_url if url is None else url
+def _request_info(agent_url):
     timeout = config.trace_agent_timeout_seconds
     _conn = get_connection(agent_url, timeout=timeout)
     try:
@@ -39,6 +38,13 @@ def info(url=None):
     finally:
         _conn.close()
 
+    return resp, data
+
+
+def info(url=None):
+    agent_url = config.trace_agent_url if url is None else url
+    resp, data = _request_info(agent_url)
+
     if resp.status == 404:
         # Remote configuration is not enabled or unsupported by the agent
         return None
@@ -48,6 +54,17 @@ def info(url=None):
         return None
 
     return json.loads(data)
+
+
+def is_reachable(url=None):
+    """Check whether the trace agent responds to /info, regardless of HTTP status."""
+    agent_url = config.trace_agent_url if url is None else url
+    try:
+        _request_info(agent_url)
+    except Exception:
+        return False
+
+    return True
 
 
 class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.ABCMeta):
