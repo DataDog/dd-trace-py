@@ -6,7 +6,7 @@
 #include "dd_wrapper/include/profiler_state.hpp"
 
 void
-FrameStack::render(EchionSampler& echion, bool truncated)
+FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
@@ -29,7 +29,7 @@ FrameStack::render(EchionSampler& echion, bool truncated)
         renderer.render_frame(frame);
     }
 
-    if (truncated) {
+    if (truncation == TruncationStatus::Truncated) {
         renderer.render_truncated();
     }
 }
@@ -39,7 +39,7 @@ FrameStack::render(EchionSampler& echion, bool truncated)
 //                     by callers (typically EchionSampler::seen_frames_scratch).
 // @param max_frames_to_add: Maximum number of frames to add during this walk.
 // @param detect_truncation: Whether to probe for another reportable frame after reaching the limit.
-// @return: Number of frames added and whether another reportable frame was found.
+// @return: Number of frames added and the truncation detection status.
 UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
@@ -60,12 +60,13 @@ unwind_frame(EchionSampler& echion,
         const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
         if (at_limit) {
             if (!detect_truncation || frames_probed_after_limit >= MAX_TASK_FRAMES) {
-                break;
+                return result;
             }
             frames_probed_after_limit++;
         }
-        if (seen_frames.contains(current_frame_addr))
-            break;
+        if (seen_frames.contains(current_frame_addr)) {
+            return result;
+        }
 
         seen_frames.insert(current_frame_addr);
 
@@ -77,7 +78,7 @@ unwind_frame(EchionSampler& echion,
         auto maybe_frame = Frame::read(echion, current_frame_addr, &current_frame_addr);
 #endif
         if (!maybe_frame) {
-            break;
+            return result;
         }
 
         if (maybe_frame->get().name == StringTable::C_FRAME) {
@@ -87,14 +88,17 @@ unwind_frame(EchionSampler& echion,
         // When reporting truncation, confirm that the bounded lookahead found a
         // reportable frame so terminal C/interpreter frames do not produce a false marker.
         if (at_limit) {
-            result.truncated = true;
-            break;
+            result.truncation = TruncationStatus::Truncated;
+            return result;
         }
 
         stack.push_back(maybe_frame->get());
         result.frames_added++;
     }
 
+    if (detect_truncation) {
+        result.truncation = TruncationStatus::NotTruncated;
+    }
     return result;
 }
 

@@ -22,10 +22,17 @@
 
 class EchionSampler;
 
+enum class TruncationStatus
+{
+    Unchecked,
+    NotTruncated,
+    Truncated,
+};
+
 struct UnwindResult
 {
     size_t frames_added = 0;
-    bool truncated = false;
+    TruncationStatus truncation = TruncationStatus::Unchecked;
 };
 
 // ----------------------------------------------------------------------------
@@ -37,7 +44,7 @@ class FrameStack : public std::vector<Frame>
   public:
     using Key = Frame::Key;
 
-    void render(EchionSampler& echion, bool truncated);
+    void render(EchionSampler& echion, TruncationStatus truncation);
 };
 
 // Forward declaration

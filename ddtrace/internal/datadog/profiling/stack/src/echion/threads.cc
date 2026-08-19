@@ -832,7 +832,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
                   task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
             });
 
-            task_stack_info->stack.render(echion, false);
+            task_stack_info->stack.render(echion, TruncationStatus::Unchecked);
 
             renderer.render_stack_end();
         }
@@ -844,12 +844,12 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             });
 
             auto& stack = greenlet_stack->stack;
-            stack.render(echion, false);
+            stack.render(echion, TruncationStatus::Unchecked);
 
             renderer.render_stack_end();
         }
     } else {
-        python_stack.render(echion, python_stack_unwind_result.truncated);
+        python_stack.render(echion, python_stack_unwind_result.truncation);
         renderer.render_stack_end();
     }
 }
