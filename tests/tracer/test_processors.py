@@ -23,6 +23,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
@@ -101,8 +102,17 @@ def test_aggregator_user_processors():
     assert span.get_tag("final_processor") == "user"
 
 
+def _dropped_points(mock_add):
+    """Values recorded against the spans_dropped recorder during a patched block.
+
+    autospec=True keeps self in the call args, so the recorder each point was recorded
+    against - and therefore its metric name - is readable off the call itself.
+    """
+    return [c.args[1] for c in mock_add.call_args_list if c.args[0]._name == "spans_dropped"]
+
+
 def test_aggregator_records_tp_drop_when_processor_drops_trace():
-    """A trace processor dropping the whole trace accumulates spans_dropped(reason=tp_drop)."""
+    """A trace processor dropping the whole trace records spans_dropped(reason=trace_processor)."""
 
     class DropProc(TraceProcessor):
         def process_trace(self, trace):
@@ -112,15 +122,16 @@ def test_aggregator_records_tp_drop_when_processor_drops_trace():
     aggr.writer = DummyWriter()
 
     span = Span("span", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(span)
-    span.finish()
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
+        aggr.on_span_start(span)
+        span.finish()
 
-    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 1
+    assert _dropped_points(mock_add) == [1]
     assert aggr.writer.pop() == []
 
 
 def test_aggregator_records_tp_drop_for_partial_processor_drop():
-    """A trace processor dropping a subset of spans accumulates only the dropped count as tp_drop."""
+    """A trace processor dropping a subset of spans records only the dropped count."""
 
     class HalfDropProc(TraceProcessor):
         def process_trace(self, trace):
@@ -130,27 +141,29 @@ def test_aggregator_records_tp_drop_for_partial_processor_drop():
     aggr.writer = DummyWriter()
 
     parent = Span("parent", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(parent)
-    child = Span("child", on_finish=[aggr.on_span_finish])
-    child.trace_id = parent.trace_id
-    child.parent_id = parent.span_id
-    aggr.on_span_start(child)
-    child.finish()
-    parent.finish()
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
+        aggr.on_span_start(parent)
+        child = Span("child", on_finish=[aggr.on_span_finish])
+        child.trace_id = parent.trace_id
+        child.parent_id = parent.span_id
+        aggr.on_span_start(child)
+        child.finish()
+        parent.finish()
 
-    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 1
+    assert _dropped_points(mock_add) == [1]
 
 
 def test_aggregator_does_not_record_tp_drop_when_nothing_dropped():
-    """When no spans are dropped by processors, spans_dropped is not accumulated."""
+    """When no spans are dropped by processors, no spans_dropped point is recorded."""
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
     aggr.writer = DummyWriter()
 
     span = Span("span", on_finish=[aggr.on_span_finish])
-    aggr.on_span_start(span)
-    span.finish()
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
+        aggr.on_span_start(span)
+        span.finish()
 
-    assert aggr._span_metrics["spans_dropped"]["trace_processor"] == 0
+    assert _dropped_points(mock_add) == []
     assert aggr.writer.pop() == [span]
 
 
@@ -170,14 +183,13 @@ def test_aggregator_reset_default_args():
     sampling_proc = aggr.sampling_processor
     dm_writer = DummyWriter()
     aggr.writer = dm_writer
-    # Generate a span to init _traces and _span_metrics
+    # Generate a span to init _traces
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
     # Expect SpanAggregator to have the processors and span in _traces
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
     # Expect TraceWriter to be recreated and trace buffers to be reset but not the trace processors
     aggr.reset()
     assert dd_proc in aggr.dd_processors
@@ -185,7 +197,6 @@ def test_aggregator_reset_default_args():
     assert aggr.writer is not dm_writer
     assert sampling_proc is aggr.sampling_processor
     assert not aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 0
 
 
 def test_aggregator_reset_apm_opt_out_preserves_sampling():
@@ -246,7 +257,6 @@ def test_aggregator_reset_with_args():
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
     assert aggr.writer._api_version == "v0.5"
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
@@ -259,7 +269,6 @@ def test_aggregator_reset_with_args():
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.writer._api_version == "v0.5"
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
 
 
 def test_aggregator_bad_processor():
@@ -542,42 +551,39 @@ def test_trace_128bit_processor(trace_id, tracer):
     }
 )
 def test_span_creation_metrics():
-    """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
+    """Each span start/finish records a spans_created/spans_finished telemetry point directly, with
+    no in-Python batching (the native worker aggregates the points). The integration_name tag is
+    resolved at that moment, so a component set during the span is only reflected at finish.
+    """
     import mock
 
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.internal.telemetry.metrics import MetricRecorder
     from ddtrace.trace import tracer
     from tests.utils import DummyWriter
 
     tracer._span_aggregator.writer = DummyWriter()
 
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+    # autospec keeps self in the recorded args (the recorder is __slots__-ed, so a per-instance
+    # patch is not possible). A recorder is bound to one metric *and* one tag set, so both the
+    # created/finished split and the integration name are read off the recorder itself.
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
         for _ in range(300):
             tracer.trace("span").finish()
 
+        # component is set after the span starts, so it is only reflected at finish time
         with tracer.trace("span") as span:
             span.set_tag("component", "custom")
 
-        mock_tm.assert_has_calls(
-            [
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 100, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 100, tags=(("integration_name", "datadog"),)),
-            ]
-        )
+    def _integration_name(recorder):
+        return dict(recorder._tags)["integration_name"]
 
-        mock_tm.reset_mock()
-        tracer.shutdown()
-        # On span finished the span has a different integration name:
-        mock_tm.assert_has_calls(
-            [
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
-            ]
-        )
+    created = [_integration_name(c.args[0]) for c in mock_add.call_args_list if c.args[0]._name == "spans_created"]
+    finished = [_integration_name(c.args[0]) for c in mock_add.call_args_list if c.args[0]._name == "spans_finished"]
+
+    # One spans_created point per started span; integration_name is "datadog" (component unset at start)
+    assert created == ["datadog"] * 301
+    # One spans_finished point per finished span; the last span reports integration_name "custom"
+    assert finished == ["datadog"] * 300 + ["custom"]
 
 
 @pytest.mark.subprocess(
@@ -587,10 +593,14 @@ def test_span_creation_metrics():
     }
 )
 def test_span_dropped_metrics():
-    """Spans dropped by a trace processor are queued in batches of 100 and the remainder is sent on shutdown"""
+    """Each trace dropped by a processor records a spans_dropped point as it happens.
+
+    There is no in-Python batching left to flush on shutdown - the native worker aggregates the
+    points - so the drops arrive one per trace, carrying that trace's dropped span count.
+    """
     import mock
 
-    from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+    from ddtrace.internal.telemetry.metrics import MetricRecorder
     from ddtrace.trace import TraceFilter
     from ddtrace.trace import tracer
 
@@ -600,26 +610,15 @@ def test_span_dropped_metrics():
 
     tracer.configure(trace_processors=[DropAllFilter()])
 
-    def dropped_calls(mock_tm):
-        # spans_dropped calls are interleaved with spans_created/spans_finished, so filter them out.
-        return [c for c in mock_tm.call_args_list if len(c.args) >= 2 and c.args[1] == "spans_dropped"]
-
-    with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
+    # autospec keeps self in the recorded args, so spans_dropped points can be told apart from
+    # the spans_created/spans_finished ones by the recorder they were recorded against.
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
         for _ in range(250):
             tracer.trace("span").finish()
 
-        # 250 dropped spans are flushed in batches of 100.
-        assert dropped_calls(mock_tm) == [
-            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "trace_processor"),)),
-            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 100, tags=(("reason", "trace_processor"),)),
-        ]
-
-        mock_tm.reset_mock()
-        tracer.shutdown()
-        # The remaining 50 dropped spans are flushed on shutdown.
-        assert dropped_calls(mock_tm) == [
-            mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_dropped", 50, tags=(("reason", "trace_processor"),)),
-        ]
+    dropped = [c for c in mock_add.call_args_list if c.args[0]._name == "spans_dropped"]
+    assert [c.args[1] for c in dropped] == [1] * 250
+    assert all(dict(c.args[0]._tags)["reason"] == "trace_processor" for c in dropped)
 
 
 def test_changing_tracer_sampler_changes_tracesamplingprocessor_sampler(tracer):
