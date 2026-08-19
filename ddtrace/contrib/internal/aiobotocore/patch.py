@@ -16,6 +16,7 @@ from ddtrace.contrib.internal.aiobotocore.bedrock import patched_aiobotocore_bed
 
 # AIDEV-NOTE: Shared with botocore; this integration registers its own owner-gated
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
+from ddtrace.contrib.internal.botocore.patch import _PATCHED_SUBMODULES as _BOTOCORE_PATCHED_SUBMODULES
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -51,6 +52,7 @@ elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
 BEDROCK_RUNTIME_OPERATIONS = frozenset(("Converse", "ConverseStream", "InvokeModel", "InvokeModelWithResponseStream"))
+_PATCHED_SUBMODULES = set()
 
 config._add(
     "aiobotocore",
@@ -85,9 +87,27 @@ def patch():
     aiobotocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
     Pin().onto(aiobotocore.client.AioBaseClient)
+    _PATCHED_SUBMODULES.clear()
+
+
+def patch_submodules(submodules):
+    """Restrict tracing to selected AWS services when a caller supplies a service list.
+
+    LLMObs patches botocore with a Bedrock-only service list but currently reaches
+    aiobotocore with a boolean patch indicator. Mirror botocore's active service
+    restriction in that case so enabling LLMObs does not start tracing unrelated
+    async S3/SQS/DynamoDB traffic. An ordinary ``patch(aiobotocore=True)`` keeps
+    the historical all-services behavior because botocore has no active filter.
+    """
+    _PATCHED_SUBMODULES.clear()
+    if isinstance(submodules, list):
+        _PATCHED_SUBMODULES.update(submodule.lower() for submodule in submodules)
+    elif isinstance(submodules, bool) and submodules and _BOTOCORE_PATCHED_SUBMODULES:
+        _PATCHED_SUBMODULES.update(_BOTOCORE_PATCHED_SUBMODULES)
 
 
 def unpatch():
+    _PATCHED_SUBMODULES.clear()
     if getattr(aiobotocore.client, "_datadog_patch", False):
         aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
@@ -139,6 +159,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         return result
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+    if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
+        return await original_func(*args, **kwargs)
+
     fallback_service = config._get_service(default="aws.{}".format(endpoint_name))
 
     try:
