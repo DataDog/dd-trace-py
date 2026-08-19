@@ -165,7 +165,8 @@ class AgentConfig(DDConfig):
         "trace_agent_protocol_version",
         default=None,
         help_type="String",
-        help="Stores the agent protocol version override; when set, OTLP export is disabled unless OTel semantics are enabled",
+        help="Stores the agent protocol version override; when set, OTLP export is disabled "
+        "unless OTel semantics are enabled",
     )
 
     _trace_native_span_events = DDConfig.v(
