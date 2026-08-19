@@ -13,8 +13,9 @@ from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
-from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.telemetry.metrics import MetricRecorder
+from ddtrace.internal.telemetry.metrics import get_metric_recorder
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -146,18 +147,44 @@ def _dd_id_to_b3_id(dd_id: int) -> str:
     return "{:016x}".format(dd_id)
 
 
+# Propagation runs on every inject/extract, use MetricRecorder for extra-fast dispatch. Both parts
+# of the key come from fixed sets (a handful of metric names, the supported propagation styles), so
+# this stays small.
+_HTTP_TELEMETRY_RECORDERS: dict[tuple[str, str], MetricRecorder] = {}
+
+
 def _record_http_telemetry(metric_name: str, header_style: str) -> None:
     """Record telemetry metric for HTTP propagation operations.
 
     :param metric_name: The name of the metric to record
-    :param tags: tuple of tag key-value pairs to include with the metric
+    :param header_style: propagation style the metric is tagged with
     """
-    telemetry_writer.add_count_metric(
-        namespace=TELEMETRY_NAMESPACE.TRACERS,
-        name=metric_name,
-        value=1,
-        tags=(("header_style", header_style),),
-    )
+    key = (metric_name, header_style)
+    recorder = _HTTP_TELEMETRY_RECORDERS.get(key)
+    if recorder is None:
+        # Two threads can both miss here; get_metric_recorder hands them the same recorder, so the
+        # loser of the race to assign below is not a second native context.
+        recorder = _HTTP_TELEMETRY_RECORDERS[key] = get_metric_recorder(
+            TELEMETRY_NAMESPACE.TRACERS, metric_name, tags=(("header_style", header_style),)
+        )
+    recorder.add()
+
+
+_BAGGAGE_TRUNCATED_ITEM_COUNT = get_metric_recorder(
+    TELEMETRY_NAMESPACE.TRACERS,
+    "context_header.truncated",
+    tags=(("truncation_reason", "baggage_item_count_exceeded"),),
+)
+_BAGGAGE_TRUNCATED_BYTE_COUNT = get_metric_recorder(
+    TELEMETRY_NAMESPACE.TRACERS,
+    "context_header.truncated",
+    tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
+)
+_BAGGAGE_MALFORMED = get_metric_recorder(
+    TELEMETRY_NAMESPACE.TRACERS,
+    "context_header_style.malformed",
+    tags=(("header_style", _PROPAGATION_STYLE_BAGGAGE),),
+)
 
 
 class _DatadogMultiHeader:
@@ -1013,12 +1040,7 @@ class _BaggageHeader:
             if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning("Baggage item limit exceeded, dropping excess items")
                 # Record telemetry for baggage item count exceeding limit
-                telemetry_writer.add_count_metric(
-                    namespace=TELEMETRY_NAMESPACE.TRACERS,
-                    name="context_header.truncated",
-                    value=1,
-                    tags=(("truncation_reason", "baggage_item_count_exceeded"),),
-                )
+                _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
                 baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
             encoded_items: list[str] = []
@@ -1029,12 +1051,7 @@ class _BaggageHeader:
                 if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
                     log.warning("Baggage header size exceeded, dropping excess items")
                     # Record telemetry for baggage header size exceeding limit
-                    telemetry_writer.add_count_metric(
-                        namespace=TELEMETRY_NAMESPACE.TRACERS,
-                        name="context_header.truncated",
-                        value=1,
-                        tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
-                    )
+                    _BAGGAGE_TRUNCATED_BYTE_COUNT.add()
                     break  # stop adding items when size limit is reached
                 encoded_items.append(item)
                 total_size += item_size
@@ -1051,12 +1068,7 @@ class _BaggageHeader:
     @staticmethod
     def _record_malformed_and_return_empty() -> Context:
         """Record telemetry for malformed baggage header and return empty context."""
-        telemetry_writer.add_count_metric(
-            namespace=TELEMETRY_NAMESPACE.TRACERS,
-            name="context_header_style.malformed",
-            value=1,
-            tags=(("header_style", _PROPAGATION_STYLE_BAGGAGE),),
-        )
+        _BAGGAGE_MALFORMED.add()
         return Context(baggage={})
 
     @staticmethod
@@ -1075,12 +1087,7 @@ class _BaggageHeader:
                     "Baggage item limit exceeded, dropping excess items, skipped: %d items",
                     len(splitted_header) - DD_TRACE_BAGGAGE_MAX_ITEMS,
                 )
-                telemetry_writer.add_count_metric(
-                    namespace=TELEMETRY_NAMESPACE.TRACERS,
-                    name="context_header.truncated",
-                    value=1,
-                    tags=(("truncation_reason", "baggage_item_count_exceeded"),),
-                )
+                _BAGGAGE_TRUNCATED_ITEM_COUNT.add()
                 break
             if "=" not in key_value:
                 return _BaggageHeader._record_malformed_and_return_empty()
@@ -1091,12 +1098,7 @@ class _BaggageHeader:
                     "Baggage header size exceeded, dropping excess items. size would be %d bytes",
                     total_size + segment_bytes,
                 )
-                telemetry_writer.add_count_metric(
-                    namespace=TELEMETRY_NAMESPACE.TRACERS,
-                    name="context_header.truncated",
-                    value=1,
-                    tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
-                )
+                _BAGGAGE_TRUNCATED_BYTE_COUNT.add()
                 break
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
