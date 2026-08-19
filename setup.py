@@ -22,7 +22,12 @@ from setuptools_rust import Binding
 from setuptools_rust import RustExtension
 from setuptools_rust import build_rust
 
-import cmake
+try:
+    import cmake
+except ImportError:
+    # Fall back to a cmake binary provided by the system (see
+    # get_cmake_command) when the cmake PyPI distribution is not installed.
+    cmake = None
 
 
 from setuptools import Distribution, Extension, find_packages, setup  # isort: skip
@@ -323,6 +328,20 @@ def load_module_from_project_file(mod_name, fname):
 
 def is_64_bit_python():
     return sys.maxsize > (1 << 32)
+
+
+def get_cmake_command() -> Path:
+    """Return the cmake executable to use.
+
+    Prefer the binary shipped by the cmake PyPI distribution; fall back to a
+    system-provided cmake when the distribution is not installed.
+    """
+    if cmake is not None:
+        return (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # type: ignore[attr-defined]
+    system_cmake = shutil.which("cmake")
+    if system_cmake is None:
+        raise EnvironmentError("cmake not found: install the cmake PyPI distribution or a system-wide cmake")
+    return Path(system_cmake).resolve()
 
 
 rust_features = ["stats"]
@@ -1043,7 +1062,7 @@ class CustomBuildExt(build_ext):
 
             install_args = [f"--config {COMPILE_MODE}"]
 
-            cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # type: ignore[attr-defined]
+            cmake_command = get_cmake_command()
             subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
             subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
@@ -1190,7 +1209,7 @@ class CustomBuildExt(build_ext):
         cmake_build_dir = Path(self.build_lib.replace("lib.", "cmake."), f"{dep.name}_build").resolve()
         cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
-        cmake_command = (Path(cmake.CMAKE_BIN_DIR) / "cmake").resolve()  # type: ignore[attr-defined]
+        cmake_command = get_cmake_command()
 
         cmake_args = self._base_cmake_args() + [
             f"-S{dep.cmake_dir}",
@@ -1524,9 +1543,7 @@ class CustomBuildExt(build_ext):
                 "-DCMAKE_C_FLAGS_%s=-O0" % ext.build_type.upper(),
                 "-DCMAKE_CXX_FLAGS_%s=-O0" % ext.build_type.upper(),
             ]
-        cmake_command = (
-            Path(cmake.CMAKE_BIN_DIR) / "cmake"  # type: ignore[attr-defined]
-        ).resolve()  # explicitly use the cmake provided by the cmake package
+        cmake_command = get_cmake_command()
         subprocess.run([cmake_command, *cmake_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--build", ".", *build_args], cwd=cmake_build_dir, check=True)
         subprocess.run([cmake_command, "--install", ".", *install_args], cwd=cmake_build_dir, check=True)
