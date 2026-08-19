@@ -22,6 +22,116 @@ from tests.webclient import Client
 FILE_PATH = Path(__file__).resolve().parent
 
 
+def _port_is_available(port: int) -> bool:
+    """Whether a server could bind the port right now.
+
+    Binding is the question that matters, since it is what the next server does. Probing with
+    connect() instead reports a port as free once a bound server's listen backlog fills, and
+    opens real connections to a live server.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            sock.bind(("0.0.0.0", int(port)))
+            return True
+        except OSError:
+            return False
+
+
+def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
+    """Wait until the port can be bound again, returning False if it never can.
+
+    Server teardown is best effort and gunicorn workers can outlive it, so without this the
+    next test to use the same port fails to bind. 31 tests share port 8050.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _port_is_available(port):
+            return True
+        time.sleep(0.1)
+    return _port_is_available(port)
+
+
+def _server_diagnostics(server_process, port: int, cmd: list) -> str:
+    """Facts that are not in the captured server output but explain most startup failures."""
+    if isinstance(server_process, multiprocessing.Process):
+        exit_code = server_process.exitcode
+    else:
+        exit_code = server_process.poll()
+    return (
+        f"port={port} port_still_bound={not _port_is_available(port)} pid={server_process.pid} "
+        f"exit_code={exit_code} (None means it was still running, so it was too slow rather "
+        f"than dead; a non-zero code with the port bound means another server still holds it)\n"
+        f"command={cmd}"
+    )
+
+
+def _dump_server_stacks(server_process) -> str:
+    """Fatally signal the server tree so faulthandler prints every thread's Python stack.
+
+    The servers run with PYTHONFAULTHANDLER=1, and that handler is C-level: it walks
+    interpreter state without taking the GIL, so it still reports when the process is wedged
+    holding it. A Python-level handler, or gevent's own run-info dump, needs the GIL and would
+    print nothing in the case this is here to explain.
+
+    SIGBUS rather than SIGABRT, even though both are armed by PYTHONFAULTHANDLER: gunicorn
+    workers install their own Python-level SIGABRT handler (Worker.handle_abort), which
+    replaces faulthandler's, drops the dump, and cannot run at all in a wedged process. The
+    worker is the process holding the request we need to see. gunicorn leaves SIGBUS alone.
+
+    The stacks go to the server's stderr, which is the captured output the caller points at.
+
+    Under gevent this reports the greenlet currently running on each OS thread. A greenlet
+    blocked in a C call cannot yield, so a request wedged that way is the one reported, which
+    is the case this exists for. A request merely parked on a gevent-aware wait shows up as
+    the hub instead.
+    """
+    try:
+        parent = psutil.Process(server_process.pid)
+        children = parent.children(recursive=True)
+    except psutil.Error as exc:
+        return f"could not enumerate the server tree to dump its stacks: {exc}"
+
+    # One process at a time throughout: the dumps share this stderr and interleave into
+    # nonsense if two are written at once. Waiting also lets each dump land before the
+    # teardown below tears the process group down.
+    signalled = []
+    for proc in children:
+        try:
+            proc.send_signal(signal.SIGBUS)
+        except psutil.Error:
+            # Already gone, or not ours to signal: the remaining targets still matter.
+            continue
+        signalled.append(proc.pid)
+        psutil.wait_procs([proc], timeout=3)
+
+    # The parent is this process's own child, so wait on it through its owner rather than
+    # through psutil: psutil.wait_procs() would reap it behind subprocess's back, which makes
+    # returncode read as 0 for a signalled process and leaves the teardown below with a pid
+    # that no longer exists.
+    try:
+        parent.send_signal(signal.SIGBUS)
+    except psutil.Error:
+        pass
+    else:
+        signalled.append(parent.pid)
+        _wait_for_owned_process(server_process, timeout=3)
+
+    return f"sent SIGBUS to {signalled} for a faulthandler stack dump; look for it in the output above"
+
+
+def _wait_for_owned_process(server_process, timeout: float) -> None:
+    """Wait for a process we spawned, whichever API its type provides."""
+    waiter = getattr(server_process, "wait", None) or getattr(server_process, "join", None)
+    if waiter is None:
+        return
+    try:
+        waiter(timeout=timeout)
+    except Exception:
+        # Best effort: this only exists to give the stack dump time to reach stderr.
+        pass
+
+
 @contextmanager
 def gunicorn_flask_server(
     use_ddtrace_cmd: bool = True,
@@ -335,6 +445,10 @@ def appsec_application_server(
         if preexec is not None:
             subprocess_kwargs["preexec_fn"] = preexec  # type: ignore[assignment]
 
+    # A previous test's server may still hold the port, which would make this one fail to bind.
+    if not _wait_for_port_release(port):
+        print(f"WARNING: port {port} was still bound when starting the server")
+
     if use_multiprocess:
         # Run the server command by replacing the child Python process with the target binary (exec),
         # ensuring signals/termination behave like the subprocess.Popen path.
@@ -374,17 +488,13 @@ def appsec_application_server(
                 print("Server started")
         except RetryError:
             raise AssertionError(
-                "Server failed to start, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+                "Server failed to start; its output is in the captured stdout/stderr above.\n"
+                + _server_diagnostics(server_process, port, cmd)
             )
         except Exception:
             raise AssertionError(
-                "Server FAILED, see stdout and stderr logs"
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+                "Server FAILED; its output is in the captured stdout/stderr above.\n"
+                + _server_diagnostics(server_process, port, cmd)
             )
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
@@ -399,9 +509,10 @@ def appsec_application_server(
             pass
         except Exception:
             raise AssertionError(
-                "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
-                "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                % (getattr(server_process, "stdout", None), getattr(server_process, "stderr", None))
+                "Server shutdown request failed; its output is in the captured stdout/stderr above.\n"
+                + _server_diagnostics(server_process, port, cmd)
+                + "\n"
+                + _dump_server_stacks(server_process)
             )
     finally:
         try:
@@ -419,7 +530,13 @@ def appsec_application_server(
                     pass
                 server_process.join(timeout=5)
             else:
-                os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                try:
+                    os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+                except (ProcessLookupError, PermissionError):
+                    # The server is already gone (_dump_server_stacks signals it, and a crashed
+                    # server needs no signal either). Raising here would replace the failure that
+                    # brought us into this block and skip the communicate() below.
+                    pass
                 server_process.terminate()
                 try:
                     _, stderr_output = server_process.communicate(timeout=10)
@@ -433,7 +550,9 @@ def appsec_application_server(
                     assert "Return value is tainted" in stderr_output
                     assert "Tainted arguments:" in stderr_output
         finally:
-            pass
+            # Do not hand the port to the next test while a worker still holds it.
+            if not _wait_for_port_release(port):
+                print(f"WARNING: port {port} still bound after server teardown")
 
 
 def _mp_target(_cmd: list[str], _env: dict) -> None:
@@ -464,15 +583,10 @@ def _mp_target(_cmd: list[str], _env: dict) -> None:
 
 
 def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
-    """Create a preexec_fn that applies resource limits if configured.
-
-    Returns None if no limits were requested.
-    """
+    """Create a preexec_fn that disables core dumps and applies resource limits if configured."""
     mem_mb = os.environ.get("TEST_SUBPROC_MEM_MB")
     cpu_aff = os.environ.get("TEST_SUBPROC_CPU_AFFINITY")
     nice_val = os.environ.get("TEST_SUBPROC_NICE")
-    if not any((mem_mb, cpu_aff, nice_val)):
-        return None
 
     # Import inside to keep portability on Windows.
     try:
@@ -481,6 +595,14 @@ def _make_preexec() -> _t.Optional[_t.Callable[[], None]]:
         resource = None  # type: ignore[assignment]
 
     def _preexec():  # pragma: no cover - exercised in integration tests
+        # No core dumps. _dump_server_stacks() fatally signals a server that failed to shut
+        # down, and the testrunner image runs with ulimit -c unlimited and core_pattern=core,
+        # which would drop a dump the size of the loaded native extensions into the workspace.
+        if resource is not None:
+            try:
+                resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+            except Exception:
+                pass
         # Set process group leader (already done via start_new_session)
         # Apply niceness first to reduce priority
         if nice_val is not None:

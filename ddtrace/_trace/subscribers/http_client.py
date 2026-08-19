@@ -40,6 +40,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
 
         if config._otel_trace_semantics_enabled and event.request_method:
             span = span_from_context(ctx)
+            span.resource = event.request_method.upper()
             _set_method_tag(span, event.request_method)
             span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
 
