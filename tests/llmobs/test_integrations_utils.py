@@ -303,11 +303,11 @@ def test_capture_inline_image_never_leaks_unparsed_data_url_as_text():
 
     Leaking it would put the whole base64 blob in the message content — the bug this guards.
     """
-    unparseable = "data:image/png;base64" + "A" * 64  # no "," separator
-    part, marker = _capture_inline_image(unparseable)
+    unparsable = "data:image/png;base64" + "A" * 64  # no "," separator
+    part, marker = _capture_inline_image(unparsable)
     assert part is None
     assert marker == "[image]"
-    _, _, image_parts = _extract_content_parts([{"type": "image_url", "image_url": {"url": unparseable}}])
+    _, _, image_parts = _extract_content_parts([{"type": "image_url", "image_url": {"url": unparsable}}])
     assert image_parts == []
 
 

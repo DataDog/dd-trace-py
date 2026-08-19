@@ -438,7 +438,7 @@ def _capture_inline_image(url: Any) -> tuple[Optional[ImagePart], Optional[str]]
     if not _is_data_url(url):
         return None, None
     match = _BASE64_IMAGE_DATA_URL.match(url)
-    # An unparseable data URL must not reach the caller's reference text, or the whole payload
+    # An unparsable data URL must not reach the caller's reference text, or the whole payload
     # would land in the message content.
     if not match:
         return None, IMAGE_FALLBACK_MARKER
