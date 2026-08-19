@@ -42,6 +42,24 @@ def span(tracer):
         yield span
 
 
+def test_copy_trace_level_tags_copies_independent_otel_sampling_state():
+    parent = Span("parent", trace_id=1, span_id=1)
+    target = Span("target", trace_id=2, span_id=2)
+    parent.context.sampling_priority = 1
+    parent.context._otel_sampling_state.set_probabilistic_decision(0.1)
+
+    trace_utils._copy_trace_level_tags(target, parent)
+
+    parent_state = parent.context._otel_sampling_state_data
+    target_state = target.context._otel_sampling_state_data
+    assert target.context.sampling_priority == parent.context.sampling_priority
+    assert target_state == parent_state
+    assert target_state is not parent_state
+
+    target_state.set_non_probabilistic_decision()
+    assert parent_state.is_probabilistic is True
+
+
 class TestHeaders(object):
     @pytest.fixture()
     def span(self):

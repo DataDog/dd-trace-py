@@ -10,7 +10,7 @@ from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 
 _MAX_THRESHOLD = 1 << 56
 _MAX_ENCODABLE_THRESHOLD = _MAX_THRESHOLD - 1
-_MAX_OTEL_TRACESTATE_MEMBER_CHARS = 256
+_MAX_OTEL_TRACESTATE_VALUE_CHARS = 256
 _VALID_RANDOM_VALUE = re.compile(r"^[0-9a-f]{14}$")
 _VALID_THRESHOLD = re.compile(r"^[0-9a-f]{1,14}$")
 
@@ -185,15 +185,15 @@ def _build_otel_member(
         candidate_fields.append("th:{}".format(threshold))
     candidate_fields.extend(unknown_fields)
 
-    # OTel limits the complete ot= list-member to 256 characters. Keep whole sub-fields,
-    # prioritizing rv/th, instead of emitting or truncating an invalid member.
+    # OTel limits the ot value (excluding the "ot=" key) to 256 characters. Keep whole
+    # sub-fields, prioritizing rv/th, instead of emitting or truncating an invalid value.
     fields: list[str] = []
-    member_chars = len("ot=")
+    value_chars = 0
     for field in candidate_fields:
         field_chars = len(field) + (1 if fields else 0)
-        if member_chars + field_chars <= _MAX_OTEL_TRACESTATE_MEMBER_CHARS:
+        if value_chars + field_chars <= _MAX_OTEL_TRACESTATE_VALUE_CHARS:
             fields.append(field)
-            member_chars += field_chars
+            value_chars += field_chars
     return ";".join(fields)
 
 

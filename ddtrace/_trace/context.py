@@ -78,8 +78,8 @@ class Context(object):
         self.span_id: Optional[int] = span_id
         self._is_remote: bool = is_remote
         self._reactivate: bool = False
-        # AIDEV-NOTE: Keep the default state allocation-free. copy() materializes the
-        # holder before sharing it so an existing child still observes a later root decision.
+        # AIDEV-NOTE: Keep the default state allocation-free. Holder creation is serialized by
+        # the shared lock so every child observes later trace-level sampling decisions.
         self._otel_sampling_state_data: Optional[OtelSamplingState] = None
 
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
@@ -157,7 +157,10 @@ class Context(object):
     def _otel_sampling_state(self) -> OtelSamplingState:
         state = self._otel_sampling_state_data
         if state is None:
-            state = self._otel_sampling_state_data = OtelSamplingState()
+            with self._lock:
+                state = self._otel_sampling_state_data
+                if state is None:
+                    state = self._otel_sampling_state_data = OtelSamplingState()
         return state
 
     @property
@@ -284,9 +287,13 @@ class Context(object):
         ctx._reactivate = False
         # PERF: Avoid the equivalent self._otel_sampling_state property access here;
         # benchmarks show its descriptor and function-call overhead matters in this hot path.
+        # The lock is acquired only for the first allocation and shared by all child contexts.
         otel_sampling_state = self._otel_sampling_state_data
         if otel_sampling_state is None:
-            otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
+            with self._lock:
+                otel_sampling_state = self._otel_sampling_state_data
+                if otel_sampling_state is None:
+                    otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
         ctx._otel_sampling_state_data = otel_sampling_state
         ctx._span_links = []
         return ctx
@@ -304,9 +311,13 @@ class Context(object):
         ctx._baggage = new_baggage
         # PERF: Avoid the equivalent self._otel_sampling_state property access here;
         # benchmarks show its descriptor and function-call overhead matters in this hot path.
+        # The lock is acquired only for the first allocation and shared by all child contexts.
         otel_sampling_state = self._otel_sampling_state_data
         if otel_sampling_state is None:
-            otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
+            with self._lock:
+                otel_sampling_state = self._otel_sampling_state_data
+                if otel_sampling_state is None:
+                    otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
         ctx._otel_sampling_state_data = otel_sampling_state
         return ctx
 

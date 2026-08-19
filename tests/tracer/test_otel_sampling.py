@@ -209,7 +209,7 @@ def test_inherited_otel_fields_remain_authoritative_over_local_sampling_state():
     assert context._tracestate == "dd=s:2,ot=rv:1234567890abcd;th:8;future:value"
 
 
-def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_member_cap():
+def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_value_cap():
     oversized_future_field = "future:" + ("x" * 220)
     context = Context(
         trace_id=1,
@@ -222,12 +222,20 @@ def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_member_ca
 
     ot_member = context._tracestate.split(",")[1]
 
-    assert len(ot_member) <= 256
+    assert len(ot_member.removeprefix("ot=")) <= 256
     assert _ot_fields(ot_member) == {
         "rv": "f0948a54d43b8e",
         "th": "e6666666666668",
         "next": "value",
     }
+
+
+def test_rebuilt_otel_member_allows_a_256_character_value():
+    ot_value = "future:" + ("x" * 249)
+    assert len(ot_value) == 256
+    context = Context(meta={"tracestate": "ot={}".format(ot_value)})
+
+    assert context._tracestate == "ot={}".format(ot_value)
 
 
 def test_probability_sampling_state_is_shared_with_existing_child_contexts():

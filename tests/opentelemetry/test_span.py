@@ -15,6 +15,8 @@ import pytest
 
 from ddtrace import config
 from ddtrace.constants import MANUAL_DROP_KEY
+from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.opentelemetry.span import Span
 from ddtrace.internal.otel_sampling import _random_value
 
@@ -292,6 +294,23 @@ def test_otel_get_span_context_with_default_trace_state(oteltracer):
 
         span_context = otelspan.get_span_context()
         assert span_context.trace_flags == TraceFlags.DEFAULT
+
+
+@pytest.mark.parametrize(("sampling_priority", "expected_flags"), [(0, 0x2), (1, 0x3)])
+def test_otel_get_span_context_preserves_inherited_random_trace_id_flag(oteltracer, sampling_priority, expected_flags):
+    otelspan = oteltracer.start_span("otel-server")
+    context = otelspan._ddspan.context
+    context.sampling_priority = sampling_priority
+    context._meta[W3C_TRACEPARENT_KEY] = "00-{:032x}-{:016x}-03".format(
+        context.trace_id,
+        context.span_id,
+    )
+    context._meta[W3C_TRACESTATE_KEY] = "ot=th:8"
+
+    span_context = otelspan.get_span_context()
+
+    assert span_context.trace_flags == TraceFlags(expected_flags)
+    assert "ot=th:8" in span_context.trace_state.to_header()
 
 
 def test_otel_child_span_context_reflects_root_sampling_decision(oteltracer):
