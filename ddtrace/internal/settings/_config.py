@@ -663,7 +663,9 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
+        trace_compute_stats_default = (
+            in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14) or agentless.enabled
+        )
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
@@ -775,11 +777,12 @@ class Config(object):
         self._trace_agentless_enabled = agentless.apm_tracing
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless enabled: health metrics and client-side stats are disabled. "
-                "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
-                "bypassing the agent.",
+                "APM Agentless enabled: health metrics are disabled. Hostnames will be resolved by "
+                "ddtrace; spans will be sent directly to the Datadog intake, bypassing the agent. "
+                "Client-side stats, when enabled, are sent to the stats intake rather than the agent.",
             )
-            self._trace_compute_stats = False
+            # DD_TRACE_STATS_COMPUTATION_ENABLED stays honoured: libdatadog sends the stats to the
+            # stats intake instead of the agent's /v0.6/stats (see _resolve_agentless_stats_endpoint).
             self._report_hostname = True
             self._health_metrics_enabled = False
 

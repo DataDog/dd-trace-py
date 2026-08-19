@@ -12,6 +12,20 @@ def _agentless_endpoint(signal_path: str = "") -> str:
     return f"https://otlp.{agentless_config.site}{signal_path}"
 
 
+def _targets_agentless_intake(signal_endpoint_env_var: str = "") -> bool:
+    if not agentless_config.enabled:
+        return False
+    if env.get("OTEL_EXPORTER_OTLP_ENDPOINT"):
+        return False
+    return not (signal_endpoint_env_var and env.get(signal_endpoint_env_var))
+
+
+def _default_headers(config: "ExporterConfig", signal_endpoint_env_var: str) -> str:
+    if agentless_config.api_key and _targets_agentless_intake(signal_endpoint_env_var):
+        return f"dd-api-key={agentless_config.api_key}"
+    return config.HEADERS
+
+
 def _default_protocol(config: "ExporterConfig") -> str:
     """The protocol to fall back on when no signal-specific one is set.
 
@@ -43,7 +57,7 @@ def _derive_logs_protocol(config: "ExporterConfig"):
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_HEADERS", config.HEADERS)
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_HEADERS", _default_headers(config, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"))
 
 
 def _derive_logs_timeout(config: "ExporterConfig"):
@@ -60,7 +74,9 @@ def _derive_metrics_protocol(config: "ExporterConfig"):
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_METRICS_HEADERS", config.HEADERS)
+    return get_config(
+        "OTEL_EXPORTER_OTLP_METRICS_HEADERS", _default_headers(config, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+    )
 
 
 def _derive_metrics_timeout(config: "ExporterConfig"):
@@ -119,6 +135,9 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
     global_endpoint = env.get("OTEL_EXPORTER_OTLP_ENDPOINT")
     if global_endpoint:
         return global_endpoint.rstrip("/") + ExporterConfig.METRICS_PATH
+    # Agentless has no agent OTLP receiver to fall back on.
+    if _targets_agentless_intake():
+        return _agentless_endpoint(ExporterConfig.METRICS_PATH)
     # Default to HTTP/JSON endpoint since libdatadog currently only supports http/json here.
     return f"{ExporterConfig.DEFAULT_HTTP_ENDPOINT}{ExporterConfig.METRICS_PATH}"
 
