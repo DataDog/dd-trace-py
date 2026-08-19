@@ -95,6 +95,28 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
 # Copy LSan suppression file next to the binaries so it can be referenced at runtime
 cp "${SCRIPT_DIR}/lsan.supp" "${BUILD_DIR}/fuzz/lsan.supp"
 
+# ---- Step 4: Smoke test each built binary ----
+# libFuzzer's -help=1 prints usage and exits 0 without running any iterations, but
+# it still forces the dynamic loader to resolve every shared library (libpython,
+# libdd_wrapper, _native) and runs the binary's static initializers. A target that
+# segfaults on startup (e.g. an unresolvable or incompatible libpython) therefore
+# fails here at build time instead of being silently shipped to the fuzzing fleet.
+echo "=== Smoke testing fuzz binaries (-help=1) ==="
+for TARGET in "${FUZZ_TARGETS[@]}"; do
+    BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
+    echo "Smoke test: ${BINARY_PATH} -help=1"
+    if LD_LIBRARY_PATH="${LIB_INSTALL_DIR}:${PYTHON_LIBDIR}:${LD_LIBRARY_PATH:-}" \
+       ASAN_OPTIONS=detect_leaks=0 \
+       "${BINARY_PATH}" -help=1 > /dev/null; then
+        echo "Smoke test passed: ${TARGET}"
+    else
+        status=$?
+        echo "Smoke test FAILED: ${BINARY_PATH} could not start (exit status ${status})"
+        exit 1
+    fi
+done
+echo "All fuzz binaries passed the startup smoke test"
+
 # Register the built binaries in the manifest file for the CI infrastructure to discover
 for TARGET in "${FUZZ_TARGETS[@]}"; do
     BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
