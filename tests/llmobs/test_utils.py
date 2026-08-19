@@ -558,6 +558,21 @@ class TestAnnotateLLMObsSpanData:
             metadata = span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.META][LLMOBS_STRUCT.METADATA]
             assert metadata == {"42": "a", "2.5": "b", "True": "c", "None": "d"}
 
+    def test_tag_keys_and_values_are_stringified(self, llmobs):
+        """Tags are serialized as string-to-string pairs, so both sides are coerced."""
+        with llmobs.task(name="test_span") as span:
+            _annotate_llmobs_span_data(span, tags={42: "a", None: 7, "obj": object.__new__(object)})
+            tags = span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.TAGS]
+            assert tags["42"] == "a"
+            assert tags["None"] == "7"
+            assert tags["obj"].startswith("<object object at")
+
+    def test_metric_keys_are_stringified(self, llmobs):
+        """A non-string metric key has no encodable representation, so it is coerced."""
+        with llmobs.task(name="test_span") as span:
+            _annotate_llmobs_span_data(span, metrics={42: 1, None: 2})
+            assert span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.METRICS] == {"42": 1, "None": 2}
+
     def test_merges_metadata_metrics_tags_across_calls(self, llmobs):
         """metadata, metrics, and tags accumulate rather than overwrite across multiple annotate calls."""
         with llmobs.task(name="test_span") as span:

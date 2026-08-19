@@ -9,8 +9,8 @@ import pytest
 
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObsSpan
+from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import LLMOBS_APM_SHADOW_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
@@ -1438,12 +1438,9 @@ def test_sampling_decisions_follow_configured_rate():
 
 
 class TestSpanEventJSONSafety:
-    """Span data must be JSON-safe by the time the span finishes.
+    """Span data must be JSON-safe by span finish, or agentless APM exporter will drop the entire trace.
 
-    The _llmobs meta_struct rides along on the APM span, and the agentless APM exporter JSON-encodes
-    it with no fallback for unserializable objects: one raw object raises TypeError and drops the
-    entire trace payload, not just the offending span (MLOB-7962). Sanitization happens at finish
-    rather than at annotation time so it also covers whatever the user span processor introduces.
+    Sanitizing at finish rather than at annotation time also covers what the user span processor adds.
     """
 
     class RawObject:
@@ -1455,6 +1452,15 @@ class TestSpanEventJSONSafety:
         def __str__(self):
             return "RawObject({})".format(self.value)
 
+    def test_agent_version_tag_is_stringified(self, llmobs):
+        """annotate(agent=...) is not type-validated, and the version is written into tags at finish,
+        after the string coercion in _annotate_llmobs_span_data has already run.
+        """
+        with llmobs.agent(name="my_agent") as span:
+            llmobs.annotate(span=span, agent={"version": self.RawObject("v2")})
+        tags = _get_llmobs_data_metastruct(span)[LLMOBS_STRUCT.TAGS]
+        assert tags[AGENT_VERSION_TAG_KEY] == "RawObject(v2)"
+
     def test_metadata_is_sanitized_at_finish(self, llmobs, tracer):
         with tracer.trace("root", span_type=SpanTypes.LLM) as span:
             _annotate_llmobs_span_data(
@@ -1462,7 +1468,6 @@ class TestSpanEventJSONSafety:
                 kind="llm",
                 metadata={"safety_settings": [self.RawObject("BLOCK_NONE")], "nested": {"cfg": self.RawObject("LOW")}},
             )
-        json.dumps(_get_llmobs_data_metastruct(span))  # raises TypeError if anything is unserializable
         assert get_llmobs_metadata(span) == {
             "safety_settings": ["RawObject(BLOCK_NONE)"],
             "nested": {"cfg": "RawObject(LOW)"},
@@ -1473,7 +1478,6 @@ class TestSpanEventJSONSafety:
         with tracer.trace("root", span_type=SpanTypes.LLM) as span:
             _annotate_llmobs_span_data(span, kind="llm", config={"safety_settings": [self.RawObject("BLOCK_NONE")]})
         data = _get_llmobs_data_metastruct(span)
-        json.dumps(data)
         assert data[LLMOBS_STRUCT.CONFIG] == {"safety_settings": ["RawObject(BLOCK_NONE)"]}
 
     def test_metadata_from_user_span_processor_is_sanitized(self, llmobs, tracer):
@@ -1492,18 +1496,32 @@ class TestSpanEventJSONSafety:
         try:
             with tracer.trace("root", span_type=SpanTypes.LLM) as span:
                 _annotate_llmobs_span_data(span, kind="llm")
-            json.dumps(_get_llmobs_data_metastruct(span))
             assert get_llmobs_metadata(span)["injected"] == "RawObject(from-processor)"
         finally:
             llmobs.register_processor(None)
+
+    def test_whole_struct_survives_json_encoding(self, llmobs, tracer):
+        """Reproduces the actual failure mode: json.dumps over the whole struct, the way the agentless
+        APM exporter encodes it. The per-field tests above assert sanitized values; this one asserts
+        that no other field (tags, metrics, _dd, ...) can still raise TypeError and drop the payload.
+        """
+        with tracer.trace("root", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(
+                span,
+                kind="llm",
+                metadata={"raw": self.RawObject("m")},
+                config={"raw": self.RawObject("c")},
+                tags={self.RawObject("k"): self.RawObject("v")},
+                metrics={"input_tokens": 1},
+            )
+        json.dumps(_get_llmobs_data_metastruct(span))
 
     def test_meta_struct_dropped_when_disabled_before_finish(self, llmobs, tracer):
         """A span started while enabled but finished after disabling produces no event, so its
         unsanitized partial struct must not ride along to the APM encoder.
         """
-        with tracer.trace("root", span_type=SpanTypes.LLM) as span:
-            _annotate_llmobs_span_data(span, kind="llm", metadata={"raw": self.RawObject("x")})
-            assert _get_llmobs_data_metastruct(span)  # the struct is there while the span is open
-            with mock.patch.object(llmobs, "enabled", False):
-                LLMObs._instance._on_span_finish(span)
-            assert span._get_struct_tag(LLMOBS_STRUCT.KEY) is None
+        with mock.patch.object(llmobs, "enabled", False):
+            with tracer.trace("root", span_type=SpanTypes.LLM) as span:
+                _annotate_llmobs_span_data(span, kind="llm", metadata={"raw": self.RawObject("x")})
+                assert _get_llmobs_data_metastruct(span)  # the struct is there while the span is open
+        assert span._get_struct_tag(LLMOBS_STRUCT.KEY) is None

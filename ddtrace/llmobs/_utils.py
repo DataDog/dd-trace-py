@@ -260,11 +260,8 @@ def _sanitize_span_event_data(obj: Any) -> Any:
     stringified, and every leaf value is made JSON-serializable. The original structure is never
     mutated. A debug log is emitted for each stringified over-depth field, including its dotted path.
 
-    Leaf sanitization matters because integrations store live SDK objects here as-is. This data
-    rides along on the APM span as meta_struct, and the agentless APM exporter JSON-encodes it with
-    no fallback for unserializable objects -- one such object raises TypeError and drops the entire
-    trace payload, not just the offending span. So this is the last line of defense, and it runs
-    after the user span processor, which can also introduce arbitrary objects.
+    This is the last line of defense before the agentless APM exporter, which drops the whole trace
+    payload on a single unserializable object. It runs after the user span processor for that reason.
     """
 
     def _walk(node: Any, depth: int, path: str) -> Any:
@@ -285,11 +282,9 @@ def _sanitize_span_event_data(obj: Any) -> Any:
     def _sanitize_leaf(node: Any, depth: int, path: str) -> Any:
         if node is None or isinstance(node, (str, int, float, bool)):
             return node
-        # load_data_value preserves structure where it can (pydantic models and dataclasses become
-        # dicts) rather than flattening to a string, so nested objects stay queryable in the UI.
+        # load_data_value keeps structure where it can (models become dicts) instead of flattening
+        # to a string, so nested objects stay queryable. Re-walk it to apply the depth limit.
         loaded = load_data_value(node)
-        # Structure it recovered still has to respect the depth limit, so walk it at this depth.
-        # load_data_value output bottoms out in primitives, so this cannot recurse indefinitely.
         return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
@@ -328,12 +323,10 @@ def load_data_value(value):
     elif isinstance(value, type):
         return value.__name__
     elif hasattr(value, "model_dump"):
-        # model_dump() (without mode="json") can still leave non-primitive field values
-        # (e.g. datetime, Enum, other SDK objects) unconverted, so recurse into the result.
+        # model_dump() can leave non-primitive field values (datetime, Enum, ...) unconverted.
         return load_data_value(value.model_dump(exclude_none=True))
     elif is_dataclass(value):
-        # asdict() only recurses into nested dataclasses/dicts/lists/tuples -- other field
-        # types are deep-copied as-is, so recurse into the result to finish sanitizing them.
+        # asdict() deep-copies non-dataclass field types as-is, leaving them unconverted.
         return load_data_value(asdict(value))
     elif isinstance(value, (int, float, str, bool)) or value is None:
         return value
@@ -700,9 +693,13 @@ def _sanitize_metric_key(key):
 
     LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
     decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
-    Non-string keys are returned unchanged (value validation happens upstream in ``annotate``).
+    Non-string keys are stringified, since a metric key is serialized as a string either way and
+    the encoder has no representation for other key types. (Value validation happens upstream in
+    ``annotate``.)
     """
-    if not isinstance(key, str) or "." not in key:
+    if not isinstance(key, str):
+        return str(key)
+    if "." not in key:
         return key
     sanitized = key.replace(".", "_")
     log.warning(
@@ -793,9 +790,7 @@ def _annotate_llmobs_span_data(
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
             # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
-            # stored as-is: integrations hand us live SDK objects, and in-process consumers (the
-            # user span processor, evaluators) should see them at full fidelity. Making them
-            # JSON-safe is deferred to _sanitize_span_event_data at span finish.
+            # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
         if agent_manifest is not None or cost_tags is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
@@ -810,8 +805,8 @@ def _annotate_llmobs_span_data(
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
-            # Tag values are serialized as strings, so coerce non-string values here.
-            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})
+            # Tag keys and values are both serialized as strings, so coerce non-string ones here.
+            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({str(k): str(v) for k, v in tags.items()})
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
             llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
