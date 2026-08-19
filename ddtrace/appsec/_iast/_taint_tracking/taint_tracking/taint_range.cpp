@@ -248,8 +248,9 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
     auto obj_id = get_unique_id(str);
     const auto hash = get_internal_hash(str);
     if (not hash) {
-        // Any entry here belongs to a freed object, since this address now holds str. Leaving it
-        // would let the next hashable object at this address match its hash and take its ranges.
+        // Whatever is stored here can no longer be validated against str, whether the address was
+        // reused or str stopped being hashable. Leaving it would let a later object at this
+        // address match that hash and take its ranges.
         tx_map->erase(obj_id);
         iast_taint_log_error("propagation::taint_map::Object cannot be hashed, dropping its taint");
         return SetRangesResult::NotIndexable;
@@ -454,17 +455,16 @@ get_internal_hash(PyObject* obj)
     }
 
     if (PyReMatch_Check(obj)) {
-        // Use the match.string for hashing
-        PyObject* string_obj = PyObject_GetAttrString(obj, "string");
-        if (string_obj == nullptr) {
+        // Use the match.string for hashing. Stolen into a py::object so an exception below cannot
+        // leak it; reinterpret_steal keeps this path non-throwing, unlike attr("string").
+        const auto string_obj = py::reinterpret_steal<py::object>(PyObject_GetAttrString(obj, "string"));
+        if (not string_obj) {
             PyErr_Clear();
             return std::nullopt;
         }
         // Recurse: match.string is a bytearray when the subject was one, and only
         // bytearray_hash() can hash those.
-        const auto hash = get_internal_hash(string_obj);
-        Py_DECREF(string_obj);
-        return hash;
+        return get_internal_hash(string_obj.ptr());
     }
 
     return checked_hash(obj);
@@ -479,7 +479,7 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
     auto obj_id = get_unique_id(str);
     const auto hash = get_internal_hash(str);
     if (not hash) {
-        // See set_ranges: no usable hash, and any entry at this address is a freed object's.
+        // See set_ranges: no usable hash, so any entry here can no longer be validated.
         tx_map->erase(obj_id);
         return;
     }
