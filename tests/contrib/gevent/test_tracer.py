@@ -603,9 +603,8 @@ def test_unpatch_restores_trace_callback_in_other_native_thread() -> None:
 
 
 @pytest.mark.subprocess()
-@pytest.mark.parametrize("profiler_first", [True, False], ids=["profiler_first", "contrib_first"])
-def test_context_switch_watcher_coexists_with_profiler_tracer(profiler_first: bool) -> None:
-    """Both the contrib watcher and the profiler's greenlet tracer fire on switch."""
+def test_context_switch_watcher_coexists_with_profiler_tracer_profiler_first() -> None:
+    """Both tracers fire when the profiler patches before the contrib (default ddtrace-run order)."""
     import gevent
 
     from ddtrace.internal import core
@@ -615,7 +614,6 @@ def test_context_switch_watcher_coexists_with_profiler_tracer(profiler_first: bo
     switch_events: list[None] = []
     profiler_events: list[str] = []
 
-    # Wrap the profiler tracer to record calls without changing behavior.
     original_tracer = profiler_gevent.greenlet_tracer
 
     def profiling_spy(event, args):
@@ -626,13 +624,40 @@ def test_context_switch_watcher_coexists_with_profiler_tracer(profiler_first: bo
         switch_events.append(None)
 
     profiler_gevent.greenlet_tracer = profiling_spy
-    if profiler_first:
-        profiler_gevent.patch()
+    profiler_gevent.patch()
     with gevent_patched(force_context_switch=True):
-        if not profiler_first:
-            profiler_gevent.patch()
         core.on("python.context.switch", record_context_switch)
-        # Trigger a switch so the contrib watcher self-heals around the profiler.
+        gevent.sleep(0)
+
+        assert switch_events, "Contrib watcher did not fire"
+        assert profiler_events, "Profiler tracer did not fire"
+
+
+@pytest.mark.subprocess()
+def test_context_switch_watcher_coexists_with_profiler_tracer_contrib_first() -> None:
+    """Both tracers fire when the contrib patches before the profiler (self-healing path)."""
+    import gevent
+
+    from ddtrace.internal import core
+    from ddtrace.profiling import _gevent as profiler_gevent
+    from tests.contrib.gevent.utils import gevent_patched
+
+    switch_events: list[None] = []
+    profiler_events: list[str] = []
+
+    original_tracer = profiler_gevent.greenlet_tracer
+
+    def profiling_spy(event, args):
+        profiler_events.append(event)
+        original_tracer(event, args)
+
+    def record_context_switch():
+        switch_events.append(None)
+
+    profiler_gevent.greenlet_tracer = profiling_spy
+    with gevent_patched(force_context_switch=True):
+        profiler_gevent.patch()
+        core.on("python.context.switch", record_context_switch)
         gevent.sleep(0)
 
         assert switch_events, "Contrib watcher did not fire"
