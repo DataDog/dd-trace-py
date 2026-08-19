@@ -1,10 +1,13 @@
 import base64
 from types import SimpleNamespace
 
+import pytest
+
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
+from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import prune_empty
@@ -30,8 +33,11 @@ from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from tests.utils import override_global_config
 
@@ -665,6 +671,77 @@ def test_normalize_prompt_variables_inline_image_degrades_to_marker():
     assert result["inline"] == "[image]"
     assert result["remote"] == "https://example.com/img.png"
     assert result["by_id"] == "file-123"
+
+
+class _ResponseInputImage:
+    def __init__(self, image_url=None, file_id=None):
+        self.type = "input_image"
+        self.image_url = image_url
+        self.file_id = file_id
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        SimpleNamespace(instructions=None, output=[]),
+        SimpleNamespace(instructions=[], output=[]),
+    ],
+    ids=["no_response", "instructions_none", "instructions_empty"],
+)
+def test_prompt_variable_image_is_normalized_off_the_chat_template_path(tracer, response):
+    """Regression: normalization must not depend on the chat_template path being taken.
+
+    It used to run only when a response echoed instructions back AND a template could be built from
+    them, so a failed request or an unechoed instruction left the raw data URL on the span.
+    """
+    payload = "A" * 4096
+    kwargs = {"prompt": {"id": "pmpt-1", "variables": {"pic": _ResponseInputImage(image_url=_data_url(payload))}}}
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")
+        openai_set_meta_tags_from_response(span, kwargs, response)
+        serialized = safe_json(get_llmobs_input_prompt(span))
+
+    assert payload not in serialized
+    assert IMAGE_FALLBACK_MARKER in serialized
+
+
+def test_prompt_variable_image_is_normalized_when_caller_supplies_template(tracer):
+    """A caller-supplied template skips the extraction branch entirely.
+
+    This is ordinary usage rather than an error path, so it was the widest instance of the leak:
+    the branch that normalized variables was never reached when template was already set.
+    """
+    payload = "B" * 4096
+    kwargs = {
+        "prompt": {
+            "id": "pmpt-1",
+            "template": "describe {{pic}}",
+            "variables": {"pic": _ResponseInputImage(image_url=_data_url(payload))},
+        }
+    }
+    response = SimpleNamespace(instructions=[SimpleNamespace(role="user", content="describe")], output=[])
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")
+        openai_set_meta_tags_from_response(span, kwargs, response)
+        serialized = safe_json(get_llmobs_input_prompt(span))
+
+    assert payload not in serialized
+    assert IMAGE_FALLBACK_MARKER in serialized
+
+
+def test_prompt_multimodal_tag_survives_normalization(tracer):
+    """The multimodal tag reads the SDK object's type attr, which normalizing to strings discards.
+
+    Pins the ordering: normalize after the check, never before.
+    """
+    kwargs = {"prompt": {"id": "pmpt-1", "variables": {"pic": _ResponseInputImage(image_url=_data_url("C" * 32))}}}
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")
+        openai_set_meta_tags_from_response(span, kwargs, None)
+        tags = get_llmobs_tags(span) or {}
+
+    assert tags.get(PROMPT_MULTIMODAL) == "true"
 
 
 def test_extract_chat_template_with_falsy_values():

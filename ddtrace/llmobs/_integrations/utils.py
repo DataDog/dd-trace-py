@@ -1201,18 +1201,24 @@ def openai_set_meta_tags_from_response(
     if prompt_data:
         try:
             prompt_data = dict(prompt_data)  # Make a copy to avoid modifying the original
-            variables = prompt_data.get("variables", {})
-            has_multimodal = _has_multimodal_inputs(variables)
+            raw_variables = prompt_data.get("variables", {})
+            # Read multimodality off the raw values: _has_multimodal_inputs keys off the SDK object's
+            # type attr, which normalizing to plain strings discards.
+            has_multimodal = _has_multimodal_inputs(raw_variables)
+            # Normalize unconditionally. Gating this on the chat_template path below left an inline
+            # image's full data URL on the span whenever that path was not taken -- a failed request
+            # with no response, a caller supplying its own template, or instructions not echoed back.
+            variables = _normalize_prompt_variables(raw_variables)
+            if variables:
+                prompt_data["variables"] = variables
 
             # Extract chat_template from response instructions if not already provided
             if response and not prompt_data.get("chat_template") and not prompt_data.get("template"):
                 instructions = _get_attr(response, "instructions", None)
                 if instructions:
-                    normalized_variables = _normalize_prompt_variables(variables)
-                    chat_template = _extract_chat_template_from_instructions(instructions, normalized_variables)
+                    chat_template = _extract_chat_template_from_instructions(instructions, variables)
                     if chat_template:
                         prompt_data["chat_template"] = chat_template
-                        prompt_data["variables"] = normalized_variables
 
             validated_prompt = _validate_prompt(prompt_data, strict_validation=False)
             set_prompt_tracking_tags(span, is_multimodal=has_multimodal)
