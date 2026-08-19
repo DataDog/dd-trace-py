@@ -433,7 +433,7 @@ integrations:
   tested_versions_by_dependency:
     gevent:
       min: 21.1.2
-      max: 26.5.0
+      max: 26.7.0
 
 - integration_name: google_adk
   is_external_package: true
