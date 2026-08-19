@@ -774,6 +774,17 @@ class TraceExporterBuilder:
         Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
         """
         ...
+    def set_agentless_stats_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Send client-computed trace stats to the Datadog stats intake instead of the agent.
+
+        Requires :meth:`set_agentless_endpoint` (whose API key and timeout it reuses) and
+        :meth:`enable_stats`. Mutually exclusive with :meth:`set_otlp_metrics_endpoint`;
+        ``build`` rejects the combination.
+        :param url: Full stats intake URL including the path
+            (e.g. "https://trace.agent.datadoghq.com/api/v0.2/stats").
+        """
+        ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
         Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).

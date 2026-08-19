@@ -207,6 +207,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_agentless_stats_endpoint(
+        mut slf: PyRefMut<'_, Self>,
+        url: &'_ str, // full stats intake url
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_agentless_stats_endpoint(url);
+        Ok(slf.into())
+    }
+
     fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_endpoint(url);
         Ok(slf.into())

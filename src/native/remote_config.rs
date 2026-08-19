@@ -214,18 +214,16 @@ impl RemoteConfigClient {
         let storage = ShmStorage::new();
         let http = NativeCapabilities::new_without_connection_pooling();
         let fetcher = if is_agentless {
-            // Agentless setup parses the embedded TUF trust roots; it performs no
-            // I/O, so blocking the calling thread here is safe.
             rt.block_on(SingleChangesFetcher::new(
                 storage, target, runtime_id, options, http,
             ))
             .map_err(|e| PyRuntimeError::new_err(format!("remote config runtime error: {e}")))?
+            .map_err(|e| {
+                PyRuntimeError::new_err(format!("failed to create the remote config client: {e}"))
+            })?
         } else {
             SingleChangesFetcher::new_no_agentless(storage, target, runtime_id, options, http)
         }
-        .map_err(|e| {
-            PyRuntimeError::new_err(format!("failed to create the remote config client: {e}"))
-        })?
         .with_client_id(client_id);
 
         Ok(RemoteConfigClient {
