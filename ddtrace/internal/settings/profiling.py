@@ -547,6 +547,18 @@ class ProfilingConfigHeap(DDConfig):
     )
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 
+    code_cache_enabled = DDConfig.v(
+        bool,
+        "code_cache_enabled",
+        default=True,
+        help_type="Boolean",
+        help=(
+            "Speed up heap profiling by caching Python code object lookups. "
+            "Requires Python 3.12 or later. Set to false if heap profiles show "
+            "incorrect function names."
+        ),
+    )
+
 
 class ProfilingConfigNativeHeap(DDConfig):
     __item__ = __prefix__ = "native_heap"

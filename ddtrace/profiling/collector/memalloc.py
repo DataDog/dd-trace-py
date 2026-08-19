@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from types import TracebackType
 from typing import TYPE_CHECKING
 from typing import Optional
@@ -39,6 +40,7 @@ class MemoryCollector:
         heap_sample_size: Optional[int] = None,
         ignore_profiler: Optional[bool] = None,
         mem_domain_enabled: Optional[bool] = None,
+        heap_code_cache_enabled: Optional[bool] = None,
     ) -> None:
         self.max_nframe = cast(int, max_nframe if max_nframe is not None else config.max_frames)
         self.heap_sample_size = cast(
@@ -48,6 +50,13 @@ class MemoryCollector:
         self.ignore_profiler = cast(bool, ignore_profiler if ignore_profiler is not None else config.ignore_profiler)
         mem_default: bool = config.memory.mem_domain_enabled
         self.mem_domain_enabled = mem_domain_enabled if mem_domain_enabled is not None else mem_default
+        requested_code_cache = (
+            heap_code_cache_enabled
+            if heap_code_cache_enabled is not None
+            else cast(bool, config.heap.code_cache_enabled)  # pyright: ignore
+        )
+        # The native cache relies on PyCode_AddWatcher (3.12+) for invalidation.
+        self.heap_code_cache_enabled = requested_code_cache and sys.version_info >= (3, 12)
 
     def start(self) -> None:
         """Start collecting memory profiles."""
@@ -55,13 +64,17 @@ class MemoryCollector:
             raise collector.CollectorUnavailable
 
         try:
-            _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
+            _memalloc.start(
+                self.max_nframe, self.heap_sample_size, self.mem_domain_enabled, self.heap_code_cache_enabled
+            )
         except RuntimeError:
             # This happens on fork because we don't call the shutdown hook since
             # the thread responsible for doing so is not running in the child
             # process. Therefore we stop and restart the collector instead.
             _memalloc.stop()
-            _memalloc.start(self.max_nframe, self.heap_sample_size, self.mem_domain_enabled)
+            _memalloc.start(
+                self.max_nframe, self.heap_sample_size, self.mem_domain_enabled, self.heap_code_cache_enabled
+            )
 
     def __enter__(self) -> Self:
         self.start()

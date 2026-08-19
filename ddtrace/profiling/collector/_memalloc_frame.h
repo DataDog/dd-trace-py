@@ -38,27 +38,29 @@
 #include "profiling_helpers/frame_accessors.h"
 #include "profiling_helpers/linetable_parser.h"
 
-/* Return the current line number for the frame by parsing the line table
- * directly, without calling PyCode_Addr2Line().
+/* Parse the line number for (code, lasti) by reading the line table directly,
+ * without calling PyCode_Addr2Line().
  *
  * We avoid PyCode_Addr2Line because CPython does not guarantee it is
  * allocation-free, and we are called from inside the allocator hook where
  * any allocation or free would cause reentrant undefined behaviour.
  *
  * The only CPython APIs used to obtain the table bytes are
- * PyBytes_AS_STRING / PyBytes_GET_SIZE, which are macros expanding to
- * struct field reads on PyBytesObject (ob_sval / ob_size) — guaranteed
- * not to allocate.  The actual parsing is delegated to DataDog::parse_linetable()
- * which performs pure byte arithmetic.
+ * PyBytes_AS_STRING / PyBytes_GET_SIZE, which are macros expanding to struct
+ * field reads on PyBytesObject — guaranteed not to allocate. The actual
+ * parsing is delegated to DataDog::parse_linetable() which performs pure byte
+ * arithmetic with no side effects.
  *
  * Allocation safety: this function only performs pointer arithmetic and byte
  * reads from already-owned objects. It does not allocate, decref, or touch
- * Python exception state. */
+ * Python exception state.
+ *
+ * Shared primitive for both _memalloc_frame.h (which has a frame pointer and
+ * computes lasti via get_lasti) and _memalloc_tb.cpp (which already holds
+ * lasti and wants to skip the get_lasti call). */
 static inline int
-memalloc_get_lineno(DataDog::py_frame_t* frame, PyCodeObject* code)
+memalloc_resolve_lineno(PyCodeObject* code, int lasti)
 {
-    int lasti = DataDog::get_lasti(frame, code);
-
 #ifdef _PY310_AND_LATER
     const unsigned char* table = (const unsigned char*)PyBytes_AS_STRING(code->co_linetable);
     Py_ssize_t len = PyBytes_GET_SIZE(code->co_linetable);
@@ -66,6 +68,11 @@ memalloc_get_lineno(DataDog::py_frame_t* frame, PyCodeObject* code)
     const unsigned char* table = (const unsigned char*)PyBytes_AS_STRING(code->co_lnotab);
     Py_ssize_t len = PyBytes_GET_SIZE(code->co_lnotab);
 #endif
-
     return DataDog::parse_linetable(table, len, lasti, code->co_firstlineno);
+}
+
+static inline int
+memalloc_get_lineno(DataDog::py_frame_t* frame, PyCodeObject* code)
+{
+    return memalloc_resolve_lineno(code, DataDog::get_lasti(frame, code));
 }
