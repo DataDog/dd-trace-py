@@ -10,6 +10,13 @@
 /// Returns the result of `install_heap_overrides`, i.e. whether at least one
 /// allocator symbol's GOT entry was resolved and patched (so hooks will run).
 ///
+/// libdatadog independently honors `DD_HEAP_SAMPLING_ENABLED` (unset =
+/// enabled; `0`/`false`/`no`/`off` disables). That check lives inside
+/// `install_heap_overrides`: a falsey value returns false without touching
+/// the GOT. Distinct from `DD_PROFILING_NATIVE_HEAP_ENABLED`, which is the
+/// ddtrace-side gate that decides whether this function is called. This
+/// wrapper does not read or set the libdatadog env var.
+///
 /// After a successful install, a `fork()` child inherits the mapping and the
 /// patched GOT, so a second native install is usually unnecessary. Upstream has
 /// no `pthread_atfork` child reset for the process-global registry mutex
@@ -60,6 +67,18 @@ pub extern "C" fn ddtrace_heap_gotter_set_sampling_distance(distance: u64) {
 #[no_mangle]
 pub extern "C" fn ddtrace_heap_gotter_update() {
     libdd_profiling_heap_gotter::update_heap_overrides();
+}
+
+/// Compile-time live-heap capability: `true` when built with the `live-heap`
+/// feature (`ddheap:free` + retain flagging). Not a runtime toggle; keep in
+/// lockstep with Cargo.toml's forward to `libdd-profiling-heap-gotter/live-heap`.
+///
+/// # Safety
+///
+/// C ABI entry point with no arguments and no pointers; always safe to call.
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_live_heap_enabled() -> bool {
+    cfg!(feature = "live-heap")
 }
 
 /// Test-only: number of times a patched hook has run in this process. Lets
