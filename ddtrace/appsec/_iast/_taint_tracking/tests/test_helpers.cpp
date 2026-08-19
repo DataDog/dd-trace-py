@@ -18,6 +18,29 @@ TEST_F(HasPyErrCheck, ErrorReturnsTrue)
     PyErr_Clear();
 }
 
+TEST_F(HasPyErrCheck, TakePyerrAsStringConsumesTheError)
+{
+    PyErr_SetString(PyExc_RuntimeError, "Test error");
+    EXPECT_STREQ(take_pyerr_as_string().c_str(), "RuntimeError: Test error");
+    EXPECT_EQ(PyErr_Occurred(), nullptr) << "the error must be taken, not left pending";
+    EXPECT_STREQ(take_pyerr_as_string().c_str(), "");
+}
+
+TEST_F(HasPyErrCheck, TakePyerrAsStringConsumesAMessageThatCannotBeEncoded)
+{
+    // A lone surrogate is not encodable to UTF-8, which is what formatting the message trips over.
+    // Reaching the caller with the error still set is the SystemError this all exists to prevent.
+    py::exec("import builtins\n"
+             "builtins._iast_unencodable = ValueError('bad path: \\udcff')\n");
+    const py::object exc = py::module_::import("builtins").attr("_iast_unencodable");
+    PyErr_SetObject(PyExc_ValueError, exc.ptr());
+    ASSERT_NE(PyErr_Occurred(), nullptr);
+
+    take_pyerr_as_string();
+
+    EXPECT_EQ(PyErr_Occurred(), nullptr) << "an unformattable error must still be consumed";
+}
+
 TEST_F(HasPyErrCheck, ClearError)
 {
     PyErr_SetString(PyExc_RuntimeError, "Test error");
