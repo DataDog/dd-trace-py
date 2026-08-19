@@ -104,6 +104,71 @@ def test_send_chat_completion_event(mock_send_payload, mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
 
 
+@mock.patch("ddtrace.internal.utils.retry.sleep")
+@mock.patch("ddtrace.llmobs._writer.telemetry.record_dropped_payload")
+@mock.patch("ddtrace.llmobs._writer.get_connection")
+def test_connection_error_logs_debug_before_retry_and_no_error_after_success(
+    mock_get_connection, mock_record_dropped_payload, mock_sleep, mock_writer_logs
+):
+    connection_error = ConnectionError("temporary connection failure")
+    failed_connection = mock.Mock()
+    failed_connection.request.side_effect = connection_error
+    successful_connection = mock.Mock()
+    successful_connection.getresponse.return_value.status = 200
+    successful_connection.getresponse.return_value.read.return_value = b"OK"
+    mock_get_connection.side_effect = [failed_connection, successful_connection]
+
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
+    llmobs_span_writer.enqueue(_completion_event())
+    llmobs_span_writer.periodic()
+
+    retry_log = mock.call(
+        "attempt to send %d LLMObs %s events to %s failed, will retry if attempts remain: %r",
+        1,
+        "span",
+        llmobs_span_writer._intake,
+        connection_error,
+        extra={"send_to_telemetry": False},
+    )
+    assert mock_writer_logs.debug.call_args_list.count(retry_log) == 1
+    assert mock_get_connection.call_count == 2
+    mock_writer_logs.error.assert_not_called()
+    mock_record_dropped_payload.assert_not_called()
+
+
+@mock.patch("ddtrace.internal.utils.retry.sleep")
+@mock.patch("ddtrace.llmobs._writer.telemetry.record_dropped_payload")
+@mock.patch("ddtrace.llmobs._writer.get_connection")
+def test_connection_error_logs_one_error_after_retries_exhausted(
+    mock_get_connection, mock_record_dropped_payload, mock_sleep, mock_writer_logs
+):
+    connection_error = ConnectionError("persistent connection failure")
+    mock_get_connection.return_value.request.side_effect = connection_error
+
+    llmobs_span_writer = LLMObsSpanWriter(1, 1, is_agentless=False)
+    llmobs_span_writer.enqueue(_completion_event())
+    llmobs_span_writer.periodic()
+
+    retry_log = mock.call(
+        "attempt to send %d LLMObs %s events to %s failed, will retry if attempts remain: %r",
+        1,
+        "span",
+        llmobs_span_writer._intake,
+        connection_error,
+        extra={"send_to_telemetry": False},
+    )
+    assert mock_writer_logs.debug.call_args_list.count(retry_log) == llmobs_span_writer.RETRY_ATTEMPTS
+    mock_writer_logs.error.assert_called_once_with(
+        "failed to send %d LLMObs %s events to %s",
+        1,
+        "span",
+        llmobs_span_writer._intake,
+        exc_info=True,
+        extra={"send_to_telemetry": False},
+    )
+    mock_record_dropped_payload.assert_called_once_with(1, event_type="span", error="connection_error")
+
+
 @mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
 def test_send_timed_events(mock_send_payload, mock_writer_logs):
     llmobs_span_writer = LLMObsSpanWriter(0.01, 1, is_agentless=False)
