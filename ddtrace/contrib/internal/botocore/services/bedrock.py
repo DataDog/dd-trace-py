@@ -2,12 +2,7 @@ from contextvars import ContextVar
 import json
 import sys
 from typing import Any
-from typing import AsyncIterator
-from typing import Awaitable
-from typing import Callable
 from typing import Optional
-
-import wrapt
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -21,7 +16,6 @@ from ddtrace.llmobs._integrations._bedrock_inference_profiles import begin_resol
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import lookup_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_inference_profile
 from ddtrace.llmobs._integrations._bedrock_inference_profiles import record_resolve_failure
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import _AI21
@@ -114,42 +108,6 @@ class BotocoreConverseStreamHandler(StreamHandler):
         core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
 
 
-class AiobotocoreStreamingBodyStreamHandler(AsyncStreamHandler):
-    async def process_chunk(self, chunk: dict[str, Any], iterator: Optional[Any] = None) -> None:
-        self.chunks.append(json.loads(chunk["chunk"]["bytes"]))
-
-    def handle_exception(self, exception: BaseException) -> None:
-        core.dispatch(
-            "botocore.patched_bedrock_api_call.exception", (self.options.get("execution_ctx", {}), sys.exc_info())
-        )
-
-    def finalize_stream(self, exception: Optional[BaseException] = None) -> None:
-        if exception:
-            return
-        execution_ctx = self.options.get("execution_ctx", {})
-        _extract_streamed_response_metadata(execution_ctx, self.chunks)
-        formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
-        core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
-
-
-class AiobotocoreConverseStreamHandler(AsyncStreamHandler):
-    async def process_chunk(self, chunk: dict[str, Any], iterator: Optional[Any] = None) -> None:
-        stream_processor = self.options.get("stream_processor")
-        if stream_processor:
-            stream_processor.send(chunk)
-
-    def handle_exception(self, exception: BaseException) -> None:
-        execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.patched_bedrock_api_call.exception", (execution_ctx, sys.exc_info()))
-
-    def finalize_stream(self, exception: Optional[BaseException] = None) -> None:
-        if exception:
-            return
-        stream_processor = self.options.get("stream_processor")
-        execution_ctx = self.options.get("execution_ctx", {})
-        core.dispatch("botocore.bedrock.process_response_converse", (execution_ctx, stream_processor))
-
-
 def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
     original_read = getattr(streaming_body, "read", None)
     original_readlines = getattr(streaming_body, "readlines", None)
@@ -174,146 +132,6 @@ def make_botocore_converse_traced_stream(stream, execution_ctx):
             None, None, None, None, execution_ctx=execution_ctx, stream_processor=stream_processor
         ),
     )
-
-
-def make_aiobotocore_streaming_body_traced_event_stream(stream: Any, execution_ctx: core.ExecutionContext) -> Any:
-    return make_traced_stream(
-        stream,
-        AiobotocoreStreamingBodyStreamHandler(None, None, None, None, execution_ctx=execution_ctx),
-    )
-
-
-def make_aiobotocore_converse_traced_stream(stream: Any, execution_ctx: core.ExecutionContext) -> Any:
-    stream_processor = execution_ctx["bedrock_integration"]._converse_output_stream_processor()
-    next(stream_processor)
-    return make_traced_stream(
-        stream,
-        AiobotocoreConverseStreamHandler(
-            None, None, None, None, execution_ctx=execution_ctx, stream_processor=stream_processor
-        ),
-    )
-
-
-class AiobotocoreStreamingBody(wrapt.ObjectProxy):
-    """Collect an async Bedrock response body and finish its LLM span at EOF."""
-
-    def __init__(self, body: Any, execution_ctx: core.ExecutionContext) -> None:
-        super().__init__(body)
-        self._self_execution_ctx = execution_ctx
-        self._self_chunks = []
-        self._self_finished = False
-
-    def _finish(self) -> None:
-        if self._self_finished:
-            return
-        self._self_finished = True
-        try:
-            response = json.loads(b"".join(self._self_chunks))
-            formatted_response = _extract_text_and_response_reason(self._self_execution_ctx, response)
-            core.dispatch("botocore.bedrock.process_response", (self._self_execution_ctx, formatted_response))
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", (self._self_execution_ctx, sys.exc_info()))
-            raise
-
-    def _fully_consumed(self) -> bool:
-        tell = getattr(self.__wrapped__, "tell", None)
-        content_length = getattr(self.__wrapped__, "_content_length", None)
-        if not callable(tell) or content_length is None:
-            return False
-        return tell() == int(content_length)
-
-    async def read(self, amt: Optional[int] = None) -> bytes:
-        try:
-            body = await self.__wrapped__.read() if amt is None else await self.__wrapped__.read(amt)
-            self._self_chunks.append(body)
-            # aiobotocore's read() without an amount consumes the remainder.
-            # Sized reads signal EOF with an empty chunk.
-            if amt is None or amt < 0 or (amt > 0 and not body) or self._fully_consumed():
-                self._finish()
-            return body
-        except Exception:
-            if not self._self_finished:
-                core.dispatch("botocore.patched_bedrock_api_call.exception", (self._self_execution_ctx, sys.exc_info()))
-            raise
-
-    async def readinto(self, buffer: bytearray) -> int:
-        try:
-            amount_read = await self.__wrapped__.readinto(buffer)
-            self._self_chunks.append(bytes(buffer[:amount_read]))
-            if (len(buffer) > 0 and amount_read == 0) or self._fully_consumed():
-                self._finish()
-            return amount_read
-        except Exception:
-            if not self._self_finished:
-                core.dispatch("botocore.patched_bedrock_api_call.exception", (self._self_execution_ctx, sys.exc_info()))
-            raise
-
-    async def readlines(self) -> list[bytes]:
-        try:
-            lines = await self.__wrapped__.readlines()
-            self._self_chunks.extend(lines)
-            self._finish()
-            return lines
-        except Exception:
-            if not self._self_finished:
-                core.dispatch("botocore.patched_bedrock_api_call.exception", (self._self_execution_ctx, sys.exc_info()))
-            raise
-
-    async def __aiter__(self) -> AsyncIterator[bytes]:
-        try:
-            async for body in self.__wrapped__:
-                self._self_chunks.append(body)
-                yield body
-            self._finish()
-        except Exception:
-            if not self._self_finished:
-                core.dispatch("botocore.patched_bedrock_api_call.exception", (self._self_execution_ctx, sys.exc_info()))
-            raise
-
-    async def __anext__(self) -> bytes:
-        try:
-            body = await self.__wrapped__.__anext__()
-            self._self_chunks.append(body)
-            return body
-        except StopAsyncIteration:
-            self._finish()
-            raise
-        except Exception:
-            if not self._self_finished:
-                core.dispatch("botocore.patched_bedrock_api_call.exception", (self._self_execution_ctx, sys.exc_info()))
-            raise
-
-    anext = __anext__
-
-    async def iter_chunks(self, chunk_size: int = 1024) -> AsyncIterator[bytes]:
-        while True:
-            chunk = await self.read(chunk_size)
-            if chunk == b"":
-                break
-            yield chunk
-
-    async def iter_lines(self, chunk_size: int = 1024, keepends: bool = False) -> AsyncIterator[bytes]:
-        pending = b""
-        async for chunk in self.iter_chunks(chunk_size):
-            lines = (pending + chunk).splitlines(True)
-            for line in lines[:-1]:
-                yield line.splitlines(keepends)[0]
-            pending = lines[-1]
-        if pending:
-            yield pending.splitlines(keepends)[0]
-
-    async def __aenter__(self) -> "AiobotocoreStreamingBody":
-        await self.__wrapped__.__aenter__()
-        return self
-
-    async def __aexit__(self, *args: Any, **kwargs: Any) -> Any:
-        return await self.__wrapped__.__aexit__(*args, **kwargs)
-
-
-def make_aiobotocore_streaming_body_traced_stream(
-    streaming_body: Any, execution_ctx: core.ExecutionContext
-) -> AiobotocoreStreamingBody:
-    return AiobotocoreStreamingBody(streaming_body, execution_ctx)
 
 
 def safe_token_count(token_count) -> Optional[int]:
@@ -584,7 +402,10 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         ctx.set_item("llmobs.request_params", request_params)
 
 
-def _record_bedrock_response_metadata(ctx: core.ExecutionContext, result: dict[str, Any]) -> None:
+def handle_bedrock_response(
+    ctx: core.ExecutionContext,
+    result: dict[str, Any],
+) -> dict[str, Any]:
     metadata = result["ResponseMetadata"]
     http_headers = metadata["HTTPHeaders"]
 
@@ -625,13 +446,6 @@ def _record_bedrock_response_metadata(ctx: core.ExecutionContext, result: dict[s
         safe_token_count(cache_write_tokens),
     )
 
-
-def handle_bedrock_response(
-    ctx: core.ExecutionContext,
-    result: dict[str, Any],
-) -> dict[str, Any]:
-    _record_bedrock_response_metadata(ctx, result)
-
     if ctx["resource"] == "Converse":
         core.dispatch("botocore.bedrock.process_response_converse", (ctx, result))
         return result
@@ -642,31 +456,6 @@ def handle_bedrock_response(
 
     body = result["body"]
     result["body"] = make_botocore_streaming_body_traced_stream(body, ctx)
-    return result
-
-
-def handle_aiobotocore_bedrock_response(
-    ctx: core.ExecutionContext,
-    result: dict[str, Any],
-) -> dict[str, Any]:
-    """Apply Bedrock response semantics without changing aiobotocore's async contract."""
-    _record_bedrock_response_metadata(ctx, result)
-
-    if ctx["resource"] == "Converse":
-        core.dispatch("botocore.bedrock.process_response_converse", (ctx, result))
-        return result
-
-    if ctx["resource"] == "ConverseStream":
-        if "stream" in result:
-            result["stream"] = make_aiobotocore_converse_traced_stream(result["stream"], ctx)
-        return result
-
-    if ctx["resource"] == "InvokeModelWithResponseStream":
-        result["body"] = make_aiobotocore_streaming_body_traced_event_stream(result["body"], ctx)
-        return result
-
-    body = result["body"]
-    result["body"] = make_aiobotocore_streaming_body_traced_stream(body, ctx)
     return result
 
 
@@ -833,49 +622,6 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
             result = original_func(*args, **kwargs)
             result = handle_bedrock_response(ctx, result)
             return result
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", (ctx, sys.exc_info()))
-            raise
-
-
-async def patched_aiobotocore_bedrock_api_call(
-    original_func: Callable[..., Awaitable[Any]],
-    instance: Any,
-    args: tuple[Any, ...],
-    kwargs: dict[str, Any],
-    function_vars: dict[str, Any],
-) -> Any:
-    """Async counterpart to patched_bedrock_api_call for aiobotocore clients."""
-    params = function_vars.get("params")
-    pin = function_vars.get("pin")
-    integration = function_vars.get("integration")
-    model_id = params.get("modelId")
-    model_provider, model_name = parse_model_id(model_id)
-    # Cache hits are safe to share with the synchronous integration. A cache miss
-    # intentionally avoids botocore's blocking control-plane lookup on the event loop.
-    model_id, model_provider, model_name = _resolve_application_inference_profile(
-        model_id, model_provider, model_name, llmobs_enabled=integration.llmobs_enabled
-    )
-    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
-    with core.context_with_data(
-        "botocore.patched_bedrock_api_call",
-        pin=pin,
-        span_name=function_vars.get("trace_operation"),
-        service=function_vars.get("service"),
-        resource=function_vars.get("operation"),
-        span_type=SpanTypes.LLM if submit_to_llmobs else None,
-        call_trace=True,
-        bedrock_integration=integration,
-        params=params,
-        model_provider=model_provider,
-        model_name=model_name,
-        model_id=model_id,
-        instance=instance,
-    ) as ctx:
-        try:
-            handle_bedrock_request(ctx)
-            result = await original_func(*args, **kwargs)
-            return handle_aiobotocore_bedrock_response(ctx, result)
         except Exception:
             core.dispatch("botocore.patched_bedrock_api_call.exception", (ctx, sys.exc_info()))
             raise

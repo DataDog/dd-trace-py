@@ -12,12 +12,12 @@ from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.aiobotocore.bedrock import patched_aiobotocore_bedrock_api_call
 
 # AIDEV-NOTE: Shared with botocore; this integration registers its own owner-gated
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
-from ddtrace.contrib.internal.botocore.services.bedrock import patched_aiobotocore_bedrock_api_call
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -148,9 +148,9 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         operation = None
         params = None
 
-    # AIDEV-NOTE: Bedrock is the one aiobotocore endpoint whose span must
-    # outlive this coroutine. Its async body/stream wrapper owns finalization;
-    # keep the supported operation set aligned with botocore/patch.py.
+    # Bedrock spans must outlive this coroutine while the async body/stream is consumed.
+    # The Bedrock helper preserves the same APM tags as this generic path and owns
+    # finalization for every supported async consumption path.
     if endpoint_name == "bedrock-runtime" and operation in BEDROCK_RUNTIME_OPERATIONS:
         trace_operation = schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
