@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Adds support for exporting Datadog trace metrics when OTLP trace export is enabled. Set ``OTEL_TRACES_SPAN_METRICS_ENABLED=true`` to enable it.
+  - |
+    tracing: Adds support for ``DD_TRACE_STATS_ADDITIONAL_TAGS``, which adds configured span tags to native v0.6 trace stats and OTLP trace metrics.

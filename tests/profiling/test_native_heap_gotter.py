@@ -1,13 +1,7 @@
 """Smoke tests for the native (C/C++) heap profiling activator.
 
-The activator (``ddtrace.internal.datadog.profiling.heap_gotter``) is fail-closed
-and must behave correctly whether or not the opt-in gotter cdylib was built into
-the wheel (``DD_PROFILING_NATIVE_HEAP_BUILD=1``):
-
-* If the library is absent (the default), ``install()``/``is_installed()`` are
-  no-ops returning ``False``.
-* If present (a native-heap build on Linux), ``install()`` patches the process
-  GOT and ``is_installed()`` flips to ``True`` and stays there (idempotent).
+``install()`` patches the process GOT and ``is_installed()`` flips to ``True``
+and stays there (idempotent).
 
 Proving that the ``ddheap`` USDT probes actually *fire* requires attaching the
 Full Host eBPF profiler (or a ``test-support`` build exposing the hook-hit
@@ -27,17 +21,16 @@ def test_native_heap_gotter_smoke() -> None:
     from ddtrace.internal.datadog.profiling import heap_gotter
 
     if not heap_gotter.is_available:
-        # Wheel built without the gotter cdylib: strictly a no-op.
         assert heap_gotter.install() is False
         assert heap_gotter.is_installed() is False
+        assert heap_gotter.live_heap_enabled() is False
     else:
-        # Native-heap build: arming must take effect and be idempotent.
         assert heap_gotter.is_installed() is False
         assert heap_gotter.install() is True
         assert heap_gotter.is_installed() is True
-        assert heap_gotter.install() is True
+        assert heap_gotter.install() is True  # idempotent
+        assert isinstance(heap_gotter.live_heap_enabled(), bool)
 
-        # Generate allocation pressure; this must not crash with the patched GOT.
         blobs: list[tuple[str, int]] = []
         for i in range(200):
             blobs.append(("x" * 4096, i))
@@ -50,15 +43,14 @@ def test_native_heap_gotter_fork_install_and_allocations() -> None:
     """dlopen + install, then fork and keep allocating in parent and child.
 
     Exercises the gunicorn/uWSGI-shaped path where the activator may run before
-    fork and again in the child. When the cdylib is present, GOT overrides are
-    inherited; when absent, install() stays a no-op. Either way, fork + alloc
-    must not crash.
+    fork and again in the child. GOT overrides are inherited across fork;
+    fork + alloc must not crash.
     """
     import os
 
     from ddtrace.internal.datadog.profiling import heap_gotter
 
-    # Import already dlopen'd (or fail-closed). Arm in the parent.
+    # Import already dlopen'd. Arm in the parent.
     armed = heap_gotter.install()
     if heap_gotter.is_available:
         assert armed is True
