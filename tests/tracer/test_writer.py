@@ -1519,3 +1519,118 @@ def test_agent_trace_url_is_the_agent_when_not_agentless():
     from ddtrace.trace import tracer
 
     assert tracer.agent_trace_url == agent_config.trace_agent_url
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+        # Agentless computes Datadog stats by default, and those win over OTLP trace metrics.
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_agentless_writer_exports_trace_metrics_to_the_intake():
+    """libdatadog forbids OTLP *trace* export with agentless, but not OTLP trace metrics.
+
+    Dropping the endpoint in agentless mode would silently stop span-stats export.
+    """
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._otlp_metrics_endpoint == "https://otlp.datadoghq.com/v1/metrics"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "OTEL_TRACES_SPAN_METRICS_ENABLED": "true"})
+def test_agent_mode_exports_trace_metrics_to_the_agent():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_metrics_endpoint == "http://localhost:4318/v1/metrics"
+
+
+@pytest.mark.subprocess(
+    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"}
+)
+def test_agentless_stats_go_to_the_stats_intake():
+    """There is no Agent to forward /v0.6/stats to, so computed stats go straight to the intake."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "DD_SITE": "datadoghq.eu",
+    }
+)
+def test_agentless_stats_intake_follows_dd_site():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.eu/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        # The test venv pins these off; the point here is what agentless defaults to.
+        "DD_TRACE_COMPUTE_STATS": None,
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": None,
+    }
+)
+def test_agentless_computes_stats_by_default():
+    """Without an Agent to compute them, agentless turns on client-side stats itself."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_agentless_leaves_stats_to_the_backend_when_disabled():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint is None
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+    },
+    err=None,  # warns that OTLP trace metrics are skipped
+)
+def test_agentless_stats_take_precedence_over_otlp_trace_metrics():
+    """libdatadog rejects both at build time, so one must be dropped before the exporter is built."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+    assert writer._otlp_metrics_endpoint is None
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"})
+def test_agent_mode_sends_stats_through_the_agent():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._agentless_stats_endpoint is None
