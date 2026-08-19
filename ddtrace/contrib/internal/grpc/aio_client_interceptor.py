@@ -97,6 +97,10 @@ async def _finish_stream_terminal_state(call: aio.Call, span: Span) -> None:
 
 def _done_callback_stream(span: Span) -> Callable[[aio.Call], None]:
     def func(call: aio.Call) -> None:
+        # AIDEV-NOTE: gRPC can invoke this done callback while the stream iterator is still
+        # surfacing its terminal exception. Successful calls can be finalized synchronously,
+        # but non-OK calls need the authoritative async code/details accessors. The shared
+        # `_claim_stream_error` gate makes callback-side and iterator-side finalization mutually exclusive.
         if span._get_ctx_item(_GRPC_AIO_ERROR_HANDLED):
             return
         if not call.done():
@@ -166,6 +170,9 @@ async def _handle_cancelled_error(call: aio.Call, span: Span) -> None:
 
 
 async def _handle_stream_rpc_error(span: Span, call: aio.Call, rpc_error: aio.AioRpcError) -> None:
+    # AIDEV-NOTE: `rpc_error.details()` may still contain a transport placeholder while gRPC is
+    # completing trailers. Await the call's code/details for the authoritative terminal state,
+    # and claim ownership before awaiting so the done callback cannot flush the span concurrently.
     if not _claim_stream_error(span):
         return
     try:
