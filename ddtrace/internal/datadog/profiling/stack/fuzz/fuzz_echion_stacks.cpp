@@ -30,7 +30,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     // varint line table decoding.
     {
         FrameStack fuzz_stack;
-        (void)unwind_frame(echion_sampler, reinterpret_cast<PyObject*>(p0), fuzz_stack, 16);
+        (void)unwind_frame(echion_sampler, reinterpret_cast<PyObject*>(p0), fuzz_stack, 16, false);
     }
 
     // unwind_python_stack — full stack unwind pipeline from a locally-constructed

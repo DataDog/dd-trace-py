@@ -37,7 +37,7 @@ class FrameStack : public std::vector<Frame>
   public:
     using Key = Frame::Key;
 
-    void render(EchionSampler& echion, bool truncated = false);
+    void render(EchionSampler& echion, bool truncated);
 };
 
 // Forward declaration
@@ -53,8 +53,8 @@ unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
-             size_t max_frames_to_add = MAX_TASK_FRAMES,
-             bool detect_truncation = false);
+             size_t max_frames_to_add,
+             bool detect_truncation);
 
 // Convenience variant that owns a local scratch set, for callers that have no
 // reusable scratch to share (fuzz harnesses and other callers outside the
@@ -63,8 +63,8 @@ UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
-             size_t max_frames_to_add = MAX_TASK_FRAMES,
-             bool detect_truncation = false);
+             size_t max_frames_to_add,
+             bool detect_truncation);
 
 // ----------------------------------------------------------------------------
 UnwindResult

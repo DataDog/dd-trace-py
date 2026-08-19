@@ -49,17 +49,20 @@ unwind_frame(EchionSampler& echion,
              bool detect_truncation)
 {
     seen_frames.clear();
-    UnwindResult result;
     if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
-        return result;
+        return UnwindResult{};
     }
 
+    UnwindResult result;
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
         const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
-        if (at_limit && (!detect_truncation || frames_probed_after_limit++ >= MAX_TASK_FRAMES)) {
-            break;
+        if (at_limit) {
+            if (!detect_truncation || frames_probed_after_limit >= MAX_TASK_FRAMES) {
+                break;
+            }
+            frames_probed_after_limit++;
         }
         if (seen_frames.contains(current_frame_addr))
             break;
@@ -129,7 +132,7 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
     _PyCFrame* cframe_addr = tstate->cframe;
     if (copy_type(cframe_addr, cframe))
         // TODO: Invalid frame
-        return {};
+        return UnwindResult{};
 
     PyObject* frame_addr = reinterpret_cast<PyObject*>(cframe.current_frame);
 #else // Python < 3.11

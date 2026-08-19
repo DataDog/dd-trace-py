@@ -832,7 +832,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
                   task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
             });
 
-            task_stack_info->stack.render(echion);
+            task_stack_info->stack.render(echion, false);
 
             renderer.render_stack_end();
         }
@@ -844,7 +844,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             });
 
             auto& stack = greenlet_stack->stack;
-            stack.render(echion);
+            stack.render(echion, false);
 
             renderer.render_stack_end();
         }
