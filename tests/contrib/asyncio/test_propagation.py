@@ -139,12 +139,17 @@ def test_context_watcher_slot_exhaustion_uses_python_fallback():
         raise AssertionError("context watcher slots were not exhausted")
 
     try:
+        import ddtrace
         from ddtrace.contrib.internal.asyncio.patch import patch
         from ddtrace.contrib.internal.asyncio.patch import unpatch
         from ddtrace.internal import core
         from ddtrace.internal.context_watcher import is_context_watcher_registered
         from ddtrace.internal.wrapping import is_wrapped
         from ddtrace.trace import tracer
+
+        # Tracer startup was delayed until the watcher slots were exhausted.
+        # Restore the normal top-level binding used by Pin.enabled().
+        ddtrace.tracer = tracer
 
         assert not is_context_watcher_registered()
         assert core.has_listeners("python.context.switch")
