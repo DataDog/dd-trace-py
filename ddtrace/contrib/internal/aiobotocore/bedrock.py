@@ -37,6 +37,9 @@ from ddtrace.llmobs._integrations.base_stream_handler import TracedAsyncStream
 
 class AiobotocoreStreamingBodyStreamHandler(AsyncStreamHandler):
     async def process_chunk(self, chunk: dict[str, Any], iterator: Optional[Any] = None) -> None:
+        execution_ctx = self.options.get("execution_ctx", {})
+        if not execution_ctx["bedrock_integration"].llmobs_enabled:
+            return
         self.chunks.append(json.loads(chunk["chunk"]["bytes"]))
 
     def handle_exception(self, exception: BaseException) -> None:
@@ -48,8 +51,16 @@ class AiobotocoreStreamingBodyStreamHandler(AsyncStreamHandler):
         if exception:
             return
         execution_ctx = self.options.get("execution_ctx", {})
-        _extract_streamed_response_metadata(execution_ctx, self.chunks)
-        formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
+        if not execution_ctx["bedrock_integration"].llmobs_enabled:
+            core.dispatch("botocore.bedrock.process_response", (execution_ctx, {}))
+            return
+        try:
+            _extract_streamed_response_metadata(execution_ctx, self.chunks)
+            formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
+        except (KeyError, IndexError, TypeError, ValueError):
+            if not self.options.get("allow_partial", False):
+                raise
+            formatted_response = {}
         core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
 
 
@@ -78,10 +89,12 @@ class AiobotocoreTracedAsyncStream(TracedAsyncStream):
         super().__init__(stream, handler)
         self._self_finalized = False
 
-    def _finalize(self, exception: Optional[BaseException] = None) -> None:
+    def _finalize(self, exception: Optional[BaseException] = None, allow_partial: bool = False) -> None:
         if self._self_finalized:
             return
         self._self_finalized = True
+        if allow_partial:
+            self._self_handler.options["allow_partial"] = True
         if exception is not None:
             self._self_handler.handle_exception(exception)
         self._self_handler.finalize_stream(exception)
@@ -142,12 +155,12 @@ class AiobotocoreTracedAsyncStream(TracedAsyncStream):
                     self._finalize(exc)
                     raise
                 else:
-                    self._finalize()
+                    self._finalize(allow_partial=True)
                     return value
 
             return await_close()
 
-        self._finalize()
+        self._finalize(allow_partial=True)
         return result
 
     async def aclose(self) -> None:
@@ -166,7 +179,7 @@ class AiobotocoreTracedAsyncStream(TracedAsyncStream):
             self._finalize(exc)
             raise
         else:
-            self._finalize()
+            self._finalize(allow_partial=True)
 
 
 def make_aiobotocore_streaming_body_traced_event_stream(stream: Any, execution_ctx: core.ExecutionContext) -> Any:
@@ -195,6 +208,15 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
         self._self_execution_ctx = execution_ctx
         self._self_chunks: list[bytes] = []
         self._self_finished = False
+        self._self_collect_response = execution_ctx["bedrock_integration"].llmobs_enabled
+
+    def _append_chunk(self, chunk: bytes) -> None:
+        if self._self_collect_response:
+            self._self_chunks.append(chunk)
+
+    def _extend_chunks(self, chunks: list[bytes]) -> None:
+        if self._self_collect_response:
+            self._self_chunks.extend(chunks)
 
     def _dispatch_exception(self, exc_info: Optional[Any] = None) -> None:
         if self._self_finished:
@@ -209,6 +231,9 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
         if self._self_finished:
             return
         self._self_finished = True
+        if not self._self_collect_response:
+            core.dispatch("botocore.bedrock.process_response", (self._self_execution_ctx, {}))
+            return
         try:
             raw_body = b"".join(self._self_chunks)
             if raw_body:
@@ -259,7 +284,7 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
     async def read(self, amt: Optional[int] = None) -> bytes:
         try:
             body = await self.__wrapped__.read() if amt is None else await self.__wrapped__.read(amt)
-            self._self_chunks.append(body)
+            self._append_chunk(body)
             if amt is None or amt < 0 or (amt > 0 and not body) or self._fully_consumed():
                 self._finish()
             return body
@@ -273,7 +298,7 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
     async def readinto(self, buffer: bytearray) -> int:
         try:
             amount_read = await self.__wrapped__.readinto(buffer)
-            self._self_chunks.append(bytes(buffer[:amount_read]))
+            self._append_chunk(bytes(buffer[:amount_read]))
             if (len(buffer) > 0 and amount_read == 0) or self._fully_consumed():
                 self._finish()
             return amount_read
@@ -287,7 +312,7 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
     async def readlines(self) -> list[bytes]:
         try:
             lines = await self.__wrapped__.readlines()
-            self._self_chunks.extend(lines)
+            self._extend_chunks(lines)
             self._finish()
             return lines
         except asyncio.CancelledError:
@@ -301,7 +326,7 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
         completed = False
         try:
             async for body in self.__wrapped__:
-                self._self_chunks.append(body)
+                self._append_chunk(body)
                 yield body
             completed = True
         except asyncio.CancelledError:
@@ -317,7 +342,7 @@ class AiobotocoreStreamingBody(wrapt.ObjectProxy):
     async def __anext__(self) -> bytes:
         try:
             body = await self.__wrapped__.__anext__()
-            self._self_chunks.append(body)
+            self._append_chunk(body)
             if self._fully_consumed():
                 self._finish()
             return body
