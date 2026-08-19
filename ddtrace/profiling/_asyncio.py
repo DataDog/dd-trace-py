@@ -70,11 +70,11 @@ def _reset_task_span_state_after_fork() -> None:
 forksafe.register(_reset_task_span_state_after_fork)
 
 
-def _track_asyncio_loop(thread_id: int, loop: typing.Optional[asyncio.AbstractEventLoop]) -> bool:
+def _track_asyncio_loop(thread_id: int, loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
     try:
-        return stack.track_asyncio_loop(thread_id, loop)
+        stack.track_asyncio_loop(thread_id, loop)
     except Exception:
-        return False
+        return
 
 
 def _current_task_span_target() -> typing.Optional[stack.LogicalSpanTarget]:

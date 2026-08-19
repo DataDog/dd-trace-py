@@ -62,11 +62,8 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 
     Sampler::get().stop();
 
-    // Explicitly clear ThreadSpanLinks. The memory should be cleared up
-    // when the program exits as ThreadSpanLinks is a static singleton instance.
-    // However, this was necessary to make sure that the state is not shared
-    // across tests, as the tests are run in the same process.
-    ThreadSpanLinks::get_instance().reset();
+    // Explicitly clear SpanLinks so tests running in the same process do not share state.
+    SpanLinks::get_instance().reset();
 
     // Clear the native call registry. This is safe because we stop the
     // Sampler above.
@@ -125,7 +122,7 @@ stack_thread_unregister(PyObject* self, PyObject* args)
 
     Py_BEGIN_ALLOW_THREADS;
     Sampler::get().unregister_thread(id);
-    ThreadSpanLinks::get_instance().unlink_span(id);
+    SpanLinks::get_instance().unlink_span(id);
     OriginTaskLinks::get_instance().unlink_origin_task(id);
     Py_END_ALLOW_THREADS;
 
@@ -162,7 +159,7 @@ stack_link_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         span_type = empty_string.c_str();
     }
 
-    auto& links = ThreadSpanLinks::get_instance();
+    auto& links = SpanLinks::get_instance();
     links.on_link_start(span_id);
 
     Py_BEGIN_ALLOW_THREADS;
@@ -199,7 +196,7 @@ stack_unlink_span(PyObject* self, PyObject* args)
     uint64_t thread_id = state->thread_id;
 
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
+    SpanLinks::get_instance().unlink_span(thread_id, expected_span_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -217,7 +214,7 @@ stack_clear_span(PyObject* self, PyObject* args)
     }
 
     Py_BEGIN_ALLOW_THREADS;
-    ThreadSpanLinks::get_instance().unlink_span(state->thread_id);
+    SpanLinks::get_instance().unlink_span(state->thread_id);
     Py_END_ALLOW_THREADS;
 
     Py_RETURN_NONE;
@@ -264,7 +261,7 @@ stack_link_logical_span_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         return nullptr;
     }
 
-    ThreadSpanLinks::get_instance().link_logical_span(
+    SpanLinks::get_instance().link_logical_span(
       domain, logical_id, span_id, local_root_span_id, std::string(span_type == nullptr ? "" : span_type));
 
     Py_RETURN_NONE;
@@ -287,7 +284,7 @@ stack_clear_logical_span(PyObject* self, PyObject* args)
     if (!parse_logical_span_domain(domain_value, domain)) {
         return nullptr;
     }
-    ThreadSpanLinks::get_instance().unlink_logical_span(domain, logical_id);
+    SpanLinks::get_instance().unlink_logical_span(domain, logical_id);
 
     Py_RETURN_NONE;
 }
@@ -302,7 +299,7 @@ stack_unlink_finished_span(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    auto& links = ThreadSpanLinks::get_instance();
+    auto& links = SpanLinks::get_instance();
     if (links.on_span_finish(span_id)) {
         Py_BEGIN_ALLOW_THREADS;
         links.unlink_finished_span(span_id);
@@ -317,7 +314,7 @@ stack_reset_span_links(PyObject* self, PyObject* args)
 {
     (void)self;
     (void)args;
-    ThreadSpanLinks::get_instance().reset();
+    SpanLinks::get_instance().reset();
     Py_RETURN_NONE;
 }
 
@@ -389,12 +386,11 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
         return nullptr;
     }
 
-    bool tracked = false;
     Py_BEGIN_ALLOW_THREADS;
-    tracked = Sampler::get().track_asyncio_loop(static_cast<uintptr_t>(thread_id), loop);
+    Sampler::get().track_asyncio_loop(static_cast<uintptr_t>(thread_id), loop);
     Py_END_ALLOW_THREADS;
 
-    return PyBool_FromLong(tracked);
+    Py_RETURN_NONE;
 }
 
 static PyObject*
@@ -1164,7 +1160,7 @@ static PyMethodDef stack_methods[] = {
       METH_NOARGS,
       "Clear the originating asyncio task for the current (executor worker) thread" },
     // asyncio task support
-    { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Map the name of a task with its identifier" },
+    { "track_asyncio_loop", stack_track_asyncio_loop, METH_VARARGS, "Track an asyncio loop for a registered thread" },
     { "is_asyncio_loop_registered",
       stack_is_asyncio_loop_registered,
       METH_VARARGS,

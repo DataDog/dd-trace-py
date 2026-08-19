@@ -9,148 +9,145 @@
 namespace Datadog {
 
 void
-ThreadSpanLinks::remove_target_locked(const SpanLinkTarget& target)
+SpanLinks::remove_locked(const Key& key)
 {
-    auto target_it = target_to_span.find(target);
-    if (target_it == target_to_span.end()) {
+    auto key_it = key_to_span.find(key);
+    if (key_it == key_to_span.end()) {
         return;
     }
 
-    const auto& span = target_it->second;
-    auto span_it = span_to_targets.find(span.span_id);
-    if (span_it != span_to_targets.end()) {
-        span_it->second.erase(target);
+    const auto& span = key_it->second;
+    auto span_it = span_to_keys.find(span.span_id);
+    if (span_it != span_to_keys.end()) {
+        span_it->second.erase(key);
         if (span_it->second.empty()) {
-            span_to_targets.erase(span_it);
+            span_to_keys.erase(span_it);
         }
     }
-    target_to_span.erase(target_it);
+    key_to_span.erase(key_it);
 }
 
 void
-ThreadSpanLinks::link_target(SpanLinkTarget target,
-                             uint64_t span_id,
-                             uint64_t local_root_span_id,
-                             std::string span_type)
+SpanLinks::link(Key key, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    remove_target_locked(target);
+    remove_locked(key);
     Span span(span_id, local_root_span_id, std::move(span_type));
-    target_to_span.try_emplace(target, std::move(span));
+    key_to_span.try_emplace(key, std::move(span));
     // Index only the current span. A local root can finish before an active child, and finishing it must not remove the
     // child's attribution before that child finishes.
-    span_to_targets[span_id].insert(target);
+    span_to_keys[span_id].insert(key);
 }
 
 const std::optional<Span>
-ThreadSpanLinks::get_active_span(const SpanLinkTarget& target)
+SpanLinks::get_active_span(const Key& key)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    auto it = target_to_span.find(target);
-    if (it == target_to_span.end()) {
+    auto it = key_to_span.find(key);
+    if (it == key_to_span.end()) {
         return std::nullopt;
     }
     return it->second;
 }
 
 void
-ThreadSpanLinks::unlink_target(SpanLinkTarget target)
+SpanLinks::unlink(Key key)
 {
     std::lock_guard<std::mutex> lock(mtx);
-    remove_target_locked(target);
+    remove_locked(key);
 }
 
 void
-ThreadSpanLinks::unlink_target(SpanLinkTarget target, uint64_t expected_span_id)
+SpanLinks::unlink(Key key, uint64_t expected_span_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    auto it = target_to_span.find(target);
-    if (it != target_to_span.end() && it->second.span_id == expected_span_id) {
-        remove_target_locked(target);
+    auto it = key_to_span.find(key);
+    if (it != key_to_span.end() && it->second.span_id == expected_span_id) {
+        remove_locked(key);
     }
 }
 
 void
-ThreadSpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
+SpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type)
 {
-    link_target({ SpanLinkDomain::Thread, thread_id }, span_id, local_root_span_id, std::move(span_type));
+    link({ SpanLinkDomain::Thread, thread_id }, span_id, local_root_span_id, std::move(span_type));
 }
 
 const std::optional<Span>
-ThreadSpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
+SpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 {
     return get_active_span({ SpanLinkDomain::Thread, thread_id });
 }
 
 void
-ThreadSpanLinks::unlink_span(uint64_t thread_id)
+SpanLinks::unlink_span(uint64_t thread_id)
 {
-    unlink_target({ SpanLinkDomain::Thread, thread_id });
+    unlink({ SpanLinkDomain::Thread, thread_id });
 }
 
 void
-ThreadSpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
+SpanLinks::unlink_span(uint64_t thread_id, uint64_t expected_span_id)
 {
-    unlink_target({ SpanLinkDomain::Thread, thread_id }, expected_span_id);
+    unlink({ SpanLinkDomain::Thread, thread_id }, expected_span_id);
 }
 
 void
-ThreadSpanLinks::link_logical_span(SpanLinkDomain domain,
-                                   uint64_t logical_id,
-                                   uint64_t span_id,
-                                   uint64_t local_root_span_id,
-                                   std::string span_type)
+SpanLinks::link_logical_span(SpanLinkDomain domain,
+                             uint64_t logical_id,
+                             uint64_t span_id,
+                             uint64_t local_root_span_id,
+                             std::string span_type)
 {
-    link_target({ domain, logical_id }, span_id, local_root_span_id, std::move(span_type));
+    link({ domain, logical_id }, span_id, local_root_span_id, std::move(span_type));
 }
 
 const std::optional<Span>
-ThreadSpanLinks::get_active_span_from_logical_id(SpanLinkDomain domain, uint64_t logical_id)
+SpanLinks::get_active_span_from_logical_id(SpanLinkDomain domain, uint64_t logical_id)
 {
     return get_active_span({ domain, logical_id });
 }
 
 void
-ThreadSpanLinks::unlink_logical_span(SpanLinkDomain domain, uint64_t logical_id)
+SpanLinks::unlink_logical_span(SpanLinkDomain domain, uint64_t logical_id)
 {
-    unlink_target({ domain, logical_id });
+    unlink({ domain, logical_id });
 }
 
 void
-ThreadSpanLinks::unlink_finished_span(uint64_t span_id)
+SpanLinks::unlink_finished_span(uint64_t span_id)
 {
     std::lock_guard<std::mutex> lock(mtx);
 
-    auto span_it = span_to_targets.find(span_id);
-    if (span_it == span_to_targets.end()) {
+    auto span_it = span_to_keys.find(span_id);
+    if (span_it == span_to_keys.end()) {
         return;
     }
 
-    for (const auto& target : span_it->second) {
-        target_to_span.erase(target);
+    for (const auto& key : span_it->second) {
+        key_to_span.erase(key);
     }
-    span_to_targets.erase(span_it);
+    span_to_keys.erase(span_it);
 }
 
 void
-ThreadSpanLinks::reset()
+SpanLinks::reset()
 {
     std::lock_guard<std::mutex> lock(mtx);
-    target_to_span.clear();
-    span_to_targets.clear();
+    key_to_span.clear();
+    span_to_keys.clear();
 }
 
 void
-ThreadSpanLinks::on_link_start(uint64_t span_id)
+SpanLinks::on_link_start(uint64_t span_id)
 {
     ++pending_span_links[span_id].count;
 }
 
 bool
-ThreadSpanLinks::on_link_end(uint64_t span_id)
+SpanLinks::on_link_end(uint64_t span_id)
 {
     auto pending_span = pending_span_links.find(span_id);
     if (--pending_span->second.count != 0) {
@@ -163,7 +160,7 @@ ThreadSpanLinks::on_link_end(uint64_t span_id)
 }
 
 bool
-ThreadSpanLinks::on_span_finish(uint64_t span_id)
+SpanLinks::on_span_finish(uint64_t span_id)
 {
     auto pending_span = pending_span_links.find(span_id);
     if (pending_span == pending_span_links.end()) {
@@ -175,7 +172,7 @@ ThreadSpanLinks::on_span_finish(uint64_t span_id)
 }
 
 void
-ThreadSpanLinks::postfork_child()
+SpanLinks::postfork_child()
 {
     auto& instance = get_instance();
     // NB placement-new to re-init and leak the mutex because doing anything else is UB
@@ -185,8 +182,8 @@ ThreadSpanLinks::postfork_child()
     // which is UB. Reconstruct the maps in place without inspecting their contents. This intentionally leaks the old
     // maps' heap allocations, because their possibly corrupted pointers cannot be safely traversed or freed in the
     // child.
-    new (&instance.target_to_span) TargetToSpan();
-    new (&instance.span_to_targets) SpanToTargets();
+    new (&instance.key_to_span) KeyToSpan();
+    new (&instance.span_to_keys) SpanToKeys();
     new (&instance.pending_span_links) std::unordered_map<uint64_t, PendingSpanLink>();
 }
 

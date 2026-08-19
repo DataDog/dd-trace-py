@@ -96,13 +96,11 @@ class StackRenderer
                              microsecond_t wall_time_us,
                              uintptr_t thread_id,
                              unsigned long native_id);
-    // An empty outer optional preserves physical-thread attribution. An engaged outer optional identifies a logical
-    // stack, while its inner optional contains that stack's span attribution when available.
     void render_task_begin(std::string_view task_name,
                            bool on_cpu,
                            uint64_t task_id,
-                           std::optional<int64_t> walltime_ns_override = std::nullopt,
-                           const LogicalSpanContext& logical_span_context = {});
+                           std::optional<int64_t> walltime_ns_override,
+                           const SpanContext& span_context);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);

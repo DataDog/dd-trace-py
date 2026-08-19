@@ -71,9 +71,9 @@ add_library(
     src/echion/vm.cc
     src/origin_task_links.cpp
     src/sampler.cpp
+    src/span_links.cpp
     src/stack.cpp
-    src/stack_renderer.cpp
-    src/span_links.cpp)
+    src/stack_renderer.cpp)
 
 # Add common config
 add_ddup_config(${EXTENSION_NAME})

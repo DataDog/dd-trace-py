@@ -18,27 +18,6 @@ enum class SpanLinkDomain : uint8_t
     GeventGreenlet = 2,
 };
 
-struct SpanLinkTarget
-{
-    SpanLinkDomain domain;
-    uint64_t identifier;
-
-    bool operator==(const SpanLinkTarget& other) const
-    {
-        return domain == other.domain && identifier == other.identifier;
-    }
-};
-
-// C++20 does not provide std::hash for pairs or aggregate key types.
-struct SpanLinkTargetHash
-{
-    std::size_t operator()(const SpanLinkTarget& target) const
-    {
-        const auto domain = static_cast<std::size_t>(target.domain);
-        return std::hash<uint64_t>{}(target.identifier) ^ (domain + 0x9e3779b9U + (domain << 6U) + (domain >> 2U));
-    }
-};
-
 struct Span
 {
     uint64_t span_id;
@@ -60,20 +39,24 @@ struct Span
     }
 };
 
-using LogicalSpanContext = std::optional<std::optional<Span>>;
+struct SpanContext
+{
+    bool is_logical_stack = false;
+    std::optional<Span> span;
+};
 
-class ThreadSpanLinks
+class SpanLinks
 {
   public:
-    static ThreadSpanLinks& get_instance()
+    static SpanLinks& get_instance()
     {
-        static ThreadSpanLinks instance;
+        static SpanLinks instance;
         return instance;
     }
 
     // Delete Copy constructor and assignment operator to prevent copies
-    ThreadSpanLinks(ThreadSpanLinks const&) = delete;
-    ThreadSpanLinks& operator=(ThreadSpanLinks const&) = delete;
+    SpanLinks(SpanLinks const&) = delete;
+    SpanLinks& operator=(SpanLinks const&) = delete;
 
     void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
     const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
@@ -99,9 +82,26 @@ class ThreadSpanLinks
     static void postfork_child();
 
   private:
-    using TargetSet = std::unordered_set<SpanLinkTarget, SpanLinkTargetHash>;
-    using TargetToSpan = std::unordered_map<SpanLinkTarget, Span, SpanLinkTargetHash>;
-    using SpanToTargets = std::unordered_map<uint64_t, TargetSet>;
+    struct Key
+    {
+        SpanLinkDomain domain;
+        uint64_t identifier;
+
+        bool operator==(const Key& other) const { return domain == other.domain && identifier == other.identifier; }
+    };
+
+    struct KeyHash
+    {
+        std::size_t operator()(const Key& key) const
+        {
+            const auto domain = static_cast<std::size_t>(key.domain);
+            return std::hash<uint64_t>{}(key.identifier) ^ (domain + 0x9e3779b9U + (domain << 6U) + (domain >> 2U));
+        }
+    };
+
+    using KeySet = std::unordered_set<Key, KeyHash>;
+    using KeyToSpan = std::unordered_map<Key, Span, KeyHash>;
+    using SpanToKeys = std::unordered_map<uint64_t, KeySet>;
 
     struct PendingSpanLink
     {
@@ -109,22 +109,22 @@ class ThreadSpanLinks
         bool finished = false;
     };
 
-    void link_target(SpanLinkTarget target, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
-    void unlink_target(SpanLinkTarget target);
-    void unlink_target(SpanLinkTarget target, uint64_t expected_span_id);
-    void remove_target_locked(const SpanLinkTarget& target);
-    const std::optional<Span> get_active_span(const SpanLinkTarget& target);
+    void link(Key key, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
+    void unlink(Key key);
+    void unlink(Key key, uint64_t expected_span_id);
+    void remove_locked(const Key& key);
+    const std::optional<Span> get_active_span(const Key& key);
 
     std::mutex mtx;
-    TargetToSpan target_to_span;
-    SpanToTargets span_to_targets;
+    KeyToSpan key_to_span;
+    SpanToKeys span_to_keys;
 
     // Protected by the GIL. This bridges lifecycle callback order to mutations that release it above.
     std::unordered_map<uint64_t, PendingSpanLink> pending_span_links;
 
     // Private Constructor/Destructor
-    ThreadSpanLinks() = default;
-    ~ThreadSpanLinks() = default;
+    SpanLinks() = default;
+    ~SpanLinks() = default;
 };
 
 } // namespace Datadog

@@ -65,7 +65,7 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     if (failed) {
         return;
     }
-    thread_span_context = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    thread_span_context = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
     span_context_rendered = false;
 
     // Return an incomplete Sample before asking the pool for its replacement.
@@ -110,7 +110,7 @@ StackRenderer::render_task_begin(std::string_view task_name,
                                  bool on_cpu,
                                  uint64_t task_id,
                                  std::optional<int64_t> walltime_ns_override,
-                                 const LogicalSpanContext& logical_span_context)
+                                 const SpanContext& span_context)
 {
     static bool failed = false;
     if (failed) {
@@ -149,8 +149,8 @@ StackRenderer::render_task_begin(std::string_view task_name,
         }
     }
 
-    if (logical_span_context.has_value()) {
-        render_logical_span_context(*logical_span_context);
+    if (span_context.is_logical_stack) {
+        render_logical_span_context(span_context.span);
     } else {
         render_thread_span_context();
     }
