@@ -5,14 +5,30 @@
 
 #include "dd_wrapper/include/profiler_state.hpp"
 
+size_t
+rendered_location_count(const Frame& frame)
+{
+    if (frame.code_object == 0 || frame.lasti < 0) {
+        return 1;
+    }
+
+    auto& registry = Datadog::ProfilerState::get().native_call_registry;
+    const int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
+    return registry.lookup(frame.code_object, offset_bytes, frame.first_lineno) ? 2 : 1;
+}
+
 void
-FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
+FrameStack::render(EchionSampler& echion, TruncationStatus truncation, size_t omission_index, size_t omitted_frames)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
-    for (auto it = this->begin(); it != this->end(); ++it) {
-        auto& frame = *it;
+    for (size_t i = 0; i < size(); ++i) {
+        if (i == omission_index) {
+            renderer.render_omitted_frames(omitted_frames);
+        }
+
+        auto& frame = (*this)[i];
 
         // Inject native frame BEFORE its Python caller.
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
@@ -29,6 +45,9 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
         renderer.render_frame(frame);
     }
 
+    if (omission_index == size()) {
+        renderer.render_omitted_frames(omitted_frames);
+    }
     if (truncation == TruncationStatus::Truncated) {
         renderer.render_truncated();
     }
@@ -49,7 +68,7 @@ unwind_frame(EchionSampler& echion,
              bool detect_truncation)
 {
     seen_frames.clear();
-    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
+    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_STACK_DISCOVERY_DEPTH)) {
         return UnwindResult{};
     }
 
@@ -57,9 +76,9 @@ unwind_frame(EchionSampler& echion,
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
-        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
+        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_STACK_DISCOVERY_DEPTH;
         if (at_limit) {
-            if (!detect_truncation || frames_probed_after_limit >= MAX_TASK_FRAMES) {
+            if (!detect_truncation || frames_probed_after_limit >= MAX_STACK_DISCOVERY_DEPTH) {
                 return result;
             }
             frames_probed_after_limit++;
