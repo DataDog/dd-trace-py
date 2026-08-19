@@ -3,6 +3,7 @@ mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
 mod config;
+mod context;
 mod context_provider;
 #[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
 mod context_watcher;
@@ -85,6 +86,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
     contextvar::register_contextvar(m)?;
+    context::register_context(m)?;
     context_provider::register_context_provider(m)?;
     rand::register_rand(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
