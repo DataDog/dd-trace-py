@@ -10,7 +10,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal._identity import maybe_refresh_identity
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
@@ -29,7 +28,7 @@ async def execute(func, handler, args, kwargs):
     ``TracerStackContext``. This simplifies users code when the automatic ``Context``
     retrieval is used via ``Tracer.trace()`` method.
     """
-    maybe_refresh_identity(handler.request.method, handler.request.path)
+    core.dispatch(core.WEB_REQUEST_STARTING, (handler.request.method, handler.request.path))
 
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]

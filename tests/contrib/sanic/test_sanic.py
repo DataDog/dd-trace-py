@@ -21,6 +21,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.sanic.patch import patch
 from ddtrace.contrib.internal.sanic.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -444,24 +445,23 @@ async def test_endpoint_with_numeric_arg(tracer, client, test_spans):
 @pytest.mark.asyncio
 async def test_microvm_run_hook_request(tracer, client, test_spans):
     """_create_sanic_request_span() (the shared entry point behind both
-    sanic_http_lifecycle_handle and patch_handle_request) must pass method/path to
-    maybe_refresh_identity(), so it detects the MicroVM /run hook without app changes.
-    No route is registered here, so this also covers unmatched routes.
+    sanic_http_lifecycle_handle and patch_handle_request) must dispatch method/path before
+    request tracing starts. No route is registered here, so this also covers unmatched routes.
     """
-    with mock.patch("ddtrace.contrib.internal.sanic.patch.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.sanic.patch.core.dispatch", wraps=core.dispatch) as m:
         response = await client.post(MICROVM_RUN_HOOK_PATH)
 
     assert _response_status(response) in (404, 405)
-    m.assert_called_once_with("POST", MICROVM_RUN_HOOK_PATH)
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 @pytest.mark.asyncio
 async def test_other_request(tracer, client, test_spans):
-    with mock.patch("ddtrace.contrib.internal.sanic.patch.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.sanic.patch.core.dispatch", wraps=core.dispatch) as m:
         response = await client.get("/hello")
 
     assert _response_status(response) == 200
-    m.assert_called_once_with("GET", "/hello")
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("GET", "/hello"))
 
 
 @pytest.mark.parametrize("service_name", [None, "mysvc"])

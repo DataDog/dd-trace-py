@@ -7,7 +7,6 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal._identity import maybe_refresh_identity
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -63,7 +62,7 @@ def trace_tween_factory(handler, registry):
 
     # make a request tracing function
     def trace_tween(request):
-        maybe_refresh_identity(request.method, request.path)
+        core.dispatch(core.WEB_REQUEST_STARTING, (request.method, request.path))
 
         if not enabled:
             return handler(request)

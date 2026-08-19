@@ -3,6 +3,7 @@ import typing as t
 import uuid
 import weakref
 
+from ddtrace.internal import core
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
@@ -19,6 +20,7 @@ __all__ = [
     "get_runtime_propagation_envs",
     "refresh_identity",
     "maybe_refresh_identity",
+    "listen_for_identity_refresh_hooks",
 ]
 
 
@@ -144,6 +146,11 @@ _IS_AWS_LAMBDA_MICROVM = env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN") is not None
 # per process so a single logical MicroVM instance gets one runtime-id rotation.
 _IDENTITY_REFRESH_HOOK_REFRESHED = threading.Event()
 _IDENTITY_REFRESH_HOOK_REFRESH_LOCK = threading.Lock()
+
+
+def listen_for_identity_refresh_hooks() -> None:
+    """Refresh MicroVM identity from request events emitted before root span creation."""
+    core.on(core.WEB_REQUEST_STARTING, maybe_refresh_identity)
 
 
 def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:

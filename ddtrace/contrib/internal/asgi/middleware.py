@@ -18,7 +18,6 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal._identity import maybe_refresh_identity
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -217,7 +216,7 @@ class TraceMiddleware:
         else:
             return await self.app(scope, receive, send)
         if not is_subapp and scope["type"] == "http":
-            maybe_refresh_identity(method, scope["path"])
+            core.dispatch(core.WEB_REQUEST_STARTING, (method, scope["path"]))
         try:
             headers = extract_headers(scope)
         except Exception:

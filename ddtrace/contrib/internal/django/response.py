@@ -25,7 +25,6 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
-from ddtrace.internal._identity import maybe_refresh_identity
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -90,7 +89,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     if request is None:
         return func(*args, **kwargs)
 
-    maybe_refresh_identity(request.method, request.path)
+    core.dispatch(core.WEB_REQUEST_STARTING, (request.method, request.path))
 
     request_headers = utils._get_request_headers(request)
 

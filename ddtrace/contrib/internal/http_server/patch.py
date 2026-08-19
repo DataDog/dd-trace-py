@@ -9,7 +9,7 @@ from typing import Callable
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.internal._identity import maybe_refresh_identity
+from ddtrace.internal import core
 
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ def _wrap_parse_request(
 ) -> bool:
     parsed = wrapped(*args, **kwargs)
     if parsed:
-        maybe_refresh_identity(instance.command, instance.path)
+        core.dispatch(core.WEB_REQUEST_STARTING, (instance.command, instance.path))
     return parsed
 
 

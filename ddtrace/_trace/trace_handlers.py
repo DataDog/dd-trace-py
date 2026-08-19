@@ -65,6 +65,7 @@ from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal._identity import listen_for_identity_refresh_hooks
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -1971,6 +1972,7 @@ def listen():
     core.on("context.started.google_cloud_pubsub.receive", _on_pubsub_receive_start)
 
     # web frameworks general handlers
+    listen_for_identity_refresh_hooks()
     core.on("web.request.start", _on_web_framework_start_request)
     core.on("web.request.finish", _on_web_framework_finish_request)
     core.on("web.request.final_tags", _on_web_request_final_tags)

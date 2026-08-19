@@ -6,6 +6,7 @@ import pytest
 
 from ddtrace.contrib.internal.http_server.patch import patch
 from ddtrace.contrib.internal.http_server.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 
@@ -27,35 +28,37 @@ def _patched():
 
 
 def test_microvm_run_hook_request():
-    """parse_request() must pass method/path to maybe_refresh_identity(), so it detects the
-    MicroVM /run hook without app changes -- covering apps that implement the hook with a raw
-    http.server handler instead of a supported web framework.
+    """parse_request() must dispatch method/path before request tracing starts.
+
+    This covers apps that implement the hook with a raw http.server handler instead of a
+    supported web framework.
     """
-    with mock.patch("ddtrace.contrib.internal.http_server.patch.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m:
         parsed = _handler_for("POST", MICROVM_RUN_HOOK_PATH).parse_request()
 
     assert parsed is True
-    m.assert_called_once_with("POST", MICROVM_RUN_HOOK_PATH)
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 def test_other_request():
-    with mock.patch("ddtrace.contrib.internal.http_server.patch.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m:
         parsed = _handler_for("GET", "/").parse_request()
 
     assert parsed is True
-    m.assert_called_once_with("GET", "/")
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("GET", "/"))
 
 
 def test_malformed_request_does_not_refresh():
-    """A request line parse_request() can't parse must not call maybe_refresh_identity() --
-    there's no method/path to report.
+    """A request line parse_request() can't parse must not emit the pre-request event.
+
+    There is no method/path to report.
     """
     handler = http.server.BaseHTTPRequestHandler.__new__(http.server.BaseHTTPRequestHandler)
     handler.raw_requestline = b""
     handler.rfile = io.BytesIO(b"")
 
-    with mock.patch("ddtrace.contrib.internal.http_server.patch.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m:
         parsed = handler.parse_request()
 
     assert parsed is False
-    m.assert_not_called()
+    assert not any(call.args[0] == core.WEB_REQUEST_STARTING for call in m.call_args_list)

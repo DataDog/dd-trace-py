@@ -10,7 +10,6 @@ from ddtrace import config
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal._identity import maybe_refresh_identity
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.vendor.debtcollector import deprecate
@@ -22,7 +21,7 @@ def traced_wsgi(wrapped, instance, args, kwargs):
     wraps callbacks for routes that already matched, so it can't see either case.
     """
     environ = args[0]
-    maybe_refresh_identity(environ.get("REQUEST_METHOD"), environ.get("PATH_INFO"))
+    core.dispatch(core.WEB_REQUEST_STARTING, (environ.get("REQUEST_METHOD"), environ.get("PATH_INFO")))
     return wrapped(*args, **kwargs)
 
 

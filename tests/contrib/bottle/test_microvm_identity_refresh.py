@@ -4,14 +4,15 @@ import webtest
 
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.contrib.internal.bottle.patch import patch
+from ddtrace.internal import core
 from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 from tests.utils import TracerTestCase
 
 
 class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
     """traced_wsgi() wraps Bottle.wsgi() -- the WSGI entry point, run before routing -- so it
-    passes every request's real method/path to maybe_refresh_identity(), detecting the MicroVM
-    /run hook even when no route matches. Bottle has no unpatch(); patch() is idempotent.
+    emits every request's real method/path before request tracing starts. Bottle has no
+    unpatch(); patch() is idempotent.
     """
 
     def setUp(self):
@@ -26,15 +27,15 @@ class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
     def test_microvm_run_hook_request(self):
         """No route is registered at the hook path: Bottle.wsgi() runs before routing, so it
         must fire even on a 404 -- the stronger, more general form of this check (whether the
-        route matches doesn't change what gets passed to maybe_refresh_identity()).
+        route matches doesn't change what gets dispatched).
         """
         self._trace_app()
 
-        with mock.patch("ddtrace.contrib.internal.bottle.trace.maybe_refresh_identity") as m:
+        with mock.patch("ddtrace.contrib.internal.bottle.trace.core.dispatch", wraps=core.dispatch) as m:
             resp = self.app.post(MICROVM_RUN_HOOK_PATH, expect_errors=True)
 
         assert resp.status_int == 404
-        m.assert_called_once_with("POST", MICROVM_RUN_HOOK_PATH)
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
     def test_other_request(self):
         @self.app.route("/hi/<name>")
@@ -43,8 +44,8 @@ class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
 
         self._trace_app()
 
-        with mock.patch("ddtrace.contrib.internal.bottle.trace.maybe_refresh_identity") as m:
+        with mock.patch("ddtrace.contrib.internal.bottle.trace.core.dispatch", wraps=core.dispatch) as m:
             resp = self.app.get("/hi/dougie")
 
         assert resp.status_int == 200
-        m.assert_called_once_with("GET", "/hi/dougie")
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("GET", "/hi/dougie"))

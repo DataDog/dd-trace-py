@@ -3,6 +3,7 @@ from cherrypy.test import helper
 import mock
 
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
+from ddtrace.internal import core
 from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 from tests.utils import TracerTestCase
 
@@ -10,7 +11,7 @@ from .web import StubApp
 
 
 class CherrypyMicrovmIdentityRefreshTestCase(TracerTestCase, helper.CPWebCase):
-    """TraceTool._on_start_resource() must pass method/path to maybe_refresh_identity().
+    """TraceTool._on_start_resource() must dispatch method/path before request tracing starts.
 
     CherryPy has no automatic patch() -- this only fires once the app has wrapped itself in
     TraceMiddleware, unlike the auto-instrumented frameworks.
@@ -34,15 +35,15 @@ class CherrypyMicrovmIdentityRefreshTestCase(TracerTestCase, helper.CPWebCase):
         """No handler is registered at the hook path: _on_start_resource() still fires on the
         404 (see test_404 in test_middleware.py).
         """
-        with mock.patch("ddtrace.contrib.internal.cherrypy.patch.maybe_refresh_identity") as m:
+        with mock.patch("ddtrace.contrib.internal.cherrypy.patch.core.dispatch", wraps=core.dispatch) as m:
             self.getPage(MICROVM_RUN_HOOK_PATH, method="POST")
 
         self.assertStatus("404 Not Found")
-        m.assert_called_once_with("POST", MICROVM_RUN_HOOK_PATH)
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
     def test_other_request(self):
-        with mock.patch("ddtrace.contrib.internal.cherrypy.patch.maybe_refresh_identity") as m:
+        with mock.patch("ddtrace.contrib.internal.cherrypy.patch.core.dispatch", wraps=core.dispatch) as m:
             self.getPage("/")
 
         self.assertStatus("200 OK")
-        m.assert_called_once_with("GET", "/")
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("GET", "/"))

@@ -3,6 +3,7 @@ import mock
 import pytest
 
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
+from ddtrace.internal import core
 from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 from .test_asgi import basic_app
@@ -23,19 +24,20 @@ def _scope(method, path):
 
 @pytest.mark.asyncio
 async def test_microvm_run_hook_request(test_spans):
-    """TraceMiddleware.__call__() must pass method/path to maybe_refresh_identity(), so it
-    detects the MicroVM /run hook without app changes. Django (ASGI), FastAPI, and Starlette
-    all share this middleware, so one patch covers all three.
+    """TraceMiddleware.__call__() must dispatch method/path before request tracing starts.
+
+    Django (ASGI), FastAPI, and Starlette all share this middleware, so one patch covers all
+    three.
     """
     app = TraceMiddleware(basic_app)
     instance = ApplicationCommunicator(app, _scope("POST", MICROVM_RUN_HOOK_PATH))
 
-    with mock.patch("ddtrace.contrib.internal.asgi.middleware.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.asgi.middleware.core.dispatch", wraps=core.dispatch) as m:
         await instance.send_input({"type": "http.request", "body": b""})
         await instance.receive_output(1)
         await instance.receive_output(1)
 
-    m.assert_called_once_with("POST", MICROVM_RUN_HOOK_PATH)
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 @pytest.mark.asyncio
@@ -43,12 +45,12 @@ async def test_other_request(test_spans):
     app = TraceMiddleware(basic_app)
     instance = ApplicationCommunicator(app, _scope("GET", "/"))
 
-    with mock.patch("ddtrace.contrib.internal.asgi.middleware.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.asgi.middleware.core.dispatch", wraps=core.dispatch) as m:
         await instance.send_input({"type": "http.request", "body": b""})
         await instance.receive_output(1)
         await instance.receive_output(1)
 
-    m.assert_called_once_with("GET", "/")
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("GET", "/"))
 
 
 @pytest.mark.asyncio
@@ -63,9 +65,9 @@ async def test_sub_app_does_not_double_refresh(test_spans):
     scope["datadog"] = {"request_spans": []}
     instance = ApplicationCommunicator(app, scope)
 
-    with mock.patch("ddtrace.contrib.internal.asgi.middleware.maybe_refresh_identity") as m:
+    with mock.patch("ddtrace.contrib.internal.asgi.middleware.core.dispatch", wraps=core.dispatch) as m:
         await instance.send_input({"type": "http.request", "body": b""})
         await instance.receive_output(1)
         await instance.receive_output(1)
 
-    m.assert_not_called()
+    assert not any(call.args[0] == core.WEB_REQUEST_STARTING for call in m.call_args_list)
