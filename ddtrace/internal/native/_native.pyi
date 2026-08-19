@@ -19,6 +19,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
+_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
 
 class DDSketch:
     def __init__(self): ...
@@ -1006,6 +1007,30 @@ class native_flare:
         def handle_remote_config_data(self, data: Any, product: str) -> native_flare.FlareAction: ...
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
+
+class ContextData:
+    trace_id: Optional[int]
+    span_id: Optional[int]
+    _meta: dict[str, str]
+    _metrics: dict[str, Any]
+    _baggage: dict[str, Any]
+    _span_links: list[Any]
+    _is_remote: bool
+    _reactivate: bool
+
+    def __new__(
+        cls: type[_ContextDataT],
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
+        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        meta: Optional[dict[str, str]] = None,
+        metrics: Optional[dict[str, Any]] = None,
+        lock: Optional[Any] = None,  # placeholder for Context.__init__
+        span_links: Optional[list[Any]] = None,
+        baggage: Optional[dict[str, Any]] = None,
+        is_remote: bool = True,
+    ) -> _ContextDataT: ...
 
 class SpanData:
     name: str
