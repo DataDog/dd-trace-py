@@ -231,9 +231,15 @@ def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_member_ca
 
 
 def test_probability_sampling_state_is_shared_with_existing_child_contexts():
-    root = Context(trace_id=1, span_id=1, sampling_priority=USER_KEEP)
+    root = Context(
+        trace_id=1,
+        span_id=1,
+        sampling_priority=USER_KEEP,
+        meta={
+            SAMPLING_DECISION_TRACE_TAG_KEY: "-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
+        },
+    )
     child = root.copy(trace_id=1, span_id=2)
-    root._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = "-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
 
     root._otel_sampling_state.set_probabilistic_decision(0.1)
 
