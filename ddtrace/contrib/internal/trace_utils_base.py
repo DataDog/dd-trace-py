@@ -184,10 +184,9 @@ def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, qu
         span._set_attribute(http.URL, redact_url(url, config._obfuscation_query_string_pattern, query))
 
 
-# ── OpenTelemetry HTTP semantic conventions ─────────────────────────────────────────────
-# Everything below is only reachable when DD_TRACE_OTEL_SEMANTICS_ENABLED is true. The
-# obfuscation and redaction behavior is deliberately shared with the Datadog path above so
-# that turning the flag on moves attribute names without changing what a value contains.
+# OpenTelemetry HTTP semantic conventions, reachable only under DD_TRACE_OTEL_SEMANTICS_ENABLED.
+# Obfuscation and redaction stay shared with the Datadog path above, so the flag moves attribute
+# names without changing what a value contains.
 
 # RFC 9110 methods plus PATCH and QUERY, which is the accepted set in the OTel HTTP
 # semantic conventions. Anything else is reported as _OTHER.
@@ -200,13 +199,11 @@ OTHER_HTTP_METHOD = "_OTHER"
 # back to the port the scheme implies.
 _DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
 
-# Read once at import: set_http_meta is bound to its OTel variant at import time rather than
-# branching per span, so nothing below needs to be re-checked at runtime.
+# Read once at import: set_http_meta is bound to its OTel variant there, not branched per span.
 _OTEL_SEMANTICS = config._otel_trace_semantics_enabled
 
-# The RFC requires server.port and http.response.status_code to be integers over OTLP and
-# strings in the MsgPack meta map. A Python span carries one typed value that both encoders
-# read, so the representation has to be chosen up front based on how this process exports.
+# The RFC requires server.port and http.response.status_code as integers over OTLP and strings
+# in the MsgPack meta map. A span carries one value both encoders read, so pick it up front.
 _OTEL_TYPED_VALUES = _OTEL_SEMANTICS and _is_otlp_traces_exporter_enabled(otel_config.exporter)
 
 
@@ -338,10 +335,8 @@ def _set_url_tags_otel_server(
         if port is not None:
             span._set_attribute(net.SERVER_PORT, _otel_number(port))
 
-    # url.query is the only place a server span's query string can live now that http.url is
-    # gone, so it is emitted when either query knob allows capture: http_tag_query_string is
-    # what used to let the query ride along inside http.url, trace_query_string is what used
-    # to emit it as its own tag.
+    # With http.url gone, url.query is the only place a server query string can live, so either
+    # knob that used to permit capture still permits it.
     if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
         return
     obfuscated = _obfuscated_query(query if query is not None else parsed.query)

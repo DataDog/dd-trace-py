@@ -734,10 +734,9 @@ def _set_http_meta_otel(
 
 
 if _OTEL_SEMANTICS:
-    # AIDEV-NOTE: the OTel implementation is swapped in once here instead of branching on the
-    # flag inside set_http_meta, which is called on every HTTP span. Consequence for tests:
-    # patching config._otel_trace_semantics_enabled at runtime has no effect, so tests for
-    # this behavior have to set DD_TRACE_OTEL_SEMANTICS_ENABLED in a subprocess.
+    # Swapped in once here rather than branching per span inside set_http_meta. Patching
+    # config._otel_trace_semantics_enabled at runtime therefore has no effect: tests need the
+    # environment variable set in a subprocess.
     set_http_meta = _set_http_meta_otel  # type: ignore[assignment]
 
 
