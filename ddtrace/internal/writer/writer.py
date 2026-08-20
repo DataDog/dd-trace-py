@@ -12,6 +12,7 @@ from typing import Callable
 from typing import Optional
 from typing import Sequence
 from typing import TextIO
+from typing import cast
 from urllib.parse import urlparse as _urlparse
 
 from ddtrace.internal.dist_computing.utils import in_ray_job
@@ -36,6 +37,7 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.version import __version__
 
 from ...constants import _KEEP_SPANS_RATE_KEY
+from ...constants import _SAMPLING_PRIORITY_KEY
 from .. import compat
 from .. import periodic
 from .. import process_tags
@@ -44,6 +46,7 @@ from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
+from ..constants import W3C_TRACESTATE_KEY
 from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..gitmetadata import get_git_tags
@@ -64,6 +67,7 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
+    from ddtrace._trace.span import Span
     from ddtrace.internal.http import HTTPConnection  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
@@ -1093,10 +1097,32 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 )
 
     def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
+        if spans is not None and self._otlp_endpoint is not None:
+            self._set_otlp_trace_context(spans)
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
+
+    @staticmethod
+    def _set_otlp_trace_context(spans: Sequence[SpanData]) -> None:
+        # AIDEV-NOTE: libdatadog maps these two DD span attributes to OTLP Span.trace_state
+        # and Span.flags. TraceTagsProcessor removes propagation-only tags from spans, so
+        # materialize the live native Context state immediately before OTLP-only encoding.
+        for span_data in spans:
+            span = cast("Span", span_data)
+            context = span.context
+            sampling_priority = context.sampling_priority
+            if sampling_priority is None:
+                span._remove_attribute(_SAMPLING_PRIORITY_KEY)
+            else:
+                span._set_attribute(_SAMPLING_PRIORITY_KEY, sampling_priority)
+
+            tracestate = ",".join("{}={}".format(*entry) for entry in context._tracestate_entries(span.span_id))
+            if tracestate:
+                span._set_attribute(W3C_TRACESTATE_KEY, tracestate)
+            else:
+                span._remove_attribute(W3C_TRACESTATE_KEY)
 
     def _write_with_client(self, client: WriterClientBase, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is None:
