@@ -67,6 +67,10 @@ def unpatch():
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
+    # DEV: This is safe because this is the args for a WSGI handler
+    #   https://www.python.org/dev/peps/pep-3333/
+    core.dispatch(core.WEB_REQUEST_STARTING, (args[0].get("REQUEST_METHOD"), args[0].get("PATH_INFO")))
+
     pin = Pin.get_from(molten)
 
     if not pin or not pin.enabled():
