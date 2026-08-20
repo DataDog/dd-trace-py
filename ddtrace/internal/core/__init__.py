@@ -143,6 +143,9 @@ log = logging.getLogger(__name__)
 
 
 ROOT_CONTEXT_ID = "__root"
+# Emitted by web integrations after method/path are available but before request
+# context/root span creation, so listeners can update process-wide state first.
+WEB_REQUEST_STARTING = "web.request.starting"
 
 
 class ExecutionContext(Generic[EventType]):
