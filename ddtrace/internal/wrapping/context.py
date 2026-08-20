@@ -19,6 +19,8 @@ from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
 from ddtrace.internal.wrapping import get_function_code
@@ -553,9 +555,9 @@ class WrappingContext(BaseWrappingContext):
             raise ValueError(msg)
 
     def wrap(self) -> None:
-        t.cast(
-            _UniversalWrappingContext, _UniversalWrappingContext.wrapped(t.cast(FunctionType, self.__wrapped__))
-        ).register(self)
+        f = t.cast(FunctionType, self.__wrapped__)
+        context = t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(f))
+        context.register(self)
 
     def unwrap(self) -> None:
         f = t.cast(FunctionType, self.__wrapped__)
@@ -769,6 +771,10 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 raise ValueError("Function already wrapped")
 
             code = get_function_code(f)
+            if is_obfuscated_code(code):
+                raise ObfuscatedCodeError(
+                    f"Cannot wrap {code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                )
 
             # Closures created from repeated calls to the same factory share
             # the same code object: _build_template is memoized so the
