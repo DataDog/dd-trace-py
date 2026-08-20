@@ -454,6 +454,8 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
     }
 
     const size_t tasks_start = tasks.size();
+    // This traversal only appends to tasks. On structural failure, remove its partial results while preserving entries
+    // from earlier sources.
     auto fail = [&tasks, tasks_start]() -> Result<void> {
         tasks.resize(tasks_start);
         return ErrorKind::TaskInfoError;
@@ -470,6 +472,8 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
     uintptr_t current_node_addr = head_addr;
     std::unordered_set<uintptr_t> visited;
 
+    // A valid circular list must return to the expected head within the hard bound without null, repeated, unreadable,
+    // or backward-inconsistent nodes. Any violation rolls back this source.
     while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr) {
         if (++iteration_count > max_iterations || current_node.next == nullptr) {
             return fail();
@@ -510,24 +514,19 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     if (this->asyncio_loop == 0)
         return tasks;
 
-    // Python 3.14+: Native tasks are in linked-list per thread AND per interpreter
-    // CPython iterates over both:
-    // 1. Per-thread list: tstate->asyncio_tasks_head (active tasks)
-    // 2. Per-interpreter list: interp->asyncio_tasks_head (lingering tasks)
-    // First, get tasks from this thread's linked-list (if tstate_addr is set)
-    // Note: We continue processing even if one source fails to maximize partial results
+    // Python 3.14 task discovery combines four sources:
+    // - per-thread linked lists for active native Tasks;
+    // - the per-interpreter linked list for native Tasks surviving thread-state clearing;
+    // - _scheduled_tasks for third-party Task implementations;
+    // - _eager_tasks for Tasks executing their first eager step.
+    // The stack sampler reads Python threads without acquiring the GIL or stopping them. It can therefore observe a
+    // Task moving between sources, so deduplicate tasks by address below.
+    // Continue after one source fails to preserve results from the other sources.
     if (tstate != nullptr && this->tstate_addr != 0) {
         (void)get_tasks_from_thread_linked_list(echion, tasks);
-
-        // Second, get tasks from interpreter's linked-list (lingering tasks)
         (void)get_tasks_from_interpreter_linked_list(echion, tstate, tasks);
     }
 
-    // Handle third-party tasks from Python _scheduled_tasks WeakSet
-    // In Python 3.14+, _scheduled_tasks is a Python-level weakref.WeakSet() that only contains
-    // tasks that don't inherit from asyncio.Task. Native asyncio.Task instances are stored
-    // in linked-lists (handled above) and are NOT added to _scheduled_tasks.
-    // This is typically empty in practice, but we handle it for completeness.
     auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     if (asyncio_scheduled_tasks != nullptr) {
         if (auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks)) {
@@ -571,6 +570,8 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
         }
     }
 
+    // A Task may appear in multiple sources. Keep the earliest snapshot because it is closest to the thread stack
+    // captured for this sample.
     std::unordered_set<PyObject*> seen;
     std::erase_if(tasks, [&seen](const TaskInfo::Ptr& task) { return !seen.insert(task->origin).second; });
     return tasks;

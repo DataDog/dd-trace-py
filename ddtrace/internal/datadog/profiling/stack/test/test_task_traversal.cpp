@@ -7,6 +7,7 @@ class ThreadInfoTaskTraversalTest : public ::testing::Test
 {
   protected:
 #if PY_VERSION_HEX >= 0x030e0000
+    // Keep the production traversal private while allowing deterministic linked-list topologies in this test.
     static Result<void> traverse(ThreadInfo& thread,
                                  EchionSampler& echion,
                                  uintptr_t head,
@@ -27,6 +28,7 @@ class ThreadInfoTaskTraversalTest : public ::testing::Test
 #if PY_VERSION_HEX >= 0x030e0000
 TEST_F(ThreadInfoTaskTraversalTest, RejectsTaskMovedToAnotherList)
 {
+    // A real asyncio.Task ensures TaskInfo::create follows the same coroutine and name-reading path as production.
     Py_Initialize();
     PyObject* globals = PyDict_New();
     ASSERT_NE(globals, nullptr);
@@ -58,11 +60,18 @@ task = loop.create_task(wait_forever())
 #endif
     thread.asyncio_loop = reinterpret_cast<uintptr_t>(loop);
 
+    // Seed the output to verify a failed source preserves tasks previously found by another source.
     std::vector<TaskInfo::Ptr> tasks;
     auto maybe_task = TaskInfo::create(echion, task);
     ASSERT_TRUE(maybe_task);
     tasks.push_back(std::move(*maybe_task));
 
+    // Echion copied head A while A <-> T. CPython then moved task T under head B, leaving the copied A.next stale:
+    //
+    //   copied head: A -> T
+    //   live list:   B <-> T
+    //
+    // Following live links from T would cycle through T -> B -> T without ever returning to A.
     const llist_node original_task_node = task->task_node;
     llist_node expected_head{};
     llist_node moved_head{};
@@ -73,12 +82,15 @@ task = loop.create_task(wait_forever())
     result = nullptr;
     auto traversal = traverse(thread, echion, reinterpret_cast<uintptr_t>(&expected_head), tasks);
 
+    // Reject the malformed source and roll back only the entries it appended.
     EXPECT_FALSE(traversal);
     EXPECT_EQ(tasks.size(), 1);
 
     task->task_node = original_task_node;
     tasks.clear();
 
+    // Expose the same Task through a valid thread list and the eager-task set. Cross-source discovery must still
+    // return one TaskInfo because downstream accounting and wall-time scaling operate on this result.
     PyObject* eager_tasks = PySet_New(nullptr);
     ASSERT_NE(eager_tasks, nullptr);
     ASSERT_EQ(PySet_Add(eager_tasks, reinterpret_cast<PyObject*>(task)), 0);
@@ -92,11 +104,13 @@ task = loop.create_task(wait_forever())
 
     auto all_tasks = get_all_tasks(thread, echion, &local_tstate);
 
+    // Restore CPython's real links before cancellation or object destruction can inspect them.
     task->task_node = original_task_node;
     Py_DECREF(eager_tasks);
     ASSERT_TRUE(all_tasks);
     EXPECT_EQ(all_tasks->size(), 1);
 
+    // Process cancellation and close the loop so the real Task does not remain pending at process exit.
     result = PyRun_String(R"(
 task.cancel()
 try:
