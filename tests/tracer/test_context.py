@@ -144,15 +144,13 @@ def test_context_accepts_legacy_pickle_state():
 
 
 def test_copy_populates_every_getstate_slot(tracer):
-    """Guard against a future slot-drop in ``Context.copy()``.
+    """Guard against a future state-field drop in ``Context.copy()``.
 
     A child span builds its context lazily via ``Context.copy()`` (ddtrace/_trace/context.py),
-    which assigns each slot by hand — ``trace_id``, ``span_id``, ``_meta``, ``_metrics``,
-    ``_baggage``, ``_lock``, ``_is_remote``, ``_reactivate``, ``_span_links``,
-    ``_otel_sampling_state_data`` — instead of going through ``__init__``. A dropped assignment
-    there would only surface later as an AttributeError when the context is serialized. Pin both
-    halves: the copied context must pickle/round-trip equal, and every slot ``__getstate__`` reads
-    must be set.
+    which calls native ``ContextData.__new__`` directly instead of going through ``__init__``.
+    A dropped constructor argument would only surface later when the context is serialized or
+    propagated. Pin both halves: the copied context must pickle/round-trip equal, and every field
+    ``__getstate__`` reads must be initialized.
     """
     with tracer.trace("parent"):
         with tracer.trace("child") as child:
@@ -162,8 +160,8 @@ def test_copy_populates_every_getstate_slot(tracer):
     # pickle.dumps calls __getstate__, which reads every slot copy() is responsible for.
     assert pickle.loads(pickle.dumps(child_ctx)) == child_ctx
 
-    # Explicit tripwire: every slot __getstate__ reads is present (mirrors copy()'s slot list,
-    # minus the unpicklable _lock). A missing slot would raise AttributeError on access.
+    # Explicit tripwire: every field __getstate__ reads is present (minus the unpicklable _lock).
+    # A missing native property or Python slot would raise AttributeError on access.
     for slot in (
         "trace_id",
         "span_id",
@@ -525,3 +523,24 @@ def test_context_baggage_cycle_is_collectable():
     finally:
         if gc_was_enabled:
             gc.enable()
+
+
+def test_context_otel_sampling_state_cycle_is_collectable():
+    """Cycles through native OTel sampling-state storage must be reclaimed."""
+    import gc
+    import weakref
+
+    class CyclicOtelSamplingState(context_module.OtelSamplingState):
+        pass
+
+    context = Context()
+    state = CyclicOtelSamplingState()
+    state.context = context
+    context._otel_sampling_state_data = state
+    context_ref = weakref.ref(context)
+
+    del context
+    del state
+    gc.collect()
+
+    assert context_ref() is None

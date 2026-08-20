@@ -14,6 +14,7 @@ from typing import Union
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
+from ddtrace.internal.otel_sampling import OtelSamplingState
 
 # Mirror of ddtrace._trace.provider.ActiveTrace (a Span or a Context).
 ActiveTrace = Union[Span, Context]
@@ -1015,6 +1016,7 @@ class ContextData:
     _metrics: dict[str, Any]
     _baggage: dict[str, Any]
     _span_links: list[Any]
+    _otel_sampling_state_data: Optional[OtelSamplingState]
     _is_remote: bool
     _reactivate: bool
 
@@ -1030,6 +1032,7 @@ class ContextData:
         span_links: Optional[list[Any]] = None,
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
+        otel_sampling_state: Optional[OtelSamplingState] = None,
     ) -> _ContextDataT: ...
 
 class SpanData:

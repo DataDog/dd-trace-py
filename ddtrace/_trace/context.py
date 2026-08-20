@@ -63,7 +63,7 @@ class Context(ContextData):
         is_remote: bool = True,
     ):
         # ContextData.__new__ already populated trace_id/span_id/_meta/_metrics/
-        # _baggage/_span_links/_is_remote/_reactivate.
+        # _baggage/_span_links/_is_remote/_reactivate/_otel_sampling_state_data.
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[_ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
@@ -258,6 +258,12 @@ class Context(ContextData):
         # other processing. This optimization holds true if we trust that this data has
         # been validated already.
         with self._lock:
+            # AIDEV-NOTE: Keep the default state allocation-free. The first child context
+            # materializes one holder under the shared lock, and native ContextData stores the
+            # same Python object on every child so later trace-level decisions remain visible.
+            otel_sampling_state = self._otel_sampling_state_data
+            if otel_sampling_state is None:
+                otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
             ctx = Context.__new__(
                 Context,
                 trace_id=trace_id,
@@ -266,6 +272,7 @@ class Context(ContextData):
                 metrics=self._metrics,
                 baggage=self._baggage,
                 is_remote=False,
+                otel_sampling_state=otel_sampling_state,
             )
         ctx._lock = self._lock
         return ctx
