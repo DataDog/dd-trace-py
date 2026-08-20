@@ -3,7 +3,7 @@ use std::thread::{self, ThreadId};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use pyo3::{
-    exceptions::{PyTypeError, PyValueError},
+    exceptions::PyValueError,
     types::{PyAny, PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyTuple},
     Bound, IntoPyObject, Py, PyResult, Python,
 };
@@ -259,7 +259,7 @@ impl Context {
         is_remote=true,
     ))]
     pub fn __new__<'p>(
-        cls: &Bound<'p, pyo3::types::PyType>,
+        _: &Bound<'p, pyo3::types::PyType>,
         py: Python<'p>,
         trace_id: Option<&Bound<'p, PyAny>>,
         span_id: Option<&Bound<'p, PyAny>>,
