@@ -38,6 +38,7 @@ from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
 from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
@@ -561,6 +562,9 @@ class ScopeContext:
         }
 
         forksafe.register(self._reset_on_fork)
+        # Same rebuild, triggered by an explicit identity refresh (e.g. an AWS Lambda
+        # MicroVM /run hook) rather than an actual fork.
+        on_runtime_id_change(self._on_identity_refresh)
 
     @cached_property
     def _sender(self) -> SymDBSender:
@@ -576,6 +580,11 @@ class ScopeContext:
         self._event_data["uploadId"] = self._upload_id
         self._event_data["runtimeId"] = get_runtime_id()
         self._event_data["parentId"] = get_ancestor_runtime_id()
+
+    def _on_identity_refresh(self, new_runtime_id: str) -> None:
+        # Same rebuild as _reset_on_fork(): runtimeId is baked into _event_data, so it must be
+        # refreshed here too or every batch keeps reporting the pre-refresh snapshot's ID.
+        self._reset_on_fork()
 
     def _set_timer(self) -> None:
         with self._timer_lock:

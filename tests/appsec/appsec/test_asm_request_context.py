@@ -14,6 +14,20 @@ _TEST_HEADERS = {"foo": "bar"}
 config_asm = {"_asm_enabled": True}
 
 
+@pytest.mark.parametrize("auto_enable_crashtracking", [False])
+def test_import_does_not_load_remoteconfig_worker(run_python_code_in_subprocess, auto_enable_crashtracking):
+    code = """
+import sys
+
+import ddtrace.appsec._asm_request_context  # noqa: F401
+
+assert "ddtrace.internal.remoteconfig.worker" not in sys.modules
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, stderr
+
+
 def test_context_set_and_reset():
     with asm_context(
         ip_addr=_TEST_IP,

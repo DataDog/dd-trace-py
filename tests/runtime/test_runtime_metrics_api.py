@@ -232,6 +232,28 @@ def test_runtime_metrics_experimental_runtime_tag():
         )
 
 
+@pytest.mark.subprocess(env={"DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true"}, err=None)
+def test_runtime_metrics_runtime_id_tag_refreshes_on_identity_refresh():
+    from ddtrace.internal import runtime
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+    try:
+        RuntimeWorker.enable()
+        assert RuntimeWorker._instance is not None
+
+        worker_instance = RuntimeWorker._instance
+        runtime_id_tag = f"runtime-id:{runtime.get_runtime_id()}"
+        assert runtime_id_tag in worker_instance._platform_tags, worker_instance._platform_tags
+
+        runtime.refresh_identity()
+
+        refreshed_runtime_id_tag = f"runtime-id:{runtime.get_runtime_id()}"
+        assert refreshed_runtime_id_tag in worker_instance._platform_tags, worker_instance._platform_tags
+        assert runtime_id_tag not in worker_instance._platform_tags, worker_instance._platform_tags
+    finally:
+        RuntimeWorker.disable()
+
+
 @pytest.mark.subprocess(
     parametrize={"DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": ["DD_RUNTIME_METRICS_ENABLED,someotherfeature", ""]},
     err=None,
