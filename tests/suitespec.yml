@@ -14,6 +14,7 @@ components:
     - tests/__init__.py
     - tests/suitespec.yml
     - tests/suitespec.py
+    - tests/environment.py
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py

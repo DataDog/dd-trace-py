@@ -86,3 +86,32 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert 'if [[ "false" == "true" ]]' in config
     assert "$(curl" not in config
     assert "$DD_API_KEY" not in config
+
+
+def test_collect_all_suite_venv_info_uses_neutral_environments(gen_gitlab_config_mod, monkeypatch):
+    class Instance:
+        def __init__(self, name, environment_id, python):
+            self.name = name
+            self.short_hash = environment_id
+            self.py = types.SimpleNamespace(_hint=python)
+
+        def matches_pattern(self, pattern):
+            return pattern.search(self.name) is not None
+
+    riotfile = types.SimpleNamespace(
+        venv=types.SimpleNamespace(
+            instances=lambda: iter(
+                (
+                    Instance("requests", "same-dependencies", "3.11"),
+                    Instance("requests", "same-dependencies", "3.11"),
+                    Instance("requests", "new-dependencies", "3.12"),
+                )
+            )
+        )
+    )
+    monkeypatch.setitem(sys.modules, "riotfile", riotfile)
+
+    info = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": "^requests$"})
+
+    assert info["contrib::requests"].venv_count == 2
+    assert info["contrib::requests"].python_versions == {"3.11", "3.12"}

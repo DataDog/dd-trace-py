@@ -217,13 +217,18 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
             continue
-        hint = inst.py._hint  # type: ignore[attr-defined]
         for suite, regex in compiled.items():
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
+                environment = TestEnvironment(
+                    id=inst.short_hash,
+                    suite=suite,
+                    name=inst.name,
+                    python=inst.py._hint,
+                )
+                venv_hashes[suite].add(environment.id)
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
-                if re.match(r"^3\.\d+$", hint):
-                    python_versions[suite].add(hint)
+                if re.match(r"^3\.\d+$", environment.python):
+                    python_versions[suite].add(environment.python)
 
     result: dict[str, SuiteVenvInfo] = {}
     for suite in compiled:
@@ -832,6 +837,8 @@ TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+from tests.environment import TestEnvironment  # noqa: E402
 
 
 def template(name: str, **params):
