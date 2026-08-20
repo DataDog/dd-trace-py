@@ -18,6 +18,7 @@ set(FUZZ_ECHION_SOURCES
     ../src/echion/strings.cc
     ../src/echion/tasks.cc
     ../src/echion/threads.cc
+    ../src/origin_task_links.cpp
     ../src/stack_renderer.cpp
     ../src/sampler.cpp
     ../src/thread_span_links.cpp)

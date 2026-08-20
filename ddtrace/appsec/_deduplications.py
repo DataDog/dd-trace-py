@@ -31,7 +31,7 @@ class deduplication:
         self.reported_logs.clear()
 
     def _check_deduplication(self) -> bool:
-        return asm_config._asm_deduplication_enabled
+        return asm_config._asm_deduplication_enabled  # type: ignore[no-any-return]
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         result = False

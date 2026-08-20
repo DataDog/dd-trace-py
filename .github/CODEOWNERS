@@ -35,6 +35,8 @@ riotfile.py                         @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
+supported-configurations.json       @DataDog/apm-python
+ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 
 # Guild
 # Repository tooling defaults. Domain-specific rules below take precedence.
@@ -198,6 +200,7 @@ tests/profiling                                   @DataDog/profiling-python
 .gitlab/tests/profiling.yml                       @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
 .github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
+src/native_heap_gotter/                           @DataDog/profiling-python
 
 
 # Crashtracker
@@ -305,10 +308,8 @@ ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-capabilities
 ddtrace/runtime/                                   @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/runtime/                          @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/settings/_otel_remapper.py        @DataDog/apm-sdk-capabilities-python
-ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-sdk-capabilities-python
 ddtrace/internal/settings/env.py                   @DataDog/apm-sdk-capabilities-python
 scripts/supported_configurations.py               @DataDog/apm-sdk-capabilities-python
-supported-configurations.json                     @DataDog/apm-sdk-capabilities-python
 .github/workflows/config-registry.yml             @DataDog/apm-sdk-capabilities-python
 .gitlab/config-registry.yml                       @DataDog/apm-sdk-capabilities-python
 tests/integration/test_priority_sampling.py        @DataDog/apm-sdk-capabilities-python
@@ -319,6 +320,7 @@ tests/test_sampling.py                             @DataDog/apm-sdk-capabilities
 tests/test_tracemethods.py                         @DataDog/apm-sdk-capabilities-python
 tests/opentelemetry/                               @DataDog/apm-sdk-capabilities-python
 tests/tracer/                                      @DataDog/apm-sdk-capabilities-python
+tests/tracer/test_otel_thread_context.py            @DataDog/apm-sdk-capabilities-python @DataDog/apm-core-python @DataDog/asm-python
 # Override because order matters
 tests/tracer/test_ci.py                            @DataDog/ci-app-libraries
 tests/tracer/test_ci_utils.py                      @DataDog/ci-app-libraries
