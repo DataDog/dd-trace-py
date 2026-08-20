@@ -137,12 +137,7 @@ class EchionSampler
     // Accessor for frame cache operations
     LRUCache<uintptr_t, Frame>& frame_cache() { return frame_cache_; }
 
-    void invalidate_frame_identity_cache()
-    {
-        frame_cache_.clear();
-        asyncio_frame_cache_key_.reset();
-        uvloop_frame_cache_key_.reset();
-    }
+    void invalidate_frame_identity_cache() { frame_cache_.clear(); }
 
 #if PY_VERSION_HEX >= 0x030e0000
     bool update_code_object_generations(const std::vector<InterpreterInfo>& interpreters, bool snapshot_complete)

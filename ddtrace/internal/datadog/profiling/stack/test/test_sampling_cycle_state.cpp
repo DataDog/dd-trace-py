@@ -59,16 +59,12 @@ TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
 
     ASSERT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(2, 1) }, true));
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
-    echion.asyncio_frame_cache_key() = key;
-    echion.uvloop_frame_cache_key() = key;
 
     EXPECT_TRUE(echion.update_code_object_generations({ interpreter(2, 1), interpreter(1, 1) }, true));
     EXPECT_TRUE(echion.frame_cache().lookup(key));
 
     EXPECT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(2, 2) }, true));
     EXPECT_FALSE(echion.frame_cache().lookup(key));
-    EXPECT_FALSE(echion.asyncio_frame_cache_key());
-    EXPECT_FALSE(echion.uvloop_frame_cache_key());
 
     echion.frame_cache().store(key, std::make_unique<Frame>(10));
     EXPECT_TRUE(echion.update_code_object_generations({ interpreter(1, 1), interpreter(3, 2) }, true));
