@@ -126,6 +126,8 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`gunicorn <gunicorn>`                       | >= 20.0.04    | No             |
 +--------------------------------------------------+---------------+----------------+
+| :ref:`http_server <http_server>`                 | \*            | Yes [7]_       |
++--------------------------------------------------+---------------+----------------+
 | :ref:`httplib`                                   | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`httpx`                                     | >= 0.25       | Yes            |
@@ -254,6 +256,8 @@ contacting support.
 .. [5] logging integrations are enabled if ``config._logs_injection or [DD_LOGS_INJECTION]`` is ``True``.
 
 .. [6] ``protobuf`` integration is enabled if ``config._data_streams_enabled or [DD_DATA_STREAMS_ENABLED]`` is ``True``.
+
+.. [7] ``http_server`` integration is automatically enabled only in AWS Lambda MicroVM environments.
 
 .. _`Instrumentation Telemetry`:
 

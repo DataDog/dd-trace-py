@@ -4364,7 +4364,7 @@
       {
         "implementation": "A",
         "type": "boolean",
-        "default": "true"
+        "default": null
       }
     ],
     "DD_TRACE_HTTP_SERVER_ERROR_STATUSES": [

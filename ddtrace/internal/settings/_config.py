@@ -167,6 +167,7 @@ INTEGRATION_CONFIGS = frozenset(
         "pylibmc",
         "httpx",
         "httplib",
+        "http_server",
         "rq",
         "jinja2",
         "aredis",

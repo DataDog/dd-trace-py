@@ -4,6 +4,7 @@ import io
 import mock
 import pytest
 
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.http_server.patch import patch
 from ddtrace.contrib.internal.http_server.patch import unpatch
 from ddtrace.internal import core
@@ -35,19 +36,25 @@ def test_microvm_run_hook_request():
     This covers apps that implement the hook with a raw http.server handler instead of a
     supported web framework.
     """
-    with mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m:
+    with (
+        mock.patch("ddtrace.contrib.internal.http_server.patch.in_aws_lambda_microvm", return_value=True),
+        mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m,
+    ):
         parsed = _handler_for("POST", REQUEST_STARTING_PATH).parse_request()
 
     assert parsed is True
-    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+    m.assert_any_call(WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", REQUEST_STARTING_PATH))
 
 
-def test_other_request():
-    with mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m:
+def test_other_request_does_not_dispatch_outside_microvm():
+    with (
+        mock.patch("ddtrace.contrib.internal.http_server.patch.in_aws_lambda_microvm", return_value=False),
+        mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m,
+    ):
         parsed = _handler_for("GET", "/").parse_request()
 
     assert parsed is True
-    m.assert_any_call(core.WEB_REQUEST_STARTING, ("GET", "/"))
+    assert not any(call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value for call in m.call_args_list)
 
 
 def test_malformed_request_does_not_refresh():
@@ -59,8 +66,11 @@ def test_malformed_request_does_not_refresh():
     handler.raw_requestline = b""
     handler.rfile = io.BytesIO(b"")
 
-    with mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m:
+    with (
+        mock.patch("ddtrace.contrib.internal.http_server.patch.in_aws_lambda_microvm", return_value=True),
+        mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m,
+    ):
         parsed = handler.parse_request()
 
     assert parsed is False
-    assert not any(call.args[0] == core.WEB_REQUEST_STARTING for call in m.call_args_list)
+    assert not any(call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value for call in m.call_args_list)
