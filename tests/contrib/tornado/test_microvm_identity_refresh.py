@@ -1,11 +1,9 @@
 import mock
 
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 from .utils import TornadoTestCase
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 class TornadoMicrovmIdentityRefreshTestCase(TornadoTestCase):
@@ -17,10 +15,10 @@ class TornadoMicrovmIdentityRefreshTestCase(TornadoTestCase):
         in test_tornado_web.py).
         """
         with mock.patch("ddtrace.contrib.internal.tornado.handlers.core.dispatch", wraps=core.dispatch) as m:
-            response = self.fetch(REQUEST_STARTING_PATH, method="POST", body="")
+            response = self.fetch(MICROVM_RUN_HOOK_PATH, method="POST", body="")
 
         self.assertEqual(response.code, 404)
-        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
     def test_other_request(self):
         with mock.patch("ddtrace.contrib.internal.tornado.handlers.core.dispatch", wraps=core.dispatch) as m:

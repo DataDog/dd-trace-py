@@ -5,10 +5,8 @@ import webtest
 from ddtrace.contrib.internal.bottle.patch import TracePlugin
 from ddtrace.contrib.internal.bottle.patch import patch
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 from tests.utils import TracerTestCase
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
@@ -34,10 +32,10 @@ class BottleMicrovmIdentityRefreshTestCase(TracerTestCase):
         self._trace_app()
 
         with mock.patch("ddtrace.contrib.internal.bottle.trace.core.dispatch", wraps=core.dispatch) as m:
-            resp = self.app.post(REQUEST_STARTING_PATH, expect_errors=True)
+            resp = self.app.post(MICROVM_RUN_HOOK_PATH, expect_errors=True)
 
         assert resp.status_int == 404
-        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
     def test_other_request(self):
         @self.app.route("/hi/<name>")

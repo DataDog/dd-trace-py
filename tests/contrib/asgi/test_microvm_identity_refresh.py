@@ -4,11 +4,9 @@ import pytest
 
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 from .test_asgi import basic_app
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 def _scope(method, path):
@@ -32,14 +30,14 @@ async def test_microvm_run_hook_request(test_spans):
     three.
     """
     app = TraceMiddleware(basic_app)
-    instance = ApplicationCommunicator(app, _scope("POST", REQUEST_STARTING_PATH))
+    instance = ApplicationCommunicator(app, _scope("POST", MICROVM_RUN_HOOK_PATH))
 
     with mock.patch("ddtrace.contrib.internal.asgi.middleware.core.dispatch", wraps=core.dispatch) as m:
         await instance.send_input({"type": "http.request", "body": b""})
         await instance.receive_output(1)
         await instance.receive_output(1)
 
-    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 @pytest.mark.asyncio
@@ -61,7 +59,7 @@ async def test_sub_app_does_not_double_refresh(test_spans):
     (matches the existing not-is_subapp guard around route collection/distributed headers).
     """
     app = TraceMiddleware(basic_app)
-    scope = _scope("POST", REQUEST_STARTING_PATH)
+    scope = _scope("POST", MICROVM_RUN_HOOK_PATH)
     # marks this as a sub-app request, per TraceMiddleware.__call__; request_spans matches
     # the shape _on_asgi_request always creates the dict with (ddtrace/_trace/trace_handlers.py)
     scope["datadog"] = {"request_spans": []}
