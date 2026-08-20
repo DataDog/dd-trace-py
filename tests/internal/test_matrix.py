@@ -126,6 +126,28 @@ def test_matrix_applies_nightly_environment_without_changing_identity():
     assert nightly[0].runs[0].environment == {"BASE": "1", "NIGHTLY": "yes"}
 
 
+def test_matrix_cases_expand_multiple_named_environment_families():
+    config = {
+        "services": ["redis"],
+        "matrix": {
+            "cases": [
+                {"name": "primary", "python": ["3.11", "3.12"], "command": "pytest tests/primary"},
+                {"name": "compatibility", "python": ["3.11"], "command": "pytest tests/compatibility"},
+            ]
+        },
+    }
+
+    environments = expand_suite_matrix("combined", config, nightly=False)
+
+    assert [environment.id for environment in environments] == [
+        "primary-py311",
+        "primary-py312",
+        "compatibility-py311",
+    ]
+    assert {environment.name for environment in environments} == {"primary", "compatibility"}
+    assert all(environment.services == ("redis",) for environment in environments)
+
+
 def test_declared_requests_matrix_has_semantic_ids():
     root_spec = yaml.safe_load((_ROOT / "tests" / "suitespec.yml").read_text())
     contrib_spec = yaml.safe_load((_ROOT / "tests" / "contrib" / "suitespec.yml").read_text())

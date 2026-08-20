@@ -327,6 +327,52 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     venvs_per_job: 1
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
+      dependencies:
+        - msgpack
+        - coverage
+        - attrs
+        - structlog
+        - httpretty
+        - wheel
+        - fastapi
+        - httpx<0.28.0
+        - pytest-randomly
+        - setuptools
+        - boto3
+        - freezegun
+      env:
+        DD_CIVISIBILITY_LOG_LEVEL: none
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+      axes:
+        variant:
+          default:
+            group:
+          traceid-64-bit:
+            group:
+            name: tracer-128-bit-traceid-disabled
+            python: ['3.14']
+            env:
+              DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
+          optimize:
+            group:
+            name: tracer-python-optimize
+            env:
+              PYTHONOPTIMIZE: '1'
+          legacy-attrs:
+            name: tracer-legacy-attrs
+            python: ['3.9']
+            dependencies:
+              - cattrs<23.2.0
+              - attrs==22.1.0
+          uwsgi:
+            name: tracer-uwsgi
+            python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+            command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+            dependencies: uwsgi
   tracer-uwsgi:
     venvs_per_job: 1
     paths:

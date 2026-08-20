@@ -249,6 +249,45 @@ suites:
     services:
       - httpbin
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/aiohttp
+      dependencies:
+        - pytest-randomly
+        - yarl~=1.0
+      axes:
+        compatibility:
+          aiohttp-legacy:
+            python: ['3.9']
+            dependencies:
+              - pytest-aiohttp<=1.0.5
+              - pytest-asyncio<=0.23.7
+            command: >-
+              pytest {cmdargs} tests/contrib/aiohttp/test_aiohttp_client.py
+              tests/contrib/aiohttp/test_aiohttp_patch.py
+          aiohttp-py39-py312:
+            python: ['3.9', '3.10', '3.11', '3.12']
+            dependencies:
+              - pytest-asyncio==0.23.7
+              - pytest-aiohttp==1.0.5
+          aiohttp-py313-plus:
+            python: ['3.13', '3.14']
+            dependencies:
+              - pytest-asyncio>=1.0.0
+              - pytest-aiohttp
+        aiohttp:
+          aiohttp-3-7:
+            dependencies: aiohttp~=3.7
+          aiohttp-legacy-3-7:
+            python: ['3.9']
+            dependencies: aiohttp~=3.7.0
+          aiohttp-latest:
+            dependencies: aiohttp
+      exclude:
+        - compatibility: aiohttp-legacy
+          aiohttp: [aiohttp-3-7, aiohttp-latest]
+        - compatibility: [aiohttp-py39-py312, aiohttp-py313-plus]
+          aiohttp: aiohttp-legacy-3-7
   aiohttp_jinja2:
     venvs_per_job: 6
     paths:
@@ -264,6 +303,27 @@ suites:
     services:
       - httpbin
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/aiohttp_jinja2
+      dependencies:
+        - pytest-aiohttp
+        - pytest-randomly
+        - jinja2
+      axes:
+        aiohttp:
+          aiohttp-3-7: aiohttp~=3.7
+          aiohttp-latest: aiohttp
+        aiohttp-jinja2:
+          aiohttp-jinja2-1-5: aiohttp_jinja2~=1.5.0
+          aiohttp-jinja2-latest: aiohttp_jinja2
+        pytest-asyncio:
+          pytest-asyncio-0-23:
+            python: ['3.9', '3.10', '3.11', '3.12']
+            dependencies: pytest-asyncio==0.23.7
+          pytest-asyncio-latest:
+            python: ['3.13', '3.14']
+            dependencies: pytest-asyncio>=1.0.0
   aiomysql:
     parallelism: 2
     paths:
@@ -799,6 +859,107 @@ suites:
       - memcached
       - redis
     snapshot: true
+    matrix:
+      cases:
+        - name: flask
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          command: pytest {cmdargs} tests/contrib/flask
+          dependencies:
+            - blinker
+            - requests
+            - werkzeug~=2.0
+            - urllib3~=1.0
+            - pytest-randomly
+            - importlib_metadata
+            - flask-openapi3
+          axes:
+            flask:
+              flask-1:
+                python: ['3.9']
+                dependencies:
+                  - flask~=1.0
+                  - itsdangerous<2.1.0
+                  - markupsafe<2.0
+                  - werkzeug<2.0
+              flask-1-autopatch:
+                python: ['3.9']
+                dependencies:
+                  - flask~=1.0
+                  - itsdangerous<2.0
+                  - markupsafe<2.0
+                  - werkzeug<2.0
+                command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch
+                env:
+                  DD_SERVICE: test.flask.service
+                  DD_PATCH_MODULES: jinja2:false
+              flask-2:
+                dependencies:
+                  - flask~=2.0
+                  - werkzeug>=3.0
+              flask-3:
+                dependencies:
+                  - flask~=3.0.0
+                  - werkzeug>=3.0
+                runs: &flask-runs
+                  - command: pytest {cmdargs} tests/contrib/flask
+                  - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/flask_autopatch
+                    env:
+                      DD_SERVICE: test.flask.service
+                      DD_PATCH_MODULES: jinja2:false
+              flask-latest:
+                dependencies:
+                  - flask
+                  - werkzeug>=3.0
+                runs: *flask-runs
+        - name: flask_cache
+          python: ['3.9']
+          command: pytest {cmdargs} tests/contrib/flask_cache
+          dependencies:
+            - python-memcached
+            - redis~=2.0
+            - blinker
+            - pytest-randomly
+            - flask~=0.12.0
+            - werkzeug<1.0
+            - Flask-Cache~=0.13.1
+            - pytest~=6.0
+            - pytest-mock==2.0.0
+            - pytest-cov~=3.0
+            - Jinja2~=2.10.0
+            - more_itertools<8.11.0
+            - itsdangerous<2.0
+            - markupsafe<2.0
+            - exceptiongroup
+          dependency_groups:
+            - flask-cache-legacy
+        - name: flask_cache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          command: pytest {cmdargs} tests/contrib/flask_cache
+          dependencies:
+            - python-memcached
+            - redis~=2.0
+            - blinker
+            - pytest-randomly
+          axes:
+            flask:
+              flask-1-1:
+                dependencies:
+                  - flask~=1.1.0
+                  - itsdangerous<2.0
+                  - markupsafe<2.0
+              flask-latest: flask
+            flask-caching:
+              flask-caching-1-10: flask-caching~=1.10.0
+              flask-caching-latest: flask-caching
+            redis:
+              redis-2:
+                group:
+                python: ['3.9', '3.10', '3.11']
+                dependencies: redis~=2.0
+              redis-latest:
+                group:
+                python: ['3.12', '3.13']
+                dependencies: redis
   gevent:
     paths:
       - '@bootstrap'
@@ -1359,6 +1520,11 @@ suites:
       - '@subprocess'
       - '@appsec'
       - tests/contrib/subprocess/*
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest -vvvv {cmdargs} --no-cov tests/contrib/subprocess
+      dependencies:
+        - pytest-randomly
   logging:
     parallelism: 1
     paths:

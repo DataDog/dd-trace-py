@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
 from collections.abc import Sequence
 from dataclasses import replace
@@ -109,6 +111,24 @@ def _merge_specs(*specs: Mapping[str, Any]) -> dict[str, Any]:
     return merged
 
 
+def _merge_case(outer: Mapping[str, Any], case: Mapping[str, Any]) -> dict[str, Any]:
+    merged = {key: value for key, value in outer.items() if key != "cases"}
+    for field in ("dependencies", "dependency_groups"):
+        if field in case:
+            merged[field] = (*_string_tuple(merged.get(field), field), *_string_tuple(case[field], field))
+    for field in ("env", "nightly_env"):
+        if field in case:
+            merged[field] = {**_mapping(merged.get(field), field), **_mapping(case[field], field)}
+    merged.update(
+        {
+            key: value
+            for key, value in case.items()
+            if key not in {"dependencies", "dependency_groups", "env", "nightly_env"}
+        }
+    )
+    return merged
+
+
 def _runs(spec: Mapping[str, Any]) -> tuple[TestRun, ...]:
     base_environment = {str(key): str(value) for key, value in _mapping(spec.get("env"), "env").items()}
     command = str(spec.get("command", ""))
@@ -198,6 +218,20 @@ def expand_suite_matrix(
     matrix = _mapping(suite_config.get("matrix"), f"matrix for {suite}")
     if not matrix:
         return ()
+    cases = matrix.get("cases")
+    if cases is not None:
+        if isinstance(cases, (str, bytes)) or not isinstance(cases, Sequence):
+            raise MatrixError("cases must be a list")
+        case_environments: dict[str, TestEnvironment] = {}
+        ordinal = 0
+        for raw_case in cases:
+            case = _mapping(raw_case, "matrix case")
+            case_config = dict(suite_config)
+            case_config["matrix"] = _merge_case(matrix, case)
+            for environment in expand_suite_matrix(suite, case_config, defaults, nightly=nightly):
+                _add_environment(case_environments, replace(environment, ordinal=ordinal))
+                ordinal += 1
+        return tuple(case_environments.values())
     defaults = defaults or {}
     nightly = os.environ.get("NIGHTLY_BUILD") == "true" if nightly is None else nightly
     nightly_spec: Mapping[str, Any] = {}
