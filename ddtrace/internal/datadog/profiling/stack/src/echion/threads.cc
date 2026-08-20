@@ -294,7 +294,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
         auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
         // Snapshot attribution with the task stack so deferred rendering cannot observe a newer span activation.
-        stack_info->span_context.is_logical_stack = true;
+        stack_info->span_context.use_task_attribution = true;
         stack_info->span_context.span = Datadog::SpanLinks::get_instance().get_active_span_from_logical_id(
           Datadog::SpanLinkDomain::AsyncioTask, task_id);
         auto& stack = stack_info->stack;

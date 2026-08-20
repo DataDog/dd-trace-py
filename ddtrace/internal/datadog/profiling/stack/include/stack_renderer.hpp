@@ -74,13 +74,13 @@ class StackRenderer
 
     SampleHandle sample;
     ThreadState thread_state = {};
-    std::optional<Span> thread_span_context;
-    bool span_context_rendered = false;
+    SpanAttribution thread_span;
+    bool span_attribution_resolved = false;
 
     // Render attribution captured for the physical thread being sampled.
-    void render_thread_span_context();
-    // Render attribution captured for a logical stack. An empty span suppresses physical-thread fallback.
-    void render_logical_span_context(const std::optional<Span>& active_span);
+    void render_thread_span();
+    // Render attribution captured for a task stack. An empty span suppresses physical-thread fallback.
+    void render_task_span(const SpanAttribution& active_span);
 
     // Caches for interned strings and function IDs. These are used to avoid
     // re-interning the same strings and function IDs multiple times (even though libdatadog
@@ -100,7 +100,7 @@ class StackRenderer
                            bool on_cpu,
                            uint64_t task_id,
                            std::optional<int64_t> walltime_ns_override,
-                           const SpanContext& span_context);
+                           const TaskSpanContext& task_span_context);
     void render_frame(Frame& frame);
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);

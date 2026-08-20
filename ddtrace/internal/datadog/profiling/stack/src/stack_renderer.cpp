@@ -15,7 +15,7 @@
 using namespace Datadog;
 
 static void
-push_span_context(Sample* sample, const std::optional<Span>& active_span)
+push_span_attribution(Sample* sample, const SpanAttribution& active_span)
 {
     if (active_span) {
         sample->push_span_id(active_span->span_id);
@@ -25,26 +25,26 @@ push_span_context(Sample* sample, const std::optional<Span>& active_span)
 }
 
 void
-StackRenderer::render_thread_span_context()
+StackRenderer::render_thread_span()
 {
-    if (sample == nullptr || span_context_rendered) {
+    if (sample == nullptr || span_attribution_resolved) {
         return;
     }
-    push_span_context(sample.get(), thread_span_context);
-    span_context_rendered = true;
+    push_span_attribution(sample.get(), thread_span);
+    span_attribution_resolved = true;
 }
 
 void
-StackRenderer::render_logical_span_context(const std::optional<Span>& active_span)
+StackRenderer::render_task_span(const SpanAttribution& active_span)
 {
-    if (sample == nullptr || span_context_rendered) {
+    if (sample == nullptr || span_attribution_resolved) {
         return;
     }
     // A known logical stack must never fall back to the thread span. Concurrent tasks or greenlets can share a thread,
     // so missing logical attribution is safer than attaching another execution context's span. The sampler snapshots
     // attribution beside the unwound stack to keep deferred rendering consistent.
-    push_span_context(sample.get(), active_span);
-    span_context_rendered = true;
+    push_span_attribution(sample.get(), active_span);
+    span_attribution_resolved = true;
 }
 
 void
@@ -65,8 +65,8 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
     if (failed) {
         return;
     }
-    thread_span_context = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
-    span_context_rendered = false;
+    thread_span = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    span_attribution_resolved = false;
 
     // Return an incomplete Sample before asking the pool for its replacement.
     sample.reset();
@@ -110,7 +110,7 @@ StackRenderer::render_task_begin(std::string_view task_name,
                                  bool on_cpu,
                                  uint64_t task_id,
                                  std::optional<int64_t> walltime_ns_override,
-                                 const SpanContext& span_context)
+                                 const TaskSpanContext& task_span_context)
 {
     static bool failed = false;
     if (failed) {
@@ -122,7 +122,7 @@ StackRenderer::render_task_begin(std::string_view task_name,
         // a thread has tasks without checking, and checking before populating the sample would make the state
         // management very complicated.  The rest of the tasks will not have samples and will hit this code path.
         sample.reset(SampleManager::start_sample());
-        span_context_rendered = false;
+        span_attribution_resolved = false;
         if (sample == nullptr) {
             std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
             failed = true;
@@ -149,10 +149,10 @@ StackRenderer::render_task_begin(std::string_view task_name,
         }
     }
 
-    if (span_context.is_logical_stack) {
-        render_logical_span_context(span_context.span);
+    if (task_span_context.use_task_attribution) {
+        render_task_span(task_span_context.span);
     } else {
-        render_thread_span_context();
+        render_thread_span();
     }
 
     sample->push_task_name(task_name);
@@ -166,7 +166,7 @@ StackRenderer::render_frame(Frame& frame)
         std::cerr << "Received a new frame without sample storage. Some profiling data has been lost." << std::endl;
         return;
     }
-    render_thread_span_context();
+    render_thread_span();
 
     // Ordinarily we could just call frame_cache->lookup() here, but our
     // underlying frame is owned by the LRUCache, which may have cleaned it up,
@@ -244,7 +244,7 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
     if (sample == nullptr) {
         return;
     }
-    render_thread_span_context();
+    render_thread_span();
 
     std::string display_name = module.empty() ? name : module + "." + name;
     auto maybe_name_id = Datadog::intern_string(display_name);
@@ -302,11 +302,11 @@ StackRenderer::render_stack_end()
         return;
     }
 
-    render_thread_span_context();
+    render_thread_span();
     sample->flush_sample();
     sample.reset();
     // Keep the thread snapshot for subsequent greenlet samples rendered in this same thread pass.
-    span_context_rendered = false;
+    span_attribution_resolved = false;
 }
 
 void
@@ -314,8 +314,8 @@ StackRenderer::abort_sample()
 {
     // Return the partially-built sample to the pool without flushing it.
     sample.reset();
-    thread_span_context.reset();
-    span_context_rendered = false;
+    thread_span.reset();
+    span_attribution_resolved = false;
 }
 
 Datadog::StackRenderer::StackRenderer()
@@ -340,6 +340,6 @@ Datadog::StackRenderer::postfork_child()
     // The vanished sampling thread may have been mutating this Sample or span snapshot when fork captured it. Clearing
     // either child copy could traverse inconsistent state, so intentionally abandon at most one in-flight copy of each.
     [[maybe_unused]] Sample* abandoned_sample = sample.release();
-    new (&thread_span_context) std::optional<Span>();
-    span_context_rendered = false;
+    new (&thread_span) SpanAttribution();
+    span_attribution_resolved = false;
 }

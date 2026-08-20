@@ -40,7 +40,7 @@ SpanLinks::link(Key key, uint64_t span_id, uint64_t local_root_span_id, std::str
     span_to_keys[span_id].insert(key);
 }
 
-const std::optional<Span>
+const SpanAttribution
 SpanLinks::get_active_span(const Key& key)
 {
     std::lock_guard<std::mutex> lock(mtx);
@@ -76,7 +76,7 @@ SpanLinks::link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_s
     link({ SpanLinkDomain::Thread, thread_id }, span_id, local_root_span_id, std::move(span_type));
 }
 
-const std::optional<Span>
+const SpanAttribution
 SpanLinks::get_active_span_from_thread_id(uint64_t thread_id)
 {
     return get_active_span({ SpanLinkDomain::Thread, thread_id });
@@ -104,7 +104,7 @@ SpanLinks::link_logical_span(SpanLinkDomain domain,
     link({ domain, logical_id }, span_id, local_root_span_id, std::move(span_type));
 }
 
-const std::optional<Span>
+const SpanAttribution
 SpanLinks::get_active_span_from_logical_id(SpanLinkDomain domain, uint64_t logical_id)
 {
     return get_active_span({ domain, logical_id });

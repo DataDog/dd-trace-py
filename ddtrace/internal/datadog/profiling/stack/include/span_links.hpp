@@ -39,10 +39,14 @@ struct Span
     }
 };
 
-struct SpanContext
+using SpanAttribution = std::optional<Span>;
+
+struct TaskSpanContext
 {
-    bool is_logical_stack = false;
-    std::optional<Span> span;
+    // When true, span is authoritative even when empty. An empty value means the task is unattributed and suppresses
+    // thread fallback.
+    bool use_task_attribution = false;
+    SpanAttribution span;
 };
 
 class SpanLinks
@@ -59,7 +63,7 @@ class SpanLinks
     SpanLinks& operator=(SpanLinks const&) = delete;
 
     void link_span(uint64_t thread_id, uint64_t span_id, uint64_t local_root_span_id, std::string span_type);
-    const std::optional<Span> get_active_span_from_thread_id(uint64_t thread_id);
+    const SpanAttribution get_active_span_from_thread_id(uint64_t thread_id);
     void unlink_span(uint64_t thread_id);
     void unlink_span(uint64_t thread_id, uint64_t expected_span_id);
 
@@ -68,7 +72,7 @@ class SpanLinks
                            uint64_t span_id,
                            uint64_t local_root_span_id,
                            std::string span_type);
-    const std::optional<Span> get_active_span_from_logical_id(SpanLinkDomain domain, uint64_t logical_id);
+    const SpanAttribution get_active_span_from_logical_id(SpanLinkDomain domain, uint64_t logical_id);
     void unlink_logical_span(SpanLinkDomain domain, uint64_t logical_id);
 
     void unlink_finished_span(uint64_t span_id);
@@ -113,7 +117,7 @@ class SpanLinks
     void unlink(Key key);
     void unlink(Key key, uint64_t expected_span_id);
     void remove_locked(const Key& key);
-    const std::optional<Span> get_active_span(const Key& key);
+    const SpanAttribution get_active_span(const Key& key);
 
     std::mutex mtx;
     KeyToSpan key_to_span;
