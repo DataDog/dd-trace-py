@@ -6,13 +6,16 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib._events.http import HttpRequestBaseEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.core.event_names import WEB_REQUEST as WEB_REQUEST_EVENT
+from ddtrace.internal.core.event_names import WEB_REQUEST_STARTING as WEB_REQUEST_STARTING_EVENT
 from ddtrace.internal.core.events import event_field
 from ddtrace.internal.schema import SpanDirection
 from ddtrace.internal.schema import schematize_url_operation
 
 
 class WebFrameworkEvents(str, Enum):
-    WEB_REQUEST = "web.request"
+    WEB_REQUEST = WEB_REQUEST_EVENT
+    WEB_REQUEST_STARTING = WEB_REQUEST_STARTING_EVENT
 
 
 @dataclass
