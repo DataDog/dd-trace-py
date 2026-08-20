@@ -9,6 +9,7 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <cstring>
 #include <string_view>
 #include <utility>
 
@@ -318,6 +319,35 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
+#if PY_VERSION_HEX >= 0x030e0000
+static std::optional<AsyncioOffsets>
+get_asyncio_offsets()
+{
+    PyObject* module = PyImport_ImportModule("_asyncio");
+    if (module == nullptr) {
+        PyErr_Clear();
+        return std::nullopt;
+    }
+
+    PyModuleDef* definition = PyModule_GetDef(module);
+    auto* state = static_cast<char*>(PyModule_GetState(module));
+    if (definition == nullptr || state == nullptr || definition->m_size < static_cast<Py_ssize_t>(sizeof(void*))) {
+        Py_DECREF(module);
+        PyErr_Clear();
+        return std::nullopt;
+    }
+
+    // CPython 3.14.2 keeps a pointer to its AsyncioDebug table in the final module-state field.
+    const PyAsyncioDebugOffsets* debug_offsets;
+    std::memcpy(&debug_offsets, state + definition->m_size - sizeof(debug_offsets), sizeof(debug_offsets));
+
+    PyAsyncioDebugOffsets table;
+    auto offsets = copy_type(debug_offsets, table) == 0 ? parse_asyncio_debug_offsets(&table) : std::nullopt;
+    Py_DECREF(module);
+    return offsets;
+}
+#endif
+
 static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
@@ -329,6 +359,11 @@ stack_init_asyncio(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    if (auto offsets = get_asyncio_offsets()) {
+        Sampler::get().get_echion().set_asyncio_offsets(*offsets);
+    }
+#endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
     Py_RETURN_NONE;

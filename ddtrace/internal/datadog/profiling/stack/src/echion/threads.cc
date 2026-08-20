@@ -419,13 +419,10 @@ ThreadInfo::get_tasks_from_thread_linked_list(EchionSampler& echion, std::vector
         return ErrorKind::TaskInfoError;
     }
 
-    // Calculate thread state's asyncio_tasks_head remote address
-    // Note: Since 3.13+, every PyThreadState is actually allocated as a _PyThreadStateImpl.
-    // We use PyThreadState* everywhere and cast to _PyThreadStateImpl* only when we need
-    // to access asyncio_tasks_head (which is only available in Python 3.14+).
-    // Since tstate_addr is a remote address, we calculate the offset and add it to the address.
-    // get_tasks_from_linked_list will handle copying the head node from remote memory internally.
-    constexpr size_t asyncio_tasks_head_offset = offsetof(_PyThreadStateImpl, asyncio_tasks_head);
+    const size_t asyncio_tasks_head_offset = echion.asyncio_thread_tasks_head_offset();
+    if (asyncio_tasks_head_offset == 0) {
+        return ErrorKind::TaskInfoError;
+    }
     uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
 
     return get_tasks_from_linked_list(echion, head_addr, tasks);
@@ -440,7 +437,10 @@ ThreadInfo::get_tasks_from_interpreter_linked_list(EchionSampler& echion,
         return ErrorKind::TaskInfoError;
     }
 
-    constexpr size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
+    const size_t asyncio_tasks_head_offset = echion.asyncio_interpreter_tasks_head_offset();
+    if (asyncio_tasks_head_offset == 0) {
+        return ErrorKind::TaskInfoError;
+    }
     uintptr_t head_addr = reinterpret_cast<uintptr_t>(tstate->interp) + asyncio_tasks_head_offset;
 
     return get_tasks_from_linked_list(echion, head_addr, tasks);
