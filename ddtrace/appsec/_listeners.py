@@ -110,6 +110,7 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         django_listen()
         fastapi_listen()
         import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+        import ddtrace.appsec._contrib.subprocess.subscribers  # noqa: F401
 
         openai_listen()
         stripe_listen()
