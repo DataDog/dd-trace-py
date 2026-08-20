@@ -116,6 +116,8 @@ components:
     - ddtrace/contrib/internal/grpc/*
   gunicorn:
     - ddtrace/contrib/internal/gunicorn/*
+  http_server:
+    - ddtrace/contrib/internal/http_server/*
   httplib:
     - ddtrace/contrib/internal/httplib/*
   httpx:
@@ -871,6 +873,14 @@ suites:
       - tests/contrib/gunicorn/*
       - tests/snapshots/tests.contrib.gunicorn.*
     snapshot: true
+  http_server:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@http_server'
+      - tests/contrib/http_server/*
   httplib:
     paths:
       - '@bootstrap'
