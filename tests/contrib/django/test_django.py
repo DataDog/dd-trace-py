@@ -24,6 +24,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.django import utils as django_utils
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.utils import get_request_uri
@@ -41,6 +42,17 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+
+
+@pytest.mark.parametrize(("method", "resource"), (("GET", "GET /checkout/{id}"), ("PROPFIND", "HTTP /checkout/{id}")))
+def test_early_otel_route_and_resource(monkeypatch, method, resource):
+    resolver = mock.Mock()
+    resolver.resolve.return_value = types.SimpleNamespace(route="/checkout/{id}")
+    request = types.SimpleNamespace(method=method, path_info="/checkout/42", urlconf=None)
+    monkeypatch.setattr(config, "_otel_trace_semantics_enabled", True)
+    monkeypatch.setattr(django_utils, "get_resolver", lambda _: resolver)
+
+    assert django_utils._early_otel_route_and_resource(request) == ("/checkout/{id}", resource)
 
 
 @pytest.fixture(autouse=True)

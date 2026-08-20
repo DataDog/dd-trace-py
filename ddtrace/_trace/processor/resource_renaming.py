@@ -1,5 +1,6 @@
 import re
 from typing import Optional
+from typing import Union
 from urllib.parse import urlparse
 
 from ddtrace._trace.processor import SpanProcessor
@@ -11,6 +12,28 @@ from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)
+
+# Which attributes hold the status code and the request path depends on the semantics mode,
+# and the mode cannot change after startup, so resolve the names once. url.path is already
+# just the path, which is all from_url ever looks at. Client spans carry url.full instead of
+# url.path, so both are read under the flag; from_url parses either shape.
+_STATUS_CODE_TAG: str
+_PATH_SOURCE_TAGS: tuple[str, ...]
+if config._otel_trace_semantics_enabled:
+    _STATUS_CODE_TAG = http.OTEL_RESPONSE_STATUS_CODE
+    _PATH_SOURCE_TAGS = (http.OTEL_URL_PATH, http.OTEL_URL_FULL)
+else:
+    _STATUS_CODE_TAG = http.STATUS_CODE
+    _PATH_SOURCE_TAGS = (http.URL,)
+
+
+def path_source_tag_value(span: Span) -> Optional[str]:
+    """The URL-ish tag an endpoint is computed from, in the active semantics mode.
+
+    Server spans carry url.path and client spans carry url.full under the flag, and
+    SimplifiedEndpointComputer.from_url parses either shape.
+    """
+    return next((value for value in map(span.get_tag, _PATH_SOURCE_TAGS) if value), None)
 
 
 class SimplifiedEndpointComputer:
@@ -74,12 +97,17 @@ class ResourceRenamingProcessor(SpanProcessor):
         if not span._is_top_level or span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS):
             return
 
-        status = span.get_tag(http.STATUS_CODE)
+        status: Union[str, int, float, None] = span.get_tag(_STATUS_CODE_TAG)
+        if status is None:
+            # under OTLP export the status code is written with its integer type
+            status = span.get_metric(_STATUS_CODE_TAG)
         is_404 = status == "404" or status == 404
 
         route = span.get_tag(http.ROUTE)
 
-        if not is_404 and (not route or config._trace_resource_renaming_always_simplified_endpoint):
-            url = span.get_tag(http.URL)
+        if (not is_404 or config._otel_trace_semantics_enabled) and (
+            not route or config._trace_resource_renaming_always_simplified_endpoint
+        ):
+            url = path_source_tag_value(span)
             endpoint = self.simplified_endpoint_computer.from_url(url)
             span._set_attribute(http.ENDPOINT, endpoint)

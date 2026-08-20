@@ -23,13 +23,22 @@ import wrapt
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils_base import _OTEL_SEMANTICS
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
+from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
+from ddtrace.contrib.internal.trace_utils_base import _otel_number
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
+from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_otel_client
+from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_otel_server
 from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_headers
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal import _service_state
@@ -416,6 +425,89 @@ def set_service_and_source(
         span.service = service
 
 
+def _set_request_headers_meta(
+    span: Span,
+    integration_config: "IntegrationConfig",
+    request_headers: Mapping[str, str],
+    headers_are_case_sensitive: bool,
+    user_agent_key: str,
+) -> None:
+    """Tag the request headers. Only the user agent key differs between the two semantics."""
+    user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
+    if user_agent:
+        span._set_attribute(user_agent_key, user_agent)
+
+    # Extract referrer host if referer header is present. http.referrer_hostname has no OTel
+    # equivalent, so it keeps its Datadog name in both modes.
+    referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
+    if referrer_host:
+        span._set_attribute(http.REFERRER_HOSTNAME, referrer_host)
+
+    _store_security_testing_headers(request_headers, span, headers_are_case_sensitive)
+
+    if integration_config.is_header_tracing_configured:
+        """We should store both http.<request_or_response>.headers.<header_name> and
+        http.<key>. The last one
+        is the DD standardized tag for user-agent"""
+        _store_request_headers(dict(request_headers), span, integration_config)
+
+
+def _should_collect_client_ip() -> bool:
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    return asm_config._asm_enabled or config._retrieve_client_ip
+
+
+def _resolve_client_ip(
+    request_headers: Optional[Mapping[str, str]], peer_ip: Optional[str], headers_are_case_sensitive: bool
+) -> Optional[str]:
+    """Resolve the client IP the same way in both semantics modes.
+
+    AppSec depends on this resolution, so the OTel path reuses it verbatim and only changes
+    the key the result is written under.
+    """
+    # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+    request_ip = core.find_item("http.request.remote_ip")
+    if not request_ip:
+        # Not calculated: framework does not support IP blocking or testing env
+        request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+    return request_ip
+
+
+def _is_http_client_span(span: Span) -> bool:
+    """Whether set_http_meta was called for an outbound request.
+
+    Client integrations tag span.kind=client, use the http span type, or both. Server
+    integrations use the web (or websocket) span type and span.kind=server. The http span
+    type alone is not conclusive: ray_serve gives its inbound proxy and replica spans the
+    http span type, so an explicit server kind wins over it.
+    """
+    kind = span.get_tag(SPAN_KIND)
+    if kind is not None:
+        return kind == SpanKind.CLIENT
+    return span.span_type == SpanTypes.HTTP
+
+
+# The value DD_TRACE_HTTP_SERVER_ERROR_STATUSES carries when the user has not set it.
+_DEFAULT_SERVER_ERROR_STATUSES = "500-599"
+
+
+def _is_otel_error_status(int_status_code: int, is_client: bool) -> bool:
+    """Whether a status code makes the span an error under the OTel HTTP conventions.
+
+    The conventions set the status to Error for the 5xx range "as well as any other code the
+    client failed to interpret", which is what a status above 599 is, so neither range closes at
+    599. Client spans add the 4xx range, where OTel deliberately differs from the legacy Datadog
+    client default. A configured DD_TRACE_HTTP_SERVER_ERROR_STATUSES takes precedence over the
+    convention and is used as given.
+    """
+    if is_client:
+        return int_status_code >= 400
+    if config._http_server.error_statuses == _DEFAULT_SERVER_ERROR_STATUSES:
+        return int_status_code >= 500
+    return config._http_server.is_error_code(int_status_code)
+
+
 def set_http_meta(
     span: Span,
     integration_config: "IntegrationConfig",
@@ -488,33 +580,12 @@ def set_http_meta(
 
     request_ip = peer_ip
     if request_headers:
-        user_agent = _get_request_header_user_agent(request_headers, headers_are_case_sensitive)
-        if user_agent:
-            span._set_attribute(http.USER_AGENT, user_agent)
+        _set_request_headers_meta(
+            span, integration_config, request_headers, headers_are_case_sensitive, http.USER_AGENT
+        )
 
-        # Extract referrer host if referer header is present
-        referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
-        if referrer_host:
-            span._set_attribute(http.REFERRER_HOSTNAME, referrer_host)
-
-        _store_security_testing_headers(request_headers, span, headers_are_case_sensitive)
-
-        if integration_config.is_header_tracing_configured:
-            """We should store both http.<request_or_response>.headers.<header_name> and
-            http.<key>. The last one
-            is the DD standardized tag for user-agent"""
-            _store_request_headers(dict(request_headers), span, integration_config)
-
-    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-    if asm_config._asm_enabled or config._retrieve_client_ip:
-        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-        request_ip = core.find_item("http.request.remote_ip")
-
-        if not request_ip:
-            # Not calculated: framework does not support IP blocking or testing env
-            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-
+    if _should_collect_client_ip():
+        request_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
         if request_ip:
             span._set_attribute(http.CLIENT_IP, request_ip)
 
@@ -550,6 +621,131 @@ def set_http_meta(
 
     if route is not None:
         span._set_attribute(http.ROUTE, route)
+
+
+def _set_http_meta_otel(
+    span: Span,
+    integration_config: "IntegrationConfig",
+    method: Optional[str] = None,
+    url: Optional[str] = None,
+    target_host: Optional[str] = None,
+    server_address: Optional[str] = None,
+    status_code: Optional[Union[int, str]] = None,
+    status_msg: Optional[str] = None,
+    query: Optional[str] = None,
+    parsed_query: Optional[Mapping[str, str]] = None,
+    request_headers: Optional[Mapping[str, str]] = None,
+    response_headers: Optional[Mapping[str, str]] = None,
+    retries_remain: Optional[Union[int, str]] = None,
+    raw_uri: Optional[str] = None,
+    request_cookies: Optional[dict[str, str]] = None,
+    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]] = None,
+    request_body: Optional[Union[str, dict[str, list[str]]]] = None,
+    peer_ip: Optional[str] = None,
+    headers_are_case_sensitive: bool = False,
+    route: Optional[str] = None,
+    response_cookies: Optional[dict[str, str]] = None,
+) -> None:
+    """OpenTelemetry HTTP semantic conventions variant of set_http_meta.
+
+    Bound to the public set_http_meta name at import when DD_TRACE_OTEL_SEMANTICS_ENABLED is
+    true, so the default path never pays for a branch. Attributes that have an OTel
+    equivalent are renamed, attributes that do not (http.endpoint, http.status_msg,
+    http.retries_remain, http.referrer_hostname, the configured header tags) keep their
+    Datadog names. See ddtrace/contrib/internal/trace_utils_base.py for the value shaping.
+    """
+    is_client = _is_http_client_span(span)
+
+    if method is not None:
+        normalized_method, original_method = _normalize_http_method(method)
+        span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
+        if original_method is not None:
+            span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
+
+    if url is not None:
+        if is_client:
+            _set_url_tags_otel_client(integration_config, span, url, query)
+        else:
+            # the server path never carries credentials in the URL, and it does not emit
+            # url.full, so there is nothing to redact before parsing
+            _set_url_tags_otel_server(integration_config, span, url, query, raw_uri)
+
+    # target_host and server_address are only passed by client integrations, and both mean
+    # server.address. A host parsed out of the URL above is more complete, so it wins.
+    if span.get_tag(net.SERVER_ADDRESS) is None:
+        if server_address is not None:
+            span._set_attribute(net.SERVER_ADDRESS, server_address)
+        elif target_host is not None:
+            span._set_attribute(net.SERVER_ADDRESS, target_host)
+
+    if status_code is not None:
+        try:
+            int_status_code = int(status_code)
+        except (TypeError, ValueError):
+            log.debug("failed to convert http status code %r to int", status_code)
+        else:
+            span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, _otel_number(int_status_code))
+            if _is_otel_error_status(int_status_code, is_client):
+                span.error = 1
+                # An exception carries more information than a status code, so a status code
+                # must never overwrite an error.type that came from one.
+                if span.get_tag(ERROR_TYPE) is None:
+                    span._set_attribute(ERROR_TYPE, str(int_status_code))
+
+    if status_msg is not None:
+        span._set_attribute(http.STATUS_MSG, status_msg)
+
+    request_ip = peer_ip
+    if request_headers:
+        _set_request_headers_meta(
+            span, integration_config, request_headers, headers_are_case_sensitive, http.OTEL_USER_AGENT_ORIGINAL
+        )
+
+    if _should_collect_client_ip():
+        request_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+        if request_ip:
+            span._set_attribute(http.OTEL_CLIENT_ADDRESS, request_ip)
+
+        if peer_ip:
+            span._set_attribute(net.NETWORK_PEER_ADDRESS, peer_ip)
+
+    if response_headers is not None and integration_config.is_header_tracing_configured:
+        _store_response_headers(response_headers, span, integration_config)
+
+    if retries_remain is not None:
+        span._set_attribute(http.RETRIES_REMAIN, str(retries_remain))
+
+    core.dispatch(
+        "set_http_meta_for_asm",
+        (
+            span,
+            request_ip,
+            raw_uri,
+            route,
+            method,
+            request_headers,
+            request_cookies,
+            parsed_query,
+            request_path_params,
+            request_body,
+            status_code,
+            response_headers,
+            response_cookies,
+            peer_ip,
+            headers_are_case_sensitive,
+        ),
+    )
+
+    if route is not None:
+        # http.route is spelled the same in both conventions
+        span._set_attribute(http.OTEL_ROUTE, route)
+
+
+if _OTEL_SEMANTICS:
+    # Swapped in once here rather than branching per span inside set_http_meta. Patching
+    # config._otel_trace_semantics_enabled at runtime therefore has no effect: tests need the
+    # environment variable set in a subprocess.
+    set_http_meta = _set_http_meta_otel  # type: ignore[assignment]
 
 
 def activate_distributed_headers(

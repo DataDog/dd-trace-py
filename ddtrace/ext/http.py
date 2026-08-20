@@ -21,6 +21,20 @@ ROUTE = "http.route"
 REFERRER_HOSTNAME = "http.referrer_hostname"
 ENDPOINT = "http.endpoint"
 
+# OpenTelemetry HTTP semantic convention names, emitted in place of the Datadog names above
+# when DD_TRACE_OTEL_SEMANTICS_ENABLED is true. ENDPOINT has no OTel equivalent and is kept
+# in both modes because endpoint aggregation and ASM depend on it.
+OTEL_REQUEST_METHOD = "http.request.method"
+OTEL_REQUEST_METHOD_ORIGINAL = "http.request.method_original"
+OTEL_RESPONSE_STATUS_CODE = "http.response.status_code"
+OTEL_ROUTE = "http.route"
+OTEL_URL_FULL = "url.full"
+OTEL_URL_PATH = "url.path"
+OTEL_URL_QUERY = "url.query"
+OTEL_URL_SCHEME = "url.scheme"
+OTEL_USER_AGENT_ORIGINAL = "user_agent.original"
+OTEL_CLIENT_ADDRESS = "client.address"
+
 # HTTP headers
 REFERER_HEADER = "referer"
 
