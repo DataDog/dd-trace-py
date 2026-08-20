@@ -1016,7 +1016,6 @@ class Context:
     _span_links: list[Any]
     _is_remote: bool
     _reactivate: bool
-    _lock: Any
     sampling_priority: Optional[Any]
     dd_origin: Optional[str]
     dd_user_id: Optional[str]
@@ -1033,7 +1032,6 @@ class Context:
         sampling_priority: Optional[float] = None,
         meta: Optional[dict[str, str]] = None,
         metrics: Optional[dict[str, Any]] = None,
-        lock: Optional[Any] = None,
         span_links: Optional[list[Any]] = None,
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
