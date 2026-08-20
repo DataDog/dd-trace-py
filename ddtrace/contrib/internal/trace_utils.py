@@ -38,6 +38,7 @@ from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
@@ -617,6 +618,25 @@ def _copy_trace_level_tags(target_span: Span, parent: Span):
 
     if parent.context.sampling_priority is not None:
         target_span.context.sampling_priority = parent.context.sampling_priority
+
+    raw_tracestate = parent.context._meta.get(W3C_TRACESTATE_KEY, "")
+    for raw_member in raw_tracestate.split(","):
+        member = raw_member.strip()
+        if member.startswith("ot="):
+            target_span.context._meta[W3C_TRACESTATE_KEY] = member
+
+    parent_otel_sampling_state = parent.context._otel_sampling_state_data
+    if parent_otel_sampling_state is not None:
+        # AIDEV-NOTE: WebSocket message spans start independent traces. Copy inherited raw
+        # OTel fields above and local state values here instead of sharing the mutable holder.
+        target_otel_sampling_state = target_span.context._otel_sampling_state
+        if parent_otel_sampling_state.is_probabilistic:
+            if parent_otel_sampling_state.sample_rate is None:
+                target_otel_sampling_state.clear()
+            else:
+                target_otel_sampling_state.set_probabilistic_decision(parent_otel_sampling_state.sample_rate)
+        else:
+            target_otel_sampling_state.set_non_probabilistic_decision()
 
     if parent.context._meta.get(_ORIGIN_KEY):
         target_span._set_attribute(_ORIGIN_KEY, parent.context._meta[_ORIGIN_KEY])

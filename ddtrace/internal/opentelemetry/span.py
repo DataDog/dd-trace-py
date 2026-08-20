@@ -7,7 +7,6 @@ from opentelemetry.trace import SpanContext
 from opentelemetry.trace import SpanKind
 from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
-from opentelemetry.trace.span import DEFAULT_TRACE_OPTIONS
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
 
@@ -17,9 +16,13 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.otel_sampling import _build_otel_member
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
+from ddtrace.internal.utils.http import w3c_get_dd_list_member
 from ddtrace.internal.utils.http import w3c_tracestate_add_p
 from ddtrace.trace import tracer as ddtracer
 
@@ -60,16 +63,13 @@ def _ddmap(span, attribute, value):
     return span
 
 
-def _get_trace_flags(sampling_priority):
-    """Returns the trace flags for a given sampling priority.
-    Note - DEFAULT_TRACE_OPTIONS is equivalent to 'span is not sampled YET'
-    """
-    if sampling_priority is None:
-        return DEFAULT_TRACE_OPTIONS
-    elif sampling_priority > 0:
-        return TraceFlags(TraceFlags.SAMPLED)
-    else:
-        return TraceFlags(TraceFlags.DEFAULT)
+def _get_trace_flags(sampling_priority, traceparent=None):
+    # type: (Optional[NumericType], Optional[str]) -> TraceFlags
+    """Return the sampled flag while preserving inherited trace-ID randomness."""
+    trace_flags = int(traceparent.split("-")[3], 16) & 0x2 if traceparent else 0
+    if sampling_priority is not None and sampling_priority > 0:
+        trace_flags |= 0x1
+    return TraceFlags(trace_flags)
 
 
 _OTelDatadogMapping = {
@@ -168,10 +168,30 @@ class Span(OtelSpan):
             # the span context is accessed.
             ddtracer.sample(self._ddspan._local_root)
 
-        tf = _get_trace_flags(self._ddspan.context.sampling_priority)
-        # Evaluate the tracestate header after the sampling decision has been made
-        ts_str = w3c_tracestate_add_p(self._ddspan.context._tracestate, self._ddspan.span_id)
-        ts = TraceState.from_header([ts_str])
+        context = self._ddspan.context
+        tf = _get_trace_flags(context.sampling_priority, context._meta.get(W3C_TRACEPARENT_KEY))
+        if W3C_TRACESTATE_KEY in context._meta:
+            # Evaluate inherited tracestate after the sampling decision has been made.
+            ts_str = w3c_tracestate_add_p(context._tracestate, self._ddspan.span_id)
+            ts = TraceState.from_header([ts_str])
+        else:
+            # AIDEV-NOTE: ddtrace generated every member, so construct the entries directly.
+            # Building an HTTP header only for from_header to split and validate it twice is a
+            # measurable cost in this hot path.
+            dd_list_member = w3c_get_dd_list_member(context)
+            dd_value = "p:{:016x}".format(self._ddspan.span_id)
+            if dd_list_member:
+                dd_value += ";" + dd_list_member
+            entries = [("dd", dd_value)]
+            ot_value = _build_otel_member(
+                None,
+                context.trace_id,
+                context.sampling_priority,
+                context._otel_sampling_state_data,
+            )
+            if ot_value:
+                entries.append(("ot", ot_value))
+            ts = TraceState(entries)
 
         return SpanContext(self._ddspan.trace_id, self._ddspan.span_id, False, tf, ts)
 

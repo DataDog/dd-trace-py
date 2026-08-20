@@ -26,6 +26,16 @@ from .sampling_rule import SamplingRule
 
 PROVENANCE_ORDER = ["customer", "dynamic", "default"]
 
+_OTEL_PROBABILISTIC_SAMPLING_MECHANISMS = frozenset(
+    (
+        SamplingMechanism.DEFAULT,
+        SamplingMechanism.AGENT_RATE_BY_SERVICE,
+        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
+    )
+)
+
 
 log = get_logger(__name__)
 
@@ -186,16 +196,22 @@ class DatadogSampler:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
             # by users. In this scenario tracing should default to agent based sampling. ASM
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
+            limiter_dropped = False
             if sampled:
                 sampled = self.limiter.is_allowed()
+                limiter_dropped = not sampled
                 span._set_attribute(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+        else:
+            limiter_dropped = False
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
+        probabilistic_decision = not limiter_dropped and sampling_mechanism in _OTEL_PROBABILISTIC_SAMPLING_MECHANISMS
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
             sampling_mechanism,
+            probabilistic_decision,
         )
         log.debug(
             self.SAMPLE_DEBUG_MESSAGE,

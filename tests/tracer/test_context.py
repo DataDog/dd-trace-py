@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
+from concurrent.futures import ThreadPoolExecutor
 import pickle
+import time
 from typing import Optional  # noqa:F401
 
 import pytest
 
+from ddtrace._trace import context as context_module
 from ddtrace._trace._span_link import SpanLink
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.trace import Context
@@ -129,15 +132,25 @@ def test_context_serializable_reactivate():
     assert context._reactivate == serialized_context._reactivate
 
 
+def test_context_accepts_legacy_pickle_state():
+    context = Context(trace_id=123, span_id=321, sampling_priority=1, meta={"meta": "value"})
+    legacy_state = context.__getstate__()[:-1]
+    restored = Context.__new__(Context)
+
+    restored.__setstate__(legacy_state)
+
+    assert restored == context
+    assert restored._otel_sampling_state_data is None
+
+
 def test_copy_populates_every_getstate_slot(tracer):
-    """Guard against a future slot-drop in ``Context.copy()``.
+    """Guard against a future state-field drop in ``Context.copy()``.
 
     A child span builds its context lazily via ``Context.copy()`` (ddtrace/_trace/context.py),
-    which assigns each slot by hand — ``trace_id``, ``span_id``, ``_meta``, ``_metrics``,
-    ``_baggage``, ``_lock``, ``_is_remote``, ``_reactivate``, ``_span_links`` — instead of
-    going through ``__init__``. A dropped assignment there would only surface later as an
-    AttributeError when the context is serialized. Pin both halves: the copied context must
-    pickle/round-trip equal, and every slot ``__getstate__`` reads must be set.
+    which calls native ``ContextData.__new__`` directly instead of going through ``__init__``.
+    A dropped constructor argument would only surface later when the context is serialized or
+    propagated. Pin both halves: the copied context must pickle/round-trip equal, and every field
+    ``__getstate__`` reads must be initialized.
     """
     with tracer.trace("parent"):
         with tracer.trace("child") as child:
@@ -147,12 +160,51 @@ def test_copy_populates_every_getstate_slot(tracer):
     # pickle.dumps calls __getstate__, which reads every slot copy() is responsible for.
     assert pickle.loads(pickle.dumps(child_ctx)) == child_ctx
 
-    # Explicit tripwire: every slot __getstate__ reads is present (mirrors copy()'s slot list,
-    # minus the unpicklable _lock). A missing slot would raise AttributeError on access.
-    for slot in ("trace_id", "span_id", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote", "_reactivate"):
+    # Explicit tripwire: every field __getstate__ reads is present (minus the unpicklable _lock).
+    # A missing native property or Python slot would raise AttributeError on access.
+    for slot in (
+        "trace_id",
+        "span_id",
+        "_meta",
+        "_metrics",
+        "_span_links",
+        "_baggage",
+        "_is_remote",
+        "_reactivate",
+        "_otel_sampling_state_data",
+    ):
         assert hasattr(child_ctx, slot), f"copy() must set slot {slot!r}"
     # __getstate__ itself must not raise (reads all of the above at once).
     assert child_ctx.__getstate__() == pickle.loads(pickle.dumps(child_ctx)).__getstate__()
+
+
+def test_concurrent_copies_share_one_otel_sampling_state(monkeypatch):
+    context = Context(trace_id=1, span_id=1)
+    otel_sampling_state_class = context_module.OtelSamplingState
+
+    def delayed_otel_sampling_state():
+        time.sleep(0.05)
+        return otel_sampling_state_class()
+
+    monkeypatch.setattr(context_module, "OtelSamplingState", delayed_otel_sampling_state)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        children = list(executor.map(lambda span_id: context.copy(1, span_id), (2, 3)))
+
+    assert children[0]._otel_sampling_state_data is children[1]._otel_sampling_state_data
+    assert children[0]._otel_sampling_state_data is context._otel_sampling_state_data
+
+
+@pytest.mark.parametrize(("sampling_priority", "expected_flags"), [(0, "02"), (1, "03")])
+def test_traceparent_preserves_inherited_random_trace_id_flag(sampling_priority, expected_flags):
+    context = Context(
+        trace_id=11803532876627986230,
+        span_id=67667974448284343,
+        sampling_priority=sampling_priority,
+        meta={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03"},
+    )
+
+    assert context._traceparent == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{}".format(expected_flags))
 
 
 @pytest.mark.parametrize(
@@ -471,3 +523,24 @@ def test_context_baggage_cycle_is_collectable():
     finally:
         if gc_was_enabled:
             gc.enable()
+
+
+def test_context_otel_sampling_state_cycle_is_collectable():
+    """Cycles through native OTel sampling-state storage must be reclaimed."""
+    import gc
+    import weakref
+
+    class CyclicOtelSamplingState(context_module.OtelSamplingState):
+        pass
+
+    context = Context()
+    state = CyclicOtelSamplingState()
+    state.context = context
+    context._otel_sampling_state_data = state
+    context_ref = weakref.ref(context)
+
+    del context
+    del state
+    gc.collect()
+
+    assert context_ref() is None

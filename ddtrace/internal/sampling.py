@@ -250,7 +250,13 @@ def _check_unsupported_pattern(string: str) -> None:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
+def _set_sampling_tags(
+    span: Span,
+    sampled: bool,
+    sample_rate: float,
+    mechanism: int,
+    probabilistic_decision: bool = True,
+) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
         span._set_sampling_decision_maker(mechanism)
@@ -270,7 +276,15 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
-    span.context.sampling_priority = priorities[priority_index]
+    # AIDEV-NOTE: Injection treats a non-None sampling priority as the publication marker for
+    # the complete decision. Update the OTel state first and publish priority last under the
+    # shared context lock so concurrent branches cannot propagate a partial decision.
+    with span.context:
+        if probabilistic_decision:
+            span.context._otel_sampling_state.set_probabilistic_decision(sample_rate)
+        else:
+            span.context._otel_sampling_state.set_non_probabilistic_decision()
+        span.context.sampling_priority = priorities[priority_index]
 
 
 def add_trace_source(span: Span, source: int) -> None:

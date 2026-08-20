@@ -14,6 +14,9 @@ from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ContextData
+from ddtrace.internal.otel_sampling import OtelSamplingState
+from ddtrace.internal.otel_sampling import _otel_sampling_states_equal
+from ddtrace.internal.otel_sampling import build_tracestate as _build_tracestate
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
@@ -27,6 +30,7 @@ _ContextState = tuple[
     dict[str, Any],  # baggage
     bool,  # is_remote
     bool,  # _reactivate
+    Optional[OtelSamplingState],  # locally made OTel-compatible sampling decision
 ]
 
 
@@ -59,7 +63,7 @@ class Context(ContextData):
         is_remote: bool = True,
     ):
         # ContextData.__new__ already populated trace_id/span_id/_meta/_metrics/
-        # _baggage/_span_links/_is_remote/_reactivate.
+        # _baggage/_span_links/_is_remote/_reactivate/_otel_sampling_state_data.
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[_ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
@@ -83,10 +87,15 @@ class Context(ContextData):
             self._baggage,
             self._is_remote,
             self._reactivate,
+            self._otel_sampling_state_data,
             # Note: self._lock is not serializable
         )
 
-    def __setstate__(self, state: _ContextState) -> None:
+    def __setstate__(self, state: tuple[Any, ...]) -> None:
+        # Context is public and pickle-compatible. State produced before OTel sampling support
+        # has eight fields, so normalize it before unpacking the current nine-field state.
+        if len(state) == 8:
+            state = (*state, None)
         (
             self.trace_id,
             self.span_id,
@@ -96,6 +105,7 @@ class Context(ContextData):
             self._baggage,
             self._is_remote,
             self._reactivate,
+            self._otel_sampling_state_data,
         ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = RLock()
@@ -122,6 +132,16 @@ class Context(ContextData):
             self._metrics[_SAMPLING_PRIORITY_KEY] = value
 
     @property
+    def _otel_sampling_state(self) -> OtelSamplingState:
+        state = self._otel_sampling_state_data
+        if state is None:
+            with self._lock:
+                state = self._otel_sampling_state_data
+                if state is None:
+                    state = self._otel_sampling_state_data = OtelSamplingState()
+        return state
+
+    @property
     def _traceparent(self) -> str:
         tp = self._meta.get(W3C_TRACEPARENT_KEY)
         if self.span_id is None or self.trace_id is None:
@@ -133,10 +153,17 @@ class Context(ContextData):
         if tp:
             # grab the original traceparent trace id, not the converted value
             trace_id = tp.split("-")[1]
+            # W3C Trace Context Level 2 requires the random trace-id flag to survive when
+            # the trace ID is continued. Other currently-reserved flags are cleared.
+            trace_flags = int(tp.split("-")[3], 16) & 0x2
         else:
             trace_id = f"{self.trace_id:032x}"
+            trace_flags = 0
 
-        return f"00-{trace_id}-{self.span_id:016x}-{self._traceflags}"
+        if self.sampling_priority and self.sampling_priority > 0:
+            trace_flags |= 0x1
+
+        return f"00-{trace_id}-{self.span_id:016x}-{trace_flags:02x}"
 
     @property
     def _traceflags(self) -> str:
@@ -145,20 +172,35 @@ class Context(ContextData):
     @property
     def _tracestate(self) -> str:
         dd_list_member = _w3c_get_dd_list_member(self)
+        raw_tracestate = self._meta.get(W3C_TRACESTATE_KEY, "")
+        otel_sampling_state = self._otel_sampling_state_data
 
-        # if there's a preexisting tracestate we need to update it to preserve other vendor data
-        ts = self._meta.get(W3C_TRACESTATE_KEY, "")
-        if ts and dd_list_member:
-            # cut out the original dd list member from tracestate so we can replace it with the new one we created
-            ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
-            if ts_w_out_dd:
-                ts = f"dd={dd_list_member},{ts_w_out_dd}"
-            else:
-                ts = f"dd={dd_list_member}"
-        # if there is no original tracestate value then tracestate is just the dd list member we created
-        elif dd_list_member:
-            ts = f"dd={dd_list_member}"
-        return ts
+        # Preserve the pre-OTel hot path when there are no OTel fields to read, write,
+        # or erase. A state without a sample rate cannot generate rv/th by itself.
+        if not raw_tracestate and (otel_sampling_state is None or otel_sampling_state.sample_rate is None):
+            return "dd=" + dd_list_member if dd_list_member else ""
+
+        if (
+            "ot=" not in raw_tracestate
+            and (otel_sampling_state is None or otel_sampling_state.sample_rate is None)
+            and (dd_list_member or "dd=" not in raw_tracestate)
+        ):
+            if raw_tracestate and dd_list_member:
+                tracestate_without_dd = re.sub("dd=(.+?)(?:,|$)", "", raw_tracestate)
+                if tracestate_without_dd:
+                    return "dd={},{}".format(dd_list_member, tracestate_without_dd)
+                return "dd={}".format(dd_list_member)
+            if dd_list_member:
+                return "dd={}".format(dd_list_member)
+            return raw_tracestate
+
+        return _build_tracestate(
+            raw_tracestate,
+            dd_list_member,
+            self.trace_id,
+            self.sampling_priority,
+            otel_sampling_state,
+        )
 
     @property
     def dd_origin(self) -> Optional[Text]:
@@ -216,6 +258,12 @@ class Context(ContextData):
         # other processing. This optimization holds true if we trust that this data has
         # been validated already.
         with self._lock:
+            # AIDEV-NOTE: Keep the default state allocation-free. The first child context
+            # materializes one holder under the shared lock, and native ContextData stores the
+            # same Python object on every child so later trace-level decisions remain visible.
+            otel_sampling_state = self._otel_sampling_state_data
+            if otel_sampling_state is None:
+                otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
             ctx = Context.__new__(
                 Context,
                 trace_id=trace_id,
@@ -224,6 +272,7 @@ class Context(ContextData):
                 metrics=self._metrics,
                 baggage=self._baggage,
                 is_remote=False,
+                otel_sampling_state=otel_sampling_state,
             )
         ctx._lock = self._lock
         return ctx
@@ -239,6 +288,16 @@ class Context(ContextData):
         ctx._meta = self._meta
         ctx._metrics = self._metrics
         ctx._baggage = new_baggage
+        # PERF: Avoid the equivalent self._otel_sampling_state property access here;
+        # benchmarks show its descriptor and function-call overhead matters in this hot path.
+        # The lock is acquired only for the first allocation and shared by all child contexts.
+        otel_sampling_state = self._otel_sampling_state_data
+        if otel_sampling_state is None:
+            with self._lock:
+                otel_sampling_state = self._otel_sampling_state_data
+                if otel_sampling_state is None:
+                    otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
+        ctx._otel_sampling_state_data = otel_sampling_state
         return ctx
 
     def get_baggage_item(self, key: str) -> Optional[Any]:
@@ -274,6 +333,7 @@ class Context(ContextData):
                     and self._span_links == other._span_links
                     and self._baggage == other._baggage
                     and self._is_remote == other._is_remote
+                    and _otel_sampling_states_equal(self._otel_sampling_state_data, other._otel_sampling_state_data)
                 )
         return False
 

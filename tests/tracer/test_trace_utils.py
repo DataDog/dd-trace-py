@@ -19,6 +19,7 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import http
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -40,6 +41,36 @@ def int_config():
 def span(tracer):
     with tracer.trace(name="myint") as span:
         yield span
+
+
+def test_copy_trace_level_tags_copies_independent_otel_sampling_state():
+    parent = Span("parent", trace_id=1, span_id=1)
+    target = Span("target", trace_id=2, span_id=2)
+    parent.context.sampling_priority = 1
+    parent.context._otel_sampling_state.set_probabilistic_decision(0.1)
+
+    trace_utils._copy_trace_level_tags(target, parent)
+
+    parent_state = parent.context._otel_sampling_state_data
+    target_state = target.context._otel_sampling_state_data
+    assert target.context.sampling_priority == parent.context.sampling_priority
+    assert target_state == parent_state
+    assert target_state is not parent_state
+
+    target_state.set_non_probabilistic_decision()
+    assert parent_state.is_probabilistic is True
+
+
+def test_copy_trace_level_tags_preserves_inherited_otel_fields():
+    parent = Span("parent", trace_id=1, span_id=1)
+    target = Span("target", trace_id=2, span_id=2)
+    parent.context.sampling_priority = 1
+    parent.context._meta[W3C_TRACESTATE_KEY] = "congo=value,ot=rv:1234567890abcd;th:e6666666666668;future:value"
+
+    trace_utils._copy_trace_level_tags(target, parent)
+
+    assert target.context._meta[W3C_TRACESTATE_KEY] == "ot=rv:1234567890abcd;th:e6666666666668;future:value"
+    assert target.context._tracestate == "dd=s:1,ot=rv:1234567890abcd;th:e6666666666668;future:value"
 
 
 class TestHeaders(object):
