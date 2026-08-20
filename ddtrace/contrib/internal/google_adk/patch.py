@@ -1,3 +1,5 @@
+import importlib
+from inspect import isasyncgen
 import sys
 from typing import Any
 from typing import Union
@@ -10,6 +12,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.wrappers import iswrapped
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -90,35 +93,48 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
         logger.warning("Unable to trace google adk live tool call, could not extract agent from tool context.")
-        return wrapped(*args, **kwargs)
+        return await wrapped(*args, **kwargs)
 
     provider_name, model_name = extract_provider_and_model_name(
         instance=getattr(agent, "model", {}), model_name_attr="model"
     )
-    instance = instance or args[0]
+    # wrapt passes no instance for this module-level dispatcher, and google-adk >= 2.7.0 calls it
+    # with every argument as a keyword, so the tool cannot be read off args[0].
+    tool = instance or get_argument_value(args, kwargs, 0, "tool", optional=True)
 
-    with integration.trace(
-        "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+    span = integration.trace(
+        "%s.%s" % (tool.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
         kind="tool",
         submit_to_llmobs=True,
-    ) as span:
-        result = None
+    )
+
+    def _finish_span(response):
         try:
-            result = await wrapped(*args, **kwargs)
-            return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="tool")
         finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="tool",
-            )
+            span.finish()
+
+    try:
+        result = await wrapped(*args, **kwargs)
+    except BaseException:
+        # BaseException, not Exception: a cancelled tool call raises asyncio.CancelledError, which
+        # does not inherit from Exception. The `with integration.trace(...)` block this replaced
+        # closed the span on every exit path, so this must too, or cancellation leaks the span.
+        span.set_exc_info(*sys.exc_info())
+        _finish_span(None)
+        raise
+
+    # google-adk >= 2.7.0 streams tools through this dispatcher, which hands back an async
+    # generator. Only the live path (functions.py:1105) drains it, under Aclosing; the ordinary
+    # path (functions.py:627) returns it as-is. Handing the span to a wrapper generator would
+    # therefore leak it whenever nobody iterates, because a never-started async generator runs
+    # neither its finally block nor aclose() (PEP 525). So finish here, and drop the generator
+    # rather than recording its repr as the output. Tracing the stream itself needs
+    # AsyncStreamHandler and is a separate change.
+    _finish_span(None if isasyncgen(result) else result)
+    return result
 
 
 async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
@@ -202,6 +218,33 @@ def extract_agent_from_tool_context(args: Any, kwargs: Any) -> Union[str, None]:
     return agent
 
 
+# google-adk 2.7.0 removed __call_tool_live and routes live tool calls through __call_tool_async,
+# so neither dispatcher is guaranteed to exist. patch() and unpatch() share this list to stay in step.
+TOOL_DISPATCHERS = [
+    ("__call_tool_async", _traced_functions_call_tool_async),
+    ("__call_tool_live", _traced_functions_call_tool_live),
+]
+
+TOOL_DISPATCH_MODULE = "google.adk.flows.llm_flows.functions"
+
+
+def _import_tool_dispatch_module():
+    """Import the module holding google.adk's tool dispatchers, or None if it is unavailable.
+
+    google.adk populates its subpackages lazily, so reading this path as an attribute chain off
+    the root package reports it as missing until something else has imported it. Importing it
+    here also makes the path resolvable for the wrap() calls below.
+    """
+    try:
+        return importlib.import_module(TOOL_DISPATCH_MODULE)
+    except Exception:
+        # Deliberately broad. patch() runs under raise_errors=True from LLMObs.enable(), so any
+        # exception escaping here kills the application at startup - the failure this fix exists
+        # to stop. A missing tool dispatcher costs spans, never the process.
+        logger.debug("could not import %s, google adk tool calls will not be traced", TOOL_DISPATCH_MODULE)
+        return None
+
+
 CODE_EXECUTOR_CLASSES = [
     "BuiltInCodeExecutor",  # make an external llm tool call to use the llms built in code executor
     "VertexAiCodeExecutor",
@@ -225,8 +268,10 @@ def patch():
     wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async)
 
     # Tool execution (central dispatch)
-    wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
-    wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
+    functions = _import_tool_dispatch_module()
+    for dispatcher, traced_dispatcher in TOOL_DISPATCHERS:
+        if functions is not None and hasattr(functions, dispatcher):
+            wrap("google.adk", f"flows.llm_flows.functions.{dispatcher}", traced_dispatcher)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
@@ -247,8 +292,12 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
 
-    unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
-    unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
+    # Guard on the wrapper, not on the symbol: patch() may have skipped a dispatcher that is
+    # importable by the time unpatch() runs, and unwrap() raises on an unwrapped attribute.
+    functions = _import_tool_dispatch_module()
+    for dispatcher, _ in TOOL_DISPATCHERS:
+        if functions is not None and iswrapped(functions, dispatcher):
+            unwrap(functions, dispatcher)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:

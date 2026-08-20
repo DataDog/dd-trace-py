@@ -114,6 +114,19 @@ Comprehensive debugging guide for all known LLMObs integration failure modes. Ea
 - In patch code: return the traced stream instead of the raw response
 - Capture usage from final chunk type (varies by library)
 
+**Accepted exception -- a dispatcher that may return an undrained generator.**
+Some libraries route both streaming and non-streaming calls through one function
+that returns either a plain value or an async generator. One caller may drain it
+and another may not -- in google-adk 2.7, the live path drains under `Aclosing`
+but the ordinary path returns it as-is. Holding the span open across that
+generator leaks it whenever nobody iterates: a generator that never starts runs
+neither its `finally` block nor `aclose()` (PEP 525). Until
+such a path is moved onto `AsyncStreamHandler`, finish the span at dispatch and
+omit the output value rather than tagging the raw generator object. Return the
+generator untouched, so the library's own `inspect.isasyncgen` branch still
+fires. See `_traced_functions_call_tool_async` in
+`ddtrace/contrib/internal/google_adk/patch.py`.
+
 ---
 
 ## `async_not_working` -- Async Calls Not Traced

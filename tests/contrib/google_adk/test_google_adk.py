@@ -1,10 +1,15 @@
+import asyncio
+import inspect
 from typing import Any
 
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
 import pytest
 
+from ddtrace.contrib.internal.google_adk.patch import _traced_functions_call_tool_async
 from ddtrace.contrib.internal.google_adk.patch import _traced_functions_call_tool_live
+from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
+from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
 from tests.contrib.google_adk.conftest import create_test_message
 
 
@@ -271,3 +276,123 @@ async def test_call_tool_live_fallback_does_not_double_invoke_wrapped() -> None:
 
     assert yielded == ["a", "b", "c"]
     assert call_count == 1, f"wrapped should be invoked exactly once, was invoked {call_count} times"
+
+
+class _FakeTool:
+    name = "search_docs"
+    description = "A tiny search tool stub."
+
+
+class _FakeAgent:
+    name = "test_agent"
+    model = None
+
+
+class _FakeInvocationContext:
+    agent = _FakeAgent()
+
+
+class _FakeToolContext:
+    function_call_id = "call-1"
+    _invocation_context = _FakeInvocationContext()
+
+
+@pytest.mark.asyncio
+async def test_call_tool_async_accepts_keyword_only_call(adk, test_spans) -> None:
+    """google-adk >= 2.7.0 dispatches through __call_tool_async with keyword-only arguments."""
+
+    async def fake_wrapped(*args, **kwargs):
+        return {"results": ["ok"]}
+
+    kwargs = {"tool": _FakeTool(), "args": {"query": "test"}, "tool_context": _FakeToolContext()}
+    result = await _traced_functions_call_tool_async(fake_wrapped, None, (), kwargs)
+
+    assert result == {"results": ["ok"]}
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    assert [s.resource for s in spans] == ["_FakeTool.fake_wrapped"]
+
+
+@pytest.mark.asyncio
+async def test_call_tool_async_returns_streaming_tool_generator(adk, test_spans) -> None:
+    """A streaming tool returns an async generator, which must reach the caller untouched."""
+
+    async def streaming_tool():
+        for item in ("a", "b", "c"):
+            yield item
+
+    async def fake_wrapped(*args, **kwargs):
+        return streaming_tool()
+
+    kwargs = {"tool": _FakeTool(), "args": {}, "tool_context": _FakeToolContext()}
+    stream = await _traced_functions_call_tool_async(fake_wrapped, None, (), kwargs)
+
+    # google-adk branches on inspect.isasyncgen, so the generator must not be wrapped or drained.
+    assert inspect.isasyncgen(stream)
+    assert [item async for item in stream] == ["a", "b", "c"]
+
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    assert [s.resource for s in spans] == ["_FakeTool.fake_wrapped"]
+
+
+@pytest.mark.asyncio
+async def test_call_tool_async_finishes_span_on_cancellation(adk, test_spans) -> None:
+    """asyncio.CancelledError does not inherit from Exception, so it needs its own exit path."""
+
+    async def fake_wrapped(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    kwargs = {"tool": _FakeTool(), "args": {}, "tool_context": _FakeToolContext()}
+    with pytest.raises(asyncio.CancelledError):
+        await _traced_functions_call_tool_async(fake_wrapped, None, (), kwargs)
+
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    assert [s.resource for s in spans] == ["_FakeTool.fake_wrapped"]
+    assert spans[0].duration is not None, "a cancelled tool call must still finish its span"
+
+
+@pytest.mark.asyncio
+async def test_call_tool_async_fallback_awaits_wrapped(adk, test_spans) -> None:
+    """With no agent to attribute the span to, the tool result must still be awaited."""
+
+    async def fake_wrapped(*args, **kwargs):
+        return {"results": ["ok"]}
+
+    class _ToolContextWithoutInvocation:
+        pass
+
+    result = await _traced_functions_call_tool_async(
+        fake_wrapped, None, (_FakeTool(), {}, _ToolContextWithoutInvocation()), {}
+    )
+
+    assert result == {"results": ["ok"]}
+
+
+def test_patch_tolerates_missing_call_tool_live(monkeypatch, ddtrace_global_config) -> None:
+    """google-adk 2.7.0 removed __call_tool_live, so patch and unpatch must cope without it."""
+    import google.adk
+
+    functions = google.adk.flows.llm_flows.functions
+    monkeypatch.delattr(functions, "__call_tool_live", raising=False)
+
+    adk_patch()
+    try:
+        assert hasattr(functions.__call_tool_async, "__wrapped__")
+    finally:
+        adk_unpatch()
+
+    assert not hasattr(functions.__call_tool_async, "__wrapped__")
+
+
+def test_unpatch_tolerates_unwrapped_dispatcher(monkeypatch, ddtrace_global_config) -> None:
+    """unwrap() raises on an unwrapped attribute, so unpatch must skip what patch never wrapped."""
+    import google.adk
+
+    functions = google.adk.flows.llm_flows.functions
+    monkeypatch.delattr(functions, "__call_tool_live", raising=False)
+    adk_patch()
+
+    # Restore the symbol patch() skipped, the way a later import would.
+    monkeypatch.setattr(functions, "__call_tool_live", lambda *a, **kw: None, raising=False)
+    adk_unpatch()
+
+    assert not hasattr(functions.__call_tool_async, "__wrapped__")
