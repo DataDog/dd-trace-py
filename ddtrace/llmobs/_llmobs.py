@@ -631,10 +631,7 @@ class LLMObs(Service):
             self._do_annotations(span)
 
     def _on_span_finish(self, span: Span) -> None:
-        if span.span_type != SpanTypes.LLM:
-            return
-        if not self.enabled:  # LLMObs metastruct value is unnecessary since not enabled
-            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+        if not self.enabled or span.span_type != SpanTypes.LLM:
             return
         span_kind = get_llmobs_span_kind(span)
         if span_kind == "llm":

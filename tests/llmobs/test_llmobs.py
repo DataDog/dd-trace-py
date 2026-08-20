@@ -1515,13 +1515,3 @@ class TestSpanEventJSONSafety:
                 metrics={"input_tokens": 1},
             )
         json.dumps(_get_llmobs_data_metastruct(span))
-
-    def test_meta_struct_dropped_when_disabled_before_finish(self, llmobs, tracer):
-        """A span started while enabled but finished after disabling produces no event, so its
-        unsanitized partial struct must not ride along to the APM encoder.
-        """
-        with mock.patch.object(llmobs, "enabled", False):
-            with tracer.trace("root", span_type=SpanTypes.LLM) as span:
-                _annotate_llmobs_span_data(span, kind="llm", metadata={"raw": self.RawObject("x")})
-                assert _get_llmobs_data_metastruct(span)  # the struct is there while the span is open
-        assert span._get_struct_tag(LLMOBS_STRUCT.KEY) is None

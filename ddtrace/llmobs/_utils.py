@@ -249,14 +249,6 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
-def _safe_str(obj: Any) -> str:
-    """str(obj), falling back to a type placeholder if __str__ itself raises."""
-    try:
-        return str(obj)
-    except Exception:
-        return "[Unserializable object of type {}]".format(type(obj).__name__)
-
-
 _MAX_NESTED_META_DEPTH = 12
 
 
@@ -300,7 +292,10 @@ def _sanitize_span_event_data(obj: Any) -> Any:
             # handler too, leaving the unsanitized struct on the span for the agentless encoder to
             # choke on -- the whole-trace drop this function exists to prevent.
             log.debug("LLMObs: span event field %r could not be converted; falling back to str.", path)
-            return _safe_str(node)
+            try:
+                return str(node)
+            except Exception:
+                return "[Unserializable object of type {}]".format(type(node).__name__)
         return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
@@ -349,7 +344,7 @@ def load_data_value(value):
     else:
         value_str = safe_json(value)
         if value_str is None:  # safe_json swallows its failure and returns None
-            return _safe_str(value)
+            return str(value)
         try:
             return json.loads(value_str)
         except json.JSONDecodeError:
@@ -827,7 +822,7 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.TAGS].update({str(k): str(v) for k, v in tags.items()})
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
-            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = str(session_id)
             span._set_ctx_item(SESSION_ID, session_id)
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
