@@ -287,10 +287,6 @@ def _sanitize_span_event_data(obj: Any) -> Any:
         try:
             loaded = load_data_value(node)
         except Exception:
-            # Conversion is allowed to fail (an SDK model_dump() that raises, a cyclic object that
-            # recurses) but this sanitizer is not: anything escaping here escapes _on_span_finish's
-            # handler too, leaving the unsanitized struct on the span for the agentless encoder to
-            # choke on -- the whole-trace drop this function exists to prevent.
             log.debug("LLMObs: span event field %r could not be converted; falling back to str.", path)
             try:
                 return str(node)
