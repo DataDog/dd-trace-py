@@ -906,6 +906,7 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@httpx2'
+      - ddtrace/contrib/internal/httpx/utils.py
       - tests/contrib/httpx2/*
       - tests/snapshots/tests.contrib.httpx2.*
     services:

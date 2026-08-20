@@ -62,9 +62,9 @@ def test_alias_httpx():
 
     import httpx
 
-    from ddtrace import patch
+    from ddtrace import patch_all
 
-    patch(httpx2=True, httpx=True)
+    patch_all()
 
     response = httpx.get("http://localhost:8001/status/200")
     assert response.status_code == 200
