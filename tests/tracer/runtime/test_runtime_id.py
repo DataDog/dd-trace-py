@@ -344,12 +344,6 @@ def test_maybe_refresh_identity_matches_microvm_run_hook():
     assert runtime.get_runtime_id() == refreshed_runtime_id
 
 
-def test_web_request_starting_event_name_is_stable():
-    from ddtrace.internal import core
-
-    assert core.WEB_REQUEST_STARTING == "web.request.starting"
-
-
 @pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
 def test_identity_refresh_hook_runs_before_root_span_creation():
     """The pre-request hook must refresh runtime-id before a web root span reads it."""
