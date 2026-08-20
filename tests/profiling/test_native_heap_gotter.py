@@ -14,7 +14,7 @@ import pytest
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="native heap gotter is Linux-only")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 def test_native_heap_gotter_smoke() -> None:
     # Runs in a fresh subprocess: install() patches the process GOT permanently,
     # so we must not do it in the shared test interpreter.
@@ -38,7 +38,7 @@ def test_native_heap_gotter_smoke() -> None:
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="native heap gotter is Linux-only")
-@pytest.mark.subprocess
+@pytest.mark.subprocess(err=None)
 def test_native_heap_gotter_fork_install_and_allocations() -> None:
     """dlopen + install, then fork and keep allocating in parent and child.
 
@@ -83,7 +83,8 @@ def test_native_heap_gotter_fork_install_and_allocations() -> None:
         assert isinstance(heap_gotter.install(), bool)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+# err=None: Profiler.start() talks to the agent and collectors may log to stderr.
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=None)
 def test_profiler_start_native_heap_install_idempotent_on_restart() -> None:
     """A second profiler start (e.g. uWSGI worker) calls install() again; `_armed` skips native re-entry."""
     from unittest import mock
@@ -110,7 +111,7 @@ def test_profiler_start_native_heap_install_idempotent_on_restart() -> None:
             prof.stop(flush=False)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=None)
 def test_profiler_start_arms_native_heap_when_enabled() -> None:
     """Starting the profiler with native heap enabled invokes the activator.
 
@@ -137,7 +138,7 @@ def test_profiler_start_arms_native_heap_when_enabled() -> None:
             prof.stop(flush=False)
 
 
-@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"))
+@pytest.mark.subprocess(env=dict(DD_PROFILING_ENABLED="true"), err=None)
 def test_profiler_start_skips_native_heap_when_disabled() -> None:
     """With native heap disabled, the profiler must not import the activator.
 
@@ -167,7 +168,8 @@ def test_profiler_start_skips_native_heap_when_disabled() -> None:
 
 @pytest.mark.subprocess(
     env=dict(DD_PROFILING_ENABLED="true"),
-    # install() failures are logged with exc_info=True, so stderr is expected.
+    # install() failures are logged with exc_info=True. Ignore other stderr
+    # (agent connection, collector start) the same way as the other profiler tests.
     err=lambda s: "Failed to arm native heap profiling" in s and "RuntimeError: boom" in s,
 )
 def test_profiler_start_survives_native_heap_install_error() -> None:

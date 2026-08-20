@@ -11,7 +11,7 @@
 /// allocator symbol's GOT entry was resolved and patched (so hooks will run).
 ///
 /// libdatadog independently honors `DD_HEAP_SAMPLING_ENABLED` (unset =
-/// enabled; `0`/`false`/`no`/`off` disables). That check lives inside
+/// enabled). That check lives inside
 /// `install_heap_overrides`: a falsey value returns false without touching
 /// the GOT. Distinct from `DD_PROFILING_NATIVE_HEAP_ENABLED`, which is the
 /// ddtrace-side gate that decides whether this function is called. This
