@@ -453,10 +453,9 @@ class DataDogProvider(AbstractProvider):
         - Returns error with error_code and error_message on other errors
         """
         # AIDEV-NOTE: Stamp eval-time and consent at provider entry so every
-        # OpenFeature exit path carries them. Consent is snapshotted from the
-        # exact FFE snapshot this evaluation runs against -- never read from
-        # live config downstream (see docs/superpowers/specs/2026-08-06-
-        # pii-flagevaluations-hashing-design.md).
+        # OpenFeature exit path carries them. Consent comes from the exact FFE
+        # snapshot used for evaluation and must never be read from live config
+        # downstream, which could apply a later environment's privacy policy.
         snapshot = _get_ffe_snapshot()
         observe_full_evaluation_data = snapshot.observe_full_evaluation_data if snapshot is not None else False
         flag_metadata: dict[str, typing.Any] = {

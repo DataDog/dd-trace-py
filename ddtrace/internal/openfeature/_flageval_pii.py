@@ -1,9 +1,7 @@
-"""
-Cross-SDK PII fingerprint for the flagevaluation EVP track.
+"""Cross-SDK PII fingerprint for the flagevaluation EVP track.
 
-Hashing runs at flush cadence (once per aggregation bucket, off the evaluation
-hot path). See docs/superpowers/specs/2026-08-06-pii-flagevaluations-hashing-design.md
-for the full contract.
+Hashing runs once per aggregation bucket at flush cadence, off the evaluation
+hot path.
 """
 
 import hashlib
@@ -22,11 +20,15 @@ def hash_targeting_key(raw: str) -> str:
     Unicode normalization -- so every SDK produces a byte-identical digest and
     hashed values join across languages.
 
-    Returns "" for empty input. Hashing "" would invent a shared pseudo-subject
-    and corrupt unique-subject counts; an absent targeting_key is schema-valid
-    (the degraded tier omits it too).
+    Returns "" for empty, non-string, or non-UTF-8-encodable input. Omitting
+    an invalid targeting key is privacy-safe and prevents one malformed value
+    from aborting the entire writer flush.
     """
-    if not raw:
+    if not isinstance(raw, str) or not raw:
         return ""
-    digest = hashlib.sha256(raw.encode("utf-8")).hexdigest()
+    try:
+        encoded = raw.encode("utf-8")
+    except UnicodeEncodeError:
+        return ""
+    digest = hashlib.sha256(encoded).hexdigest()
     return TARGETING_KEY_HASH_PREFIX + digest
