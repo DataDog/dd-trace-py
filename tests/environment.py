@@ -6,6 +6,12 @@ import re
 
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)")
+LOCK_ROOT = Path("tests/locks")
+
+
+def lockfile_path(suite: str, environment_id: str) -> Path:
+    """Return the repository-relative lock path for one concrete environment."""
+    return LOCK_ROOT.joinpath(*suite.split("::"), f"{environment_id}.txt")
 
 
 @dataclass(frozen=True)
@@ -28,6 +34,7 @@ class TestEnvironment:
     suite: str
     name: str
     python: str
+    platform: str = "linux"
     direct_dependencies: tuple[str, ...] = ()
     dependency_groups: tuple[str, ...] = ()
     runs: tuple[TestRun, ...] = ()

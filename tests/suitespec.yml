@@ -34,6 +34,7 @@ components:
     - riotfile.py
     - .riot/requirements/*
     - scripts/ddtest
+    - scripts/test-env
     - pyproject.toml
     - tests/conftest.py
     - tests/utils.py
@@ -41,6 +42,8 @@ components:
     - tests/suitespec.yml
     - tests/suitespec.py
     - tests/environment.py
+    - tests/lock.py
+    - tests/locks/**/*.txt
     - tests/matrix.py
     - tests/riot_adapter.py
     - tests/meta/*

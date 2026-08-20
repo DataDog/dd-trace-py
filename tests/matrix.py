@@ -11,6 +11,7 @@ from typing import TypeVar
 
 from tests.environment import TestEnvironment
 from tests.environment import TestRun
+from tests.environment import lockfile_path
 
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)")
@@ -21,6 +22,7 @@ _SPEC_FIELDS = {
     "dependency_groups",
     "env",
     "name",
+    "platform",
     "runs",
 }
 _T = TypeVar("_T")
@@ -102,7 +104,7 @@ def _merge_specs(*specs: Mapping[str, Any]) -> dict[str, Any]:
             _string_tuple(spec.get("dependency_groups"), "dependency_groups"),
         )
         environment.update({str(key): str(value) for key, value in _mapping(spec.get("env"), "env").items()})
-        for field in ("command", "name", "runs"):
+        for field in ("command", "name", "platform", "runs"):
             if field in spec:
                 merged[field] = spec[field]
     merged["dependencies"] = dependencies
@@ -173,11 +175,13 @@ def _build_environment(
     )
     dependency_groups = _merge_unique(spec["dependency_groups"], selected_groups)
     name = str(spec.get("name", suite.rsplit("::", 1)[-1]))
+    environment_id = _environment_id(name, python, selected_groups)
     return TestEnvironment(
-        id=_environment_id(name, python, selected_groups),
+        id=environment_id,
         suite=suite,
         name=name,
         python=python,
+        platform=str(spec.get("platform", "linux")),
         direct_dependencies=spec["dependencies"],
         dependency_groups=dependency_groups,
         runs=_runs(spec),
@@ -192,6 +196,7 @@ def _build_environment(
         environments_per_job=suite_config.get("venvs_per_job"),
         gpu=bool(suite_config.get("gpu", False)),
         skip_pip_cache=bool(suite_config.get("skip_pip_cache", False)),
+        lockfile=lockfile_path(suite, environment_id),
         ordinal=ordinal,
     )
 
