@@ -7,6 +7,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -67,6 +68,12 @@ def unpatch():
 
 
 def patch_app_call(wrapped, instance, args, kwargs):
+    # DEV: This is safe because this is the args for a WSGI handler
+    #   https://www.python.org/dev/peps/pep-3333/
+    core.dispatch(
+        WebFrameworkEvents.WEB_REQUEST_STARTING.value, (args[0].get("REQUEST_METHOD"), args[0].get("PATH_INFO"))
+    )
+
     pin = Pin.get_from(molten)
 
     if not pin or not pin.enabled():

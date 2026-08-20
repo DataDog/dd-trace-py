@@ -6,6 +6,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 
 from .trace import TracePlugin
+from .trace import traced_wsgi
 
 
 # Configure default configuration
@@ -32,6 +33,7 @@ def patch():
 
     bottle._datadog_patch = True
     wrapt.wrap_function_wrapper("bottle", "Bottle.__init__", traced_init)
+    wrapt.wrap_function_wrapper("bottle", "Bottle.wsgi", traced_wsgi)
 
 
 def traced_init(wrapped, instance, args, kwargs):

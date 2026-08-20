@@ -5,6 +5,7 @@ from tornado.routing import PathMatches
 from tornado.web import HTTPError
 
 from ddtrace import config
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -28,6 +29,8 @@ async def execute(func, handler, args, kwargs):
     ``TracerStackContext``. This simplifies users code when the automatic ``Context``
     retrieval is used via ``Tracer.trace()`` method.
     """
+    core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (handler.request.method, handler.request.path))
+
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
     service = settings["default_service"]

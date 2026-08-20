@@ -9,6 +9,7 @@ from urllib import parse
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -215,6 +216,8 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        if not is_subapp and scope["type"] == "http":
+            core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (method, scope["path"]))
         try:
             headers = extract_headers(scope)
         except Exception:

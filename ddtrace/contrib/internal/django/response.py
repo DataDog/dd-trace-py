@@ -12,6 +12,7 @@ from django.http import HttpResponse
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -88,6 +89,8 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     request = get_argument_value(args, kwargs, 1, "request")
     if request is None:
         return func(*args, **kwargs)
+
+    core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (request.method, request.path))
 
     request_headers = utils._get_request_headers(request)
 

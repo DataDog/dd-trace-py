@@ -1,6 +1,7 @@
 import sys
 
 from ddtrace import config
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
@@ -29,6 +30,8 @@ class TraceMiddleware(object):
             config.falcon["distributed_tracing"] = distributed_tracing
 
     def process_request(self, req, resp):
+        core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (req.method, req.path))
+
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in req.headers.items())
 

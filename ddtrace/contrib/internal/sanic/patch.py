@@ -7,6 +7,7 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -191,6 +192,8 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
 def _create_sanic_request_span(request):
     """Helper to create sanic.request span and attach a pin to request.ctx"""
+    core.dispatch(WebFrameworkEvents.WEB_REQUEST_STARTING.value, (request.method, request.path))
+
     pin = Pin()
     pin.onto(request.ctx)
 
