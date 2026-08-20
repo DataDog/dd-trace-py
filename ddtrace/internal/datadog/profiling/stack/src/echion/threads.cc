@@ -453,57 +453,51 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
         return ErrorKind::TaskInfoError;
     }
 
-    // Copy head node struct from remote memory to local memory
-    struct llist_node head_node_local;
-    if (copy_type(reinterpret_cast<void*>(head_addr), head_node_local)) {
+    const size_t tasks_start = tasks.size();
+    auto fail = [&tasks, tasks_start]() -> Result<void> {
+        tasks.resize(tasks_start);
         return ErrorKind::TaskInfoError;
+    };
+
+    struct llist_node head_node;
+    if (copy_type(reinterpret_cast<void*>(head_addr), head_node)) {
+        return fail();
     }
+    struct llist_node current_node = head_node;
 
-    // Check if list is empty (head points to itself in circular list)
-    uintptr_t head_addr_uint = head_addr;
-    uintptr_t next_as_uint = reinterpret_cast<uintptr_t>(head_node_local.next);
-    uintptr_t prev_as_uint = reinterpret_cast<uintptr_t>(head_node_local.prev);
-    if (next_as_uint == head_addr_uint && prev_as_uint == head_addr_uint) {
-        return Result<void>::ok();
-    }
-
-    struct llist_node current_node = head_node_local; // Start with head node
-
-    // Copied from CPython's _remote_debugging_module.c: MAX_ITERATIONS
-    const size_t MAX_ITERATIONS = 1 << 16;
+    constexpr size_t max_iterations = 1 << 16;
     size_t iteration_count = 0;
+    uintptr_t current_node_addr = head_addr;
+    std::unordered_set<uintptr_t> visited;
 
-    // Iterate over linked-list. The linked list is circular, so we stop
-    // when we're back at head.
-    while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr_uint) {
-        // Safety: prevent infinite loops
-        if (++iteration_count > MAX_ITERATIONS) {
-            return ErrorKind::TaskInfoError;
+    while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr) {
+        if (++iteration_count > max_iterations || current_node.next == nullptr) {
+            return fail();
         }
 
-        if (current_node.next == nullptr) {
-            return ErrorKind::TaskInfoError; // nullptr pointer - invalid list
+        const uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
+        if (!visited.insert(next_node_addr).second) {
+            return fail();
         }
 
-        uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
-
-        // Calculate task_addr from current_node.next
-        size_t task_node_offset_val = offsetof(TaskObj, task_node);
-        uintptr_t task_addr_uint = next_node_addr - task_node_offset_val;
-
-        // Create TaskInfo for the task
-        auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr_uint));
-        if (maybe_task_info) {
-            auto& task_info = *maybe_task_info;
-            if (task_info->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-                tasks.push_back(std::move(task_info));
-            }
+        struct llist_node next_node;
+        if (copy_type(reinterpret_cast<void*>(next_node_addr), next_node) ||
+            reinterpret_cast<uintptr_t>(next_node.prev) != current_node_addr) {
+            return fail();
         }
 
-        // Read next node from current_node.next into current_node
-        if (copy_type(reinterpret_cast<void*>(next_node_addr), current_node)) {
-            return ErrorKind::TaskInfoError; // Failed to read next node
+        const uintptr_t task_addr = next_node_addr - offsetof(TaskObj, task_node);
+        auto maybe_task = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
+        if (maybe_task && (*maybe_task)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+            tasks.push_back(std::move(*maybe_task));
         }
+
+        current_node_addr = next_node_addr;
+        current_node = next_node;
+    }
+
+    if (reinterpret_cast<uintptr_t>(head_node.prev) != current_node_addr) {
+        return fail();
     }
 
     return Result<void>::ok();
@@ -577,6 +571,8 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
         }
     }
 
+    std::unordered_set<PyObject*> seen;
+    std::erase_if(tasks, [&seen](const TaskInfo::Ptr& task) { return !seen.insert(task->origin).second; });
     return tasks;
 }
 #else

@@ -7,10 +7,19 @@ class ThreadInfoTaskTraversalTest : public ::testing::Test
 {
   protected:
 #if PY_VERSION_HEX >= 0x030e0000
-    static Result<void>
-    traverse(ThreadInfo& thread, EchionSampler& echion, uintptr_t head, std::vector<TaskInfo::Ptr>& tasks)
+    static Result<void> traverse(ThreadInfo& thread,
+                                 EchionSampler& echion,
+                                 uintptr_t head,
+                                 std::vector<TaskInfo::Ptr>& tasks)
     {
         return thread.get_tasks_from_linked_list(echion, head, tasks);
+    }
+
+    static Result<std::vector<TaskInfo::Ptr>> get_all_tasks(ThreadInfo& thread,
+                                                            EchionSampler& echion,
+                                                            PyThreadState* tstate)
+    {
+        return thread.get_all_tasks(echion, tstate);
     }
 #endif
 };
@@ -69,6 +78,25 @@ task = loop.create_task(wait_forever())
 
     task->task_node = original_task_node;
     tasks.clear();
+
+    PyObject* eager_tasks = PySet_New(nullptr);
+    ASSERT_NE(eager_tasks, nullptr);
+    ASSERT_EQ(PySet_Add(eager_tasks, reinterpret_cast<PyObject*>(task)), 0);
+    echion.init_asyncio(nullptr, eager_tasks);
+
+    _PyThreadStateImpl remote_tstate{};
+    remote_tstate.asyncio_tasks_head.next = remote_tstate.asyncio_tasks_head.prev = &task->task_node;
+    task->task_node.next = task->task_node.prev = &remote_tstate.asyncio_tasks_head;
+    thread.tstate_addr = reinterpret_cast<uintptr_t>(&remote_tstate);
+    PyThreadState local_tstate{};
+
+    auto all_tasks = get_all_tasks(thread, echion, &local_tstate);
+
+    task->task_node = original_task_node;
+    Py_DECREF(eager_tasks);
+    ASSERT_TRUE(all_tasks);
+    EXPECT_EQ(all_tasks->size(), 1);
+
     result = PyRun_String(R"(
 task.cancel()
 try:
