@@ -11,8 +11,10 @@ from unittest import mock
 from unittest.mock import MagicMock
 
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ErrorCode
 from openfeature.flag_evaluation import FlagEvaluationDetails
 from openfeature.flag_evaluation import FlagType
+from openfeature.flag_evaluation import Reason
 from openfeature.hook import HookContext
 import pytest
 
@@ -401,6 +403,39 @@ class TestFlushSerialization:
         assert event["targeting_key"] == PII_CANONICAL_TARGETING_KEY
         assert "context" in event
         assert event["context"]["evaluation"]["plan"] == "enterprise"
+
+    @pytest.mark.parametrize("consent", [False, True], ids=["consent_off", "consent_on"])
+    def test_error_message_pii_respects_consent(self, writer: FlagEvaluationWriter, consent: bool) -> None:
+        error_pii = "secret@example.com"
+        error_message = f'For input string: "{error_pii}"'
+        hook = FlagEvalEVPHook(writer=writer)
+        hook_context = HookContext(
+            flag_key="pii-error-flag",
+            flag_type=FlagType.STRING,
+            default_value="fallback",
+            evaluation_context=EvaluationContext(targeting_key="user-1"),
+        )
+        details = FlagEvaluationDetails(
+            flag_key="pii-error-flag",
+            value="fallback",
+            variant=None,
+            reason=Reason.ERROR,
+            flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: consent},
+            error_message=error_message,
+            error_code=ErrorCode.TYPE_MISMATCH,
+        )
+
+        hook.finally_after(hook_context, details, {})
+        payload_bytes = self._flush_capture(writer)
+        raw = payload_bytes.decode("utf-8")
+        event = json.loads(payload_bytes)["flagEvaluations"][0]
+
+        if consent:
+            assert error_pii in raw
+            assert event["error"]["message"] == error_message
+        else:
+            assert error_pii not in raw
+            assert event["error"]["message"] == ErrorCode.TYPE_MISMATCH.value
 
     def test_invalid_targeting_keys_do_not_abort_flush(self, writer):
         valid = self._pii_event(observe_full_evaluation_data=False)._replace(flag_key="valid")

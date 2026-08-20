@@ -171,16 +171,41 @@ class TestFlagEvalEVPHook:
         event = writer.enqueue.call_args[0][0]
         assert event.allocation_key == "alloc-xyz"
 
-    def test_finally_after_falls_back_to_error_code_when_message_absent(self, hook, writer):
+    @pytest.mark.parametrize(
+        "consent,error_message,error_code,expected",
+        [
+            (True, "raw context value", ErrorCode.TYPE_MISMATCH, "raw context value"),
+            (True, None, ErrorCode.FLAG_NOT_FOUND, ErrorCode.FLAG_NOT_FOUND.value),
+            (False, "raw context value", ErrorCode.TYPE_MISMATCH, ErrorCode.TYPE_MISMATCH.value),
+            (False, "raw context value", None, ""),
+        ],
+        ids=[
+            "consent_on_prefers_message",
+            "consent_on_falls_back_to_code",
+            "consent_off_substitutes_code",
+            "consent_off_without_code_drops_message",
+        ],
+    )
+    def test_finally_after_error_message_respects_consent(
+        self,
+        hook: typing.Any,
+        writer: typing.Any,
+        consent: bool,
+        error_message: typing.Optional[str],
+        error_code: typing.Optional[ErrorCode],
+        expected: str,
+    ) -> None:
         hc = _make_hook_context()
         details = _make_details(
             variant=None,
             reason=Reason.ERROR,
-            error_code=ErrorCode.FLAG_NOT_FOUND,
+            flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: consent},
+            error_message=error_message,
+            error_code=error_code,
         )
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
-        assert event.error_message == ErrorCode.FLAG_NOT_FOUND.value
+        assert event.error_message == expected
 
     def test_finally_after_does_no_aggregation_on_hook_thread(self, hook, writer):
         """The hook must call enqueue only — not build payloads or aggregate."""
