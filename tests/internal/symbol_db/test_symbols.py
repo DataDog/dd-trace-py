@@ -527,6 +527,31 @@ def test_symbols_fork_uploads():
 
 
 @pytest.mark.subprocess(ddtrace_run=True, err=None)
+def test_symbols_identity_refresh_updates_runtime_id():
+    """A non-fork identity refresh (e.g. an AWS Lambda MicroVM /run hook) must also refresh the
+    ScopeContext's cached runtimeId, the same way _reset_on_fork() does after an actual fork --
+    otherwise every upload after a MicroVM /run keeps reporting the pre-refresh snapshot's ID.
+    """
+    import typing as t
+
+    import ddtrace.internal.runtime as runtime
+    from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
+
+    SymbolDatabaseUploader.install()
+
+    context = t.cast(SymbolDatabaseUploader, SymbolDatabaseUploader._instance)._context
+    old_runtime_id = runtime.get_runtime_id()
+    old_upload_id = context._upload_id
+    assert context._event_data["runtimeId"] == old_runtime_id
+
+    runtime.refresh_identity()
+
+    assert runtime.get_runtime_id() != old_runtime_id
+    assert context._event_data["runtimeId"] == runtime.get_runtime_id()
+    assert context._upload_id != old_upload_id
+
+
+@pytest.mark.subprocess(ddtrace_run=True, err=None)
 def test_symbols_fork_forces_reenable_and_install():
     """
     Fork force-re-enables SymDB regardless of a prior disable, since

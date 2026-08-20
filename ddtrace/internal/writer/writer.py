@@ -20,6 +20,7 @@ from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
@@ -815,6 +816,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._stats_opt_out = stats_opt_out
 
         self._exporter = self._create_exporter()
+        on_runtime_id_change(self._on_identity_refresh)
 
     @staticmethod
     def _parse_otlp_headers(raw: str) -> list:
@@ -927,6 +929,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         """Tear down the native exporter without going through ``stop()``."""
         try:
             self._exporter.shutdown(3_000_000_000)
+        except Exception:
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+
+    def _on_identity_refresh(self, new_runtime_id: str) -> None:
+        # Rebuild the exporter so it picks up the new runtime_id (baked in at construction
+        # via enable_telemetry()), without touching the span buffer: unlike a fork, no spans
+        # were lost, so anything already buffered should still flush once the new exporter's
+        # connection is up. Modeled on set_test_session_token(), not recreate()/fork, which
+        # replace the whole writer and drop the buffer.
+        old_exporter = self._exporter
+        self._exporter = self._create_exporter()
+        try:
+            old_exporter.shutdown(3_000_000_000)
         except Exception:
             _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
