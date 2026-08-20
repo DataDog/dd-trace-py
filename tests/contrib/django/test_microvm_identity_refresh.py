@@ -1,8 +1,7 @@
 import mock
 
 from ddtrace.internal import core
-
-REQUEST_STARTING_PATH = "/web-request-starting"
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 
 def test_microvm_run_hook_request(client):
@@ -12,10 +11,10 @@ def test_microvm_run_hook_request(client):
     test_django_request_not_found).
     """
     with mock.patch("ddtrace.contrib.internal.django.response.core.dispatch", wraps=core.dispatch) as m:
-        resp = client.post(REQUEST_STARTING_PATH)
+        resp = client.post(MICROVM_RUN_HOOK_PATH)
 
     assert resp.status_code == 404
-    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 def test_other_request(client):

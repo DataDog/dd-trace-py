@@ -22,15 +22,13 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.sanic.patch import patch
 from ddtrace.contrib.internal.sanic.patch import unpatch
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import override_config
 from tests.utils import override_global_config
 from tests.utils import override_http_config
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 # Helpers for handling response objects across sanic versions
@@ -451,10 +449,10 @@ async def test_microvm_run_hook_request(tracer, client, test_spans):
     request tracing starts. No route is registered here, so this also covers unmatched routes.
     """
     with mock.patch("ddtrace.contrib.internal.sanic.patch.core.dispatch", wraps=core.dispatch) as m:
-        response = await client.post(REQUEST_STARTING_PATH)
+        response = await client.post(MICROVM_RUN_HOOK_PATH)
 
     assert _response_status(response) in (404, 405)
-    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 @pytest.mark.asyncio

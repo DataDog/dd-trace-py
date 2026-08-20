@@ -7,8 +7,7 @@ import pytest
 from ddtrace.contrib.internal.http_server.patch import patch
 from ddtrace.contrib.internal.http_server.patch import unpatch
 from ddtrace.internal import core
-
-REQUEST_STARTING_PATH = "/web-request-starting"
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 
 def _handler_for(method, path):
@@ -35,10 +34,10 @@ def test_microvm_run_hook_request():
     supported web framework.
     """
     with mock.patch("ddtrace.contrib.internal.http_server.patch.core.dispatch", wraps=core.dispatch) as m:
-        parsed = _handler_for("POST", REQUEST_STARTING_PATH).parse_request()
+        parsed = _handler_for("POST", MICROVM_RUN_HOOK_PATH).parse_request()
 
     assert parsed is True
-    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 def test_other_request():

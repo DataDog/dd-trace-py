@@ -4,12 +4,10 @@ import mock
 
 from ddtrace.contrib.internal.cherrypy.patch import TraceMiddleware
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 from tests.utils import TracerTestCase
 
 from .web import StubApp
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 class CherrypyMicrovmIdentityRefreshTestCase(TracerTestCase, helper.CPWebCase):
@@ -38,10 +36,10 @@ class CherrypyMicrovmIdentityRefreshTestCase(TracerTestCase, helper.CPWebCase):
         404 (see test_404 in test_middleware.py).
         """
         with mock.patch("ddtrace.contrib.internal.cherrypy.patch.core.dispatch", wraps=core.dispatch) as m:
-            self.getPage(REQUEST_STARTING_PATH, method="POST")
+            self.getPage(MICROVM_RUN_HOOK_PATH, method="POST")
 
         self.assertStatus("404 Not Found")
-        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
     def test_other_request(self):
         with mock.patch("ddtrace.contrib.internal.cherrypy.patch.core.dispatch", wraps=core.dispatch) as m:

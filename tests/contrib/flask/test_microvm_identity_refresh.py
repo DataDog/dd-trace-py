@@ -2,11 +2,9 @@ import mock
 
 from ddtrace.contrib.internal.flask.patch import patched_wsgi_app
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 from . import BaseFlaskTestCase
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 class FlaskMicrovmIdentityRefreshTestCase(BaseFlaskTestCase):
@@ -21,10 +19,10 @@ class FlaskMicrovmIdentityRefreshTestCase(BaseFlaskTestCase):
         route matches doesn't change what gets dispatched).
         """
         with mock.patch("ddtrace.contrib.internal.flask.patch.core.dispatch", wraps=core.dispatch) as m:
-            res = self.client.post(REQUEST_STARTING_PATH)
+            res = self.client.post(MICROVM_RUN_HOOK_PATH)
 
         self.assertEqual(res.status_code, 404)
-        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
     def test_other_request(self):
         @self.app.route("/")
@@ -39,7 +37,7 @@ class FlaskMicrovmIdentityRefreshTestCase(BaseFlaskTestCase):
 
     def test_pre_request_event_dispatches_before_wsgi_middleware(self):
         events = []
-        environ = {"REQUEST_METHOD": "POST", "PATH_INFO": REQUEST_STARTING_PATH, "SCRIPT_NAME": ""}
+        environ = {"REQUEST_METHOD": "POST", "PATH_INFO": MICROVM_RUN_HOOK_PATH, "SCRIPT_NAME": ""}
 
         def start_response(status, headers, exc_info=None):
             pass

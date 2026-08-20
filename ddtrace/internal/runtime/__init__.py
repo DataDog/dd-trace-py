@@ -1,3 +1,4 @@
+import threading
 import typing as t
 import uuid
 import weakref
@@ -17,6 +18,8 @@ __all__ = [
     "get_parent_runtime_id",
     "get_runtime_propagation_envs",
     "refresh_identity",
+    "maybe_refresh_identity",
+    "listen_for_identity_refresh_hooks",
 ]
 
 
@@ -43,14 +46,19 @@ _ON_RUNTIME_ID_CHANGE: t.Set["weakref.ReferenceType[t.Callable[[str], None]]"] =
 
 
 def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
-    """Register a callback to be called when refresh_identity() runs.
+    """Register a callback to be called when ``refresh_identity()`` runs.
 
-    refresh_identity() is the non-fork trigger for a new logical process
-    instance. It is deliberately not called after a plain fork: forked children
-    already get a fresh runtime ID silently (see _set_runtime_id()), and code
-    that needs to react to a fork specifically should use forksafe.register().
-    Only a weak reference to cb is kept, so the caller must keep it alive for
-    it to keep firing.
+    ``refresh_identity()`` is the non-fork trigger (e.g. an AWS Lambda MicroVM
+    ``/run`` hook) for a new logical process instance. It is deliberately not
+    called after a plain fork: forked children already get a fresh runtime ID
+    silently (see ``_set_runtime_id()``), and code that needs to react to a
+    fork specifically should use ``forksafe.register()`` instead -- unlike a
+    fork, no state (spans, SHM-backed native clients, ...) was inherited from
+    a different process here, so subscribers generally only need to rebuild
+    what bakes the runtime/client id in at construction, not reset buffers or
+    handles the way a fork hook would. Only a weak reference to ``cb`` is
+    kept, so the caller must keep it alive (e.g. by registering a bound
+    method of a long-lived object) for it to keep firing.
     """
     global _ON_RUNTIME_ID_CHANGE
     try:
@@ -83,8 +91,8 @@ def _notify_runtime_id_subscribers() -> None:
         try:
             cb(_RUNTIME_ID)
         except Exception:
-            # One broken subscriber must not prevent other subscribers from seeing the
-            # refreshed runtime ID.
+            # This can run on a web framework's request-dispatch path (maybe_refresh_identity());
+            # one broken subscriber must not take down the request or block the others.
             log.debug("Error notifying on_runtime_id_change() subscriber", exc_info=True)
     _ON_RUNTIME_ID_CHANGE -= dead
 
@@ -108,14 +116,70 @@ def _set_runtime_id() -> None:
 def refresh_identity() -> None:
     """Regenerate the runtime ID without recording fork lineage.
 
-    Unlike a fork, this does not update _PARENT_RUNTIME_ID / _ANCESTOR_RUNTIME_ID:
-    the previous runtime ID was not a real parent process, so recording it there
-    would make get_process_role() and friends misreport a fork lineage that never
-    existed. Use this when a new logical process instance is created by a mechanism
-    other than fork().
+    Unlike a fork, this does not update ``_PARENT_RUNTIME_ID`` /
+    ``_ANCESTOR_RUNTIME_ID``: the previous runtime ID was not a real parent
+    process, so recording it there would make ``get_process_role()`` and
+    friends misreport a fork lineage that never existed. Use this when a new
+    logical process instance is created by a mechanism other than ``fork()``
+    -- e.g. an AWS Lambda MicroVM instance launched from a shared image
+    snapshot.
     """
     _regenerate_runtime_id()
     _notify_runtime_id_subscribers()
+
+
+# Fixed platform path for the AWS Lambda MicroVM "/run" lifecycle hook. Never the "/resume"
+# hook path -- see refresh_identity()'s docstring for why. Exported (no leading underscore)
+# so tests can reference the same constant instead of duplicating the literal.
+MICROVM_RUN_HOOK_METHOD = "POST"
+MICROVM_RUN_HOOK_PATH = "/aws/lambda-microvms/runtime/v1/run"
+
+# Same env var #18017 uses to detect a MicroVM at runtime (rand64bits() OS-entropy fallback).
+# Read once at import, like that fix does, so listener registration is skipped outside a
+# MicroVM. This exact method+path is otherwise just an unauthenticated trigger on every
+# ddtrace user's request-dispatch path, MicroVM or not.
+_IS_AWS_LAMBDA_MICROVM = env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN") is not None
+# Multiple instrumented request layers can observe the same MicroVM /run hook
+# (for example, Werkzeug's http.server layer plus Flask). Refresh identity once
+# per process so a single logical MicroVM instance gets one runtime-id rotation.
+_IDENTITY_REFRESH_HOOK_REFRESHED = threading.Event()
+_IDENTITY_REFRESH_HOOK_REFRESH_LOCK = threading.Lock()
+
+
+def listen_for_identity_refresh_hooks() -> None:
+    """Refresh MicroVM identity from request events emitted before root span creation."""
+    if not _IS_AWS_LAMBDA_MICROVM:
+        return
+
+    from ddtrace.internal import core
+
+    core.on(core.WEB_REQUEST_STARTING, maybe_refresh_identity)
+
+
+def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
+    """Call refresh_identity() if this request is the AWS Lambda MicroVM "/run" hook.
+
+    Called from every instrumented web framework's request-dispatch patch in a MicroVM
+    with that request's method and path, so the platform-defined hook path only needs
+    to be matched in one place.
+    ``method``/``path`` may be ``None`` -- some callers read them straight off a raw
+    request/environ mapping (e.g. ``environ.get("REQUEST_METHOD")``) that has no guarantee
+    either key is present.
+    """
+    if not method or not path:
+        return
+    if method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
+        return
+
+    with _IDENTITY_REFRESH_HOOK_REFRESH_LOCK:
+        if _IDENTITY_REFRESH_HOOK_REFRESHED.is_set():
+            return
+        _IDENTITY_REFRESH_HOOK_REFRESHED.set()
+
+    refresh_identity()
+
+
+listen_for_identity_refresh_hooks()
 
 
 def get_runtime_id() -> str:

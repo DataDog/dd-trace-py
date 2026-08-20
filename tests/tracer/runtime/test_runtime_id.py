@@ -214,7 +214,7 @@ def test_get_process_role_spawn_child() -> None:
 
 @pytest.mark.subprocess
 def test_refresh_identity_changes_runtime_id():
-    """refresh_identity() is the non-fork trigger for a new logical process instance."""
+    """refresh_identity() is the non-fork trigger used by e.g. an AWS Lambda MicroVM /run hook."""
     import ddtrace.internal.runtime as runtime
 
     runtime_id = runtime.get_runtime_id()
@@ -236,8 +236,9 @@ def test_refresh_identity_changes_runtime_id():
 def test_refresh_identity_does_not_record_fork_lineage():
     """Unlike a fork, refresh_identity() must not make get_process_role() report a fake worker.
 
-    The previous runtime ID was not a real parent process, so recording it as one would
-    corrupt process-lineage telemetry.
+    The previous runtime ID was not a real parent process (e.g. it's the shared image
+    snapshot's ID on an AWS Lambda MicroVM /run), so recording it as one would corrupt
+    process-lineage telemetry.
     """
     import ddtrace.internal.runtime as runtime
 
@@ -325,3 +326,134 @@ def test_on_runtime_id_change_does_not_leak_dead_subscribers():
     runtime.refresh_identity()
 
     assert len(runtime._ON_RUNTIME_ID_CHANGE) == baseline
+
+
+@pytest.mark.parametrize("auto_enable_crashtracking", [False])
+def test_listen_for_identity_refresh_hooks_noop_does_not_import_core(monkeypatch, auto_enable_crashtracking):
+    import builtins
+
+    import ddtrace.internal.runtime as runtime
+
+    monkeypatch.setattr(runtime, "_IS_AWS_LAMBDA_MICROVM", False)
+
+    real_import = builtins.__import__
+
+    def fail_core_import(name, *args, **kwargs):
+        fromlist = kwargs.get("fromlist", ())
+        if len(args) >= 3:
+            fromlist = args[2]
+        if name == "ddtrace.internal" and "core" in fromlist:
+            raise AssertionError("listen_for_identity_refresh_hooks() imported core outside a MicroVM")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_core_import)
+
+    runtime.listen_for_identity_refresh_hooks()
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_matches_microvm_run_hook():
+    """Only the exact AWS Lambda MicroVM "/run" hook request triggers a refresh."""
+    import ddtrace.internal.runtime as runtime
+
+    runtime_id = runtime.get_runtime_id()
+
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+
+    refreshed_runtime_id = runtime.get_runtime_id()
+    assert refreshed_runtime_id != runtime_id
+
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+
+    assert runtime.get_runtime_id() == refreshed_runtime_id
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_identity_refresh_hook_runs_before_root_span_creation():
+    """The pre-request hook must refresh runtime-id before a web root span reads it."""
+    from ddtrace import tracer
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+
+    runtime_id = runtime.get_runtime_id()
+    core.dispatch(core.WEB_REQUEST_STARTING, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH))
+
+    refreshed_runtime_id = runtime.get_runtime_id()
+    assert refreshed_runtime_id != runtime_id
+
+    with tracer.trace("web.request") as span:
+        assert span.get_tag("runtime-id") == refreshed_runtime_id
+
+    core.dispatch(core.WEB_REQUEST_STARTING, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH))
+
+    assert runtime.get_runtime_id() == refreshed_runtime_id
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_is_thread_safe():
+    """Concurrent observations of the same MicroVM "/run" hook refresh identity once."""
+    import threading
+    import time
+
+    import ddtrace.internal.runtime as runtime
+
+    calls = []
+
+    def refresh_identity():
+        calls.append(1)
+        time.sleep(0.01)
+
+    runtime.refresh_identity = refresh_identity
+
+    workers = 16
+    barrier = threading.Barrier(workers)
+    errors = []
+    threads = []
+
+    def refresh_from_request_layer():
+        try:
+            barrier.wait()
+            runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+        except Exception as e:
+            errors.append(e)
+
+    for _ in range(workers):
+        thread = threading.Thread(target=refresh_from_request_layer)
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(calls) == 1
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_ignores_other_requests():
+    """A different method/path, or the "/resume" hook, must not trigger a refresh."""
+    import ddtrace.internal.runtime as runtime
+
+    runtime_id = runtime.get_runtime_id()
+
+    runtime.maybe_refresh_identity("GET", runtime.MICROVM_RUN_HOOK_PATH)
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, "/aws/lambda-microvms/runtime/v1/resume")
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, "/some/other/path")
+
+    assert runtime.get_runtime_id() == runtime_id
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None}, err=None)
+def test_listen_for_identity_refresh_hooks_noop_outside_microvm():
+    """Outside a MicroVM, do not register the request-event listener."""
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+
+    core.reset_listeners(core.WEB_REQUEST_STARTING)
+    runtime.listen_for_identity_refresh_hooks()
+
+    runtime_id = runtime.get_runtime_id()
+
+    core.dispatch(core.WEB_REQUEST_STARTING, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH))
+
+    assert runtime.get_runtime_id() == runtime_id

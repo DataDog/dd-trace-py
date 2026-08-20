@@ -2,11 +2,9 @@ from falcon import testing
 import mock
 
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 from .app import get_app
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 def _client():
@@ -20,10 +18,10 @@ def test_microvm_run_hook_request():
     fires on the 404 (see test_404 in test_suite.py).
     """
     with mock.patch("ddtrace.contrib.internal.falcon.middleware.core.dispatch", wraps=core.dispatch) as m:
-        response = _client().simulate_post(REQUEST_STARTING_PATH)
+        response = _client().simulate_post(MICROVM_RUN_HOOK_PATH)
 
     assert response.status[:3] == "404"
-    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+    m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
 
 def test_other_request():

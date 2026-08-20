@@ -2,11 +2,9 @@ import mock
 
 from ddtrace.contrib.internal.pyramid.constants import SETTINGS_TRACE_ENABLED
 from ddtrace.internal import core
+from ddtrace.internal.runtime import MICROVM_RUN_HOOK_PATH
 
 from .utils import PyramidTestCase
-
-
-REQUEST_STARTING_PATH = "/web-request-starting"
 
 
 class PyramidMicrovmIdentityRefreshTestCase(PyramidTestCase):
@@ -17,9 +15,9 @@ class PyramidMicrovmIdentityRefreshTestCase(PyramidTestCase):
         route matching, so it still fires on the 404 (see test_404 in utils.py).
         """
         with mock.patch("ddtrace.contrib.internal.pyramid.trace.core.dispatch", wraps=core.dispatch) as m:
-            self.app.post(REQUEST_STARTING_PATH, status=404)
+            self.app.post(MICROVM_RUN_HOOK_PATH, status=404)
 
-        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
 
     def test_other_request(self):
         with mock.patch("ddtrace.contrib.internal.pyramid.trace.core.dispatch", wraps=core.dispatch) as m:
@@ -35,7 +33,7 @@ class PyramidMicrovmIdentityRefreshTestCase(PyramidTestCase):
         self.override_settings({"datadog_trace_service": "foobar", SETTINGS_TRACE_ENABLED: "false"})
 
         with mock.patch("ddtrace.contrib.internal.pyramid.trace.core.dispatch", wraps=core.dispatch) as m:
-            self.app.post(REQUEST_STARTING_PATH, status=404)
+            self.app.post(MICROVM_RUN_HOOK_PATH, status=404)
 
-        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", REQUEST_STARTING_PATH))
+        m.assert_any_call(core.WEB_REQUEST_STARTING, ("POST", MICROVM_RUN_HOOK_PATH))
         assert len(self.pop_spans()) == 0
