@@ -547,7 +547,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 1.4.7
+      max: 1.5.3
 
 - integration_name: langgraph
   is_external_package: true
@@ -559,13 +559,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 1.1.10
+      max: 1.2.11
     langgraph-checkpoint:
       min: 1.0.12
-      max: 4.0.3
+      max: 4.2.0
     langgraph-prebuilt:
       min: 0.1.8
-      max: 1.0.13
+      max: 1.1.0
 
 - integration_name: litellm
   is_external_package: true
@@ -735,7 +735,7 @@ integrations:
   tested_versions_by_dependency:
     protobuf:
       min: 6.33.6
-      max: 7.35.0
+      max: 7.35.1
 
 - integration_name: psycopg
   is_external_package: true
