@@ -26,6 +26,19 @@ FFE_FLAGS_PRODUCT = RemoteConfigProduct.FfeFlags
 class FeatureFlagCallback(RCCallback):
     """Remote Configuration callback for Feature Flagging and Experimentation (FFE)."""
 
+    def __init__(self) -> None:
+        # AIDEV-NOTE: Path of the configuration currently loaded, so a removal only
+        # clears it when it names that same path. Replacing one UFC config with
+        # another arrives as remove(old) + add(new), and in a forked child those two
+        # do not necessarily arrive together: the native shared-memory distribution
+        # publishes a manifest per file operation (see src/native/rc_shm.rs), with
+        # the add published during the fetch and the remove right after it. A child
+        # whose reader wakes between the two publishes dispatches the add first and
+        # the remove second, so an unqualified clear would wipe the configuration
+        # that just became current and every later evaluation would report
+        # PROVIDER_NOT_READY until the next unrelated config change.
+        self._applied_path: t.Optional[str] = None
+
     def __call__(self, payloads: t.Sequence[Payload]) -> None:
         """
         Process FFE configuration payloads from Remote Configuration.
@@ -46,12 +59,20 @@ class FeatureFlagCallback(RCCallback):
                     payload.metadata.product_name,
                     payload.path,
                 )
-                # Handle deletion/removal of configuration by clearing the stored config
+                if self._applied_path is not None and payload.path != self._applied_path:
+                    log.debug(
+                        "Ignoring FFE config deletion for %s; %s is the applied configuration",
+                        payload.path,
+                        self._applied_path,
+                    )
+                    continue
                 _set_ffe_config(None)
+                self._applied_path = None
                 continue
 
             try:
-                process_ffe_configuration(payload.content)
+                if process_ffe_configuration(payload.content):
+                    self._applied_path = payload.path
                 log.debug("Processing FFE config ID: %s, size: %d bytes", payload.metadata.id, len(payload.content))
             except Exception as e:
                 log.debug("Error processing FFE config payload: %s", e, exc_info=True)
