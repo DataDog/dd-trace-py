@@ -27,7 +27,10 @@ class InterpreterInfo
     int64_t id = 0;
     void* tstate_head = NULL;
     void* next = NULL;
+#if PY_VERSION_HEX >= 0x030e0000
+    uint64_t code_object_generation = 0;
+#endif
 };
 
-void
+[[nodiscard]] bool
 for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterInfo& interp)>& callback);
