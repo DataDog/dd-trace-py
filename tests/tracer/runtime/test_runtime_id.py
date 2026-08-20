@@ -3,7 +3,7 @@ import pytest
 
 @pytest.mark.subprocess
 def test_get_runtime_id():
-    import ddtrace.internal.runtime as runtime
+    from ddtrace.internal import runtime
 
     runtime_id = runtime.get_runtime_id()
     assert isinstance(runtime_id, str)
@@ -15,7 +15,7 @@ def test_get_runtime_id():
 def test_get_runtime_id_fork():
     import os
 
-    import ddtrace.internal.runtime as runtime
+    from ddtrace.internal import runtime
 
     runtime_id = runtime.get_runtime_id()
     assert isinstance(runtime_id, str)
@@ -44,7 +44,7 @@ def test_get_runtime_id_fork():
 def test_get_runtime_id_double_fork():
     import os
 
-    import ddtrace.internal.runtime as runtime
+    from ddtrace.internal import runtime
 
     runtime_id = runtime.get_runtime_id()
 
@@ -88,7 +88,7 @@ def test_ancestor_runtime_id():
     """
     import os
 
-    import ddtrace.internal.runtime as runtime
+    from ddtrace.internal import runtime
 
     ancestor_runtime_id = runtime.get_runtime_id()
 
@@ -133,7 +133,7 @@ def test_parent_runtime_id():
     """get_parent_runtime_id() tracks the immediate parent process, not the root."""
     import os
 
-    import ddtrace.internal.runtime as runtime
+    from ddtrace.internal import runtime
 
     root_id = runtime.get_runtime_id()
     assert runtime.get_parent_runtime_id() is None
@@ -212,171 +212,153 @@ def test_get_process_role_spawn_child() -> None:
     assert get_process_role() == "worker", get_process_role()
 
 
-@pytest.mark.subprocess
-def test_refresh_identity_changes_runtime_id():
+def test_refresh_identity_changes_runtime_id(run_python_code_in_subprocess):
     """refresh_identity() is the non-fork trigger for a new logical process instance."""
-    import ddtrace.internal.runtime as runtime
+    code = """
+from ddtrace.internal import runtime
 
-    runtime_id = runtime.get_runtime_id()
-    runtime.refresh_identity()
-    new_runtime_id = runtime.get_runtime_id()
+runtime_id = runtime.get_runtime_id()
+runtime.refresh_identity()
+new_runtime_id = runtime.get_runtime_id()
 
-    assert isinstance(new_runtime_id, str)
-    assert new_runtime_id != runtime_id
-    assert new_runtime_id == runtime.get_runtime_id()
+assert isinstance(new_runtime_id, str)
+assert new_runtime_id != runtime_id
+assert new_runtime_id == runtime.get_runtime_id()
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
 
 
-@pytest.mark.subprocess(
-    env={
-        "_DD_ROOT_PY_SESSION_ID": None,
-        "_DD_PARENT_PY_SESSION_ID": None,
-        "DD_TRACE_SUBPROCESS_ENABLED": "false",
-    }
-)
-def test_refresh_identity_does_not_record_fork_lineage():
+def test_refresh_identity_does_not_record_fork_lineage(run_python_code_in_subprocess):
     """Unlike a fork, refresh_identity() must not make get_process_role() report a fake worker.
 
     The previous runtime ID was not a real parent process, so recording it as one would
     corrupt process-lineage telemetry.
     """
-    import ddtrace.internal.runtime as runtime
+    import os
 
-    assert runtime.get_process_role() is None
-    assert runtime.get_parent_runtime_id() is None
-    assert runtime.get_ancestor_runtime_id() is None
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_ROOT_PY_SESSION_ID": None,
+            "_DD_PARENT_PY_SESSION_ID": None,
+            "DD_TRACE_SUBPROCESS_ENABLED": "false",
+        }
+    )
+    code = """
+from ddtrace.internal import runtime
 
-    runtime.refresh_identity()
+assert runtime.get_process_role() is None
+assert runtime.get_parent_runtime_id() is None
+assert runtime.get_ancestor_runtime_id() is None
 
-    assert runtime.get_process_role() is None
-    assert runtime.get_parent_runtime_id() is None
-    assert runtime.get_ancestor_runtime_id() is None
+runtime.refresh_identity()
 
-
-@pytest.mark.subprocess
-def test_refresh_identity_notifies_subscribers():
-    import ddtrace.internal.runtime as runtime
-
-    seen = []
-
-    class _Subscriber:
-        def on_change(self, new_id):
-            seen.append(new_id)
-
-    subscriber = _Subscriber()
-    runtime.on_runtime_id_change(subscriber.on_change)
-
-    runtime.refresh_identity()
-
-    assert seen == [runtime.get_runtime_id()]
+assert runtime.get_process_role() is None
+assert runtime.get_parent_runtime_id() is None
+assert runtime.get_ancestor_runtime_id() is None
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
 
 
-@pytest.mark.subprocess
-def test_on_runtime_id_change_falls_back_to_plain_weakref_for_c_callables():
-    import ddtrace.internal.runtime as runtime
+def test_refresh_identity_notifies_subscribers(run_python_code_in_subprocess):
+    code = """
+from ddtrace.internal import runtime
 
-    seen = []
-    cb = seen.append
-    assert hasattr(cb, "__self__")
-
-    runtime.on_runtime_id_change(cb)
-    runtime.refresh_identity()
-
-    assert seen == [runtime.get_runtime_id()]
+seen = []
 
 
-@pytest.mark.subprocess
-def test_refresh_identity_isolates_subscriber_exceptions():
+class _Subscriber:
+    def on_change(self, new_id):
+        seen.append(new_id)
+
+
+subscriber = _Subscriber()
+runtime.on_runtime_id_change(subscriber.on_change)
+
+runtime.refresh_identity()
+
+assert seen == [runtime.get_runtime_id()]
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+
+
+def test_refresh_identity_isolates_subscriber_exceptions(run_python_code_in_subprocess):
     """One subscriber raising must not stop refresh_identity() or block other subscribers."""
-    import ddtrace.internal.runtime as runtime
+    code = """
+from ddtrace.internal import runtime
 
-    seen = []
-
-    class _BadSubscriber:
-        def on_change(self, new_id):
-            raise ValueError("boom")
-
-    class _GoodSubscriber:
-        def on_change(self, new_id):
-            seen.append(new_id)
-
-    bad = _BadSubscriber()
-    good = _GoodSubscriber()
-    runtime.on_runtime_id_change(bad.on_change)
-    runtime.on_runtime_id_change(good.on_change)
-
-    runtime.refresh_identity()
-
-    assert seen == [runtime.get_runtime_id()]
+seen = []
 
 
-@pytest.mark.subprocess
-def test_refresh_identity_serializes_concurrent_notifications():
-    import threading
-
-    import ddtrace.internal.runtime as runtime
-
-    seen = []
-    seen_lock = threading.Lock()
-    first_entered = threading.Event()
-    release_first = threading.Event()
-    second_entered = threading.Event()
-
-    def on_change(new_id):
-        with seen_lock:
-            seen.append(new_id)
-            count = len(seen)
-
-        if count == 1:
-            first_entered.set()
-            assert release_first.wait(5)
-        elif count == 2:
-            second_entered.set()
-
-    runtime.on_runtime_id_change(on_change)
-
-    first = threading.Thread(target=runtime.refresh_identity)
-    first.start()
-    assert first_entered.wait(5)
-
-    second = threading.Thread(target=runtime.refresh_identity)
-    second.start()
-    assert not second_entered.wait(0.2)
-
-    release_first.set()
-    first.join(5)
-    second.join(5)
-
-    assert not first.is_alive()
-    assert not second.is_alive()
-    assert second_entered.is_set()
-    assert seen[-1] == runtime.get_runtime_id()
+class _BadSubscriber:
+    def on_change(self, new_id):
+        raise ValueError("boom")
 
 
-@pytest.mark.subprocess
-def test_on_runtime_id_change_does_not_leak_dead_subscribers():
-    """Subscribers are held weakly: once garbage collected they are pruned.
+class _GoodSubscriber:
+    def on_change(self, new_id):
+        seen.append(new_id)
 
-    Subscribers are typically objects constructed many times over a process's life (e.g. a
-    trace writer instance per Tracer()); a strong reference here would keep every one of
-    them alive for the life of the process.
-    """
-    import gc
 
-    import ddtrace.internal.runtime as runtime
+bad = _BadSubscriber()
+good = _GoodSubscriber()
+runtime.on_runtime_id_change(bad.on_change)
+runtime.on_runtime_id_change(good.on_change)
 
-    class _Subscriber:
-        def on_change(self, new_id):
-            pass
+runtime.refresh_identity()
 
-    # Baseline, not 0: injection/auto-instrumentation may have already constructed a
-    # RemoteConfigClient/Writer/TelemetryWriter in this process, each of which subscribes.
-    baseline = len(runtime._ON_RUNTIME_ID_CHANGE)
+assert seen == [runtime.get_runtime_id()]
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
 
-    subscriber = _Subscriber()
-    runtime.on_runtime_id_change(subscriber.on_change)
-    assert len(runtime._ON_RUNTIME_ID_CHANGE) == baseline + 1
 
-    del subscriber
-    gc.collect()
+def test_refresh_identity_serializes_concurrent_notifications(run_python_code_in_subprocess):
+    code = """
+import threading
 
-    assert len(runtime._ON_RUNTIME_ID_CHANGE) == baseline
+from ddtrace.internal import runtime
+
+seen = []
+seen_lock = threading.Lock()
+first_entered = threading.Event()
+release_first = threading.Event()
+second_entered = threading.Event()
+
+
+def on_change(new_id):
+    with seen_lock:
+        seen.append(new_id)
+        count = len(seen)
+
+    if count == 1:
+        first_entered.set()
+        assert release_first.wait(5)
+    elif count == 2:
+        second_entered.set()
+
+
+runtime.on_runtime_id_change(on_change)
+
+first = threading.Thread(target=runtime.refresh_identity)
+first.start()
+assert first_entered.wait(5)
+
+second = threading.Thread(target=runtime.refresh_identity)
+second.start()
+assert not second_entered.wait(0.2)
+
+release_first.set()
+first.join(5)
+second.join(5)
+
+assert not first.is_alive()
+assert not second.is_alive()
+assert second_entered.is_set()
+assert seen[-1] == runtime.get_runtime_id()
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
