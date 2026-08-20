@@ -89,15 +89,32 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
         return wrapped(*args, **kwargs)
 
     handle = args[0]
-    _dispatch_context_switch(handle._loop, handle._context, handle=handle)
+    original_callback = handle._callback
+
+    def _callback_with_entry_dispatch(*cb_args: Any, **cb_kwargs: Any) -> Any:
+        # Dispatching here, inside the callback, means it runs as part of the single
+        # context.run() that the real _run performs below instead of in a separate one of
+        # our own -- halving how many times a context gets entered for this handle.
+        _dispatch_context_switch(handle._loop, handle=handle)
+        return original_callback(*cb_args, **cb_kwargs)
+
+    handle._callback = _callback_with_entry_dispatch
     try:
         return wrapped(*args, **kwargs)
     finally:
+        # A callback that cancels its own handle (or another timer's) sets _callback to
+        # None to drop references; only restore ours if nothing else touched the slot.
+        if handle._callback is _callback_with_entry_dispatch:
+            handle._callback = original_callback
         _dispatch_context_switch(handle._loop, handle=handle)
 
 
 def _run_with_context_switches(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
     """Publish the copied worker context on entry and detach it before exit.
+
+    The worker thread is pooled and reused, so its exit dispatch has to report an empty
+    context rather than the (still-active) worker context -- otherwise the next job run on
+    that thread would appear to inherit this one's active span.
 
     func is positional-only, like in asyncio.to_thread, so that a target taking its own func
     keyword argument still works.
@@ -138,16 +155,19 @@ def _wrapped_create_task(wrapped, args, kwargs):
     By default the trace context is propagated when a task is executed and NOT when it is created.
     """
     pin = Pin.get_from(asyncio)
-    if not pin or not pin.enabled():
+    pin_enabled = bool(pin and pin.enabled())
+
+    loop = args[0]
+    may_start_eagerly = _may_start_eagerly(loop, kwargs)
+    if not pin_enabled and not may_start_eagerly:
         return wrapped(*args, **kwargs)
 
     # Get current trace context
     task_data: dict[str, Any] = {}
-    core.dispatch("asyncio.create_task", (task_data,))
-
-    loop = args[0]
-    dd_active = tracer.current_trace_context()
-    may_start_eagerly = _may_start_eagerly(loop, kwargs)
+    dd_active = None
+    if pin_enabled:
+        core.dispatch("asyncio.create_task", (task_data,))
+        dd_active = tracer.current_trace_context()
     if not dd_active and not may_start_eagerly:
         return wrapped(*args, **kwargs)
 
