@@ -36,12 +36,10 @@ _provider_instances: list[Any] = []
 _FFE_SNAPSHOT: Optional[_FfeSnapshot] = None
 
 
-# AIDEV-NOTE: Preserved for existing callers only. New callers must use
-# _get_ffe_snapshot() so consent is observed atomically with the config --
-# grabbing just the config bypasses the atomic snapshot and reintroduces
-# the consent-lifecycle race the Java pilot hit (concern:bind-consent-to-
-# evaluated-config). See docs/superpowers/specs/2026-08-06-pii-
-# flagevaluations-hashing-design.md.
+# AIDEV-NOTE: Preserved for existing callers only. New evaluation paths must
+# use _get_ffe_snapshot() so consent is observed atomically with the exact
+# configuration being evaluated. Reading only the config and then consulting
+# live consent downstream reintroduces the consent-lifecycle race.
 def _get_ffe_config() -> Optional[ffe.Configuration]:
     """Retrieve just the native FFE configuration. Preserved for compatibility."""
     snap = _FFE_SNAPSHOT

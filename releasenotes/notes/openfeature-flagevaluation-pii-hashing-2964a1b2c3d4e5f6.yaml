@@ -1,16 +1,7 @@
 ---
 features:
   - |
-    openfeature: the experimental OpenFeature provider now hashes ``targeting_key``
-    and omits ``context.evaluation`` by default when reporting server-side flag
-    evaluations to the EVP ``flagevaluation`` track. A new top-level UFC boolean
-    ``observeFullEvaluationData`` selects the path: when ``false`` or absent
-    (the default), ``targeting_key`` is emitted as ``sha256_`` + a 64-char
-    lowercase hex SHA-256 digest (71 chars total) and ``context.evaluation`` is
-    omitted entirely; when ``true``, both are emitted verbatim. Every SDK
-    produces a byte-identical digest for the same subject, so hashed values
-    still join across languages and against the backend. The
-    ``DD_FLAGGING_EVALUATION_COUNTS_ENABLED`` kill switch is unchanged and
-    still disables the whole track when set to ``false``. Dashboards or
-    queries that read ``targeting_key`` as the raw subject must accept the
-    ``sha256_`` prefix on the default path.
+    openfeature: Server-side flag evaluation telemetry now hashes targeting
+    keys and omits evaluation context by default. Environments configured to
+    report full evaluation data retain unhashed targeting keys and evaluation
+    context.

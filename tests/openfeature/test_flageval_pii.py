@@ -56,6 +56,11 @@ class TestHashTargetingKey:
         """Absent targeting_key stays absent -- must NOT fabricate a shared pseudo-subject."""
         assert hash_targeting_key("") == ""
 
+    @pytest.mark.parametrize("invalid", ["\ud800", []])
+    def test_invalid_input_stays_empty(self, invalid):
+        """Malformed values are omitted instead of aborting a writer flush."""
+        assert hash_targeting_key(invalid) == ""
+
     def test_does_not_normalize(self):
         """Every variant must produce a DIFFERENT digest from the canonical one.
 
@@ -325,34 +330,6 @@ class TestAggregatorConsent:
         writer._aggregate(self._event(observe_full_evaluation_data=True))
         assert len(writer._full) == 2
 
-    def test_and_fold_semantics_are_consent_off_wins(self, writer):
-        """Document the AND-fold's monotone-toward-False invariant: once an entry
-        observes a consent-off event, its consent field must stay False.
-
-        This is a Python-semantics assertion, not an aggregation-flow assertion.
-        The fast-path AND-fold branch in _aggregate is not directly exercisable
-        today because consent is part of the full-tier key, so distinct-consent
-        events land in distinct buckets and never merge. If a future refactor
-        removes consent from the key, this test documents the guarantee the
-        AND-fold must uphold: consent-off wins.
-        """
-        # Seed a consent-on bucket.
-        writer._aggregate(self._event(observe_full_evaluation_data=True))
-        assert len(writer._full) == 1
-        entry = list(writer._full.values())[0]
-        assert entry.observe_full_evaluation_data is True
-
-        # Apply the AND-fold directly on the entry, mirroring what _aggregate
-        # would do on a fast-path merge if a consent-off observation ever
-        # landed on this bucket.
-        (full_key,) = writer._full.keys()
-        with writer._lock:
-            entry = writer._full[full_key]
-            entry.observe_full_evaluation_data = entry.observe_full_evaluation_data and False
-            entry.observe(int(time.time() * 1000))
-
-        assert entry.observe_full_evaluation_data is False
-
 
 class TestFlushSerialization:
     """Raw-wire assertions on the flagevaluations payload bytes.
@@ -424,6 +401,25 @@ class TestFlushSerialization:
         assert event["targeting_key"] == PII_CANONICAL_TARGETING_KEY
         assert "context" in event
         assert event["context"]["evaluation"]["plan"] == "enterprise"
+
+    def test_invalid_targeting_keys_do_not_abort_flush(self, writer):
+        valid = self._pii_event(observe_full_evaluation_data=False)._replace(flag_key="valid")
+        invalid_unicode = self._pii_event(observe_full_evaluation_data=False)._replace(
+            flag_key="invalid-unicode", targeting_key="\ud800"
+        )
+        invalid_type = self._pii_event(observe_full_evaluation_data=False)._replace(
+            flag_key="invalid-type", targeting_key=[]
+        )
+        for event in (valid, invalid_unicode, invalid_type):
+            writer.enqueue(event)
+
+        payload_bytes = self._flush_capture(writer)
+        decoded = json.loads(payload_bytes)
+        events = {event["flag"]["key"]: event for event in decoded["flagEvaluations"]}
+
+        assert events["valid"]["targeting_key"] == PII_CANONICAL_HASHED
+        assert "targeting_key" not in events["invalid-unicode"]
+        assert "targeting_key" not in events["invalid-type"]
 
     def test_degraded_tier_never_emits_subject_or_context(self):
         """Regardless of consent -- degraded already omits both. Proves the

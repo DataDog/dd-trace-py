@@ -649,10 +649,11 @@ class FlagEvaluationWriter(PeriodicService):
           because the wire event carries no context on that path -- so keying on
           discarded data would burn per-flag cardinality on the privacy-protected
           path specifically (see concern:consent-off-bucket-keying).
-        - On fast-path merge, AND-fold consent into the entry: any single
-          consent-off observation forces the whole bucket onto the protected wire
-          path, even if a future refactor drops consent from the key.
         """
+        # Normalize at the aggregation boundary so malformed, unhashable values
+        # cannot abort queue draining or leak through the consent-on path.
+        targeting_key = event.targeting_key if isinstance(event.targeting_key, str) else ""
+
         # Enforce the consent-off invariant: no context on the wire → no context
         # in the key, no context in the entry.
         if event.observe_full_evaluation_data:
@@ -668,7 +669,7 @@ class FlagEvaluationWriter(PeriodicService):
             event.allocation_key,
             event.runtime_default,
             event.error_message,
-            event.targeting_key,
+            targeting_key,
             ctx_key,
             event.observe_full_evaluation_data,
         )
@@ -676,14 +677,7 @@ class FlagEvaluationWriter(PeriodicService):
         with self._lock:
             # Fast path: existing full-tier bucket.
             if full_key in self._full:
-                entry = self._full[full_key]
-                # Defense in depth: if the key ever stops carrying consent, one
-                # consent-off observation still forces the whole bucket onto the
-                # privacy-protected path.
-                entry.observe_full_evaluation_data = (
-                    entry.observe_full_evaluation_data and event.observe_full_evaluation_data
-                )
-                entry.observe(event.eval_time_ms)
+                self._full[full_key].observe(event.eval_time_ms)
                 return
 
             # Per-flag cap check.
@@ -704,7 +698,7 @@ class FlagEvaluationWriter(PeriodicService):
             self._full[full_key] = _Entry(
                 eval_time_ms=event.eval_time_ms,
                 runtime_default=event.runtime_default,
-                targeting_key=event.targeting_key,
+                targeting_key=targeting_key,
                 context_attrs=_json_safe_context(context_attrs),
                 error_message=event.error_message,
                 observe_full_evaluation_data=event.observe_full_evaluation_data,

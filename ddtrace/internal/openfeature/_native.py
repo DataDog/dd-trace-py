@@ -21,7 +21,7 @@ VariationType = ffe.FlagType
 ResolutionDetails = ffe.ResolutionDetails
 
 
-def process_ffe_configuration(config) -> bool:
+def process_ffe_configuration(config: Any) -> bool:
     """
     Process FFE configuration and store as native Configuration object.
 
