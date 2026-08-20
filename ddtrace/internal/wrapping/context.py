@@ -214,7 +214,6 @@ CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
 if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
-    # TODO: remove when migrating the app to py-315
     pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(

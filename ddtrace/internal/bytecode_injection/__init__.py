@@ -33,7 +33,6 @@ class InvalidLine(Exception):
 
 INJECTION_ASSEMBLY = Assembly()
 if PY >= NEXT_PY_VERSION_INFO:
-    # TODO: remove when migrating the app to py-315
     pass
 elif PY >= (3, 13):
     INJECTION_ASSEMBLY.parse(

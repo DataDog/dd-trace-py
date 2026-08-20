@@ -36,7 +36,6 @@ GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY = None
 
 if PY >= NEXT_PY_VERSION_INFO:
-    # TODO: remove when migrating the app to py-315
     pass
 
 elif PY >= (3, 14):
