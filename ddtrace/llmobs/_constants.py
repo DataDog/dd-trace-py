@@ -234,6 +234,8 @@ class LLMOBS_STRUCT:
     EXPECTED_OUTPUT: Final = "expected_output"
     VALUE: Final = "value"
     MESSAGES: Final = "messages"
+    AUDIO_PARTS: Final = "audio_parts"
+    IMAGE_PARTS: Final = "image_parts"
     DOCUMENTS: Final = "documents"
     AGENT_MANIFEST: Final = "agent_manifest"
     SPAN: Final = "span"

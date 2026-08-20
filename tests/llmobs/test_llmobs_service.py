@@ -972,6 +972,257 @@ def test_annotate_llm_message_with_image_parts(llmobs):
         ]
 
 
+def _agent_span_meta(llmobs, span):
+    """Finalize an agent span and return its emitted meta block."""
+    llmobs._instance._prepare_llmobs_span_data(span, "agent")
+    return llmobs._instance._llmobs_span_event(span)["meta"]
+
+
+def test_annotate_agent_message_with_image_parts(llmobs):
+    """An agent span carrying image parts emits both the collapsed value and typed messages."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "describe this",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                }
+            ],
+            output_data=[
+                {
+                    "content": "done",
+                    "role": "assistant",
+                    "image_parts": [{"mime_type": "image/jpeg", "content": "BBBB"}],
+                }
+            ],
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert meta["input"]["messages"] == [
+            {"content": "describe this", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "AAAA"}]}
+        ]
+        assert meta["output"]["messages"] == [
+            {"content": "done", "role": "assistant", "image_parts": [{"mime_type": "image/jpeg", "content": "BBBB"}]}
+        ]
+        # value coexists with messages, and the base64 payload stays out of it
+        assert meta["input"]["value"] == "describe this"
+        assert meta["output"]["value"] == "done"
+        assert "AAAA" not in meta["input"]["value"]
+        assert "BBBB" not in meta["output"]["value"]
+
+
+def test_annotate_agent_message_with_audio_parts(llmobs):
+    """Audio parts travel the same agent-span path as image parts."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "transcribe this",
+                    "role": "user",
+                    "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+                }
+            ],
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert meta["input"]["messages"] == [
+            {
+                "content": "transcribe this",
+                "role": "user",
+                "audio_parts": [{"mime_type": "audio/wav", "content": "AAAA"}],
+            }
+        ]
+        assert meta["input"]["value"] == "transcribe this"
+
+
+def test_annotate_agent_message_with_image_parts_attachment_key(llmobs):
+    """attachment_key media on an agent span survives instead of being stringified."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/jpeg", "attachment_key": "abc123"}],
+                }
+            ],
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert meta["input"]["messages"] == [
+            {"content": "", "role": "user", "image_parts": [{"mime_type": "image/jpeg", "attachment_key": "abc123"}]}
+        ]
+        assert meta["input"]["value"] == ""
+
+
+def test_annotate_agent_message_with_media_multiple_messages_json_value(llmobs):
+    """More than one message keeps the JSON value form, with media stripped out of it."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "describe this",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                },
+                {"content": "second", "role": "assistant"},
+            ],
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert len(meta["input"]["messages"]) == 2
+        assert meta["input"]["messages"][0]["image_parts"] == [{"mime_type": "image/png", "content": "AAAA"}]
+        assert (
+            meta["input"]["value"]
+            == '[{"content": "describe this", "role": "user"}, {"content": "second", "role": "assistant"}]'
+        )
+        assert "AAAA" not in meta["input"]["value"]
+
+
+def test_annotate_agent_message_with_media_lone_system_message_json_value(llmobs):
+    """A lone system message is not scalarized, matching the trace indexer."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "you are a bot",
+                    "role": "system",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                }
+            ],
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert meta["input"]["value"] == '[{"content": "you are a bot", "role": "system"}]'
+
+
+def test_annotate_agent_message_with_media_and_tool_calls_json_value(llmobs):
+    """Tool structure forces the JSON value form so the structure is not dropped."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "call it",
+                    "role": "user",
+                    "tool_calls": [{"name": "get_weather", "arguments": {"city": "NYC"}}],
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                }
+            ],
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert meta["input"]["messages"][0]["image_parts"] == [{"mime_type": "image/png", "content": "AAAA"}]
+        assert meta["input"]["value"] == (
+            '[{"content": "call it", "role": "user", '
+            '"tool_calls": [{"arguments": {"city": "NYC"}, "name": "get_weather"}]}]'
+        )
+
+
+def test_annotate_agent_media_input_leaves_plain_output_untouched(llmobs):
+    """Only the media-bearing side routes to messages; the other side keeps value tagging."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "describe this",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                }
+            ],
+            output_data="all done",
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert meta["input"]["messages"][0]["image_parts"] == [{"mime_type": "image/png", "content": "AAAA"}]
+        assert "messages" not in meta["output"]
+        assert meta["output"]["value"] == "all done"
+
+
+def test_annotate_agent_message_without_media_unchanged(llmobs):
+    """Regression pin: a media-free agent span emits value only, exactly as before."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[{"content": "hello", "role": "user"}],
+            output_data=[{"content": "hi", "role": "assistant"}],
+        )
+        meta = _agent_span_meta(llmobs, span)
+        assert "messages" not in meta["input"]
+        assert "messages" not in meta["output"]
+        assert meta["input"]["value"] == '[{"content": "hello", "role": "user"}]'
+        assert meta["output"]["value"] == '[{"content": "hi", "role": "assistant"}]'
+
+
+def test_annotate_agent_plain_string_and_dict_unchanged(llmobs):
+    """Regression pin: non-message agent input is untouched by the media path."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, input_data="just a string", output_data={"some": "dict"})
+        meta = _agent_span_meta(llmobs, span)
+        assert "messages" not in meta["input"]
+        assert "messages" not in meta["output"]
+        assert meta["input"]["value"] == "just a string"
+        assert meta["output"]["value"] == '{"some": "dict"}'
+
+
+def test_annotate_agent_empty_media_lists_unchanged(llmobs):
+    """Regression pin: empty media lists are not media, so nothing reroutes."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "hello", "role": "user", "image_parts": []}])
+        meta = _agent_span_meta(llmobs, span)
+        assert "messages" not in meta["input"]
+        assert meta["input"]["value"] == '[{"content": "hello", "image_parts": [], "role": "user"}]'
+
+
+@pytest.mark.parametrize("span_kind", ["workflow", "task", "tool"])
+def test_annotate_non_agent_kinds_with_media_unchanged(llmobs, span_kind):
+    """Regression pin: kinds the serving API still drops messages for keep today's shape.
+
+    These stay on the value-only path until the read side populates messages for them;
+    emitting messages sooner would spend the per-event size budget on a dropped payload.
+    """
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "describe this",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAAA"}],
+                }
+            ],
+        )
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+        assert "messages" not in meta["input"]
+        assert meta["input"]["value"] == (
+            '[{"content": "describe this", "image_parts": [{"content": "AAAA", "mime_type": "image/png"}], '
+            '"role": "user"}]'
+        )
+
+
+def test_annotate_agent_message_malformed_image_parts_raises(llmobs):
+    """Malformed media on an agent span reports through the same Messages validation."""
+    with llmobs.agent(name="test_agent") as span:
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, input_data=[{"content": "x", "image_parts": [{"content": "AAAA"}]}])
+        assert str(excinfo.value) == "Failed to parse input messages."
+
+        with pytest.raises(Exception) as excinfo:
+            llmobs.annotate(span=span, output_data=[{"content": "x", "image_parts": ["not-a-dict"]}])
+        assert str(excinfo.value) == "Failed to parse output messages."
+
+
+def test_annotate_llm_message_without_media_unchanged(llmobs):
+    """Regression pin: LLM spans still emit messages only, with no value alongside."""
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "hello", "role": "user"}])
+        llmobs._instance._prepare_llmobs_span_data(span, "llm")
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+        assert meta["input"]["messages"] == [{"content": "hello", "role": "user"}]
+        assert "value" not in meta["input"]
+
+
 def test_annotate_document_str(llmobs):
     with llmobs.embedding(model_name="test_model") as span:
         llmobs.annotate(span=span, input_data="test_document_text")
