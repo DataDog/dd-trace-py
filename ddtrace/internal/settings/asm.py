@@ -61,9 +61,22 @@ def build_libddwaf_filename() -> str:
             ARCHI = "x86"
     TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    return os.path.join(
+    filename = os.path.join(
         _DIRNAME, "..", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
     )
+    if not os.path.exists(filename):
+        # The build may have recorded the path of a system-provided libddwaf
+        # instead of bundling the library (setup.py with
+        # DD_USE_SYSTEM_LIBDDWAF=1).
+        link_file = os.path.join(os.path.dirname(filename), "libddwaf.link")
+        try:
+            with open(link_file) as f:
+                recorded = f.read().strip()
+        except OSError:
+            recorded = ""
+        if recorded:
+            return recorded
+    return filename
 
 
 class ASMConfig(DDConfig):
