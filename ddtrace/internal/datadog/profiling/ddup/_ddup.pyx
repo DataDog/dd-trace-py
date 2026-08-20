@@ -453,8 +453,9 @@ cdef class SampleHandle:
     def __cinit__(self):
         self.ptr = NULL
         ddup_start()
-        if ddup_is_initialized():
-            self.ptr = SampleManager.start_sample()
+        if not ddup_is_initialized():
+            return
+        self.ptr = SampleManager.start_sample()
 
     def __dealloc__(self):
         if self.ptr is not NULL:
