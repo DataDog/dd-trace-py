@@ -823,6 +823,39 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
 }
 
 // ----------------------------------------------------------------------------
+namespace {
+bool
+stack_has_gc_frame(const FrameStack& stack)
+{
+    for (const auto& frame : stack) {
+        if (frame.is_in_gc) {
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace
+
+// When a thread renders tasks/greenlets but none of them was on CPU, any GC marker on the
+// thread's real stack was cleared from every task/greenlet stack (a suspended coroutine is not
+// running GC). If GC was in fact active, this happened on the thread's actual executing stack
+// (e.g. an event loop callback or a gevent Hub), which is python_stack. That stack is otherwise
+// never rendered when tasks/greenlets exist, so the collection would vanish from the profile.
+// Emit python_stack as an extra task-less sample to keep the GC frame visible.
+void
+ThreadInfo::render_gc_stack_if_no_on_cpu_task(EchionSampler& echion)
+{
+    if (!stack_has_gc_frame(python_stack)) {
+        return;
+    }
+
+    auto& renderer = echion.renderer();
+    renderer.render_gc_only_stack_begin();
+    python_stack.render(echion);
+    renderer.render_stack_end();
+}
+
+// ----------------------------------------------------------------------------
 void
 ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 {
@@ -833,7 +866,9 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     // 2. Greenlets stacks (if any)
     // 3. The normal thread stack (if no asyncio tasks or greenlets)
     if (!current_tasks.empty()) {
+        bool any_on_cpu = false;
         for (auto& task_stack_info : current_tasks) {
+            any_on_cpu = any_on_cpu || task_stack_info->on_cpu;
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
                   task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
@@ -843,8 +878,13 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
+        if (!any_on_cpu) {
+            render_gc_stack_if_no_on_cpu_task(echion);
+        }
     } else if (!current_greenlets.empty()) {
+        bool any_on_cpu = false;
         for (auto& greenlet_stack : current_greenlets) {
+            any_on_cpu = any_on_cpu || greenlet_stack->on_cpu;
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
                   task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
@@ -854,6 +894,9 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             stack.render(echion);
 
             renderer.render_stack_end();
+        }
+        if (!any_on_cpu) {
+            render_gc_stack_if_no_on_cpu_task(echion);
         }
     } else {
         python_stack.render(echion);
