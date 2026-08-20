@@ -93,8 +93,8 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
 
     def _callback_with_entry_dispatch(*cb_args: Any, **cb_kwargs: Any) -> Any:
         # Dispatching here, inside the callback, means it runs as part of the single
-        # context.run() that the real _run performs below instead of in a separate one of
-        # our own -- halving how many times a context gets entered for this handle.
+        # context.run() that the real _run performs below, instead of a redundant one of
+        # our own just to enter handle._context before the real call does.
         _dispatch_context_switch(handle._loop, handle=handle)
         return original_callback(*cb_args, **cb_kwargs)
 
