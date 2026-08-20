@@ -7,6 +7,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -391,6 +392,9 @@ def unpatch():
 
 def patched_wsgi_app(wrapped, instance, args, kwargs):
     environ, start_response = args
+    core.dispatch(
+        WebFrameworkEvents.WEB_REQUEST_STARTING.value, (environ.get("REQUEST_METHOD"), environ.get("PATH_INFO"))
+    )
     # Registration is gated on asm_config, not tracing — keep this above the tracing short-circuit.
     _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
     if not is_tracing_enabled():
