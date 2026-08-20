@@ -1,4 +1,5 @@
-use std::sync::OnceLock;
+use std::sync::{Condvar, Mutex, OnceLock};
+use std::thread::{self, ThreadId};
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use pyo3::{
@@ -25,17 +26,7 @@ type ContextState<'py> = (
     bool,
 );
 
-static RLOCK_CLASS: OnceLock<Py<PyAny>> = OnceLock::new();
 static W3C_GET_DD_LIST_MEMBER: OnceLock<Py<PyAny>> = OnceLock::new();
-
-fn rlock_class(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    if let Some(v) = RLOCK_CLASS.get() {
-        return Ok(v.bind(py).clone());
-    }
-    let cls = py.import("ddtrace.internal.threads")?.getattr("RLock")?;
-    let _ = RLOCK_CLASS.set(cls.clone().unbind());
-    Ok(cls)
-}
 
 fn w3c_get_dd_list_member_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     if let Some(v) = W3C_GET_DD_LIST_MEMBER.get() {
@@ -73,24 +64,156 @@ fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
         .and_then(|s| s.parse::<u128>().ok())
 }
 
+#[derive(Default)]
+struct RLockState {
+    owner: Option<ThreadId>,
+    count: usize,
+}
+
+/// Native reentrant mutex exposed to Python as `Context._lock`.
+///
+/// Mirrors the subset of `threading.RLock`'s interface this codebase relies on
+/// (`acquire`/`release`/context-manager protocol), but is implemented with a
+/// plain `Mutex`+`Condvar` instead of a Python-level lock so acquiring/releasing
+/// it from Rust never round-trips through the interpreter. Blocking waits run
+/// under `Python::allow_threads` so the GIL is free for the owning thread to
+/// make progress and eventually release the lock.
+#[pyo3::pyclass(name = "_ContextLock", module = "ddtrace._trace.context", frozen)]
+pub struct ContextLock {
+    state: Mutex<RLockState>,
+    cv: Condvar,
+}
+
+impl ContextLock {
+    fn new() -> Self {
+        Self {
+            state: Mutex::new(RLockState::default()),
+            cv: Condvar::new(),
+        }
+    }
+
+    fn acquire_blocking(&self, py: Python<'_>) {
+        let me = thread::current().id();
+        {
+            let mut guard = self.state.lock().unwrap();
+            match guard.owner {
+                Some(owner) if owner == me => {
+                    guard.count += 1;
+                    return;
+                }
+                None => {
+                    guard.owner = Some(me);
+                    guard.count = 1;
+                    return;
+                }
+                _ => {}
+            }
+        }
+        py.detach(|| {
+            let mut guard = self.state.lock().unwrap();
+            loop {
+                match guard.owner {
+                    Some(owner) if owner == me => {
+                        guard.count += 1;
+                        return;
+                    }
+                    None => {
+                        guard.owner = Some(me);
+                        guard.count = 1;
+                        return;
+                    }
+                    _ => {
+                        guard = self.cv.wait(guard).unwrap();
+                    }
+                }
+            }
+        });
+    }
+
+    fn release_owned(&self) {
+        let me = thread::current().id();
+        let mut guard = self.state.lock().unwrap();
+        if guard.owner == Some(me) {
+            guard.count -= 1;
+            if guard.count == 0 {
+                guard.owner = None;
+                drop(guard);
+                self.cv.notify_all();
+            }
+        }
+    }
+}
+
+#[pyo3::pymethods]
+impl ContextLock {
+    #[new]
+    fn __new__() -> Self {
+        Self::new()
+    }
+
+    #[pyo3(signature = (blocking=true))]
+    fn acquire(&self, py: Python<'_>, blocking: bool) -> bool {
+        if blocking {
+            self.acquire_blocking(py);
+            true
+        } else {
+            let me = thread::current().id();
+            let mut guard = self.state.lock().unwrap();
+            match guard.owner {
+                Some(owner) if owner == me => {
+                    guard.count += 1;
+                    true
+                }
+                None => {
+                    guard.owner = Some(me);
+                    guard.count = 1;
+                    true
+                }
+                _ => false,
+            }
+        }
+    }
+
+    fn release(&self) {
+        self.release_owned();
+    }
+
+    fn __enter__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Self>> {
+        let py = slf.py();
+        slf.get().acquire_blocking(py);
+        Ok(slf.clone())
+    }
+
+    #[pyo3(signature = (*_args))]
+    fn __exit__(slf: &Bound<'_, Self>, _args: &Bound<'_, PyTuple>) -> PyResult<()> {
+        slf.get().release_owned();
+        Ok(())
+    }
+}
+
 struct LockGuard<'py> {
-    lock: Bound<'py, PyAny>,
+    lock: Bound<'py, ContextLock>,
 }
 
 impl<'py> LockGuard<'py> {
-    fn acquire(lock: Bound<'py, PyAny>) -> PyResult<Self> {
-        lock.call_method0("acquire")?;
-        Ok(Self { lock })
+    fn acquire(lock: Bound<'py, ContextLock>, py: Python<'_>) -> Self {
+        lock.get().acquire_blocking(py);
+        Self { lock }
     }
 }
 
 impl Drop for LockGuard<'_> {
     fn drop(&mut self) {
-        let _ = self.lock.call_method0("release");
+        self.lock.get().release_owned();
     }
 }
 
-#[pyo3::pyclass(name = "Context", module = "ddtrace.internal.native._native", weakref)]
+#[pyo3::pyclass(
+    name = "Context",
+    module = "ddtrace._trace.context",
+    weakref,
+    subclass
+)]
 #[derive(Default)]
 pub struct Context {
     pub trace_id: Option<u128>,
@@ -99,7 +222,7 @@ pub struct Context {
     metrics: Option<Py<PyDict>>,
     baggage: Option<Py<PyDict>>,
     span_links: Option<Py<PyList>>,
-    lock: Option<Py<PyAny>>,
+    lock: Option<Py<ContextLock>>,
     #[pyo3(get, set, name = "_is_remote")]
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
@@ -107,9 +230,9 @@ pub struct Context {
 }
 
 impl Context {
-    fn lock_bound<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn lock_bound<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, ContextLock>> {
         if self.lock.is_none() {
-            self.lock = Some(rlock_class(py)?.call0()?.unbind());
+            self.lock = Some(Py::new(py, ContextLock::new())?);
         }
         Ok(self.lock.as_ref().unwrap().bind(py).clone())
     }
@@ -151,7 +274,7 @@ impl Context {
         sampling_priority: Option<&Bound<'p, PyAny>>,
         meta: Option<&Bound<'p, PyDict>>,
         metrics: Option<&Bound<'p, PyDict>>,
-        lock: Option<&Bound<'p, PyAny>>,
+        lock: Option<&Bound<'p, ContextLock>>,
         span_links: Option<&Bound<'p, PyList>>,
         baggage: Option<&Bound<'p, PyDict>>,
         is_remote: bool,
@@ -188,7 +311,7 @@ impl Context {
         }
         let lock_obj = match lock {
             Some(l) => l.clone().unbind(),
-            None => rlock_class(py)?.call0()?.unbind(),
+            None => Py::new(py, ContextLock::new())?,
         };
         Ok(Self {
             trace_id: extract_trace_id(trace_id),
@@ -310,7 +433,7 @@ impl Context {
     }
 
     #[getter(_lock)]
-    fn get_lock<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    fn get_lock<'py>(&mut self, py: Python<'py>) -> PyResult<Bound<'py, ContextLock>> {
         self.lock_bound(py)
     }
 
@@ -330,7 +453,7 @@ impl Context {
         value: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<()> {
         let lock = self.lock_bound(py)?;
-        let _guard = LockGuard::acquire(lock)?;
+        let _guard = LockGuard::acquire(lock, py);
         let metrics = self.get_metrics(py);
         match value {
             None => del_item_if_present(&metrics, SAMPLING_PRIORITY_KEY)?,
@@ -348,7 +471,7 @@ impl Context {
     #[setter]
     fn set_dd_origin(&mut self, py: Python<'_>, value: Option<&Bound<'_, PyAny>>) -> PyResult<()> {
         let lock = self.lock_bound(py)?;
-        let _guard = LockGuard::acquire(lock)?;
+        let _guard = LockGuard::acquire(lock, py);
         let meta = self.get_meta(py);
         match value {
             None => del_item_if_present(&meta, ORIGIN_KEY)?,
@@ -377,7 +500,7 @@ impl Context {
     #[setter]
     fn set_dd_user_id(&mut self, py: Python<'_>, value: Option<&str>) -> PyResult<()> {
         let lock = self.lock_bound(py)?;
-        let _guard = LockGuard::acquire(lock)?;
+        let _guard = LockGuard::acquire(lock, py);
         let meta = self.get_meta(py);
         match value {
             None => del_item_if_present(&meta, USER_ID_KEY)?,
@@ -460,7 +583,7 @@ impl Context {
         value: &Bound<'_, PyAny>,
     ) -> PyResult<()> {
         let lock = self.lock_bound(py)?;
-        let _guard = LockGuard::acquire(lock)?;
+        let _guard = LockGuard::acquire(lock, py);
         self.get_baggage(py).set_item(key, value)
     }
 
@@ -478,13 +601,13 @@ impl Context {
 
     fn remove_baggage_item(&mut self, py: Python<'_>, key: &str) -> PyResult<()> {
         let lock = self.lock_bound(py)?;
-        let _guard = LockGuard::acquire(lock)?;
+        let _guard = LockGuard::acquire(lock, py);
         del_item_if_present(&self.get_baggage(py), key)
     }
 
     fn remove_all_baggage_items(&mut self, py: Python<'_>) -> PyResult<()> {
         let lock = self.lock_bound(py)?;
-        let _guard = LockGuard::acquire(lock)?;
+        let _guard = LockGuard::acquire(lock, py);
         self.get_baggage(py).clear();
         Ok(())
     }
@@ -505,7 +628,7 @@ impl Context {
         {
             let mut this = slf.borrow_mut();
             let l = this.lock_bound(py)?;
-            let _guard = LockGuard::acquire(l.clone())?;
+            let _guard = LockGuard::acquire(l.clone(), py);
             meta = this.get_meta(py);
             metrics = this.get_metrics(py);
             baggage = this.get_baggage(py);
@@ -556,7 +679,7 @@ impl Context {
     fn __enter__<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, Self>> {
         let py = slf.py();
         let lock = slf.borrow_mut().lock_bound(py)?;
-        lock.call_method0("acquire")?;
+        lock.get().acquire_blocking(py);
         Ok(slf.clone())
     }
 
@@ -564,7 +687,7 @@ impl Context {
     fn __exit__(slf: &Bound<'_, Self>, _args: &Bound<'_, PyTuple>) -> PyResult<()> {
         let py = slf.py();
         let lock = slf.borrow_mut().lock_bound(py)?;
-        lock.call_method0("release")?;
+        lock.get().release_owned();
         Ok(())
     }
 
@@ -579,7 +702,7 @@ impl Context {
         }
         let other = other.cast::<Self>()?;
         let lock = slf.borrow_mut().lock_bound(py)?;
-        let _guard = LockGuard::acquire(lock)?;
+        let _guard = LockGuard::acquire(lock, py);
 
         if slf.borrow().trace_id != other.borrow().trace_id {
             return Ok(false);
@@ -658,7 +781,7 @@ impl Context {
         self.baggage = Some(state.get_item(5)?.extract::<Bound<'_, PyDict>>()?.unbind());
         self.is_remote = state.get_item(6)?.extract()?;
         self.reactivate = state.get_item(7)?.extract()?;
-        self.lock = Some(rlock_class(py)?.call0()?.unbind());
+        self.lock = Some(Py::new(py, ContextLock::new())?);
         Ok(())
     }
 
