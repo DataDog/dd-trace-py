@@ -31,7 +31,6 @@ struct Span
     {
     }
 
-    // for testing
     bool operator==(const Span& other) const
     {
         return span_id == other.span_id && local_root_span_id == other.local_root_span_id &&
@@ -58,7 +57,6 @@ class SpanLinks
         return instance;
     }
 
-    // Delete Copy constructor and assignment operator to prevent copies
     SpanLinks(SpanLinks const&) = delete;
     SpanLinks& operator=(SpanLinks const&) = delete;
 
