@@ -60,6 +60,12 @@ if sys.platform == "linux":
             if provider is tracer.context_provider:
                 _sync_otel_thread_context(ctx)
 
+        # Value stored in core.root:
+        # True => The watcher is registered and publishes the context switches itself.
+        # False => The watcher could not be registered, so integrations have to publish the
+        #          switches they know about.
+        # None => Never set, because thread context synchronization is disabled or unsupported here,
+        #         so there is nothing to publish at all.
         core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, register_context_watcher())
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
         core.on(PYTHON_CONTEXT_SWITCH_EVENT, _sync_active_otel_thread_context)
