@@ -16,12 +16,11 @@ from ddtrace.llmobs.types import AgentManifest
 
 log = get_logger(__name__)
 
-# Names the manual path so a consumer can tell a hand-declared manifest from one an integration
-# read off a framework object. Set by the SDK; a caller-supplied framework is never read.
+# SDK-set, so a consumer can tell a hand-declared manifest from one read off a framework object.
 MANUAL_FRAMEWORK_NAME = "AgentObs SDK"
 
-# The keys build_manual_agent_manifest reads. The annotation path checks this before holding on to
-# a caller's mapping, so an agent declaring only a version costs nothing.
+# What build_manual_agent_manifest reads. Checked before the annotation path keeps a caller's
+# mapping, so a version-only agent costs nothing.
 MANUAL_MANIFEST_KEYS = frozenset({"name", "instructions", "model", "model_settings", "tools"})
 
 
@@ -172,12 +171,9 @@ def wire_value(value: Any, depth: int = 0, ancestors: tuple[int, ...] = (), budg
 def build_manual_agent_manifest(agent: Any) -> AgentManifest:
     """Build the manifest a caller declared through LLMObs.annotate(agent=...).
 
-    The framework integrations read a framework object; here every value came straight from the
-    caller and nothing validates the mapping before it arrives, so each field is gated on its own
-    type and unreportable values are dropped rather than raised. Sections are built independently so
-    one malformed field cannot blank the rest.
-
-    Never raises: the caller of this path drops the whole span event on an exception.
+    Every value is caller-supplied and unvalidated, so each field is gated on its own type and
+    unreportable values are dropped. Sections are independent so one bad field cannot blank the
+    rest. Never raises: the caller of this path drops the whole span event on an exception.
     """
     if not isinstance(agent, dict):
         return {}
@@ -192,15 +188,13 @@ def build_manual_agent_manifest(agent: Any) -> AgentManifest:
         except Exception:
             log.debug("failed to build manual agent manifest section %s", name, exc_info=True)
     try:
-        # Sections assign unconditionally so mypy can check every key name against the type; one
-        # prune here is what drops the fields that mean "not configured".
+        # Sections assign unconditionally so mypy checks every key name; this drops the blanks.
         manifest = prune_empty(manifest)
     except Exception:
         log.debug("failed to prune manual agent manifest", exc_info=True)
         return {}
     if not manifest:
-        # framework only labels where the rest of the document came from, so on its own it would
-        # render an empty manifest panel. An agent declaring nothing but a version lands here.
+        # framework alone would render an empty panel. A version-only agent lands here.
         return {}
     manifest["framework"] = MANUAL_FRAMEWORK_NAME
     return manifest
@@ -211,8 +205,7 @@ def _manual_labels(agent: dict[str, Any]) -> AgentManifest:
     fields: AgentManifest = {}
     name = agent.get("name")
     # AIDEV-NOTE: str-only throughout the manual path. The span encoder reprs what it cannot
-    # encode, so a non-str would ship as its repr rather than be dropped, and a repr of a caller
-    # object can carry anything the object holds.
+    # encode, and a caller object's repr can carry anything it holds.
     if isinstance(name, str):
         fields["name"] = name
     instructions = agent.get("instructions")
@@ -250,8 +243,7 @@ def _manual_tools(agent: dict[str, Any]) -> AgentManifest:
         if not isinstance(tool, dict):
             continue
         name = tool.get("name")
-        # A tool with no usable name cannot be identified once it ships, so it is dropped rather
-        # than emitted as an anonymous entry that pads the count.
+        # An unnamed tool is unidentifiable once it ships, so drop it rather than pad the count.
         if not isinstance(name, str) or not name:
             continue
         description = tool.get("description")
@@ -274,13 +266,12 @@ def _manual_tool_parameters(parameters: Any) -> dict[str, Any]:
     for param, spec in parameters.items():
         entry: dict[str, Any] = {}
         if isinstance(spec, dict):
-            # str-only for the reason given on _manual_labels: wire_value coerces a non-str rather
-            # than dropping it, so an int or a whole nested mapping would otherwise ship as the type.
+            # str-only per _manual_labels: wire_value coerces rather than drops, so an int or a
+            # nested mapping would otherwise ship as the type.
             declared_type = spec.get("type")
             if isinstance(declared_type, str):
                 entry["type"] = declared_type
-            # Omitted rather than false, so a required parameter is the only one carrying the key
-            # and the shape matches what the auto path emits.
+            # Omitted rather than false, matching the auto path.
             if spec.get("required") is True:
                 entry["required"] = True
         coerced[str(param)] = entry

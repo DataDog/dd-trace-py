@@ -771,12 +771,7 @@ class TestAgentManifestPrimitives:
 
 
 class TestManualAgentManifest:
-    """The manifest a caller declares by hand through LLMObs.annotate(agent=...).
-
-    The framework integrations read a framework object; here every value came straight from the
-    caller and nothing validates it on the way in, so these pin what is reported and what is
-    refused.
-    """
+    """The manifest a caller declares by hand: what is reported and what is refused."""
 
     def test_declared_configuration_is_reported(self):
         manifest = build_manual_agent_manifest(
@@ -832,7 +827,7 @@ class TestManualAgentManifest:
         assert build_manual_agent_manifest(agent) == {}
 
     def test_non_string_labels_are_dropped_not_repred(self):
-        """The span encoder reprs what it cannot encode, and a repr can carry whatever it holds."""
+        """A repr can carry whatever the object holds, so a non-str is dropped, not repr'd."""
 
         class Connection:
             def __repr__(self):
@@ -918,11 +913,7 @@ class TestManualAgentManifest:
         ]
 
     def test_tool_parameter_type_is_string_only(self):
-        """wire_value coerces rather than drops, so an ungated type ships whatever the caller set.
-
-        A nested mapping survives it intact, which is how a declared type could carry arbitrary
-        caller data into the manifest.
-        """
+        """wire_value coerces rather than drops, so an ungated type would ship a nested mapping."""
         manifest = build_manual_agent_manifest(
             {
                 "tools": [
@@ -953,11 +944,7 @@ class TestManualAgentManifest:
         assert manifest["tools"] == [{"name": "book"}]
 
     def test_manual_manifest_keys_match_the_builder(self):
-        """The annotation path checks this set before keeping a caller's mapping at all.
-
-        A key a section reads but this set omits would silently stop being reported, and the failure
-        would show up as a missing manifest rather than as an error.
-        """
+        """A key a section reads but this set omits would silently stop being reported."""
         declared = {
             "name": "travel_desk",
             "instructions": "Book travel.",
@@ -972,7 +959,7 @@ class TestManualAgentManifest:
         assert build_manual_agent_manifest({"version": "v1", "framework": "X"}) == {}
 
     def test_a_malformed_section_costs_only_that_section(self):
-        """This runs while the span event is assembled, so an escaping error would cost the span."""
+        """An escaping error would cost the whole span event, not just the manifest."""
 
         class ExplodingSettings(dict):
             def items(self):

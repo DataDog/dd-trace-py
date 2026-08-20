@@ -720,14 +720,11 @@ class LLMObs(Service):
                 llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = agent_annotation
             declared_agent = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
             if declared_agent:
-                # Built here rather than when the annotation ran, so a context wrapping many spans
-                # pays for the agent spans among them instead of all of them. Runs before
-                # llmobs_meta is read below, so the manifest is in place when the user processor's
-                # metadata is folded back in.
+                # Built here, not when the annotation ran, so a context wrapping many spans pays
+                # only for the agent spans among them. Must precede the llmobs_meta read below.
                 agent_manifest = build_manual_agent_manifest(declared_agent)
                 if agent_manifest:
-                    # dict() rather than a cast: the consumer takes a plain mapping, and a TypedDict
-                    # is not assignable to dict[str, Any] because a dict value is invariant.
+                    # dict(): a TypedDict is not assignable to dict[str, Any], values are invariant.
                     _annotate_llmobs_span_data(span, agent_manifest=dict(agent_manifest))
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
@@ -1942,11 +1939,9 @@ class LLMObs(Service):
         :param name: set to override the span name for any spans annotated within the returned context.
         :param agent: A dictionary declaring the agent running in this context, accepting
                       ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
-                      ``tools``. Can also be set using the ``ddtrace.llmobs.Agent`` class, which
-                      documents the full shape. ``version`` is set as an ``agent_version`` tag and
-                      the remaining keys as the agent's manifest, both on agent spans created
-                      within the context; other span kinds are unaffected. Every key is optional,
-                      and a value that cannot be reported is dropped rather than raising.
+                      ``tools``; see ``ddtrace.llmobs.Agent``. ``version`` is set as an
+                      ``agent_version`` tag and the rest as the agent's manifest, on agent spans
+                      only. All keys are optional; unreportable values are dropped, not raised.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2997,11 +2992,10 @@ class LLMObs(Service):
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
-                      ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``. Can
-                      also be set using the ``ddtrace.llmobs.Agent`` class, which documents the
-                      full shape. ``version`` is set as an ``agent_version`` tag and the remaining
-                      keys as the agent's manifest, both only on agent spans. Every key is
-                      optional, and a value that cannot be reported is dropped rather than raising.
+                      ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
+                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag and
+                      the rest as the agent's manifest, on agent spans only. All keys are optional;
+                      unreportable values are dropped, not raised.
         """
         error = None
         try:
@@ -3049,9 +3043,8 @@ class LLMObs(Service):
                     # Stashed rather than tagged: the span kind is not resolved yet.
                     span._set_ctx_item(AGENT_ANNOTATION, agent_version)
                 if isinstance(agent, dict) and not MANUAL_MANIFEST_KEYS.isdisjoint(agent):
-                    # Stashed unbuilt: the manifest is only worth building for an agent span, and
-                    # the kind is not known yet. Checking the keys first keeps a version-only
-                    # agent, the pre-existing call, from being held onto at all.
+                    # Stashed unbuilt: only agent spans need a manifest, and the kind is not known
+                    # yet. The key check keeps a version-only agent from being retained at all.
                     span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, agent)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:

@@ -67,8 +67,7 @@ class AgentInstructionResolver(TypedDict, total=False):
 class AgentTool(TypedDict, total=False):
     """One tool an agent declares it can call.
 
-    parameters maps a parameter name to its declared shape, ``{"type": ..., "required": True}``,
-    with required omitted when the parameter is optional.
+    parameters maps a name to ``{"type": ..., "required": True}``; required is omitted when false.
     """
 
     name: str
@@ -234,9 +233,8 @@ class Agent(TypedDict, total=False):
             Only a fixed set of generic parameters is reported; anything else is dropped.
         tools: list[AgentTool] - the tools the agent declares it can call.
 
-    `version` is set as an `agent_version` tag on the agent span only, never on its children. Every
-    other key is reported as the agent's manifest, likewise on the agent span only. Values that
-    cannot be reported are dropped rather than raising, so a malformed field never fails a trace.
+    `version` becomes an `agent_version` tag and the rest the agent's manifest, on the agent span
+    only, never on its children. Unreportable values are dropped rather than raising.
     """
 
     version: str

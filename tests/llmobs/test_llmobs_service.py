@@ -2154,10 +2154,8 @@ def test_agent_without_declared_configuration_reports_no_manifest(llmobs):
 
 
 def test_declared_agent_is_read_when_the_span_finishes(llmobs):
-    """The declaration is stashed unbuilt so that only agent spans pay to build it.
-
-    Reading it at finish is what makes that possible, so a later edit to the same mapping is the one
-    reported. version is still captured when the annotation runs, so the two can disagree.
+    """Stashed unbuilt and read at finish, so a later edit wins. version is read at annotate time,
+    so the two can disagree.
     """
     declared = {"version": "v1", "name": "before"}
     with llmobs.agent(name="test_agent") as span:
@@ -2170,7 +2168,7 @@ def test_declared_agent_is_read_when_the_span_finishes(llmobs):
 
 
 def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):
-    """The build runs while the span event is assembled, where an escaping error drops the event."""
+    """An escaping error during span assembly would drop the whole event."""
 
     class ExplodingSettings(dict):
         def items(self):
@@ -2184,10 +2182,8 @@ def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):
 
 
 def test_declared_agent_manifest_replaces_an_integration_built_one(llmobs):
-    """Precedence: the hand-declared manifest wins over one an integration already built.
-
-    It is built and applied at span finalization, after any integration wrote its own. This test
-    exists to pin that direction, not because either direction is obviously right.
+    """Precedence: the hand-declared manifest wins, being built at finalization. Pins the
+    direction; neither is obviously right.
     """
     with llmobs.agent(name="test_agent") as span:
         _annotate_llmobs_span_data(span, agent_manifest={"framework": "CrewAI", "name": "auto_agent"})
