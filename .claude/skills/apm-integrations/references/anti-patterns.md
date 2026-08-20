@@ -18,6 +18,30 @@ produce orphaned spans after `unpatch()`.
 **Patching before import completes** -- Deferred/lazy-loaded classes may not
 exist at `patch()` time. The wrap succeeds but wraps a stale reference.
 
+**Guarding a lazy submodule with an attribute walk** -- Packages that load
+submodules lazily (PEP 562 `__getattr__`) report a real module as missing until
+something imports it. Walking the dotted path off the root package, as
+`check_module_path(pkg, "a.b.c.func")` does, then returns `False` and `patch()`
+skips a wrap that would have worked -- no error, no spans. Import the module
+explicitly instead, and check the symbol on it:
+
+```python
+try:
+    mod = importlib.import_module("pkg.a.b.c")
+except ImportError:
+    mod = None
+if mod is not None and hasattr(mod, "func"):
+    wrap("pkg", "a.b.c.func", _traced_func)
+```
+
+The explicit import also binds the intermediate attributes, so wrapt can resolve
+the dotted path. See `ddtrace/contrib/internal/google_adk/patch.py`.
+
+**Guarding `unpatch()` on the symbol instead of the wrapper** -- `unwrap()`
+raises when an attribute was never wrapped. A symbol that `patch()` skipped can
+be importable by the time `unpatch()` runs, so guard on `iswrapped(mod, name)`,
+not on whether the symbol exists.
+
 ## Configuration
 
 **Forgetting `config._add()` at module level** -- Config must be registered

@@ -1,0 +1,18 @@
+---
+fixes:
+  - |
+    google_adk: Fixes an issue where patching the integration raises ``AttributeError`` with
+    ``google-adk`` 2.7.0 and later, which removed the ``__call_tool_live`` function the
+    integration wrapped. Applications calling ``LLMObs.enable()`` or
+    ``ddtrace.patch(raise_errors=True, google_adk=True)`` failed at startup, and under
+    ``ddtrace-run`` the Google ADK integration was disabled instead.
+  - |
+    google_adk: Fixes an issue where calls to streaming tools raise ``IndexError`` with
+    ``google-adk`` 2.7.0 and later, which sends those calls through the same dispatcher as
+    non-streaming tools. On those versions the tool span now records the dispatch only, so it
+    is short and carries no output value; tracing the stream itself will follow in a later
+    release. On ``google-adk`` 2.6.x and earlier, streaming tool spans are unchanged.
+  - |
+    google_adk: Fixes an issue where a tool call returns an un-awaited coroutine instead of the
+    tool result when the calling agent cannot be identified, which sent an unusable tool
+    response back to the model.
