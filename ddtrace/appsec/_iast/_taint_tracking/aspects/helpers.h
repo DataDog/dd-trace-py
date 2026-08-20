@@ -105,6 +105,15 @@ has_pyerr();
 std::string
 has_pyerr_as_string();
 
+/**
+ * @brief Clear a pending Python error and return its description.
+ *
+ * Unlike has_pyerr_as_string(), which leaves the error set, this takes it. Use it for errors
+ * raised by IAST's own propagation work, which must never reach the instrumented application.
+ */
+std::string
+take_pyerr_as_string();
+
 struct EVIDENCE_MARKS
 {
     static constexpr const char* BLANK = "";
@@ -365,11 +374,15 @@ Example calling:
     });
 */
 
+// Discards every Python exception raised in the block, KeyboardInterrupt and SystemExit included:
+// the call sites return different types, so there is no uniform way to signal failure instead.
 #define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
     } catch (py::error_already_set & e) {                                                                              \
-        e.restore();                                                                                                   \
+        /* Not restored: RETURNRESULT yields a valid result, and a result plus a pending error is */                   \
+        /* "SystemError: returned a result with an error set". The ctor already fetched it. */                         \
+        iast_taint_log_error(NAME ". " + std::string(e.what()));                                                       \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \

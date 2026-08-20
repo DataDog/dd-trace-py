@@ -15,7 +15,9 @@ else:
 
 def shutdown(request):
     # Endpoint used to flush traces to the agent when doing snapshots.
-    tracer.shutdown()
+    # Bounded because the default never gives up, and gevent can park an untimed wait forever.
+    # Stays under the caller's 10s read timeout in appsec_utils.
+    tracer.shutdown(timeout=5)
     return HttpResponse(status=200)
 
 
