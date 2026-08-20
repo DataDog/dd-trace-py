@@ -192,6 +192,13 @@ if sys.platform == "linux":
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
+    def update_otel_thread_context_from_context(context: ContextData, trace_flags: int) -> None:
+        """Update the OTel thread context from an active trace Context.
+
+        Invalid Context identifiers detach the current thread context. The local root span ID is
+        published as zero because a Context does not retain local root span identity.
+        """
+        ...
     def detach_otel_thread_context() -> None:
         """Detach the OTel thread context from the current thread."""
         ...
