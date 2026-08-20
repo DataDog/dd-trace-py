@@ -77,6 +77,41 @@ class TestPatching(SubprocessTestCase):
         _monkey._patch_all()
         assert "httplib" in _monkey._PATCHED_MODULES
 
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_MICROVM_IMAGE_ARN=""))
+    def test_patch_all_http_server_disabled_outside_microvm(self):
+        _monkey._patch_all()
+        assert _monkey.PATCH_MODULES["http_server"] is False
+        assert "http_server" not in _monkey._PATCHED_MODULES
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_MICROVM_IMAGE_ARN="arn:aws:lambda:microvm-image:test"))
+    def test_patch_all_http_server_enabled_in_microvm(self):
+        _monkey._patch_all()
+        assert _monkey.PATCH_MODULES["http_server"] is True
+        assert "http_server" in _monkey._PATCHED_MODULES
+
+    @run_in_subprocess(
+        env_overrides=dict(
+            AWS_LAMBDA_MICROVM_IMAGE_ARN="arn:aws:lambda:microvm-image:test",
+            DD_TRACE_HTTP_SERVER_ENABLED="false",
+        )
+    )
+    def test_patch_all_http_server_env_override_disabled_in_microvm(self):
+        _monkey._patch_all()
+        assert _monkey.PATCH_MODULES["http_server"] is True
+        assert "http_server" not in _monkey._PATCHED_MODULES
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_MICROVM_IMAGE_ARN="", DD_TRACE_HTTP_SERVER_ENABLED="true"))
+    def test_patch_all_http_server_env_override_enabled_outside_microvm(self):
+        _monkey._patch_all()
+        assert _monkey.PATCH_MODULES["http_server"] is False
+        assert "http_server" in _monkey._PATCHED_MODULES
+
+    @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_MICROVM_IMAGE_ARN=""))
+    def test_patch_http_server_manual_patch_enabled_outside_microvm(self):
+        _monkey.patch(http_server=True)
+        assert _monkey.PATCH_MODULES["http_server"] is False
+        assert "http_server" in _monkey._PATCHED_MODULES
+
     @run_in_subprocess(env_overrides=dict(DD_MODEL_LAB_ENABLED="true"))
     def test_patch_all_env_override_model_lab_enables_mlflow(self):
         _monkey._patch_all()

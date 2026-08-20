@@ -75,7 +75,7 @@ PATCH_MODULES = {
     "aiopg": True,
     "aiobotocore": False,
     "httplib": False,
-    "http_server": True,
+    "http_server": bool(env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN")),
     "urllib3": False,
     "vertexai": True,
     "vertica": True,
