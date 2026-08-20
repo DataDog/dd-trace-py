@@ -113,6 +113,7 @@ def wrapped_request_A7F2C6E4D3B10958(original_request_callable, instance, args, 
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
     return original_request_callable(*args, **kwargs)
 
+
 def wrapped_response(original_response_callable, instance, args, kwargs):
     response = original_response_callable(*args, *kwargs)
     env = _get_asm_context()

@@ -32,10 +32,9 @@ class TestTracedCursor(TracerTestCase):
 
     def test_query_is_blocked_before_execution(self):
         for method in ("execute", "executemany"):
-            with mock.patch.object(core, "has_listeners", return_value=True):
-                with mock.patch.object(core, "dispatch_event", side_effect=BlockingException):
-                    with pytest.raises(BlockingException):
-                        getattr(TracedCursor(self.cursor, cfg={}), method)("SELECT 1")
+            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException):
+                with pytest.raises(BlockingException):
+                    getattr(TracedCursor(self.cursor, cfg={}), method)("SELECT 1")
 
             getattr(self.cursor, method).assert_not_called()
 
