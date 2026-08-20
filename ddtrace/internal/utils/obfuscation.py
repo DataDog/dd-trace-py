@@ -91,14 +91,18 @@ def _obfuscation_runtime_loaded() -> bool:
 
         _obfuscation_watchdog_installed = True
 
-        # Snapshot the keys: sys.modules can mutate (e.g. a concurrent
-        # import) as we iterate it. This is the one, unavoidable full scan:
-        # from here on, the watchdog below observes new imports instead of us
-        # re-scanning.
-        if any(name.startswith(_RUNTIME_MODULE_PREFIXES) for name in tuple(sys.modules)):
-            _mark_obfuscation_runtime_seen()
-            return True
-
+        # Install the watchdog *before* scanning sys.modules, not after: a
+        # concurrent `import pyarmor_runtime_...` that finds its loader via
+        # the pre-existing finders (i.e. started before our watchdog joined
+        # sys.meta_path) will never be wrapped by it, since find_spec() is
+        # only consulted once, at the very start of an import. Installing
+        # first means any such import that finishes after this point is
+        # still observed via after_import(); scanning second catches any
+        # import that had already fully landed in sys.modules beforehand.
+        # This narrows the race to the (unavoidable, and here irreducible
+        # without hooking CPython's import lock) sliver between another
+        # thread's finder lookup and our watchdog joining meta_path, which is
+        # consistent with this module's best-effort, not-a-guarantee scope.
         class _ObfuscationRuntimeWatchdog(BaseModuleWatchdog):
             def after_import(self, module: ModuleType) -> None:
                 name = getattr(module, "__name__", None)
@@ -107,6 +111,12 @@ def _obfuscation_runtime_loaded() -> bool:
 
         _obfuscation_runtime_watchdog_cls = _ObfuscationRuntimeWatchdog
         _obfuscation_runtime_watchdog_cls.install()
+
+        # Snapshot the keys: sys.modules can mutate (e.g. a concurrent
+        # import) as we iterate it.
+        if _runtime_seen() or any(name.startswith(_RUNTIME_MODULE_PREFIXES) for name in tuple(sys.modules)):
+            _mark_obfuscation_runtime_seen()
+            return True
 
         return False
 
