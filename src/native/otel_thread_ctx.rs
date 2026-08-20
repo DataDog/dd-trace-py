@@ -16,7 +16,7 @@ fn update_thread_context(trace_id: u128, span_id: u64, trace_flags: u8, local_ro
 }
 
 #[pyfunction]
-pub fn update_otel_thread_context(
+pub fn update_otel_thread_context_from_span(
     span: PyRef<'_, SpanData>,
     local_root: Option<PyRef<'_, SpanData>>,
     trace_flags: u8,

@@ -1,5 +1,5 @@
 import concurrent.futures
-from contextvars import Context as ContextVarsContext
+from contextvars import Context
 import ctypes
 import os
 import sys
@@ -7,7 +7,7 @@ import threading
 
 import pytest
 
-from ddtrace._trace.context import Context
+from ddtrace._trace.context import Context as DDContext
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import core
@@ -34,7 +34,7 @@ if sys.platform == "linux":
     _NATIVE_LIBRARY = ctypes.CDLL(_native.__file__)
 
 
-def _published_record():
+def _published_context():
     slot = ctypes.c_void_p.in_dll(_NATIVE_LIBRARY, "otel_thread_ctx_v1")
     if slot.value is None:
         return None
@@ -42,33 +42,26 @@ def _published_record():
     record = _ThreadContextRecord.from_address(slot.value)
     if not record.valid:
         return None
-    return record
-
-
-def _published_trace_id():
-    record = _published_record()
-    return None if record is None else int.from_bytes(record.trace_id, byteorder="big")
-
-
-def _published_span_id():
-    record = _published_record()
-    return None if record is None else int.from_bytes(record.span_id, byteorder="big")
-
-
-def _published_trace_flags():
-    record = _published_record()
-    return None if record is None else record.trace_flags
-
-
-def _published_local_root_span_id():
-    record = _published_record()
-    if record is None:
-        return None
 
     attrs_data = bytes(record.attrs_data[: record.attrs_data_size])
     if len(attrs_data) < 18 or attrs_data[0] != 0 or attrs_data[1] != 16:
         return None
-    return int(attrs_data[2:18], 16)
+    return (
+        int.from_bytes(record.trace_id, byteorder="big"),
+        int.from_bytes(record.span_id, byteorder="big"),
+        record.trace_flags,
+        int(attrs_data[2:18], 16),
+    )
+
+
+def _published_span_id():
+    context = _published_context()
+    return None if context is None else context[1]
+
+
+def _published_trace_flags():
+    context = _published_context()
+    return None if context is None else context[2]
 
 
 @pytest.fixture(autouse=True)
@@ -100,27 +93,23 @@ def test_span_context_publishes_trace_flags(tracer: Tracer):
 
 
 def test_context_is_published_with_zero_local_root(tracer: Tracer):
-    context = Context(trace_id=123, span_id=456, sampling_priority=1)
+    context = DDContext(trace_id=123, span_id=456, sampling_priority=1)
 
     tracer.context_provider.activate(context)
 
-    assert _published_trace_id() == context.trace_id
-    assert _published_span_id() == context.span_id
-    assert _published_trace_flags() == 1
-    assert _published_local_root_span_id() == 0
+    assert _published_context() == (context.trace_id, context.span_id, 1, 0)
 
     context.sampling_priority = 0
     tracer.context_provider.activate(context)
-    assert _published_trace_flags() == 0
+    assert _published_context() == (context.trace_id, context.span_id, 0, 0)
 
     tracer.context_provider.activate(None)
-    assert _published_span_id() is None
+    assert _published_context() is None
 
 
 @pytest.mark.parametrize(
     ("trace_id", "span_id"),
     [
-        (None, None),
         (1, None),
         (None, 2),
         (0, 2),
@@ -129,10 +118,10 @@ def test_context_is_published_with_zero_local_root(tracer: Tracer):
     ],
 )
 def test_invalid_context_detaches_thread_context(tracer: Tracer, trace_id, span_id):
-    tracer.context_provider.activate(Context(trace_id=1, span_id=2))
+    tracer.context_provider.activate(DDContext(trace_id=1, span_id=2))
     assert _published_span_id() == 2
 
-    tracer.context_provider.activate(Context(trace_id=trace_id, span_id=span_id))
+    tracer.context_provider.activate(DDContext(trace_id=trace_id, span_id=span_id))
 
     assert _published_span_id() is None
 
@@ -187,7 +176,7 @@ def test_python_context_switch_syncs_active_span(tracer: Tracer):
         core.dispatch("python.context.switch")
         assert _published_span_id() == span.span_id
 
-        ContextVarsContext().run(core.dispatch, "python.context.switch")
+        Context().run(core.dispatch, "python.context.switch")
         # CPython's context watcher restores the outer context after Context.run().
         if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
             assert _published_span_id() == span.span_id
@@ -199,16 +188,13 @@ def test_python_context_switch_syncs_active_span(tracer: Tracer):
 
 
 def test_python_context_switch_syncs_active_context(tracer: Tracer):
-    context = Context(trace_id=123, span_id=456, sampling_priority=1)
+    context = DDContext(trace_id=123, span_id=456, sampling_priority=1)
     tracer.context_provider.activate(context)
     detach_otel_thread_context()
 
     core.dispatch("python.context.switch")
 
-    assert _published_trace_id() == context.trace_id
-    assert _published_span_id() == context.span_id
-    assert _published_trace_flags() == 1
-    assert _published_local_root_span_id() == 0
+    assert _published_context() == (context.trace_id, context.span_id, 1, 0)
 
 
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):

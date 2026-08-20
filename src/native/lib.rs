@@ -71,7 +71,7 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(target_os = "linux")]
     {
         m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::update_otel_thread_context
+            otel_thread_ctx::update_otel_thread_context_from_span
         ))?;
         m.add_wrapped(wrap_pyfunction!(
             otel_thread_ctx::update_otel_thread_context_from_context

@@ -184,7 +184,7 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
+    def update_otel_thread_context_from_span(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
         Update the OTel thread context from the active span and its local root span.
         :param span: The active span.
