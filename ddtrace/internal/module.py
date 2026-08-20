@@ -770,8 +770,12 @@ def _exec_lazy_init(f: FunctionType, module_globals: dict[str, t.Any]) -> None:
         if frame.f_code is code and event in ("line", "return"):
             # Materialize a snapshot (PEP 667) so locals survive under pytest/coverage.
             frame_locals.update(dict(frame.f_locals))
-        # Do not forward to old_trace here: pytest/coverage often reinstall their
-        # own tracer on "call" and would prevent us from seeing the return event.
+        if old_trace is not None:
+            old_trace(frame, event, arg)
+            # pytest/coverage tracers may reinstall themselves via sys.settrace() on
+            # "call"; reclaim our handler so we still see line/return for the init fn.
+            if sys.gettrace() is not _trace:
+                sys.settrace(_trace)
         return _trace
 
     sys.settrace(_trace)
