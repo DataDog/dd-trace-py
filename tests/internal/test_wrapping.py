@@ -917,6 +917,116 @@ def test_wrapping_context_exc_on_return():
     assert not wc.exited, "__exit__ must not run when __return__ itself is the failure"
 
 
+def test_wrapping_context_mid_call_registration():
+    """Registering a new context on a function while a call is in flight must not crash that call.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/19372
+
+    _UniversalWrappingContext used to read its (mutable) list of contexts twice per call: once on
+    entry, once on exit/return. register() can mutate that list in between if a new context is
+    wrapped onto the same function while a call is in flight. A context added this way was never
+    entered for that call, so exiting it crashed with AttributeError in _pop_storage. The fix
+    freezes the list of contexts on entry so that exit/return only ever see contexts that were
+    actually entered.
+    """
+    import threading
+
+    class WrappingContextA(DummyWrappingContext):
+        pass
+
+    class WrappingContextB(DummyWrappingContext):
+        pass
+
+    in_call = threading.Event()
+    released = threading.Event()
+
+    def foo(x):
+        in_call.set()
+        released.wait(5)
+        return x * 2
+
+    wc_a = WrappingContextA(foo)
+    wc_a.wrap()
+
+    results = []
+
+    def call():
+        results.append(foo(21))
+
+    thread = threading.Thread(target=call)
+    thread.start()
+    in_call.wait(5)
+
+    # Register a second context while the call above is still in flight.
+    wc_b = WrappingContextB(foo)
+    wc_b.wrap()
+
+    released.set()
+    thread.join()
+
+    assert results == [42]
+    assert wc_a.entered
+    assert wc_a.return_value == 42
+    assert not wc_a.exited
+
+    # wc_b was registered after the in-flight call had already taken its snapshot of contexts, so
+    # it must not have taken part in that call.
+    assert not wc_b.entered
+    assert wc_b.return_value is NOTSET
+    assert not wc_b.exited
+
+
+def test_wrapping_context_mid_call_registration_does_not_mask_exception():
+    """A real exception from the wrapped function must not be replaced by an AttributeError.
+
+    Regression for: https://github.com/DataDog/dd-trace-py/issues/19372
+
+    Same root cause as test_wrapping_context_mid_call_registration, but on the exception path: the
+    AttributeError raised while exiting an un-entered context used to shadow the application's own
+    exception.
+    """
+    import threading
+
+    class WrappingContextA(DummyWrappingContext):
+        pass
+
+    class WrappingContextB(DummyWrappingContext):
+        pass
+
+    in_call = threading.Event()
+    released = threading.Event()
+
+    def foo(x):
+        in_call.set()
+        released.wait(5)
+        raise ValueError("the real error")
+
+    wc_a = WrappingContextA(foo)
+    wc_a.wrap()
+
+    errors = []
+
+    def call():
+        try:
+            foo(21)
+        except BaseException as e:
+            errors.append(e)
+
+    thread = threading.Thread(target=call)
+    thread.start()
+    in_call.wait(5)
+
+    # Register a second context while the call above is still in flight.
+    WrappingContextB(foo).wrap()
+
+    released.set()
+    thread.join()
+
+    assert len(errors) == 1
+    assert isinstance(errors[0], ValueError)
+    assert errors[0].args == ("the real error",)
+
+
 def test_wrapping_context_priority():
     class HighPriorityWrappingContext(DummyWrappingContext):
         def __enter__(self):

@@ -19,6 +19,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
+_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
 
 class DDSketch:
     def __init__(self): ...
@@ -173,6 +174,14 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     :param data: The tracer configuration to store.
     """
     ...
+
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    def register_context_watcher() -> bool:
+        """Register the Python context watcher if a watcher slot is available."""
+        ...
+    def is_context_watcher_registered() -> bool:
+        """Return whether the Python context watcher is registered."""
+        ...
 
 if sys.platform == "linux":
     def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
@@ -640,6 +649,9 @@ class TraceExporterBuilder:
         :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
         """
         ...
+    def set_tracer_tags(self, tracer_tags: list[str]) -> TraceExporterBuilder:
+        """Set tracer tags on the OTLP metrics resource."""
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -707,6 +719,10 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def set_additional_metric_tag_keys(self, tag_keys: list[str]) -> TraceExporterBuilder:
+        """Set span tag keys included in computed stats."""
+        ...
 
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """
@@ -992,6 +1008,30 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
+class ContextData:
+    trace_id: Optional[int]
+    span_id: Optional[int]
+    _meta: dict[str, str]
+    _metrics: dict[str, Any]
+    _baggage: dict[str, Any]
+    _span_links: list[Any]
+    _is_remote: bool
+    _reactivate: bool
+
+    def __new__(
+        cls: type[_ContextDataT],
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
+        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        meta: Optional[dict[str, str]] = None,
+        metrics: Optional[dict[str, Any]] = None,
+        lock: Optional[Any] = None,  # placeholder for Context.__init__
+        span_links: Optional[list[Any]] = None,
+        baggage: Optional[dict[str, Any]] = None,
+        is_remote: bool = True,
+    ) -> _ContextDataT: ...
+
 class SpanData:
     name: str
     service: Optional[str]
@@ -1027,6 +1067,8 @@ class SpanData:
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    @property
+    def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
@@ -1137,6 +1179,18 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def process_metrics() -> tuple[int, int, int, int, int, int]:
+    """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
+
+    :return: A tuple of (cpu_time_sys_ns, cpu_time_user_ns, ctx_switches_voluntary,
+        ctx_switches_involuntary, num_threads, rss_bytes). The ctx-switch fields are
+        negative when unavailable on the current platform.
+    """
+    ...
+
+def total_memory_bytes() -> int:
+    """Return total physical RAM plus swap, in bytes."""
+    ...
 
 class config:
     """Native config module for tracer configuration managed in Rust."""

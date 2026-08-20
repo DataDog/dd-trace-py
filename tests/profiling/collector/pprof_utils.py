@@ -285,6 +285,17 @@ def parse_newest_profile(
     return profile
 
 
+def get_internal_metadata_files(filename_prefix: str) -> list[str]:
+    """Internal metadata files with the given prefix (which includes the pid), oldest upload first.
+
+    Files are named <filename_prefix>.<counter>.internal_metadata.json without
+    padding, so a lexicographic sort would place upload 10 before upload 2.
+    """
+    files = glob.glob(filename_prefix + ".*.internal_metadata.json")
+    files.sort(key=lambda f: int(f.rsplit(".", 3)[-3]))
+    return files
+
+
 def get_sample_type_index(profile: pprof_pb2.Profile, value_type: str) -> int:
     return next(
         i for i, sample_type in enumerate(profile.sample_type) if profile.string_table[sample_type.type] == value_type
@@ -357,6 +368,29 @@ def get_location_from_id(profile: pprof_pb2.Profile, location_id: int) -> StackL
     filename = profile.string_table[function.filename]
     line_no = line.line
     return StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+
+def get_samples_with_function(
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], function_name: str
+) -> list[pprof_pb2.Sample]:
+    return [
+        sample
+        for sample in samples
+        if any(
+            get_location_from_id(profile, location_id).function_name == function_name
+            for location_id in sample.location_id
+        )
+    ]
+
+
+def get_str_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[str]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else profile.string_table[label.str]
+
+
+def get_num_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[int]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else label.num
 
 
 def assert_lock_events_of_type(
