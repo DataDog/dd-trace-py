@@ -71,6 +71,8 @@ class StackInfo
     // correlate stack and lock samples on the timeline.
     uint64_t task_id;
     bool on_cpu;
+    // Logical runtimes populate this while unwinding. The default preserves physical-thread span fallback when they do
+    // not provide logical attribution.
     Datadog::SpanContext span_context;
     FrameStack stack;
 

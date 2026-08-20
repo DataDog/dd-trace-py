@@ -13,6 +13,7 @@ pytestmark = pytest.mark.skipif(not stack.is_available, reason="stack profiler n
 
 
 def test_current_task_provider_requires_native_loop_registration(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Require native loop registration before routing an activation to a task mapping."""
     task = mock.Mock()
     monkeypatch.setattr(profiling_asyncio, "get_running_loop", lambda: mock.sentinel.loop)
     monkeypatch.setattr(profiling_asyncio, "current_task", lambda: task)
@@ -28,6 +29,7 @@ def test_current_task_provider_requires_native_loop_registration(monkeypatch: py
 
 
 def test_completed_task_clears_mapping_before_object_finalization(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove task attribution promptly on completion and outside the task's inherited Context."""
     cleared = []
     monkeypatch.setattr(profiling_asyncio, "_clear_native_task_span", lambda task_id: cleared.append(task_id))
 
@@ -51,6 +53,7 @@ def test_completed_task_clears_mapping_before_object_finalization(monkeypatch: p
 
 @pytest.mark.subprocess()
 def test_nested_creation_wrappers_publish_task_only_once() -> None:
+    """Publish one task mapping when nested asyncio creation hooks observe the same task."""
     import asyncio as aio
     from unittest import mock
 
@@ -70,6 +73,8 @@ def test_nested_creation_wrappers_publish_task_only_once() -> None:
 
 
 def test_fork_reset_detaches_finalizers() -> None:
+    """Discard parent-owned task finalizers in the forked child."""
+
     class Task:
         def add_done_callback(self, callback, *, context):
             self.callback = callback

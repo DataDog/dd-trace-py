@@ -49,6 +49,7 @@ def _info(span_id: int, local_root_span_id: typing.Optional[int] = None) -> _spa
 
 
 def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear physical-thread attribution when the tracing context is deactivated."""
     cleared = []
     monkeypatch.setattr(_span_links.stack, "clear_span", lambda: cleared.append(True))
 
@@ -59,6 +60,7 @@ def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.Monk
 
 
 def test_span_activation_uses_highest_priority_logical_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Let the highest-priority logical runtime own the current span activation."""
     linked = []
     monkeypatch.setattr(_span_links.stack, "link_logical_span", lambda *args: linked.append(args))
     monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: pytest.fail("unexpected thread fallback"))
@@ -84,6 +86,8 @@ def test_span_activation_uses_highest_priority_logical_provider(monkeypatch: pyt
 
 
 def test_provider_failure_uses_next_provider() -> None:
+    """Continue to lower-priority logical runtimes when a provider fails."""
+
     def broken_provider():
         raise RuntimeError("provider failed")
 
@@ -95,6 +99,7 @@ def test_provider_failure_uses_next_provider() -> None:
 
 
 def test_logical_detachment_does_not_clear_thread_link(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Clear logical attribution without disturbing the physical thread mapping."""
     linked = []
     cleared = []
     monkeypatch.setattr(_span_links.stack, "link_logical_span", lambda *args: linked.append(args))
@@ -111,6 +116,7 @@ def test_logical_detachment_does_not_clear_thread_link(monkeypatch: pytest.Monke
 
 
 def test_inherited_context_seeds_logical_span_for_current_generation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Accept inherited context only in the profiler lifecycle that created it."""
     linked = []
     cleared = []
     monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: None)
@@ -131,6 +137,7 @@ def test_inherited_context_seeds_logical_span_for_current_generation(monkeypatch
 
 
 def test_inherited_context_rejects_finished_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Reject inherited context after its source span has finished."""
     linked = []
     cleared = []
     monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: None)
@@ -149,6 +156,7 @@ def test_inherited_context_rejects_finished_span(monkeypatch: pytest.MonkeyPatch
 
 
 def test_postfork_reset_invalidates_all_inherited_span_link_state(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Invalidate native mappings and copied ContextVar state after a fork reset."""
     resets = []
     monkeypatch.setattr(_span_links.stack, "reset_span_links", lambda: resets.append(True))
 
@@ -163,6 +171,7 @@ def test_postfork_reset_invalidates_all_inherited_span_link_state(monkeypatch: p
 
 
 def test_collector_postfork_reset_restores_active_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Restore native loop registration before republishing the child's active span."""
     active = Context(trace_id=1, span_id=701)
     tracer = Mock()
     tracer.context_provider.active.return_value = active
@@ -178,6 +187,7 @@ def test_collector_postfork_reset_restores_active_span(monkeypatch: pytest.Monke
 
 @pytest.mark.skipif(sys.version_info >= (3, 12), reason="safe ContextVar setter is only needed before Python 3.12")
 def test_active_span_link_uses_safe_contextvar_set(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Use the crash-safe ContextVar setter on affected Python versions."""
     calls = []
     monkeypatch.setattr(_span_links, "safe_contextvar_set", lambda variable, value: calls.append((variable, value)))
     value = _span_links._SpanLinkContext(1, _span_links._SpanInfo(2, 3, "web"), None)

@@ -1,4 +1,10 @@
 # -*- encoding: utf-8 -*-
+"""Publish tracing attribution for asyncio tasks sampled independently from their event-loop thread.
+
+Task-creation hooks seed native task links from inherited profiler ContextVar state. Span activations update the
+current task through the shared provider, so mappings remain correct across scheduler switches without a switch hook.
+"""
+
 from __future__ import annotations
 
 import contextvars
@@ -27,6 +33,7 @@ from ddtrace.profiling import _span_links
 
 ASYNCIO_IMPORTED: bool = False
 _TASK_CONTEXT_IS_READABLE = sys.version_info >= (3, 12)
+# The finalizer registry both deduplicates nested creation hooks and owns cleanup until each task completes.
 _task_span_finalizers: dict[int, weakref.finalize[..., typing.Any]] = {}
 
 
@@ -44,6 +51,7 @@ def _finalize_task_span(task_id: int) -> None:
 
 
 def _ensure_task_span_finalizer(task: asyncio.Task[typing.Any]) -> bool:
+    """Install prompt and GC-fallback cleanup, returning whether attribution can safely be retained."""
     task_id = id(task)
     if task_id in _task_span_finalizers:
         return True
@@ -79,6 +87,7 @@ def _track_asyncio_loop(thread_id: int, loop: typing.Optional[asyncio.AbstractEv
 
 
 def _current_task_span_target() -> typing.Optional[_span_links.LogicalSpanTarget]:
+    """Return the current task only when the native sampler can render its logical stack."""
     if get_running_loop() is None:
         return None
     thread_id = ddtrace_threading.current_thread().ident
@@ -108,6 +117,7 @@ def _publish_task_span(
     requested_context: typing.Optional[contextvars.Context],
     had_custom_task_factory: bool,
 ) -> None:
+    """Seed a task link from its actual or verifiably inherited profiler context."""
     task_type = getattr(sys.modules.get("asyncio"), "Task", None)
     task_id = id(task)
     if task_type is None or not isinstance(task, task_type) or task_id in _task_span_finalizers:
@@ -141,6 +151,7 @@ def _call_and_publish_task(
     kwargs: dict[str, typing.Any],
     loop: typing.Optional[asyncio.AbstractEventLoop],
 ) -> asyncio.Task[typing.Any]:
+    """Preserve task creation semantics, then publish attribution as a best-effort side effect."""
     had_custom_task_factory = loop is None or _has_custom_task_factory(loop)
     task = f(*args, **kwargs)
     _publish_task_span(
@@ -177,6 +188,7 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
 
 
 def link_existing_loop_to_current_thread() -> None:
+    """Restore native loop registration when profiling starts late or continues after fork."""
     global ASYNCIO_IMPORTED
 
     # Only proceed if asyncio is actually imported and available

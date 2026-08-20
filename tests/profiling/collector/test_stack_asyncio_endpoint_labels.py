@@ -13,6 +13,7 @@ from tests.profiling.collector import test_utils
     err=None,
 )
 def test_stack_keeps_asyncio_task_endpoints_separate():
+    """Keep concurrent tasks associated with their own trace endpoints."""
     import asyncio
     import os
     import time
@@ -78,6 +79,7 @@ def test_stack_keeps_asyncio_task_endpoints_separate():
     err=None,
 )
 def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
+    """Never borrow a traced task's endpoint for an untraced task on the same thread."""
     import asyncio
     import os
     import time
@@ -141,6 +143,7 @@ def test_stack_does_not_use_thread_endpoint_for_untraced_asyncio_task():
     err=None,
 )
 def test_stack_respects_explicit_empty_child_task_context():
+    """Honor an explicit empty child Context instead of inheriting the creator's endpoint."""
     import asyncio
     import contextvars
     import os
@@ -192,6 +195,7 @@ def test_stack_respects_explicit_empty_child_task_context():
     err=None,
 )
 def test_stack_publishes_inherited_span_to_uvloop_raw_gather_task():
+    """Seed uvloop tasks created by gather from their inherited span context."""
     import asyncio
     import os
     import time
@@ -242,6 +246,7 @@ def test_stack_publishes_inherited_span_to_uvloop_raw_gather_task():
     err=None,
 )
 def test_stack_tracks_asyncio_loop_without_set_event_loop():
+    """Register loops started directly through run_until_complete for task attribution."""
     import asyncio
     import os
     import time
@@ -289,6 +294,7 @@ def test_stack_tracks_asyncio_loop_without_set_event_loop():
     err=None,
 )
 def test_stack_rejects_finished_span_from_copied_task_context():
+    """Reject copied task context after its source span has finished."""
     import asyncio
     import contextvars
     import os
@@ -337,6 +343,7 @@ def test_stack_rejects_finished_span_from_copied_task_context():
     err=None,
 )
 def test_stack_omits_unverifiable_pre312_custom_factory_context():
+    """Omit pre-3.12 attribution when a custom factory's actual Context cannot be inspected."""
     import asyncio
     import contextvars
     import os

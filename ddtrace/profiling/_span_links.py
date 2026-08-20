@@ -1,4 +1,9 @@
-"""Coordinate profiler span links across physical threads and logical execution contexts."""
+"""Route tracing attribution to the stack that will consume it.
+
+StackCollector reports span activations through link_span(). Logical-runtime providers identify the current task or
+other execution context, while the ContextVar carries normalized span metadata into newly created contexts. Native
+links persist across scheduler switches and are cleared by span, task, profiler, and fork lifecycle events.
+"""
 
 import contextvars
 import enum
@@ -15,17 +20,23 @@ class SpanLinkDomain(enum.IntEnum):
 
 
 class _SpanInfo(typing.NamedTuple):
+    """Tracing-neutral metadata written to native profile labels."""
+
     span_id: int
     local_root_span_id: int
     span_type: typing.Optional[str]
 
 
 class LogicalSpanTarget(typing.NamedTuple):
+    """Domain-qualified identity for a natively rendered logical stack."""
+
     domain: SpanLinkDomain
     identifier: int
 
 
 class _SpanLinkContext(typing.NamedTuple):
+    """Copyable attribution whose generation and weak source prevent stale reuse."""
+
     generation: int
     span_info: _SpanInfo
     span_ref: typing.Optional[typing.Callable[[], typing.Optional[typing.Any]]]
@@ -51,6 +62,7 @@ else:
 
 
 def _reset_span_link_state() -> None:
+    """Invalidate native links and ContextVar copies inherited from an earlier lifecycle."""
     global _span_link_generation
 
     stack.reset_span_links()
@@ -90,6 +102,7 @@ def unregister_logical_span_provider(provider: _LogicalSpanProvider) -> None:
 
 
 def _current_logical_span_target() -> typing.Optional[LogicalSpanTarget]:
+    """Resolve the highest-priority logical runtime that recognizes the current execution context."""
     for _, provider in _logical_span_providers:
         try:
             target = provider()
