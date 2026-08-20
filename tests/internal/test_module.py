@@ -358,6 +358,40 @@ def test_module_watchdog_propagation():
     Alice.uninstall()
 
 
+@pytest.mark.subprocess(err=None)
+def test_module_watchdog_after_import_hook_isolation():
+    # A failing after_import hook on one watchdog subclass must not prevent
+    # another watchdog subclass's after_import hook from running for the
+    # same import.
+    from ddtrace.internal.module import ModuleWatchdog
+
+    class Failing(ModuleWatchdog):
+        def after_import(self, module):
+            super(Failing, self).after_import(module)
+            raise ValueError("boom")
+
+    class Collector(ModuleWatchdog):
+        def __init__(self):
+            self.__modules__ = set()
+            super(Collector, self).__init__()
+
+        def after_import(self, module):
+            self.__modules__.add(module.__name__)
+            return super(Collector, self).after_import(module)
+
+    Failing.install()
+    Collector.install()
+
+    c = Collector._instance
+
+    import tests.submod.stuff  # noqa:F401
+
+    assert c.__modules__ >= {"tests.submod.stuff"}, c.__modules__
+
+    Collector.uninstall()
+    Failing.uninstall()
+
+
 @pytest.mark.subprocess(out="ddtrace imported\naccessing lazy module\nlazy loaded\n")
 def test_module_watchdog_no_lazy_force_load():
     """Test that the module watchdog does not force-load lazy modules.

@@ -230,8 +230,11 @@ class _ImportHookChainedLoader:
             # loader type
             module.register_loader_type(_ImportHookChainedLoader, module.DefaultProvider)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        for key, callback in self.callbacks.items():
+            try:
+                callback(module)
+            except Exception:
+                log.exception("Exception ignored in after_import hook %r for module %s", key, module.__name__)
 
     def load_module(self, fullname: str) -> t.Optional[ModuleType]:
         if self.loader is None:
