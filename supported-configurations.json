@@ -4360,6 +4360,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_HTTP_SERVER_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_HTTP_SERVER_ERROR_STATUSES": [
       {
         "implementation": "A",
