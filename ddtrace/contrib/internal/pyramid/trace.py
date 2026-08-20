@@ -60,59 +60,60 @@ def trace_tween_factory(handler, registry):
     # ensure distributed tracing within pyramid settings matches config
     config.pyramid.distributed_tracing_enabled = asbool(settings.get(SETTINGS_DISTRIBUTED_TRACING, True))
 
-    if enabled:
-        # make a request tracing function
-        def trace_tween(request):
-            with core.context_with_event(
-                WebFrameworkRequestEvent(
-                    http_operation="pyramid.request",
-                    service=service,
-                    resource="404",
-                    integration_config=config.pyramid,
-                    component=config.pyramid.integration_name,
-                    request_headers=request.headers,
-                    request_url=request.url,
-                    request_method=request.method,
-                    request_route=None,
-                    query=request.query_string,
-                    activate_distributed_headers=True,
-                    headers_case_sensitive=True,
-                )
-            ) as ctx:
-                response = None
-                status = None
-                try:
-                    response = handler(request)
-                except HTTPException as e:
-                    # If the exception is a pyramid HTTPException,
-                    # that's still valuable information that isn't necessarily
-                    # a 500. For instance, HTTPFound is a 302.
-                    # As described in docs, Pyramid exceptions are all valid
-                    # response types
-                    response = e
-                    raise
-                except BaseException:
-                    status = 500
-                    raise
-                finally:
-                    event: WebFrameworkRequestEvent = ctx.event
-                    # set request tags
-                    if request.matched_route:
-                        event.resource = "{} {}".format(request.method, request.matched_route.name)
-                        event.request_route = request.matched_route.pattern
-                        span_from_context(ctx)._set_attribute("pyramid.route.name", request.matched_route.name)
-                    # set response tags
-                    if response:
-                        status = response.status_code
-                        response_headers = response.headers
-                    else:
-                        response_headers = {}
-                    event.response_headers = response_headers
-                    event.response_status_code = status
+    # make a request tracing function
+    def trace_tween(request):
+        core.dispatch(core.WEB_REQUEST_STARTING, (request.method, request.path))
 
-                return response
+        if not enabled:
+            return handler(request)
 
-        return trace_tween
+        with core.context_with_event(
+            WebFrameworkRequestEvent(
+                http_operation="pyramid.request",
+                service=service,
+                resource="404",
+                integration_config=config.pyramid,
+                component=config.pyramid.integration_name,
+                request_headers=request.headers,
+                request_url=request.url,
+                request_method=request.method,
+                request_route=None,
+                query=request.query_string,
+                activate_distributed_headers=True,
+                headers_case_sensitive=True,
+            )
+        ) as ctx:
+            response = None
+            status = None
+            try:
+                response = handler(request)
+            except HTTPException as e:
+                # If the exception is a pyramid HTTPException,
+                # that's still valuable information that isn't necessarily
+                # a 500. For instance, HTTPFound is a 302.
+                # As described in docs, Pyramid exceptions are all valid
+                # response types
+                response = e
+                raise
+            except BaseException:
+                status = 500
+                raise
+            finally:
+                event: WebFrameworkRequestEvent = ctx.event
+                # set request tags
+                if request.matched_route:
+                    event.resource = "{} {}".format(request.method, request.matched_route.name)
+                    event.request_route = request.matched_route.pattern
+                    span_from_context(ctx)._set_attribute("pyramid.route.name", request.matched_route.name)
+                # set response tags
+                if response:
+                    status = response.status_code
+                    response_headers = response.headers
+                else:
+                    response_headers = {}
+                event.response_headers = response_headers
+                event.response_status_code = status
 
-    # if timing support is not enabled, return the original handler
-    return handler
+            return response
+
+    return trace_tween

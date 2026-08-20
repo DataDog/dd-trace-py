@@ -28,6 +28,8 @@ async def execute(func, handler, args, kwargs):
     ``TracerStackContext``. This simplifies users code when the automatic ``Context``
     retrieval is used via ``Tracer.trace()`` method.
     """
+    core.dispatch(core.WEB_REQUEST_STARTING, (handler.request.method, handler.request.path))
+
     # retrieve tracing settings
     settings = handler.settings[CONFIG_KEY]
     service = settings["default_service"]

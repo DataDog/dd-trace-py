@@ -29,6 +29,8 @@ class TraceMiddleware(object):
             config.falcon["distributed_tracing"] = distributed_tracing
 
     def process_request(self, req, resp):
+        core.dispatch(core.WEB_REQUEST_STARTING, (req.method, req.path))
+
         # Falcon uppercases all header names.
         headers = dict((k.lower(), v) for k, v in req.headers.items())
 

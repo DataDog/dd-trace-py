@@ -89,6 +89,8 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     if request is None:
         return func(*args, **kwargs)
 
+    core.dispatch(core.WEB_REQUEST_STARTING, (request.method, request.path))
+
     request_headers = utils._get_request_headers(request)
 
     pin = Pin.get_from(instance)

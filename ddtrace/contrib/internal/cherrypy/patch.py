@@ -73,6 +73,8 @@ class TraceTool(cherrypy.Tool):
         cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
+        core.dispatch(core.WEB_REQUEST_STARTING, (cherrypy.request.method, cherrypy.request.path_info))
+
         with core.context_with_data(
             "cherrypy.request",
             span_name=SPAN_NAME,
