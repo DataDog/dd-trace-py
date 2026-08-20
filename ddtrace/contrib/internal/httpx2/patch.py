@@ -24,7 +24,7 @@ def get_version() -> str:
     return getattr(httpx2, "__version__", "")
 
 
-config._add(
+config._add(  # type: ignore[no-untyped-call]
     "httpx2",
     {
         "distributed_tracing": asbool(env.get("DD_HTTPX2_DISTRIBUTED_TRACING", default=True)),
