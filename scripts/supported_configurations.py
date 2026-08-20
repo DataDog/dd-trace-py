@@ -33,6 +33,10 @@ CONFIG_REGISTRY_URL = "https://feature-parity.us1.prod.dog/#/configurations?view
 # Do not add new values to this list; ignoring a value prevents it from working with the configuration system.
 IGNORED_ENVIRONMENT_VARIABLES = ["_DD_CONTEXTVAR"]
 
+# Integrations that are patchable via DD_TRACE_{NAME}_ENABLED but do not create spans,
+# so they do not have DD_{NAME}_SERVICE[_NAME] configuration.
+NO_SERVICE_CONFIGURATION = {"http_server"}
+
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
 # Run: python scripts/supported_configurations.py
@@ -423,6 +427,8 @@ def check_registry(data: dict) -> int:
         n = name.upper()
         if name not in not_patchable and f"DD_TRACE_{n}_ENABLED" not in all_known:
             missing.add(f"DD_TRACE_{n}_ENABLED")
+        if name in NO_SERVICE_CONFIGURATION:
+            continue
         for var in (f"DD_{n}_SERVICE", f"DD_{n}_SERVICE_NAME"):
             if var not in all_known:
                 missing.add(var)
