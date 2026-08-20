@@ -63,7 +63,6 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
     from ddtrace.internal.http import HTTPConnection  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
 
