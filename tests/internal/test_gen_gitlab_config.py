@@ -8,6 +8,8 @@ from unittest import mock
 
 import pytest
 
+from tests.environment import TestEnvironment as Environment
+
 
 _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gitlab_config.py"
 
@@ -88,28 +90,17 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert "$DD_API_KEY" not in config
 
 
-def test_collect_all_suite_venv_info_uses_neutral_environments(gen_gitlab_config_mod, monkeypatch):
-    class Instance:
-        def __init__(self, name, environment_id, python):
-            self.name = name
-            self.short_hash = environment_id
-            self.py = types.SimpleNamespace(_hint=python)
-
-        def matches_pattern(self, pattern):
-            return pattern.search(self.name) is not None
-
-    riotfile = types.SimpleNamespace(
-        venv=types.SimpleNamespace(
-            instances=lambda: iter(
-                (
-                    Instance("requests", "same-dependencies", "3.11"),
-                    Instance("requests", "same-dependencies", "3.11"),
-                    Instance("requests", "new-dependencies", "3.12"),
-                )
+def test_collect_all_suite_venv_info_consumes_neutral_environments(gen_gitlab_config_mod, monkeypatch):
+    monkeypatch.setattr(
+        gen_gitlab_config_mod,
+        "load_riot_test_environments",
+        lambda suites: {
+            "contrib::requests": (
+                Environment("same-dependencies", "contrib::requests", "requests", "3.11"),
+                Environment("new-dependencies", "contrib::requests", "requests", "3.12"),
             )
-        )
+        },
     )
-    monkeypatch.setitem(sys.modules, "riotfile", riotfile)
 
     info = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": "^requests$"})
 

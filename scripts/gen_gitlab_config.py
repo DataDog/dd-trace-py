@@ -190,10 +190,7 @@ ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
 def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
-    """Collect venv count and Python versions for multiple suites in a single pass.
-
-    Iterates riotfile.venv.instances() once and matches each instance against all
-    suite patterns simultaneously, which is much more efficient than per-suite iteration.
+    """Collect environment count and Python versions for multiple suites in a single pass.
 
     Args:
         suite_patterns: mapping of suite name -> regex pattern string
@@ -201,44 +198,20 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    # Importing will load/evaluate the whole riotfile.py
-    import riotfile
-
-    compiled: dict[str, re.Pattern] = {}
-    for suite, pattern in suite_patterns.items():
-        try:
-            compiled[suite] = re.compile(pattern)
-        except re.error:
-            LOGGER.warning("Invalid pattern for suite %s: %s", suite, pattern)
-
-    venv_hashes: dict[str, set] = {s: set() for s in compiled}
-    python_versions: dict[str, set] = {s: set() for s in compiled}
-
-    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
-        if not inst.name:
-            continue
-        for suite, regex in compiled.items():
-            if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                environment = TestEnvironment(
-                    id=inst.short_hash,
-                    suite=suite,
-                    name=inst.name,
-                    python=inst.py._hint,
-                )
-                venv_hashes[suite].add(environment.id)
-                # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
-                if re.match(r"^3\.\d+$", environment.python):
-                    python_versions[suite].add(environment.python)
+    suite_configs = {suite: {"pattern": pattern} for suite, pattern in suite_patterns.items()}
+    environments_by_suite = load_riot_test_environments(suite_configs)
 
     result: dict[str, SuiteVenvInfo] = {}
-    for suite in compiled:
-        if venv_hashes[suite]:
+    for suite, environments in environments_by_suite.items():
+        if environments:
             result[suite] = SuiteVenvInfo(
-                venv_count=len(venv_hashes[suite]),
-                python_versions=python_versions[suite],
+                venv_count=len(environments),
+                python_versions={
+                    environment.python for environment in environments if re.match(r"^3\.\d+$", environment.python)
+                },
             )
         else:
-            LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
+            LOGGER.warning("No test environments found for suite %s with pattern %s", suite, suite_patterns[suite])
     return result
 
 
@@ -838,7 +811,7 @@ sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
 
-from tests.environment import TestEnvironment  # noqa: E402
+from tests.riot_adapter import load_riot_test_environments  # noqa: E402
 
 
 def template(name: str, **params):

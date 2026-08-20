@@ -15,6 +15,7 @@ components:
     - tests/suitespec.yml
     - tests/suitespec.py
     - tests/environment.py
+    - tests/riot_adapter.py
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py
