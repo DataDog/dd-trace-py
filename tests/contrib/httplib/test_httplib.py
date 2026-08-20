@@ -2,6 +2,7 @@ import contextlib
 import http.client as httplib
 import socket
 import sys
+from unittest import mock
 import urllib.error
 from urllib.request import Request
 from urllib.request import build_opener
@@ -141,6 +142,17 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
     def test_httplib_request_get_request_qs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):
             return self.test_httplib_request_get_request("foo=bar")
+
+    def test_resource_with_otel_semantics(self):
+        conn = self.get_http_connection(SOCKET)
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True), contextlib.closing(conn):
+            conn.request("GET", "/status/200")
+            resp = conn.getresponse()
+            resp.read()
+
+        spans = self.pop_spans()
+        self.assertEqual(len(spans), 1)
+        self.assertEqual(spans[0].resource, "GET")
 
     def test_httplib_request_get_request_multiqs(self):
         with self.override_http_config("httplib", dict(trace_query_string=True)):
