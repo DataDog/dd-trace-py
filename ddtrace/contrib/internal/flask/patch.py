@@ -391,6 +391,7 @@ def unpatch():
 
 def patched_wsgi_app(wrapped, instance, args, kwargs):
     environ, start_response = args
+    core.dispatch(core.WEB_REQUEST_STARTING, (environ.get("REQUEST_METHOD"), environ.get("PATH_INFO")))
     # Registration is gated on asm_config, not tracing — keep this above the tracing short-circuit.
     _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
     if not is_tracing_enabled():

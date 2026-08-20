@@ -299,6 +299,12 @@ gunicorn
 .. automodule:: ddtrace.contrib.internal.gunicorn
 
 
+.. _http_server:
+
+http_server
+^^^^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.http_server
+
 .. _httplib:
 
 httplib
