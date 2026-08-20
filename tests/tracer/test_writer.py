@@ -1374,3 +1374,135 @@ def test_agent_exporter_sets_the_agent_url_not_the_intake():
 
     assert ("set_url", ("http://localhost:8126",)) in calls
     assert not [c for c in calls if "agentless" in c[0]]
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+def test_agentless_end_to_end_payload_reaches_the_intake():
+    """Full flow: a span written in agentless mode arrives at the intake as JSON.
+
+    The intake URL is redirected at a local server, since the real one is unreachable from tests.
+    """
+    import http.server
+    import json
+    import threading
+    import time
+
+    requests = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            requests.append((self.path, dict(self.headers), self.rfile.read(length)))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    from ddtrace._trace.processor import _resolve_apm_trace_agentless
+    from ddtrace.internal.writer import writer as writer_module
+    from ddtrace.trace import tracer
+
+    assert _resolve_apm_trace_agentless() is True
+
+    port = server.server_address[1]
+    writer_module.compute_agentless_intake_url = lambda site: f"http://127.0.0.1:{port}/v1/input"
+    # The writer built at import time points at the real intake; replace it before tracing so
+    # nothing leaves the machine.
+    previous = tracer._span_aggregator.writer
+    tracer._span_aggregator.writer = writer_module.create_trace_writer(agentless=True)
+    try:
+        previous.stop()
+    except Exception:
+        previous.shutdown_exporter()
+
+    assert tracer._span_aggregator.writer.agentless is True
+
+    with tracer.trace("agentless-e2e", service="agentless-svc", resource="a-resource") as span:
+        span.set_tag("in_payload", "yes")
+    tracer.flush()
+
+    deadline = time.time() + 10
+    while not requests and time.time() < deadline:
+        time.sleep(0.05)
+    assert requests, "no payload reached the intake"
+
+    path, headers, body = requests[0]
+    assert path == "/v1/input"
+    assert headers["dd-api-key"] == "a-test-api-key"
+    assert headers["content-type"] == "application/json"
+    assert headers["x-datadog-trace-count"] == "1"
+
+    chunks = json.loads(body)["traces"]
+    assert len(chunks) == 1
+    assert chunks[0]["languageName"] == "python"
+    spans = chunks[0]["spans"]
+    assert [(s["name"], s["service"], s["resource"]) for s in spans] == [
+        ("agentless-e2e", "agentless-svc", "a-resource")
+    ]
+    assert spans[0]["meta"]["in_payload"] == "yes"
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+def test_agentless_buffer_stays_under_the_intake_limit():
+    """The intake rejects payloads over 20 MB, and the 20 MB default would sit right at the edge."""
+    from ddtrace.internal.writer.writer import AGENTLESS_MAX_BUFFER_SIZE
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert AGENTLESS_MAX_BUFFER_SIZE == 15 << 20
+    assert writer._buffer_size == AGENTLESS_MAX_BUFFER_SIZE
+    assert writer._max_payload_size == AGENTLESS_MAX_BUFFER_SIZE
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "a-test-api-key",
+        "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(64 << 20),
+    }
+)
+def test_agentless_buffer_cap_overrides_a_larger_request():
+    from ddtrace.internal.writer.writer import AGENTLESS_MAX_BUFFER_SIZE
+    from ddtrace.trace import tracer
+
+    assert tracer._span_aggregator.writer._buffer_size == AGENTLESS_MAX_BUFFER_SIZE
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "a-test-api-key"})
+def test_agent_writer_keeps_the_configured_buffer_size():
+    from ddtrace.internal.settings._config import config
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._buffer_size == config._trace_writer_buffer_size
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+def test_agent_trace_url_is_not_the_intake_when_agentless():
+    """Consumers treat agent_trace_url as an Agent endpoint and fall back to the Agent when None.
+
+    The profiling uploader does exactly that, and it does not support agentless mode.
+    """
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.trace import tracer
+
+    assert tracer._span_aggregator.writer.agentless is True
+    assert tracer.agent_trace_url is None
+
+    profiling_endpoint = tracer.agent_trace_url or agent_config.trace_agent_url
+    assert profiling_endpoint == agent_config.trace_agent_url
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "a-test-api-key"})
+def test_agent_trace_url_is_the_agent_when_not_agentless():
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.trace import tracer
+
+    assert tracer.agent_trace_url == agent_config.trace_agent_url

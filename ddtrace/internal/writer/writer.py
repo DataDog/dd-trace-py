@@ -570,6 +570,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
 
 AGENTLESS_INTAKE_PATH = "/v1/input"
+# The intake hard-rejects anything over 20 MB. Cap what we buffer well below that so a
+# payload still fits once the exporter re-encodes it as JSON and packs it.
+AGENTLESS_MAX_BUFFER_SIZE = 15 << 20  # 15 MB
 AGENTLESS_INTAKE_URLS: dict[str, str] = {
     "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
     "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
@@ -670,7 +673,7 @@ def _build_base_exporter_builder(
     compute_stats_enabled: bool,
     stats_opt_out: Optional[bool],
     otlp_metrics_enabled: bool = False,
-    agentless_api_key: Optional[str] = None,
+    api_key: Optional[str] = None,
 ) -> "native.TraceExporterBuilder":
     _, commit_sha, _ = get_git_tags()
     builder = (
@@ -682,8 +685,8 @@ def _build_base_exporter_builder(
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
-    if agentless_api_key is not None:
-        builder.set_agentless_endpoint(intake_url, agentless_api_key)
+    if api_key is not None:
+        builder.set_agentless_endpoint(intake_url, api_key)
         builder.set_agentless_timeout(int(agent_config.trace_agent_timeout_seconds * 1000))
     else:
         builder.set_url(intake_url)
@@ -751,7 +754,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         stats_opt_out: Optional[bool] = False,
         otlp_endpoint: Optional[str] = None,
         otlp_metrics_endpoint: Optional[str] = None,
-        agentless_api_key: Optional[str] = None,
+        api_key: Optional[str] = None,
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
@@ -772,6 +775,9 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         buffer_size = buffer_size or config._trace_writer_buffer_size
         max_payload_size = max_payload_size or config._trace_writer_payload_size
+        if api_key is not None:
+            buffer_size = min(buffer_size, AGENTLESS_MAX_BUFFER_SIZE)
+            max_payload_size = min(max_payload_size, AGENTLESS_MAX_BUFFER_SIZE)
         if self._api_version not in WRITER_CLIENTS:
             log.warning(
                 "Unsupported api version: '%s'. The supported versions are: %r",
@@ -785,7 +791,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self.intake_url = intake_url
         self._otlp_endpoint = otlp_endpoint
         self._otlp_metrics_endpoint = otlp_metrics_endpoint
-        self._agentless_api_key = agentless_api_key
+        self._api_key = api_key
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
         self._test_session_token = _resolve_test_session_token(test_session_token)
@@ -823,7 +829,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     @property
     def agentless(self) -> bool:
-        return self._agentless_api_key is not None
+        return self._api_key is not None
 
     def _create_exporter(self) -> native.TraceExporter:
         builder = _build_base_exporter_builder(
@@ -832,7 +838,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._compute_stats_enabled,
             self._stats_opt_out,
             self._otlp_metrics_endpoint is not None,
-            self._agentless_api_key,
+            self._api_key,
         )
         builder.set_input_format(self._api_version).set_output_format(self._api_version)
         if self._otlp_endpoint is not None:
@@ -949,7 +955,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             stats_opt_out=self._stats_opt_out,
             otlp_endpoint=self._otlp_endpoint,
             otlp_metrics_endpoint=self._otlp_metrics_endpoint,
-            agentless_api_key=self._agentless_api_key,
+            api_key=self._api_key,
         )
 
     def _downgrade(self, status, client):
@@ -1218,7 +1224,7 @@ def create_trace_writer(
         # No OTLP endpoint here: libdatadog rejects OTLP combined with agentless export.
         return NativeWriter(
             intake_url=intake_url,
-            agentless_api_key=config._dd_api_key,
+            api_key=config._dd_api_key,
             dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
             sync_mode=_use_sync_mode(),
             compute_stats_enabled=config._trace_compute_stats,
