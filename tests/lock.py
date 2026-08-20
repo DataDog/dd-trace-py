@@ -5,6 +5,7 @@ from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 import concurrent.futures
+import datetime as dt
 from pathlib import Path
 import subprocess
 import tempfile
@@ -15,10 +16,21 @@ from tests.matrix import expand_declared_matrices
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+# Keep this aligned with the existing freshness and lock-validation policy.
+COOLDOWN_DAYS = 2
 
 
 class LockError(RuntimeError):
     """Raised when concrete test-environment locks cannot be generated."""
+
+
+def cooldown_cutoff(now: dt.datetime | None = None) -> str:
+    """Return uv's UTC cutoff timestamp for the package cooldown policy."""
+    current = now or dt.datetime.now(dt.timezone.utc)
+    if current.tzinfo is None:
+        raise LockError("cooldown timestamp must be timezone-aware")
+    cutoff = current.astimezone(dt.timezone.utc) - dt.timedelta(days=COOLDOWN_DAYS)
+    return cutoff.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _resolve_suites(matrices: Mapping[str, tuple[TestEnvironment, ...]], requested: Sequence[str]) -> tuple[str, ...]:
@@ -60,6 +72,7 @@ def compile_environment(
     environment: TestEnvironment,
     *,
     root: Path = PROJECT_ROOT,
+    exclude_newer: str | None = None,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> str:
     """Compile one concrete environment and return its requirements-style lock."""
@@ -81,6 +94,8 @@ def compile_environment(
             environment.python,
             "--python-platform",
             environment.platform,
+            "--exclude-newer",
+            exclude_newer or cooldown_cutoff(),
             "--no-annotate",
             "--no-header",
             "--no-progress",
@@ -130,6 +145,7 @@ def generate_locks(
     *,
     root: Path = PROJECT_ROOT,
     jobs: int = 4,
+    exclude_newer: str | None = None,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
     """Compile, atomically write, and prune locks for the selected suites."""
@@ -137,11 +153,12 @@ def generate_locks(
     if not environments:
         raise LockError("no concrete test environments selected")
 
+    cutoff = exclude_newer or cooldown_cutoff()
     compiled: dict[TestEnvironment, str] = {}
     errors = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
         futures = {
-            executor.submit(compile_environment, environment, root=root, run=run): environment
+            executor.submit(compile_environment, environment, root=root, exclude_newer=cutoff, run=run): environment
             for environment in environments
         }
         for future in concurrent.futures.as_completed(futures):

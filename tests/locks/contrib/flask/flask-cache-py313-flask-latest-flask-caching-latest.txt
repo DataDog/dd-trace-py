@@ -1,6 +1,6 @@
 attrs==26.1.0
 blinker==1.9.0
-cachelib==0.16.0
+cachelib==0.15.4
 click==8.4.2
 coverage==7.15.4
 flask==3.1.3

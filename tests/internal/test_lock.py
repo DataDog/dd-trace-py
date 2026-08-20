@@ -1,3 +1,4 @@
+import datetime as dt
 from pathlib import Path
 import subprocess
 
@@ -9,6 +10,7 @@ from tests.environment import TestEnvironment as Environment
 from tests.environment import lockfile_path
 from tests.lock import LockError
 from tests.lock import compile_environment
+from tests.lock import cooldown_cutoff
 from tests.lock import generate_locks
 from tests.lock import select_environments
 from tests.matrix import expand_declared_matrices
@@ -68,16 +70,28 @@ def test_compile_environment_targets_concrete_python_and_platform(tmp_path):
         lockfile=lockfile_path("contrib::example", "example-py311"),
     )
 
-    content = compile_environment(environment, root=tmp_path, run=fake_uv)
+    content = compile_environment(environment, root=tmp_path, exclude_newer="2026-08-18T12:00:00Z", run=fake_uv)
 
     command, kwargs, requirements = calls[0]
     assert command[:3] == ["uv", "pip", "compile"]
     assert command[command.index("--python-version") + 1] == "3.11"
     assert command[command.index("--python-platform") + 1] == "x86_64-manylinux2014"
+    assert command[command.index("--exclude-newer") + 1] == "2026-08-18T12:00:00Z"
     assert {"--no-annotate", "--no-header", "--no-python-downloads", "--no-sources"} <= set(command)
     assert requirements == "example<2\npytest\n"
     assert kwargs == {"cwd": tmp_path, "check": True, "text": True, "capture_output": True}
     assert content == "example==1.0.0\npytest==8.0.0\n"
+
+
+def test_cooldown_cutoff_is_48_hours_in_utc():
+    now = dt.datetime(2026, 8, 20, 14, 30, 45, 123456, tzinfo=dt.timezone(dt.timedelta(hours=-4)))
+
+    assert cooldown_cutoff(now) == "2026-08-18T18:30:45Z"
+
+
+def test_cooldown_cutoff_rejects_naive_timestamps():
+    with pytest.raises(LockError, match="timezone-aware"):
+        cooldown_cutoff(dt.datetime(2026, 8, 20, 12, 0, 0))
 
 
 def test_generate_locks_prunes_only_selected_suite(tmp_path):
