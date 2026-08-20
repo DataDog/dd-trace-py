@@ -547,7 +547,7 @@ integrations:
   tested_versions_by_dependency:
     langchain-core:
       min: 0.1.53
-      max: 1.4.7
+      max: 1.5.3
 
 - integration_name: langgraph
   is_external_package: true
