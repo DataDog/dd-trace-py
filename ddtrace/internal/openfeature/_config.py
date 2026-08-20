@@ -7,6 +7,7 @@ closes the consent-lifecycle race described in the Java pilot's review
 (concern:bind-consent-to-evaluated-config).
 """
 
+from typing import Any
 from typing import NamedTuple
 from typing import Optional
 from typing import Union
@@ -19,6 +20,15 @@ class _FfeSnapshot(NamedTuple):
 
     config: ffe.Configuration
     observe_full_evaluation_data: bool
+
+
+# Registry of provider instances (ddtrace.internal.openfeature._provider.DataDogProvider)
+# that need to be notified when new FFE configuration arrives. Kept here rather than in
+# _provider.py because _native.py sets the configuration and must trigger the
+# notification without importing _provider.py (which itself imports _native.py).
+# Providers are registered/unregistered via _register_provider/_unregister_provider and
+# must implement on_configuration_received().
+_provider_instances: list[Any] = []
 
 
 # Module-level global. Reads and writes are done through the accessors below so
@@ -44,7 +54,7 @@ def _get_ffe_snapshot() -> Optional[_FfeSnapshot]:
 
 
 def _set_ffe_config(value: Union[None, ffe.Configuration, _FfeSnapshot]) -> None:
-    """Set the FFE snapshot.
+    """Set the FFE snapshot and notify registered providers.
 
     Accepts either a bare native Configuration (existing test callers) or a
     _FfeSnapshot. A bare Configuration is stored as consent-off; None clears.
@@ -57,3 +67,24 @@ def _set_ffe_config(value: Union[None, ffe.Configuration, _FfeSnapshot]) -> None
     else:
         # Legacy path: a raw Configuration means consent-off (fail closed).
         _FFE_SNAPSHOT = _FfeSnapshot(config=value, observe_full_evaluation_data=False)
+
+    if _FFE_SNAPSHOT is not None:
+        _notify_providers_config_received()
+
+
+def _register_provider(provider: Any) -> None:
+    """Register a provider instance for configuration callbacks."""
+    if provider not in _provider_instances:
+        _provider_instances.append(provider)
+
+
+def _unregister_provider(provider: Any) -> None:
+    """Unregister a provider instance."""
+    if provider in _provider_instances:
+        _provider_instances.remove(provider)
+
+
+def _notify_providers_config_received() -> None:
+    """Notify all registered providers that configuration was received."""
+    for provider in _provider_instances:
+        provider.on_configuration_received()

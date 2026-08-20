@@ -1,5 +1,6 @@
 import base64
 import collections
+from collections.abc import Mapping
 import gzip
 import json
 import time
@@ -41,7 +42,10 @@ class TooLargeSchemaException(Exception):
     pass
 
 
-def path_param_transform(v: Any) -> Union[dict, list]:
+PathParams = Union[Mapping[str, Any], list[Any], tuple[Any, ...]]
+
+
+def path_param_transform(v: PathParams) -> Union[dict[str, Any], list[Any]]:
     if isinstance(v, (list, tuple)):
         return list(v)
     return dict(v)

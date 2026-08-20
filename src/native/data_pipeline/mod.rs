@@ -80,6 +80,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_tracer_tags(
+        mut slf: PyRefMut<'_, Self>,
+        tracer_tags: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_tracer_tags(tracer_tags);
+        Ok(slf.into())
+    }
+
     fn set_tracer_version(mut slf: PyRefMut<'_, Self>, version: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_tracer_version(version);
         Ok(slf.into())
@@ -149,6 +157,14 @@ impl TraceExporterBuilderPy {
     fn enable_stats(mut slf: PyRefMut<'_, Self>, bucket_size_ns: u64) -> PyResult<Py<Self>> {
         slf.try_as_mut()?
             .enable_stats(Duration::from_nanos(bucket_size_ns));
+        Ok(slf.into())
+    }
+
+    fn set_additional_metric_tag_keys(
+        mut slf: PyRefMut<'_, Self>,
+        tag_keys: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_additional_metric_tag_keys(tag_keys);
         Ok(slf.into())
     }
 
@@ -278,6 +294,21 @@ impl TraceExporterPy {
                 Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
         })
+    }
+
+    /// Report `trace_api.*` health metrics through an externally-owned telemetry worker.
+    #[pyo3(signature = (worker=None))]
+    fn set_telemetry_handle(
+        &self,
+        worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
+    ) -> PyResult<()> {
+        self.inner
+            .as_ref()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        Ok(())
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
