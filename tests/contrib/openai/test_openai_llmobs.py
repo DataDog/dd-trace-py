@@ -159,7 +159,8 @@ class TestLLMObsOpenaiV1:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         # Only the explicitly-set value should survive; the Omit/NotGiven sentinels are dropped.
-        assert get_llmobs_metadata(spans[0]) == {"top_p": 0.9}
+        # The mocked response returns two choices, so the stop reasons are recorded as a list.
+        assert get_llmobs_metadata(spans[0]) == {"top_p": 0.9, "finish_reasons": ["stop", "stop"]}
 
     @mock.patch("openai._base_client.SyncAPIClient.post")
     def test_provider_attribution_with_concurrent_openai_and_azure_clients(

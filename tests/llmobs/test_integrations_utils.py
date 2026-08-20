@@ -26,9 +26,12 @@ from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
+from ddtrace.llmobs._integrations.utils import openai_get_metadata_from_response
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import safe_json
 
 
@@ -296,6 +299,72 @@ def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
     tool_results = input_messages[0].get("tool_results", [])
     assert len(tool_results) == 1
     assert tool_results[0]["result"] == "from-input"
+
+
+def _chat_choice(finish_reason, content="hi"):
+    return SimpleNamespace(message=SimpleNamespace(role="assistant", content=content), finish_reason=finish_reason)
+
+
+class TestOpenAIFinishReasonMetadata:
+    """finish_reason must reach span metadata so content-filtered responses are distinguishable.
+
+    A content-filtered chat completion is a successful (200) response whose content is empty, so
+    without the finish_reason it is indistinguishable from a model that simply returned nothing.
+    """
+
+    def _metadata_from_chat(self, tracer, response):
+        with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(span, kind="llm")
+            openai_set_meta_tags_from_chat(span, {"messages": [{"role": "user", "content": "hi"}]}, response)
+            return get_llmobs_metadata(span)
+
+    def test_chat_content_filter(self, tracer):
+        response = SimpleNamespace(choices=[_chat_choice("content_filter", content=None)])
+        assert self._metadata_from_chat(tracer, response)["finish_reason"] == "content_filter"
+
+    def test_chat_stop(self, tracer):
+        response = SimpleNamespace(choices=[_chat_choice("stop")])
+        assert self._metadata_from_chat(tracer, response)["finish_reason"] == "stop"
+
+    def test_chat_multiple_choices_recorded_as_list(self, tracer):
+        response = SimpleNamespace(choices=[_chat_choice("stop"), _chat_choice("content_filter")])
+        metadata = self._metadata_from_chat(tracer, response)
+        assert metadata["finish_reasons"] == ["stop", "content_filter"]
+        assert "finish_reason" not in metadata
+
+    def test_chat_streamed(self, tracer):
+        streamed = [{"role": "assistant", "content": "", "finish_reason": "content_filter"}]
+        assert self._metadata_from_chat(tracer, streamed)["finish_reason"] == "content_filter"
+
+    def test_chat_absent_when_not_reported(self, tracer):
+        response = SimpleNamespace(choices=[_chat_choice(None)])
+        assert "finish_reason" not in self._metadata_from_chat(tracer, response)
+
+    def test_chat_no_response_leaves_metadata_clean(self, tracer):
+        assert "finish_reason" not in self._metadata_from_chat(tracer, None)
+
+    def test_completion(self, tracer):
+        response = SimpleNamespace(choices=[SimpleNamespace(text="", finish_reason="content_filter")])
+        with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(span, kind="llm")
+            openai_set_meta_tags_from_completion(span, {"prompt": "hi"}, response)
+            assert get_llmobs_metadata(span)["finish_reason"] == "content_filter"
+
+    def test_completion_streamed(self, tracer):
+        streamed = [{"text": "", "finish_reason": "content_filter"}]
+        with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(span, kind="llm")
+            openai_set_meta_tags_from_completion(span, {"prompt": "hi"}, streamed)
+            assert get_llmobs_metadata(span)["finish_reason"] == "content_filter"
+
+    def test_response_api_incomplete_details(self):
+        """The responses API reports the same signal under incomplete_details.reason."""
+        response = SimpleNamespace(incomplete_details=SimpleNamespace(reason="content_filter"))
+        assert openai_get_metadata_from_response(response)["finish_reason"] == "content_filter"
+
+    def test_response_api_completed(self):
+        response = SimpleNamespace(incomplete_details=None)
+        assert "finish_reason" not in openai_get_metadata_from_response(response)
 
 
 def test_basic_functionality():
