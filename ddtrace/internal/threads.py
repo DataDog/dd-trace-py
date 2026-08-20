@@ -2,6 +2,7 @@ from time import monotonic_ns
 import typing as t
 
 from ddtrace.internal import forksafe
+from ddtrace.internal._threads import PERIODIC_STOP
 from ddtrace.internal._threads import PeriodicThread as _PeriodicThread
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.logger import get_logger
@@ -28,6 +29,7 @@ except ImportError:
 
 __all__ = [
     "Lock",
+    "Thread",
     "PeriodicThread",
     "RLock",
 ]
@@ -82,6 +84,26 @@ class PeriodicThread(_PeriodicThread):
                 _threads_to_start_after_fork.append(t.cast(BoundMethod, super().start))
 
 
+class Thread(PeriodicThread):
+    """A fork-safe thread."""
+
+    # A one-shot thread runs its target exactly once, ever. _before_fork()
+    # joins it to completion before the fork happens, so by the time restart
+    # decisions are made it has already done its job. __autorestart__ = False
+    # stops the child from restarting it; the parent path also skips it
+    # explicitly (see ThreadRestartTimer._restart_threads) since force=True
+    # there bypasses __autorestart__ by design for genuinely periodic threads.
+    __autorestart__ = False
+
+    def __init__(self, target: t.Callable[[], None], name: t.Optional[str] = None) -> None:
+        super().__init__(0.0, self._run_once, name=name, no_wait_at_start=True)
+        self._target = target
+
+    def _run_once(self) -> object:
+        self._target()
+        return PERIODIC_STOP
+
+
 # Set of running periodic threads that need to be restarted after a fork.
 _threads_to_restart_after_fork: set[_PeriodicThread] = set()
 
@@ -116,6 +138,12 @@ class ThreadRestartTimer(PeriodicThread):
                         # Skip any ThreadRestartTimer instance,
                         # to avoid restarting orphaned timer instances that were
                         # caught in periodic_threads during a fork.
+                        continue
+                    if isinstance(thread, Thread):
+                        # One-shot threads already ran to completion during
+                        # _before_fork()'s join. force=True below bypasses
+                        # __autorestart__, so they must be excluded explicitly
+                        # to avoid re-running their target in the parent.
                         continue
                     log.debug("Restarting thread %s after fork", thread.name)
                     try:
