@@ -149,12 +149,15 @@ def is_musl_libc() -> bool:
 # Opt-in build of the native heap-gotter cdylib.
 # Off by default so normal builds don't pay the extra cargo fetch/compile and
 # mainline wheels don't ship the artifact until it GA's.
-BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "0").lower() in (
-    "1",
-    "yes",
-    "on",
-    "true",
-)
+# Same env var as runtime arming (ProfilingConfigNativeHeap.enabled); setup.py
+# reads it via os.getenv during the package build, independent of DDConfig.
+# Musl is always a no-op even when the env is set (see is_musl_libc).
+if _env_truthy("DD_PROFILING_NATIVE_HEAP_ENABLED") and is_musl_libc():
+    print(
+        "WARNING: DD_PROFILING_NATIVE_HEAP_ENABLED is set but the native heap-gotter "
+        "cdylib is only built on manylinux (glibc); skipping on musllinux."
+    )
+BUILD_NATIVE_HEAP_GOTTER: bool = _env_truthy("DD_PROFILING_NATIVE_HEAP_ENABLED") and not is_musl_libc()
 # Keep the staged cdylib unstripped when building with the upstream test-support
 # feature (hook-hit counter for e2e / integration tests).
 BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT = _env_truthy("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT")
