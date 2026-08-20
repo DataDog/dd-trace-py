@@ -1,3 +1,4 @@
+import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Union  # noqa:F401
@@ -38,6 +39,9 @@ _DBM_INJECTION_MODES = ("full", "service", DBM_PROPAGATION_MODE_DYNAMIC_SERVICE)
 
 log = get_logger(__name__)
 
+_LEADING_OPTIMIZER_HINT = re.compile(r"\A[^\S\r\n]*/\*\+.*?\*/\s*", re.DOTALL)
+_LEADING_OPTIMIZER_HINT_BYTES = re.compile(rb"\A[^\S\r\n]*/\*\+.*?\*/\s*", re.DOTALL)
+
 
 def _should_inject_sql_basehash():
     # type: () -> bool
@@ -49,9 +53,17 @@ def _should_inject_sql_basehash():
 def default_sql_injector(dbm_comment, sql_statement):
     # type: (str, Union[str, bytes]) -> Union[str, bytes]
     try:
+        # pg_hint_plan only reads the first block comment. Keep a hint
+        # that starts on the first line before the injected DBM comment.
         if isinstance(sql_statement, bytes):
-            return dbm_comment.encode("utf-8", errors="strict") + sql_statement
-        return dbm_comment + sql_statement
+            byte_hint_match = _LEADING_OPTIMIZER_HINT_BYTES.match(sql_statement)
+            byte_hint = byte_hint_match.group() if byte_hint_match else b""
+            byte_remaining_sql = sql_statement[len(byte_hint) :]
+            return byte_hint + dbm_comment.encode("utf-8", errors="strict") + byte_remaining_sql
+        string_hint_match = _LEADING_OPTIMIZER_HINT.match(sql_statement)
+        string_hint = string_hint_match.group() if string_hint_match else ""
+        string_remaining_sql = sql_statement[len(string_hint) :]
+        return string_hint + dbm_comment + string_remaining_sql
     except (TypeError, ValueError):
         log.warning(
             "Linking Database Monitoring profiles to spans is not supported for the following query type: %s. "

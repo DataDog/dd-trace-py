@@ -121,6 +121,11 @@ def test_dbm_propagation_full_mode():
         # assert that args remain unchanged
         assert new_args == args
 
+        hinted_query = "/*+ Leading((a b)) */ SELECT * from table;"
+        _, hinted_kwargs = dbm_popagator.inject(dbspan, tuple(), {"procedure": hinted_query})
+        assert hinted_kwargs == {"procedure": "/*+ Leading((a b)) */ " + sqlcomment + "SELECT * from table;"}
+        assert "traceparent=" in hinted_kwargs["procedure"]
+
         # ensure that dbm tag is set (required for full mode)
         assert dbspan.get_tag(_database_monitoring.DBM_TRACE_INJECTED_TAG) == "true"
 
@@ -505,3 +510,56 @@ def test_default_sql_injector(caplog):
         assert result == non_string_object
 
     assert "Linking Database Monitoring profiles to spans is not supported for the following query type:" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "query, expected",
+    [
+        (
+            "/*+ Leading((a b)) */ SELECT 1",
+            "/*+ Leading((a b)) */ /*dddbs='orders-db'*/ SELECT 1",
+        ),
+        (
+            " \t/*+ SeqScan(items) */\tSELECT * FROM items",
+            " \t/*+ SeqScan(items) */\t/*dddbs='orders-db'*/ SELECT * FROM items",
+        ),
+        (
+            b"/*+ Leading((a b)) */ SELECT 1",
+            b"/*+ Leading((a b)) */ /*dddbs='orders-db'*/ SELECT 1",
+        ),
+        (
+            b" \t/*+ SeqScan(items) */\tSELECT * FROM items",
+            b" \t/*+ SeqScan(items) */\t/*dddbs='orders-db'*/ SELECT * FROM items",
+        ),
+        (
+            "/*+ SeqScan(items) */SELECT * FROM items",
+            "/*+ SeqScan(items) *//*dddbs='orders-db'*/ SELECT * FROM items",
+        ),
+        (
+            b"/*+ SeqScan(items) */SELECT * FROM items",
+            b"/*+ SeqScan(items) *//*dddbs='orders-db'*/ SELECT * FROM items",
+        ),
+    ],
+)
+def test_default_sql_injector_preserves_leading_optimizer_hint(query, expected):
+    assert default_sql_injector("/*dddbs='orders-db'*/ ", query) == expected
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SELECT '/*+ not a hint */'",
+        " \n/*+ Leading((a b)) */ SELECT 1",
+        "/* ordinary comment */ /*+ Leading((a b)) */ SELECT 1",
+        "/*+ unterminated hint",
+        b"SELECT '/*+ not a hint */'",
+        b" \n/*+ Leading((a b)) */ SELECT 1",
+        b"/* ordinary comment */ /*+ Leading((a b)) */ SELECT 1",
+        b"/*+ unterminated hint",
+    ],
+)
+def test_default_sql_injector_only_preserves_complete_leading_optimizer_hint(query):
+    dbm_comment = "/*dddbs='orders-db'*/ "
+    expected_comment = dbm_comment.encode() if isinstance(query, bytes) else dbm_comment
+
+    assert default_sql_injector(dbm_comment, query) == expected_comment + query
