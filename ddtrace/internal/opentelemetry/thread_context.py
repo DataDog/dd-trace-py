@@ -8,7 +8,18 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal.constants import PYTHON_CONTEXT_WATCHER_REGISTERED
 from ddtrace.internal.settings._config import config
+
+
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    from ddtrace.internal.native._native import register_context_watcher as register_context_watcher
+
+else:
+
+    def register_context_watcher() -> bool:
+        return False
 
 
 class TracerProtocol(Protocol):
@@ -49,13 +60,9 @@ if sys.platform == "linux":
             if provider is tracer.context_provider:
                 _sync_otel_thread_context(ctx)
 
+        core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, register_context_watcher())
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
-        core.on("python.context.switch", _sync_active_otel_thread_context)
-
-        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
-            from ddtrace.internal.native._native import register_context_watcher
-
-            register_context_watcher()
+        core.on(PYTHON_CONTEXT_SWITCH_EVENT, _sync_active_otel_thread_context)
         return _on_context_provider_activate, _sync_active_otel_thread_context
 
 else:

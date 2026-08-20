@@ -16,7 +16,7 @@ pytestmark = pytest.mark.skipif(
 @pytest.fixture(autouse=True)
 def _register_context_watcher():
     from ddtrace.internal.native._native import is_context_watcher_registered
-    from ddtrace.internal.native._native import register_context_watcher
+    from ddtrace.internal.opentelemetry.thread_context import register_context_watcher
 
     assert register_context_watcher()
     assert is_context_watcher_registered()
@@ -109,7 +109,7 @@ def test_context_watcher_slot_exhaustion_disables_watcher():
 
     try:
         from ddtrace.internal.native._native import is_context_watcher_registered
-        from ddtrace.internal.native._native import register_context_watcher
+        from ddtrace.internal.opentelemetry.thread_context import register_context_watcher
 
         assert register_context_watcher() is False
         assert is_context_watcher_registered() is False
@@ -128,7 +128,7 @@ def test_context_watcher_registration_is_idempotent():
 
     from ddtrace.internal import core
     from ddtrace.internal.native._native import is_context_watcher_registered
-    from ddtrace.internal.native._native import register_context_watcher
+    from ddtrace.internal.opentelemetry.thread_context import register_context_watcher
 
     assert is_context_watcher_registered() is False
 
