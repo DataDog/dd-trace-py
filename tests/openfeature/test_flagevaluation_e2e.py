@@ -169,6 +169,8 @@ class TestFlagEvalLoggingExitPathsCovered:
     def test_targeting_key_and_context_captured_on_success(self, provider_and_client):
         provider, client = provider_and_client
         config = create_config(create_boolean_flag("ctx-flag", enabled=True, default_value=True))
+        # Consent-on so targeting_key + context survive to the emitted row.
+        config["observeFullEvaluationData"] = True
         process_ffe_configuration(config)
 
         ctx = EvaluationContext(targeting_key="user-77", attributes={"tier": "gold"})

@@ -30,7 +30,6 @@ Lifecycle (mirrors the Node SpanEnrichmentHook):
 """
 
 import base64
-import hashlib
 import json
 import threading
 import typing
@@ -40,6 +39,7 @@ from openfeature.hook import Hook
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._flageval_pii import targeting_key_digest
 
 
 log = get_logger(__name__)
@@ -85,8 +85,13 @@ def encode_delta_varint(serial_ids: typing.AbstractSet[int]) -> str:
 
 
 def hash_targeting_key(targeting_key: str) -> str:
-    """SHA256 lowercase hex digest of a targeting key (FROZEN contract)."""
-    return hashlib.sha256(targeting_key.encode("utf-8")).hexdigest()
+    """SHA256 lowercase hex digest of a targeting key (FROZEN contract).
+
+    Delegates to the shared digest body so this bare tag value and the
+    sha256_-prefixed flagevaluation wire value cannot drift apart. The bare
+    digest, with no prefix, is what the Node contract freezes here.
+    """
+    return targeting_key_digest(targeting_key)
 
 
 class SpanEnrichmentState:

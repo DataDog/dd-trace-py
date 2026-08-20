@@ -45,7 +45,10 @@ def _make_details(flag_key, variant, allocation_key):
         value=True,
         variant=variant,
         reason=Reason.TARGETING_MATCH,
-        flag_metadata={"allocation_key": allocation_key},
+        flag_metadata={
+            "allocation_key": allocation_key,
+            "observe_full_evaluation_data": True,
+        },
     )
 
 
@@ -119,6 +122,7 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
                     runtime_default=False,
                     error_message="",
                     eval_time_ms=1_760_000_000_000 + i,
+                    observe_full_evaluation_data=True,
                 )
                 for i in range(cycle_count)
             ]
