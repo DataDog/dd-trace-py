@@ -11,10 +11,8 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
-from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.internal import core
-from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.settings import env
@@ -23,6 +21,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
+from .utils import httpx_get_service_name
 from .utils import httpx_url_to_str
 
 
@@ -46,18 +45,6 @@ config._add(
 
 def _supported_versions() -> dict[str, str]:
     return {"httpx": ">=0.25"}
-
-
-def _get_service_name(request: httpx.Request) -> Optional[str]:
-    if config.httpx.split_by_domain:
-        if hasattr(request.url, "netloc"):
-            return ensure_text(request.url.netloc, errors="backslashreplace")
-
-        service = ensure_binary(request.url.host)
-        if request.url.port:
-            service += b":" + ensure_binary(str(request.url.port))
-        return ensure_text(service, errors="backslashreplace")
-    return ext_service(None, config.httpx)
 
 
 def _wrapped_sync_send_single_request(
@@ -121,7 +108,7 @@ async def _wrapped_async_send(
     with core.context_with_event(
         HttpClientRequestEvent(
             http_operation="http.request",
-            service=_get_service_name(req),
+            service=httpx_get_service_name(req, config.httpx),
             component=config.httpx.integration_name,
             request_method=req.method,
             request_headers=req.headers,
@@ -153,7 +140,7 @@ def _wrapped_sync_send(
         HttpClientRequestEvent(
             component=config.httpx.integration_name,
             http_operation="http.request",
-            service=_get_service_name(req),
+            service=httpx_get_service_name(req, config.httpx),
             request_method=req.method,
             request_headers=req.headers,
             integration_config=config.httpx,
