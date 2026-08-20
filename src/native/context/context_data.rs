@@ -208,12 +208,7 @@ impl Drop for LockGuard<'_> {
     }
 }
 
-#[pyo3::pyclass(
-    name = "Context",
-    module = "ddtrace._trace.context",
-    weakref,
-    subclass
-)]
+#[pyo3::pyclass(name = "Context", module = "ddtrace._trace.context", weakref, subclass)]
 #[derive(Default)]
 pub struct Context {
     pub trace_id: Option<u128>,
@@ -262,8 +257,6 @@ impl Context {
         span_links=None,
         baggage=None,
         is_remote=true,
-        *args,
-        **kwargs
     ))]
     pub fn __new__<'p>(
         cls: &Bound<'p, pyo3::types::PyType>,
@@ -278,21 +271,7 @@ impl Context {
         span_links: Option<&Bound<'p, PyList>>,
         baggage: Option<&Bound<'p, PyDict>>,
         is_remote: bool,
-        args: &Bound<'p, PyTuple>,
-        kwargs: Option<&Bound<'p, PyDict>>,
     ) -> PyResult<Self> {
-        // *args/**kwargs are accepted so subclasses with their own __init__ can pass
-        // extra arguments through without needing to override __new__. But for direct
-        // construction of the base Context class there is no subclass __init__ to
-        // consume them, so mirror the old Python Context.__init__'s strict signature
-        // and reject unknown/excess arguments instead of silently discarding them.
-        if cls.is(py.get_type::<Self>())
-            && (args.len()? > 0 || kwargs.is_some_and(|d| !d.is_empty()))
-        {
-            return Err(PyTypeError::new_err(
-                "Context() received unexpected positional or keyword arguments",
-            ));
-        }
         let meta_dict = meta
             .map(|d| d.clone().unbind())
             .unwrap_or_else(|| PyDict::new(py).unbind());
