@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from typing import Any
 
@@ -331,6 +332,22 @@ async def test_call_tool_async_returns_streaming_tool_generator(adk, test_spans)
 
     spans = [s for t in test_spans.pop_traces() for s in t]
     assert [s.resource for s in spans] == ["_FakeTool.fake_wrapped"]
+
+
+@pytest.mark.asyncio
+async def test_call_tool_async_finishes_span_on_cancellation(adk, test_spans) -> None:
+    """asyncio.CancelledError does not inherit from Exception, so it needs its own exit path."""
+
+    async def fake_wrapped(*args, **kwargs):
+        raise asyncio.CancelledError()
+
+    kwargs = {"tool": _FakeTool(), "args": {}, "tool_context": _FakeToolContext()}
+    with pytest.raises(asyncio.CancelledError):
+        await _traced_functions_call_tool_async(fake_wrapped, None, (), kwargs)
+
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    assert [s.resource for s in spans] == ["_FakeTool.fake_wrapped"]
+    assert spans[0].duration is not None, "a cancelled tool call must still finish its span"
 
 
 @pytest.mark.asyncio

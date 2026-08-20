@@ -118,7 +118,10 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
 
     try:
         result = await wrapped(*args, **kwargs)
-    except Exception:
+    except BaseException:
+        # BaseException, not Exception: a cancelled tool call raises asyncio.CancelledError, which
+        # does not inherit from Exception. The `with integration.trace(...)` block this replaced
+        # closed the span on every exit path, so this must too, or cancellation leaks the span.
         span.set_exc_info(*sys.exc_info())
         _finish_span(None)
         raise
