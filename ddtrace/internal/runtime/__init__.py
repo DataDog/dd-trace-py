@@ -40,6 +40,46 @@ _PARENT_RUNTIME_ID: t.Optional[str] = env.get(_ENV_PARENT_SESSION_ID)
 # construct many short-lived instances of some of these. A strong reference here would keep
 # every instance ever constructed alive for the life of the process.
 _ON_RUNTIME_ID_CHANGE: t.Set["weakref.ReferenceType[t.Callable[[str], None]]"] = set()  # noqa: UP006
+# Keep the finalizer objects alive for as long as their subscriber refs are registered.
+# The finalizers prune dead refs even if the process never calls refresh_identity().
+_ON_RUNTIME_ID_CHANGE_FINALIZERS: dict["weakref.ReferenceType[t.Callable[[str], None]]", t.Any] = {}
+# A refresh is a single state transition: rotate the ID, then notify every live subscriber.
+# Serialize the whole transition so two callers cannot leave subscribers rebuilt for an older ID.
+_RUNTIME_ID_REFRESH_LOCK = forksafe.Lock()
+
+
+def _discard_runtime_id_subscriber_ref(ref: "weakref.ReferenceType[t.Callable[[str], None]]") -> None:
+    _ON_RUNTIME_ID_CHANGE.discard(ref)
+    finalizer = _ON_RUNTIME_ID_CHANGE_FINALIZERS.pop(ref, None)
+    if finalizer is not None:
+        # Manual pruning owns cleanup from here; do not let the finalizer run later for the
+        # same ref.
+        finalizer.detach()
+
+
+def _remove_runtime_id_subscriber(ref: "weakref.ReferenceType[t.Callable[[str], None]]") -> None:
+    _discard_runtime_id_subscriber_ref(ref)
+
+
+def _weakref_runtime_id_subscriber(
+    cb: t.Callable[[str], None],
+) -> t.Optional[tuple["weakref.ReferenceType[t.Callable[[str], None]]", t.Any]]:
+    finalizer_target = cb
+    if hasattr(cb, "__self__"):
+        try:
+            method_ref = t.cast("weakref.ReferenceType[t.Callable[[str], None]]", weakref.WeakMethod(cb))
+            finalizer_target = getattr(cb, "__self__")
+            return method_ref, weakref.finalize(finalizer_target, _remove_runtime_id_subscriber, method_ref)
+        except TypeError:
+            # Builtins and some C-extension callables expose __self__ but are not Python
+            # bound methods. They may still support a plain weakref.
+            pass
+
+    try:
+        plain_ref = weakref.ref(cb)
+        return plain_ref, weakref.finalize(finalizer_target, _remove_runtime_id_subscriber, plain_ref)
+    except TypeError:
+        return None
 
 
 def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
@@ -53,15 +93,15 @@ def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
     it to keep firing.
     """
     global _ON_RUNTIME_ID_CHANGE
-    try:
-        ref = weakref.WeakMethod(cb) if hasattr(cb, "__self__") else weakref.ref(cb)
-    except TypeError:
-        # Some callables with a __self__ (e.g. certain C-implemented bound methods) aren't
-        # compatible with WeakMethod, and some objects aren't weakrefable at all. Skip
-        # registration rather than crash the caller's (often component-init) code path.
+    subscriber = _weakref_runtime_id_subscriber(cb)
+    if subscriber is None:
+        # Some callables aren't weakrefable at all. Skip registration rather than crash
+        # the caller's (often component-init) code path.
         log.debug("Could not weakly reference on_runtime_id_change() subscriber %r; skipping", cb)
         return
+    ref, finalizer = subscriber
     _ON_RUNTIME_ID_CHANGE.add(ref)
+    _ON_RUNTIME_ID_CHANGE_FINALIZERS[ref] = finalizer
 
 
 def _regenerate_runtime_id() -> None:
@@ -86,7 +126,8 @@ def _notify_runtime_id_subscribers() -> None:
             # One broken subscriber must not prevent other subscribers from seeing the
             # refreshed runtime ID.
             log.debug("Error notifying on_runtime_id_change() subscriber", exc_info=True)
-    _ON_RUNTIME_ID_CHANGE -= dead
+    for ref in dead:
+        _discard_runtime_id_subscriber_ref(ref)
 
 
 @forksafe.register
@@ -114,8 +155,9 @@ def refresh_identity() -> None:
     existed. Use this when a new logical process instance is created by a mechanism
     other than fork().
     """
-    _regenerate_runtime_id()
-    _notify_runtime_id_subscribers()
+    with _RUNTIME_ID_REFRESH_LOCK:
+        _regenerate_runtime_id()
+        _notify_runtime_id_subscribers()
 
 
 def get_runtime_id() -> str:

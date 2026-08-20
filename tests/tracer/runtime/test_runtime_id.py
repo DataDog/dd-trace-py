@@ -271,6 +271,20 @@ def test_refresh_identity_notifies_subscribers():
 
 
 @pytest.mark.subprocess
+def test_on_runtime_id_change_falls_back_to_plain_weakref_for_c_callables():
+    import ddtrace.internal.runtime as runtime
+
+    seen = []
+    cb = seen.append
+    assert hasattr(cb, "__self__")
+
+    runtime.on_runtime_id_change(cb)
+    runtime.refresh_identity()
+
+    assert seen == [runtime.get_runtime_id()]
+
+
+@pytest.mark.subprocess
 def test_refresh_identity_isolates_subscriber_exceptions():
     """One subscriber raising must not stop refresh_identity() or block other subscribers."""
     import ddtrace.internal.runtime as runtime
@@ -296,8 +310,51 @@ def test_refresh_identity_isolates_subscriber_exceptions():
 
 
 @pytest.mark.subprocess
+def test_refresh_identity_serializes_concurrent_notifications():
+    import threading
+
+    import ddtrace.internal.runtime as runtime
+
+    seen = []
+    seen_lock = threading.Lock()
+    first_entered = threading.Event()
+    release_first = threading.Event()
+    second_entered = threading.Event()
+
+    def on_change(new_id):
+        with seen_lock:
+            seen.append(new_id)
+            count = len(seen)
+
+        if count == 1:
+            first_entered.set()
+            assert release_first.wait(5)
+        elif count == 2:
+            second_entered.set()
+
+    runtime.on_runtime_id_change(on_change)
+
+    first = threading.Thread(target=runtime.refresh_identity)
+    first.start()
+    assert first_entered.wait(5)
+
+    second = threading.Thread(target=runtime.refresh_identity)
+    second.start()
+    assert not second_entered.wait(0.2)
+
+    release_first.set()
+    first.join(5)
+    second.join(5)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert second_entered.is_set()
+    assert seen[-1] == runtime.get_runtime_id()
+
+
+@pytest.mark.subprocess
 def test_on_runtime_id_change_does_not_leak_dead_subscribers():
-    """Subscribers are held weakly: once garbage collected they stop firing and are pruned.
+    """Subscribers are held weakly: once garbage collected they are pruned.
 
     Subscribers are typically objects constructed many times over a process's life (e.g. a
     trace writer instance per Tracer()); a strong reference here would keep every one of
@@ -321,7 +378,5 @@ def test_on_runtime_id_change_does_not_leak_dead_subscribers():
 
     del subscriber
     gc.collect()
-
-    runtime.refresh_identity()
 
     assert len(runtime._ON_RUNTIME_ID_CHANGE) == baseline
