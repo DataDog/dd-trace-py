@@ -633,8 +633,7 @@ class LLMObs(Service):
     def _on_span_finish(self, span: Span) -> None:
         if span.span_type != SpanTypes.LLM:
             return
-        if not self.enabled:
-            # LLMObs metastruct value is unnecessary since not enabled
+        if not self.enabled:  # LLMObs metastruct value is unnecessary since not enabled
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
             return
         span_kind = get_llmobs_span_kind(span)
@@ -717,8 +716,6 @@ class LLMObs(Service):
         # reaches every span in its block, but only agent spans carry the tags.
         agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
         if agent_annotation and span_kind == "agent":
-            # str() because the agent version comes straight from user-supplied annotate(agent=...)
-            # with no type validation, and tag values are serialized as strings.
             llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())

@@ -6,8 +6,10 @@ import pytest
 
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._utils import _MAX_NESTED_META_DEPTH
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
+from ddtrace.llmobs._utils import _sanitize_metric_key
 from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import load_data_value
@@ -670,6 +672,81 @@ class TestSanitizeSpanEventData:
         nested = {"l1": {"l2": {"l3": {"l4": {"l5": {"l6": {"l7": Deep(payload=deep_dict)}}}}}}}
         sanitized = _sanitize_span_event_data(nested)
         json.dumps(sanitized)  # the whole thing is still encodable
+
+        def depth(node):
+            if isinstance(node, dict):
+                return 1 + max([depth(v) for v in node.values()] or [0])
+            if isinstance(node, list):
+                return 1 + max([depth(v) for v in node] or [0])
+            return 0
+
+        assert depth(sanitized) <= _MAX_NESTED_META_DEPTH
+
+    def test_leaf_conversion_failure_falls_back_to_str(self):
+        """A leaf whose conversion raises must not abort the sanitizer. If it escaped, the
+        unsanitized struct would stay on the span and the agentless encoder would drop the whole
+        trace -- the failure this sanitizer exists to prevent.
+        """
+
+        class Exploding:
+            def model_dump(self, *args, **kwargs):
+                raise RuntimeError("boom")
+
+            def __str__(self):
+                return "Exploding()"
+
+        sanitized = _sanitize_span_event_data({"metadata": {"cfg": Exploding(), "ok": "kept"}})
+        json.dumps(sanitized)
+        assert sanitized == {"metadata": {"cfg": "Exploding()", "ok": "kept"}}
+
+    def test_leaf_conversion_recursion_falls_back_to_str(self):
+        """A self-returning model_dump() (e.g. a MagicMock) recurses until RecursionError, which is
+        an ordinary Exception -- the sanitizer must absorb it rather than bail out mid-walk.
+        """
+
+        class Recursive:
+            def model_dump(self, *args, **kwargs):
+                return Recursive()
+
+            def __str__(self):
+                return "Recursive()"
+
+        sanitized = _sanitize_span_event_data({"metadata": {"cfg": Recursive()}})
+        json.dumps(sanitized)
+        assert sanitized == {"metadata": {"cfg": "Recursive()"}}
+
+    def test_leaf_with_failing_str_falls_back_to_type_placeholder(self):
+        """Even __str__ is allowed to fail; the sanitizer still yields something encodable."""
+
+        class Hostile:
+            def model_dump(self, *args, **kwargs):
+                raise RuntimeError("boom")
+
+            def __str__(self):
+                raise RuntimeError("no str either")
+
+        sanitized = _sanitize_span_event_data({"metadata": {"cfg": Hostile()}})
+        json.dumps(sanitized)
+        assert sanitized == {"metadata": {"cfg": "[Unserializable object of type Hostile]"}}
+
+
+class TestSanitizeMetricKey:
+    """Dots in a metric key are read as nested-path separators by ingestion and drop the enclosing
+    span batch, so they must be replaced -- including dots introduced by stringifying the key.
+    """
+
+    def test_plain_key_passthrough(self):
+        assert _sanitize_metric_key("input_tokens") == "input_tokens"
+
+    def test_dotted_key_is_replaced(self):
+        assert _sanitize_metric_key("a.b.c") == "a_b_c"
+
+    def test_non_string_key_is_stringified(self):
+        assert _sanitize_metric_key(5) == "5"
+        assert _sanitize_metric_key(None) == "None"
+
+    def test_non_string_key_that_stringifies_to_a_dotted_key(self):
+        assert _sanitize_metric_key(1.5) == "1_5"
 
 
 class TestTraceIdNormalization:

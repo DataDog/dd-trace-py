@@ -249,6 +249,14 @@ def _unserializable_default_repr(obj):
         return "[Unserializable object: {}]".format(repr(obj))
 
 
+def _safe_str(obj: Any) -> str:
+    """str(obj), falling back to a type placeholder if __str__ itself raises."""
+    try:
+        return str(obj)
+    except Exception:
+        return "[Unserializable object of type {}]".format(type(obj).__name__)
+
+
 _MAX_NESTED_META_DEPTH = 12
 
 
@@ -284,7 +292,15 @@ def _sanitize_span_event_data(obj: Any) -> Any:
             return node
         # load_data_value keeps structure where it can (models become dicts) instead of flattening
         # to a string, so nested objects stay queryable. Re-walk it to apply the depth limit.
-        loaded = load_data_value(node)
+        try:
+            loaded = load_data_value(node)
+        except Exception:
+            # Conversion is allowed to fail (an SDK model_dump() that raises, a cyclic object that
+            # recurses) but this sanitizer is not: anything escaping here escapes _on_span_finish's
+            # handler too, leaving the unsanitized struct on the span for the agentless encoder to
+            # choke on -- the whole-trace drop this function exists to prevent.
+            log.debug("LLMObs: span event field %r could not be converted; falling back to str.", path)
+            return _safe_str(node)
         return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
@@ -332,6 +348,8 @@ def load_data_value(value):
         return value
     else:
         value_str = safe_json(value)
+        if value_str is None:  # safe_json swallows its failure and returns None
+            return _safe_str(value)
         try:
             return json.loads(value_str)
         except json.JSONDecodeError:
@@ -693,12 +711,12 @@ def _sanitize_metric_key(key):
 
     LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
     decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
-    Non-string keys are stringified, since a metric key is serialized as a string either way and
-    the encoder has no representation for other key types. (Value validation happens upstream in
-    ``annotate``.)
+    Non-string keys are stringified first, since a metric key is serialized as a string either way
+    and the encoder has no representation for other key types -- and stringifying can itself
+    introduce a dot (1.5 -> "1.5"). (Value validation happens upstream in annotate.)
     """
     if not isinstance(key, str):
-        return str(key)
+        key = str(key)
     if "." not in key:
         return key
     sanitized = key.replace(".", "_")
