@@ -14,7 +14,7 @@ class DramatiqSnapshotTests(unittest.TestCase):
 
     def tearDown(self):
         unpatch()
-        # Every test re-declares ``fn_task`` on the shared global broker, so drop
+        # Every test redeclares fn_task on the shared global broker, so drop
         # registered actors between tests to keep them isolated.
         dramatiq.get_broker().actors.clear()
 
