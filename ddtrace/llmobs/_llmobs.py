@@ -724,8 +724,23 @@ class LLMObs(Service):
                 # only for the agent spans among them. Must precede the llmobs_meta read below.
                 agent_manifest = build_manual_agent_manifest(declared_agent)
                 if agent_manifest:
-                    # dict(): a TypedDict is not assignable to dict[str, Any], values are invariant.
-                    _annotate_llmobs_span_data(span, agent_manifest=dict(agent_manifest))
+                    existing = ((llmobs_data.get(LLMOBS_STRUCT.META) or {}).get(LLMOBS_STRUCT.METADATA) or {}).get(
+                        LLMOBS_STRUCT.METADATA_DD
+                    ) or {}
+                    # Merged, not replaced: an integration may have already reported this agent and
+                    # the caller is annotating a few fields on top.
+                    merged: dict[str, Any] = dict(existing.get(LLMOBS_STRUCT.AGENT_MANIFEST) or {})
+                    declared_fields = dict(agent_manifest)
+                    if merged:
+                        # The caller never supplies framework, so it keeps naming whoever built the
+                        # rest rather than relabelling someone else's manifest.
+                        declared_fields.pop("framework", None)
+                    merged.update(declared_fields)
+                    # The panel needs something to call the agent; the span name is what it is
+                    # called everywhere else. A declared name has already won by this point.
+                    if not merged.get("name"):
+                        merged["name"] = get_llmobs_span_name(span) or span.name
+                    _annotate_llmobs_span_data(span, agent_manifest=merged)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()

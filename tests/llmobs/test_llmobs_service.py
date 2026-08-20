@@ -2181,15 +2181,37 @@ def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):
     assert _agent_manifest(span) == {"framework": MANUAL_FRAMEWORK_NAME, "name": "travel_desk"}
 
 
-def test_declared_agent_manifest_replaces_an_integration_built_one(llmobs):
-    """Precedence: the hand-declared manifest wins, being built at finalization. Pins the
-    direction; neither is obviously right.
+def test_declared_fields_merge_into_an_integration_built_manifest(llmobs):
+    """Annotating one field leaves the rest of an integration's manifest alone.
+
+    framework keeps naming whoever built the bulk of the document, since the caller never supplies
+    it and cannot have meant to relabel a CrewAI agent.
     """
     with llmobs.agent(name="test_agent") as span:
-        _annotate_llmobs_span_data(span, agent_manifest={"framework": "CrewAI", "name": "auto_agent"})
-        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+        _annotate_llmobs_span_data(
+            span,
+            agent_manifest={"framework": "CrewAI", "name": "auto_agent", "model": "gpt-4o-mini", "guardrails": ["x"]},
+        )
+        llmobs.annotate(span=span, agent={"model": "gpt-4o", "instructions": "Book travel."})
 
-    assert _agent_manifest(span) == DECLARED_MANIFEST
+    assert _agent_manifest(span) == {
+        "framework": "CrewAI",
+        "name": "auto_agent",
+        "model": "gpt-4o",
+        "instructions": "Book travel.",
+        "guardrails": ["x"],
+    }
+
+
+def test_manifest_name_defaults_to_the_span_name(llmobs):
+    """The panel needs something to call the agent, and a declared name overrides it."""
+    with llmobs.agent(name="travel_desk_span") as defaulted:
+        llmobs.annotate(span=defaulted, agent={"instructions": "Book travel."})
+    with llmobs.agent(name="travel_desk_span") as declared:
+        llmobs.annotate(span=declared, agent={"instructions": "Book travel.", "name": "declared_name"})
+
+    assert _agent_manifest(defaulted)["name"] == "travel_desk_span"
+    assert _agent_manifest(declared)["name"] == "declared_name"
 
 
 def test_annotation_context_nested(llmobs):
