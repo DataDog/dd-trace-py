@@ -11,6 +11,9 @@ import ddtrace
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
+from ddtrace.llmobs._integrations.utils import _inline_image_budget
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_documents
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -201,6 +204,197 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_core, langchain
     spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
     assert len(spans) == 1
     assert get_llmobs_span_kind(spans[0]) == "llm"
+
+
+TINY_PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+TINY_PNG_DATA_URL = "data:image/png;base64," + TINY_PNG_B64
+
+DIRECT_MODEL_URL = "http://localhost:8000"  # not a proxy URL, so the span stays llm-kind
+PROXY_MODEL_URL = "http://localhost:4000"
+
+
+def _image_content(url):
+    return [{"type": "text", "text": "What is in this image?"}, {"type": "image_url", "image_url": {"url": url}}]
+
+
+def _one_llmobs_span(test_spans):
+    spans = [s for trace in test_spans.pop_traces() for s in trace if _get_llmobs_data_metastruct(s)]
+    assert len(spans) == 1
+    return spans[0]
+
+
+def _serialized(span):
+    """Everything that would ship for this span, so an assertion can search all of it at once."""
+    return json.dumps(_get_llmobs_data_metastruct(span), default=str)
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_image_data_url_captured(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """A data URL is captured as a structured image_part instead of being inlined into the content."""
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=DIRECT_MODEL_URL)
+    chat_model.invoke([langchain_core.messages.HumanMessage(content=_image_content(TINY_PNG_DATA_URL))])
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_span_kind(span) == "llm"
+    assert get_llmobs_input_messages(span) == [
+        {
+            "content": "What is in this image?",
+            "role": "user",
+            "image_parts": [{"mime_type": "image/png", "content": TINY_PNG_B64}],
+        }
+    ]
+    # The payload survives only inside the structured part.
+    assert TINY_PNG_DATA_URL not in _serialized(span)
+    assert _serialized(span).count(TINY_PNG_B64) == 1
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_image_data_url_demoted_to_marker(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """A demoted span keeps a marker, never the payload; the provider's child span has the image."""
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=PROXY_MODEL_URL)
+    chat_model.invoke([langchain_core.messages.HumanMessage(content=_image_content(TINY_PNG_DATA_URL))])
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_span_kind(span) == "workflow"
+    assert get_llmobs_input_value(span) == json.dumps(
+        [{"content": "What is in this image?\n" + IMAGE_FALLBACK_MARKER, "role": "user"}], sort_keys=True
+    )
+    assert TINY_PNG_B64 not in _serialized(span)
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_oversize_image_degrades_to_marker(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """An over-budget image degrades to a marker; _truncate_span_event would blank input AND output."""
+    oversize_b64 = "A" * (_inline_image_budget() + 4)
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=DIRECT_MODEL_URL)
+    chat_model.invoke(
+        [langchain_core.messages.HumanMessage(content=_image_content("data:image/png;base64," + oversize_b64))]
+    )
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_input_messages(span) == [
+        {"content": "What is in this image?\n" + IMAGE_TOO_LARGE_MARKER, "role": "user"}
+    ]
+    assert oversize_b64 not in _serialized(span)
+    assert get_llmobs_output_messages(span) == [{"content": "The capital of France is Paris.", "role": "assistant"}]
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_audio_data_url_captured(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """Audio rides the same list-content path, which langchain has never handled either."""
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=DIRECT_MODEL_URL)
+    chat_model.invoke(
+        [
+            langchain_core.messages.HumanMessage(
+                content=[
+                    {"type": "text", "text": "what is said here?"},
+                    {"type": "input_audio", "input_audio": {"data": "AAECAw==", "format": "mp3"}},
+                ]
+            )
+        ]
+    )
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_input_messages(span) == [
+        {
+            "content": "what is said here?",
+            "role": "user",
+            "audio_parts": [{"mime_type": "audio/mpeg", "content": "AAECAw=="}],
+        }
+    ]
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_text_only_content_is_unchanged(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """Regression pin: a no-media message adds no parts key, on either the llm or the demoted path."""
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    for base_url, expected_kind in ((DIRECT_MODEL_URL, "llm"), (PROXY_MODEL_URL, "workflow")):
+        chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=base_url)
+        chat_model.invoke([langchain_core.messages.HumanMessage(content="What is the capital of France?")])
+
+        span = _one_llmobs_span(test_spans)
+        assert get_llmobs_span_kind(span) == expected_kind
+        expected = [{"content": "What is the capital of France?", "role": "user"}]
+        if expected_kind == "llm":
+            assert get_llmobs_input_messages(span) == expected
+        else:
+            assert get_llmobs_input_value(span) == json.dumps(expected, sort_keys=True)
+
+
+@mock.patch("langchain_openai.ChatOpenAI._stream")
+def test_llmobs_chat_model_image_data_url_captured_stream(
+    mock_stream, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """The streaming path builds its input messages separately, and had the same defect."""
+    outputs = importlib.import_module("langchain_core.outputs")
+    mock_stream.return_value = iter(
+        [outputs.ChatGenerationChunk(message=langchain_core.messages.AIMessageChunk(content="a 1x1 pixel"))]
+    )
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=DIRECT_MODEL_URL)
+    for _ in chat_model.stream([langchain_core.messages.HumanMessage(content=_image_content(TINY_PNG_DATA_URL))]):
+        pass
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_input_messages(span) == [
+        {
+            "content": "What is in this image?",
+            "role": "HumanMessage",
+            "image_parts": [{"mime_type": "image/png", "content": TINY_PNG_B64}],
+        }
+    ]
+    assert TINY_PNG_DATA_URL not in _serialized(span)
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_unrecognized_image_block_leaves_a_marker(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """Only the OpenAI-shaped image_url block is parsed; anything else degrades to a marker."""
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=DIRECT_MODEL_URL)
+    chat_model.invoke(
+        [
+            langchain_core.messages.HumanMessage(
+                content=[
+                    {"type": "text", "text": "What is in this image?"},
+                    {"type": "image", "source_type": "base64", "data": TINY_PNG_B64, "mime_type": "image/png"},
+                ]
+            )
+        ]
+    )
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_input_messages(span) == [
+        {"content": "What is in this image?\n" + IMAGE_FALLBACK_MARKER, "role": "user"}
+    ]
+    assert TINY_PNG_B64 not in _serialized(span)
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_string_content_parts_are_joined(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """langchain's content type allows bare strings in the list, which are not OpenAI content blocks."""
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=DIRECT_MODEL_URL)
+    chat_model.invoke([langchain_core.messages.HumanMessage(content=["part one", "part two"])])
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_input_messages(span) == [{"content": "part one\npart two", "role": "user"}]
 
 
 def test_llmobs_string_prompt_template_invoke(

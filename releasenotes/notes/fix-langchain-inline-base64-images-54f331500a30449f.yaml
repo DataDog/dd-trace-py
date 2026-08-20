@@ -1,0 +1,29 @@
+---
+features:
+  - |
+    LLM Observability: The LangChain integration now captures inline base64 images and audio from
+    multimodal message content as ``image_parts`` and ``audio_parts`` on LLM span messages, so they
+    render in LLM Observability. Images referenced by a remote URL are not fetched and keep their
+    existing text reference. A single inline image whose base64 payload exceeds 80% of the
+    configured per-event size limit (``DD_LLMOBS_EVENT_SIZE_BYTES``) is left as an
+    ``[image omitted: too large]`` marker instead. Note that this budget is per image, not per
+    request: several inline images can still take a span event past the per-event limit, at which
+    point the event's input and output are replaced with a placeholder. To stop image bytes from
+    being recorded, register a span processor with ``LLMObs.register_processor`` and remove the
+    ``image_parts`` key from the messages on ``span.input``.
+fixes:
+  - |
+    LLM Observability: Fixes an issue where an inline base64 image or audio clip sent in LangChain
+    multimodal message content was recorded as the entire base64 data URL inside the message text,
+    producing unreadable multi-megabyte span content and, past the per-event size limit, causing the
+    span's whole input and output to be dropped. This affected both streaming and non-streaming
+    chat calls.
+  - |
+    LLM Observability: Fixes an issue where a LangChain call routed through an instrumented proxy,
+    or to a provider that has its own LLM Observability integration, recorded the full base64 data
+    URL on the LangChain span in addition to the provider span. Such an image is now recorded as an
+    ``[image]`` marker on the LangChain span, and the provider span carries the image itself.
+  - |
+    LLM Observability: Fixes an issue where LangChain multimodal message content was recorded as a
+    Python list repr rather than readable text. Text segments are now joined with newlines, matching
+    the other integrations.
