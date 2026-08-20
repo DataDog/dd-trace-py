@@ -15,18 +15,21 @@ description: |
 
 # dd-trace-py APM Integrations
 
-dd-trace-py provides automatic tracing for 90+ third-party libraries. Each integration uses monkey-patching via `wrapt` to intercept library calls and create spans.
+dd-trace-py provides automatic instrumentation for 90+ third-party libraries.
+Most integrations intercept library calls to create spans; specialized
+integrations may instead publish runtime state to an existing internal listener.
 
 ## Architecture
 
 ```
-Patch Module (ddtrace/contrib/internal/)  -->  Spans + Tags
-  Wraps library methods, creates events or spans through the integration's current pattern
+Patch Module (ddtrace/contrib/internal/)  -->  Events, Spans, or Tags
+  Wraps library methods and uses the integration's established ownership pattern
 ```
 
 **Standard integrations** use one of these patterns:
 - **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers emit events via `core.context_with_data()`, listeners in `trace_handlers.py` create spans (e.g., botocore, flask, django).
 - **`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations): Typed event-driven pattern using `core.context_with_event()` with `TracingEvent` subclasses and `TracingSubscriber`. Read concrete examples such as `ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`, plus infrastructure in `ddtrace/_trace/events.py` and `ddtrace/_trace/subscribers/`.
+- **Raw `core.dispatch()` event** (specialized, no-span integrations only): Use when a runtime integration publishes lifecycle state to an established listener and does not own span creation. Keep the producer decoupled from the consuming product, share an internal event constant when multiple modules publish it, guard hot wrappers with `core.has_listeners()`, and preserve symmetric patch/unpatch behavior. AnyIO and asyncio context-switch publication are the reference implementations. Do not use raw events instead of `TracingEvent` for a new span-producing integration.
 - **`Pin` + `tracer.trace()`** (DEPRECATED — do not use in new integrations): Many existing integrations use `Pin.get_from()` + `tracer.trace()` (e.g., redis, kafka, grpc). Do NOT use Pin in new code.
 
 **LLM integrations** still use the APM integration workflow for contrib module layout, patch registration, and APM span tests, but LLMObs-specific span lifecycle and extraction belong in the `llmobs-integrations` skill.

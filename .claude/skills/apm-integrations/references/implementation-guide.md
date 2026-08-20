@@ -18,6 +18,7 @@ Create `ddtrace/contrib/internal/{name}/patch.py` with `get_version()`, `_suppor
   - `ddtrace/internal/core/__init__.py` — `context_with_event()` API
   - `ddtrace/internal/core/events.py` — `Event` base + `event_field()` descriptor
 - **`context_with_data()` (existing pattern)**: Use `context_with_data()` + `trace_handlers.py`. Read `ddtrace/contrib/internal/flask/patch.py` or another existing `context_with_data` integration. Use this when extending or mirroring an existing `context_with_data` integration.
+- **Raw core event (specialized no-span integrations only)**: Use `core.dispatch()` only when the wrapper publishes runtime lifecycle state to an established listener and does not own span creation. Read `ddtrace/contrib/internal/anyio/patch.py` and `ddtrace/contrib/internal/asyncio/patch.py`. Share an internal event constant when multiple modules publish it, guard hot wrappers with `core.has_listeners()`, and keep patch/unpatch symmetric. Do not use this pattern for a new span-producing integration.
 - **Pin + `tracer.trace()` (DEPRECATED)**: Do NOT use in new integrations.
 - **LLM/AI integrations**: Use this guide for contrib package layout, registration, config, and APM tests. Use the `llmobs-integrations` skill for LLM-specific patch patterns, span lifecycle, `BaseLLMIntegration`, stream handling, extraction, and LLMObs tests.
 
@@ -56,9 +57,12 @@ Add to `ddtrace/_monkey.py` `PATCH_MODULES` dict in alphabetical order.
 If the module name we patched is different than the contrib name, e.g. we patched `snowflake.core`, but the main package is `snowflake`, add it to `MODULES_FOR_CONTRIB` as well.
 Add to `scripts/integration_registry/registry.yaml` with dependency
 names and tested version range.
-Add to `INTEGRATION_CONFIGS` frozenset in `ddtrace/internal/settings/_config.py`
-in alphabetical order — this allows users to configure the integration before
-it's patched. **Without this entry, integration config settings are silently ignored.**
+If the integration calls `config._add()` or exposes integration-specific
+settings, add it to the `INTEGRATION_CONFIGS` frozenset in
+`ddtrace/internal/settings/_config.py` in alphabetical order. This allows users
+to configure the integration before it is patched. A no-span integration with
+only the dynamic `DD_TRACE_<NAME>_ENABLED` patch toggle does not need an
+`IntegrationConfig` entry.
 
 ## 3. Create LLMObs integration (LLM only)
 
@@ -120,7 +124,7 @@ Create `tests/contrib/{name}/` with:
 | File | Purpose | Pattern to follow |
 |------|---------|-------------------|
 | `test_{name}_patch.py` | Patch/unpatch cycle | `tests/contrib/anthropic/test_anthropic_patch.py` |
-| `test_{name}.py` | APM span assertions | Prefer `@pytest.mark.snapshot` |
+| `test_{name}.py` | Behavior/event or APM span assertions | Prefer `@pytest.mark.snapshot` for spans |
 | `test_{name}_llmobs.py` | LLMObs (LLM only) | `tests/contrib/anthropic/test_anthropic_llmobs.py` |
 
 LLMObs tests should use `assert_llmobs_span_data()` from `tests/llmobs/_utils.py` with `_get_llmobs_data_metastruct(span)` from `ddtrace.llmobs._utils`.
@@ -151,13 +155,14 @@ Every new integration must complete ALL applicable items:
 ### Registration
 - [ ] `ddtrace/_monkey.py` -- `PATCH_MODULES` entry in alphabetical order
 - [ ] `scripts/integration_registry/registry.yaml` -- dependency names and tested version range
-- [ ] `ddtrace/internal/settings/_config.py` -- `INTEGRATION_CONFIGS` frozenset entry
+- [ ] `ddtrace/internal/settings/_config.py` -- `INTEGRATION_CONFIGS` entry when the integration exposes settings
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` -- import + `__all__` entry (LLM only)
 
 ### Patch Code
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` -- `patch()`, `unpatch()`, `get_version()`
 - [ ] Standard patch code uses `<Type>Event` + `core.context_with_event()`; specialized direct child spans follow the closest current reference
 - [ ] Prefer class-based events API (`TracingEvent` + `TracingSubscriber`) for new standard integrations
+- [ ] Specialized no-span raw events have an established listener, shared event constant where applicable, listener gating, and symmetric patch/unpatch
 - [ ] LLM integrations follow the `llmobs-integrations` skill for request span lifecycle and LLMObs extraction
 
 ### Integration Layer
@@ -172,7 +177,7 @@ Every new integration must complete ALL applicable items:
 
 ### Tests
 - [ ] `tests/contrib/{name}/test_{name}_patch.py` -- patch/unpatch cycle tests
-- [ ] `tests/contrib/{name}/test_{name}.py` -- APM span snapshot tests
+- [ ] `tests/contrib/{name}/test_{name}.py` -- behavior/event tests or APM span snapshot tests
 - [ ] `tests/contrib/{name}/test_{name}_llmobs.py` -- LLMObs assertion tests (LLM only)
 - [ ] Tests use `@pytest.mark.snapshot` for APM assertions where possible
 - [ ] LLMObs tests use `assert_llmobs_span_data(_get_llmobs_data_metastruct(span), ...)`
