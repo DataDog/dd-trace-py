@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    CI Visibility: Add pagination metrics for known tests fetch (pages_fetched, total_fetch_ms, total_request_ms)
