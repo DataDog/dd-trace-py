@@ -769,7 +769,7 @@ def _exec_lazy_init(f: FunctionType, module_globals: dict[str, t.Any]) -> None:
         if event == "return" and frame.f_code is f.__code__:
             frame_locals.update(frame.f_locals)
         if old_trace is not None:
-            return old_trace(frame, event, arg)
+            old_trace(frame, event, arg)
         return _trace
 
     sys.settrace(_trace)
