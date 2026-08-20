@@ -28,15 +28,11 @@ class FeatureFlagCallback(RCCallback):
 
     def __init__(self) -> None:
         # AIDEV-NOTE: Path of the configuration currently loaded, so a removal only
-        # clears it when it names that same path. Replacing one UFC config with
-        # another arrives as remove(old) + add(new), and in a forked child those two
-        # do not necessarily arrive together: the native shared-memory distribution
-        # publishes a manifest per file operation (see src/native/rc_shm.rs), with
-        # the add published during the fetch and the remove right after it. A child
-        # whose reader wakes between the two publishes dispatches the add first and
-        # the remove second, so an unqualified clear would wipe the configuration
-        # that just became current and every later evaluation would report
-        # PROVIDER_NOT_READY until the next unrelated config change.
+        # clears it when it names that same path. Replacing a config is remove(old) +
+        # add(new), and a forked child can see the two in either order because the
+        # shared-memory distribution publishes a manifest per file operation (see
+        # src/native/rc_shm.rs). An unqualified clear would then wipe the config that
+        # just became current, leaving every evaluation on PROVIDER_NOT_READY.
         self._applied_path: t.Optional[str] = None
 
     def __call__(self, payloads: t.Sequence[Payload]) -> None:

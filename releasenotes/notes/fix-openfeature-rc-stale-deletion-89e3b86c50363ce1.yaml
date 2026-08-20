@@ -3,8 +3,5 @@ fixes:
   - |
     openfeature: This fix resolves an issue where replacing the feature flag configuration could
     leave a forked worker process (for example under ``gunicorn`` or ``uWSGI``) with no
-    configuration at all, so every subsequent flag evaluation returned the caller-provided default
-    with the ``PROVIDER_NOT_READY`` error code. A replacement is delivered as a removal of the old
-    configuration plus an addition of the new one, and a worker could observe the two out of order;
-    the removal then discarded the configuration that had just been applied. Removals are now
-    matched against the configuration currently loaded and ignored when they do not refer to it.
+    configuration, so every subsequent flag evaluation returned the caller-provided default with
+    the ``PROVIDER_NOT_READY`` error code.
