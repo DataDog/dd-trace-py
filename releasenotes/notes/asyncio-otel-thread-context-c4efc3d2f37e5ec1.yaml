@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Adds native OpenTelemetry thread-context synchronization across asyncio task switches and
+    ``asyncio.to_thread()`` worker threads on Python 3.13 and earlier. Python 3.14 already provides this through
+    its native context watcher; the asyncio fallback is used if that watcher cannot be registered.
