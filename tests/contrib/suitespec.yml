@@ -1225,6 +1225,26 @@ suites:
     services:
       - httpbin
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/requests
+      dependencies:
+        - pytest-randomly
+        - urllib3~=1.0
+        - requests-mock>=1.4
+      axes:
+        requests:
+          requests-2-25:
+            python: ['3.9']
+            dependencies: requests~=2.25.0
+          requests-2-27:
+            python: ['3.10']
+            dependencies: requests~=2.27
+          requests-2-28:
+            python: ['3.11']
+            dependencies: requests~=2.28.0
+          requests-latest:
+            dependencies: requests
   rq:
     parallelism: 1
     paths:

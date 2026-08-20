@@ -10,7 +10,7 @@ SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
 
 
 def _collect_suitespecs() -> dict:
-    suitespec = {"components": {}, "suites": {}}
+    suitespec = {"components": {}, "suites": {}, "matrix_defaults": {}}
 
     specfiles = []
     for root, ns_prefix in SEARCH_ROOTS:
@@ -83,3 +83,8 @@ def get_suites() -> dict[str, dict]:
 def get_components() -> dict[str, list[str]]:
     """Get the list of jobs."""
     return SUITESPEC.get("components", {})
+
+
+def get_matrix_defaults() -> dict:
+    """Get defaults inherited by declarative test matrices."""
+    return SUITESPEC.get("matrix_defaults", {})
