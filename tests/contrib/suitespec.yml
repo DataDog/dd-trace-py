@@ -758,6 +758,7 @@ suites:
       - '@tracing'
       - '@falcon'
       - tests/contrib/falcon/*
+      - tests/snapshots/tests.contrib.falcon.*
     snapshot: true
     venvs_per_job: 2
   fastapi:
