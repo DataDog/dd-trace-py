@@ -362,34 +362,41 @@ def test_early_fork_keeps_iast_enabled():
     remain enabled in the child and work normally.
     """
     from ddtrace.appsec._iast import _disable_iast_after_fork
+    from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
     from ddtrace.appsec._iast._taint_tracking import initialize_native_state
     from ddtrace.appsec._iast._taint_tracking import is_tainted
+    from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
     from ddtrace.internal.settings.asm import config as asm_config
 
     # Ensure IAST is enabled but NO context is active (simulating early fork)
-    # Don't call _start_iast_context_and_oce() - this simulates pre-fork state
+    # Don't call _start_iast_context_and_oce() - this simulates pre-fork state.
+    # A leaked context would make the handler see a late fork and disable IAST, so drop any.
     initialize_native_state()
+    clear_all_request_context_slots()
+    IAST_CONTEXT.set(None)
     original_state = asm_config._iast_enabled
     asm_config._iast_enabled = True
 
-    # Call the fork handler - should detect no active context and keep IAST enabled
-    _disable_iast_after_fork()
+    try:
+        # Call the fork handler - should detect no active context and keep IAST enabled
+        _disable_iast_after_fork()
 
-    # IAST should still be enabled (early fork scenario)
-    assert asm_config._iast_enabled is True, "IAST should remain enabled for early forks"
+        # IAST should still be enabled (early fork scenario)
+        assert asm_config._iast_enabled is True, "IAST should remain enabled for early forks"
 
-    # Now we can initialize IAST fresh in this "worker"
-    _start_iast_context_and_oce()
+        # Now we can initialize IAST fresh in this "worker"
+        _start_iast_context_and_oce()
 
-    # IAST should work normally
-    tainted = taint_pyobject("worker_data", "source", "value", OriginType.PARAMETER)
-    assert is_tainted(tainted), "IAST should work in early fork (web worker)"
+        # IAST should work normally
+        tainted = taint_pyobject("worker_data", "source", "value", OriginType.PARAMETER)
+        assert is_tainted(tainted), "IAST should work in early fork (web worker)"
 
-    count = _num_objects_tainted_in_request()
-    assert count > 0, "Should have tainted objects in early fork"
+        count = _num_objects_tainted_in_request()
+        assert count > 0, "Should have tainted objects in early fork"
 
-    _end_iast_context_and_oce()
-    asm_config._iast_enabled = original_state
+        _end_iast_context_and_oce()
+    finally:
+        asm_config._iast_enabled = original_state
 
 
 if __name__ == "__main__":

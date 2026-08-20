@@ -725,7 +725,7 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
 
 
 def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans):
-    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    @fastapi_application.get("/insecure_cookie/")
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
@@ -773,7 +773,7 @@ def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans
 
 
 def test_fastapi_insecure_cookie_empty(fastapi_application, client, tracer, test_spans):
-    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    @fastapi_application.get("/insecure_cookie/")
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
@@ -810,7 +810,7 @@ def test_fastapi_insecure_cookie_empty(fastapi_application, client, tracer, test
 
 
 def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_spans):
-    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    @fastapi_application.get("/insecure_cookie/")
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
@@ -858,7 +858,7 @@ def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_s
 
 
 def test_fastapi_no_http_only_cookie_empty(fastapi_application, client, tracer, test_spans):
-    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    @fastapi_application.get("/insecure_cookie/")
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
@@ -893,7 +893,7 @@ def test_fastapi_no_http_only_cookie_empty(fastapi_application, client, tracer, 
 
 
 def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_spans):
-    @fastapi_application.route("/insecure_cookie/", methods=["GET"])
+    @fastapi_application.get("/insecure_cookie/")
     def insecure_cookie(request: Request):
         from ddtrace.appsec._iast._taint_tracking import origin_to_str
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges

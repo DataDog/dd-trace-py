@@ -1,8 +1,10 @@
 from abc import ABC
 from contextvars import ContextVar
-from inspect import iscoroutinefunction
-from inspect import isgeneratorfunction
+from functools import lru_cache
+from inspect import CO_COROUTINE
+from inspect import CO_GENERATOR
 import sys
+from types import CodeType
 from types import FrameType
 from types import FunctionType
 from types import TracebackType
@@ -77,8 +79,41 @@ _registry_lock = RLock()
 
 log = get_logger(__name__)
 
+
+# Closures (nested functions with free variables) created by repeated calls to
+# the same factory function all share a single underlying code object. Each
+# time such a closure is wrapped we would otherwise decompile, instrument and
+# recompile that identical code object from scratch. Instead, the first time a
+# given code object is instrumented we cache the resulting "template" code
+# object, which has placeholder consts in place of the instance-specific
+# enter/return/exit callables. Subsequent wraps of a function sharing the same
+# original code object reuse the template and only need a cheap CodeType.replace
+# to swap in the real callables, skipping the decompile/instrument/recompile
+# steps entirely.
+#
+# The cache is bounded (simple LRU eviction, via lru_cache) so that
+# pathological cases, e.g. generating a large number of distinct dynamic code
+# objects, cannot grow it without bound.
+_TEMPLATE_CACHE_MAX_SIZE = 512
+
+
+# Sentinels marking the position of instance-specific consts in a cached
+# template, in place of the instance-specific context_enter/context_return/
+# context_exit bound methods (Python >= 3.11), or the context object itself
+# (Python < 3.11), when building a cacheable template out of a function's
+# bytecode. Only identity matters, so plain objects suffice.
+_ENTER_PLACEHOLDER = object()
+_RETURN_PLACEHOLDER = object()
+_EXIT_PLACEHOLDER = object()
+_CONTEXT_PLACEHOLDER = object()
+
+
 T = t.TypeVar("T")
 
+# Hoisted out of the hot enter/exit/return paths: subscripting a generic alias
+# like dict[str, t.Any] allocates a new types.GenericAlias on every evaluation,
+# so re-typing it inline on each call is not free.
+WrappingContextStorage = dict[str, t.Any]
 StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
@@ -438,7 +473,7 @@ class BaseWrappingContext(ABC):
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
-        storage = t.cast(dict[str, t.Any], self._storage.get())
+        storage = t.cast(WrappingContextStorage, self._storage.get())
         self._storage.set(storage.pop(_STORAGE_PREV))
         del storage[_STORAGE_OWNER]
         return storage
@@ -456,10 +491,10 @@ class BaseWrappingContext(ABC):
         self._pop_storage()
 
     def get(self, key: str) -> t.Any:
-        return t.cast(dict[str, t.Any], self._storage.get())[key]
+        return t.cast(WrappingContextStorage, self._storage.get())[key]
 
     def set(self, key: str, value: T) -> T:
-        t.cast(dict[str, t.Any], self._storage.get())[key] = value
+        t.cast(WrappingContextStorage, self._storage.get())[key] = value
         return value
 
     @classmethod
@@ -647,11 +682,25 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def __enter__(self) -> "_UniversalWrappingContext":
         super().__enter__()
 
-        # Make the frame object available to the contexts
-        self.set("__frame__", sys._getframe(1))
+        storage = t.cast(WrappingContextStorage, self._storage.get())
 
+        # Make the frame object available to the contexts
+        storage["__frame__"] = sys._getframe(1)
+
+        # Freeze the list of contexts so that we know exactly which ones to
+        # exit, in case new contexts are registered during the execution of
+        # the wrapped function. Contexts are appended only once entered, so
+        # that a failure partway through does not leave contexts that never
+        # entered in the snapshot.
+        entered: list[WrappingContext] = []
+        storage["__contexts__"] = entered
         for context in self._contexts:
-            context.__enter__()
+            try:
+                context.__enter__()
+            except Exception:
+                log.debug("Failed to enter wrapping context %r", context, exc_info=True)
+                continue
+            entered.append(context)
 
         return self
 
@@ -667,13 +716,25 @@ class _UniversalWrappingContext(BaseWrappingContext):
         if exc_value is None:
             return
 
-        for context in self._contexts[::-1]:
+        try:
+            contexts = t.cast(WrappingContextStorage, self._storage.get())["__contexts__"]
+        except (TypeError, KeyError):
+            log.debug("Universal wrapping context exited without entering")
+            return
+
+        for context in contexts[::-1]:
             context.__exit__(exc_type, exc_value, traceback)
 
         super().__exit__(exc_type, exc_value, traceback)
 
     def __return__(self, value: T) -> T:
-        for context in self._contexts[::-1]:
+        try:
+            contexts = t.cast(WrappingContextStorage, self._storage.get())["__contexts__"]
+        except (TypeError, KeyError):
+            log.debug("Universal wrapping context returned without entering")
+            return super().__return__(value)
+
+        for context in contexts[::-1]:
             context.__return__(value)
 
         return super().__return__(value)
@@ -700,83 +761,117 @@ class _UniversalWrappingContext(BaseWrappingContext):
                 raise ValueError("Function is not wrapped")
             return t.cast(_UniversalWrappingContext, _registry[f].uwc)
 
+    def wrap(self) -> None:
+        f = t.cast(FunctionType, self.__wrapped__)
+
+        with _registry_lock:
+            if self.is_wrapped(f):
+                raise ValueError("Function already wrapped")
+
+            code = get_function_code(f)
+
+            # Closures created from repeated calls to the same factory share
+            # the same code object: _build_template is memoized so the
+            # expensive decompile/instrument/recompile step is reused across
+            # them.
+            template = self._build_template(code)
+
+            # Register the wrapping context and link the function to the new
+            # code object.
+            _ContextRecord.get_or_create(f).uwc = self
+            link_function_to_code(code, f)
+
+            # Substitute the template's placeholder consts with the real,
+            # instance-specific values.
+            replacements = self._template_replacements()
+            set_function_code(f, template.replace(co_consts=tuple(replacements.get(c, c) for c in template.co_consts)))
+
     if sys.version_info >= (3, 11):
 
-        def wrap(self) -> None:
-            f = self.__wrapped__
+        @staticmethod
+        @lru_cache(maxsize=_TEMPLATE_CACHE_MAX_SIZE)
+        def _build_template(code: "CodeType") -> "CodeType":
+            """Build a cacheable, instance-agnostic instrumented copy of *code*.
 
-            with _registry_lock:
-                if self.is_wrapped(f):
-                    raise ValueError("Function already wrapped")
+            The instance-specific context_enter/context_return/context_exit
+            bound methods are replaced with placeholders so that the result
+            can be shared across multiple closures backed by the same code
+            object; see wrap(). Memoized via lru_cache, keyed on the code
+            object, so repeated wraps of closures sharing the same underlying
+            code skip the decompile/instrument/recompile.
+            """
+            bc = Bytecode.from_code(code)
 
-                bc = Bytecode.from_code(code := get_function_code(f))
+            # Prefix every return
+            i = 0
+            while i < len(bc):
+                instr = bc[i]
+                try:
+                    if instr.name == "RETURN_VALUE":
+                        return_code = CONTEXT_RETURN.bind({"context_return": _RETURN_PLACEHOLDER}, lineno=instr.lineno)
+                    elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
+                        return_code = CONTEXT_RETURN_CONST.bind(
+                            {"context_return": _RETURN_PLACEHOLDER, "value": instr.arg}, lineno=instr.lineno
+                        )
+                    else:
+                        return_code = []
 
-                # Prefix every return
+                    bc[i:i] = return_code
+                    i += len(return_code)
+                except AttributeError:
+                    # Not an instruction
+                    pass
+                i += 1
+
+            # Search for the RESUME instruction
+            for i, instr in enumerate(bc, 1):
+                try:
+                    if instr.name == "RESUME":
+                        break
+                except AttributeError:
+                    # Not an instruction
+                    pass
+            else:
                 i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    try:
-                        if instr.name == "RETURN_VALUE":
-                            return_code = CONTEXT_RETURN.bind({"context_return": self.__return__}, lineno=instr.lineno)
-                        elif sys.version_info >= (3, 12) and instr.name == "RETURN_CONST":  # Python 3.12+
-                            return_code = CONTEXT_RETURN_CONST.bind(
-                                {"context_return": self.__return__, "value": instr.arg}, lineno=instr.lineno
-                            )
-                        else:
-                            return_code = []
 
-                        bc[i:i] = return_code
-                        i += len(return_code)
-                    except AttributeError:
-                        # Not an instruction
-                        pass
+            bc[i:i] = CONTEXT_HEAD.bind({"context_enter": _ENTER_PLACEHOLDER}, lineno=code.co_firstlineno)
+
+            # Wrap every line outside a try block
+            except_label = bytecode.Label()
+            first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+
+            i = 0
+            while i < len(bc):
+                instr = bc[i]
+                if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
+                    bc.insert(i, bytecode.TryEnd(last_try_begin))
+                    last_try_begin = None
                     i += 1
-
-                # Search for the RESUME instruction
-                for i, instr in enumerate(bc, 1):
-                    try:
-                        if instr.name == "RESUME":
+                elif isinstance(instr, bytecode.TryEnd):
+                    j = i + 1
+                    while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
+                        if isinstance(bc[j], bytecode.Instr):
+                            last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
+                            bc.insert(i + 1, last_try_begin)
                             break
-                    except AttributeError:
-                        # Not an instruction
-                        pass
-                else:
-                    i = 0
-
-                bc[i:i] = CONTEXT_HEAD.bind({"context_enter": self.__enter__}, lineno=code.co_firstlineno)
-
-                # Wrap every line outside a try block
-                except_label = bytecode.Label()
-                first_try_begin = last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    if isinstance(instr, bytecode.TryBegin) and last_try_begin is not None:
-                        bc.insert(i, bytecode.TryEnd(last_try_begin))
-                        last_try_begin = None
-                        i += 1
-                    elif isinstance(instr, bytecode.TryEnd):
-                        j = i + 1
-                        while j < len(bc) and not isinstance(bc[j], bytecode.TryBegin):
-                            if isinstance(bc[j], bytecode.Instr):
-                                last_try_begin = bytecode.TryBegin(except_label, push_lasti=True)
-                                bc.insert(i + 1, last_try_begin)
-                                break
-                            j += 1
-                        i += 1
+                        j += 1
                     i += 1
+                i += 1
 
-                bc.insert(0, first_try_begin)
+            bc.insert(0, first_try_begin)
 
-                bc.append(bytecode.TryEnd(last_try_begin))
-                bc.append(except_label)
-                bc.extend(CONTEXT_FOOT.bind({"context_exit": self._exit}, lineno=code.co_firstlineno))
+            bc.append(bytecode.TryEnd(last_try_begin))
+            bc.append(except_label)
+            bc.extend(CONTEXT_FOOT.bind({"context_exit": _EXIT_PLACEHOLDER}, lineno=code.co_firstlineno))
 
-                # Register the wrapping context and write the new bytecode.
-                _ContextRecord.get_or_create(f).uwc = self
-                link_function_to_code(code, f)
-                set_function_code(f, bc.to_code())
+            return bc.to_code()
+
+        def _template_replacements(self) -> dict[object, object]:
+            return {
+                _ENTER_PLACEHOLDER: self.__enter__,
+                _RETURN_PLACEHOLDER: self.__return__,
+                _EXIT_PLACEHOLDER: self._exit,
+            }
 
         def unwrap(self) -> None:
             f = self.__wrapped__
@@ -857,42 +952,47 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     else:
 
-        def wrap(self) -> None:
-            f = t.cast(FunctionType, self.__wrapped__)
+        @staticmethod
+        @lru_cache(maxsize=_TEMPLATE_CACHE_MAX_SIZE)
+        def _build_template(code: "CodeType") -> "CodeType":
+            """Build a cacheable, instance-agnostic instrumented copy of *code*.
 
-            with _registry_lock:
-                if self.is_wrapped(f):
-                    raise ValueError("Function already wrapped")
+            The instance-specific context object is replaced with a placeholder
+            so that the result can be shared across multiple closures backed by
+            the same code object; see wrap(). Memoized via lru_cache, keyed on
+            the code object, so repeated wraps of closures sharing the same
+            underlying code skip the decompile/instrument/
+            recompile.
+            """
+            bc = Bytecode.from_code(code)
 
-                bc = Bytecode.from_code(code := get_function_code(f))
+            # Prefix every return
+            i = 0
+            while i < len(bc):
+                instr = bc[i]
+                if isinstance(instr, bytecode.Instr):
+                    if instr.name == "RETURN_VALUE":
+                        return_code = CONTEXT_RETURN.bind({"context": _CONTEXT_PLACEHOLDER}, lineno=instr.lineno)
+                        bc[i:i] = return_code
+                        i += len(return_code)
+                i += 1
 
-                # Prefix every return
-                i = 0
-                while i < len(bc):
-                    instr = bc[i]
-                    if isinstance(instr, bytecode.Instr):
-                        if instr.name == "RETURN_VALUE":
-                            return_code = CONTEXT_RETURN.bind({"context": self}, lineno=instr.lineno)
-                            bc[i:i] = return_code
-                            i += len(return_code)
-                    i += 1
+            # Search for the GEN_START instruction, which needs to stay on top.
+            i = 0
+            if sys.version_info >= (3, 10) and (code.co_flags & (CO_GENERATOR | CO_COROUTINE)):
+                for i, instr in enumerate(bc, 1):
+                    if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
+                        break
 
-                # Search for the GEN_START instruction, which needs to stay on top.
-                i = 0
-                if sys.version_info >= (3, 10) and (iscoroutinefunction(f) or isgeneratorfunction(f)):
-                    for i, instr in enumerate(bc, 1):
-                        if isinstance(instr, bytecode.Instr) and instr.name == "GEN_START":
-                            break
+            *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": _CONTEXT_PLACEHOLDER}, lineno=code.co_firstlineno)
 
-                *bc[i:i], except_label = CONTEXT_HEAD.bind({"context": self}, lineno=code.co_firstlineno)
+            bc.append(except_label)
+            bc.extend(CONTEXT_FOOT.bind(lineno=code.co_firstlineno))
 
-                bc.append(except_label)
-                bc.extend(CONTEXT_FOOT.bind(lineno=code.co_firstlineno))
+            return bc.to_code()
 
-                # Register the wrapping context and write the new bytecode.
-                _ContextRecord.get_or_create(f).uwc = self
-                link_function_to_code(code, f)
-                set_function_code(f, bc.to_code())
+        def _template_replacements(self) -> dict[object, object]:
+            return {_CONTEXT_PLACEHOLDER: self}
 
         def unwrap(self) -> None:
             f = t.cast(FunctionType, self.__wrapped__)

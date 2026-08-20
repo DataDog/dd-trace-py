@@ -2,6 +2,10 @@ import base64
 from types import SimpleNamespace
 
 from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
+from ddtrace.llmobs._integrations.agent_manifest import is_number
+from ddtrace.llmobs._integrations.agent_manifest import prune_empty
+from ddtrace.llmobs._integrations.agent_manifest import wire_value
 from ddtrace.llmobs._integrations.audio_utils import audio_mime_type_from_format
 from ddtrace.llmobs._integrations.audio_utils import concat_base64_audio
 from ddtrace.llmobs._integrations.audio_utils import format_audio_part
@@ -12,16 +16,20 @@ from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
+from ddtrace.llmobs._integrations.utils import _encoded_image_len
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
 from ddtrace.llmobs._integrations.utils import format_image_part
+from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
+from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import safe_json
 
 
 def test_format_audio_part_from_bytes():
@@ -97,6 +105,49 @@ def test_extract_content_parts_audio_marker_fallback_when_no_data():
     )
     assert text == "listen:\n[audio]"
     assert audio_parts == []
+
+
+def test_format_image_part_with_guard_within_budget():
+    """A renderable inline image within the cap is captured; a base64 string passes through unchanged."""
+    assert format_image_part_with_guard("iVBORw0KGgo=", "image/png") == {
+        "mime_type": "image/png",
+        "content": "iVBORw0KGgo=",
+    }
+    # Inclusive at the cap, and the payload is captured whole (not truncated).
+    part = format_image_part_with_guard("A" * 10, "image/png", max_bytes=10)
+    assert part == {"mime_type": "image/png", "content": "A" * 10}
+
+
+def test_format_image_part_with_guard_rejects_oversized():
+    """Over the cap returns None, for an already-encoded string and for raw bytes alike."""
+    assert format_image_part_with_guard("A" * 11, "image/png", max_bytes=10) is None
+    # Raw bytes are sized once encoded (~4/3), so 9 raw bytes -> 12 encoded, over a 10-byte cap.
+    assert format_image_part_with_guard(b"\x00" * 9, "image/png", max_bytes=10) is None
+    assert format_image_part_with_guard(b"\x00" * 6, "image/png", max_bytes=10) is not None
+
+
+def test_format_image_part_with_guard_sizes_non_ascii_by_bytes():
+    """A non-ASCII str is sized by its UTF-8 bytes, not its character count.
+
+    Real base64 is ASCII so the two agree, but sizing by len() would let a caller passing non-ASCII
+    text through the guard understate its wire cost up to 4x and blow the per-event limit anyway.
+    """
+    four_byte_chars = "\U0001f600" * 3  # 3 chars, 12 UTF-8 bytes
+    assert _encoded_image_len(four_byte_chars) == 12
+    assert format_image_part_with_guard(four_byte_chars, "image/png", max_bytes=11) is None
+    assert format_image_part_with_guard(four_byte_chars, "image/png", max_bytes=12) is not None
+
+
+def test_format_image_part_with_guard_rejects_unrenderable_mime():
+    """A non-image or unrenderable MIME type is not captured -- inline bytes the UI can't draw are waste,
+    and this keeps caller-supplied mime strings from riding the span. Mirrors the audio guard.
+    """
+    assert format_image_part_with_guard("PHNjcmlwdD4=", "text/html") is None
+    assert format_image_part_with_guard("PHN2Zz4=", "image/svg+xml") is None
+    assert format_image_part_with_guard("QUJD", "") is None
+    # The four renderable types (and Anthropic's whole media_type Literal) are accepted, case/space loose.
+    for mime in ("image/png", "image/jpeg", "image/gif", "image/webp", "  IMAGE/PNG "):
+        assert is_renderable_image_mime(mime), mime
 
 
 def test_extract_content_parts_no_audio():
@@ -672,3 +723,89 @@ class TestOpenAIConstructToolCallFromStreamedChunk:
             stored, tool_call_chunk=SimpleNamespace(index=0, id=None, type=None, function=later, custom=None)
         )
         assert stored[0]["function"]["arguments"] == '{"city": "NYC"}'
+
+
+class TestAgentManifestPrimitives:
+    """The coercion every integration's manifest needs on the way out.
+
+    These exist because an unencodable value does not fail politely: the span encoder reprs it, and a
+    bare NaN or Infinity token is not valid JSON. Spans ship batched, so one bad value discards every
+    span batched with it.
+    """
+
+    def test_prune_empty_drops_what_means_not_configured(self):
+        """Sections assign unconditionally so mypy can check key names; this is what drops the blanks."""
+        assert prune_empty(
+            {
+                "framework": "PydanticAI",
+                "instructions": "",
+                "system_prompts": [],
+                "capabilities": [],
+                "metadata": {},
+            }
+        ) == {"framework": "PydanticAI"}
+
+    def test_prune_empty_keeps_false_and_zero(self):
+        """A configured temperature of 0 is not an absent one, which truthiness filtering loses."""
+        assert prune_empty({"temperature": 0, "parallel_tool_calls": False, "top_p": 0.0}) == {
+            "temperature": 0,
+            "parallel_tool_calls": False,
+            "top_p": 0.0,
+        }
+
+    def test_prune_empty_is_depth_first(self):
+        """A container emptied by its own children has to drop too, or an empty husk ships."""
+        assert prune_empty({"agent_settings": {"retries": None}, "tools": [{"name": "x", "description": ""}]}) == {
+            "tools": [{"name": "x"}]
+        }
+
+    def test_is_number_rejects_bool_and_non_finite(self):
+        assert is_number(0) and is_number(1.5) and is_number(-3)
+        assert not is_number(True), "bool is an int subclass and would otherwise ship as true"
+        assert not is_number(float("nan"))
+        assert not is_number(float("inf"))
+        assert not is_number(float("-inf"))
+        assert not is_number("1") and not is_number(None)
+        assert is_number(10**400), "a huge int is finite, and converting it to float to check would raise"
+
+    def test_wire_value_drops_non_finite_and_unencodable(self):
+        assert wire_value(float("nan")) is None
+        assert wire_value(float("inf")) is None
+        assert wire_value(object()) is None
+        assert wire_value({"good": 1, "bad": object()}) == {"good": 1}
+        assert wire_value([1, object()]) is None, "one unencodable element costs the list"
+
+    def test_wire_value_coerces_keys_and_terminates(self):
+        assert wire_value({1: "a"}) == {"1": "a"}
+        cyclic = {"k": 1}
+        cyclic["self"] = cyclic
+        assert wire_value(cyclic) == {"k": 1}
+        deep = current = {}
+        for _ in range(MAX_WIRE_DEPTH + 10):
+            current["n"] = {}
+            current = current["n"]
+        wire_value(deep)
+
+    def test_wire_value_bounds_shared_subtrees(self):
+        """Depth alone does not bound the work: shared children expand into a tree.
+
+        Twenty dicts each referencing the same child twice is 2**20 nodes, which took seconds and
+        tens of megabytes before the node budget. Cycle detection cannot catch it, because a shared
+        child is a second visit rather than an ancestor.
+        """
+        node = {"leaf": 1}
+        for _ in range(20):
+            node = {"a": node, "b": node}
+
+        wired = wire_value(node)
+
+        assert len(safe_json(wired)) < 200_000, "the node budget is what keeps this off the wire"
+
+    def test_wire_value_keeps_a_shared_subtree_that_fits(self):
+        """A repeated child is legitimate, so the budget must not turn sharing into a drop."""
+        child = {"region": "us1", "tier": "gold"}
+
+        assert wire_value({"primary": child, "replica": child}) == {
+            "primary": {"region": "us1", "tier": "gold"},
+            "replica": {"region": "us1", "tier": "gold"},
+        }

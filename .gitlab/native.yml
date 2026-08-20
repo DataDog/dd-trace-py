@@ -21,6 +21,21 @@ include:
       echo -e "\e[0Ksection_start:`date +%s`:cargo_test[collapsed=true]\r\e[0Kcargo test"
       cargo test --no-fail-fast --locked
       echo -e "\e[0Ksection_end:`date +%s`:cargo_test\r\e[0K"
+    # The standalone heap-gotter cdylib crate lives outside src/native, so run
+    # the same fmt/clippy/test gate against it here to keep it under native CI.
+    - |
+      cd ../native_heap_gotter
+      echo -e "\e[0Ksection_start:`date +%s`:gotter_cargo_fmt[collapsed=true]\r\e[0Kheap-gotter cargo fmt"
+      cargo fmt --all -- --check
+      echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_fmt\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:gotter_cargo_clippy[collapsed=true]\r\e[0Kheap-gotter cargo clippy"
+      cargo clippy --locked --all-features -- -D warnings
+      echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_clippy\r\e[0K"
+    - |
+      echo -e "\e[0Ksection_start:`date +%s`:gotter_cargo_test[collapsed=true]\r\e[0Kheap-gotter cargo test"
+      cargo test --no-fail-fast --locked
+      echo -e "\e[0Ksection_end:`date +%s`:gotter_cargo_test\r\e[0K"
 
 "clang-tidy profiling":
   stage: tests

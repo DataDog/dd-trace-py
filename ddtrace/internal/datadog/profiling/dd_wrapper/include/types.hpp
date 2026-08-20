@@ -19,6 +19,17 @@ enum SampleType : std::uint16_t
     All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops
 };
 
+// Closed set of pymalloc domains we label on allocation/heap samples.
+// Stringification lives in Sample::push_allocator_domain so callers can pass
+// the enum around (and so values can be interned later without changing the API).
+enum class AllocatorDomain : std::uint8_t
+{
+    obj,
+    mem,
+    raw,
+    unknown,
+};
+
 // Every Sample object has a corresponding `values` vector, since libdatadog expects contiguous values per sample.
 // The index into that vector is determined by the configured sample types, which is encoded below.
 struct ValueIndex

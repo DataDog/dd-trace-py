@@ -2,11 +2,13 @@ import itertools
 from typing import ClassVar  # noqa:F401
 from typing import Optional  # noqa:F401
 
-import ddtrace
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
 from ddtrace.vendor.dogstatsd import DogStatsd
+from ddtrace.vendor.dogstatsd.base import ENTITY_ID_TAG_NAME
 
 from .. import periodic
 from ..dogstatsd import get_dogstatsd_client
@@ -14,7 +16,7 @@ from ..logger import get_logger
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
 from .metric_collectors import GCRuntimeMetricCollector
-from .metric_collectors import PSUtilRuntimeMetricCollector
+from .metric_collectors import NativeProcessMetricCollector
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import PlatformTagCollectorV2
 from .tag_collectors import ProcessTagCollector
@@ -69,7 +71,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ENABLED = DEFAULT_RUNTIME_METRICS
     COLLECTORS = [
         GCRuntimeMetricCollector,
-        PSUtilRuntimeMetricCollector,
+        NativeProcessMetricCollector,
     ]
 
 
@@ -80,27 +82,31 @@ class RuntimeWorker(periodic.PeriodicService):
     _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
     _lock = Lock()
 
-    def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, tracer=None, dogstatsd_url=None) -> None:
+    def __init__(self, interval=DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url=None) -> None:
         super().__init__(interval=interval)
         self.dogstatsd_url: Optional[str] = dogstatsd_url
-        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(
-            self.dogstatsd_url or ddtrace.internal.settings._agent.config.dogstatsd_url
-        )
-        self.tracer: ddtrace.trace.Tracer = tracer or ddtrace.tracer
+        self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
-        if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in ddtrace.config._experimental_features_enabled:
+        if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in config._experimental_features_enabled:
             # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)
             self.send_metric = self._dogstatsd_client.gauge
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
-        if ddtrace.config._runtime_metrics_runtime_id_enabled:
+        if config._runtime_metrics_runtime_id_enabled:
             # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
             self._platform_tags = self._format_tags(PlatformTagsV2())
         else:
             self._platform_tags = self._format_tags(PlatformTags())
 
         self._process_tags: list[str] = list(ProcessTags())
+        # Only dd.internal.entity_id needs preserving here: service/env/version are already
+        # refreshed fresh every flush via TracerTags(), so keeping them too would risk sending a
+        # stale value alongside the current one.
+        entity_id_prefix = ENTITY_ID_TAG_NAME + ":"
+        self._client_constant_tags: list[str] = [
+            tag for tag in (self._dogstatsd_client.constant_tags or []) if tag.startswith(entity_id_prefix)
+        ]
 
     @classmethod
     def disable(cls) -> None:
@@ -124,13 +130,12 @@ class RuntimeWorker(periodic.PeriodicService):
     @classmethod
     def enable(
         cls,
-        tracer: Optional[ddtrace.trace.Tracer] = None,
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         with cls._lock:
             if cls._instance is not None:
                 return
-            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, tracer, dogstatsd_url)
+            runtime_worker = cls(DEFAULT_RUNTIME_METRICS_INTERVAL, dogstatsd_url)
             runtime_worker.start()
 
             atexit.register(cls.disable)
@@ -141,8 +146,11 @@ class RuntimeWorker(periodic.PeriodicService):
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
-        log.debug("Sending runtime metrics with the following tags: %s", runtime_tags)
-        self._dogstatsd_client.constant_tags = runtime_tags
+        # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
+        # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
+        constant_tags = list(dict.fromkeys(self._client_constant_tags + runtime_tags))
+        log.debug("Sending runtime metrics with the following tags: %s", constant_tags)
+        self._dogstatsd_client.constant_tags = constant_tags
 
         with self._dogstatsd_client:
             for key, value in self._runtime_metrics:
