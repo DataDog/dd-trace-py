@@ -309,9 +309,14 @@ def test_create_task_publishes_only_the_context_switches_of_eager_tasks():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "false"})
 def test_create_task_publishes_eager_switch_even_when_the_pin_is_disabled():
     """The eager step's switch does not depend on the Pin: it isn't trace propagation, it's a fact
     about which context is active right now, and thread-context sync needs it regardless.
+
+    Runs in a subprocess with OTel thread context disabled so that the Python fallback is the one
+    publishing, even on CPython 3.14 Linux where the native watcher is registered process-wide and
+    cannot be unregistered.
     """
     import asyncio
 
