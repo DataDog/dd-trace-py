@@ -7,6 +7,7 @@ from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -15,6 +16,7 @@ from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
@@ -391,8 +393,14 @@ def unpatch():
 
 def patched_wsgi_app(wrapped, instance, args, kwargs):
     environ, start_response = args
+    script_name = (environ.get("SCRIPT_NAME") or "").rstrip("/")
+    if in_aws_lambda_microvm():
+        path_info = environ.get("PATH_INFO") or ""
+        core.dispatch(
+            WebFrameworkEvents.WEB_REQUEST_STARTING.value, (environ.get("REQUEST_METHOD"), script_name + path_info)
+        )
     # Registration is gated on asm_config, not tracing — keep this above the tracing short-circuit.
-    _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
+    _collect_routes_once(instance, script_name)
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
     middleware = _FlaskWSGIMiddleware(wrapped, None, config.flask)

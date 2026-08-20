@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from tests.utils import override_env
@@ -17,6 +18,21 @@ def test_is_newer_gcp_function():
 
 def test_not_gcp_function():
     assert in_gcp_function() is False
+
+
+def test_is_aws_lambda_microvm():
+    with override_env(dict(AWS_LAMBDA_MICROVM_IMAGE_ARN="arn:aws:lambda:us-east-1::runtime:python3.12")):
+        assert in_aws_lambda_microvm() is True
+
+
+def test_not_aws_lambda_microvm():
+    assert in_aws_lambda_microvm() is False
+
+
+@pytest.mark.parametrize("image_arn", ["", "   "])
+def test_blank_aws_lambda_microvm_image_arn(image_arn):
+    with override_env(dict(AWS_LAMBDA_MICROVM_IMAGE_ARN=image_arn)):
+        assert in_aws_lambda_microvm() is False
 
 
 def test_is_azure_function():

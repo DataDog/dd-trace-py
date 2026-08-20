@@ -20,6 +20,12 @@ def has_aws_lambda_agent_extension():
     return path.exists("/opt/extensions/datadog-agent")
 
 
+def in_aws_lambda_microvm():
+    # type: () -> bool
+    """Returns whether the environment is an AWS Lambda MicroVM."""
+    return bool(env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN", "").strip())
+
+
 def in_gcp_function():
     # type: () -> bool
     """Returns whether the environment is a GCP Function.
