@@ -101,14 +101,19 @@ class FlagEvalEVPHook(Hook):
                 eval_ctx.attributes if observe_full_evaluation_data and eval_ctx.attributes is not None else {}
             )
 
-            # Error message (best-effort; absent on success paths).
-            error_message = ""
-            if details.error_message:
-                error_message = str(details.error_message)
-            elif details.error_code:
-                error_message = (
+            error_code = ""
+            if details.error_code:
+                error_code = (
                     str(details.error_code.value) if hasattr(details.error_code, "value") else str(details.error_code)
                 )
+
+            # AIDEV-NOTE: Error messages can echo raw evaluation-context values.
+            # Under consent-off, substitute the stable error code before enqueue
+            # so raw text never enters the aggregation key, queue, or wire event.
+            if observe_full_evaluation_data and details.error_message:
+                error_message = str(details.error_message)
+            else:
+                error_message = error_code
 
             event = _EvalEvent(
                 flag_key=flag_key,
