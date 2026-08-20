@@ -1,4 +1,5 @@
 import asyncio
+from contextlib import asynccontextmanager
 import sys
 import threading
 import time
@@ -47,6 +48,37 @@ def python_context_fallback(patched_asyncio):
     """Skips unless context switches are published by the Python fallback rather than natively."""
     if not is_wrapped(asyncio.Handle._run):
         pytest.skip("the native context watcher is active")
+
+
+@pytest.fixture
+def failing_listener():
+    """Registers a context switch listener that raises, and yields the type it raises."""
+
+    class Boom(BaseException):
+        pass
+
+    def raise_boom():
+        raise Boom()
+
+    core.on(PYTHON_CONTEXT_SWITCH_EVENT, raise_boom)
+    try:
+        yield Boom
+    finally:
+        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, raise_boom)
+
+
+@asynccontextmanager
+async def collected_loop_exceptions():
+    """The contexts the running loop reports while the block runs, kept out of the default handler."""
+    loop = asyncio.get_running_loop()
+    original_handler = loop.get_exception_handler()
+    handled = []
+
+    loop.set_exception_handler(lambda _loop, context: handled.append(context))
+    try:
+        yield handled
+    finally:
+        loop.set_exception_handler(original_handler)
 
 
 @pytest.fixture
@@ -287,27 +319,50 @@ async def test_to_thread_forwards_func_keyword_argument(python_context_fallback)
 
 
 @pytest.mark.asyncio
-async def test_context_switch_listener_failure_does_not_kill_the_loop(python_context_fallback):
-    class Boom(BaseException):
-        pass
-
-    def failing_listener():
-        raise Boom()
-
-    loop = asyncio.get_running_loop()
-    original_handler = loop.get_exception_handler()
-    handled = []
-
-    loop.set_exception_handler(lambda _loop, context: handled.append(context))
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, failing_listener)
-    try:
+async def test_context_switch_listener_failure_does_not_kill_the_loop(python_context_fallback, failing_listener):
+    async with collected_loop_exceptions() as handled:
         await asyncio.sleep(0)
-    finally:
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, failing_listener)
-        loop.set_exception_handler(original_handler)
 
     assert handled
-    assert all(isinstance(context["exception"], Boom) for context in handled)
+    assert all(isinstance(context["exception"], failing_listener) for context in handled)
+
+
+@pytest.mark.asyncio
+async def test_context_switch_listener_failure_does_not_reach_the_to_thread_worker(
+    python_context_fallback, failing_listener
+):
+    """A worker thread has no loop to report the failure to, so it is logged and the worker still runs."""
+    ran = []
+
+    def worker():
+        ran.append(True)
+        return "result"
+
+    async with collected_loop_exceptions():
+        assert await asyncio.to_thread(worker) == "result"
+
+    assert ran
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
+@pytest.mark.asyncio
+async def test_context_switch_listener_failure_does_not_break_an_eager_task(python_context_fallback, failing_listener):
+    """The inline switch of an eagerly started task is published under the same guard as loop callbacks."""
+
+    async def child():
+        return "done"
+
+    loop = asyncio.get_running_loop()
+    original_factory = loop.get_task_factory()
+
+    loop.set_task_factory(asyncio.eager_task_factory)
+    try:
+        async with collected_loop_exceptions() as handled:
+            assert await loop.create_task(child()) == "done"
+    finally:
+        loop.set_task_factory(original_factory)
+
+    assert any(isinstance(context["exception"], failing_listener) for context in handled)
 
 
 @pytest.mark.asyncio

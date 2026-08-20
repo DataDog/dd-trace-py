@@ -9,12 +9,15 @@ from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal.constants import PYTHON_CONTEXT_WATCHER_REGISTERED
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
 
+
+log = get_logger(__name__)
 
 _context_switch_instrumentation_patched = False
 
@@ -57,11 +60,13 @@ def unpatch():
         _context_switch_instrumentation_patched = False
 
 
-def _dispatch_context_switch(handle: Any, context: Optional[Context] = None) -> None:
-    """Publish a context switch for handle, reporting listener failures the way Handle._run does.
+def _dispatch_context_switch(loop: Optional[Any], context: Optional[Context] = None, **details: Any) -> None:
+    """Publish a context switch, reporting a listener failure rather than raising it at the call site.
 
-    core.dispatch re-raises BaseException, and these dispatches sit outside the guard Handle._run
-    wraps its callback in, so an unguarded listener failure would tear the event loop down.
+    core.dispatch re-raises BaseException, and these dispatches sit outside the guards asyncio wraps
+    application code in, so an escaping listener failure would tear the event loop down or take the
+    place of the result of the call being instrumented. A to_thread worker runs off the loop and has
+    none to report to, so it passes loop as None and the failure is logged instead.
     """
     try:
         if context is None:
@@ -71,13 +76,12 @@ def _dispatch_context_switch(handle: Any, context: Optional[Context] = None) -> 
     except (SystemExit, KeyboardInterrupt):
         raise
     except BaseException as exc:
-        handle._loop.call_exception_handler(
-            {
-                "message": "Exception in ddtrace context switch listener",
-                "exception": exc,
-                "handle": handle,
-            }
-        )
+        if loop is None:
+            log.warning("Exception in ddtrace context switch listener", exc_info=True)
+        else:
+            loop.call_exception_handler(
+                {"message": "Exception in ddtrace context switch listener", "exception": exc, **details}
+            )
 
 
 def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -85,11 +89,11 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
         return wrapped(*args, **kwargs)
 
     handle = args[0]
-    _dispatch_context_switch(handle, handle._context)
+    _dispatch_context_switch(handle._loop, handle._context, handle=handle)
     try:
         return wrapped(*args, **kwargs)
     finally:
-        _dispatch_context_switch(handle)
+        _dispatch_context_switch(handle._loop, handle=handle)
 
 
 def _run_with_context_switches(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
@@ -98,11 +102,11 @@ def _run_with_context_switches(func: Callable[..., Any], /, *args: Any, **kwargs
     func is positional-only, like in asyncio.to_thread, so that a target taking its own func
     keyword argument still works.
     """
-    core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+    _dispatch_context_switch(None)
     try:
         return func(*args, **kwargs)
     finally:
-        Context().run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
+        _dispatch_context_switch(None, Context())
 
 
 def _wrapped_to_thread(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -141,8 +145,9 @@ def _wrapped_create_task(wrapped, args, kwargs):
     task_data: dict[str, Any] = {}
     core.dispatch("asyncio.create_task", (task_data,))
 
+    loop = args[0]
     dd_active = tracer.current_trace_context()
-    may_start_eagerly = _may_start_eagerly(args[0], kwargs)
+    may_start_eagerly = _may_start_eagerly(loop, kwargs)
     if not dd_active and not may_start_eagerly:
         return wrapped(*args, **kwargs)
 
@@ -158,7 +163,7 @@ def _wrapped_create_task(wrapped, args, kwargs):
         nonlocal eager_switch_published
         if eager_start_pending:
             eager_switch_published = True
-            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+            _dispatch_context_switch(loop)
         if dd_active:
             if dd_active != tracer.current_trace_context():
                 tracer.context_provider.activate(dd_active)
@@ -179,4 +184,4 @@ def _wrapped_create_task(wrapped, args, kwargs):
         eager_start_pending = False
         if eager_switch_published:
             # Restore the caller's context for listeners after the eager step ran inline.
-            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+            _dispatch_context_switch(loop)
