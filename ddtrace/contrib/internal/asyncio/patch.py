@@ -4,21 +4,17 @@ from contextvars import copy_context
 from functools import partial
 from typing import Any
 from typing import Callable
-from typing import Optional
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
-from ddtrace.internal.constants import PYTHON_CONTEXT_WATCHER_REGISTERED
-from ddtrace.internal.logger import get_logger
+from ddtrace.internal.opentelemetry.thread_context import context_switches_require_fallback
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
 
-
-log = get_logger(__name__)
 
 _context_switch_instrumentation_patched = False
 
@@ -41,7 +37,7 @@ def patch():
     Pin().onto(asyncio)
     wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
     global _context_switch_instrumentation_patched
-    if core.root.get_item(PYTHON_CONTEXT_WATCHER_REGISTERED) is False:
+    if context_switches_require_fallback():
         wrap(asyncio.Handle._run, _wrapped_run_handle)
         wrap(asyncio.to_thread, _wrapped_to_thread)
         _context_switch_instrumentation_patched = True
@@ -61,25 +57,23 @@ def unpatch():
         _context_switch_instrumentation_patched = False
 
 
-def _dispatch_context_switch(loop: Optional[Any], **details: Any) -> None:
-    """Publish a context switch, reporting a listener failure rather than raising it at the call site.
+def _dispatch_context_switch(
+    loop: asyncio.AbstractEventLoop, *, from_worker_thread: bool = False, **details: Any
+) -> None:
+    """Publish a context switch and report ordinary listener failures to the event loop.
 
     core.dispatch re-raises BaseException, and these dispatches sit outside the guards asyncio wraps
-    application code in, so an escaping listener failure would tear the event loop down or take the
-    place of the result of the call being instrumented. A to_thread worker runs off the loop and has
-    none to report to, so it passes loop as None and the failure is logged instead.
+    application code in, so an escaping Exception would tear the event loop down or take the place of
+    the result of the call being instrumented. Control-flow BaseExceptions must continue to propagate.
     """
     try:
         core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
-    except (SystemExit, KeyboardInterrupt):
-        raise
-    except BaseException as exc:
-        if loop is None:
-            log.warning("Exception in ddtrace context switch listener", exc_info=True)
+    except Exception as exc:
+        context = {"message": "Exception in ddtrace context switch listener", "exception": exc, **details}
+        if from_worker_thread:
+            loop.call_soon_threadsafe(loop.call_exception_handler, context)
         else:
-            loop.call_exception_handler(
-                {"message": "Exception in ddtrace context switch listener", "exception": exc, **details}
-            )
+            loop.call_exception_handler(context)
 
 
 def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -114,7 +108,9 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
         _dispatch_context_switch(handle._loop, handle=handle)
 
 
-def _run_with_context_switches(context: Context, func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+def _run_with_context_switches(
+    loop: asyncio.AbstractEventLoop, context: Context, func: Callable[..., Any], /, *args: Any, **kwargs: Any
+) -> Any:
     """Publish the copied context on entry and the restored worker context on exit.
 
     asyncio.to_thread propagates a copied Context into a pooled worker. The exit dispatch
@@ -123,19 +119,19 @@ def _run_with_context_switches(context: Context, func: Callable[..., Any], /, *a
     """
 
     def run_in_context() -> Any:
-        _dispatch_context_switch(None)
+        _dispatch_context_switch(loop, from_worker_thread=True)
         return func(*args, **kwargs)
 
     try:
         return context.run(run_in_context)
     finally:
-        _dispatch_context_switch(None)
+        _dispatch_context_switch(loop, from_worker_thread=True)
 
 
 async def _to_thread_with_context_switches(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
     loop = asyncio.get_running_loop()
     context = copy_context()
-    func_call = partial(_run_with_context_switches, context, func, *args, **kwargs)
+    func_call = partial(_run_with_context_switches, loop, context, func, *args, **kwargs)
     return await loop.run_in_executor(None, func_call)
 
 
@@ -151,14 +147,17 @@ def _may_start_eagerly(loop: Any, kwargs: dict[str, Any]) -> bool:
     """Whether this create_task call could run the coroutine's first step inline.
 
     An eager first step bypasses Handle._run, so its context switch has to be published from
-    inside the coroutine instead. Eager start needs a task factory or an explicit eager_start
-    (3.14+); this is deliberately a superset, and _wrapped_create_task only keeps the switches
-    of the calls that really did start eagerly.
+    inside the coroutine instead. Only the standard eager task factory and an explicit
+    eager_start (3.14+) are known to run inline; arbitrary custom factories retain the fast path.
     """
+    eager_task_factory = getattr(asyncio, "eager_task_factory", None)
     return (
         _context_switch_instrumentation_patched
         and core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT)
-        and (bool(kwargs.get("eager_start")) or loop.get_task_factory() is not None)
+        and (
+            bool(kwargs.get("eager_start"))
+            or (eager_task_factory is not None and loop.get_task_factory() is eager_task_factory)
+        )
     )
 
 

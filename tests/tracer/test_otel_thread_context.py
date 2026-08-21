@@ -12,9 +12,11 @@ from ddtrace._trace.context import Context as DDContext
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
 from ddtrace.contrib.internal.asyncio.patch import patch
-from ddtrace.contrib.internal.asyncio.patch import unpatch
 from ddtrace.internal import core
+from ddtrace.internal.opentelemetry import thread_context
 from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
+from tests.contrib.asyncio.utils import isolated_event_loop
+from tests.contrib.asyncio.utils import preserve_asyncio_patch_state
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
@@ -200,6 +202,20 @@ def test_python_context_switch_syncs_active_context(tracer: Tracer):
     assert _published_context() == (context.trace_id, context.span_id, 1, 0)
 
 
+@pytest.mark.parametrize(
+    ("has_listener", "watcher_registered", "fallback_required"),
+    [(False, False, False), (True, False, True), (True, True, False)],
+)
+def test_context_switch_fallback_uses_live_runtime_capability(
+    monkeypatch, has_listener, watcher_registered, fallback_required
+):
+    """Fallback selection derives from live listeners and watcher state instead of import order."""
+    monkeypatch.setattr(thread_context.core, "has_listeners", lambda _event: has_listener)
+    monkeypatch.setattr(thread_context, "is_context_watcher_registered", lambda: watcher_registered)
+
+    assert thread_context.context_switches_require_fallback() is fallback_required
+
+
 def test_asyncio_to_thread_syncs_thread_context(tracer: Tracer):
     """The OTel TLS record follows the active context copied into an asyncio worker thread."""
 
@@ -208,18 +224,13 @@ def test_asyncio_to_thread_syncs_thread_context(tracer: Tracer):
             assert await asyncio.to_thread(_published_span_id) == parent.span_id
         assert await asyncio.to_thread(_published_span_id) is None
 
-    was_patched = getattr(asyncio, "_datadog_patch", False)
-    unpatch()
-    patch()
-    loop = asyncio.new_event_loop()
-    try:
-        loop.run_until_complete(exercise())
-    finally:
-        loop.run_until_complete(loop.shutdown_default_executor())
-        loop.close()
-        unpatch()
-        if was_patched:
-            patch()
+    with preserve_asyncio_patch_state():
+        patch()
+        with isolated_event_loop() as loop:
+            try:
+                loop.run_until_complete(exercise())
+            finally:
+                loop.run_until_complete(loop.shutdown_default_executor())
 
 
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):

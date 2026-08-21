@@ -1,12 +1,39 @@
 import asyncio
+from contextlib import contextmanager
 from functools import wraps
 import logging
 import sys
+from typing import Iterator
 
+from ddtrace.contrib.internal.asyncio.patch import patch
+from ddtrace.contrib.internal.asyncio.patch import unpatch
 from tests.utils import TracerTestCase
 
 
 log = logging.getLogger(__name__)
+
+
+@contextmanager
+def preserve_asyncio_patch_state() -> Iterator[None]:
+    """Temporarily unpatch asyncio, then restore its original patch state."""
+    was_patched = getattr(asyncio, "_datadog_patch", False)
+    unpatch()
+    try:
+        yield
+    finally:
+        unpatch()
+        if was_patched:
+            patch()
+
+
+@contextmanager
+def isolated_event_loop() -> Iterator[asyncio.AbstractEventLoop]:
+    """Provide a loop owned and closed by the caller."""
+    loop = asyncio.new_event_loop()
+    try:
+        yield loop
+    finally:
+        loop.close()
 
 
 class AsyncioTestCase(TracerTestCase):

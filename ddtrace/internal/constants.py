@@ -108,7 +108,6 @@ HTTP_REQUEST_UPGRADED = "http.upgraded"
 HTTP_REQUEST_PATH_PARAMETER = "http.request.path.parameter"
 REQUEST_PATH_PARAMS = "http.request.path_params"
 PYTHON_CONTEXT_SWITCH_EVENT = "python.context.switch"
-PYTHON_CONTEXT_WATCHER_REGISTERED = "python.context.watcher_registered"
 STATUS_403_TYPE_AUTO = {"status_code": 403, "type": "auto"}
 PROCESS_TAGS = "_dd.tags.process"
 PROPAGATED_HASH = "_dd.propagated_hash"
