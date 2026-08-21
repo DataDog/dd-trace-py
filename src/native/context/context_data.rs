@@ -19,9 +19,6 @@ pub struct ContextData {
     baggage: Option<Py<PyDict>>,
     /// list[SpanLink].
     span_links: Option<Py<PyList>>,
-    /// Optional ddtrace.internal.otel_sampling.OtelSamplingState shared by all
-    /// per-span Context copies belonging to the same trace.
-    otel_sampling_state: Option<Py<PyAny>>,
     #[pyo3(get, set, name = "_is_remote")]
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
@@ -44,7 +41,6 @@ impl ContextData {
         span_links=None,
         baggage=None,
         is_remote=true,
-        otel_sampling_state=None,
         *args,
         **kwargs
     ))]
@@ -60,7 +56,6 @@ impl ContextData {
         span_links: Option<&Bound<'p, PyList>>,
         baggage: Option<&Bound<'p, PyDict>>,
         is_remote: bool,
-        otel_sampling_state: Option<&Bound<'p, PyAny>>,
         // Accept *args/**kwargs so subclasses don't need to override __new__
         args: &Bound<'p, PyTuple>,
         kwargs: Option<&Bound<'p, PyDict>>,
@@ -87,7 +82,6 @@ impl ContextData {
                     .map(|l| l.clone().unbind())
                     .unwrap_or_else(|| PyList::empty(py).unbind()),
             ),
-            otel_sampling_state: otel_sampling_state.map(|state| state.clone().unbind()),
             is_remote,
             reactivate: false,
         }
@@ -202,25 +196,10 @@ impl ContextData {
         self.span_links = Some(value.clone().unbind());
     }
 
-    // --- _otel_sampling_state_data ---
-    #[getter(_otel_sampling_state_data)]
-    #[inline(always)]
-    fn get_otel_sampling_state<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
-        self.otel_sampling_state
-            .as_ref()
-            .map(|state| state.bind(py).clone())
-    }
-
-    #[setter(_otel_sampling_state_data)]
-    #[inline(always)]
-    fn set_otel_sampling_state(&mut self, value: Option<&Bound<'_, PyAny>>) {
-        self.otel_sampling_state = value.map(|state| state.clone().unbind());
-    }
-
     // --- Cyclic GC support ---
     //
-    // `_meta`/`_metrics`/`_baggage`/`_span_links` and the OTel sampling state are
-    // Python objects that can participate in reference cycles. Without
+    // `_meta`/`_metrics`/`_baggage`/`_span_links` are Python objects that can
+    // participate in reference cycles. Without
     // `__traverse__`/`__clear__` such a cycle is invisible to CPython's cyclic GC
     // and leaks forever -- see the identical rationale on `SpanData`, which hit
     // exactly this class of bug for `meta_struct`.
@@ -236,9 +215,6 @@ impl ContextData {
         }
         if let Some(l) = &self.span_links {
             visit.call(l)?;
-        }
-        if let Some(state) = &self.otel_sampling_state {
-            visit.call(state)?;
         }
         Ok(())
     }
