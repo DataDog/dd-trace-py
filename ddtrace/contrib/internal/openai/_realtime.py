@@ -11,11 +11,15 @@ for the model's work (generation - started at the end of user speech and finishe
 carrying the user/assistant transcripts, audio, and token usage), an "agent speech" workflow span
 (the human hearing window). Any tool calls the model makes are captured on the llm span. Splitting
 the phases keeps span duration meaningful: the llm span measures model latency, not the time the
-human spent talking, and time-to-first-agent-audio falls out of the span boundaries. Every span is
-annotated with a per-connection session_id so the UI groups all of a connection's turns into one
-conversation; there is no parent "session" span across turns, which keeps each trace one turn small
-(no accumulation toward the per-event size budget) and renders cleanly. (If the caller wraps the
-connection in their own LLMObs context, the turn roots naturally nest under it.)
+human spent talking, and time-to-first-agent-audio falls out of the span boundaries. The user-speech
+window is anchored on the VAD speech-onset event rather than on the first audio the client appended,
+since a server-VAD client streams the microphone continuously and the buffer is therefore open from
+the moment the previous turn was committed; the pre-speech lead-in is trimmed off the captured audio
+to match (see ``_on_speech_started``). Every span is annotated with a per-connection session_id so
+the UI groups all of a connection's turns into one conversation; there is no parent "session" span
+across turns, which keeps each trace one turn small (no accumulation toward the per-event size
+budget) and renders cleanly. (If the caller wraps the connection in their own LLMObs context, the
+turn roots naturally nest under it.)
 
 A turn span is finalized on response.done - except that the user's input transcription
 (conversation.item.input_audio_transcription.completed) is asynchronous and frequently arrives after
@@ -116,6 +120,9 @@ class _AudioAccumulator:
         self.present: bool = False
         self.oversize: bool = False
         self._bytes: int = 0
+        # Decoded byte length of each buffered chunk, parallel to ``chunks``, so a leading run of
+        # them can be identified by byte offset and trimmed (see ``trim_leading``).
+        self._chunk_bytes: list[int] = []
         # Wall-clock (unix ns) when the first chunk of this segment was observed. Anchors the segment
         # on the shared session timeline for full-conversation playback. Set even when bytes are later
         # dropped (oversize), since ``present`` still surfaces a marker.
@@ -130,7 +137,7 @@ class _AudioAccumulator:
         if self.start_ns is None:
             self.start_ns = time.time_ns()
         self.present = True
-        decoded = (len(b64) * 3) // 4  # decoded size ~= 3/4 of the base64 length
+        decoded = _decoded_b64_len(b64)
         self.total_decoded_bytes += decoded
         if self.oversize:
             return
@@ -138,11 +145,48 @@ class _AudioAccumulator:
         if self._bytes > _AUDIO_ACCUM_MAX_BYTES:
             self.oversize = True
             self.chunks = []  # free what we had; the guard would drop the whole thing anyway
+            self._chunk_bytes = []
             return
         self.chunks.append(b64)
+        self._chunk_bytes.append(decoded)
+
+    def trim_leading(self, decoded_bytes: int) -> None:
+        """Drop the buffered chunks that lie entirely within this segment's first ``decoded_bytes``.
+
+        Used to cut the pre-speech audio a continuously-streaming client appends (the microphone
+        keeps sending while the agent talks) off the front of a user turn, so the captured audio
+        covers the same window the span reports. Trimming is whole-chunk - chunks are separately
+        encoded base64 and PCM16 samples must stay byte-aligned - so up to one chunk of lead-in
+        survives, which is well inside the prefix padding the onset offset already includes.
+        """
+        if decoded_bytes <= 0:
+            return
+        if decoded_bytes >= self.total_decoded_bytes:
+            # Everything seen so far precedes the onset, so the segment starts empty: reset outright,
+            # byte cap included. Otherwise a long silent lead-in (the buffer stays open across the
+            # whole previous agent response) could spend the cap before the speech even starts and
+            # leave the turn with nothing but an ``[audio]`` marker.
+            self.clear()
+            return
+        dropped = 0
+        count = 0
+        for size in self._chunk_bytes:
+            if dropped + size > decoded_bytes:
+                break
+            dropped += size
+            count += 1
+        if count:
+            del self.chunks[:count]
+            del self._chunk_bytes[:count]
+            self._bytes -= dropped
+        # ``total_decoded_bytes`` measures the playback window rather than what we kept, so it sheds
+        # the whole lead-in (not just the whole chunks), including when the byte cap already dropped
+        # the chunks themselves.
+        self.total_decoded_bytes = max(0, self.total_decoded_bytes - decoded_bytes)
 
     def clear(self) -> None:
         self.chunks = []
+        self._chunk_bytes = []
         self.present = False
         self.oversize = False
         self._bytes = 0
@@ -158,11 +202,27 @@ class _InputTurn:
         self.text: str = ""
         self.transcript: str = ""
         self.item_id: Optional[str] = None
+        # Wall-clock (unix ns) when the user actually started speaking, from the VAD speech-onset
+        # event. This is the start of the user-speech window; the first buffered chunk is not, since
+        # a server-VAD client streams the microphone continuously (see ``_on_speech_started``).
+        self.speech_start_ns: Optional[int] = None
         # Wall-clock (unix ns) when the user's input audio was committed (~ end of user speech). Used
         # to measure response latency from real speech-end rather than the padded buffer end.
         self.speech_end_ns: Optional[int] = None
+        # Offset (ms) on the session's input-audio-buffer timeline of the first chunk buffered for
+        # this turn, so a VAD offset can be converted into a byte offset into ``audio``.
+        self.audio_base_ms: Optional[float] = None
         # Tool results the app fed back (function_call_output) before the next response.
         self.tool_results: list[ToolResult] = []
+
+    def discard_audio(self) -> None:
+        """The input audio buffer was cleared: drop the buffered audio and the speech onset derived
+        from it so neither can be attributed to the next response. The committed speech end is left
+        alone - a client that clears the buffer after committing has still ended that speech.
+        """
+        self.audio.clear()
+        self.speech_start_ns = None
+        self.audio_base_ms = None
 
 
 class _ResponseTurn:
@@ -206,6 +266,12 @@ class _RealtimeState:
         # Whether the session enabled input-audio transcription. We only defer a turn's span to wait
         # for a transcript when it's actually configured — otherwise no transcript is ever coming.
         self._input_transcription_enabled: bool = False
+        # Offset (ms) of the end of all input audio appended to the buffer this session, and the wall
+        # clock (unix ns) when we reached it. Together they place the VAD events' buffer offsets on
+        # the wall clock (see ``_buffer_offset_to_wall_ns``). ``None`` means we lost the origin and
+        # the projection is unavailable.
+        self._input_buffer_ms: Optional[float] = 0.0
+        self._input_buffer_ms_at_ns: Optional[int] = None
         self._pending_input = _InputTurn()
         self._responses: dict[str, Any] = {}
         self._input_transcripts: dict[str, str] = {}
@@ -225,10 +291,10 @@ class _RealtimeState:
             elif event_type == "input_audio_buffer.append":
                 audio = _get_attr(event, "audio", None)
                 if audio:
-                    self._pending_input.audio.append(audio)
+                    self._append_input_audio(audio)
             elif event_type == "input_audio_buffer.clear":
                 # Discarded input audio must not be attributed to the next response.
-                self._pending_input.audio.clear()
+                self._pending_input.discard_audio()
             elif event_type == "conversation.item.create":
                 self._absorb_input_item(_get_attr(event, "item", None))
         except Exception:
@@ -240,12 +306,22 @@ class _RealtimeState:
             if event_type in ("session.created", "session.updated"):
                 self._update_session_config(_get_attr(event, "session", None))
                 return
+            if event_type == "input_audio_buffer.speech_started":
+                self._on_speech_started(_get_attr(event, "audio_start_ms", None))
+                return
+            if event_type == "input_audio_buffer.speech_stopped":
+                # The commit that follows is the authoritative end of user speech (and overwrites
+                # this); recording it here only covers a session that never commits, so the window
+                # still gets an end.
+                if self._pending_input.speech_end_ns is None:
+                    self._pending_input.speech_end_ns = time.time_ns()
+                return
             if event_type == "input_audio_buffer.committed":
                 self._pending_input.item_id = _get_attr(event, "item_id", None)
                 self._pending_input.speech_end_ns = time.time_ns()
                 return
             if event_type == "input_audio_buffer.cleared":
-                self._pending_input.audio.clear()
+                self._pending_input.discard_audio()
                 return
             if event_type == "conversation.item.input_audio_transcription.completed":
                 item_id = _get_attr(event, "item_id", None)
@@ -300,6 +376,88 @@ class _RealtimeState:
         elif normalized == "response.text.done":
             turn.text = str(_get_attr(event, "text", turn.text) or "")
 
+    # -- input audio + speech window ----------------------------------------
+
+    def _append_input_audio(self, b64: str) -> None:
+        """Buffer a client audio append for the pending turn and advance the input-buffer clock."""
+        pending = self._pending_input
+        if pending.audio.start_ns is None:
+            # First chunk of this turn: remember where it sits on the session's input-buffer
+            # timeline, so a VAD offset can be turned into a byte offset into what we buffer here.
+            pending.audio_base_ms = self._input_buffer_ms
+        pending.audio.append(b64)
+        self._advance_input_buffer_clock(_decoded_b64_len(b64))
+
+    def _advance_input_buffer_clock(self, decoded_bytes: int) -> None:
+        """Track how far into the session's input audio the buffer now extends, and when we got
+        there. Audio in a format whose duration we can't compute loses the origin, which disables
+        the projection rather than silently skewing it.
+        """
+        if self._input_buffer_ms is None:
+            return
+        bytes_per_second = _bytes_per_second(self._input_audio_mime, self._input_audio_rate)
+        if not bytes_per_second:
+            self._input_buffer_ms = None
+            return
+        self._input_buffer_ms += decoded_bytes / bytes_per_second * 1000
+        self._input_buffer_ms_at_ns = time.time_ns()
+
+    def _on_speech_started(self, audio_start_ms: Any) -> None:
+        """Anchor the pending turn's user-speech window on the VAD speech onset.
+
+        A server-VAD client streams the microphone continuously, so the first buffer append of a turn
+        lands the instant the *previous* turn was committed: it marks when we started listening, not
+        when the human started speaking. Left at that, every user-speech window swallows the whole
+        preceding agent response and consecutive turns overlap on the session timeline.
+        ``input_audio_buffer.speech_started`` is the real onset, and the audio it points at
+        (``audio_start_ms``, which already includes the session's ``prefix_padding_ms``) is the audio
+        worth keeping, so the buffered lead-in is trimmed off the front to keep the captured audio and
+        the reported window in step.
+
+        Only the first onset of a turn counts: a turn that VAD splits into several speech runs before
+        a single commit is still one committed item, which began at the first run.
+        """
+        pending = self._pending_input
+        if pending.speech_start_ns is not None:
+            return
+        onset_ns = self._buffer_offset_to_wall_ns(audio_start_ms, time.time_ns())
+        pending.speech_start_ns = onset_ns
+        had_audio = pending.audio.start_ns is not None
+        pending.audio.trim_leading(self._pre_onset_bytes(audio_start_ms))
+        if had_audio:
+            # Re-anchor the segment on the onset: whatever survived the trim starts there.
+            pending.audio.start_ns = onset_ns
+
+    def _pre_onset_bytes(self, audio_start_ms: Any) -> int:
+        """Decoded byte count of the audio buffered for this turn ahead of the speech onset."""
+        base_ms = self._pending_input.audio_base_ms
+        onset_ms = _as_float(audio_start_ms)
+        bytes_per_second = _bytes_per_second(self._input_audio_mime, self._input_audio_rate)
+        if base_ms is None or onset_ms is None or not bytes_per_second:
+            return 0
+        return max(0, int((onset_ms - base_ms) / 1000 * bytes_per_second))
+
+    def _buffer_offset_to_wall_ns(self, offset_ms: Any, observed_ns: int) -> int:
+        """Project an input-buffer offset (the VAD events' ``audio_start_ms``/``audio_end_ms``,
+        measured from the start of all audio written to the buffer this session) onto the wall clock.
+
+        AIDEV-NOTE: this assumes the client appends audio roughly in real time - true for a live
+        microphone, which is the only case where a wall-clock speech window means anything. Knowing
+        how much audio we had appended at a known instant, the offset is that instant minus the audio
+        still ahead of it. The result is clamped to a window we can defend (no earlier than this
+        turn's first buffered chunk, no later than when we observed the event) so a bursty or
+        pre-recorded sender degrades to a sane bound instead of a wild timestamp, and falls back to
+        the observation time when the projection is unavailable.
+        """
+        offset_ms = _as_float(offset_ms)
+        if offset_ms is None or self._input_buffer_ms is None or self._input_buffer_ms_at_ns is None:
+            return observed_ns
+        projected = self._input_buffer_ms_at_ns - int((self._input_buffer_ms - offset_ms) * 1_000_000)
+        earliest = self._pending_input.audio.start_ns
+        if earliest is not None:
+            projected = max(projected, earliest)
+        return min(projected, observed_ns)
+
     # -- span lifecycle -----------------------------------------------------
 
     def _start_response(self, response_id: Optional[str]) -> None:
@@ -321,7 +479,7 @@ class _RealtimeState:
                 instance=SimpleNamespace(_client=self._client),
                 activate=False,
             )
-            turn_start = turn.input.audio.start_ns or turn.input.speech_end_ns
+            turn_start = turn.input.speech_start_ns or turn.input.audio.start_ns or turn.input.speech_end_ns
             if turn_start is not None:
                 turn.root_span.start_ns = int(turn_start)
         except Exception:
@@ -445,13 +603,15 @@ class _RealtimeState:
 
         These are timing regions (the human speaking window and the human hearing window) nested under
         the turn root; the audio bytes themselves ride on the llm span. Each is emitted only when that
-        side produced audio, so a text-only turn skips user-speech and a tool-only turn skips
-        agent-speech.
+        side produced audio (or, for the user, VAD reported speech), so a text-only turn skips
+        user-speech and a tool-only turn skips agent-speech.
         """
         root = turn.root_span
         if root is None:
             return
-        in_start = turn.input.audio.start_ns
+        # VAD speech onset when we have it; the first buffered chunk only approximates the onset for a
+        # client that appends audio solely while the user talks (client-side turn detection).
+        in_start = turn.input.speech_start_ns or turn.input.audio.start_ns
         if in_start is not None:
             in_end = turn.input.speech_end_ns
             if in_end is None:
@@ -517,7 +677,8 @@ class _RealtimeState:
 
     def _finish_span_at(self, span: Any, end_ns: Optional[int]) -> None:
         """Finish ``span`` at an absolute unix-ns time when it is a valid end (after the span's start),
-        else finish at now. Never lets a bad timestamp raise out of finalize."""
+        else finish at now. Never lets a bad timestamp raise out of finalize.
+        """
         try:
             start_ns = getattr(span, "start_ns", None)
             if end_ns is not None and start_ns is not None and end_ns > start_ns:
@@ -533,7 +694,8 @@ class _RealtimeState:
 
     def _turn_end_ns(self, turn: _ResponseTurn) -> Optional[int]:
         """Latest child end for the turn root: agent playback end when there was output audio, else
-        response.done, else the user speech end."""
+        response.done, else the user speech end.
+        """
         candidates: list[int] = []
         if turn.response_done_ns is not None:
             candidates.append(turn.response_done_ns)
@@ -768,20 +930,40 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
     return metrics or None
 
 
-def _segment_duration_ns(decoded_bytes: int, mime: str, sample_rate: int) -> Optional[int]:
-    """Approximate playback duration (in ns) of an audio segment from its decoded byte count.
+def _decoded_b64_len(b64: str) -> int:
+    """Decoded byte count of a base64 string (~3/4 of its length), without decoding it."""
+    return (len(b64) * 3) // 4
 
-    PCM16 is 2 bytes per sample, so ``bytes / (rate * 2)`` seconds; G.711 is 1 byte per sample at the
-    fixed 8 kHz rate. Any other or unknown format returns None (we do not guess a duration). Used to
+
+def _as_float(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _bytes_per_second(mime: str, sample_rate: int) -> Optional[int]:
+    """Byte rate of a raw audio format: PCM16 is 2 bytes per sample at the session's rate, G.711 is
+    1 byte per sample at the fixed 8 kHz rate. Any other or unknown format returns None (we do not
+    guess a rate, so durations and offsets derived from it are simply unavailable).
+    """
+    if is_pcm16_audio_mime(mime) and sample_rate > 0:
+        return sample_rate * 2
+    if g711_variant(mime) is not None:
+        return G711_SAMPLE_RATE
+    return None
+
+
+def _segment_duration_ns(decoded_bytes: int, mime: str, sample_rate: int) -> Optional[int]:
+    """Approximate playback duration (in ns) of an audio segment from its decoded byte count. Used to
     size the user-speech and agent-speech workflow spans and the turn root's end.
     """
     if not decoded_bytes or decoded_bytes <= 0:
         return None
-    if is_pcm16_audio_mime(mime) and sample_rate > 0:
-        return int(decoded_bytes / (sample_rate * 2) * 1_000_000_000)
-    if g711_variant(mime) is not None:
-        return int(decoded_bytes / G711_SAMPLE_RATE * 1_000_000_000)
-    return None
+    bytes_per_second = _bytes_per_second(mime, sample_rate)
+    if not bytes_per_second:
+        return None
+    return int(decoded_bytes / bytes_per_second * 1_000_000_000)
 
 
 def _start_realtime_state(integration: Any, client: Any, model: Optional[str]) -> _RealtimeState:

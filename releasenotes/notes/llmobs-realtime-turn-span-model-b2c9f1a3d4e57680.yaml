@@ -3,7 +3,9 @@ features:
   - |
     LLM Observability: The OpenAI Realtime integration now models each conversation turn as a small
     span tree instead of a single ``llm`` span: a ``workflow`` "turn" root, a ``workflow`` "user
-    speech" span for the user's speaking window, the ``llm`` span for the model's work (started at the
+    speech" span for the user's speaking window (anchored on the voice-activity-detection speech
+    onset, so it covers when the user was actually speaking rather than the whole time the input
+    buffer was open), the ``llm`` span for the model's work (started at the
     end of user speech and finished at ``response.done``, carrying the transcripts, audio, and token
     usage), a ``workflow`` "agent speech" span for the agent's playback window, and any tool spans
     nested under the ``llm`` span. Splitting the phases keeps the ``llm`` span's duration a true

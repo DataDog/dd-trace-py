@@ -190,7 +190,8 @@ def test_realtime_state_pcm_turn_wraps_audio_as_wav():
 
 def test_realtime_state_audio_turn_emits_phase_spans():
     """An audio turn emits the phase span tree - a workflow turn root with user-speech, llm, and
-    agent-speech children - with the turn's timing carried on the span boundaries (start/finish)."""
+    agent-speech children - with the turn's timing carried on the span boundaries (start/finish).
+    """
     integration, state = _new_state()
     _drive_turn(state)
 
@@ -216,7 +217,8 @@ def test_realtime_state_audio_turn_emits_phase_spans():
 
 def test_realtime_state_text_only_turn_emits_no_speech_spans():
     """A turn with no audio (text in, text out) emits the turn root and llm span but no user-speech
-    or agent-speech workflow spans (nothing was spoken to bracket)."""
+    or agent-speech workflow spans (nothing was spoken to bracket).
+    """
     integration, state = _new_state()
     state.on_server_event(_session_created(transcription=False))
     state.on_client_event(
@@ -596,6 +598,214 @@ def test_realtime_state_usage_total_tokens_fallback():
     assert integration.responses[0]["metrics"] == {"input_tokens": 4, "output_tokens": 6, "total_tokens": 10}
 
 
+# ---- speech-window timing (server VAD, continuously streaming client) ----
+
+# One mic block: 10 ms of PCM16 mono @ 24 kHz (48 bytes/ms).
+_BLOCK_MS = 10
+_BLOCK_BYTES = 480
+
+
+class _Clock:
+    """Fake ``time.time_ns`` that only moves when the test says so, so wall-clock assertions on the
+    span boundaries are exact.
+    """
+
+    def __init__(self, now=1_700_000_000_000_000_000):
+        self.now = now
+
+    def __call__(self):
+        return self.now
+
+    def advance_ms(self, ms):
+        self.now += int(ms * 1_000_000)
+
+
+class _Mic:
+    """A client that streams the microphone continuously, the way a server-VAD app does: audio is
+    appended in real time whether or not anyone is speaking, so the input buffer is open from the
+    moment the previous turn was committed.
+    """
+
+    def __init__(self, state, clock):
+        self.state = state
+        self.clock = clock
+        self.blocks = []  # every raw block appended this session, in order
+        self.buffer_ms = 0  # offset on the session's input-audio-buffer timeline
+        self.onset_index = 0  # index into ``blocks`` of the first block after the last speech onset
+
+    def stream(self, ms):
+        """Append ``ms`` of mic audio, advancing the clock in lockstep (real-time streaming)."""
+        for _ in range(ms // _BLOCK_MS):
+            block = bytes([len(self.blocks) % 256, 0]) * (_BLOCK_BYTES // 2)
+            self.blocks.append(block)
+            self.state.on_client_event({"type": "input_audio_buffer.append", "audio": _b64(block)})
+            self.buffer_ms += _BLOCK_MS
+            self.clock.advance_ms(_BLOCK_MS)
+
+    def speech_started(self):
+        """VAD detects speech starting at the current buffer head (everything streamed so far was
+        pre-speech listening).
+        """
+        self.onset_index = len(self.blocks)
+        self.state.on_server_event(_ns(type="input_audio_buffer.speech_started", audio_start_ms=self.buffer_ms))
+
+    def speech_blocks(self):
+        """The blocks appended since the last onset - what should survive the pre-speech trim."""
+        return b"".join(self.blocks[self.onset_index :])
+
+
+def _respond(state, mic, response_id, agent_audio_ms, playback_ms=None, transcript="ok"):
+    """Commit the pending input and drive a full response: 100 ms of model latency, then the agent's
+    audio streamed down fast and played out over ``agent_audio_ms``. The mic keeps streaming
+    throughout, as it would for a continuous client. ``playback_ms`` cuts the wall clock short of the
+    full playback (an interruption).
+    """
+    item_id = "item_" + response_id
+    state.on_server_event(_ns(type="input_audio_buffer.speech_stopped", audio_end_ms=mic.buffer_ms))
+    state.on_server_event(_ns(type="input_audio_buffer.committed", item_id=item_id))
+    state.on_server_event(
+        _ns(type="conversation.item.input_audio_transcription.completed", item_id=item_id, transcript="question")
+    )
+    state.on_server_event(_ns(type="response.created", response=_ns(id=response_id)))
+    mic.stream(100)  # model latency; the buffer has reopened, so this audio is the next turn's
+    # 48 bytes per ms of PCM16 @ 24 kHz; the model streams the clip down faster than it plays.
+    state.on_server_event(
+        _ns(
+            type="response.output_audio.delta",
+            response_id=response_id,
+            delta=_b64(b"\x02\x00" * (24 * agent_audio_ms)),
+        )
+    )
+    state.on_server_event(
+        _ns(type="response.output_audio_transcript.done", response_id=response_id, transcript=transcript)
+    )
+    state.on_server_event(_ns(type="response.done", response=_ns(id=response_id, status="completed")))
+    mic.stream(agent_audio_ms if playback_ms is None else playback_ms)  # the agent's audio plays out
+
+
+def _windows(integration):
+    """The (start, end) wall-clock window of every workflow span emitted, by name, in order."""
+    return [(w["name"], w["span"].start_ns, w["span"].finish_ns) for w in integration.workflows]
+
+
+def test_realtime_state_user_speech_anchored_on_vad_onset(monkeypatch):
+    """The user-speech window starts at the VAD speech onset, not at the first buffered chunk.
+
+    A continuously-streaming client opens the buffer the instant the previous turn was committed, so
+    anchoring on the first append would report the whole listening window as speech. The pre-speech
+    lead-in is trimmed off the captured audio too, so the clip covers the window the span reports.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+
+    listening_start = clock.now
+    mic.stream(200)  # mic open, nobody speaking
+    onset = clock.now - _BLOCK_MS * 1_000_000  # onset offset points at the last block we appended
+    mic.speech_started()
+    mic.stream(300)  # the user speaks
+    speech_end = clock.now
+    spoken = mic.speech_blocks()
+    _respond(state, mic, "r1", agent_audio_ms=500)
+
+    user = {w["name"]: w for w in integration.workflows}["user speech"]
+    assert user["span"].start_ns == onset, "user speech must start at the VAD onset"
+    assert user["span"].start_ns > listening_start, "not at the first append (the listening window)"
+    assert user["span"].finish_ns == speech_end  # the commit
+    # Only the audio from the onset on is kept, so the clip matches the reported window.
+    assert integration.responses[0]["input_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": _wav_b64(spoken)}
+    ]
+
+
+def test_realtime_state_consecutive_turns_do_not_overlap(monkeypatch):
+    """Two sequential spoken turns (no barge-in) produce non-overlapping windows on one timeline.
+
+    Regression test: the user-speech window used to open at the previous turn's commit, so turn N+1's
+    user speech spanned the whole of turn N's agent response.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+
+    mic.stream(200)
+    mic.speech_started()
+    mic.stream(300)
+    _respond(state, mic, "r1", agent_audio_ms=500)
+    mic.stream(200)  # a beat after the agent finishes, then the user speaks again
+    mic.speech_started()
+    mic.stream(300)
+    _respond(state, mic, "r2", agent_audio_ms=400)
+
+    windows = _windows(integration)
+    assert [name for name, _, _ in windows] == [
+        "realtime audio turn",
+        "user speech",
+        "agent speech",
+        "realtime audio turn",
+        "user speech",
+        "agent speech",
+    ]
+    speech = sorted([w for w in windows if w[0] != "realtime audio turn"], key=lambda w: w[1])
+    assert [name for name, _, _ in speech] == ["user speech", "agent speech", "user speech", "agent speech"]
+    for (_, _, prev_end), (name, start, _) in zip(speech, speech[1:]):
+        assert start >= prev_end, "{} starts before the previous window ended".format(name)
+    # The turn roots (whole perceived turns) don't overlap either.
+    turns = [w for w in windows if w[0] == "realtime audio turn"]
+    assert turns[1][1] >= turns[0][2]
+
+
+def test_realtime_state_barge_in_windows_still_overlap(monkeypatch):
+    """When the user genuinely talks over the agent, the windows overlap - the fix reflects real
+    speech timing rather than forcing turns apart.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+
+    mic.stream(200)
+    mic.speech_started()
+    mic.stream(300)
+    # The user cuts in 300 ms into the agent's 500 ms answer.
+    _respond(state, mic, "r1", agent_audio_ms=500, playback_ms=300)
+    mic.speech_started()
+    mic.stream(300)
+    _respond(state, mic, "r2", agent_audio_ms=400)
+
+    windows = _windows(integration)
+    agent1 = [w for w in windows if w[0] == "agent speech"][0]
+    user2 = [w for w in windows if w[0] == "user speech"][1]
+    assert user2[1] < agent1[2], "a barge-in must still show the user speaking over the agent"
+
+
+def test_realtime_state_user_speech_falls_back_to_first_append_without_vad(monkeypatch):
+    """With client-side turn detection there are no VAD events and the client only appends while the
+    user talks, so the first buffered chunk is the onset and nothing is trimmed.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+
+    speech_start = clock.now
+    mic.stream(300)
+    spoken = b"".join(mic.blocks)
+    _respond(state, mic, "r1", agent_audio_ms=200)
+
+    user = {w["name"]: w for w in integration.workflows}["user speech"]
+    assert user["span"].start_ns == speech_start
+    assert integration.responses[0]["input_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": _wav_b64(spoken)}
+    ]
+
+
 # ---- integration test: real patched RealtimeConnection over a fake websocket ----
 
 
@@ -673,9 +883,16 @@ def _server_messages():
     ]
 
 
+def _by_operation(spans):
+    """Spans keyed by operation (resource); a turn emits at most one span per phase."""
+    by_operation = {s.resource: s for s in spans}
+    assert len(by_operation) == len(spans), "unexpected duplicate phase spans: {}".format([s.resource for s in spans])
+    return by_operation
+
+
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
 def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
-    """A full realtime turn over the patched connection produces one per-turn llm span."""
+    """A full realtime turn over the patched connection produces the turn's phase span tree."""
     messages = _server_messages()
     fake_ws = _FakeWebSocket(messages)
     conn = RealtimeConnection(fake_ws)
@@ -691,18 +908,23 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
         conn.recv()
     conn.close()
 
-    spans = [s for trace in test_spans.pop_traces() for s in trace]
-    # No session span anymore — just the per-turn llm span.
-    assert [s.resource for s in spans] == ["createRealtimeResponse"]
+    spans = _by_operation([s for trace in test_spans.pop_traces() for s in trace])
+    # The turn root, the llm (generation) span, and the user-speech window. No agent-speech span:
+    # this turn's response carried a transcript but no output audio.
+    assert sorted(spans) == ["createRealtimeResponse", "createRealtimeTurn", "createRealtimeUserSpeech"]
+    root = spans["createRealtimeTurn"]
+    llm = spans["createRealtimeResponse"]
+    user = spans["createRealtimeUserSpeech"]
 
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
     from tests.llmobs._utils import assert_llmobs_span_data
 
-    data = _get_llmobs_data_metastruct(spans[0])
+    data = _get_llmobs_data_metastruct(llm)
     assert_llmobs_span_data(
         data,
         span_kind="llm",
         name="OpenAI.createRealtimeResponse",
+        parent_id=str(root.span_id),
         model_name="gpt-realtime-2025",
         model_provider="openai",
         input_messages=[
@@ -717,6 +939,25 @@ def test_realtime_integration_spans(openai, openai_llmobs, test_spans):
         # session config rides on each turn span as metadata now.
         metadata={"voice": "alloy", "output_audio_format": "audio/pcm", "input_audio_format": "audio/pcm"},
     )
+    # The phase spans are workflow-kind timing regions under the root; the audio rides on the llm span.
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(root),
+        span_kind="workflow",
+        name="realtime audio turn",
+        input_value="what time is it?",
+        output_value="It's noon.",
+    )
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(user),
+        span_kind="workflow",
+        name="user speech",
+        parent_id=str(root.span_id),
+        output_value="what time is it?",
+    )
+    # The root opens with the user speech and closes no earlier than its children.
+    assert root.start_ns == user.start_ns
+    assert llm.start_ns >= user.start_ns
+    assert root.start_ns + root.duration_ns >= llm.start_ns + llm.duration_ns
 
     # The turn is grouped into a conversation via session_id.
     assert data.get("session_id")
@@ -770,7 +1011,9 @@ def test_realtime_recv_close_finalizes_without_explicit_close(openai, openai_llm
             conn.recv()
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert [s.resource for s in spans] == ["createRealtimeResponse"]
+    # Nothing was spoken on either side (input committed with no appended audio, no output audio), so
+    # the turn is just the root and the llm span - no phase windows to bracket.
+    assert sorted(s.resource for s in spans) == ["createRealtimeResponse", "createRealtimeTurn"]
 
 
 class _FakeAsyncWebSocket:
@@ -794,7 +1037,7 @@ class _FakeAsyncWebSocket:
 @pytest.mark.skipif(AsyncRealtimeConnection is None, reason="openai realtime API not available")
 @pytest.mark.asyncio
 async def test_realtime_async_integration_spans(openai, openai_llmobs, test_spans):
-    """The async connection path (async send/recv/close) produces a per-turn llm span."""
+    """The async connection path (async send/recv/close) produces the same phase span tree."""
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
     from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -808,13 +1051,14 @@ async def test_realtime_async_integration_spans(openai, openai_llmobs, test_span
         await conn.recv()
     await conn.close()
 
-    spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert [s.resource for s in spans] == ["createRealtimeResponse"]
-    data = _get_llmobs_data_metastruct(spans[0])
+    spans = _by_operation([s for trace in test_spans.pop_traces() for s in trace])
+    assert sorted(spans) == ["createRealtimeResponse", "createRealtimeTurn", "createRealtimeUserSpeech"]
+    data = _get_llmobs_data_metastruct(spans["createRealtimeResponse"])
     assert_llmobs_span_data(
         data,
         span_kind="llm",
         name="OpenAI.createRealtimeResponse",
+        parent_id=str(spans["createRealtimeTurn"].span_id),
         model_name="gpt-realtime-2025",
         output_messages=[{"role": "assistant", "content": "It's noon."}],
         metrics={"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
@@ -863,7 +1107,9 @@ def _turn_messages(response_id, item_id, out_audio_b64, out_transcript):
 
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
 def test_realtime_integration_multi_turn_with_output_audio(openai, openai_llmobs, test_spans):
-    """Two turns over one connection produce two llm spans sharing a session_id, each with output audio."""
+    """Two turns over one connection produce two phase trees sharing a session_id, each with output
+    audio, and each agent-speech window sized from that audio rather than from wall clock.
+    """
     session = json.dumps(
         {
             "type": "session.created",
@@ -892,14 +1138,32 @@ def test_realtime_integration_multi_turn_with_output_audio(openai, openai_llmobs
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert [s.resource for s in spans] == ["createRealtimeResponse", "createRealtimeResponse"]
-    datas = [_get_llmobs_data_metastruct(s) for s in spans]
+    # Two turns, each a root + llm + agent-speech window (no client audio was appended, so neither
+    # turn has a user-speech window).
+    assert sorted(s.resource for s in spans) == [
+        "createRealtimeAgentSpeech",
+        "createRealtimeAgentSpeech",
+        "createRealtimeResponse",
+        "createRealtimeResponse",
+        "createRealtimeTurn",
+        "createRealtimeTurn",
+    ]
+    turns = sorted((s for s in spans if s.resource == "createRealtimeTurn"), key=lambda s: s.start_ns)
+    llm_spans = sorted((s for s in spans if s.resource == "createRealtimeResponse"), key=lambda s: s.start_ns)
+    agent_spans = sorted((s for s in spans if s.resource == "createRealtimeAgentSpeech"), key=lambda s: s.start_ns)
+    datas = [_get_llmobs_data_metastruct(s) for s in llm_spans]
     # Both turns grouped into one conversation.
     assert datas[0]["session_id"] == datas[1]["session_id"]
     # Each turn's output carries a playable WAV audio_part.
     for data, raw in zip(datas, (b"\x01\x02", b"\x03\x04")):
         out = data["meta"]["output"]["messages"][0]
         assert out["audio_parts"] == [{"mime_type": "audio/wav", "content": _wav_b64(raw)}]
+    for turn, llm, agent in zip(turns, llm_spans, agent_spans):
+        assert _get_llmobs_data_metastruct(llm)["parent_id"] == str(turn.span_id)
+        assert _get_llmobs_data_metastruct(agent)["parent_id"] == str(turn.span_id)
+        # The window is the playback duration of the 2 bytes of PCM16 above (~42 us), not the wall
+        # clock the events happened to take.
+        assert 0 < agent.duration_ns < 1_000_000
 
 
 @pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
@@ -938,9 +1202,10 @@ def test_realtime_integration_tool_call(openai, openai_llmobs, test_spans):
 
     from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 
-    spans = [s for trace in test_spans.pop_traces() for s in trace]
-    assert [s.resource for s in spans] == ["createRealtimeResponse"]
-    out = _get_llmobs_data_metastruct(spans[0])["meta"]["output"]["messages"][0]
+    spans = _by_operation([s for trace in test_spans.pop_traces() for s in trace])
+    # A tool-call-only response speaks nothing, so there is no agent-speech window.
+    assert sorted(spans) == ["createRealtimeResponse", "createRealtimeTurn"]
+    out = _get_llmobs_data_metastruct(spans["createRealtimeResponse"])["meta"]["output"]["messages"][0]
     assert out["tool_calls"] == [
         {"name": "get_weather", "arguments": {"city": "Paris"}, "tool_id": "call_1", "type": "function"}
     ]
