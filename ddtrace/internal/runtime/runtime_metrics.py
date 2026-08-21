@@ -4,6 +4,7 @@ from typing import Optional  # noqa:F401
 
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -93,11 +94,10 @@ class RuntimeWorker(periodic.PeriodicService):
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
+        self._platform_tags = self._build_platform_tags()
         if config._runtime_metrics_runtime_id_enabled:
-            # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
-            self._platform_tags = self._format_tags(PlatformTagsV2())
-        else:
-            self._platform_tags = self._format_tags(PlatformTags())
+            # refresh ids to ensure the tags are up to date upon MicroVM instance starts.
+            on_runtime_id_change(self._on_identity_refresh)
 
         self._process_tags: list[str] = list(ProcessTags())
         # Only dd.internal.entity_id needs preserving here: service/env/version are already
@@ -107,6 +107,15 @@ class RuntimeWorker(periodic.PeriodicService):
         self._client_constant_tags: list[str] = [
             tag for tag in (self._dogstatsd_client.constant_tags or []) if tag.startswith(entity_id_prefix)
         ]
+
+    def _build_platform_tags(self) -> list[str]:
+        if config._runtime_metrics_runtime_id_enabled:
+            # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
+            return self._format_tags(PlatformTagsV2())
+        return self._format_tags(PlatformTags())
+
+    def _on_identity_refresh(self, _new_runtime_id: str) -> None:
+        self._platform_tags = self._build_platform_tags()
 
     @classmethod
     def disable(cls) -> None:

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    stable id uniqueness: Regenerates stable identifiers, including the runtime ID and
+    Remote Config client ID, when a new AWS Lambda MicroVM instance starts to ensure
+    they remain unique. This behavior only applies to AWS Lambda MicroVM deployments;
+    behavior in other environments is unchanged.

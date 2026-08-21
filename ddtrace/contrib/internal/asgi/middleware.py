@@ -215,6 +215,8 @@ class TraceMiddleware:
             method = "websocket"
         else:
             return await self.app(scope, receive, send)
+        if not is_subapp and scope["type"] == "http":
+            core.dispatch(core.WEB_REQUEST_STARTING, (method, scope["path"]))
         try:
             headers = extract_headers(scope)
         except Exception:

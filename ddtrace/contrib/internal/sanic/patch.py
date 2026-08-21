@@ -191,6 +191,8 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
 
 def _create_sanic_request_span(request):
     """Helper to create sanic.request span and attach a pin to request.ctx"""
+    core.dispatch(core.WEB_REQUEST_STARTING, (request.method, request.path))
+
     pin = Pin()
     pin.onto(request.ctx)
 

@@ -268,7 +268,9 @@ class ASMConfig(DDConfig):
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 
-    _rc_client_id: Optional[str] = None
+    # Set by enable_appsec_rc()/disable_appsec_rc(); gates _dd.rc.client_id span tagging so it's
+    # only emitted while AppSec RC is actually enabled, not just whenever a live RC client exists.
+    _rc_client_id_enabled: bool = False
 
     def __init__(self):
         super().__init__()

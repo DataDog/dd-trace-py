@@ -2067,6 +2067,16 @@
         "default": "false"
       }
     ],
+    "DD_HTTP_SERVER_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_HTTP_SERVER_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_HTTP_SERVER_TAG_QUERY_STRING": [
       {
         "implementation": "A",
@@ -4354,6 +4364,13 @@
       }
     ],
     "DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_TRACE_HTTP_SERVER_ENABLED": [
       {
         "implementation": "A",
         "type": "boolean",

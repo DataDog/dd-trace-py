@@ -839,6 +839,14 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            name="http_server",
+            command="pytest {cmdargs} tests/contrib/http_server",
+            pkgs={
+                "pytest-randomly": latest,
+            },
+            pys=select_pys(),
+        ),
+        Venv(
             name="logging",
             command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/logging",
             pkgs={
