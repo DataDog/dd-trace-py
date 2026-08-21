@@ -90,10 +90,12 @@ class FunctionStore(object):
 
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
-        for function, wrapping_context in list(self._wrapper_map.items()):
+        wrapper_items: list[tuple[FunctionType, WrappingContext]] = list(self._wrapper_map.items())
+        for function, wrapping_context in wrapper_items:
             wrapping_context.unwrap()
 
-        for function, code in self._code_map.items():
+        code_items: list[tuple[FunctionType, CodeType]] = list(self._code_map.items())
+        for function, code in code_items:
             # Restoring __code__ alone would leave 3.15+ line hooks (keyed by
             # code object) still firing.
             eject_all_hooks(function)
