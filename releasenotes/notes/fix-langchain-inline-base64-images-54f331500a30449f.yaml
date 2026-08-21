@@ -3,9 +3,9 @@ features:
   - |
     LLM Observability: The LangChain integration now captures inline base64 images and audio from
     multimodal message content as ``image_parts`` and ``audio_parts`` on LLM span messages, so they
-    render in LLM Observability. Images referenced by a remote URL are not fetched and keep their
-    existing text reference. A single inline image whose base64 payload exceeds 80% of the
-    configured per-event size limit (``DD_LLMOBS_EVENT_SIZE_BYTES``) is left as an
+    render in LLM Observability. Images referenced by a remote URL are not fetched and are recorded
+    as an ``[image]`` marker rather than the URL. A single inline image whose base64 payload exceeds
+    80% of the configured per-event size limit (``DD_LLMOBS_EVENT_SIZE_BYTES``) is left as an
     ``[image omitted: too large]`` marker instead. Note that this budget is per image, not per
     request: several inline images can still take a span event past the per-event limit, at which
     point the event's input and output are replaced with a placeholder. To stop image bytes from

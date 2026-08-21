@@ -385,6 +385,22 @@ def test_llmobs_chat_model_unrecognized_image_block_leaves_a_marker(
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_chat_model_remote_image_url_becomes_a_marker(
+    mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
+):
+    """A remote URL is never fetched, and the URL itself is not recorded either."""
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=DIRECT_MODEL_URL)
+    chat_model.invoke([langchain_core.messages.HumanMessage(content=_image_content("https://example.com/cat.png"))])
+
+    span = _one_llmobs_span(test_spans)
+    assert get_llmobs_input_messages(span) == [
+        {"content": "What is in this image?\n" + IMAGE_FALLBACK_MARKER, "role": "user"}
+    ]
+    assert "example.com" not in _serialized(span)
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
 def test_llmobs_chat_model_string_content_parts_are_joined(
     mock_generate, langchain_core, langchain_openai, langchain_llmobs, test_spans
 ):
