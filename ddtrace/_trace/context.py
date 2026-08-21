@@ -30,7 +30,6 @@ _ContextState = tuple[
     dict[str, Any],  # baggage
     bool,  # is_remote
     bool,  # _reactivate
-    Optional[OtelSamplingState],  # locally made OTel-compatible sampling decision
 ]
 
 
@@ -63,7 +62,7 @@ class Context(ContextData):
         is_remote: bool = True,
     ):
         # ContextData.__new__ already populated trace_id/span_id/_meta/_metrics/
-        # _baggage/_span_links/_is_remote/_reactivate/_otel_sampling_state_data.
+        # _baggage/_span_links/_is_remote/_reactivate.
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[_ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
@@ -87,15 +86,10 @@ class Context(ContextData):
             self._baggage,
             self._is_remote,
             self._reactivate,
-            self._otel_sampling_state_data,
             # Note: self._lock is not serializable
         )
 
-    def __setstate__(self, state: tuple[Any, ...]) -> None:
-        # Context is public and pickle-compatible. State produced before OTel sampling support
-        # has eight fields, so normalize it before unpacking the current nine-field state.
-        if len(state) == 8:
-            state = (*state, None)
+    def __setstate__(self, state: _ContextState) -> None:
         (
             self.trace_id,
             self.span_id,
@@ -105,7 +99,6 @@ class Context(ContextData):
             self._baggage,
             self._is_remote,
             self._reactivate,
-            self._otel_sampling_state_data,
         ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = RLock()
@@ -130,16 +123,6 @@ class Context(ContextData):
                     del self._metrics[_SAMPLING_PRIORITY_KEY]
                 return
             self._metrics[_SAMPLING_PRIORITY_KEY] = value
-
-    @property
-    def _otel_sampling_state(self) -> OtelSamplingState:
-        state = self._otel_sampling_state_data
-        if state is None:
-            with self._lock:
-                state = self._otel_sampling_state_data
-                if state is None:
-                    state = self._otel_sampling_state_data = OtelSamplingState()
-        return state
 
     @property
     def _traceparent(self) -> str:
@@ -258,12 +241,6 @@ class Context(ContextData):
         # other processing. This optimization holds true if we trust that this data has
         # been validated already.
         with self._lock:
-            # AIDEV-NOTE: Keep the default state allocation-free. The first child context
-            # materializes one holder under the shared lock, and native ContextData stores the
-            # same Python object on every child so later trace-level decisions remain visible.
-            otel_sampling_state = self._otel_sampling_state_data
-            if otel_sampling_state is None:
-                otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
             ctx = Context.__new__(
                 Context,
                 trace_id=trace_id,
@@ -272,7 +249,6 @@ class Context(ContextData):
                 metrics=self._metrics,
                 baggage=self._baggage,
                 is_remote=False,
-                otel_sampling_state=otel_sampling_state,
             )
         ctx._lock = self._lock
         return ctx
@@ -288,16 +264,6 @@ class Context(ContextData):
         ctx._meta = self._meta
         ctx._metrics = self._metrics
         ctx._baggage = new_baggage
-        # PERF: Avoid the equivalent self._otel_sampling_state property access here;
-        # benchmarks show its descriptor and function-call overhead matters in this hot path.
-        # The lock is acquired only for the first allocation and shared by all child contexts.
-        otel_sampling_state = self._otel_sampling_state_data
-        if otel_sampling_state is None:
-            with self._lock:
-                otel_sampling_state = self._otel_sampling_state_data
-                if otel_sampling_state is None:
-                    otel_sampling_state = self._otel_sampling_state_data = OtelSamplingState()
-        ctx._otel_sampling_state_data = otel_sampling_state
         return ctx
 
     def get_baggage_item(self, key: str) -> Optional[Any]:
@@ -333,7 +299,6 @@ class Context(ContextData):
                     and self._span_links == other._span_links
                     and self._baggage == other._baggage
                     and self._is_remote == other._is_remote
-                    and _otel_sampling_states_equal(self._otel_sampling_state_data, other._otel_sampling_state_data)
                 )
         return False
 
