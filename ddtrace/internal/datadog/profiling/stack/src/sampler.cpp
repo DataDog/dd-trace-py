@@ -4,7 +4,7 @@
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
 #include "origin_task_links.hpp"
-#include "thread_span_links.hpp"
+#include "span_links.hpp"
 
 #include "echion/danger.h"
 #include "echion/echion_sampler.h"
@@ -692,8 +692,8 @@ stack_postfork_cleanup()
     // Update PID in Echion
     _set_pid(getpid());
 
-    // Reset ThreadSpanLinks state (reset locks, clear span-thread mappings)
-    ThreadSpanLinks::postfork_child();
+    // Reset SpanLinks state (reset locks, clear span mappings)
+    SpanLinks::postfork_child();
 
     // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
     OriginTaskLinks::postfork_child();
@@ -720,7 +720,7 @@ __attribute__((constructor)) void
 stack_init()
 {
     _set_pid(getpid());
-    ThreadSpanLinks::postfork_child();
+    SpanLinks::postfork_child();
     OriginTaskLinks::postfork_child();
 }
 
@@ -889,6 +889,14 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
     if (auto it = echion->thread_info_map().find(thread_id); it != echion->thread_info_map().end()) {
         it->second->asyncio_loop = (loop != Py_None) ? reinterpret_cast<uintptr_t>(loop) : 0;
     }
+}
+
+bool
+Sampler::is_asyncio_loop_registered(uintptr_t thread_id)
+{
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    auto it = echion->thread_info_map().find(thread_id);
+    return it != echion->thread_info_map().end() && it->second->asyncio_loop != 0;
 }
 
 void

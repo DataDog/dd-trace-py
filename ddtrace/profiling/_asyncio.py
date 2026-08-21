@@ -1,25 +1,165 @@
 # -*- encoding: utf-8 -*-
+"""Publish tracing attribution for asyncio tasks sampled independently from their event-loop thread.
+
+Task-creation hooks seed native task links from inherited profiler ContextVar state. Span activations update the
+current task through the shared provider, so mappings remain correct across scheduler switches without a switch hook.
+"""
+
 from __future__ import annotations
 
+import contextvars
 from functools import partial
 import sys
 from types import ModuleType
 import typing
+import weakref
+
+import wrapt
 
 
 if typing.TYPE_CHECKING:
     import asyncio
     import asyncio as aio
 
+from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
+from ddtrace.profiling import _span_links
 
 
 ASYNCIO_IMPORTED: bool = False
+_TASK_CONTEXT_IS_READABLE = sys.version_info >= (3, 12)
+# The finalizer registry both deduplicates nested creation hooks and owns cleanup until each task completes.
+_task_span_finalizers: dict[int, weakref.finalize[..., typing.Any]] = {}
+
+
+def _clear_native_task_span(task_id: int) -> None:
+    _span_links.clear_logical_span(_span_links.SpanLinkDomain.ASYNCIO_TASK, task_id)
+
+
+def _finalize_task_span(task_id: int) -> None:
+    _task_span_finalizers.pop(task_id, None)
+    try:
+        _clear_native_task_span(task_id)
+    except Exception:  # nosec B110
+        # Weakref callbacks can run while module globals are being cleared during interpreter shutdown.
+        pass
+
+
+def _ensure_task_span_finalizer(task: asyncio.Task[typing.Any]) -> bool:
+    """Install prompt and GC-fallback cleanup, returning whether attribution can safely be retained."""
+    task_id = id(task)
+    if task_id in _task_span_finalizers:
+        return True
+    try:
+        finalizer = weakref.finalize(task, _finalize_task_span, task_id)
+    except TypeError:
+        return False
+    finalizer.atexit = False
+    _task_span_finalizers[task_id] = finalizer
+    try:
+        task.add_done_callback(lambda _: finalizer(), context=contextvars.Context())
+    except Exception:
+        _task_span_finalizers.pop(task_id, None)
+        finalizer.detach()
+        return False
+    return True
+
+
+def _reset_task_span_state_after_fork() -> None:
+    for finalizer in _task_span_finalizers.values():
+        finalizer.detach()
+    _task_span_finalizers.clear()
+
+
+forksafe.register(_reset_task_span_state_after_fork)
+
+
+def _track_asyncio_loop(thread_id: int, loop: typing.Optional[asyncio.AbstractEventLoop]) -> None:
+    try:
+        stack.track_asyncio_loop(thread_id, loop)
+    except Exception:
+        return
+
+
+def _current_task_span_target() -> typing.Optional[_span_links.LogicalSpanTarget]:
+    """Return the current task only when the native sampler can render its logical stack."""
+    if get_running_loop() is None:
+        return None
+    thread_id = ddtrace_threading.current_thread().ident
+    if thread_id is None or not stack.is_asyncio_loop_registered(thread_id):
+        return None
+    try:
+        task = current_task()
+    except RuntimeError:
+        return None
+    if task is None or not _ensure_task_span_finalizer(task):
+        return None
+    return _span_links.LogicalSpanTarget(_span_links.SpanLinkDomain.ASYNCIO_TASK, id(task))
+
+
+def _has_custom_task_factory(loop: asyncio.AbstractEventLoop) -> bool:
+    if _TASK_CONTEXT_IS_READABLE:
+        return False
+    try:
+        return loop.get_task_factory() is not None
+    except Exception:
+        # Publication is best effort and must never make application task creation fail.
+        return True
+
+
+def _publish_task_span(
+    task: asyncio.Task[typing.Any],
+    requested_context: typing.Optional[contextvars.Context],
+    had_custom_task_factory: bool,
+) -> None:
+    """Seed a task link from its actual or verifiably inherited profiler context."""
+    task_type = getattr(sys.modules.get("asyncio"), "Task", None)
+    task_id = id(task)
+    if task_type is None or not isinstance(task, task_type) or task_id in _task_span_finalizers:
+        return
+
+    task_context = requested_context
+    get_context = getattr(task, "get_context", None)
+    if get_context is not None:
+        try:
+            task_context = typing.cast("contextvars.Context", get_context())
+        except Exception:
+            return
+    elif had_custom_task_factory:
+        # Before Python 3.12 there is no API for reading the Task's actual Context. A custom factory can replace the
+        # creator's Context, so omit attribution rather than publishing unverifiable inherited metadata.
+        return
+
+    try:
+        published = _span_links.link_logical_span_context(
+            _span_links.SpanLinkDomain.ASYNCIO_TASK, task_id, task_context
+        )
+        if published and not _ensure_task_span_finalizer(task):
+            _clear_native_task_span(task_id)
+    except Exception:
+        return
+
+
+def _call_and_publish_task(
+    f: typing.Callable[..., asyncio.Task[typing.Any]],
+    args: tuple[typing.Any, ...],
+    kwargs: dict[str, typing.Any],
+    loop: typing.Optional[asyncio.AbstractEventLoop],
+) -> asyncio.Task[typing.Any]:
+    """Preserve task creation semantics, then publish attribution as a best-effort side effect."""
+    had_custom_task_factory = loop is None or _has_custom_task_factory(loop)
+    task = f(*args, **kwargs)
+    _publish_task_span(
+        task,
+        typing.cast("typing.Optional[contextvars.Context]", kwargs.get("context")),
+        had_custom_task_factory,
+    )
+    return task
 
 
 def current_task() -> typing.Optional[asyncio.Task[typing.Any]]:
@@ -48,6 +188,7 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
 
 
 def link_existing_loop_to_current_thread() -> None:
+    """Restore native loop registration when profiling starts late or continues after fork."""
     global ASYNCIO_IMPORTED
 
     # Only proceed if asyncio is actually imported and available
@@ -66,7 +207,7 @@ def link_existing_loop_to_current_thread() -> None:
         return
 
     # We have a running loop, track it
-    stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), running_loop)
+    _track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), running_loop)
     _call_init_asyncio(asyncio)
 
 
@@ -112,10 +253,69 @@ def _(asyncio: ModuleType) -> None:
         ) -> None:
             loop: typing.Optional[aio.AbstractEventLoop] = get_argument_value(args, kwargs, 1, "loop")
             if init_stack:
-                stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                _track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
             return f(*args, **kwargs)
 
     if init_stack:
+        # Asyncio tasks take precedence over gevent when both schedulers run on one physical thread.
+        _span_links.register_logical_span_provider(_current_task_span_target, priority=20)
+
+        # ponytail: Direct asyncio.Task(...) construction bypasses loop APIs; add a native construction hook if this
+        # discouraged path needs attribution without adding overhead to every event-loop callback.
+        base_event_loop_class = sys.modules["asyncio.base_events"].BaseEventLoop
+
+        @partial(wrap, base_event_loop_class.run_forever)
+        def _(
+            f: typing.Callable[..., None],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> None:
+            # Runner(loop_factory=...) and direct run_until_complete() can execute a loop that was never registered
+            # through an event-loop policy. Track it only while it is running so stopped loops are not retained.
+            loop = typing.cast("aio.AbstractEventLoop", args[0])
+            thread_id = typing.cast(int, ddtrace_threading.current_thread().ident)
+            _track_asyncio_loop(thread_id, loop)
+            try:
+                return f(*args, **kwargs)
+            finally:
+                _track_asyncio_loop(thread_id, None)
+
+        @partial(wrap, base_event_loop_class.create_task)
+        def _(
+            f: typing.Callable[..., aio.Task[typing.Any]],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> aio.Task[typing.Any]:
+            loop = typing.cast("aio.AbstractEventLoop", args[0])
+            return _call_and_publish_task(f, args, kwargs, loop)
+
+        def _publish_ensured_future(
+            f: typing.Callable[..., aio.Future[typing.Any]],
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> aio.Future[typing.Any]:
+            awaitable = get_argument_value(args, kwargs, 0, "coro_or_future")
+            loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", kwargs.get("loop"))
+            if loop is None:
+                loop = globals()["get_running_loop"]()
+            if loop is None and awaitable is not None:
+                try:
+                    loop = awaitable.get_loop()
+                except Exception:  # nosec B110
+                    pass
+            had_custom_task_factory = loop is None or _has_custom_task_factory(loop)
+            future = f(*args, **kwargs)
+            if future is not awaitable:
+                _publish_task_span(typing.cast("aio.Task[typing.Any]", future), None, had_custom_task_factory)
+            return future
+
+        # The public helper delegates to _ensure_future on supported Python versions. Wrap only the lowest helper to
+        # avoid publishing each task once in ensure_future and again in _ensure_future.
+        private_ensure_future = getattr(sys.modules["asyncio"].tasks, "_ensure_future", None)
+        wrap(
+            private_ensure_future or sys.modules["asyncio"].tasks.ensure_future,
+            _publish_ensured_future,
+        )
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
@@ -214,7 +414,9 @@ def _(asyncio: ModuleType) -> None:
                         args: tuple[typing.Any, ...],
                         kwargs: dict[str, typing.Any],
                     ) -> aio.Task[typing.Any]:
-                        result: aio.Task[typing.Any] = f(*args, **kwargs)
+                        task_group = args[0]
+                        loop = typing.cast("typing.Optional[aio.AbstractEventLoop]", getattr(task_group, "_loop", None))
+                        result = _call_and_publish_task(f, args, kwargs, loop)
 
                         parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
                         if parent is not None and result is not None:
@@ -235,7 +437,8 @@ def _(asyncio: ModuleType) -> None:
             kwargs: dict[str, typing.Any],
         ) -> aio.Task[typing.Any]:
             # kwargs will typically contain context (Python 3.11+ only) and eager_start (Python 3.14+ only)
-            task: aio.Task[typing.Any] = f(*args, **kwargs)
+            loop = globals()["get_running_loop"]()
+            task = _call_and_publish_task(f, args, kwargs, loop)
             parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
 
             if parent is not None:
@@ -265,6 +468,19 @@ def _(uvloop: ModuleType) -> None:
 
     init_stack: bool = config.stack.enabled and stack.is_available
 
+    if init_stack:
+
+        def _publish_uvloop_task(
+            f: typing.Callable[..., asyncio.Task[typing.Any]],
+            loop: asyncio.AbstractEventLoop,
+            args: tuple[typing.Any, ...],
+            kwargs: dict[str, typing.Any],
+        ) -> asyncio.Task[typing.Any]:
+            return _call_and_publish_task(f, args, kwargs, loop)
+
+        # uvloop.Loop.create_task is a Cython method, so the bytecode wrapper used above cannot wrap it.
+        wrapt.wrap_function_wrapper(uvloop.Loop, "create_task", _publish_uvloop_task)
+
     # Wrap uvloop.new_event_loop to track loops when they're created
     new_event_loop_func: typing.Optional[typing.Callable[[], asyncio.AbstractEventLoop]] = getattr(
         uvloop, "new_event_loop", None
@@ -282,7 +498,7 @@ def _(uvloop: ModuleType) -> None:
                 thread_id: int = typing.cast(int, ddtrace_threading.current_thread().ident)
                 stack.set_uvloop_mode(thread_id, True)
 
-                stack.track_asyncio_loop(thread_id, loop)
+                _track_asyncio_loop(thread_id, loop)
                 # Ensure asyncio task tracking is initialized
                 _call_init_asyncio(asyncio)
 
@@ -304,7 +520,7 @@ def _(uvloop: ModuleType) -> None:
 
             loop: typing.Optional[asyncio.AbstractEventLoop] = get_argument_value(args, kwargs, 1, "loop")
             if init_stack and loop is not None:
-                stack.track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
+                _track_asyncio_loop(typing.cast(int, ddtrace_threading.current_thread().ident), loop)
                 _call_init_asyncio(asyncio)
 
             return f(*args, **kwargs)
