@@ -5,7 +5,6 @@ from typing import Optional
 from typing import TypedDict
 
 from ddtrace._trace.sampling_rule import SamplingRule
-from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
@@ -26,6 +25,7 @@ from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 
 from .rate_limiter import RateLimiter
@@ -120,14 +120,14 @@ class SpanSamplingRule:
         self._service_matcher = GlobMatcher(service) if service is not None else None
         self._name_matcher = GlobMatcher(name) if name is not None else None
 
-    def sample(self, span: Span) -> bool:
+    def sample(self, span: SpanData) -> bool:
         if self._sample(span):
             if self._limiter.is_allowed():
                 self.apply_span_sampling_tags(span)
                 return True
         return False
 
-    def _sample(self, span: Span) -> bool:
+    def _sample(self, span: SpanData) -> bool:
         if self._sample_rate == 1:
             return True
         elif self._sample_rate == 0:
@@ -135,7 +135,7 @@ class SpanSamplingRule:
 
         return ((span.span_id * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
-    def match(self, span: Span) -> bool:
+    def match(self, span: SpanData) -> bool:
         """Determines if the span's service and name match the configured patterns"""
         name = span.name
         service = span.service
@@ -160,7 +160,7 @@ class SpanSamplingRule:
                 name_match = self._name_matcher.match(name)
         return service_match and name_match
 
-    def apply_span_sampling_tags(self, span: Span) -> None:
+    def apply_span_sampling_tags(self, span: SpanData) -> None:
         span._set_attribute(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span._set_attribute(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1
@@ -250,10 +250,11 @@ def _check_unsupported_pattern(string: str) -> None:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
+def _set_sampling_tags(span: SpanData, sampled: bool, sample_rate: float, mechanism: int) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
-    if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-        span._set_sampling_decision_maker(mechanism)
+    context = span.context
+    if not context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        context._set_sampling_decision_maker(mechanism)
 
     # Set the sampling psr rate
     if mechanism in (
@@ -270,10 +271,10 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
-    span.context.sampling_priority = priorities[priority_index]
+    context.sampling_priority = priorities[priority_index]
 
 
-def add_trace_source(span: Span, source: int) -> None:
+def add_trace_source(span: SpanData, source: int) -> None:
     """OR source (a TraceSource bit) into the span's _dd.p.ts trace-source mask.
 
     Marks that an enabled product originated or retained the trace so it is kept when APM
@@ -290,14 +291,14 @@ def add_trace_source(span: Span, source: int) -> None:
     meta[TRACE_SOURCE_PROPAGATION_KEY] = value
 
 
-def _inherit_sampling_tags(target: Span, source: Span):
+def _inherit_sampling_tags(target: SpanData, source: SpanData):
     """Set sampling tags from source span on target span."""
     target._set_attribute(SAMPLING_DECISION_MAKER_INHERITED, 1)
     target._set_attribute(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
     target._set_attribute(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
-def _get_highest_precedence_rule_matching(span: Span, rules: list[SamplingRule]) -> Optional[SamplingRule]:
+def _get_highest_precedence_rule_matching(span: SpanData, rules: list[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 
