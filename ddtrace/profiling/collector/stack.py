@@ -13,6 +13,8 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import _asyncio
 from ddtrace.profiling import _span_links
 from ddtrace.profiling import collector
@@ -144,6 +146,29 @@ class StackCollector(collector.Collector):
             active = self.tracer.context_provider.active()
             if active is not None:
                 self._link_span(self.tracer.context_provider, active)
+
+    @staticmethod
+    def snapshot() -> None:
+        # The sampling thread cannot touch Python, so it stashes the exception that killed
+        # it and we drain it here, on the scheduler thread, before every upload.
+        error = stack.take_sampling_thread_error()
+        if error is None:
+            return
+
+        error_type, message = error
+        LOG.error(
+            "The stack profiler sampling thread stopped after an unexpected error: %s: %s",
+            error_type,
+            message,
+            # The message is reported below with the error type as a tag, so the telemetry
+            # payload stays low cardinality.
+            extra={"send_to_telemetry": False},
+        )
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "The stack profiler sampling thread stopped after an unexpected error",
+            tags={"error_type": error_type},
+        )
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing
