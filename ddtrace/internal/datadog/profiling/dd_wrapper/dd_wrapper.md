@@ -83,12 +83,12 @@ However, this last case hardly matters, since the interrupted context will resum
 
 Samples are interacted with transactionally, for example
 
-1. `ddup_start_sample()` (every sample begins with a call to `start_sample()`)
+1. `SampleManager::start_sample()` (every sample begins with a call to `start_sample()`)
 2. adding frames, wall time, tags, etc
-3. `ddup_flush_sample()` (every sample ends with a call to `flush_sample()`)
+3. `Sample::flush_sample()` (every sample ends with a call to `flush_sample()`), followed by `SampleManager::drop_sample()` to return the Sample to the pool
 
 The act of flushing a sample stores its data in a `ddog_prof_Profile` object (which is wrapped by Profile in this code).
-it also releases the Sample (don't reuse Samples in application code!)
+`SampleManager::drop_sample()` releases the Sample (don't reuse Samples in application code!). This is the path used by `SampleHandle` (Cython) and native stack sampling; memalloc embeds a `Sample` by value instead of going through the pool.
 
 There's one wrinkle here.
 The navigation through frame data (unwinding) may result in temporary strings.
