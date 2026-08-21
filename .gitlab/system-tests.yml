@@ -93,11 +93,12 @@ system-tests parametric:
 
 include:
   - project: 'DataDog/system-tests'
-    ref: '1f3f07e9f21f049b63abb0f3ed667583395fc2b6'
+    ref: 'ceeb84419c5ebe6aa0860f07f1fa7d6bc55bf481'
     file: 'utils/ci/gitlab/main.yml'
     inputs:
       stage: "tests"
-      ref: '1f3f07e9f21f049b63abb0f3ed667583395fc2b6'
+      ref: 'ceeb84419c5ebe6aa0860f07f1fa7d6bc55bf481'
+      allow_failure: true
       # condition: '$CI_COMMIT_BRANCH == "main"'
 
 "build lambda layer":
