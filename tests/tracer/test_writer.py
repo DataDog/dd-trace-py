@@ -1455,7 +1455,6 @@ def test_agentless_buffer_stays_under_the_intake_limit():
 
     writer = tracer._span_aggregator.writer
     assert writer.agentless is True
-    assert AGENTLESS_MAX_BUFFER_SIZE == 15 << 20
     assert writer._buffer_size == AGENTLESS_MAX_BUFFER_SIZE
     assert writer._max_payload_size == AGENTLESS_MAX_BUFFER_SIZE
 

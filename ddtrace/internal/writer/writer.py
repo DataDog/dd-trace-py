@@ -572,7 +572,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 AGENTLESS_INTAKE_PATH = "/v1/input"
 # The intake hard-rejects anything over 20 MB. Cap what we buffer well below that so a
 # payload still fits once the exporter re-encodes it as JSON and packs it.
-AGENTLESS_MAX_BUFFER_SIZE = 15 << 20  # 15 MB
+AGENTLESS_MAX_BUFFER_SIZE = 10 << 20  # 10 MB
 AGENTLESS_INTAKE_URLS: dict[str, str] = {
     "datadoghq.com": "https://public-trace-http-intake.logs.datadoghq.com",
     "datadoghq.eu": "https://public-trace-http-intake.logs.datadoghq.eu",
