@@ -2326,6 +2326,28 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="httpx2",
+            command="pytest {cmdargs} tests/contrib/httpx2",
+            pkgs={
+                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9"],
+                    pkgs={
+                        "httpx2": "~=2.0.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "httpx2": ["~=2.0.0", latest],
+                    },
+                ),
+            ],
+        ),
+        Venv(
             name="urllib3",
             command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3",
             pkgs={

@@ -166,6 +166,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dogpile_cache",
         "pylibmc",
         "httpx",
+        "httpx2",
         "httplib",
         "rq",
         "jinja2",
