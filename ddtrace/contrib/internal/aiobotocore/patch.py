@@ -12,9 +12,11 @@ from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.aiobotocore.bedrock import patched_aiobotocore_bedrock_api_call
 
 # AIDEV-NOTE: Shared with botocore; this integration registers its own owner-gated
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
+from ddtrace.contrib.internal.botocore.patch import _PATCHED_SUBMODULES as _BOTOCORE_PATCHED_SUBMODULES
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -34,6 +36,7 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.trace import tracer
 
 
@@ -48,6 +51,8 @@ elif AIOBOTOCORE_VERSION >= (0, 11, 0) and AIOBOTOCORE_VERSION < (2, 3, 0):
 
 ARGS_NAME = ("action", "params", "path", "verb")
 TRACED_ARGS = {"params", "path", "verb"}
+BEDROCK_RUNTIME_OPERATIONS = frozenset(("Converse", "ConverseStream", "InvokeModel", "InvokeModelWithResponseStream"))
+_PATCHED_SUBMODULES = set()
 
 config._add(
     "aiobotocore",
@@ -79,11 +84,30 @@ def patch():
         return
     aiobotocore.client._datadog_patch = True
 
+    aiobotocore._datadog_integration = BedrockIntegration(integration_config=config.botocore)
     wrapt.wrap_function_wrapper("aiobotocore.client", "AioBaseClient._make_api_call", _wrapped_api_call)
     Pin().onto(aiobotocore.client.AioBaseClient)
+    _PATCHED_SUBMODULES.clear()
+
+
+def patch_submodules(submodules):
+    """Restrict tracing to selected AWS services when a caller supplies a service list.
+
+    LLMObs patches botocore with a Bedrock-only service list but currently reaches
+    aiobotocore with a boolean patch indicator. Mirror botocore's active service
+    restriction in that case so enabling LLMObs does not start tracing unrelated
+    async S3/SQS/DynamoDB traffic. An ordinary ``patch(aiobotocore=True)`` keeps
+    the historical all-services behavior because botocore has no active filter.
+    """
+    _PATCHED_SUBMODULES.clear()
+    if isinstance(submodules, list):
+        _PATCHED_SUBMODULES.update(submodule.lower() for submodule in submodules)
+    elif isinstance(submodules, bool) and submodules and _BOTOCORE_PATCHED_SUBMODULES:
+        _PATCHED_SUBMODULES.update(_BOTOCORE_PATCHED_SUBMODULES)
 
 
 def unpatch():
+    _PATCHED_SUBMODULES.clear()
     if getattr(aiobotocore.client, "_datadog_patch", False):
         aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
@@ -135,8 +159,46 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
         return result
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
+    if _PATCHED_SUBMODULES and endpoint_name not in _PATCHED_SUBMODULES:
+        return await original_func(*args, **kwargs)
 
     fallback_service = config._get_service(default="aws.{}".format(endpoint_name))
+
+    try:
+        operation = get_argument_value(args, kwargs, 0, "operation_name")
+        params = get_argument_value(args, kwargs, 1, "api_params")
+    except ArgumentError:
+        operation = None
+        params = None
+
+    # Bedrock spans must outlive this coroutine while the async body/stream is consumed.
+    # The Bedrock helper preserves the same APM tags as this generic path and owns
+    # finalization for every supported async consumption path.
+    if endpoint_name == "bedrock-runtime" and operation in BEDROCK_RUNTIME_OPERATIONS:
+        trace_operation = schematize_cloud_api_operation(
+            "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
+        )
+        function_vars = {
+            "endpoint_name": endpoint_name,
+            "operation": operation,
+            "params": params,
+            "pin": pin,
+            "trace_operation": trace_operation,
+            "integration": aiobotocore._datadog_integration,
+            "service": ext_service(pin, config.aiobotocore, default=schematize_service_name(fallback_service)),
+        }
+
+        token = None
+        if not config.botocore["distributed_tracing"]:
+            token = _http_propagation_suppressed.set(True)
+        elif _ensure_before_sign_handler(instance, _aiobotocore_before_sign_handler):
+            token = _http_propagation_suppressed.set(True)
+        try:
+            return await patched_aiobotocore_bedrock_api_call(original_func, instance, args, kwargs, function_vars)
+        finally:
+            if token is not None:
+                _http_propagation_suppressed.reset(token)
+
     with tracer.trace(
         schematize_cloud_api_operation(
             "{}.command".format(endpoint_name), cloud_provider="aws", cloud_service=endpoint_name
@@ -155,16 +217,12 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
 
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-        try:
-            operation = get_argument_value(args, kwargs, 0, "operation_name")
-            params = get_argument_value(args, kwargs, 1, "api_params")
-
+        if operation is not None:
             span.resource = "{}.{}".format(endpoint_name, operation.lower())
 
             if params and not config.aiobotocore["tag_no_params"]:
                 aws._add_api_param_span_tags(span, endpoint_name, params)
-        except ArgumentError:
-            operation = None
+        else:
             span.resource = endpoint_name
 
         region_name = deep_getattr(instance, "meta.region_name")
