@@ -64,6 +64,19 @@ class AgentInstructionResolver(TypedDict, total=False):
     type: str
 
 
+class AgentTool(TypedDict, total=False):
+    """One tool an agent declares it can call.
+
+    parameters maps a name to ``{"type": ..., "required": True}``. An optional parameter omits
+    ``required`` rather than reporting it false, which is the shape the framework integrations
+    already emit, so a hand-declared tool renders the same as an auto-instrumented one.
+    """
+
+    name: str
+    description: str
+    parameters: dict[str, Any]
+
+
 class AgentManifest(TypedDict, total=False):
     """Declared agent configuration, reported on an agent span under _dd.agent_manifest.
 
@@ -215,13 +228,29 @@ class Prompt(TypedDict, total=False):
 
 class Agent(TypedDict, total=False):
     """
-    An Agent object that identifies a versioned agent.
+    An Agent object that declares the agent an agent span represents.
         version: str - user tag for the version of the agent.
+        name: str - overrides the agent's name, which defaults to the agent span's name.
+        instructions: str - the system instructions the agent runs with.
+        model: str - the model the agent is configured to call.
+        model_settings: dict[str, Any] - inference parameters. Only these keys are reported:
+            frequency_penalty, logit_bias, logprobs, max_tokens, parallel_tool_calls,
+            presence_penalty, seed, stop_sequences, temperature, timeout, tool_choice, top_k,
+            top_logprobs, top_p. Anything else is dropped, including provider-specific keys such as
+            extra_headers, since those can carry secrets.
+        tools: list[AgentTool] - the tools the agent declares it can call.
 
-    Set as an `agent_version` tag on the agent span only, never on its children.
+    `version` becomes an `agent_version` tag and the rest the agent's manifest, on the agent span
+    only, never on its children. Unreportable values are dropped rather than raising. Keys are
+    merged into a manifest an integration already reported, so annotating one field leaves the rest.
     """
 
     version: str
+    name: str
+    instructions: str
+    model: str
+    model_settings: dict[str, Any]
+    tools: list[AgentTool]
 
 
 class _MetaIO(TypedDict, total=False):
