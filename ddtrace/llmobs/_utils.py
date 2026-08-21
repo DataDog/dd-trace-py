@@ -800,10 +800,16 @@ def _annotate_llmobs_span_data(
         annotated_span_kind = meta[LLMOBS_STRUCT.SPAN].get(LLMOBS_STRUCT.KIND)
         if input_messages is not None:
             if span_kind_keeps_messages(annotated_span_kind, input_messages):
+                # meta.input persists across annotate calls, and the emit path prefers messages
+                # over value. Clearing the sibling keeps a later annotate authoritative rather
+                # than leaving a stale representation to win.
+                meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.VALUE, None)
                 meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
             else:
+                meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
                 meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_messages, ensure_ascii=False) or ""
         if input_value is not None:
+            meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_value, ensure_ascii=False) or ""
         if input_documents is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
@@ -813,10 +819,13 @@ def _annotate_llmobs_span_data(
             span._set_ctx_item(INPUT_PROMPT, existing_prompt)
         if output_messages is not None:
             if span_kind_keeps_messages(annotated_span_kind, output_messages):
+                meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.VALUE, None)
                 meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
             else:
+                meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
                 meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_messages, ensure_ascii=False) or ""
         if output_value is not None:
+            meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_value, ensure_ascii=False) or ""
         if output_documents is not None:
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
@@ -868,8 +877,10 @@ def messages_carry_media(messages: Any) -> bool:
     """True when any message carries a non-empty audio_parts or image_parts list.
 
     Runs on the annotate path against unvalidated user input, so it tolerates any shape
-    rather than raising. A media key holding something other than a non-empty list does
-    not count, which leaves malformed input on whatever path it takes today.
+    rather than raising. A media key holding anything other than a non-empty list of dicts
+    does not count, which leaves malformed input on whatever path it takes today: routing it
+    here instead would hand it to Messages(), which raises TypeError on a non-dict part, and
+    annotate turns that into an LLMObsAnnotateSpanError in the caller's own code.
     """
     if isinstance(messages, dict):
         messages = [messages]
@@ -880,7 +891,7 @@ def messages_carry_media(messages: Any) -> bool:
             continue
         for key in _MEDIA_PART_KEYS:
             parts = message.get(key)
-            if isinstance(parts, list) and parts:
+            if isinstance(parts, list) and parts and all(isinstance(part, dict) for part in parts):
                 return True
     return False
 
@@ -900,6 +911,25 @@ def span_kind_keeps_messages(span_kind: Optional[str], messages: Any) -> bool:
 def _strip_media_parts(messages: list[Message]) -> list[dict]:
     """Drop the media part lists so base64 payloads never reach the value string."""
     return [{k: v for k, v in message.items() if k not in _MEDIA_PART_KEYS} for message in messages]
+
+
+_VALUE_OMITTED_MARKER = "[value omitted: event size limit]"
+
+
+def _media_payload_chars(messages: list[Message]) -> int:
+    """Characters the inline media parts contribute, without serializing the whole list."""
+    total = 0
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        for key in _MEDIA_PART_KEYS:
+            parts = message.get(key)
+            if not isinstance(parts, list):
+                continue
+            for part in parts:
+                if isinstance(part, dict):
+                    total += len(part.get("content", "") or "")
+    return total
 
 
 def _messages_have_tool_structure(messages: list[dict]) -> bool:
@@ -929,8 +959,16 @@ def collapse_messages_to_value(span_kind: str, messages: list[Message]) -> str:
         and not _messages_have_tool_structure(stripped)
         and stripped[0].get("role") != "system"
     ):
-        return stripped[0].get("content", "") or ""
-    return safe_json(stripped, ensure_ascii=False) or ""
+        value = stripped[0].get("content", "") or ""
+    else:
+        value = safe_json(stripped, ensure_ascii=False) or ""
+    # The messages already carry this text, so the derived value duplicates it and halves the
+    # headroom the media needs. Past the limit the writer replaces input and output wholesale
+    # (_writer._truncate_span_event), discarding the very media this field exists to accompany,
+    # so drop the duplicate instead and keep the payload.
+    if _media_payload_chars(messages) + 2 * len(value) > config._llmobs_event_size_limit:
+        return _VALUE_OMITTED_MARKER
+    return value
 
 
 def validate_tags_list(tags: list[str]) -> None:

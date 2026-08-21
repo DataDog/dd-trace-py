@@ -1,8 +1,29 @@
 ---
-fixes:
+features:
   - |
-    LLM Observability: Fixes an issue where images and audio annotated on non-LLM spans were lost.
-    Messages annotated via ``LLMObs.annotate`` on an ``agent``, ``workflow``, ``task``, ``tool`` or
-    ``step`` span that carry ``image_parts`` or ``audio_parts`` are now recorded as structured
-    messages alongside the span's input and output values, so the media is collected and rendered
-    instead of being flattened into text. Spans without media, and non-message input, are unchanged.
+    LLM Observability: Images and audio annotated on non-LLM spans are no longer lost. Messages
+    annotated via ``LLMObs.annotate`` on an ``agent``, ``workflow``, ``task``, ``tool`` or ``step``
+    span that carry ``image_parts`` or ``audio_parts`` are now recorded as structured messages
+    alongside the span's collapsed input and output values, so the media is collected and rendered
+    instead of being flattened into text. Spans without media, and non-message input, keep the
+    representation they had before.
+upgrade:
+  - |
+    LLM Observability: Span processors registered with ``LLMObs.register_processor`` now receive a
+    typed message list, rather than a single collapsed message, for ``agent``, ``workflow``,
+    ``task``, ``tool`` and ``step`` spans whose messages carry ``image_parts`` or ``audio_parts``.
+    A processor that redacts only ``content`` will leave the media in place, because the payload
+    lives on the media parts rather than in the text. Processors that need to scrub media should
+    remove the ``image_parts`` and ``audio_parts`` keys from each message.
+  - |
+    LLM Observability: On ``agent``, ``workflow``, ``task``, ``tool`` and ``step`` spans, a
+    message-shaped payload carrying ``image_parts`` or ``audio_parts`` is rebuilt against the
+    LLM Observability message schema, and any key outside that schema is dropped and logged at
+    warning level. Record additional fields with ``LLMObs.annotate(metadata=...)`` instead. A media
+    key holding anything other than a list of dictionaries is not treated as media at all, and the
+    payload is recorded as a value exactly as it was before.
+  - |
+    LLM Observability: When a message carries inline media, the collapsed value string derived for
+    a non-LLM span duplicates the message text. If that duplication would take the span event past
+    ``DD_LLMOBS_EVENT_SIZE_BYTES``, the value is replaced with ``[value omitted: event size limit]``
+    and the typed messages are kept, rather than the whole input and output being dropped.

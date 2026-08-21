@@ -1221,15 +1221,106 @@ def test_annotate_non_agent_kinds_without_media_unchanged(llmobs, span_kind):
 
 
 def test_annotate_agent_message_malformed_image_parts_raises(llmobs):
-    """Malformed media on an agent span reports through the same Messages validation."""
+    """A media part that is a dict but missing required keys still reports through Messages.
+
+    Only non-dict parts are diverted back to the value path; a dict part is a genuine attempt at
+    media and its validation error is worth surfacing.
+    """
     with llmobs.agent(name="test_agent") as span:
         with pytest.raises(Exception) as excinfo:
             llmobs.annotate(span=span, input_data=[{"content": "x", "image_parts": [{"content": "AAAA"}]}])
         assert str(excinfo.value) == "Failed to parse input messages."
 
-        with pytest.raises(Exception) as excinfo:
-            llmobs.annotate(span=span, output_data=[{"content": "x", "image_parts": ["not-a-dict"]}])
-        assert str(excinfo.value) == "Failed to parse output messages."
+
+@pytest.mark.parametrize("span_kind", ["agent", "workflow", "task", "tool"])
+@pytest.mark.parametrize("media_key", ["image_parts", "audio_parts"])
+@pytest.mark.parametrize("parts", [["/tmp/a.png"], [None], [1], ["a", "b"]])
+def test_annotate_non_dict_media_parts_do_not_raise(llmobs, span_kind, media_key, parts):
+    """A media key holding non-dict entries stays on the value path instead of raising.
+
+    Routing it to Messages() would raise TypeError, which annotate converts into an
+    LLMObsAnnotateSpanError in the caller's own code.
+    """
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "hello", "role": "user", media_key: parts}])
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert "messages" not in meta["input"]
+    assert "hello" in meta["input"]["value"]
+
+
+@pytest.mark.parametrize("span_kind", ["agent", "workflow", "task", "tool"])
+def test_annotate_value_after_media_messages_overrides(llmobs, span_kind):
+    """A later value annotation wins and leaves no media behind.
+
+    annotate is documented as last-write-wins. meta.input persists across calls and the
+    emit path prefers messages over value, so the value write has to clear its sibling or
+    a caller re-annotating to redact would still ship the original payload.
+    """
+    media = [{"content": "SECRET", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "QkFTRTY0"}]}]
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(span=span, input_data=media)
+        llmobs.annotate(span=span, input_data="redacted")
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert meta["input"]["value"] == "redacted"
+    assert "messages" not in meta["input"]
+    assert "QkFTRTY0" not in str(meta["input"])
+
+
+@pytest.mark.parametrize("span_kind", ["agent", "workflow", "task", "tool"])
+def test_annotate_media_messages_after_value_overrides(llmobs, span_kind):
+    """The reverse order also wins, rather than working by accident."""
+    media = [{"content": "hello", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "QUJD"}]}]
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(span=span, input_data="first")
+        llmobs.annotate(span=span, input_data=media)
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert meta["input"]["messages"] == media
+    assert "first" not in str(meta["input"])
+
+
+@pytest.mark.parametrize("span_kind", ["agent", "workflow", "task", "tool"])
+def test_annotate_media_value_omitted_past_size_limit(llmobs, span_kind):
+    """The derived value is dropped rather than costing the span its whole input and output.
+
+    messages and the collapsed value both carry the text, so the pair can exceed the event limit
+    where messages alone would not. Past the limit the writer replaces input and output wholesale,
+    which would discard the media this field exists to accompany.
+    """
+    media = [
+        {"content": "x" * 4_000, "role": "user", "image_parts": [{"mime_type": "image/png", "content": "A" * 4_000}]}
+    ]
+    with override_global_config(dict(_llmobs_event_size_limit=10_000)):
+        with getattr(llmobs, span_kind)(name="test_span") as span:
+            llmobs.annotate(span=span, input_data=media)
+            llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+            meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert meta["input"]["value"] == "[value omitted: event size limit]"
+    assert meta["input"]["messages"] == media
+
+
+@pytest.mark.parametrize("span_kind", ["agent", "workflow", "task", "tool"])
+def test_annotate_media_value_kept_within_size_limit(llmobs, span_kind):
+    """Regression pin: the size guard must not fire on ordinary payloads."""
+    media = [{"content": "hello", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "QkFTRTY0"}]}]
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(span=span, input_data=media)
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert "omitted" not in meta["input"]["value"]
+    assert "hello" in meta["input"]["value"]
+
+
+def test_annotate_output_non_dict_media_parts_do_not_raise(llmobs):
+    """The output side takes the same value-path fallback as the input side."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, output_data=[{"content": "x", "image_parts": ["not-a-dict"]}])
+        llmobs._instance._prepare_llmobs_span_data(span, "agent")
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert "messages" not in meta["output"]
+    assert "x" in meta["output"]["value"]
 
 
 def test_annotate_llm_message_without_media_unchanged(llmobs):

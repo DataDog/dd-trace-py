@@ -183,6 +183,9 @@ def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[Too
     return validated_tool_definitions
 
 
+_MESSAGE_SCHEMA_KEYS = frozenset(("content", "role", "tool_calls", "tool_results", "audio_parts", "image_parts"))
+
+
 class Messages:
     def __init__(self, messages: Union[list[dict[str, Any]], dict[str, Any], str]):
         self.messages = []
@@ -233,6 +236,18 @@ class Messages:
                     raise TypeError("image_parts must be a list.")
                 formatted_image_parts = [_extract_image_part(image_part) for image_part in image_parts]
                 msg_dict["image_parts"] = formatted_image_parts
+
+            # Rebuilding from a whitelist drops anything else the caller sent. On a non-LLM span
+            # the collapsed value is derived from this result, so a silent drop would empty both
+            # representations at once; media keys are plausible in arbitrary user data, so the
+            # caller may not have meant message semantics at all.
+            unrecognized = [key for key in message if key not in _MESSAGE_SCHEMA_KEYS]
+            if unrecognized:
+                log.warning(
+                    "Dropping message keys %s: not part of the LLM Observability message schema. "
+                    "Record additional fields with LLMObs.annotate(metadata=...).",
+                    sorted(unrecognized),
+                )
 
             self.messages.append(msg_dict)
 

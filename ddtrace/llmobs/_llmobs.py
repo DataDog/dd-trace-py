@@ -2959,6 +2959,10 @@ class LLMObs(Service):
                                         "mime_type" and one of "content" (base64-encoded image) or "attachment_key".
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
+                           - agent, workflow, task, step and tool spans: any JSON serializable type. A message-shaped
+                                              payload whose messages carry "image_parts" or "audio_parts" is recorded
+                                              as typed messages alongside the collapsed value string, and keys outside
+                                              the message schema described above are dropped.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...",
@@ -2972,6 +2976,10 @@ class LLMObs(Service):
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
+                           - agent, workflow, task, step and tool spans: any JSON serializable type. A message-shaped
+                                              payload whose messages carry "image_parts" or "audio_parts" is recorded
+                                              as typed messages alongside the collapsed value string, and keys outside
+                                              the message schema described above are dropped.
                            - other: any JSON serializable type.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
