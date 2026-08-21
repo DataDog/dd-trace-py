@@ -64,7 +64,7 @@ fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
         .and_then(|s| s.parse::<u128>().ok())
 }
 
-#[pyo3::pyclass(name = "Context", module = "ddtrace._trace.context", weakref, subclass)]
+#[pyo3::pyclass(name = "Context", module = "ddtrace._trace.context", weakref)]
 #[derive(Default)]
 pub struct Context {
     pub trace_id: Option<u128>,
