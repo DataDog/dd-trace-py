@@ -205,6 +205,11 @@ def _after_fork_child():
     _threads_to_restart_after_fork.clear()
 
     for thread_start in _threads_to_start_after_fork.copy():
+        if not thread_start.__self__.__autorestart__:
+            # The start() call was queued while forking, so the thread never
+            # actually ran in the parent. Same __autorestart__ contract as
+            # above: don't start it in the child either.
+            continue
         log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
         _safe_restart(thread_start, thread_start.__self__.name)
     _threads_to_start_after_fork.clear()
