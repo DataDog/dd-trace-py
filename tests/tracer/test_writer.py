@@ -876,12 +876,12 @@ def test_intake_base_path_uds():
     """For a unix:// intake URL, the path component is the socket location, not an
     HTTP path prefix, so it must not be prepended to the request path.
     """
-    writer = AgentlessTraceWriter("unix:///var/run/datadog/apm.socket", api_key="foobar")
+    writer = CIVisibilityWriter("unix:///var/run/datadog/apm.socket")
     assert writer._intake_base_path() == ""
 
 
 def test_intake_base_path_http():
-    writer = AgentlessTraceWriter("http://localhost:8126/some/prefix", api_key="foobar")
+    writer = CIVisibilityWriter("http://localhost:8126/some/prefix")
     assert writer._intake_base_path() == "/some/prefix"
 
 
