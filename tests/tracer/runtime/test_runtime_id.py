@@ -210,3 +210,155 @@ def test_get_process_role_spawn_child() -> None:
     from ddtrace.internal.runtime import get_process_role
 
     assert get_process_role() == "worker", get_process_role()
+
+
+def test_refresh_identity_changes_runtime_id(run_python_code_in_subprocess):
+    """refresh_identity() is the non-fork trigger for a new logical process instance."""
+    code = """
+from ddtrace.internal import runtime
+
+runtime_id = runtime.get_runtime_id()
+runtime.refresh_identity()
+new_runtime_id = runtime.get_runtime_id()
+
+assert isinstance(new_runtime_id, str)
+assert new_runtime_id != runtime_id
+assert new_runtime_id == runtime.get_runtime_id()
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+
+
+def test_refresh_identity_does_not_record_fork_lineage(run_python_code_in_subprocess):
+    """Unlike a fork, refresh_identity() must not make get_process_role() report a fake worker.
+
+    The previous runtime ID was not a real parent process, so recording it as one would
+    corrupt process-lineage telemetry.
+    """
+    import os
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_ROOT_PY_SESSION_ID": None,
+            "_DD_PARENT_PY_SESSION_ID": None,
+            "DD_TRACE_SUBPROCESS_ENABLED": "false",
+        }
+    )
+    code = """
+from ddtrace.internal import runtime
+
+assert runtime.get_process_role() is None
+assert runtime.get_parent_runtime_id() is None
+assert runtime.get_ancestor_runtime_id() is None
+
+runtime.refresh_identity()
+
+assert runtime.get_process_role() is None
+assert runtime.get_parent_runtime_id() is None
+assert runtime.get_ancestor_runtime_id() is None
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+
+
+def test_refresh_identity_notifies_subscribers(run_python_code_in_subprocess):
+    code = """
+from ddtrace.internal import runtime
+
+seen = []
+
+
+class _Subscriber:
+    def on_change(self, new_id):
+        seen.append(new_id)
+
+
+subscriber = _Subscriber()
+runtime.on_runtime_id_change(subscriber.on_change)
+
+runtime.refresh_identity()
+
+assert seen == [runtime.get_runtime_id()]
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+
+
+def test_refresh_identity_isolates_subscriber_exceptions(run_python_code_in_subprocess):
+    """One subscriber raising must not stop refresh_identity() or block other subscribers."""
+    code = """
+from ddtrace.internal import runtime
+
+seen = []
+
+
+class _BadSubscriber:
+    def on_change(self, new_id):
+        raise ValueError("boom")
+
+
+class _GoodSubscriber:
+    def on_change(self, new_id):
+        seen.append(new_id)
+
+
+bad = _BadSubscriber()
+good = _GoodSubscriber()
+runtime.on_runtime_id_change(bad.on_change)
+runtime.on_runtime_id_change(good.on_change)
+
+runtime.refresh_identity()
+
+assert seen == [runtime.get_runtime_id()]
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+
+
+def test_refresh_identity_serializes_concurrent_notifications(run_python_code_in_subprocess):
+    code = """
+import threading
+
+from ddtrace.internal import runtime
+
+seen = []
+seen_lock = threading.Lock()
+first_entered = threading.Event()
+release_first = threading.Event()
+second_entered = threading.Event()
+
+
+def on_change(new_id):
+    with seen_lock:
+        seen.append(new_id)
+        count = len(seen)
+
+    if count == 1:
+        first_entered.set()
+        assert release_first.wait(5)
+    elif count == 2:
+        second_entered.set()
+
+
+runtime.on_runtime_id_change(on_change)
+
+first = threading.Thread(target=runtime.refresh_identity)
+first.start()
+assert first_entered.wait(5)
+
+second = threading.Thread(target=runtime.refresh_identity)
+second.start()
+assert not second_entered.wait(0.2)
+
+release_first.set()
+first.join(5)
+second.join(5)
+
+assert not first.is_alive()
+assert not second.is_alive()
+assert second_entered.is_set()
+assert seen[-1] == runtime.get_runtime_id()
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
