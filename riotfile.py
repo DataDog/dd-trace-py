@@ -3665,9 +3665,17 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "torch": latest,
-                "vllm": ">=0.10.2",
             },
-            pys=select_pys(min_version="3.10", max_version="3.13"),
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"vllm": "~=0.10.2"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pkgs={"vllm": latest},
+                ),
+            ],
         ),
         Venv(
             name="valkey",
