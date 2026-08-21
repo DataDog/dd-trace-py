@@ -4,7 +4,6 @@ from enum import Enum
 import functools
 import json
 from pathlib import Path
-import typing
 from typing import Any
 from typing import Generic
 from typing import Optional
@@ -24,6 +23,7 @@ from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.api._protocols import TestVisibilitySessionProtocol
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
@@ -40,10 +40,6 @@ from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
-
-
-if typing.TYPE_CHECKING:
-    from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 
 
 log = get_logger(__name__)
@@ -442,7 +438,7 @@ class TestVisibilityItemBase(abc.ABC):
     def is_prepared_for_finish(self) -> bool:
         return self._finish_time is not None
 
-    def get_session(self) -> Optional["TestVisibilitySession"]:
+    def get_session(self) -> Optional[TestVisibilitySessionProtocol]:
         if self.parent is None:
             return None
         return self.parent.get_session()

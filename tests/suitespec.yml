@@ -2,6 +2,8 @@
 components:
   $harness:
     - docker/*
+    - docker-compose.base.yml
+    - docker-compose.podman.yml
     - docker-compose.yml
     - riotfile.py
     - .riot/requirements/*
@@ -42,6 +44,7 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/_service_state.py
     - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
@@ -88,6 +91,7 @@ components:
     - ddtrace/ext/schema.py
   openfeature:
     - ddtrace/openfeature/*
+    - ddtrace/internal/openfeature/*
     - tests/openfeature/*
   git:
     - ddtrace/ext/git.py
@@ -100,7 +104,7 @@ components:
   profiling:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
-    - ddtrace/internal/processor/endpoint_call_counter.py
+    - ddtrace/_trace/processor/endpoint_call_counter.py
     - ddtrace/internal/settings/profiling.py
   remoteconfig:
     - ddtrace/internal/remoteconfig/*
@@ -137,7 +141,6 @@ components:
     - ddtrace/internal/pack_template.h
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
-    - ddtrace/internal/processor/__init__.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
@@ -219,6 +222,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/*
+      - scripts/gen_gitlab_config.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
@@ -267,6 +271,9 @@ suites:
       - '@settings'
       - '@profiling'
       - '@vendor'
+      # tests/telemetry runs real django and flask apps; '@contrib' is only shared infrastructure.
+      - '@django'
+      - '@flask'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     snapshot: true

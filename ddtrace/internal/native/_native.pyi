@@ -19,6 +19,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
+_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
 
 class DDSketch:
     def __init__(self): ...
@@ -174,12 +175,28 @@ def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
     """
     ...
 
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    def register_context_watcher() -> bool:
+        """Register the Python context watcher if a watcher slot is available."""
+        ...
+    def is_context_watcher_registered() -> bool:
+        """Return whether the Python context watcher is registered."""
+        ...
+
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData]) -> None:
+    def update_otel_thread_context_from_span(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
         Update the OTel thread context from the active span and its local root span.
         :param span: The active span.
         :param local_root: The root span of the local trace chunk.
+        :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
+        """
+        ...
+    def update_otel_thread_context_from_context(context: ContextData, trace_flags: int) -> None:
+        """Update the OTel thread context from an active trace Context.
+
+        Invalid Context identifiers detach the current thread context. The local root span ID is
+        published as zero because a Context does not retain local root span identity.
         """
         ...
     def detach_otel_thread_context() -> None:
@@ -223,10 +240,333 @@ class SharedRuntime:
         """Returns a string representation of the runtime. Should only be used for debugging."""
         ...
 
+class TelemetryWorker:
+    """Native instrumentation-telemetry worker.
+
+    Wraps a ``Full``-flavor telemetry worker spawned on the shared
+    :class:`SharedRuntime`. The worker runs on the
+    shared runtime (no dedicated Python thread) and is reset on fork by the
+    runtime's fork hooks, preserving root-only app-started/app-closing.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        service: str,
+        env: Optional[str],
+        app_version: Optional[str],
+        language_name: str,
+        language_version: str,
+        tracer_version: str,
+        runtime_id: str,
+        runtime_name: Optional[str],
+        runtime_version: Optional[str],
+        process_tags: Optional[str],
+        hostname: str,
+        os: Optional[str],
+        os_version: Optional[str],
+        architecture: Optional[str],
+        kernel_name: Optional[str],
+        kernel_release: Optional[str],
+        kernel_version: Optional[str],
+        container_id: Optional[str],
+        endpoint_url: str,
+        api_key: Optional[str],
+        session_id: str,
+        parent_session_id: Optional[str],
+        root_session_id: Optional[str],
+        heartbeat_interval_secs: float,
+        extended_heartbeat_interval_secs: float,
+        debug_enabled: bool,
+        emit_app_lifecycle: bool = ...,
+        endpoints_message_limit: int = ...,
+        test_session_token: Optional[str] = ...,
+        install_id: Optional[str] = ...,
+        install_type: Optional[str] = ...,
+        install_time: Optional[str] = ...,
+    ) -> "TelemetryWorker":
+        """Build and spawn the worker on ``runtime``.
+
+        :param endpoint_url: BASE url. Agent: e.g. ``"http://host:8126"`` (the
+            ``/telemetry/proxy/api/v2/apmtelemetry`` path is appended). Agentless:
+            the intake base url (the ``/api/v2/apmtelemetry`` path is appended).
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path); when ``None`` the worker
+            POSTs through the agent proxy.
+        :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
+            schedules heartbeats/flushes but emits neither ``app-started`` nor
+            ``app-closing`` — only the root process emits them. Defaults to ``True``.
+        :param endpoints_message_limit: most endpoints serialized into one
+            ``app-endpoints`` payload; the rest stay queued for the following payloads,
+            which are flagged ``is_first: false``. Defaults to unlimited.
+        :raises ValueError: on an invalid endpoint or if the worker cannot be spawned.
+        """
+        ...
+    def start(self) -> None:
+        """Send the app-started lifecycle event. Call ONCE, on the origin process only."""
+        ...
+    def stop(self, send_app_closing: bool) -> None:
+        """Flush and shut the worker down, waiting briefly for it to drain.
+
+        :param send_app_closing: when ``True`` emit the app-closing event
+            (origin only); when ``False`` just force a final data flush.
+        """
+        ...
+    def flush(self) -> None:
+        """Force a data flush. Does not emit any lifecycle event. Non-blocking."""
+        ...
+    def add_configuration(
+        self, name: str, value: Optional[str], origin: "ConfigurationOrigin", config_id: Optional[str], seq_id: int
+    ) -> None:
+        """Queue a configuration change.
+
+        :param origin: a :class:`ConfigurationOrigin` (e.g. ``ConfigurationOrigin.env_var``).
+        """
+        ...
+    def add_integration(
+        self,
+        name: str,
+        version: Optional[str],
+        enabled: bool,
+        compatible: Optional[bool],
+        auto_enabled: Optional[bool],
+        error: Optional[str] = None,
+    ) -> None:
+        """Track a patch/integration outcome (app-integrations-change).
+
+        :param error: failure detail when patching failed (None when it succeeded).
+        """
+        ...
+    def add_dependency(
+        self,
+        name: str,
+        version: Optional[str],
+        metadata: Optional[list[tuple[str, str]]],
+    ) -> None:
+        """Report a loaded dependency (app-dependencies-loaded / app-started).
+
+        :param metadata: optional SCA metadata as ``(type, value)`` pairs, where ``value``
+            is an opaque stringified-JSON payload (per the ``dependency_metadata`` telemetry
+            schema), passed through verbatim. Pass ``None`` to omit the field (SCA disabled),
+            or ``[]`` to emit an empty array (SCA enabled, no findings).
+        """
+        ...
+    def add_log(
+        self, identifier: int, message: str, level: "LogLevel", stack_trace: Optional[str], tags: Optional[str]
+    ) -> None:
+        """Queue a (pre-formatted, pre-deduped) log.
+
+        :param identifier: the Python-computed dedup key (passed through as-is).
+        :param level: a :class:`LogLevel` (``LogLevel.ERROR``/``WARN``/``DEBUG``).
+        :param tags: a pre-formatted tag string (e.g. ``"k:v,k2:v2"``) or ``None``.
+        """
+        ...
+    def register_metric_context(
+        self,
+        namespace: "MetricNamespace",
+        name: str,
+        metric_type: "MetricType",
+        tags: list[str],
+        common: bool,
+    ) -> "MetricContext":
+        """Register a metric context and return an opaque handle for :meth:`add_point`.
+
+        Call ONCE per unique ``(namespace, name, type, tags)`` — the caller caches the
+        returned handle; registering the same metric twice creates a duplicate context.
+        The handle is only valid for this worker instance.
+
+        :param namespace: a :class:`MetricNamespace`.
+        :param metric_type: a :class:`MetricType`. ``MetricType.rate`` aggregates
+            as a count sum; the backend divides by the flush interval.
+        :param tags: a list of ``"key:value"`` strings.
+        """
+        ...
+    def add_point(self, context: "MetricContext", value: float) -> None:
+        """Add ``value`` to a context returned by :meth:`register_metric_context`.
+
+        For contexts registered *with* tags. Use :meth:`add_point_with_tags` for untagged
+        contexts whose tags vary per point.
+        """
+        ...
+    def add_point_with_tags(self, context: "MetricContext", value: float, tags: list[str]) -> None:
+        """Add ``value`` to an untagged context with ``tags`` (``"k:v"`` strings) on the point."""
+        ...
+    def add_product_change(self, product: str, enabled: bool, version: Optional[str]) -> None:
+        """Record a product enable/disable change (app-product-change).
+
+        :param product: e.g. ``mlobs``, ``dynamic_instrumentation``,
+            ``profiler``, ``appsec`` (any string is accepted as the product name).
+        """
+        ...
+    def add_endpoint(
+        self,
+        method: str,
+        path: str,
+        operation_name: Optional[str],
+        resource_name: Optional[str],
+        request_body_type: Optional[list[str]] = None,
+        response_body_type: Optional[list[str]] = None,
+        response_code: Optional[list[int]] = None,
+    ) -> None:
+        """Report an instrumented endpoint (ASM app-endpoints).
+
+        :param method: HTTP method (unknown methods map to ``"*"``; empty => unset).
+        :param path: request path; empty => unset.
+        :param request_body_type: declared request media types (API Security inventory).
+        :param response_body_type: declared response media types (API Security inventory).
+        :param response_code: declared response status codes (API Security inventory).
+        """
+        ...
+
+class DebuggerTrackType:
+    """Which debugger track a payload belongs to. (decides the endpoint)"""
+
+    Diagnostics: "DebuggerTrackType"
+    Snapshots: "DebuggerTrackType"
+    Logs: "DebuggerTrackType"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class DebuggerResponse:
+    """A response from the debugger payload receiver"""
+
+    @property
+    def accepted(self) -> bool:
+        """Whether the intake took the payload."""
+        ...
+    @property
+    def status(self) -> Optional[int]:
+        """The response status, or ``None`` when the payload was accepted."""
+        ...
+    @property
+    def body(self) -> str:
+        """The response body. Empty unless the payload was rejected."""
+        ...
+    def __repr__(self) -> str: ...
+
+class DebuggerSenderError(Exception):
+    """A payload could not be delivered to the debugger intake (transport failure or timeout)."""
+
+class DebuggerSender:
+    """Sender for debugger-related payloads.
+
+    Wraps the ``datadog-live-debugger`` sender.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> "DebuggerSender":
+        """Build a sender on ``runtime``.
+
+        :param url: the trace agent URL (``http``, ``https`` or
+            ``unix:///path.sock``) for agent-proxied uploads. Combined with
+            ``api_key`` it becomes a direct intake URL, which is how tests point
+            agentless mode at a local intake.
+        :param site: e.g. ``"datadoghq.com"``; with ``api_key`` and no ``url``
+            the endpoint becomes ``https://debugger-intake.{site}``.
+        :param api_key: when not ``None`` selects agentless/direct submission
+            (sets ``dd-api-key`` and the direct path).
+        :param tags: unencoded ``"key:value,key:value"``, percent-encoded here
+            for the ``ddtags`` query string.
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    def downgrade_to_diagnostics(self) -> bool:
+        """Point the logs and snapshots tracks at the diagnostics endpoint.
+
+        For agents that do not proxy ``/debugger/v2/input``. A no-op in agentless
+        mode, where all three tracks already share one intake path. Returns
+        whether anything changed.
+        """
+        ...
+    def reset_endpoints(self) -> None:
+        """Undo a downgrade, restoring the endpoints derived at construction."""
+        ...
+    def send(self, payload: bytes, debugger_type: DebuggerTrackType) -> DebuggerResponse:
+        """POST a JSON array of payloads (``[{...},{...}]``), blocking on the response.
+
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
+        """
+        ...
+
+class SymDBSender:
+    """Sender for symbol database (SymDB) uploads.
+
+    Reaches Datadog through the same intake host as :class:`DebuggerSender`, but
+    shares nothing else: the body is forwarded verbatim, the tags travel in
+    ``X-Datadog-Additional-Tags`` rather than a ``ddtags`` query string, and there
+    is no track negotiation or downgrade.
+
+    All constructor parameters after ``runtime`` are keyword-only.
+    """
+
+    def __new__(
+        cls,
+        runtime: SharedRuntime,
+        *,
+        url: Optional[str] = ...,
+        site: Optional[str] = ...,
+        api_key: Optional[str] = ...,
+        tags: str = ...,
+        timeout_ms: int = ...,
+        test_session_token: Optional[str] = ...,
+    ) -> "SymDBSender":
+        """Build a sender on ``runtime``.
+
+        ``url`` / ``site`` / ``api_key`` select the agent or the intake exactly as
+        for :class:`DebuggerSender`. ``tags`` is sent verbatim in the
+        ``X-Datadog-Additional-Tags`` header.
+
+        :raises ValueError: if neither ``url`` nor ``site`` + ``api_key`` is
+            given, or the resulting endpoint is invalid.
+        """
+        ...
+    @property
+    def agentless(self) -> bool:
+        """Whether payloads go straight to the intake rather than via the agent."""
+        ...
+    def send(self, payload: bytes, content_type: str) -> DebuggerResponse:
+        """POST a SymDB payload verbatim, blocking on the response.
+
+        :param content_type: the caller's multipart content type.
+        :raises DebuggerSenderError: if the request never completed (transport
+            failure or timeout).
+        """
+        ...
+
 class TraceExporter:
     """
     TraceExporter is a class responsible for exporting traces to the Agent.
     """
+
+    def set_telemetry_handle(self, worker: Optional["TelemetryWorker"] = None) -> None:
+        """
+        Report the exporter's ``trace_api.*`` health metrics through an existing
+        instrumentation-telemetry worker instead of a dedicated one.
+        """
+        ...
 
     def __init__(self):
         """
@@ -316,6 +656,9 @@ class TraceExporterBuilder:
         :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
         """
         ...
+    def set_tracer_tags(self, tracer_tags: list[str]) -> TraceExporterBuilder:
+        """Set tracer tags on the OTLP metrics resource."""
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -383,6 +726,10 @@ class TraceExporterBuilder:
         Enable stats computation in the TraceExporter
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
+
+    def set_additional_metric_tag_keys(self, tag_keys: list[str]) -> TraceExporterBuilder:
+        """Set span tag keys included in computed stats."""
+        ...
 
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """
@@ -668,6 +1015,30 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
+class ContextData:
+    trace_id: Optional[int]
+    span_id: Optional[int]
+    _meta: dict[str, str]
+    _metrics: dict[str, Any]
+    _baggage: dict[str, Any]
+    _span_links: list[Any]
+    _is_remote: bool
+    _reactivate: bool
+
+    def __new__(
+        cls: type[_ContextDataT],
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
+        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        meta: Optional[dict[str, str]] = None,
+        metrics: Optional[dict[str, Any]] = None,
+        lock: Optional[Any] = None,  # placeholder for Context.__init__
+        span_links: Optional[list[Any]] = None,
+        baggage: Optional[dict[str, Any]] = None,
+        is_remote: bool = True,
+    ) -> _ContextDataT: ...
+
 class SpanData:
     name: str
     service: Optional[str]
@@ -703,6 +1074,8 @@ class SpanData:
     ) -> _SpanDataT: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
+    @property
+    def _is_top_level(self) -> bool: ...  # Read-only: no parent, or service differs from parent's
     def _set_struct_tag(self, key: str, value: dict[str, Any]) -> None: ...
     def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
     def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
@@ -813,6 +1186,18 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def process_metrics() -> tuple[int, int, int, int, int, int]:
+    """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
+
+    :return: A tuple of (cpu_time_sys_ns, cpu_time_user_ns, ctx_switches_voluntary,
+        ctx_switches_involuntary, num_threads, rss_bytes). The ctx-switch fields are
+        negative when unavailable on the current platform.
+    """
+    ...
+
+def total_memory_bytes() -> int:
+    """Return total physical RAM plus swap, in bytes."""
+    ...
 
 class config:
     """Native config module for tracer configuration managed in Rust."""
@@ -838,6 +1223,74 @@ class config:
 # Remote configuration
 # -----------------------------------------------------------------------------
 
+class MetricNamespace:
+    tracers: "MetricNamespace"
+    profilers: "MetricNamespace"
+    rum: "MetricNamespace"
+    appsec: "MetricNamespace"
+    ide_plugins: "MetricNamespace"
+    live_debugger: "MetricNamespace"
+    iast: "MetricNamespace"
+    general: "MetricNamespace"
+    telemetry: "MetricNamespace"
+    apm: "MetricNamespace"
+    sidecar: "MetricNamespace"
+    civisibility: "MetricNamespace"
+    mlobs: "MetricNamespace"
+    ddtraceapi: "MetricNamespace"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class MetricType:
+    gauge: "MetricType"
+    count: "MetricType"
+    rate: "MetricType"
+    distribution: "MetricType"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class MetricContext:
+    """Opaque handle for a registered metric context.
+
+    Returned by :meth:`TelemetryWorker.register_metric_context` and passed to
+    :meth:`TelemetryWorker.add_point`. Valid only for the worker that produced it.
+    """
+
+    ...
+
+class ConfigurationOrigin:
+    env_var: "ConfigurationOrigin"
+    otel_env_var: "ConfigurationOrigin"
+    code: "ConfigurationOrigin"
+    dd_config: "ConfigurationOrigin"
+    remote_config: "ConfigurationOrigin"
+    default: "ConfigurationOrigin"
+    local_stable_config: "ConfigurationOrigin"
+    fleet_stable_config: "ConfigurationOrigin"
+    calculated: "ConfigurationOrigin"
+    unknown: "ConfigurationOrigin"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
+class LogLevel:
+    ERROR: "LogLevel"
+    WARN: "LogLevel"
+    DEBUG: "LogLevel"
+    def __int__(self) -> int: ...
+    def __str__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+    def __repr__(self) -> str: ...
+
 class RemoteConfigProduct:
     """A remote-config product. One class attribute per libdatadog product.
 
@@ -850,11 +1303,11 @@ class RemoteConfigProduct:
     ApmTracing: "RemoteConfigProduct"
     Asm: "RemoteConfigProduct"
     AsmData: "RemoteConfigProduct"
-    AsmDD: "RemoteConfigProduct"
+    AsmDd: "RemoteConfigProduct"
     AsmFeatures: "RemoteConfigProduct"
     FfeFlags: "RemoteConfigProduct"
-    LiveDebugger: "RemoteConfigProduct"
-    LiveDebuggerSymbolDb: "RemoteConfigProduct"
+    LiveDebugging: "RemoteConfigProduct"
+    LiveDebuggingSymbolDb: "RemoteConfigProduct"
     def __int__(self) -> int: ...
     def __str__(self) -> str: ...
     def __eq__(self, other: object) -> bool: ...

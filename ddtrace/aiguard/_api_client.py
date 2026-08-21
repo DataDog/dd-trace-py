@@ -6,24 +6,32 @@ from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
-from typing import Union
+from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._redaction import redact_messages
 from ddtrace.aiguard._trace_utils import _aiguard_manual_keep
+from ddtrace.aiguard._types import ContentPart  # noqa:F401
+from ddtrace.aiguard._types import Function  # noqa:F401
+from ddtrace.aiguard._types import ImageURL  # noqa:F401
+from ddtrace.aiguard._types import Message
+from ddtrace.aiguard._types import ToolCall  # noqa:F401
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
-from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
+from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.utils.http import Response
-from ddtrace.internal.utils.http import get_connection
 from ddtrace.version import __version__
+
+
+__all__ = ["ToolCall", "Message", "Function", "ContentPart", "ImageURL"]
 
 
 logger = ddlogger.get_logger(__name__)
@@ -32,33 +40,6 @@ ALLOW = "ALLOW"
 DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
-
-
-class Function(TypedDict):
-    name: str
-    arguments: str
-
-
-class ToolCall(TypedDict):
-    id: str
-    function: Function
-
-
-class ImageURL(TypedDict, total=False):
-    url: str
-
-
-class ContentPart(TypedDict, total=False):
-    type: str
-    text: Optional[str]
-    image_url: Optional[ImageURL]
-
-
-class Message(TypedDict, total=False):
-    role: str
-    content: Union[str, list[ContentPart]]
-    tool_call_id: str
-    tool_calls: list[ToolCall]
 
 
 class Evaluation(TypedDict):
@@ -394,10 +375,13 @@ class AIGuardClient:
                 raise
 
     def _execute_request(self, url: str, payload: Any) -> Response:
+        parsed = urlparse(url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        conn = HTTPConnection(base_url, timeout=self._timeout)
         try:
-            conn = get_connection(url, self._timeout)
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
-            conn.request("POST", url, json_body, self._headers)  # type: ignore[no-untyped-call]
+            target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+            conn.request("POST", target, json_body, self._headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
         finally:

@@ -49,15 +49,6 @@ Notes:
    Removed dependency on `pbr` and manually set `__version__`
 
 
-psutil
-------
-
-Website: https://github.com/giampaolo/psutil
-Source: https://github.com/giampaolo/psutil
-Version: 5.6.7
-License: BSD 3
-
-
 sqlcommenter
 ------------
 
@@ -78,31 +69,19 @@ Notes:
   - [06/2025] Added specifiers.py code to the already vendored packaging module
 
 
-ply
+python-jsonpath
 ---------
 
-Source: https://github.com/dabeaz/ply
-Version: 3.11
-License: BSD-3-Clause
+Source: https://github.com/jg-rp/python-jsonpath
+Version: 2.2.1
+License: MIT
 
 Notes:
-  - jsonpath-ng dependency
-    Did a "pip install jsonpath-ng"
-    Then went and looked at the contents of the ply packages
-    yacc.py and lex.py files here.
-    Didn't copy: cpp.py, ctokens.py, ygen.py (didn't see them used)
-
-
-jsonpath-ng
----------
-
-Source: https://github.com/h2non/jsonpath-ng
-Version: 1.6.1
-License: Apache License 2.0
-
-Notes:
-  - Copied ply into vendors as well.
-    Changed "-" to "_" as was causing errors when importing.
+  - Used by botocore payload tagging. Replaced jsonpath-ng, which required ply
+    (end-of-life 12/2025, CVE-2025-56005); both were removed.
+  - Copied from the python_jsonpath-2.2.1-py3-none-any.whl wheel. No runtime
+    dependencies; the optional regex/iregexp_check imports are guarded upstream.
+  - Didn't copy: cli.py, __main__.py. Rewrote "from jsonpath.x" imports as relative.
 
 
 xmltodict

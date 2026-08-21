@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <random>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -10,10 +11,21 @@
 #include <echion/strings.h>
 #include <echion/threads.h>
 
+#include "constants.hpp"
 #include "stack_renderer.hpp"
 
 // Forward declaration
 class Frame;
+
+// Identity of the frame that separates the asyncio machinery from the pure Python stack.
+// We memoize the interned name and filename rather than a Frame cache key: the cache key
+// mixes in the bytecode offset, so it only matches the boundary frame while it sits on the
+// very instruction it happened to be on when we first identified it.
+struct BoundaryFrame
+{
+    StringTable::Key name = 0;
+    StringTable::Key filename = 0;
+};
 
 class EchionSampler
 {
@@ -37,8 +49,8 @@ class EchionSampler
     PyObject* asyncio_eager_tasks_ = nullptr;
 
     // Task unwinding state
-    std::optional<Frame::Key> asyncio_frame_cache_key_;
-    std::optional<Frame::Key> uvloop_frame_cache_key_;
+    std::optional<BoundaryFrame> asyncio_boundary_frame_;
+    std::optional<BoundaryFrame> uvloop_boundary_frame_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
@@ -52,6 +64,13 @@ class EchionSampler
     // reflects tasks from the sampled subset, not all threads in the process.
     // Only accessed from the sampling thread, so no lock/atomic is needed.
     size_t asyncio_task_count_ = 0;
+
+    // Maximum number of leaf tasks / greenlets to unwind and emit per cycle.
+    // 0 means unlimited.
+    unsigned int max_tasks_per_sample_ = g_default_max_tasks_per_sample;
+
+    // RNG used for task / greenlet reservoir sampling.
+    std::minstd_rand rng_{ std::random_device{}() };
 
     // Caches
     StringTable string_table_;
@@ -90,8 +109,8 @@ class EchionSampler
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
     }
 
-    std::optional<Frame::Key>& asyncio_frame_cache_key() { return asyncio_frame_cache_key_; }
-    std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
+    std::optional<BoundaryFrame>& asyncio_boundary_frame() { return asyncio_boundary_frame_; }
+    std::optional<BoundaryFrame>& uvloop_boundary_frame() { return uvloop_boundary_frame_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
@@ -99,6 +118,11 @@ class EchionSampler
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
+
+    unsigned int max_tasks_per_sample() const { return max_tasks_per_sample_; }
+    void set_max_tasks_per_sample(unsigned int value) { max_tasks_per_sample_ = value; }
+
+    std::minstd_rand& rng() { return rng_; }
 
     // Accessor for StringTable operations
     StringTable& string_table() { return string_table_; }
@@ -135,9 +159,10 @@ class EchionSampler
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
         new (&previous_task_objects_) std::unordered_set<PyObject*>();
 
-        asyncio_frame_cache_key_.reset();
-        uvloop_frame_cache_key_.reset();
+        asyncio_boundary_frame_.reset();
+        uvloop_boundary_frame_.reset();
         asyncio_task_count_ = 0;
+        rng_ = std::minstd_rand{ std::random_device{}() };
 
         new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
 
