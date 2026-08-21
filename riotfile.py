@@ -3690,6 +3690,7 @@ venv = Venv(
                 "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
             },
             pkgs={
+                "anyio": latest,
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
