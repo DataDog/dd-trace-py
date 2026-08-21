@@ -321,30 +321,25 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
 
 #if PY_VERSION_HEX >= 0x030e0000
 static std::optional<AsyncioOffsets>
-get_asyncio_offsets()
+get_asyncio_offsets(PyObject* module)
 {
-    PyObject* module = PyImport_ImportModule("_asyncio");
-    if (module == nullptr) {
-        PyErr_Clear();
+    if (!PyModule_Check(module)) {
         return std::nullopt;
     }
 
     PyModuleDef* definition = PyModule_GetDef(module);
     auto* state = static_cast<char*>(PyModule_GetState(module));
     if (definition == nullptr || state == nullptr || definition->m_size < static_cast<Py_ssize_t>(sizeof(void*))) {
-        Py_DECREF(module);
         PyErr_Clear();
         return std::nullopt;
     }
 
-    // CPython 3.14.2 keeps a pointer to its AsyncioDebug table in the final module-state field.
+    // CPython 3.14 keeps a pointer to its AsyncioDebug table in the final module-state field.
     const PyAsyncioDebugOffsets* debug_offsets;
     std::memcpy(&debug_offsets, state + definition->m_size - sizeof(debug_offsets), sizeof(debug_offsets));
 
     PyAsyncioDebugOffsets table;
-    auto offsets = copy_type(debug_offsets, table) == 0 ? parse_asyncio_debug_offsets(&table) : std::nullopt;
-    Py_DECREF(module);
-    return offsets;
+    return copy_type(debug_offsets, table) == 0 ? parse_asyncio_debug_offsets(&table) : std::nullopt;
 }
 #endif
 
@@ -354,13 +349,14 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     (void)self;
     PyObject* asyncio_scheduled_tasks;
     PyObject* asyncio_eager_tasks;
+    PyObject* asyncio_module;
 
-    if (!PyArg_ParseTuple(args, "OO", &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
+    if (!PyArg_ParseTuple(args, "OOO", &asyncio_scheduled_tasks, &asyncio_eager_tasks, &asyncio_module)) {
         return nullptr;
     }
 
 #if PY_VERSION_HEX >= 0x030e0000
-    if (auto offsets = get_asyncio_offsets()) {
+    if (auto offsets = get_asyncio_offsets(asyncio_module)) {
         Sampler::get().get_echion().set_asyncio_offsets(*offsets);
     }
 #endif

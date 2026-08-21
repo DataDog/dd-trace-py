@@ -44,7 +44,7 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
         scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
         eager_tasks = None
 
-    stack.init_asyncio(scheduled_tasks, eager_tasks)
+    stack.init_asyncio(scheduled_tasks, eager_tasks, sys.modules.get("_asyncio"))
 
 
 def link_existing_loop_to_current_thread() -> None:

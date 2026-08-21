@@ -11,7 +11,7 @@ struct AsyncioOffsets
     size_t thread_tasks_head;
 };
 
-// Mirrors the runtime table defined in CPython 3.14.2's Modules/_asynciomodule.c.
+// Mirrors the runtime table defined in CPython 3.14's Modules/_asynciomodule.c.
 struct PyAsyncioDebugOffsets
 {
     struct
