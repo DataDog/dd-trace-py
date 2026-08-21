@@ -61,10 +61,10 @@ class DDRuntimeContext:
         from opentelemetry.trace import NonRecordingSpan as OtelNonRecordingSpan
         from opentelemetry.trace import SpanContext as OtelSpanContext
         from opentelemetry.trace import set_span_in_context
+        from opentelemetry.trace.span import TraceFlags
         from opentelemetry.trace.span import TraceState
 
         from .span import Span
-        from .span import _get_trace_flags
 
         ddactive = self._ddcontext_provider.active()
         context = OtelContext()
@@ -72,8 +72,8 @@ class DDRuntimeContext:
             span = Span(ddactive)
             context = set_span_in_context(span, context)
         elif isinstance(ddactive, DDContext):
-            ts = TraceState.from_header([ddactive._tracestate])
-            tf = _get_trace_flags(ddactive.sampling_priority, ddactive._traceparent)
+            ts = TraceState(ddactive._tracestate_entries())
+            tf = TraceFlags(ddactive._trace_flags)
             sc = OtelSpanContext(ddactive.trace_id or 0, ddactive.span_id or 0, ddactive._is_remote, tf, ts)
             span = OtelNonRecordingSpan(sc)
             context = set_span_in_context(span, context)
