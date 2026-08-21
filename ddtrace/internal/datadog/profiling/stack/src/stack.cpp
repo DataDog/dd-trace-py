@@ -1037,7 +1037,10 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
 static PyObject*
 stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    auto error = Sampler::get().take_sampling_thread_error();
+    std::optional<SamplingThreadError> error;
+    Py_BEGIN_ALLOW_THREADS;
+    error = Sampler::get().take_sampling_thread_error();
+    Py_END_ALLOW_THREADS;
     if (!error.has_value()) {
         Py_RETURN_NONE;
     }
