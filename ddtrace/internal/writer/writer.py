@@ -9,12 +9,15 @@ from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Sequence
 from typing import TextIO
+from urllib.parse import urlparse as _urlparse
 
 from ddtrace.internal.dist_computing.utils import in_ray_job
 from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.native import AgentResponse
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
@@ -60,15 +63,14 @@ from .writer_client import WriterClientBase
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
+    from ddtrace.internal.http import HTTPConnection  # noqa:F401
     from ddtrace.vendor.dogstatsd import DogStatsd
-
-    from .utils.http import ConnectionType  # noqa:F401
 
 
 log = get_logger(__name__)
 
 LOG_ERR_INTERVAL = 60
+_OTLP_TRACER_TAG_RESERVED_KEYS = frozenset({"service", "env", "version", "runtime_id", "runtime-id"})
 
 
 def _safelog(log_func: Callable[..., None], msg: str, *args, **kwargs) -> None:
@@ -129,7 +131,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def write(self, spans: Optional[list["Span"]] = None) -> None:
+    def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -161,7 +163,7 @@ class LogWriter(TraceWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         return
 
-    def write(self, spans: Optional[list["Span"]] = None) -> None:
+    def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
@@ -220,7 +222,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._report_metrics = report_metrics
         self._drop_sma = SimpleMovingAverage(DEFAULT_SMA_WINDOW)
         self._sync_mode = sync_mode
-        self._conn: Optional["ConnectionType"] = None
+        self._conn: Optional["HTTPConnection"] = None
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
@@ -251,6 +253,16 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if client and hasattr(client, "_intake_url"):
             return client._intake_url
         return self.intake_url
+
+    def _intake_base_path(self, client=None) -> str:
+        intake_url = self._intake_url(client)
+        if not isinstance(intake_url, str):
+            return ""
+        parsed = _urlparse(intake_url)
+        if parsed.scheme not in ("http", "https"):
+            # For unix:// URLs the path component is the socket location, not an HTTP path prefix.
+            return ""
+        return parsed.path.rstrip("/")
 
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[list] = None) -> None:
         if not self._report_metrics:
@@ -315,12 +327,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     final_headers,
                     _human_size(len(data)),
                 )
-                self._conn.request(
-                    self.HTTP_METHOD,
-                    client.ENDPOINT,
-                    data,
-                    final_headers,
-                )
+                intake_base_path = self._intake_base_path(client)
+                endpoint = intake_base_path + "/" + client.ENDPOINT.lstrip("/") if intake_base_path else client.ENDPOINT
+                self._conn.request(self.HTTP_METHOD, endpoint, data, final_headers)
                 resp = self._conn.getresponse()
                 t = sw.elapsed()
                 if t >= self.interval:
@@ -407,7 +416,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is None:
             return
 
@@ -761,6 +770,16 @@ def _build_base_exporter_builder(
         builder.set_app_version(config.version)
     if test_session_token is not None:
         builder.set_test_session_token(test_session_token)
+    if otlp_metrics_enabled:
+        tracer_tags = [
+            f"{key}:{value}"
+            for key, value in sorted(config.tags.items())
+            if key.lower() not in _OTLP_TRACER_TAG_RESERVED_KEYS and value
+        ]
+        if tracer_tags:
+            builder.set_tracer_tags(tracer_tags)
+    if config._trace_stats_additional_tags:
+        builder.set_additional_metric_tag_keys(config._trace_stats_additional_tags)
     # OTLP trace metrics require the native concentrator regardless of DD_TRACE_STATS_COMPUTATION_ENABLED.
     if otlp_metrics_enabled or (compute_stats_enabled and not stats_opt_out):
         if otlp_metrics_enabled:
@@ -1087,13 +1106,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans: Optional[list["Span"]] = None) -> None:
+    def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[list["Span"]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[Sequence[SpanData]] = None) -> None:
         if spans is None:
             return
 

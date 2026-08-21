@@ -658,6 +658,11 @@ class Config(object):
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
+        self._trace_stats_additional_tags = _get_config(
+            "DD_TRACE_STATS_ADDITIONAL_TAGS",
+            [],
+            lambda value: [tag.strip() for tag in value.split(",") if tag.strip()],
+        )
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )

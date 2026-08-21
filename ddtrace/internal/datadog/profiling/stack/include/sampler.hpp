@@ -5,8 +5,12 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <mutex>
+#include <optional>
 #include <random>
+#include <string>
+#include <typeinfo>
 #include <vector>
 
 #include "constants.hpp"
@@ -19,6 +23,14 @@
 class EchionSampler;
 
 namespace Datadog {
+
+// The unexpected exception that terminated the sampling thread. type_name is the raw
+// (mangled, on gcc/clang) result of typeid(e).name().
+struct SamplingThreadError
+{
+    std::string type_name;
+    std::string message;
+};
 
 enum class PauseResult : std::uint8_t
 {
@@ -64,6 +76,12 @@ class Sampler
     std::atomic<bool> paused_{ false };
     std::mutex pause_mutex_;
     std::condition_variable pause_cv_;
+
+    // Set when the sampling thread aborts on an unexpected exception. The sampling thread
+    // has no GIL, so the failure is stashed here for the Python side to drain and report.
+    std::mutex sampling_thread_error_mutex_;
+    std::optional<SamplingThreadError> sampling_thread_error_;
+    void record_sampling_thread_error(const std::exception& e);
 
     // This is a singleton, so no public constructor
     Sampler();
@@ -153,6 +171,11 @@ class Sampler
     [[nodiscard]] size_t max_frames() const;
     [[nodiscard]] size_t frame_cache_capacity() const;
     bool is_running() const { return thread_running.load(); }
+
+    // Returns the error that terminated the sampling thread, clearing it so it is
+    // reported at most once.
+    std::optional<SamplingThreadError> take_sampling_thread_error();
+
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)
