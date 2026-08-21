@@ -14,6 +14,7 @@ from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
 from ..internal.constants import MAX_UINT_64BITS
+from ..internal.constants import PROBABILISTIC_SAMPLING_MECHANISMS
 from ..internal.constants import SAMPLING_HASH_MODULO
 from ..internal.constants import SAMPLING_KNUTH_FACTOR
 from ..internal.constants import SamplingMechanism
@@ -25,16 +26,6 @@ from .sampling_rule import SamplingRule
 
 
 PROVENANCE_ORDER = ["customer", "dynamic", "default"]
-
-_OTEL_PROBABILISTIC_SAMPLING_MECHANISMS = frozenset(
-    (
-        SamplingMechanism.DEFAULT,
-        SamplingMechanism.AGENT_RATE_BY_SERVICE,
-        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
-        SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
-        SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
-    )
-)
 
 
 log = get_logger(__name__)
@@ -205,7 +196,9 @@ class DatadogSampler:
             limiter_dropped = False
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
-        probabilistic_decision = not limiter_dropped and sampling_mechanism in _OTEL_PROBABILISTIC_SAMPLING_MECHANISMS
+        probabilistic_decision = (
+            sample_rate > 0 and not limiter_dropped and sampling_mechanism in PROBABILISTIC_SAMPLING_MECHANISMS
+        )
         _set_sampling_tags(
             span,
             sampled,
