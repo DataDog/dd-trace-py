@@ -1,35 +1,6 @@
 import pytest
 
 
-@pytest.mark.subprocess()
-def test_asyncio_module_forwarded_to_native_init() -> None:
-    import asyncio
-    import sys
-    from unittest import mock
-
-    from ddtrace.internal.datadog.profiling import stack
-    from ddtrace.profiling import _asyncio as profiling_asyncio
-
-    calls: list[tuple[object, ...]] = []
-    asyncio_module = sys.modules.get("_asyncio")
-
-    def capture_init_asyncio(*args: object) -> None:
-        calls.append(args)
-
-    try:
-        with mock.patch.object(stack, "init_asyncio", side_effect=capture_init_asyncio):
-            profiling_asyncio._call_init_asyncio(asyncio)
-            assert calls[-1][2] is asyncio_module
-
-            if asyncio_module is not None:
-                del sys.modules["_asyncio"]
-                profiling_asyncio._call_init_asyncio(asyncio)
-                assert calls[-1][2] is None
-    finally:
-        if asyncio_module is not None:
-            sys.modules["_asyncio"] = asyncio_module
-
-
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio_basic",

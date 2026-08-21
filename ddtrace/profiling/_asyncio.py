@@ -44,8 +44,7 @@ def _call_init_asyncio(asyncio: ModuleType) -> None:
         scheduled_tasks = asyncio_tasks._all_tasks.data  # type: ignore[attr-defined]
         eager_tasks = None
 
-    # The AsyncioDebug table belongs to the C accelerator, not the top-level asyncio package.
-    stack.init_asyncio(scheduled_tasks, eager_tasks, sys.modules.get("_asyncio"))
+    stack.init_asyncio(scheduled_tasks, eager_tasks)
 
 
 def link_existing_loop_to_current_thread() -> None:

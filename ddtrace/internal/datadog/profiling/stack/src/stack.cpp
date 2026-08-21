@@ -319,38 +319,19 @@ stack_track_asyncio_loop(PyObject* self, PyObject* args)
     Py_RETURN_NONE;
 }
 
-#if PY_VERSION_HEX >= 0x030e0000
-static std::optional<AsyncioOffsets>
-get_asyncio_offsets(PyObject* module)
-{
-    if (!PyModule_Check(module)) {
-        return std::nullopt;
-    }
-
-    const char* name = PyModule_GetName(module);
-    if (name == nullptr || std::strcmp(name, "_asyncio") != 0) {
-        PyErr_Clear();
-        return std::nullopt;
-    }
-
-    return find_asyncio_debug_offsets();
-}
-#endif
-
 static PyObject*
 stack_init_asyncio(PyObject* self, PyObject* args)
 {
     (void)self;
     PyObject* asyncio_scheduled_tasks;
     PyObject* asyncio_eager_tasks;
-    PyObject* asyncio_module;
 
-    if (!PyArg_ParseTuple(args, "OOO", &asyncio_scheduled_tasks, &asyncio_eager_tasks, &asyncio_module)) {
+    if (!PyArg_ParseTuple(args, "OO", &asyncio_scheduled_tasks, &asyncio_eager_tasks)) {
         return nullptr;
     }
 
 #if PY_VERSION_HEX >= 0x030e0000
-    if (auto offsets = get_asyncio_offsets(asyncio_module)) {
+    if (auto offsets = find_asyncio_debug_offsets()) {
         Sampler::get().get_echion().set_asyncio_offsets(*offsets);
     }
 #endif
