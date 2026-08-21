@@ -21,6 +21,7 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
@@ -51,7 +52,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
-from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.settings._config import config

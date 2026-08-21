@@ -7,6 +7,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
@@ -31,6 +32,10 @@ log = get_logger(__name__)
 
 class BedrockIntegration(BaseLLMIntegration):
     _integration_name = "bedrock"
+
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        # interface_type="agent" is set only by the top-level Bedrock agent trace() call.
+        return "agent" if kwargs.get("interface_type") == "agent" else None
 
     def _llmobs_set_tags(
         self,
@@ -378,7 +383,7 @@ class BedrockIntegration(BaseLLMIntegration):
                         input_messages.append(Message(content=entry.get("text", ""), role=str(p.get("role", ""))))
                     elif entry.get("type") == "image":
                         # Store a placeholder for potentially enormous binary image data.
-                        input_messages.append(Message(content="([IMAGE DETECTED])", role=str(p.get("role", ""))))
+                        input_messages.append(Message(content=IMAGE_DETECTED_MARKER, role=str(p.get("role", ""))))
             else:
                 input_messages.append(Message(content=str(content), role=str(p.get("role", ""))))
         return input_messages

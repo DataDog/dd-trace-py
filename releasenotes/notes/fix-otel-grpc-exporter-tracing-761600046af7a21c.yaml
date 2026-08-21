@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    otel: Fixes an issue where OTLP gRPC exporter requests are incorrectly traced when OpenTelemetry logs or
+    metrics collection is enabled with ``opentelemetry-exporter-otlp-proto-grpc`` 1.34.0 or later.

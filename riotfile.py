@@ -214,11 +214,13 @@ venv = Venv(
         Venv(
             name="appsec_iast_packages",
             pys=["3.11", "3.12", "3.13", "3.14"],
-            command="pytest -n auto {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
+            command="pytest -n auto --dist=worksteal {cmdargs}  -vvv -rxf tests/appsec/iast_packages/",
             pkgs={
                 "requests": latest,
                 "flask": latest,
                 "pytest-xdist": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -242,6 +244,8 @@ venv = Venv(
                 "aiosqlite": latest,
                 "tortoise-orm": latest,
                 "peewee": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -278,6 +282,8 @@ venv = Venv(
                 "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -330,6 +336,8 @@ venv = Venv(
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
                 "pytest-asyncio": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -345,8 +353,8 @@ venv = Venv(
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                    pkgs={"fastapi": "==0.94.1"},
+                    pys=["3.10", "3.14"],
+                    pkgs={"fastapi": "==0.141.1"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
@@ -360,7 +368,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_default",
-            command="pytest -v -n auto {cmdargs} tests/appsec/iast/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/appsec/iast/",
             pkgs={
                 "requests": latest,
                 "urllib3": latest,
@@ -376,6 +384,7 @@ venv = Venv(
                 "pip": "<25",
             },
             env={
+                "BROWSER": "true",  # Prevent webbrowser tests from launching the host browser.
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
@@ -600,7 +609,7 @@ venv = Venv(
                 # method does not emit a DDTraceDeprecationWarning per test.
                 "DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS": "true",
             },
-            command="pytest -v -n auto {cmdargs} tests/wrapping/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/wrapping/",
             pys=select_pys(),
             pkgs={
                 "pytest-xdist": latest,
@@ -613,7 +622,7 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
-            command="pytest -v -n auto {cmdargs} tests/internal/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
@@ -831,7 +840,7 @@ venv = Venv(
         ),
         Venv(
             name="logging",
-            command="pytest -n auto {cmdargs} tests/contrib/logging",
+            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/logging",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -1095,7 +1104,7 @@ venv = Venv(
         ),
         Venv(
             name="django:djangorestframework",
-            command="pytest -n 8 {cmdargs} tests/contrib/djangorestframework",
+            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/djangorestframework",
             pkgs={
                 "pytest-django[testing]": "==3.10.0",
                 "pytest-randomly": latest,
@@ -1555,7 +1564,7 @@ venv = Venv(
         ),
         Venv(
             name="pynamodb",
-            command="pytest -n 8 {cmdargs} tests/contrib/pynamodb",
+            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb",
             # TODO: Py312 requires changes to test code
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -1926,7 +1935,7 @@ venv = Venv(
         Venv(
             name="pytest",
             command=(
-                "pytest --ddtrace --no-cov -n auto {cmdargs} tests/contrib/pytest/"
+                "pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/contrib/pytest/"
                 " --ignore=tests/contrib/pytest/snapshot/"
             ),
             pkgs={
@@ -2020,7 +2029,7 @@ venv = Venv(
         ),
         Venv(
             name="testing",
-            command="pytest --ddtrace --no-cov -n auto {cmdargs} tests/testing/",
+            command="pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/testing/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -2318,7 +2327,7 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            command="pytest -n auto {cmdargs} tests/contrib/urllib3",
+            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -2804,17 +2813,28 @@ venv = Venv(
                 "requests": "==2.28.1",  # specific version expected by tests
             },
             venvs=[
+                # API-only environments verify behavior without the OpenTelemetry SDK and exporters.
                 Venv(
-                    # opentelemetry-api doesn't yet work with Python 3.14
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
                     pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
                 ),
                 Venv(
-                    # opentelemetry-exporter-otlp doesn't yet work with Python 3.14
+                    pys=select_pys(min_version="3.14", max_version="3.14"),
+                    # The inherited MarkupSafe 2.0 pin constrains Flask and Werkzeug to versions incompatible with 3.14.
+                    pkgs={"opentelemetry-api": latest, "markupsafe": latest},
+                ),
+                # Exporter environments install the SDK and select the exporter-dependent tests.
+                Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # v1.15.0 introduced support for logs
-                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", "~=1.34.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14", max_version="3.14"),
+                    # The inherited MarkupSafe 2.0 pin constrains Flask and Werkzeug to versions incompatible with 3.14.
+                    pkgs={"opentelemetry-exporter-otlp": latest, "markupsafe": latest},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
             ],
@@ -3229,7 +3249,7 @@ venv = Venv(
         ),
         Venv(
             name="google_adk",
-            command="pytest -n auto {cmdargs} tests/contrib/google_adk",
+            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/google_adk",
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": latest,
@@ -3337,7 +3357,7 @@ venv = Venv(
         ),
         Venv(
             name="molten",
-            command="pytest -n 8 {cmdargs} tests/contrib/molten",
+            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten",
             pys=select_pys(),
             pkgs={
                 "cattrs": ["<23.1.1"],
@@ -3369,7 +3389,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} -vv tests/contrib/kafka",
+                    command="pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka",
                     venvs=[
                         Venv(
                             pys=select_pys(min_version="3.9", max_version="3.10"),
@@ -3546,7 +3566,7 @@ venv = Venv(
         Venv(
             name="ci_visibility",
             command=(
-                "pytest --ddtrace -n auto {cmdargs} tests/ci_visibility"
+                "pytest --ddtrace -n auto --dist=worksteal {cmdargs} tests/ci_visibility"
                 " --ignore=tests/ci_visibility/api/test_api_fake_runners.py"
             ),
             pkgs={
@@ -3600,7 +3620,7 @@ venv = Venv(
             name="llmobs",
             venvs=[
                 Venv(
-                    command="pytest -n auto {cmdargs} tests/llmobs",
+                    command="pytest -n auto --dist=worksteal {cmdargs} tests/llmobs",
                     pkgs={
                         "vcrpy": latest,
                         "openai": latest,
@@ -3630,7 +3650,7 @@ venv = Venv(
                 # Pydantic v1 compatibility — only needs pydantic, not the heavy deps above
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
-                    command="pytest -n auto {cmdargs} tests/llmobs/test_utils.py",
+                    command="pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py",
                     pkgs={
                         "pydantic": "~=1.10",
                         "pytest-xdist": latest,
@@ -3723,15 +3743,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.10
@@ -3751,23 +3762,9 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "gevent": latest,
                                 "protobuf": latest,
                             },
-                            venvs=[
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "greenlet": latest,
-                                        "protobuf": latest,
-                                    }
-                                ),
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "protobuf": latest,
-                                    },
-                                ),
-                            ],
                         ),
                         # uvloop
                         Venv(
@@ -3776,15 +3773,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3821,15 +3809,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
@@ -3861,15 +3840,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3976,6 +3946,8 @@ venv = Venv(
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4315,6 +4287,12 @@ venv = Venv(
                         "fastapi": "~=0.114.2",
                     },
                 ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "fastapi": "==0.141.1",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -4353,6 +4331,12 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "fastapi": "==0.141.1",
                     },
                 ),
             ],
@@ -4621,6 +4605,7 @@ venv = Venv(
         Venv(
             name="sca",
             command="pytest {cmdargs} tests/appsec/sca/",
+            pkgs={"jsonschema": latest},
             pys=select_pys(),
         ),
     ],

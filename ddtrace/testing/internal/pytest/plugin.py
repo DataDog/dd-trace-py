@@ -34,6 +34,7 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -284,7 +285,7 @@ else:
     _ReportGroup = dict
 
 
-class TestOptPlugin:
+class TestOptPlugin(TestOptPluginProtocol):
     """
     pytest plugin for test optimization.
     """
@@ -428,7 +429,9 @@ class TestOptPlugin:
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
         self.session.set_status(
-            TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+            TestStatus.FAIL
+            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
+            else TestStatus.PASS
         )
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):
