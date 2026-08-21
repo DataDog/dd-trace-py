@@ -137,6 +137,8 @@ find_elf_section(const char* path, const dl_phdr_info& image)
                 section.sh_addr > std::numeric_limits<uintptr_t>::max() - image.dlpi_addr) {
                 continue;
             }
+            // dl_iterate_phdr exposes the load bias and section address as integers.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             result = reinterpret_cast<const PyAsyncioDebugOffsets*>(image.dlpi_addr + section.sh_addr);
             break;
         }
@@ -201,6 +203,8 @@ find_asyncio_debug_table()
                         const auto& section = sections[section_index];
                         if (std::strncmp(section.sectname, "AsyncioDebug", sizeof(section.sectname)) == 0 &&
                             section.size >= sizeof(PyAsyncioDebugOffsets)) {
+                            // dyld exposes the image slide and section address as integers.
+                            // NOLINTNEXTLINE(performance-no-int-to-ptr)
                             const auto* table = reinterpret_cast<const PyAsyncioDebugOffsets*>(
                               static_cast<uintptr_t>(_dyld_get_image_vmaddr_slide(image_index)) + section.addr);
                             if (auto result = read_asyncio_debug_table(table)) {
