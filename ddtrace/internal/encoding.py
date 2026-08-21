@@ -75,7 +75,7 @@ class _EncoderBase(object):
         # int. let's special case that here, because it's sure to happen in
         # customer code.
         err = d.get("error")
-        if err and type(err) == bool:
+        if err and type(err) is bool:
             d["error"] = 1
 
         if span.start_ns:

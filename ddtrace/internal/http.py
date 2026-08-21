@@ -29,8 +29,8 @@ class HTTPConnectionMixin:
         obj._base_path = base_path
         return obj
 
-    def request(self, method, url, body=None, headers={}, *, encode_chunked=False):
-        _headers = headers.copy()
+    def request(self, method, url, body=None, headers=None, *, encode_chunked=False):
+        _headers = dict(headers or {})
 
         container.update_headers(_headers)
 
