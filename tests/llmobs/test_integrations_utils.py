@@ -1,7 +1,13 @@
 import base64
 from types import SimpleNamespace
 
+import pytest
+
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_EVENT_SIZE_LIMIT
+from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
+from ddtrace.llmobs._constants import PROMPT_MULTIMODAL
 from ddtrace.llmobs._integrations.agent_manifest import MAX_WIRE_DEPTH
 from ddtrace.llmobs._integrations.agent_manifest import is_number
 from ddtrace.llmobs._integrations.agent_manifest import prune_empty
@@ -16,20 +22,27 @@ from ddtrace.llmobs._integrations.audio_utils import is_pcm16_audio_mime
 from ddtrace.llmobs._integrations.audio_utils import is_renderable_audio_mime
 from ddtrace.llmobs._integrations.audio_utils import pcm16_to_wav
 from ddtrace.llmobs._integrations.audio_utils import realtime_audio_format_to_mime
+from ddtrace.llmobs._integrations.utils import _capture_inline_image
 from ddtrace.llmobs._integrations.utils import _encoded_image_len
 from ddtrace.llmobs._integrations.utils import _extract_chat_template_from_instructions
 from ddtrace.llmobs._integrations.utils import _extract_content_parts
+from ddtrace.llmobs._integrations.utils import _inline_image_budget
 from ddtrace.llmobs._integrations.utils import _normalize_prompt_variables
 from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_messages
+from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_messages
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
+from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
+from tests.utils import override_global_config
 
 
 def test_format_audio_part_from_bytes():
@@ -58,6 +71,14 @@ def test_format_image_part_from_base64_string():
     assert part == {"mime_type": "image/jpeg", "content": "AAECAw=="}
 
 
+def _data_url(b64, mime_type="image/png"):
+    return "data:{};base64,{}".format(mime_type, b64)
+
+
+# Just over the live budget, so the oversize tests exercise the configured value, not a literal.
+_OVERSIZE_B64 = "A" * (_inline_image_budget() + 4)
+
+
 def test_audio_mime_type_from_format():
     """OpenAI audio formats map to MIME types, falling back to audio/<format>."""
     assert audio_mime_type_from_format("wav") == "audio/wav"
@@ -70,7 +91,7 @@ def test_audio_mime_type_from_format():
 
 def test_extract_content_parts_collects_audio():
     """Captured input_audio becomes an AudioPart and leaves no '[audio]' text marker behind."""
-    text, audio_parts = _extract_content_parts(
+    text, audio_parts, _ = _extract_content_parts(
         [
             {"type": "text", "text": "what is said here?"},
             {"type": "input_audio", "input_audio": {"data": "AAECAw==", "format": "mp3"}},
@@ -82,7 +103,7 @@ def test_extract_content_parts_collects_audio():
 
 def test_extract_content_parts_multiple_audio_only():
     """A message with only input_audio parts captures each as an AudioPart and has empty text."""
-    text, audio_parts = _extract_content_parts(
+    text, audio_parts, _ = _extract_content_parts(
         [
             {"type": "input_audio", "input_audio": {"data": "AAA=", "format": "wav"}},
             {"type": "input_audio", "input_audio": {"data": "BBB=", "format": "mp3"}},
@@ -97,7 +118,7 @@ def test_extract_content_parts_multiple_audio_only():
 
 def test_extract_content_parts_audio_marker_fallback_when_no_data():
     """When an input_audio part carries no data, fall back to the '[audio]' text marker."""
-    text, audio_parts = _extract_content_parts(
+    text, audio_parts, _ = _extract_content_parts(
         [
             {"type": "text", "text": "listen:"},
             {"type": "input_audio", "input_audio": {"format": "wav"}},
@@ -152,7 +173,7 @@ def test_format_image_part_with_guard_rejects_unrenderable_mime():
 
 def test_extract_content_parts_no_audio():
     """Text/image-only content yields no audio parts."""
-    text, audio_parts = _extract_content_parts(
+    text, audio_parts, _ = _extract_content_parts(
         [
             {"type": "text", "text": "hello"},
             {"type": "image_url", "image_url": "http://example.com/x.png"},
@@ -160,6 +181,180 @@ def test_extract_content_parts_no_audio():
     )
     assert text == "hello\n[image]"
     assert audio_parts == []
+
+
+def test_extract_content_parts_captures_inline_image():
+    """An inline base64 data URL becomes an ImagePart and leaves no '[image]' text marker."""
+    text, _, image_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "what is in this image?"},
+            {"type": "image_url", "image_url": {"url": _data_url("AAECAw==")}},
+        ]
+    )
+    assert text == "what is in this image?"
+    assert image_parts == [{"mime_type": "image/png", "content": "AAECAw=="}]
+
+
+def test_extract_content_parts_captures_inline_image_bare_string():
+    """The URL may arrive as a bare string rather than the nested image_url.url object."""
+    _, _, image_parts = _extract_content_parts(
+        [{"type": "image_url", "image_url": _data_url("BBBB", mime_type="image/webp")}]
+    )
+    assert image_parts == [{"mime_type": "image/webp", "content": "BBBB"}]
+
+
+def test_extract_content_parts_multiple_inline_images():
+    """Each inline image is captured as its own part, preserving order and per-part mime type."""
+    _, _, image_parts = _extract_content_parts(
+        [
+            {"type": "image_url", "image_url": {"url": _data_url("AAA=", mime_type="image/png")}},
+            {"type": "image_url", "image_url": {"url": _data_url("BBB=", mime_type="image/jpeg")}},
+        ]
+    )
+    assert image_parts == [
+        {"mime_type": "image/png", "content": "AAA="},
+        {"mime_type": "image/jpeg", "content": "BBB="},
+    ]
+
+
+def test_extract_content_parts_oversize_inline_image_keeps_marker_and_text():
+    """An oversize inline image is dropped to a distinct marker; surrounding text is untouched."""
+    text, _, image_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "describe this"},
+            {"type": "image_url", "image_url": {"url": _data_url(_OVERSIZE_B64)}},
+            {"type": "text", "text": "in one word"},
+        ]
+    )
+    assert text == "describe this\n{}\nin one word".format(IMAGE_TOO_LARGE_MARKER)
+    assert image_parts == []
+
+
+def test_extract_content_parts_non_inline_image_keeps_generic_marker():
+    """Remote URLs, missing URLs and malformed/non-image data URLs are not captured."""
+    for image_url in (
+        "https://example.com/x.png",
+        {"url": "https://example.com/x.png"},
+        {"url": "data:image/png;base64,"},  # no payload
+        {"url": "data:image/png;base64,   \n "},  # whitespace-only payload
+        {"url": "data:image/png;base64,not base64!!!<svg/>"},  # payload isn't base64
+        {"url": "data:application/pdf;base64,AAA="},  # not an image
+        {"url": "data:image/png,AAA="},  # not base64
+        {"url": ""},
+        {},
+        None,
+    ):
+        text, _, image_parts = _extract_content_parts([{"type": "image_url", "image_url": image_url}])
+        assert text == "[image]", image_url
+        assert image_parts == [], image_url
+
+
+def test_extract_content_parts_wrapped_base64_payload_is_normalized():
+    """Whitespace used to wrap base64 across lines is stripped, not carried into the part."""
+    _, _, image_parts = _extract_content_parts(
+        [{"type": "image_url", "image_url": {"url": "data:image/png;base64,AA\nEC\nAw=="}}]
+    )
+    assert image_parts == [{"mime_type": "image/png", "content": "AAECAw=="}]
+
+
+def test_extract_content_parts_data_url_variants_captured():
+    """Extra media-type params, uppercase scheme and svg+xml are all still inline base64."""
+    for url, expected_mime in (
+        ("data:image/png;charset=utf-8;base64,AAA=", "image/png"),
+        ("DATA:IMAGE/PNG;BASE64,AAA=", "image/png"),
+        ("data:image/svg+xml;base64,AAA=", "image/svg+xml"),
+    ):
+        _, _, image_parts = _extract_content_parts([{"type": "image_url", "image_url": {"url": url}}])
+        assert image_parts == [{"mime_type": expected_mime, "content": "AAA="}], url
+
+
+def test_multiple_in_budget_images_can_still_exceed_the_event_size_limit():
+    """Pins the known limit of a PER-IMAGE guard: it does not bound the event.
+
+    Two images that each pass the guard still serialize past the per-event limit, at which point
+    the writer drops the span's whole input and output. A cumulative per-request budget is the
+    deliberate follow-up; this test exists so that gap cannot be mistaken for a guarantee.
+    """
+    half_budget_b64 = "A" * (_inline_image_budget() // 2)
+
+    _, _, image_parts = _extract_content_parts(
+        [
+            {"type": "text", "text": "compare these"},
+            {"type": "image_url", "image_url": {"url": _data_url(half_budget_b64)}},
+            {"type": "image_url", "image_url": {"url": _data_url(half_budget_b64)}},
+            {"type": "image_url", "image_url": {"url": _data_url(half_budget_b64)}},
+        ]
+    )
+    assert len(image_parts) == 3
+    assert len(safe_json(image_parts)) > DEFAULT_EVP_EVENT_SIZE_LIMIT
+
+
+def test_capture_inline_image_rejects_oversize_at_every_scale():
+    """Oversize inline images degrade to the marker whether barely or hugely over budget.
+
+    Line-wrapped payloads must be measured after whitespace is stripped, so a wrapped image that
+    fits once normalized is still captured.
+    """
+    assert _capture_inline_image(_data_url(_OVERSIZE_B64)) == (None, IMAGE_TOO_LARGE_MARKER)
+    huge = _data_url("A" * (16 * _inline_image_budget()))
+    assert _capture_inline_image(huge) == (None, IMAGE_TOO_LARGE_MARKER)
+
+    wrapped = "\n".join(["A" * 76] * 8)  # MIME-style line wrapping, comfortably in budget
+    part, marker = _capture_inline_image(_data_url(wrapped))
+    assert marker is None
+    assert part == {"mime_type": "image/png", "content": "A" * (76 * 8)}
+
+
+def test_is_data_url_detects_scheme_after_long_leading_whitespace():
+    """Leading whitespace of any length must not hide the scheme and let the payload reach text."""
+    payload = "A" * 4096
+    assert _capture_inline_image(_data_url(payload))[0] is not None  # unpadded still captures
+
+    for pad in (" ", "\n" * 40, " \t\n" * 30):
+        url = pad + _data_url(payload)
+        # Whitespace defeats the regex's ^data: anchor, so this degrades to a marker rather than
+        # being captured -- what matters is that the payload never reaches the text.
+        assert _capture_inline_image(url) == (None, IMAGE_FALLBACK_MARKER), len(pad)
+        text, _, _ = _extract_content_parts([{"type": "image_url", "image_url": {"url": url}}])
+        assert payload not in text, len(pad)
+
+
+def test_inline_image_budget_follows_configured_event_size_limit():
+    """The guard must track DD_LLMOBS_EVENT_SIZE_BYTES, not a fixed 4 MiB.
+
+    A lower configured limit means an image the fixed budget would admit is larger than the whole
+    event allowance, so the writer would drop the span's entire input and output.
+    """
+    small = "A" * 200_000
+    part, marker = _capture_inline_image(_data_url(small))
+    assert marker is None and part is not None
+
+    with override_global_config(dict(_llmobs_event_size_limit=100_000)):
+        part, marker = _capture_inline_image(_data_url(small))
+        assert (part, marker) == (None, IMAGE_TOO_LARGE_MARKER)
+
+
+def test_oversize_marker_is_only_used_for_size():
+    """The too-large marker must never stand in for another rejection reason.
+
+    The shared guard also returns None for a bad mime or empty data; if the caller read size off
+    that None, a customer would be told an image was too large when it never was.
+    """
+    for url in ("data:image/png;base64,", "data:application/pdf;base64,AAA=", "data:image/png,AAA="):
+        assert _capture_inline_image(url)[1] == IMAGE_FALLBACK_MARKER, url
+
+
+def test_capture_inline_image_never_leaks_unparsed_data_url_as_text():
+    """Invariant: a data URL we cannot parse degrades to a marker, never to the raw payload.
+
+    Leaking it would put the whole base64 blob in the message content — the bug this guards.
+    """
+    unparsable = "data:image/png;base64" + "A" * 64  # no "," separator
+    part, marker = _capture_inline_image(unparsable)
+    assert part is None
+    assert marker == "[image]"
+    _, _, image_parts = _extract_content_parts([{"type": "image_url", "image_url": {"url": unparsable}}])
+    assert image_parts == []
 
 
 def test_realtime_audio_format_to_mime_legacy_strings():
@@ -459,6 +654,142 @@ def test_normalize_prompt_variables():
     assert result["file_fallback"] == "[file]"
 
 
+def test_output_image_generation_call_does_not_leak_base64():
+    """A generated image's base64 result must not be stringified into the output message.
+
+    Unhandled output item types fall back to str(item), which on the SDK's pydantic model
+    renders every field value -- including a multi-megabyte result.
+    """
+
+    from openai.types.responses.response_output_item import ImageGenerationCall
+
+    item = ImageGenerationCall(id="ig_1", type="image_generation_call", status="completed", result="A" * 8192)
+    assert "A" * 64 in str(item)  # the leak this guards: pydantic str() renders every field value
+
+    processed, _, _ = _openai_parse_output_response_messages([item])
+    assert processed == [{"content": "[image]", "role": "assistant"}]
+
+
+def test_output_computer_call_screenshot_does_not_leak_base64():
+    """A computer-use screenshot keeps a remote reference but never an inline data URL."""
+
+    class Screenshot:
+        def __init__(self, image_url=None, file_id=None):
+            self.type = "computer_screenshot"
+            self.image_url = image_url
+            self.file_id = file_id
+
+    class ComputerCallOutput:
+        def __init__(self, output):
+            self.type = "computer_call_output"
+            self.output = output
+
+    inline, _, _ = _openai_parse_output_response_messages([ComputerCallOutput(Screenshot(_data_url("A" * 8192)))])
+    # role=user mirrors function_call_output: a tool result supplied to the model, not its own output.
+    assert inline == [{"content": "[image]", "role": "user"}]
+
+    remote, _, _ = _openai_parse_output_response_messages(
+        [ComputerCallOutput(Screenshot(image_url="https://example.com/shot.png"))]
+    )
+    assert remote == [{"content": "https://example.com/shot.png", "role": "user"}]
+
+
+def test_normalize_prompt_variables_inline_image_degrades_to_marker():
+    """A prompt variable holding an inline data URL must not put base64 on the span.
+
+    Prompt variables are a plain string map, so there is nowhere to attach an ImagePart; the marker
+    keeps the payload off the event. Remote URLs and file_ids still keep their reference.
+    """
+
+    class ResponseInputImage:
+        def __init__(self, image_url=None, file_id=None):
+            self.type = "input_image"
+            self.image_url = image_url
+            self.file_id = file_id
+
+    result = _normalize_prompt_variables(
+        {
+            "inline": ResponseInputImage(image_url=_data_url("A" * 4096)),
+            "remote": ResponseInputImage(image_url="https://example.com/img.png"),
+            "by_id": ResponseInputImage(file_id="file-123"),
+        }
+    )
+    assert result["inline"] == "[image]"
+    assert result["remote"] == "https://example.com/img.png"
+    assert result["by_id"] == "file-123"
+
+
+class _ResponseInputImage:
+    def __init__(self, image_url=None, file_id=None):
+        self.type = "input_image"
+        self.image_url = image_url
+        self.file_id = file_id
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        None,
+        SimpleNamespace(instructions=None, output=[]),
+        SimpleNamespace(instructions=[], output=[]),
+    ],
+    ids=["no_response", "instructions_none", "instructions_empty"],
+)
+def test_prompt_variable_image_is_normalized_off_the_chat_template_path(tracer, response):
+    """Regression: normalization must not depend on the chat_template path being taken.
+
+    It used to run only when a response echoed instructions back AND a template could be built from
+    them, so a failed request or an unechoed instruction left the raw data URL on the span.
+    """
+    payload = "A" * 4096
+    kwargs = {"prompt": {"id": "pmpt-1", "variables": {"pic": _ResponseInputImage(image_url=_data_url(payload))}}}
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")
+        openai_set_meta_tags_from_response(span, kwargs, response)
+        serialized = safe_json(get_llmobs_input_prompt(span))
+
+    assert payload not in serialized
+    assert IMAGE_FALLBACK_MARKER in serialized
+
+
+def test_prompt_variable_image_is_normalized_when_caller_supplies_template(tracer):
+    """A caller-supplied template skips the extraction branch entirely.
+
+    This is ordinary usage rather than an error path, so it was the widest instance of the leak:
+    the branch that normalized variables was never reached when template was already set.
+    """
+    payload = "B" * 4096
+    kwargs = {
+        "prompt": {
+            "id": "pmpt-1",
+            "template": "describe {{pic}}",
+            "variables": {"pic": _ResponseInputImage(image_url=_data_url(payload))},
+        }
+    }
+    response = SimpleNamespace(instructions=[SimpleNamespace(role="user", content="describe")], output=[])
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")
+        openai_set_meta_tags_from_response(span, kwargs, response)
+        serialized = safe_json(get_llmobs_input_prompt(span))
+
+    assert payload not in serialized
+    assert IMAGE_FALLBACK_MARKER in serialized
+
+
+def test_prompt_multimodal_tag_survives_normalization(tracer):
+    """The multimodal tag reads the SDK object's type attr, which normalizing to strings discards.
+
+    Pins the ordering: normalize after the check, never before.
+    """
+    kwargs = {"prompt": {"id": "pmpt-1", "variables": {"pic": _ResponseInputImage(image_url=_data_url("C" * 32))}}}
+    with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+        _annotate_llmobs_span_data(span, kind="llm")
+        openai_set_meta_tags_from_response(span, kwargs, None)
+        tags = get_llmobs_tags(span) or {}
+
+    assert tags.get(PROMPT_MULTIMODAL) == "true"
+
+
 def test_extract_chat_template_with_falsy_values():
     """Test that falsy but valid values (0, False) are preserved in template extraction."""
 
@@ -634,6 +965,133 @@ class TestOpenAIParseInputResponseMessages:
         assert len(processed) == 1
         assert processed[0]["role"] == "user"
         assert tool_call_ids == []
+
+    def test_input_image_inline_base64_captured(self):
+        """An input_image data URL is captured as an ImagePart, not concatenated into the text."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "what is this?"},
+                    {"type": "input_image", "image_url": _data_url("AAECAw==")},
+                ],
+            }
+        ]
+        processed, _ = _openai_parse_input_response_messages(messages)
+        assert processed == [
+            {
+                "content": "what is this?",
+                "role": "user",
+                "image_parts": [{"mime_type": "image/png", "content": "AAECAw=="}],
+            }
+        ]
+
+    def test_input_image_only_message_is_still_emitted(self):
+        """A message whose only content was a captured image must not be dropped."""
+        messages = [{"role": "user", "content": [{"type": "input_image", "image_url": _data_url("AAA=")}]}]
+        processed, _ = _openai_parse_input_response_messages(messages)
+        assert processed == [
+            {"content": "", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "AAA="}]}
+        ]
+
+    def test_input_image_oversize_keeps_marker_and_text(self):
+        """An oversize inline image degrades to a marker; the surrounding text survives."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_text", "text": "describe: "},
+                    {"type": "input_image", "image_url": _data_url(_OVERSIZE_B64)},
+                ],
+            }
+        ]
+        processed, _ = _openai_parse_input_response_messages(messages)
+        assert processed == [{"content": "describe: {}".format(IMAGE_TOO_LARGE_MARKER), "role": "user"}]
+
+    def test_input_image_remote_url_and_file_id_references_preserved(self):
+        """Capture is bytes-only: remote URLs and file_ids keep their existing reference text."""
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "image_url": "https://example.com/x.png"},
+                    {"type": "input_image", "file_id": "file-abc123"},
+                    {"type": "input_image"},
+                ],
+            }
+        ]
+        processed, _ = _openai_parse_input_response_messages(messages)
+        assert processed == [{"content": "https://example.com/x.pngfile-abc123[image]", "role": "user"}]
+        assert "image_parts" not in processed[0]
+
+    def test_input_image_chat_shaped_url_object_does_not_leak(self):
+        """A chat-shaped nested image_url sent to the Responses parser must not reach the text.
+
+        The SDK does not enforce the Responses shape at runtime, so this is what a user migrating
+        chat -> responses sends. It previously stringified the dict into the message content.
+        """
+        payload = "A" * 4096
+        messages = [
+            {
+                "role": "user",
+                "content": [{"type": "input_image", "image_url": {"url": _data_url(payload)}}],
+            }
+        ]
+        processed, _ = _openai_parse_input_response_messages(messages)
+        assert payload not in processed[0]["content"]  # never in the message text
+        assert processed[0]["image_parts"] == [{"mime_type": "image/png", "content": payload}]
+
+    def test_input_image_leading_whitespace_data_url_does_not_leak(self):
+        """Leading whitespace must not let a data URL bypass the inline check into message text."""
+        payload = "B" * 4096
+        messages = [
+            {
+                "role": "user",
+                "content": [{"type": "input_image", "image_url": "\n " + _data_url(payload)}],
+            }
+        ]
+        processed, _ = _openai_parse_input_response_messages(messages)
+        assert payload not in safe_json(processed)
+
+    def test_computer_call_output_screenshot_on_input_is_not_dropped(self):
+        """A computer-use screenshot arrives on the NEXT request's input, not in response.output.
+
+        ComputerCallOutput carries only call_id/output/type -- no role, no content -- so without
+        its own branch the item matches nothing and the screenshot is lost from the span.
+        """
+        payload = "A" * 4096
+        inline = [
+            {
+                "type": "computer_call_output",
+                "call_id": "call_1",
+                "output": {"type": "computer_screenshot", "image_url": _data_url(payload)},
+            }
+        ]
+        processed, _ = _openai_parse_input_response_messages(inline)
+        assert processed == [{"role": "user", "content": IMAGE_FALLBACK_MARKER}]
+
+        remote = [
+            {
+                "type": "computer_call_output",
+                "call_id": "call_2",
+                "output": {"type": "computer_screenshot", "image_url": "https://example.com/shot.png"},
+            }
+        ]
+        processed, _ = _openai_parse_input_response_messages(remote)
+        assert processed == [{"role": "user", "content": "https://example.com/shot.png"}]
+
+    def test_input_image_sdk_object_captured(self):
+        """SDK objects (attribute access, detail present) are captured the same as dicts."""
+
+        class ResponseInputImage:
+            type = "input_image"
+            detail = "auto"
+            file_id = None
+            image_url = _data_url("AAECAw==", mime_type="image/jpeg")
+
+        messages = [{"role": "user", "content": [ResponseInputImage()]}]
+        processed, _ = _openai_parse_input_response_messages(messages)
+        assert processed[0]["image_parts"] == [{"mime_type": "image/jpeg", "content": "AAECAw=="}]
 
 
 def _chunk(content=None, reasoning_content=None, role=None, finish_reason=None):
