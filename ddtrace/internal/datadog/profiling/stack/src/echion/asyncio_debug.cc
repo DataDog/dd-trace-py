@@ -3,7 +3,10 @@
 #endif
 
 #include <echion/cpython/asyncio_debug.h>
+
+#if defined(__linux__) || defined(__APPLE__)
 #include <echion/vm.h>
+#endif
 
 #include <cstring>
 #include <limits>
@@ -21,6 +24,8 @@
 #endif
 
 namespace {
+
+#if defined(__linux__) || defined(__APPLE__)
 
 std::optional<AsyncioOffsets>
 read_asyncio_debug_table(const PyAsyncioDebugOffsets* debug_offsets)
@@ -44,6 +49,8 @@ is_asyncio_image(const char* path)
     return std::strstr(filename, "_asyncio") != nullptr || std::strncmp(filename, "libpython", 9) == 0 ||
            std::strncmp(filename, "python", 6) == 0 || std::strncmp(filename, "Python", 6) == 0;
 }
+
+#endif
 
 #if defined(__linux__)
 
