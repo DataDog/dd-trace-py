@@ -12,8 +12,8 @@ Import degrade for 3.15 is on `main` via [#19724](https://github.com/DataDog/dd-
 | 2 | [#19269](https://github.com/DataDog/dd-trace-py/pull/19269) | `vlad/ddtracepy-315-profiling-native` | `vlad/315-peripheral-compat` | `0fb56d5ca4` |
 | 3 | [#19270](https://github.com/DataDog/dd-trace-py/pull/19270) | `vlad/ddtracepy-315-profiling-collectors` | `vlad/ddtracepy-315-profiling-native` | `ee28a3ffc2` |
 | 4 | [#19272](https://github.com/DataDog/dd-trace-py/pull/19272) | `vlad/ddtracepy-315-profiling-asyncio-monitoring` | `vlad/ddtracepy-315-profiling-collectors` | `082c37a1cf` |
-| 5 | [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | `vlad/315-profiling-dev-tooling` | `vlad/ddtracepy-315-profiling-asyncio-monitoring` | `00744767af` |
-| 6 | [#19254](https://github.com/DataDog/dd-trace-py/pull/19254) | `vlad/315-official-support` | `vlad/315-profiling-dev-tooling` | `30a56365fe` |
+| 5 | [#19273](https://github.com/DataDog/dd-trace-py/pull/19273) | `vlad/315-profiling-dev-tooling` | `vlad/ddtracepy-315-profiling-asyncio-monitoring` | `ba0e2bf2c6` |
+| 6 | [#19254](https://github.com/DataDog/dd-trace-py/pull/19254) | `vlad/315-official-support` | `vlad/315-profiling-dev-tooling` | `54d95fa91a` |
 
 **Closed (absorbed):** [#19268](https://github.com/DataDog/dd-trace-py/pull/19268) → #19269 · [#19271](https://github.com/DataDog/dd-trace-py/pull/19271) → #19270 · [#19274](https://github.com/DataDog/dd-trace-py/pull/19274) + [#19275](https://github.com/DataDog/dd-trace-py/pull/19275) → #19254
 
