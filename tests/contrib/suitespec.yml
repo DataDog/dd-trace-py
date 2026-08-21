@@ -2846,6 +2846,10 @@ suites:
   ray:
     runner: uv
     parallelism: 3
+    # Ray 2.47+ mistakes scripts/run-tests' uv bootstrap for the driver environment.
+    # Keep workers in the suite's prebuilt venv instead of propagating the runner venv.
+    env:
+      RAY_ENABLE_UV_RUN_RUNTIME_ENV: '0'
     paths:
       - '@bootstrap'
       - '@core'
@@ -2867,6 +2871,10 @@ suites:
   ray_serve:
     runner: uv
     parallelism: 6
+    # Ray 2.47+ mistakes scripts/run-tests' uv bootstrap for the driver environment.
+    # Keep workers in the suite's prebuilt venv instead of propagating the runner venv.
+    env:
+      RAY_ENABLE_UV_RUN_RUNTIME_ENV: '0'
     paths:
       - '@bootstrap'
       - '@core'
