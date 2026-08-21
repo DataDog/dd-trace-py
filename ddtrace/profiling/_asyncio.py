@@ -67,7 +67,7 @@ def link_existing_loop_to_current_thread() -> None:
     _call_init_asyncio(asyncio)
 
 
-# AIDEV-NOTE: sys.monitoring (Python 3.15+) is used for task-creation tracking
+# TODO(py-315): sys.monitoring (Python 3.15+) is used for task-creation tracking
 # on create_task / TaskGroup.create_task, where PY_RETURN gives us the new Task
 # object directly. All other asyncio hooks use simple attribute replacement —
 # sys.monitoring CALL/PY_START callbacks don't expose the callee's arguments, so
