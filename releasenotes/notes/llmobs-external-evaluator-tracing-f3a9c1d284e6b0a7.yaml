@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Adds ``LLMObs.evaluation()``, which traces an external LLM-as-a-judge evaluator
+    as its own judge trace. ``LLMObs.submit_evaluation()`` accepts a ``judge_span`` argument that links
+    a score to that trace.
