@@ -70,6 +70,16 @@ class TestAdaptiveSamplingConfig:
             ProfilingConfig()
 
 
+class TestGCFramesConfig:
+    def test_default(self) -> None:
+        assert ProfilingConfig().stack.gc_enabled is False
+
+    def test_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_STACK_GC_ENABLED", "true")
+
+        assert ProfilingConfig().stack.gc_enabled is True
+
+
 class TestExcludeModulesConfig:
     """Unit tests for the exclude_modules config field type guarantees."""
 
@@ -147,6 +157,7 @@ class TestDumpSettings:
             "enabled",
             "upload_interval",
             "stack.enabled",
+            "stack.gc_enabled",
             "stack.adaptive_sampling",
             "stack.adaptive_sampling_target_overhead",
             "stack.adaptive_sampling_max_interval",

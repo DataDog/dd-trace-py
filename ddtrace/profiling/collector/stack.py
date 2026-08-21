@@ -73,6 +73,7 @@ class StackCollector(collector.Collector):
         stack.set_p_stable_percentile(config.stack.adaptive_sampling_p_stable_percentile)
         stack.set_max_threads(config.stack.max_threads)
         stack.set_max_tasks(config.stack.max_tasks)
+        stack.set_gc_enabled(config.stack.gc_enabled)
         stack.set_fast_copy(config.stack.fast_copy)
         if stack.is_safe_copy_failed():
             LOG.error("No safe memory copy method available (safe_memcpy and process_vm_readv both failed).")

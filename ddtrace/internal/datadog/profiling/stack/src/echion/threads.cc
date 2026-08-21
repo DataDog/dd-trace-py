@@ -19,12 +19,12 @@ ThreadInfo::reset_cycle_state() noexcept
 }
 
 void
-ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us, PyObject* gc_frame)
 {
     // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
     reset_cycle_state();
 
-    unwind_python_stack(echion, tstate, python_stack);
+    unwind_python_stack(echion, tstate, python_stack, gc_frame);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
@@ -34,7 +34,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(echion, tstate, native_id, wall_time_us);
+        unwind_greenlets(echion, tstate, native_id, wall_time_us, gc_frame);
     }
 }
 
@@ -400,7 +400,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             start_index = python_stack.size() - upper_python_stack_size;
         }
         for (size_t i = start_index; i < python_stack.size(); i++) {
-            const auto& python_frame = python_stack[i];
+            auto python_frame = python_stack[i];
+            if (!stack_info->on_cpu) {
+                python_frame.is_in_gc = false;
+            }
             stack.push_back(python_frame);
         }
 
@@ -648,7 +651,8 @@ void
 ThreadInfo::unwind_greenlets(EchionSampler& echion,
                              PyThreadState* tstate,
                              unsigned long cur_native_id,
-                             microsecond_t wall_time_us)
+                             microsecond_t wall_time_us,
+                             PyObject* gc_frame)
 {
     std::vector<GreenletSnapshot> snapshots;
 
@@ -777,11 +781,12 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
         ++snap_idx;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
-        temp.unwind(echion, snap.frame, tstate, stack);
+        temp.unwind(echion, snap.frame, tstate, stack, on_cpu ? gc_frame : nullptr);
 
         for (auto& [parent_name, parent_frame] : snap.parent_chain) {
             GreenletInfo parent_temp(0, parent_frame, parent_name);
-            parent_temp.unwind(echion, parent_frame, tstate, stack);
+            // No GC marker: only the running greenlet can hold the on-CPU frame.
+            parent_temp.unwind(echion, parent_frame, tstate, stack, nullptr);
         }
 
         current_greenlets.push_back(std::move(stack_info));
@@ -814,6 +819,39 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
 }
 
 // ----------------------------------------------------------------------------
+namespace {
+bool
+stack_has_gc_frame(const FrameStack& stack)
+{
+    for (const auto& frame : stack) {
+        if (frame.is_in_gc) {
+            return true;
+        }
+    }
+    return false;
+}
+} // namespace
+
+// When a thread renders tasks/greenlets but none of them was on CPU, any GC marker on the
+// thread's real stack was cleared from every task/greenlet stack (a suspended coroutine is not
+// running GC). If GC was in fact active, this happened on the thread's actual executing stack
+// (e.g. an event loop callback or a gevent Hub), which is python_stack. That stack is otherwise
+// never rendered when tasks/greenlets exist, so the collection would vanish from the profile.
+// Emit python_stack as an extra task-less sample to keep the GC frame visible.
+void
+ThreadInfo::render_gc_stack_if_no_on_cpu_task(EchionSampler& echion)
+{
+    if (!stack_has_gc_frame(python_stack)) {
+        return;
+    }
+
+    auto& renderer = echion.renderer();
+    renderer.render_gc_only_stack_begin();
+    python_stack.render(echion);
+    renderer.render_stack_end();
+}
+
+// ----------------------------------------------------------------------------
 void
 ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 {
@@ -824,7 +862,9 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     // 2. Greenlets stacks (if any)
     // 3. The normal thread stack (if no asyncio tasks or greenlets)
     if (!current_tasks.empty()) {
+        bool any_on_cpu = false;
         for (auto& task_stack_info : current_tasks) {
+            any_on_cpu = any_on_cpu || task_stack_info->on_cpu;
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
                   task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
@@ -834,8 +874,13 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
+        if (!any_on_cpu) {
+            render_gc_stack_if_no_on_cpu_task(echion);
+        }
     } else if (!current_greenlets.empty()) {
+        bool any_on_cpu = false;
         for (auto& greenlet_stack : current_greenlets) {
+            any_on_cpu = any_on_cpu || greenlet_stack->on_cpu;
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
                   task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
@@ -846,6 +891,9 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
+        if (!any_on_cpu) {
+            render_gc_stack_if_no_on_cpu_task(echion);
+        }
     } else {
         python_stack.render(echion);
         renderer.render_stack_end();
@@ -854,7 +902,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta, PyObject* gc_frame)
 {
     auto& renderer = echion.renderer();
 
@@ -876,7 +924,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
-    this->unwind(echion, tstate, delta);
+    this->unwind(echion, tstate, delta, gc_frame);
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
