@@ -13,6 +13,16 @@ METRIC_LATENCY_INFERENCE = "vllm.latency.inference"
 
 MIN_VERSION = "0.10.2"
 
+# vLLM >= 0.14.0 removed the vllm.v1.engine.processor compatibility shim and
+# moved Processor to vllm.v1.engine.input_processor.InputProcessor. We probe
+# for the new location first and fall back to the legacy one so the
+# integration keeps working across the whole declared support window.
+PROCESSOR_MODULE_NEW = "vllm.v1.engine.input_processor"
+PROCESSOR_CLASS_NEW = "InputProcessor"
+PROCESSOR_MODULE_OLD = "vllm.v1.engine.processor"
+PROCESSOR_CLASS_OLD = "Processor"
+PROCESSOR_METHOD = "process_inputs"
+
 ATTR_MODEL_NAME = "_dd_model_name"
 ATTR_DATADOG_PATCH = "_datadog_patch"
 ATTR_DATADOG_INTEGRATION = "_datadog_integration"
