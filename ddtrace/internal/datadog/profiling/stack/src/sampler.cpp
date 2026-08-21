@@ -581,6 +581,33 @@ Sampler::set_interval(double new_interval_s)
     Sample::profile_borrow().stats().set_sampling_interval_us(new_interval_us);
 }
 
+bool
+Sampler::set_max_frames(uint64_t value)
+{
+    // StackCollector configures this before start(). Updating the limit while
+    // the sampler thread is walking stacks would race with collection.
+    if (sampler_active_.load(std::memory_order_acquire) || thread_running.load(std::memory_order_acquire)) {
+        return false;
+    }
+
+    // Zero preserves the existing exporter behavior: retain the default limit.
+    const size_t requested = value == 0 ? g_default_max_nframes : static_cast<size_t>(value);
+    echion->set_max_frames(requested);
+    return true;
+}
+
+size_t
+Sampler::max_frames() const
+{
+    return echion->stack_max_frames();
+}
+
+size_t
+Sampler::frame_cache_capacity() const
+{
+    return g_default_echion_frame_cache_size;
+}
+
 Sampler::Sampler()
   : echion{ std::make_unique<EchionSampler>(g_default_echion_frame_cache_size) }
 {

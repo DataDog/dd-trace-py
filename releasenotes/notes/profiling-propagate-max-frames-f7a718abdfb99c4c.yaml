@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: This fix reduces profiler memory and CPU overhead by limiting plain thread stack collection to ``DD_PROFILING_MAX_FRAMES`` while retaining the deeper internal discovery needed to reconstruct asyncio task stacks.

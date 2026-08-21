@@ -65,11 +65,13 @@ def func5() -> None:
     env=dict(
         DD_PROFILING_MAX_FRAMES="5",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
+        DD_PROFILING_STACK_NATIVE_FRAMES="0",
     )
 )
 def test_collect_truncate() -> None:
     import os
 
+    from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import func1
@@ -82,6 +84,8 @@ def test_collect_truncate() -> None:
     p = profiler.Profiler()
     p.start()
 
+    assert _stack._get_frame_limits() == (max_nframes, 1024)
+
     func1()
 
     p.stop()
@@ -89,9 +93,202 @@ def test_collect_truncate() -> None:
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
+    found_func1_stack = False
     for sample in samples:
         # stack adds one extra frame for "%d frames omitted" message
         assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if any(location.function_name == "func5" for location in locations):
+            found_func1_stack = True
+            assert locations[-1].function_name == "<1 frame omitted>"
+
+    assert found_func1_stack
+
+
+@pytest.mark.subprocess
+def test_native_frame_limit() -> None:
+    from ddtrace.internal.datadog.profiling.stack import _stack
+
+    _stack.set_max_frames(0)
+    assert _stack._get_frame_limits() == (64, 1024)
+
+    _stack.set_max_frames(65)
+    assert _stack._get_frame_limits() == (65, 1024)
+
+    _stack.set_max_frames(10_000)
+    assert _stack._get_frame_limits() == (10_000, 1024)
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_exact_native_frame_limit",
+        DD_PROFILING_STACK_NATIVE_FRAMES="0",
+    ),
+    err=None,
+)
+def test_exact_native_frame_limit_is_not_truncated() -> None:
+    import os
+    import sys
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+
+    def sample_full_stack() -> None:
+        frame_count = 0
+        frame = sys._getframe()
+        while frame is not None:
+            frame_count += 1
+            frame = frame.f_back
+
+        ddup.config(
+            env="test",
+            service="test",
+            version="0.0.0",
+            max_nframes=frame_count,
+            output_filename=pprof_prefix,
+        )
+        ddup.start()
+
+        with stack.StackCollector(nframes=frame_count):
+            time.sleep(0.5)
+
+    sample_full_stack()
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
+    found_test_stack = False
+    for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time"):
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if locations and locations[0].function_name == "sample_full_stack":
+            found_test_stack = True
+            assert "omitted>" not in locations[-1].function_name
+
+    assert found_test_stack
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="fork test only on linux")
+@pytest.mark.subprocess(err=None)
+def test_set_max_frames_after_fork_restart() -> None:
+    import os
+    import traceback
+
+    import pytest
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling import stack
+
+    ddup.config(env="test", service="test", version="0.0.0")
+    ddup.start()
+    stack.set_adaptive_sampling(False)
+    assert stack.start()
+    try:
+        with pytest.raises(RuntimeError, match="cannot change max frames while the stack sampler is running"):
+            stack.set_max_frames(32)
+
+        pid = os.fork()
+        if pid == 0:
+            try:
+                stack.stop()
+                stack.set_max_frames(32)
+                assert stack.start()
+                stack.stop()
+            except BaseException:
+                traceback.print_exc()
+                os._exit(1)
+            os._exit(0)
+
+        _, status = os.waitpid(pid, 0)
+        assert os.waitstatus_to_exitcode(status) == 0
+    finally:
+        stack.stop()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_asyncio_native_frame_limit",
+    ),
+    err=None,
+)
+def test_asyncio_discovery_ignores_plain_stack_limit() -> None:
+    import asyncio
+    import os
+    import time
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    ddup.config(
+        env="test",
+        service="test",
+        version="0.0.0",
+        max_nframes=64,
+        output_filename=pprof_prefix,
+    )
+    ddup.start()
+    ddup.upload()
+
+    def sync_leaf() -> None:
+        time.sleep(0.5)
+
+    def sync_outer() -> None:
+        sync_leaf()
+
+    async def inner() -> None:
+        sync_outer()
+
+    async def outer() -> None:
+        await inner()
+
+    with stack.StackCollector(nframes=1):
+        assert _stack._get_frame_limits() == (1, 1024)
+        sync_outer()
+        asyncio.run(outer())
+
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
+
+    plain_samples = [
+        sample
+        for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time")
+        if pprof_utils.get_label_with_key(profile.string_table, sample, "task name") is None
+    ]
+    plain_stack_was_bounded = False
+    for sample in plain_samples:
+        locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
+        if not any(location.function_name == "sync_leaf" for location in locations):
+            continue
+        python_locations = [
+            location
+            for location in locations
+            if location.filename != "<native>" and not location.function_name.startswith("<")
+        ]
+        plain_stack_was_bounded = len(python_locations) <= 1 and "omitted>" in locations[-1].function_name
+        if plain_stack_was_bounded:
+            break
+
+    assert plain_stack_was_bounded
+
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            locations=[
+                pprof_utils.StackLocation(function_name="sync_leaf", filename="", line_no=-1),
+                pprof_utils.StackLocation(function_name="sync_outer", filename="", line_no=-1),
+                pprof_utils.StackLocation(function_name="inner", filename="", line_no=-1),
+                pprof_utils.StackLocation(function_name="outer", filename="", line_no=-1),
+            ],
+        ),
+        print_samples_on_failure=True,
+    )
 
 
 def test_stack_locations(tmp_path: Path) -> None:

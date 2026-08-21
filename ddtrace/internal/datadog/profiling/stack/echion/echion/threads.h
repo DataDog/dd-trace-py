@@ -42,6 +42,7 @@ class ThreadInfo
     uintptr_t thread_id;
     unsigned long native_id;
     FrameStack python_stack;
+    UnwindResult python_stack_unwind_result;
     std::vector<std::unique_ptr<StackInfo>> current_tasks;
     std::vector<std::unique_ptr<StackInfo>> current_greenlets;
 
