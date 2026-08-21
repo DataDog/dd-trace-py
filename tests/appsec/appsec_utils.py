@@ -9,12 +9,12 @@ import sys
 import time
 import typing as _t
 
+import psutil
 from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils.retry import RetryError
-from ddtrace.vendor import psutil
 from tests.utils import _build_env
 from tests.webclient import Client
 
@@ -503,13 +503,20 @@ def appsec_application_server(
         children = parent.children(recursive=True)
 
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
+        shutdown_started = time.monotonic()
         try:
             client.get_ignored("/shutdown", timeout=10)
         except ConnectionError:
             pass
         except Exception:
+            # How long the client actually waited, to pair with the endpoint's own timing in the
+            # captured output above: the endpoint reports how long it took and the watchdog
+            # reports any event-loop stall, so between the three it is clear whether the time
+            # went into the shutdown, into a frozen worker, or somewhere outside the server.
             raise AssertionError(
-                "Server shutdown request failed; its output is in the captured stdout/stderr above.\n"
+                "Server shutdown request failed after %.3fs; its output is in the captured "
+                "stdout/stderr above.\n"
+                % (time.monotonic() - shutdown_started)
                 + _server_diagnostics(server_process, port, cmd)
                 + "\n"
                 + _dump_server_stacks(server_process)
