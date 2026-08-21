@@ -142,6 +142,7 @@ def _events_for_handler(handler: MonitoringEventHandler) -> int:
     return events
 
 
+
 class _Entry(NamedTuple):
     handler: MonitoringEventHandler
     events: int  # pre-computed from _events_for_handler
@@ -274,7 +275,19 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 
 
 def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
-    sys.monitoring.set_local_events(tool_id, code, events)
+    # TODO(py-315): Pre-release Python 3.15 builds may reject PY_UNWIND
+    # as a local event.  Fall back without it when the full set is invalid;
+    # PY_UNWIND is still registered as a global callback via _setup() so
+    # exception handling degrades gracefully rather than crashing.
+    try:
+        sys.monitoring.set_local_events(tool_id, code, events)
+    except ValueError:
+        fallback: int = events & ~_E.PY_UNWIND
+        if fallback != events:
+            sys.monitoring.set_local_events(tool_id, code, fallback)
+        else:
+            raise
+
 
 
 def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
