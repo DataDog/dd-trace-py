@@ -40,6 +40,7 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
@@ -182,7 +183,9 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         ctx = self.context
         with ctx:
-            self._set_default_attributes(ctx._meta)
+            # AIDEV-NOTE: tracestate is propagation state, not DD-native span metadata.
+            # OTel consumers read it from Context when building SpanContext/OTLP output.
+            self._set_default_attributes(ctx._meta, W3C_TRACESTATE_KEY)
             self._set_default_attributes(ctx._metrics)
 
     def _ignore_exception(self, exc: type[BaseException]) -> None:

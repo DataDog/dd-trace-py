@@ -226,6 +226,16 @@ def test_set_default_attributes_preserves_value_set_during_coercion():
     assert span.get_tag("reentrant") == "set-during-coercion"
 
 
+def test_update_tags_from_context_excludes_tracestate():
+    span = Span(name="test.span")
+    span.context._meta.update({"context.tag": "value", "tracestate": "ot=rv:1234567890abcd;th:8"})
+
+    span._update_tags_from_context()
+
+    assert span.get_tag("context.tag") == "value"
+    assert span.get_tag("tracestate") is None
+
+
 @mock.patch("ddtrace._trace.span.log")
 def test_numeric_tags_none(span_log):
     s = Span(name="test.span")
