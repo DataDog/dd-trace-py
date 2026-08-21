@@ -6,67 +6,75 @@ from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.settings.profiling import config
 
-from . import _lock
 
+try:
+    from . import _lock
 
-class _ProfiledThreadingLock(_lock._ProfiledLock):
-    pass
+    class _ProfiledThreadingLock(_lock._ProfiledLock):
+        pass
 
+    class _ProfiledThreadingRLock(_lock._ProfiledLock):
+        pass
 
-class _ProfiledThreadingRLock(_lock._ProfiledLock):
-    pass
+    class _ProfiledThreadingSemaphore(_lock._ProfiledLock):
+        pass
 
+    class _ProfiledThreadingBoundedSemaphore(_lock._ProfiledLock):
+        pass
 
-class _ProfiledThreadingSemaphore(_lock._ProfiledLock):
-    pass
+    class _ProfiledThreadingCondition(_lock._ProfiledLock):
+        pass
 
+    class ThreadingLockCollector(_lock.LockCollector):
+        """Record threading.Lock usage."""
 
-class _ProfiledThreadingBoundedSemaphore(_lock._ProfiledLock):
-    pass
+        PROFILED_LOCK_CLASS: type[_ProfiledThreadingLock] = _ProfiledThreadingLock
+        MODULE: ModuleType = threading
+        PATCHED_LOCK_NAME: str = "Lock"
 
+    class ThreadingRLockCollector(_lock.LockCollector):
+        """Record threading.RLock usage."""
 
-class _ProfiledThreadingCondition(_lock._ProfiledLock):
-    pass
+        PROFILED_LOCK_CLASS: type[_ProfiledThreadingRLock] = _ProfiledThreadingRLock
+        MODULE: ModuleType = threading
+        PATCHED_LOCK_NAME: str = "RLock"
 
+    class ThreadingSemaphoreCollector(_lock.LockCollector):
+        """Record threading.Semaphore usage."""
 
-class ThreadingLockCollector(_lock.LockCollector):
-    """Record threading.Lock usage."""
+        PROFILED_LOCK_CLASS: type[_ProfiledThreadingSemaphore] = _ProfiledThreadingSemaphore
+        MODULE: ModuleType = threading
+        PATCHED_LOCK_NAME: str = "Semaphore"
 
-    PROFILED_LOCK_CLASS: type[_ProfiledThreadingLock] = _ProfiledThreadingLock
-    MODULE: ModuleType = threading
-    PATCHED_LOCK_NAME: str = "Lock"
+    class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
+        """Record threading.BoundedSemaphore usage."""
 
+        PROFILED_LOCK_CLASS: type[_ProfiledThreadingBoundedSemaphore] = _ProfiledThreadingBoundedSemaphore
+        MODULE: ModuleType = threading
+        PATCHED_LOCK_NAME: str = "BoundedSemaphore"
 
-class ThreadingRLockCollector(_lock.LockCollector):
-    """Record threading.RLock usage."""
+    class ThreadingConditionCollector(_lock.LockCollector):
+        """Record threading.Condition usage."""
 
-    PROFILED_LOCK_CLASS: type[_ProfiledThreadingRLock] = _ProfiledThreadingRLock
-    MODULE: ModuleType = threading
-    PATCHED_LOCK_NAME: str = "RLock"
+        PROFILED_LOCK_CLASS: type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition
+        MODULE: ModuleType = threading
+        PATCHED_LOCK_NAME: str = "Condition"
 
+except ImportError:
+    # TODO(py-315): _lock is a Cython extension not compiled for all Python versions
+    # (e.g. Python 3.15 before the manylinux image carries it). Stubs raise
+    # CollectorUnavailable so profiler.py skips them gracefully.
+    from ddtrace.profiling.collector import Collector as _Collector
+    from ddtrace.profiling.collector import CollectorUnavailable as _CollectorUnavailable
 
-class ThreadingSemaphoreCollector(_lock.LockCollector):
-    """Record threading.Semaphore usage."""
+    class ThreadingLockCollector(_Collector):  # type: ignore[no-redef]
+        def start(self) -> None:
+            raise _CollectorUnavailable
 
-    PROFILED_LOCK_CLASS: type[_ProfiledThreadingSemaphore] = _ProfiledThreadingSemaphore
-    MODULE: ModuleType = threading
-    PATCHED_LOCK_NAME: str = "Semaphore"
-
-
-class ThreadingBoundedSemaphoreCollector(_lock.LockCollector):
-    """Record threading.BoundedSemaphore usage."""
-
-    PROFILED_LOCK_CLASS: type[_ProfiledThreadingBoundedSemaphore] = _ProfiledThreadingBoundedSemaphore
-    MODULE: ModuleType = threading
-    PATCHED_LOCK_NAME: str = "BoundedSemaphore"
-
-
-class ThreadingConditionCollector(_lock.LockCollector):
-    """Record threading.Condition usage."""
-
-    PROFILED_LOCK_CLASS: type[_ProfiledThreadingCondition] = _ProfiledThreadingCondition
-    MODULE: ModuleType = threading
-    PATCHED_LOCK_NAME: str = "Condition"
+    ThreadingRLockCollector = ThreadingLockCollector  # type: ignore[assignment,misc]
+    ThreadingSemaphoreCollector = ThreadingLockCollector  # type: ignore[assignment,misc]
+    ThreadingBoundedSemaphoreCollector = ThreadingLockCollector  # type: ignore[assignment,misc]
+    ThreadingConditionCollector = ThreadingLockCollector  # type: ignore[assignment,misc]
 
 
 # Also patch threading.Thread so echion can track thread lifetimes
