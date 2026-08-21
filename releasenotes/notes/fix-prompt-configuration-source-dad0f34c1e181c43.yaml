@@ -1,6 +1,4 @@
 fixes:
   - |
-    LLM Observability: Fixes an issue where environment-scoped managed prompts do not produce
-    Prompt Experimentation exposures when Feature Flagging is enabled with
-    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=agentless`` or
-    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE=remote_config``.
+    LLM Observability: Fixes missing Prompt Experimentation exposures when
+    ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is set to ``agentless`` or ``remote_config``.
