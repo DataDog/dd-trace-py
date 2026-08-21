@@ -13,6 +13,7 @@ from ddtrace.internal.otel_sampling import OtelSamplingState
 from ddtrace.internal.sampling import _set_sampling_tags
 from ddtrace.trace import Context
 from ddtrace.trace import Span
+from tests.utils import override_global_config
 
 
 def _ot_fields(tracestate):
@@ -196,6 +197,28 @@ def test_rate_limiter_drop_does_not_emit_otel_threshold():
 
     assert span.context.sampling_priority == USER_REJECT
     assert "ot=" not in span.context._tracestate
+
+
+def test_zero_sample_rate_does_not_emit_otel_threshold():
+    span = Span("test", trace_id=1, span_id=1)
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0)], rate_limit=-1)
+
+    sampler.sample(span)
+
+    assert "ot=" not in span.context._tracestate
+
+
+def test_global_sampling_rule_emits_otel_threshold():
+    with override_global_config({"_trace_sampling_rules": '[{"sample_rate": 0.1}]'}):
+        span = Span("test", trace_id=1, span_id=1)
+        sampler = DatadogSampler(rate_limit=-1)
+
+    sampler.sample(span)
+
+    assert _ot_fields(span.context._tracestate) == {
+        "rv": "f0948a54d43b8e",
+        "th": "e6666666666668",
+    }
 
 
 def test_non_probabilistic_sampling_mechanism_does_not_emit_otel_fields():
