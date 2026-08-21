@@ -100,7 +100,7 @@ def test_uv_build_commands_install_descriptive_uv_lock(run_tests_script, monkeyp
     assert all("CMAKE_BUILD_PARALLEL_LEVEL=12" in command for command in commands)
 
 
-def test_uv_test_command_uses_environment_python_and_run_environment(run_tests_script):
+def test_uv_test_command_uses_environment_executable_and_run_environment(run_tests_script):
     runner, environment = _subprocess_environment(run_tests_script)
 
     command = runner._uv_test_command(
@@ -117,11 +117,10 @@ def test_uv_test_command_uses_environment_python_and_run_environment(run_tests_s
         "subprocess-py312/bin:/home/bits/.cargo/bin:/home/bits/.local/bin:/home/bits/.pyenv/shims:"
         "/home/bits/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
     ) in command
+    assert "PYTHONPATH=/home/bits/project" in command
     assert "VIRTUAL_ENV=/home/bits/project/.cache/uv-test-environments/contrib/subprocess/subprocess-py312" in command
-    assert command[-8:] == [
-        ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin/python",
-        "-m",
-        "pytest",
+    assert command[-6:] == [
+        ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin/pytest",
         "-vvvv",
         "-k",
         "selected",
@@ -154,4 +153,5 @@ def test_uv_commands_execute_directly_in_gitlab_ci(run_tests_script, monkeypatch
     assert command[0] == "env"
     environment_bin = str(_ROOT / ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin")
     assert any(argument.startswith(f"PATH={environment_bin}:") for argument in command)
-    assert str(_ROOT / ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin/python") in command
+    assert any(argument.startswith(f"PYTHONPATH={_ROOT}") for argument in command)
+    assert str(_ROOT / ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin/pytest") in command

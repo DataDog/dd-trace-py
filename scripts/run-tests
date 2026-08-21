@@ -411,6 +411,9 @@ class TestRunner:
         venv = execution_root / self._uv_environment_path(environment)
         default_path = os.environ.get("PATH", TEST_CONTAINER_PATH) if self.in_ci else TEST_CONTAINER_PATH
         command_env["PATH"] = f"{venv}/bin:{command_env.get('PATH', default_path)}"
+        default_pythonpath = os.environ.get("PYTHONPATH", "") if self.in_ci else ""
+        pythonpath = command_env.get("PYTHONPATH", default_pythonpath)
+        command_env["PYTHONPATH"] = f"{execution_root}:{pythonpath}" if pythonpath else str(execution_root)
         command_env["VIRTUAL_ENV"] = str(venv)
         return command_env
 
@@ -487,11 +490,11 @@ class TestRunner:
         if not expanded:
             raise ValueError(f"empty uv test command for {environment.id}")
 
-        python = self._uv_execution_path(environment) / "bin/python"
+        environment_bin = self._uv_execution_path(environment) / "bin"
         if expanded[0] == "pytest":
-            expanded[:1] = [str(python), "-m", "pytest"]
+            expanded[0] = str(environment_bin / "pytest")
         elif expanded[0] in ("python", "python3"):
-            expanded[0] = str(python)
+            expanded[0] = str(environment_bin / "python")
         else:
             raise ValueError(f"unsupported uv test command for {environment.id}: {run.command}")
 
