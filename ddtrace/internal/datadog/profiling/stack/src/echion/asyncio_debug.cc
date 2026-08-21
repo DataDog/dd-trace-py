@@ -231,5 +231,8 @@ find_asyncio_debug_table()
 std::optional<AsyncioOffsets>
 find_asyncio_debug_offsets()
 {
-    return find_asyncio_debug_table();
+    // Asyncio is loaded before initialization and its layout cannot change during the process lifetime, so cache both
+    // successful discovery and fail-closed absence.
+    static const auto offsets = find_asyncio_debug_table();
+    return offsets;
 }
