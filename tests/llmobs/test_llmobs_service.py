@@ -2214,6 +2214,24 @@ def test_manifest_name_defaults_to_the_span_name(llmobs):
     assert _agent_manifest(declared)["name"] == "declared_name"
 
 
+@pytest.mark.parametrize(
+    "forged",
+    ["boom", ["boom"], 1, {"agent_manifest": "boom"}, {"agent_manifest": ["boom"]}],
+)
+def test_a_forged_dd_metadata_key_does_not_break_the_merge(llmobs, forged):
+    """Caller metadata is not sanitized until finalization, so `_dd` is still raw when the merge
+    reads it. A non-mapping at either level is ignored rather than raising.
+    """
+    with llmobs.agent(name="travel_desk_span") as span:
+        llmobs.annotate(span=span, metadata={"_dd": forged}, agent={"model": "gpt-4o"})
+
+    assert _agent_manifest(span) == {
+        "framework": MANUAL_FRAMEWORK_NAME,
+        "name": "travel_desk_span",
+        "model": "gpt-4o",
+    }
+
+
 def test_annotation_context_nested(llmobs):
     with llmobs.annotation_context(tags={"foo": "bar", "boo": "bar"}):
         with llmobs.annotation_context(tags={"foo": "baz"}):

@@ -724,12 +724,23 @@ class LLMObs(Service):
                 # only for the agent spans among them. Must precede the llmobs_meta read below.
                 agent_manifest = build_manual_agent_manifest(declared_agent)
                 if agent_manifest:
-                    existing = ((llmobs_data.get(LLMOBS_STRUCT.META) or {}).get(LLMOBS_STRUCT.METADATA) or {}).get(
-                        LLMOBS_STRUCT.METADATA_DD
-                    ) or {}
+                    # Both levels are type-checked because caller metadata is not sanitized until
+                    # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
+                    # non-mapping would otherwise raise AttributeError, which the handler around
+                    # this path does not catch.
+                    existing = (llmobs_data.get(LLMOBS_STRUCT.META) or {}).get(LLMOBS_STRUCT.METADATA)
+                    if not isinstance(existing, dict):
+                        existing = {}
+                    existing_dd = existing.get(LLMOBS_STRUCT.METADATA_DD)
+                    if not isinstance(existing_dd, dict):
+                        # `_dd` is reserved, so a caller value here is discarded rather than merged
+                        # into. Reset it so the write below has a mapping to assign into.
+                        existing_dd = {}
+                        existing[LLMOBS_STRUCT.METADATA_DD] = existing_dd
+                    existing_manifest = existing_dd.get(LLMOBS_STRUCT.AGENT_MANIFEST)
                     # Merged, not replaced: an integration may have already reported this agent and
                     # the caller is annotating a few fields on top.
-                    merged: dict[str, Any] = dict(existing.get(LLMOBS_STRUCT.AGENT_MANIFEST) or {})
+                    merged: dict[str, Any] = dict(existing_manifest) if isinstance(existing_manifest, dict) else {}
                     declared_fields = dict(agent_manifest)
                     if merged:
                         # The caller never supplies framework, so it keeps naming whoever built the

@@ -233,9 +233,11 @@ class Agent(TypedDict, total=False):
         name: str - overrides the agent's name, which defaults to the agent span's name.
         instructions: str - the system instructions the agent runs with.
         model: str - the model the agent is configured to call.
-        model_settings: dict[str, Any] - inference parameters such as temperature or max_tokens.
-            Filtered by ALLOWED_MODEL_SETTINGS_KEYS: generic inference parameters are reported and
-            provider-specific ones such as extra_headers are dropped, since they can carry secrets.
+        model_settings: dict[str, Any] - inference parameters. Only these keys are reported:
+            frequency_penalty, logit_bias, logprobs, max_tokens, parallel_tool_calls,
+            presence_penalty, seed, stop_sequences, temperature, timeout, tool_choice, top_k,
+            top_logprobs, top_p. Anything else is dropped, including provider-specific keys such as
+            extra_headers, since those can carry secrets.
         tools: list[AgentTool] - the tools the agent declares it can call.
 
     `version` becomes an `agent_version` tag and the rest the agent's manifest, on the agent span
