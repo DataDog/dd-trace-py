@@ -25,6 +25,10 @@ SPEC_PATTERNS = {_ for suite in spec.get_suites() for _ in spec.get_patterns(sui
 # Ignore any embedded documentation
 IGNORE_PATTERNS.add("**/*.md")
 
+# Standalone scripts/*.py tests run directly (e.g. via scripts/gen_gitlab_config.py's own check
+# list), not through a riot-managed suite, so they have no suite pattern to match against.
+IGNORE_PATTERNS.add("tests/scripts/*.py")
+
 
 def owners(path: str) -> str:
     return ", ".join(CODEOWNERS.of(path))
