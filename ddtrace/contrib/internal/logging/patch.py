@@ -31,7 +31,8 @@ def get_version() -> str:
     # test_module_watchdog_namespace_import_no_warnings) while still returning the value.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
-        return getattr(logging, "__version__", "")
+        version: str = getattr(logging, "__version__", "")
+        return version
 
 
 def _supported_versions() -> dict[str, str]:
