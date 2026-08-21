@@ -137,27 +137,23 @@ class SomeTestCase(unittest.TestCase):
 
 class PytestXdistATRTestCase(PytestTestCaseBase):
     @pytest.fixture(autouse=True, scope="function")
-    def setup_sitecustomize(self):
+    def setup_xdist_settings(self):
         """
-        This allows to patch the tracer before the tests are run, so it works
-        in the xdist worker processes.
+        Patch the tracer before pytest configures the xdist workers.
         """
-        sitecustomize_content = """
-# sitecustomize.py
+        xdist_settings = """
 from unittest import mock
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
-import ddtrace.internal.ci_visibility.recorder # Ensure parent module is loaded
 
-_GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
+_SETTINGS_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
     return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True)
 )
-_GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
+XDIST_PATCHES = [_SETTINGS_PATCH]
 """
-        self.testdir.makepyfile(sitecustomize=sitecustomize_content)
+        self.make_xdist_conftest(xdist_settings)
 
     def inline_run(self, *args, **kwargs):
-        # Add -n 2 to the end of the command line arguments
         args = list(args) + ["-n", "2", "-c", "/dev/null"]
         return super().inline_run(*args, **kwargs)
 

@@ -84,9 +84,7 @@ class SomeTestCase(unittest.TestCase):
 class PytestXdistITRTestCase(PytestTestCaseBase):
     def test_pytest_xdist_itr_skips_tests_at_test_level_by_pytest_addopts_env_var(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
-        # Create a simplified sitecustomize with just the essential ITR setup
-        itr_skipping_sitecustomize = """
-# sitecustomize.py - Simplified ITR setup for xdist
+        xdist_settings = """
 from unittest import mock
 
 # Import required modules
@@ -113,32 +111,22 @@ skippable_tests = {
 
 itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_tests)
 
-# Mock API calls to return our settings
-mock.patch(
+_SETTINGS_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
     return_value=itr_settings
-).start()
+)
 
-# Mock fetch_skippable_items to return our test data
-mock.patch(
+_SKIPPABLE_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
     return_value=itr_data
-).start()
+)
+XDIST_PATCHES = [_SETTINGS_PATCH, _SKIPPABLE_PATCH]
 
-# Set ITR data when CIVisibility is enabled
-import ddtrace.internal.ci_visibility.recorder
-CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
-original_enable = CIVisibility.enable
-
-def patched_enable(cls, *args, **kwargs):
-    result = original_enable(*args, **kwargs)
-    if cls._instance:
-        cls._instance._itr_data = itr_data
-    return result
-
-CIVisibility.enable = classmethod(patched_enable)
+def configure_xdist():
+    if CIVisibility._instance:
+        CIVisibility._instance._itr_data = itr_data
 """
-        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_conftest(xdist_settings)
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.chdir()
@@ -188,8 +176,7 @@ CIVisibility.enable = classmethod(patched_enable)
     def test_xdist_suite_mode_skipped_suites(self):
         """Test that suite-level ITR skipping works correctly in xdist and counts suites, not individual tests."""
 
-        itr_skipping_sitecustomize = """
-# sitecustomize.py - ITR setup for xdist worker nodes
+        xdist_settings = """
 from unittest import mock
 
 # Import required modules
@@ -213,39 +200,29 @@ skippable_suites = {
 }
 itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_suites)
 
-# Mock API calls to return our settings
-mock.patch(
+_API_SETTINGS_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
     return_value=itr_settings
-).start()
+)
 
-mock.patch(
+_SETTINGS_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
     return_value=itr_settings
-).start()
+)
 
-# Mock fetch_skippable_items to return our test data
-mock.patch(
+_SKIPPABLE_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
     return_value=itr_data
-).start()
+)
+XDIST_PATCHES = [_API_SETTINGS_PATCH, _SETTINGS_PATCH, _SKIPPABLE_PATCH]
 
-# Set ITR data when CIVisibility is enabled
-import ddtrace.internal.ci_visibility.recorder
-CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
-original_enable = CIVisibility.enable
-
-def patched_enable(cls, *args, **kwargs):
-    result = original_enable(*args, **kwargs)
-    if cls._instance:
-        cls._instance._itr_data = itr_data
-    return result
-
-CIVisibility.enable = classmethod(patched_enable)
+def configure_xdist():
+    if CIVisibility._instance:
+        CIVisibility._instance._itr_data = itr_data
 """
 
         # Create test files
-        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_conftest(xdist_settings)
         self.testdir.makepyfile(
             test_scope1="""
 import pytest
@@ -315,9 +292,7 @@ class TestScope2:
 
     def test_pytest_xdist_itr_skips_tests_at_test_level_without_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
-        # Create a simplified sitecustomize with just the essential ITR setup
-        itr_skipping_sitecustomize = """
-# sitecustomize.py - Simplified ITR setup for xdist
+        xdist_settings = """
 from unittest import mock
 
 # Import required modules
@@ -344,32 +319,22 @@ skippable_tests = {
 
 itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_tests)
 
-# Mock API calls to return our settings
-mock.patch(
+_SETTINGS_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
     return_value=itr_settings
-).start()
+)
 
-# Mock fetch_skippable_items to return our test data
-mock.patch(
+_SKIPPABLE_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
     return_value=itr_data
-).start()
+)
+XDIST_PATCHES = [_SETTINGS_PATCH, _SKIPPABLE_PATCH]
 
-# Set ITR data when CIVisibility is enabled
-import ddtrace.internal.ci_visibility.recorder
-CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
-original_enable = CIVisibility.enable
-
-def patched_enable(cls, *args, **kwargs):
-    result = original_enable(*args, **kwargs)
-    if cls._instance:
-        cls._instance._itr_data = itr_data
-    return result
-
-CIVisibility.enable = classmethod(patched_enable)
+def configure_xdist():
+    if CIVisibility._instance:
+        CIVisibility._instance._itr_data = itr_data
 """
-        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_conftest(xdist_settings)
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.chdir()
@@ -418,9 +383,7 @@ CIVisibility.enable = classmethod(patched_enable)
 
     def test_pytest_xdist_itr_skips_tests_at_suite_level_with_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
-        # Create a simplified sitecustomize with just the essential ITR setup
-        itr_skipping_sitecustomize = """
-# sitecustomize.py - Simplified ITR setup for xdist
+        xdist_settings = """
 from unittest import mock
 
 # Import required modules
@@ -445,32 +408,22 @@ skippable_suites = {
 }
 itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_suites)
 
-# Mock API calls to return our settings
-mock.patch(
+_SETTINGS_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
     return_value=itr_settings
-).start()
+)
 
-# Mock fetch_skippable_items to return our test data
-mock.patch(
+_SKIPPABLE_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
     return_value=itr_data
-).start()
+)
+XDIST_PATCHES = [_SETTINGS_PATCH, _SKIPPABLE_PATCH]
 
-# Set ITR data when CIVisibility is enabled
-import ddtrace.internal.ci_visibility.recorder
-CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
-original_enable = CIVisibility.enable
-
-def patched_enable(cls, *args, **kwargs):
-    result = original_enable(*args, **kwargs)
-    if cls._instance:
-        cls._instance._itr_data = itr_data
-    return result
-
-CIVisibility.enable = classmethod(patched_enable)
+def configure_xdist():
+    if CIVisibility._instance:
+        CIVisibility._instance._itr_data = itr_data
 """
-        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_conftest(xdist_settings)
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.chdir()
@@ -1918,8 +1871,7 @@ def test_func2():
     def test_explicit_env_var_overrides_xdist_test_mode(self):
         """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
         # Create test files for different scopes
-        itr_skipping_sitecustomize = """
-# sitecustomize.py - Simplified ITR setup for xdist
+        xdist_settings = """
 from unittest import mock
 
 # Import required modules
@@ -1944,38 +1896,28 @@ skippable_tests = {
 }
 itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_tests)
 
-# Set ITR data when CIVisibility is enabled
-import ddtrace.internal.ci_visibility.recorder
-CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
-original_enable = CIVisibility.enable
-
-def patched_enable(cls, *args, **kwargs):
-    result = original_enable(*args, **kwargs)
-    if cls._instance:
-        cls._instance._itr_data = itr_data
-    return result
-
-# Mock API calls to return our settings
-mock.patch(
+_API_SETTINGS_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
     return_value=itr_settings
-).start()
+)
 
-mock.patch(
+_SETTINGS_PATCH = mock.patch(
      "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
     return_value=itr_settings
-).start()
+)
 
-# Mock fetch_skippable_items to return our test data
-mock.patch(
+_SKIPPABLE_PATCH = mock.patch(
     "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_skippable_items",
     return_value=itr_data
-).start()
+)
+XDIST_PATCHES = [_API_SETTINGS_PATCH, _SETTINGS_PATCH, _SKIPPABLE_PATCH]
 
-CIVisibility.enable = classmethod(patched_enable)
+def configure_xdist():
+    if CIVisibility._instance:
+        CIVisibility._instance._itr_data = itr_data
 
 """
-        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_conftest(xdist_settings)
         self.testdir.makepyfile(
             test_scope1="""
 import pytest

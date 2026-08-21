@@ -2,9 +2,11 @@
 
 import os
 import subprocess
+import sys
 import typing as t
 from unittest.mock import Mock
 
+from _pytest.pytester import Pytester
 import pytest
 
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
@@ -15,6 +17,20 @@ from tests.testing._itr_env import clear_itr_rollout_env  # noqa: F401
 
 # Enable pytester plugin for testing pytest plugins
 pytest_plugins = ["pytester"]
+
+
+@pytest.fixture(autouse=True)
+def suppress_editable_finder_rewrite_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the loaded editable finder out of nested pytest result counts."""
+    if not any(name.startswith("__editable___ddtrace_") and name.endswith("_finder") for name in sys.modules):
+        return
+
+    inline_run = Pytester.inline_run
+
+    def run_with_filter(self: Pytester, *args: t.Any, **kwargs: t.Any) -> t.Any:
+        return inline_run(self, "-W", "ignore:Module already imported so cannot be rewritten", *args, **kwargs)
+
+    monkeypatch.setattr(Pytester, "inline_run", run_with_filter)
 
 
 @pytest.fixture(autouse=True)
