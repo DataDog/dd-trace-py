@@ -8,7 +8,21 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal.settings._config import config
+
+
+if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+    from ddtrace.internal.native._native import is_context_watcher_registered as is_context_watcher_registered
+    from ddtrace.internal.native._native import register_context_watcher as register_context_watcher
+
+else:
+
+    def is_context_watcher_registered() -> bool:
+        return False
+
+    def register_context_watcher() -> bool:
+        return False
 
 
 class TracerProtocol(Protocol):
@@ -19,6 +33,11 @@ class TracerProtocol(Protocol):
 _ContextActivationListener = Callable[[BaseContextProvider, Optional[Union[Context, Span]]], None]
 _ContextSwitchListener = Callable[[], None]
 _ThreadContextListeners = tuple[_ContextActivationListener, _ContextSwitchListener]
+
+
+def context_switches_require_fallback() -> bool:
+    """Whether integrations must publish context switches that the native watcher cannot observe."""
+    return core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT) and not is_context_watcher_registered()
 
 
 if sys.platform == "linux":
@@ -49,13 +68,9 @@ if sys.platform == "linux":
             if provider is tracer.context_provider:
                 _sync_otel_thread_context(ctx)
 
+        register_context_watcher()
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
-        core.on("python.context.switch", _sync_active_otel_thread_context)
-
-        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
-            from ddtrace.internal.native._native import register_context_watcher
-
-            register_context_watcher()
+        core.on(PYTHON_CONTEXT_SWITCH_EVENT, _sync_active_otel_thread_context)
         return _on_context_provider_activate, _sync_active_otel_thread_context
 
 else:

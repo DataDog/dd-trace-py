@@ -1,13 +1,22 @@
 import asyncio
+from contextvars import Context
+from contextvars import copy_context
+from functools import partial
 from typing import Any
+from typing import Callable
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
+from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal.opentelemetry.thread_context import context_switches_require_fallback
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.trace import tracer
+
+
+_context_switch_instrumentation_patched = False
 
 
 def get_version() -> str:
@@ -27,6 +36,11 @@ def patch():
     asyncio._datadog_patch = True
     Pin().onto(asyncio)
     wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
+    global _context_switch_instrumentation_patched
+    if context_switches_require_fallback():
+        wrap(asyncio.Handle._run, _wrapped_run_handle)
+        wrap(asyncio.to_thread, _wrapped_to_thread)
+        _context_switch_instrumentation_patched = True
 
 
 def unpatch():
@@ -36,6 +50,115 @@ def unpatch():
         return
     asyncio._datadog_patch = False
     unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
+    global _context_switch_instrumentation_patched
+    if _context_switch_instrumentation_patched:
+        unwrap(asyncio.Handle._run, _wrapped_run_handle)
+        unwrap(asyncio.to_thread, _wrapped_to_thread)
+        _context_switch_instrumentation_patched = False
+
+
+def _dispatch_context_switch(
+    loop: asyncio.AbstractEventLoop, *, from_worker_thread: bool = False, **details: Any
+) -> None:
+    """Publish a context switch and report ordinary listener failures to the event loop.
+
+    core.dispatch re-raises BaseException, and these dispatches sit outside the guards asyncio wraps
+    application code in, so an escaping Exception would tear the event loop down or take the place of
+    the result of the call being instrumented. Control-flow BaseExceptions must continue to propagate.
+    """
+    try:
+        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+    except Exception as exc:
+        context = {"message": "Exception in ddtrace context switch listener", "exception": exc, **details}
+        if from_worker_thread:
+            loop.call_soon_threadsafe(loop.call_exception_handler, context)
+        else:
+            loop.call_exception_handler(context)
+
+
+def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    if not core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+        return wrapped(*args, **kwargs)
+
+    handle = args[0]
+    original_callback = handle._callback
+
+    def _callback_with_entry_dispatch(*cb_args: Any, **cb_kwargs: Any) -> Any:
+        # Dispatching here, inside the callback, means it runs as part of the single
+        # context.run() that the real _run performs below, instead of a redundant one of
+        # our own just to enter handle._context before the real call does.
+        _dispatch_context_switch(handle._loop)
+        try:
+            return original_callback(*cb_args, **cb_kwargs)
+        except BaseException:
+            # Handle._run formats callback failures before the outer finally below runs.
+            # Restore the application callback now so asyncio reports the right callable.
+            if handle._callback is _callback_with_entry_dispatch:
+                handle._callback = original_callback
+            raise
+
+    handle._callback = _callback_with_entry_dispatch
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        # A callback that cancels its own handle (or another timer's) sets _callback to
+        # None to drop references; only restore ours if nothing else touched the slot.
+        if handle._callback is _callback_with_entry_dispatch:
+            handle._callback = original_callback
+        _dispatch_context_switch(handle._loop, handle=handle)
+
+
+def _run_with_context_switches(
+    loop: asyncio.AbstractEventLoop, context: Context, func: Callable[..., Any], /, *args: Any, **kwargs: Any
+) -> Any:
+    """Publish the copied context on entry and the restored worker context on exit.
+
+    asyncio.to_thread propagates a copied Context into a pooled worker. The exit dispatch
+    must run after context.run restores that worker's ambient Context so native state agrees
+    with the context provider before the thread accepts another job.
+    """
+
+    def run_in_context() -> Any:
+        _dispatch_context_switch(loop, from_worker_thread=True)
+        return func(*args, **kwargs)
+
+    try:
+        return context.run(run_in_context)
+    finally:
+        _dispatch_context_switch(loop, from_worker_thread=True)
+
+
+async def _to_thread_with_context_switches(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    loop = asyncio.get_running_loop()
+    context = copy_context()
+    func_call = partial(_run_with_context_switches, loop, context, func, *args, **kwargs)
+    return await loop.run_in_executor(None, func_call)
+
+
+def _wrapped_to_thread(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    if not args or not core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+        # A missing target is asyncio.to_thread's own TypeError to raise.
+        return wrapped(*args, **kwargs)
+
+    return _to_thread_with_context_switches(args[0], *args[1:], **kwargs)
+
+
+def _may_start_eagerly(loop: Any, kwargs: dict[str, Any]) -> bool:
+    """Whether this create_task call could run the coroutine's first step inline.
+
+    An eager first step bypasses Handle._run, so its context switch has to be published from
+    inside the coroutine instead. Only the standard eager task factory and an explicit
+    eager_start (3.14+) are known to run inline; arbitrary custom factories retain the fast path.
+    """
+    eager_task_factory = getattr(asyncio, "eager_task_factory", None)
+    return (
+        _context_switch_instrumentation_patched
+        and core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT)
+        and (
+            bool(kwargs.get("eager_start"))
+            or (eager_task_factory is not None and loop.get_task_factory() is eager_task_factory)
+        )
+    )
 
 
 def _wrapped_create_task(wrapped, args, kwargs):
@@ -43,26 +166,39 @@ def _wrapped_create_task(wrapped, args, kwargs):
     By default the trace context is propagated when a task is executed and NOT when it is created.
     """
     pin = Pin.get_from(asyncio)
-    if not pin or not pin.enabled():
+    pin_enabled = bool(pin and pin.enabled())
+
+    loop = args[0]
+    may_start_eagerly = _may_start_eagerly(loop, kwargs)
+    if not pin_enabled and not may_start_eagerly:
         return wrapped(*args, **kwargs)
 
     # Get current trace context
     task_data: dict[str, Any] = {}
-    core.dispatch("asyncio.create_task", (task_data,))
-
-    dd_active = tracer.current_trace_context()
-    # Only wrap the coroutine if we have an active trace context
-    if not dd_active:
+    dd_active = None
+    if pin_enabled:
+        core.dispatch("asyncio.create_task", (task_data,))
+        dd_active = tracer.current_trace_context()
+    if not dd_active and not may_start_eagerly:
         return wrapped(*args, **kwargs)
 
     # Get the coroutine
     coro = get_argument_value(args, kwargs, 1, "coro")
 
+    # True only while wrapped() runs, which is exactly when an eager first step happens.
+    eager_start_pending = may_start_eagerly
+    eager_switch_published = False
+
     # Wrap the coroutine and ensure the current trace context is propagated
     async def traced_coro(*args_c, **kwargs_c):
-        if dd_active != tracer.current_trace_context():
-            tracer.context_provider.activate(dd_active)
-        core.dispatch("asyncio.execute_task", (task_data,))
+        nonlocal eager_switch_published
+        if eager_start_pending:
+            eager_switch_published = True
+            _dispatch_context_switch(loop)
+        if dd_active:
+            if dd_active != tracer.current_trace_context():
+                tracer.context_provider.activate(dd_active)
+            core.dispatch("asyncio.execute_task", (task_data,))
         return await coro
 
     # DEV: try to persist the original function name (useful for debugging)
@@ -73,4 +209,10 @@ def _wrapped_create_task(wrapped, args, kwargs):
         tc.__qualname__ = coro.__qualname__
     args, kwargs = set_argument_value(args, kwargs, 1, "coro", tc)
 
-    return wrapped(*args, **kwargs)
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        eager_start_pending = False
+        if eager_switch_published:
+            # Restore the caller's context for listeners after the eager step ran inline.
+            _dispatch_context_switch(loop)
