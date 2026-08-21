@@ -7,9 +7,17 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._core import ValueSource
 
 
 log = get_logger(__name__)
+
+AGENTLESS = "agentless"
+REMOTE_CONFIG = "remote_config"
+DISABLED = "disabled"
+
+_CONFIGURATION_SOURCE_ENV = "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE"
+_LEGACY_PROVIDER_ENABLED_ENV = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
 
 
 # AIDEV-NOTE: numeric settings here parse leniently on purpose. This class is instantiated at
@@ -47,7 +55,7 @@ class OpenFeatureConfig(DDConfig):
     # Experimental flagging provider
     experimental_flagging_provider_enabled = DDConfig.var(
         bool,
-        "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED",
+        _LEGACY_PROVIDER_ENABLED_ENV,
         default=False,
     )
 
@@ -111,7 +119,7 @@ class OpenFeatureConfig(DDConfig):
     # grandfathering are resolved by the source-selection layer.
     configuration_source = DDConfig.var(
         str,
-        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE",
+        _CONFIGURATION_SOURCE_ENV,
         default="agentless",
         parser=lambda v: v.strip().lower(),
     )
@@ -154,6 +162,42 @@ class OpenFeatureConfig(DDConfig):
         "configuration_source_agentless_poll_interval_seconds",
         "configuration_source_agentless_request_timeout_seconds",
     ]
+
+
+def _provided(ffe_config: OpenFeatureConfig, env_name: str) -> bool:
+    """True when the value came from an external source rather than the default."""
+    return ffe_config.value_source(env_name) != ValueSource.DEFAULT
+
+
+def resolve_configuration_source(ffe_config: OpenFeatureConfig) -> str:
+    """Resolve the active source: ``agentless``, ``remote_config`` or ``disabled``.
+
+    Precedence (mirrors dd-trace-js):
+
+    1. Stable kill switch off -> disabled.
+    2. Explicit source -> use it; an unsupported/reserved value (e.g. ``offline``)
+       fails closed to disabled without contacting any source.
+    3. Source absent -> grandfather on the legacy experimental flag: explicitly
+       true -> remote_config, explicitly false -> disabled.
+    4. Otherwise the default -> agentless.
+    """
+    if not ffe_config.feature_flags_enabled:
+        return DISABLED
+
+    source = ffe_config.configuration_source or ""
+    if _provided(ffe_config, _CONFIGURATION_SOURCE_ENV) and source:
+        if source == AGENTLESS:
+            return AGENTLESS
+        if source == REMOTE_CONFIG:
+            return REMOTE_CONFIG
+        log.warning("Unsupported Feature Flagging configuration source %r; provider disabled", source)
+        return DISABLED
+
+    # Source absent (unset or blank): preserve legacy Remote Config grandfathering.
+    if _provided(ffe_config, _LEGACY_PROVIDER_ENABLED_ENV):
+        return REMOTE_CONFIG if ffe_config.experimental_flagging_provider_enabled else DISABLED
+
+    return AGENTLESS
 
 
 # Global config instance

@@ -545,7 +545,7 @@ class TestPrompts:
             id="greeting", version="v1", label=None, source="resolve", template="HTTP Hello!"
         )
 
-        with patch("ddtrace.internal.openfeature._source_selection.resolve_configuration_source", return_value=source):
+        with patch("ddtrace.internal.settings.openfeature.resolve_configuration_source", return_value=source):
             with patch("ddtrace.internal.openfeature._remoteconfiguration.enable_featureflags_rc") as enable_rc:
                 with patch("openfeature.api.set_provider") as set_provider:
                     with patch("openfeature.api.get_client", return_value=client):
