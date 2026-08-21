@@ -10,6 +10,7 @@ from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.bytecode_injection import eject_all_hooks
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hooks
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.wrapping import get_function_code
 from ddtrace.internal.wrapping.context import ContextWrappedFunction
@@ -96,7 +97,7 @@ class FunctionStore(object):
             wrapping_context.unwrap()
         self._wrapper_map.clear()
 
-        if PY >= (3, 15):
+        if PY >= NEXT_PY_VERSION_INFO:
             functions: list[FunctionType] = list(self._code_map)
             for function in functions:
                 eject_all_hooks(function)
