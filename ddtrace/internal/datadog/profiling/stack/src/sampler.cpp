@@ -259,26 +259,39 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
 {
     auto* const runtime = &_PyRuntime;
 
+    interpreter_candidates.clear();
+    const bool interpreter_snapshot_complete =
+      for_each_interp(runtime, [&](InterpreterInfo& interp) { interpreter_candidates.push_back(interp); });
+#if PY_VERSION_HEX >= 0x030e0000
+    // This lock-free snapshot can race with code destruction during the sampling cycle. In that case, the current
+    // cycle may use stale frame metadata; the next cycle observes the generation change and clears the cache.
+    if (!echion->update_code_object_generations(interpreter_candidates, interpreter_snapshot_complete)) {
+        return;
+    }
+#else
+    (void)interpreter_snapshot_complete;
+#endif
+
     // When max_threads_per_sample is set, we collect all threads first, then apply
     // reservoir sampling (Algorithm R) to select a uniform random subset, and only
     // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
     if (max_threads_per_sample == 0) {
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+        for (auto& interp : interpreter_candidates) {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
                 auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
             });
-        });
+        }
     } else {
         thread_candidates.clear();
 
-        for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+        for (auto& interp : interpreter_candidates) {
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
                 thread_candidates.push_back(*tstate);
             });
-        });
+        }
 
         // Algorithm R: if we have more threads than the cap, select a uniform random subset.
         // Selected threads are placed in [0, sample_count). Overflow threads remain in
@@ -611,6 +624,11 @@ Sampler::postfork_child()
     paused_.store(false);
     new (&pause_mutex_) std::mutex();
     new (&pause_cv_) std::condition_variable();
+
+    // The parent sampling thread may have been mutating these vectors when fork took its snapshot. Abandon their
+    // inherited storage instead of traversing potentially inconsistent state in clear() or push_back().
+    new (&interpreter_candidates) std::vector<InterpreterInfo>();
+    new (&thread_candidates) std::vector<PyThreadState>();
 
     // Drop any error inherited from the parent: the parent reports its own errors, and
     // reporting it again here would attribute it to the wrong process.

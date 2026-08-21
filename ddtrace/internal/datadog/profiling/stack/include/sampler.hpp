@@ -14,6 +14,7 @@
 
 #include "constants.hpp"
 
+#include "echion/interp.h"
 #include "echion/task_name.h"
 #include "echion/timing.h"
 
@@ -97,6 +98,7 @@ class Sampler
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
     std::minstd_rand rng{ std::random_device{}() };
+    std::vector<InterpreterInfo> interpreter_candidates;
     std::vector<PyThreadState> thread_candidates;
     void adapt_sampling_interval();
 
