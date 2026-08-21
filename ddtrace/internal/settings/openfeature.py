@@ -16,8 +16,8 @@ AGENTLESS = "agentless"
 REMOTE_CONFIG = "remote_config"
 DISABLED = "disabled"
 
-_CONFIGURATION_SOURCE_ENV = "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE"
-_LEGACY_PROVIDER_ENABLED_ENV = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
+_SOURCE_ENV = "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE"
+_LEGACY_ENV = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
 
 
 # AIDEV-NOTE: numeric settings here parse leniently on purpose. This class is instantiated at
@@ -55,7 +55,7 @@ class OpenFeatureConfig(DDConfig):
     # Experimental flagging provider
     experimental_flagging_provider_enabled = DDConfig.var(
         bool,
-        _LEGACY_PROVIDER_ENABLED_ENV,
+        _LEGACY_ENV,
         default=False,
     )
 
@@ -119,7 +119,7 @@ class OpenFeatureConfig(DDConfig):
     # grandfathering are resolved by the source-selection layer.
     configuration_source = DDConfig.var(
         str,
-        _CONFIGURATION_SOURCE_ENV,
+        _SOURCE_ENV,
         default="agentless",
         parser=lambda v: v.strip().lower(),
     )
@@ -185,7 +185,7 @@ def resolve_configuration_source(ffe_config: OpenFeatureConfig) -> str:
         return DISABLED
 
     source = ffe_config.configuration_source or ""
-    if _provided(ffe_config, _CONFIGURATION_SOURCE_ENV) and source:
+    if _provided(ffe_config, _SOURCE_ENV) and source:
         if source == AGENTLESS:
             return AGENTLESS
         if source == REMOTE_CONFIG:
@@ -194,7 +194,7 @@ def resolve_configuration_source(ffe_config: OpenFeatureConfig) -> str:
         return DISABLED
 
     # Source absent (unset or blank): preserve legacy Remote Config grandfathering.
-    if _provided(ffe_config, _LEGACY_PROVIDER_ENABLED_ENV):
+    if _provided(ffe_config, _LEGACY_ENV):
         return REMOTE_CONFIG if ffe_config.experimental_flagging_provider_enabled else DISABLED
 
     return AGENTLESS
