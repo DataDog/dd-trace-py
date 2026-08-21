@@ -7,11 +7,13 @@ from collections.abc import Sequence
 import concurrent.futures
 import datetime as dt
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 
 from tests.environment import LOCK_ROOT
 from tests.environment import TestEnvironment
+from tests.internal.riot_seed_locks import RIOT_SEED_LOCKS
 from tests.matrix import expand_declared_matrices
 
 
@@ -66,6 +68,24 @@ def select_environments(
         for environment in sorted(matrices[suite], key=lambda item: item.ordinal)
     )
     return environments, selected_suites
+
+
+def match_riot_seed_locks(
+    environments: Sequence[TestEnvironment],
+    *,
+    root: Path = PROJECT_ROOT,
+) -> dict[tuple[str, str], Path]:
+    """Map descriptive environment IDs to their checked-in Riot seed locks."""
+    seeds = {}
+    for environment in environments:
+        riot_id = RIOT_SEED_LOCKS.get(environment.suite, {}).get(environment.id)
+        if not isinstance(riot_id, str) or re.fullmatch(r"[0-9a-f]{7}", riot_id) is None:
+            raise LockError(f"no matching Riot lock for {environment.suite}/{environment.id}")
+        seed = Path(".riot/requirements") / f"{riot_id}.txt"
+        if not (root / seed).is_file():
+            raise LockError(f"Riot seed lock does not exist: {seed}")
+        seeds[(environment.suite, environment.id)] = seed
+    return seeds
 
 
 def compile_environment(
@@ -146,6 +166,7 @@ def generate_locks(
     root: Path = PROJECT_ROOT,
     jobs: int = 4,
     exclude_newer: str | None = None,
+    seed_locks: Mapping[tuple[str, str], Path] | None = None,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
     """Compile, atomically write, and prune locks for the selected suites."""
@@ -153,22 +174,39 @@ def generate_locks(
     if not environments:
         raise LockError("no concrete test environments selected")
 
-    cutoff = exclude_newer or cooldown_cutoff()
     compiled: dict[TestEnvironment, str] = {}
-    errors = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
-        futures = {
-            executor.submit(compile_environment, environment, root=root, exclude_newer=cutoff, run=run): environment
-            for environment in environments
-        }
-        for future in concurrent.futures.as_completed(futures):
-            environment = futures[future]
-            try:
-                compiled[environment] = future.result()
-            except LockError as error:
-                errors.append(error)
-    if errors:
-        raise LockError("\n\n".join(str(error) for error in errors))
+    if seed_locks is not None:
+        for environment in environments:
+            key = (environment.suite, environment.id)
+            seed = seed_locks.get(key)
+            if seed is None:
+                raise LockError(f"no Riot seed lock for {environment.suite}/{environment.id}")
+            seed_path = root / seed
+            if not seed_path.is_file():
+                raise LockError(f"Riot seed lock does not exist: {seed}")
+            compiled[environment] = seed_path.read_text()
+    else:
+        cutoff = exclude_newer or cooldown_cutoff()
+        errors = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
+            futures = {
+                executor.submit(
+                    compile_environment,
+                    environment,
+                    root=root,
+                    exclude_newer=cutoff,
+                    run=run,
+                ): environment
+                for environment in environments
+            }
+            for future in concurrent.futures.as_completed(futures):
+                environment = futures[future]
+                try:
+                    compiled[environment] = future.result()
+                except LockError as error:
+                    errors.append(error)
+        if errors:
+            raise LockError("\n\n".join(str(error) for error in errors))
 
     written = []
     for environment in environments:
@@ -191,7 +229,17 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        written, pruned = generate_locks(get_suites(), get_matrix_defaults(), args.suites, jobs=args.jobs)
+        suites = get_suites()
+        defaults = get_matrix_defaults()
+        environments, _ = select_environments(suites, defaults, args.suites)
+        seeds = match_riot_seed_locks(environments)
+        written, pruned = generate_locks(
+            suites,
+            defaults,
+            args.suites,
+            jobs=args.jobs,
+            seed_locks=seeds,
+        )
     except LockError as error:
         parser.error(str(error))
     print(f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s).")

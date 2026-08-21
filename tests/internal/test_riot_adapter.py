@@ -1,3 +1,4 @@
+from pathlib import Path
 import re
 import types
 
@@ -81,3 +82,4 @@ def test_riot_adapter_groups_execution_variants_and_inherited_dependencies():
     assert environment.services == ("redis",)
     assert environment.snapshot is True
     assert environment.retry == 2
+    assert environment.lockfile == Path(".riot/requirements/shared-dependencies.txt")

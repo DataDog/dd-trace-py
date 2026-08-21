@@ -36,6 +36,17 @@ def _fake_uv(command, **kwargs):
     return subprocess.CompletedProcess(command, 0, requirements, "")
 
 
+def _seed_lock(tmp_path):
+    seed = tmp_path / ".riot/requirements/seed.txt"
+    seed.parent.mkdir(parents=True, exist_ok=True)
+    seed.write_text("example==1.0.0\npytest==8.0.0\n")
+    return seed.relative_to(tmp_path)
+
+
+def _seed_locks(seed):
+    return {("contrib::example", "example-py311"): seed}
+
+
 def test_select_environments_accepts_short_and_full_suite_names():
     suites = {"contrib::example": _suite(), "tracer": _suite("pytest tests/tracer")}
 
@@ -95,6 +106,7 @@ def test_cooldown_cutoff_rejects_naive_timestamps():
 
 
 def test_generate_locks_prunes_only_selected_suite(tmp_path):
+    seed = _seed_lock(tmp_path)
     obsolete = tmp_path / "tests/locks/contrib/example/obsolete.txt"
     unrelated = tmp_path / "tests/locks/tracer/obsolete.txt"
     obsolete.parent.mkdir(parents=True)
@@ -108,6 +120,7 @@ def test_generate_locks_prunes_only_selected_suite(tmp_path):
         ["example"],
         root=tmp_path,
         jobs=2,
+        seed_locks=_seed_locks(seed),
         run=_fake_uv,
     )
 
@@ -126,9 +139,25 @@ def test_generate_locks_does_not_modify_existing_locks_on_compile_failure(tmp_pa
         raise subprocess.CalledProcessError(1, command, stderr="resolution failed")
 
     with pytest.raises(LockError, match="resolution failed"):
-        generate_locks({"contrib::example": _suite()}, {}, ["example"], root=tmp_path, run=failed_uv)
+        generate_locks(
+            {"contrib::example": _suite()},
+            {},
+            ["example"],
+            root=tmp_path,
+            run=failed_uv,
+        )
 
     assert lockfile.read_text() == "existing==1\n"
+
+
+def test_compile_environment_reports_resolution_failure(tmp_path):
+    environment = select_environments({"contrib::example": _suite()}, {}, ["example"])[0][0]
+
+    def failed_uv(command, **kwargs):
+        raise subprocess.CalledProcessError(1, command, stderr="resolution failed")
+
+    with pytest.raises(LockError, match="resolution failed"):
+        compile_environment(environment, root=tmp_path, run=failed_uv)
 
 
 def test_generated_locks_cover_every_declared_environment():

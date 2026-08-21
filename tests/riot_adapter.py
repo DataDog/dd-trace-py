@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from pathlib import Path
 import re
 from typing import Any
 
@@ -77,6 +78,7 @@ def load_riot_test_environments(
                     python=str(first.py._hint),
                     direct_dependencies=_direct_dependencies(first),
                     runs=runs,
+                    lockfile=Path(".riot/requirements") / f"{environment_id}.txt",
                     ordinal=ordinal,
                     **metadata,
                 )
