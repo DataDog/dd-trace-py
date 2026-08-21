@@ -40,6 +40,8 @@ struct PyAsyncioDebugOffsets
 
 static_assert(sizeof(PyAsyncioDebugOffsets) == 13 * sizeof(uint64_t));
 
+// Section discovery avoids depending on _asyncio's private module-state layout. Parsing still assumes that CPython
+// preserves this debug table's layout within a minor version, matching CPython's remote-unwinding protocol.
 inline std::optional<AsyncioOffsets>
 parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets)
 {
@@ -49,15 +51,31 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets)
 
     constexpr uint64_t node_size = 2 * sizeof(uintptr_t);
     constexpr uint64_t max_size = std::numeric_limits<size_t>::max();
-    const auto valid_head = [](uint64_t size, uint64_t head) {
-        return size >= node_size && head <= size - node_size && head % alignof(uintptr_t) == 0 && head <= max_size;
+    const auto valid_field = [](uint64_t size, uint64_t field, uint64_t width, uint64_t alignment) {
+        return size >= width && field <= size - width && field % alignment == 0 && field <= max_size;
     };
 
-    if (!valid_head(offsets->interpreter.size, offsets->interpreter.asyncio_tasks_head) ||
-        !valid_head(offsets->thread.size, offsets->thread.asyncio_tasks_head)) {
+    // AsyncioDebug has no cookie, so validate the complete schema to reject false-positive section matches.
+    if (!valid_field(offsets->task.size, offsets->task.task_name, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets->task.size, offsets->task.task_awaited_by, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets->task.size, offsets->task.task_is_task, sizeof(char), alignof(char)) ||
+        !valid_field(offsets->task.size, offsets->task.task_awaited_by_is_set, sizeof(char), alignof(char)) ||
+        !valid_field(offsets->task.size, offsets->task.task_coro, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets->task.size, offsets->task.task_node, node_size, alignof(uintptr_t)) ||
+        !valid_field(
+          offsets->interpreter.size, offsets->interpreter.asyncio_tasks_head, node_size, alignof(uintptr_t)) ||
+        !valid_field(
+          offsets->thread.size, offsets->thread.asyncio_running_loop, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(
+          offsets->thread.size, offsets->thread.asyncio_running_task, sizeof(uintptr_t), alignof(uintptr_t)) ||
+        !valid_field(offsets->thread.size, offsets->thread.asyncio_tasks_head, node_size, alignof(uintptr_t))) {
         return std::nullopt;
     }
 
     return AsyncioOffsets{ static_cast<size_t>(offsets->interpreter.asyncio_tasks_head),
                            static_cast<size_t>(offsets->thread.asyncio_tasks_head) };
 }
+
+// Finds and parses the platform-specific AsyncioDebug binary section in the current process.
+std::optional<AsyncioOffsets>
+find_asyncio_debug_offsets();

@@ -57,6 +57,7 @@ endif()
 # Specify the target C-extension that we want to build
 add_library(
     ${EXTENSION_NAME} SHARED
+    src/echion/asyncio_debug.cc
     src/echion/danger.cc
     src/echion/frame.cc
     src/echion/greenlets.cc
@@ -135,7 +136,7 @@ elseif(UNIX)
     endif()
 endif()
 
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads ${CMAKE_DL_LIBS})
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)

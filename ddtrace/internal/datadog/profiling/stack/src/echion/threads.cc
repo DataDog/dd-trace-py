@@ -7,6 +7,7 @@
 #include "dd_wrapper/include/defer.hpp"
 
 #include <algorithm>
+#include <limits>
 #include <optional>
 #include <random>
 #include <string_view>
@@ -420,7 +421,8 @@ ThreadInfo::get_tasks_from_thread_linked_list(EchionSampler& echion, std::vector
     }
 
     const size_t asyncio_tasks_head_offset = echion.asyncio_thread_tasks_head_offset();
-    if (asyncio_tasks_head_offset == 0) {
+    if (asyncio_tasks_head_offset == 0 ||
+        asyncio_tasks_head_offset > std::numeric_limits<uintptr_t>::max() - this->tstate_addr) {
         return ErrorKind::TaskInfoError;
     }
     uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
@@ -438,10 +440,12 @@ ThreadInfo::get_tasks_from_interpreter_linked_list(EchionSampler& echion,
     }
 
     const size_t asyncio_tasks_head_offset = echion.asyncio_interpreter_tasks_head_offset();
-    if (asyncio_tasks_head_offset == 0) {
+    const uintptr_t interpreter_addr = reinterpret_cast<uintptr_t>(tstate->interp);
+    if (asyncio_tasks_head_offset == 0 ||
+        asyncio_tasks_head_offset > std::numeric_limits<uintptr_t>::max() - interpreter_addr) {
         return ErrorKind::TaskInfoError;
     }
-    uintptr_t head_addr = reinterpret_cast<uintptr_t>(tstate->interp) + asyncio_tasks_head_offset;
+    uintptr_t head_addr = interpreter_addr + asyncio_tasks_head_offset;
 
     return get_tasks_from_linked_list(echion, head_addr, tasks);
 }

@@ -327,19 +327,13 @@ get_asyncio_offsets(PyObject* module)
         return std::nullopt;
     }
 
-    PyModuleDef* definition = PyModule_GetDef(module);
-    auto* state = static_cast<char*>(PyModule_GetState(module));
-    if (definition == nullptr || state == nullptr || definition->m_size < static_cast<Py_ssize_t>(sizeof(void*))) {
+    const char* name = PyModule_GetName(module);
+    if (name == nullptr || std::strcmp(name, "_asyncio") != 0) {
         PyErr_Clear();
         return std::nullopt;
     }
 
-    // CPython 3.14 keeps a pointer to its AsyncioDebug table in the final module-state field.
-    const PyAsyncioDebugOffsets* debug_offsets;
-    std::memcpy(&debug_offsets, state + definition->m_size - sizeof(debug_offsets), sizeof(debug_offsets));
-
-    PyAsyncioDebugOffsets table;
-    return copy_type(debug_offsets, table) == 0 ? parse_asyncio_debug_offsets(&table) : std::nullopt;
+    return find_asyncio_debug_offsets();
 }
 #endif
 
