@@ -2,6 +2,7 @@
 An API to provide fork-safe functions.
 """
 
+from _thread import get_ident
 import functools
 import logging
 import os
@@ -154,6 +155,67 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         return self.__reduce__()
 
 
+class ResetLock(ResetObject[_unpatched.threading_Lock]):
+    """A lock that resets after fork while active contexts unwind safely."""
+
+    def __init__(self) -> None:
+        super().__init__(_unpatched.threading_Lock)
+        self._self_context_depths: dict[int, int] = {}
+        self._self_fork_owner: typing.Optional[int] = None
+        self._self_fork_depth = 0
+
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+        thread_id = get_ident()
+        if self._self_fork_owner == thread_id:
+            self._self_fork_depth += 1
+            return True
+        return self.__wrapped__.acquire(blocking, timeout)
+
+    def release(self) -> None:
+        if self._self_fork_owner == get_ident():
+            self._self_fork_depth -= 1
+            if self._self_fork_depth == 0:
+                self._self_fork_owner = None
+                self.__wrapped__.release()
+            return
+        self.__wrapped__.release()
+
+    def __enter__(self) -> typing.Any:
+        entered = self.acquire()
+        thread_id = get_ident()
+        self._self_context_depths[thread_id] = self._self_context_depths.get(thread_id, 0) + 1
+        return entered
+
+    def __exit__(self, *args: typing.Any) -> typing.Any:
+        thread_id = get_ident()
+        context_depth = self._self_context_depths[thread_id] - 1
+        if context_depth:
+            self._self_context_depths[thread_id] = context_depth
+        else:
+            del self._self_context_depths[thread_id]
+        self.release()
+        return None
+
+    def __reduce__(self) -> typing.Any:
+        return (ResetLock, ())
+
+    def _reset_object(self) -> None:
+        thread_id = get_ident()
+        context_depth = self._self_context_depths.get(thread_id, 0)
+        if self._self_fork_owner == thread_id:
+            fork_depth = max(context_depth, self._self_fork_depth)
+        else:
+            fork_depth = context_depth
+        self._self_context_depths = {thread_id: context_depth} if context_depth else {}
+        super()._reset_object()
+        self._self_fork_owner = None
+        self._self_fork_depth = 0
+        if fork_depth:
+            self.__wrapped__.acquire()
+            self._self_fork_owner = thread_id
+            self._self_fork_depth = fork_depth
+
+
 _resetable_objects: weakref.WeakSet[ResetObject] = weakref.WeakSet()
 
 
@@ -169,7 +231,7 @@ register(_reset_objects)
 
 
 def Lock() -> _unpatched.threading_Lock:
-    return ResetObject(_unpatched.threading_Lock)
+    return ResetLock()
 
 
 def Event() -> _unpatched.threading_Event:

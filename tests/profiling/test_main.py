@@ -70,6 +70,7 @@ def test_call_script_pprof_output(tmp_path: Path) -> None:
 def test_fork(tmp_path: Path) -> None:
     filename = str(tmp_path / "pprof")
     env = os.environ.copy()
+    env["DD_APPSEC_ENABLED"] = "true"
     env["DD_PROFILING_OUTPUT_PPROF"] = filename
     env["DD_PROFILING_CAPTURE_PCT"] = "100"
     stdout, stderr, exitcode, pid = call_program(

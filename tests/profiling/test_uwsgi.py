@@ -102,6 +102,31 @@ def test_uwsgi_postfork_start_sets_active_instance(monkeypatch: pytest.MonkeyPat
     p.stop(flush=False)  # type: ignore[unreachable]
 
 
+def test_duplicate_uwsgi_postfork_callbacks_do_not_restart_profiler(monkeypatch: pytest.MonkeyPatch) -> None:
+    postfork_callbacks = []
+
+    def _register_postfork(callback, atexit=None):
+        postfork_callbacks.append(callback)
+        raise profiler.uwsgi.uWSGIMasterProcess()
+
+    monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _register_postfork)  # type: ignore[attr-defined]
+
+    p = profiler.Profiler()
+    p.start()
+    p.start()
+
+    assert len(postfork_callbacks) == 2
+    try:
+        postfork_callbacks[0]()
+        postfork_callbacks[1]()
+
+        assert profiler.Profiler._active_instance is p
+        assert p.status == profiler.service.ServiceStatus.RUNNING
+    finally:
+        if p.status == profiler.service.ServiceStatus.RUNNING:
+            p.stop(flush=False)
+
+
 def test_uwsgi_worker_blocks_second_profiler_start(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,

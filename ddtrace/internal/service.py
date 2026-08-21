@@ -2,7 +2,7 @@ import abc
 import enum
 import typing  # noqa:F401
 
-from ddtrace.internal.threads import Lock
+from ddtrace.internal import forksafe
 
 
 class ServiceStatus(enum.Enum):
@@ -29,7 +29,9 @@ class Service(metaclass=abc.ABCMeta):
 
     def __init__(self) -> None:
         self.status: ServiceStatus = ServiceStatus.STOPPED
-        self._service_lock: typing.ContextManager = Lock()
+        # AIDEV-NOTE: Lifecycle methods can release the GIL while holding this lock, so a child
+        # must reset it instead of inheriting ownership from a thread that disappeared at fork.
+        self._service_lock: typing.ContextManager = forksafe.Lock()
 
     def __repr__(self):
         class_name = self.__class__.__name__

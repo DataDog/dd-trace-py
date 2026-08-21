@@ -11,6 +11,7 @@ from typing import cast
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import atexit
+from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
@@ -52,59 +53,137 @@ class Profiler(object):
     def start(self) -> None:
         """Start the profiler."""
         with Profiler._active_lock:
-            active = Profiler._active_instance
-            if active is not None and active is not self and active._profiler.status == service.ServiceStatus.RUNNING:
-                LOG.error(
-                    "A profiler is already running. Only one profiler instance can be active at a time. "
-                    "The second profiler will not be started."
-                )
-                return
+            self._start_with_active_lock()
 
+    def _start_with_active_lock(self, register_on_exit_signal: bool = True) -> None:
+        if not self._active_instance_available_with_active_lock():
+            return
+
+        try:
+            uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
+        except uwsgi.uWSGIMasterProcess:
+            # Do nothing in master, the profiler will be started in each worker via _start_on_fork
+            return
+        except uwsgi.uWSGIConfigDeprecationWarning:
+            LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
+            # Turn off profiling in this case, this is mostly for
+            # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
+            # or --lazy. See uwsgi.check_uwsgi() for details.
+            return
+
+        # AIDEV-NOTE: Process-global ownership remains reserved until startup rollback succeeds.
+        Profiler._active_instance = self
+        self._start_profiler_with_active_lock()
+
+        telemetry_activation_attempted = False
+        try:
+            atexit.register(self.stop)
+
+            telemetry_activation_attempted = True
+            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+
+            # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
+            # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
+            # so without this the last partial profile window is silently lost.
+            # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
+            # _active_lock is already held by the main thread (e.g. during start or stop).
+            if register_on_exit_signal:
+                atexit.register_on_exit_signal(self._stop_on_signal)
+
+            # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
+            # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
+            # For uWSGI, _start_on_fork is registered via uwsgidecorators.postfork() in check_uwsgi().
+
+        except BaseException:
+            # AIDEV-NOTE: Startup bookkeeping failure triggers rollback; process ownership remains
+            # reserved until rollback succeeds, including while a cleanup retry is pending.
+            if telemetry_activation_attempted:
+                try:
+                    telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+                except BaseException:
+                    LOG.debug("Failed to deactivate profiler telemetry after startup failed", exc_info=True)
             try:
-                uwsgi.check_uwsgi(self._start_on_fork, atexit=self.stop)
-            except uwsgi.uWSGIMasterProcess:
-                # Do nothing in master, the profiler will be started in each worker via _start_on_fork
-                return
-            except uwsgi.uWSGIConfigDeprecationWarning:
-                LOG.warning("uWSGI configuration deprecation warning", exc_info=True)
-                # Turn off profiling in this case, this is mostly for
-                # uwsgi<2.0.30 when --skip-atexit is not set with --lazy-apps
-                # or --lazy. See uwsgi.check_uwsgi() for details.
-                return
+                self._rollback_start_with_active_lock()
+            except BaseException:
+                LOG.debug("Failed to clean up profiler after startup bookkeeping failed", exc_info=True)
+            raise
 
+    def _start_profiler_with_active_lock(self) -> None:
+        try:
             self._profiler.start()
-            Profiler._active_instance = self
-
-        atexit.register(self.stop)
-
-        # register_on_exit_signal is needed for processes terminated via SIGTERM (e.g.
-        # Ray workers, Kubernetes pods). Python atexit handlers do NOT run on SIGTERM by default,
-        # so without this the last partial profile window is silently lost.
-        # We register _stop_on_signal (not stop) to avoid deadlocking when SIGTERM arrives while
-        # _active_lock is already held by the main thread (e.g. during start or stop).
-        atexit.register_on_exit_signal(self._stop_on_signal)
-
-        # Note: For regular fork(), native pthread_atfork handlers restart the sampling thread
-        # and PeriodicThread auto-restart handles the Scheduler. No explicit forksafe hook needed.
-        # For uWSGI, _start_on_fork is registered via uwsgidecorators.postfork() in check_uwsgi().
-
-        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+        except BaseException:
+            if self._profiler.status == service.ServiceStatus.STOPPED:
+                try:
+                    self._rollback_start_with_active_lock()
+                except BaseException:
+                    LOG.debug("Failed to clean up partially started profiler", exc_info=True)
+            raise
 
     def stop(self, flush: bool = True) -> None:
         """Stop the profiler.
 
         :param flush: Flush last profile.
         """
-        atexit.unregister(self.stop)
         try:
             with Profiler._active_lock:
-                self._profiler.stop(flush)
-                if Profiler._active_instance is self:
-                    Profiler._active_instance = None
-            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+                self._stop_with_active_lock(flush)
         except service.ServiceStatusError:
             # Not a best practice, but for backward API compatibility that allowed to call `stop` multiple times.
             pass
+
+    def _stop_with_active_lock(self, flush: bool = True) -> None:
+        atexit.unregister(self.stop)
+        if self._profiler._start_cleanup_pending:
+            self._profiler._rollback_start(flush=flush)
+            self._finalize_stop_with_active_lock()
+            return
+        try:
+            self._profiler.stop(flush)
+        except BaseException:
+            if self._profiler.status == service.ServiceStatus.RUNNING:
+                try:
+                    self._profiler._rollback_start(flush=flush)
+                except BaseException:
+                    LOG.debug("Failed to finish profiler cleanup", exc_info=True)
+                else:
+                    self._finalize_stop_with_active_lock()
+            raise
+        self._finalize_stop_with_active_lock()
+
+    def _finalize_stop_with_active_lock(self) -> None:
+        if Profiler._active_instance is self:
+            Profiler._active_instance = None
+        telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
+
+    def _rollback_start_with_active_lock(self) -> None:
+        atexit.unregister(self.stop)
+        self._profiler._rollback_start(flush=False)
+        if Profiler._active_instance is self:
+            Profiler._active_instance = None
+
+    def _active_instance_available_with_active_lock(self) -> bool:
+        active = Profiler._active_instance
+        if active is None or active is self:
+            return True
+        # AIDEV-NOTE: A child can inherit ownership while another thread is rolling startup back.
+        # Finish that inherited transaction before deciding whether a replacement may start.
+        cleanup_generation = getattr(active._profiler, "_start_cleanup_generation", None)
+        if (
+            active._profiler._start_cleanup_pending
+            and isinstance(cleanup_generation, int)
+            and cleanup_generation != forksafe.get_generation()
+        ):
+            try:
+                active._rollback_start_with_active_lock()
+            except BaseException:
+                LOG.debug("Failed to clean up the active profiler before starting another", exc_info=True)
+                return False
+            return True
+        LOG.error(
+            "A profiler is already running. Only one profiler instance can be active at a time. "
+            "The second profiler will not be started."
+        )
+        return False
 
     def _stop_on_signal(self) -> None:
         """Flush and stop the profiler when an exit signal (SIGTERM/SIGINT) is received.
@@ -129,29 +208,29 @@ class Profiler(object):
             return
 
         try:
-            self._profiler.stop(flush=True)
+            self._stop_with_active_lock(flush=True)
         except service.ServiceStatusError:
             pass
         except Exception:
             LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
         finally:
-            if Profiler._active_instance is self:
-                Profiler._active_instance = None
-            telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, False)
             Profiler._active_lock.release()
 
     def _start_on_fork(self) -> None:
         """Start a fresh profiler in child process after fork. This is needed for uWSGI support."""
         with Profiler._active_lock:
-            if Profiler._active_instance is not None:
-                LOG.error(
-                    "A profiler is already running. Only one profiler instance can be active at a time. "
-                    "The second profiler will not be started."
-                )
+            if not self._active_instance_available_with_active_lock():
+                return
+            active = Profiler._active_instance
+            if (
+                active is self
+                and self._profiler.status == service.ServiceStatus.RUNNING
+                and not self._profiler._start_cleanup_pending
+            ):
                 return
 
-            self._profiler.start()
             Profiler._active_instance = self
+            self._start_profiler_with_active_lock()
 
     def __getattr__(self, key: str) -> Any:
         return getattr(self._profiler, key)
@@ -200,13 +279,28 @@ class _ProfilerInstance(service.Service):
         # Note: memalloc.MemoryCollector is not a subclass of collector.Collector, so we need to use a union type.
         #       This is because its snapshot method cannot be static.
         self._collectors: list[collector.Collector | memalloc.MemoryCollector] = []
-        self._collectors_on_import: Optional[list[tuple[str, Callable[[Any], None]]]] = None
+        self._collectors_pending_cleanup: list[collector.Collector | memalloc.MemoryCollector] = []
+        # AIDEV-NOTE: Retry cleanup completes before any profiler component is restarted.
+        self._start_cleanup_pending = False
+        self._start_cleanup_generation = forksafe.get_generation()
+        # AIDEV-NOTE: Retried teardown must attempt to flush each profiling session at most once.
+        self._stop_flush_attempted = False
+        self._collectors_on_import: list[tuple[str, Callable[[Any], None]]] = []
+        self._collectors_on_import_registered: list[tuple[str, Callable[[Any], None]]] = []
         self._scheduler: Optional[Union[scheduler.Scheduler, scheduler.ServerlessScheduler]] = None
         self._lambda_function_name: Optional[str] = _env.get("AWS_LAMBDA_FUNCTION_NAME")
 
         self.process_tags: Optional[str] = process_tags.process_tags or None
 
-        self.__post_init__()
+        try:
+            self.__post_init__()
+        except BaseException:
+            for error in self._unregister_import_hooks():
+                LOG.debug(
+                    "Failed to clean up partially constructed profiler",
+                    exc_info=(type(error), error, error.__traceback__),
+                )
+            raise
 
     def __eq__(self, other: Any) -> bool:
         for k, v in vars(self).items():
@@ -277,9 +371,9 @@ class _ProfilerInstance(service.Service):
         if self._lock_collector_enabled:
             # These collectors require the import of modules, so we create them
             # if their import is detected at runtime.
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_lock_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
-                    if any(type(c) is collector_class for c in self._collectors):
+                    if self._has_collector_type(collector_class):
                         return
                     col = collector_class(tracer=self.tracer)
 
@@ -290,33 +384,40 @@ class _ProfilerInstance(service.Service):
                             LOG.debug("Started collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r is unavailable, disabling", col)
+                            if self._rollback_collector_start(col) is not None:
+                                self._collectors_pending_cleanup.append(col)
                             return
                         except Exception:
                             LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                            if self._rollback_collector_start(col) is not None:
+                                self._collectors_pending_cleanup.append(col)
                             return
+                        except BaseException:
+                            if self._rollback_collector_start(col) is not None:
+                                self._collectors_pending_cleanup.append(col)
+                            raise
 
                     self._collectors.append(col)
 
-            self._collectors_on_import = [
-                ("threading", lambda _: start_collector(threading.ThreadingLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingRLockCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingBoundedSemaphoreCollector)),
-                ("threading", lambda _: start_collector(threading.ThreadingConditionCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioLockCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
-                ("asyncio", lambda _: start_collector(asyncio.AsyncioConditionCollector)),
-            ]
-
-            for module, hook in self._collectors_on_import:
-                ModuleWatchdog.register_module_hook(module, hook)
+            self._collectors_on_import.extend(
+                [
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingLockCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingRLockCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingSemaphoreCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingBoundedSemaphoreCollector)),
+                    ("threading", lambda _: start_lock_collector(threading.ThreadingConditionCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioLockCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioSemaphoreCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioBoundedSemaphoreCollector)),
+                    ("asyncio", lambda _: start_lock_collector(asyncio.AsyncioConditionCollector)),
+                ]
+            )
 
         if self._pytorch_collector_enabled:
 
-            def start_collector(collector_class: type[collector.Collector]) -> None:
+            def start_pytorch_collector(collector_class: type[collector.Collector]) -> None:
                 with self._service_lock:
-                    if any(type(c) is collector_class for c in self._collectors):
+                    if self._has_collector_type(collector_class):
                         return
                     col = collector_class()
 
@@ -327,23 +428,26 @@ class _ProfilerInstance(service.Service):
                             LOG.debug("Started pytorch collector %r", col)
                         except collector.CollectorUnavailable:
                             LOG.debug("Collector %r pytorch is unavailable, disabling", col)
+                            if self._rollback_collector_start(col) is not None:
+                                self._collectors_pending_cleanup.append(col)
                             return
                         except Exception:
                             LOG.error("Failed to start collector %r pytorch, disabling.", col, exc_info=True)
+                            if self._rollback_collector_start(col) is not None:
+                                self._collectors_pending_cleanup.append(col)
                             return
+                        except BaseException:
+                            if self._rollback_collector_start(col) is not None:
+                                self._collectors_pending_cleanup.append(col)
+                            raise
 
                     self._collectors.append(col)
 
-            if self._collectors_on_import is None:
-                self._collectors_on_import = []
+            self._collectors_on_import.append(
+                ("torch", lambda _: start_pytorch_collector(pytorch.TorchProfilerCollector))
+            )
 
-            torch_hooks: list[tuple[str, Callable[[Any], None]]] = [
-                ("torch", lambda _: start_collector(pytorch.TorchProfilerCollector)),
-            ]
-            self._collectors_on_import.extend(torch_hooks)
-
-            for module, hook in torch_hooks:
-                ModuleWatchdog.register_module_hook(module, hook)
+        self._register_import_hooks()
 
         if self._memory_collector_enabled:
             self._collectors.append(memalloc.MemoryCollector())
@@ -377,8 +481,32 @@ class _ProfilerInstance(service.Service):
             }
         )
 
+    def start(self, *args: Any, **kwargs: Any) -> None:
+        with self._service_lock:
+            if self._start_cleanup_pending:
+                self._stop_service(flush=False, join=True, _partial_start=True)
+                self.status = service.ServiceStatus.STOPPED
+                self._start_cleanup_pending = False
+            if self.status == service.ServiceStatus.RUNNING:
+                raise service.ServiceStatusError(self.__class__, self.status)
+
+        self._register_import_hooks()
+        super().start(*args, **kwargs)
+
+    def _has_collector_type(self, collector_class: type[collector.Collector]) -> bool:
+        if any(type(col) is collector_class for col in self._collectors):
+            return True
+        return self.status == service.ServiceStatus.RUNNING and any(
+            type(col) is collector_class for col in self._collectors_pending_cleanup
+        )
+
     def _start_service(self) -> None:
         """Start the profiler."""
+        cleanup_errors = self._cleanup_pending_collectors()
+        if cleanup_errors:
+            raise cleanup_errors[0]
+        self._stop_flush_attempted = False
+
         # See DD_PROFILING_NATIVE_HEAP_ENABLED. install() is permanent; children
         # inherit the patched GOT (and the activator skips a redundant re-install).
         # libdatadog may still refuse the patch via DD_HEAP_SAMPLING_ENABLED
@@ -395,14 +523,30 @@ class _ProfilerInstance(service.Service):
             except Exception:
                 LOG.error("Failed to arm native heap profiling", exc_info=True)
 
-        collectors = []
-        for col in self._collectors:
+        collectors_to_start = self._collectors
+        collectors: list[collector.Collector | memalloc.MemoryCollector] = []
+        for index, col in enumerate(collectors_to_start):
             try:
                 col.start()
             except collector.CollectorUnavailable:
                 LOG.debug("Collector %r is unavailable, disabling", col)
+                cleanup_error = self._rollback_collector_start(col)
+                if cleanup_error is not None:
+                    self._collectors = collectors + collectors_to_start[index + 1 :]
+                    self._collectors_pending_cleanup.append(col)
+                    raise cleanup_error
             except Exception:
                 LOG.error("Failed to start collector %r, disabling.", col, exc_info=True)
+                cleanup_error = self._rollback_collector_start(col)
+                if cleanup_error is not None:
+                    self._collectors = collectors + collectors_to_start[index + 1 :]
+                    self._collectors_pending_cleanup.append(col)
+                    raise cleanup_error
+            except BaseException:
+                if self._rollback_collector_start(col) is not None:
+                    self._collectors_pending_cleanup.append(col)
+                self._collectors = collectors + collectors_to_start[index:]
+                raise
             else:
                 collectors.append(col)
         self._collectors = collectors
@@ -410,36 +554,126 @@ class _ProfilerInstance(service.Service):
         if self._scheduler is not None:
             self._scheduler.start()
 
-    def _stop_service(self, flush: bool = True, join: bool = True) -> None:
+    @staticmethod
+    def _rollback_collector_start(
+        col: Union[collector.Collector, memalloc.MemoryCollector],
+    ) -> Optional[BaseException]:
+        try:
+            col._rollback_start()
+        except BaseException as error:
+            LOG.debug("Failed to clean up partially started collector %r", col, exc_info=True)
+            return error
+        return None
+
+    def _cleanup_pending_collectors(self) -> list[BaseException]:
+        errors: list[BaseException] = []
+        collectors_pending_cleanup: list[collector.Collector | memalloc.MemoryCollector] = []
+        for col in self._collectors_pending_cleanup:
+            cleanup_error = self._rollback_collector_start(col)
+            if cleanup_error is not None:
+                collectors_pending_cleanup.append(col)
+                errors.append(cleanup_error)
+        self._collectors_pending_cleanup = collectors_pending_cleanup
+        return errors
+
+    def _rollback_start(self, flush: bool = True, join: bool = True) -> None:
+        with self._service_lock:
+            self._start_cleanup_pending = True
+            self._start_cleanup_generation = forksafe.get_generation()
+            try:
+                self._stop_service(flush=flush, join=join, _partial_start=True)
+            except BaseException:
+                raise
+            self.status = service.ServiceStatus.STOPPED
+            self._start_cleanup_pending = False
+
+    def _register_import_hooks(self) -> None:
+        for module, hook in self._collectors_on_import:
+            if (module, hook) not in self._collectors_on_import_registered:
+                self._collectors_on_import_registered.append((module, hook))
+                ModuleWatchdog.register_module_hook(module, hook)
+
+    def _unregister_import_hooks(self) -> list[BaseException]:
+        errors: list[BaseException] = []
+        hooks_pending_cleanup: list[tuple[str, Callable[[Any], None]]] = []
+        for module, hook in self._collectors_on_import_registered:
+            try:
+                ModuleWatchdog.unregister_module_hook(module, hook)
+            except BaseException as error:
+                errors.append(error)
+                hooks_pending_cleanup.append((module, hook))
+        self._collectors_on_import_registered = hooks_pending_cleanup
+        return errors
+
+    def _stop_service(self, flush: bool = True, join: bool = True, _partial_start: bool = False) -> None:
         """Stop the profiler.
 
         :param flush: Flush a last profile.
         """
         LOG.debug("Stopping profiler")
 
-        # Prevent doing more initialisation now that we are shutting down.
-        if self._collectors_on_import:
-            for module, hook in self._collectors_on_import:
-                ModuleWatchdog.unregister_module_hook(module, hook)
-            self._collectors_on_import = None
+        errors = self._unregister_import_hooks()
 
         if self._scheduler is not None:
-            self._scheduler.stop()
-            # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
-            # collectors before the possibly running flush is finished.
-            if join:
-                self._scheduler.join()
-            if flush:
+            scheduler_stopped = (
+                self.status == service.ServiceStatus.RUNNING and self._scheduler.status == service.ServiceStatus.STOPPED
+            )
+            if not scheduler_stopped:
+                try:
+                    if _partial_start:
+                        self._scheduler._rollback_start()
+                    else:
+                        self._scheduler.stop()
+                except BaseException as error:
+                    errors.append(error)
+                else:
+                    scheduler_stopped = True
+            if scheduler_stopped:
+                # Wait for the export to be over: export might need collectors (e.g., for snapshot) so we can't stop
+                # collectors before the possibly running flush is finished.
+                if join:
+                    try:
+                        self._scheduler.join()
+                    except BaseException as error:
+                        errors.append(error)
+                        scheduler_stopped = False
+            if not scheduler_stopped:
+                raise errors[0]
+            if flush and not self._stop_flush_attempted:
                 # Do not stop the collectors before flushing, they might be needed (snapshot)
-                self._scheduler.flush()
+                self._stop_flush_attempted = True
+                try:
+                    self._scheduler.flush()
+                except BaseException as error:
+                    errors.append(error)
 
+        errors.extend(self._cleanup_pending_collectors())
+
+        collectors_stopped: list[collector.Collector | memalloc.MemoryCollector] = []
         for col in reversed(self._collectors):
             try:
+                if (
+                    _partial_start
+                    and isinstance(col, collector.Collector)
+                    and col.status == service.ServiceStatus.STOPPED
+                ):
+                    collectors_stopped.append(col)
+                    continue
                 col.stop()
             except service.ServiceStatusError:
                 # It's possible some collector failed to start, ignore failure to stop
-                pass
+                collectors_stopped.append(col)
+            except BaseException as error:
+                errors.append(error)
+            else:
+                collectors_stopped.append(col)
 
         if join:
-            for col in reversed(self._collectors):
-                col.join()
+            for col in collectors_stopped:
+                try:
+                    col.join()
+                except BaseException as error:
+                    errors.append(error)
+
+        if errors:
+            raise errors[0]
