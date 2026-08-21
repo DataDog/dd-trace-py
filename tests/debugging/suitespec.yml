@@ -6,6 +6,7 @@ components:
     - ddtrace/internal/settings/exception_replay.py
 suites:
   debugger:
+    runner: uv
     parallelism: 1
     paths:
       - '@debugging'
@@ -14,3 +15,14 @@ suites:
       - '@remoteconfig'
       - '@tracing'
       - tests/debugging/*
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/debugging/
+      dependencies:
+        - msgpack
+        - httpretty
+        - typing-extensions
+        - pytest-asyncio
+        - pytest-benchmark
+        - pytest-memray
+        - numpy

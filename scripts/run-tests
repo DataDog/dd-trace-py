@@ -71,6 +71,7 @@ TEST_CONTAINER_PATH = (
     "/home/bits/.cargo/bin:/home/bits/.local/bin:/home/bits/.pyenv/shims:/home/bits/.pyenv/bin:"
     "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 )
+SHELL_OPERATORS = frozenset({"&&", "||", ";", "|"})
 
 
 class TestRunner:
@@ -393,7 +394,8 @@ class TestRunner:
         return self.select_environments_for_suites(selected_suites)
 
     def _uv_environment_path(self, environment: TestEnvironment) -> Path:
-        return Path(".cache/uv-test-environments").joinpath(*environment.suite.split("::"), environment.id)
+        suite_path = (part.replace(":", "-") for part in environment.suite.split("::"))
+        return Path(".cache/uv-test-environments").joinpath(*suite_path, environment.id)
 
     def _uv_execution_path(self, environment: TestEnvironment) -> Path:
         path = self._uv_environment_path(environment)
@@ -427,12 +429,20 @@ class TestRunner:
         venv = self._uv_execution_path(environment)
         python = venv / "bin/python"
         command_env = self._uv_command_environment(environment, forwarded_env)
-        return (
+        install_project = environment.install_project and (
+            not self.in_ci or os.environ.get("DD_TEST_INSTALL_DDTRACE") == "1"
+        )
+        reuse_artifact = environment.install_project and not install_project
+        base_environment = self.root / self._uv_environment_path(
+            replace(environment, suite="smoke_test", id=f"smoke-test-py{environment.python.replace('.', '')}")
+        )
+        commands = [
             self._ddtest_command(
                 [
                     "uv",
                     "venv",
-                    "--allow-existing",
+                    "--allow-existing" if install_project else "--clear",
+                    "--relocatable",
                     "--python",
                     environment.python,
                     "--no-python-downloads",
@@ -440,37 +450,52 @@ class TestRunner:
                 ],
                 command_env,
             ),
+        ]
+        if install_project:
+            commands.append(
+                self._ddtest_command(
+                    [
+                        "uv",
+                        "pip",
+                        "install",
+                        "--python",
+                        str(python),
+                        "--editable",
+                        ".",
+                        "--exclude-newer",
+                        cooldown_cutoff(),
+                        "--strict",
+                        "--no-progress",
+                    ],
+                    command_env,
+                )
+            )
+        elif reuse_artifact:
+            commands.append(
+                self._ddtest_command(
+                    ["cp", "-R", f"{base_environment}/.", str(venv)],
+                    command_env,
+                )
+            )
+        lock_command = [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(python),
+            "--requirements",
+            str(environment.lockfile),
+            "--no-progress",
+        ]
+        if reuse_artifact:
+            lock_command.append("--reinstall")
+        commands.append(
             self._ddtest_command(
-                [
-                    "uv",
-                    "pip",
-                    "sync",
-                    "--python",
-                    str(python),
-                    str(environment.lockfile),
-                    "--strict",
-                    "--no-progress",
-                ],
+                lock_command,
                 command_env,
-            ),
-            self._ddtest_command(
-                [
-                    "uv",
-                    "pip",
-                    "install",
-                    "--python",
-                    str(python),
-                    "--editable",
-                    ".",
-                    "--exclude-newer",
-                    cooldown_cutoff(),
-                    "--strict",
-                    "--no-progress",
-                ],
-                command_env,
-            ),
-            self._ddtest_command(["uv", "pip", "check", "--python", str(python)], command_env),
+            )
         )
+        return tuple(commands)
 
     def _uv_test_command(
         self,
@@ -491,12 +516,15 @@ class TestRunner:
             raise ValueError(f"empty uv test command for {environment.id}")
 
         environment_bin = self._uv_execution_path(environment) / "bin"
-        if expanded[0] == "pytest":
+        if any(argument in SHELL_OPERATORS for argument in expanded):
+            shell_command = " ".join(
+                argument if argument in SHELL_OPERATORS else shlex.quote(argument) for argument in expanded
+            )
+            expanded = ["bash", "-c", shell_command]
+        elif expanded[0] == "pytest":
             expanded[0] = str(environment_bin / "pytest")
         elif expanded[0] in ("python", "python3"):
             expanded[0] = str(environment_bin / "python")
-        else:
-            raise ValueError(f"unsupported uv test command for {environment.id}: {run.command}")
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
@@ -823,8 +851,13 @@ class TestRunner:
 
         return selected_environments
 
-    def get_environments_by_id_direct(self, environment_ids: list[str]) -> list[TestEnvironment]:
-        """Get specific environment IDs, deduplicated consistently with CI.
+    def get_environments_by_id_direct(
+        self,
+        suites: dict[str, dict],
+        environment_ids: list[str],
+        suite_name: str | None = None,
+    ) -> list[TestEnvironment]:
+        """Resolve specific environment IDs, deduplicated consistently with CI.
 
         Deduplicates IDs to avoid running the same environment multiple times when a
         caller repeats an ID.
@@ -845,16 +878,34 @@ class TestRunner:
 
         print(f"📌 Using {len(unique_ids)} unique environment ID(s): {', '.join(unique_ids)}")
 
+        if suite_name is not None:
+            if suite_name not in suites:
+                raise ValueError(f"unknown suite: {suite_name}")
+            candidates = {suite_name: suites[suite_name]}
+        else:
+            candidates = suites
+
         selected_environments = []
         for environment_id in unique_ids:
-            selected_environments.append(
-                TestEnvironment(
-                    id=environment_id,
-                    suite="",
-                    name=environment_id,
-                    python="",
+            matches = []
+            for candidate_name, candidate_config in candidates.items():
+                pattern = candidate_config.get("pattern", candidate_name)
+                environments = self.get_test_environments(
+                    pattern,
+                    suite_name=candidate_name,
+                    suite_config=candidate_config,
                 )
-            )
+                matching_environment = next((item for item in environments if item.id == environment_id), None)
+                if matching_environment is not None:
+                    matches.append(replace(matching_environment, suite=candidate_name))
+
+            if not matches:
+                qualifier = f" in suite {suite_name}" if suite_name is not None else ""
+                raise ValueError(f"unknown environment {environment_id}{qualifier}")
+            if len(matches) > 1:
+                choices = ", ".join(environment.suite for environment in matches)
+                raise ValueError(f"ambiguous environment {environment_id}; use --suite with one of: {choices}")
+            selected_environments.append(matches[0])
 
         return selected_environments
 
@@ -912,6 +963,7 @@ Examples:
             "Can be used multiple times (e.g., --venv id1 --venv id2)"
         ),
     )
+    parser.add_argument("--suite", help="Suite containing the environments selected with --venv.")
 
     # Parse args, but handle -- separator for riot args
     if "--" in sys.argv:
@@ -929,41 +981,17 @@ Examples:
     # Special handling for --venv: skip all file discovery but still need suite info for services
     if args.venv:
         print("🎯 Using directly specified venvs (skipping file/suite analysis)")
-        selected_environments = runner.get_environments_by_id_direct(args.venv)
-        if not selected_environments:
-            print(f"❌ No environments found matching IDs: {', '.join(args.venv)}")
+        all_suites = get_suites()
+        try:
+            environments_with_suite = runner.get_environments_by_id_direct(all_suites, args.venv, args.suite)
+        except ValueError as error:
+            print(f"❌ {error}")
             return 1
 
-        # Get all suites to determine service requirements for selected venvs
-        all_suites = get_suites()
-        matching_suites = {}
-        environments_with_suite = []
-
-        for environment in selected_environments:
-            # Try to find which suite this environment belongs to by pattern matching
-            for suite_name, suite_config in all_suites.items():
-                pattern = suite_config.get("pattern", suite_name)
-
-                try:
-                    environments_in_suite = runner.get_test_environments(
-                        pattern, suite_name=suite_name, suite_config=suite_config
-                    )
-                    matching_environment = next(
-                        (item for item in environments_in_suite if item.id == environment.id), None
-                    )
-                    if matching_environment is not None:
-                        environments_with_suite.append(replace(matching_environment, suite=suite_name))
-
-                        if suite_name not in matching_suites:
-                            matching_suites[suite_name] = suite_config.copy()
-                            matching_suites[suite_name]["matched_files"] = []
-                        break
-                except Exception:
-                    continue
-
-        if not matching_suites:
-            print("⚠️  Could not determine suite information for venvs, running without service management")
-            matching_suites = {}
+        matching_suites = {
+            environment.suite: {**all_suites[environment.suite], "matched_files": []}
+            for environment in environments_with_suite
+        }
 
         success = runner.run_tests(environments_with_suite, matching_suites, riot_args=riot_args, dry_run=args.dry_run)
         return 0 if success else 1

@@ -235,6 +235,29 @@ suites:
       TEST_MOTO_PORT: '3000'
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} --no-cov tests/contrib/aiobotocore
+      dependencies:
+        - pytest-asyncio==0.21.1
+        - async_generator~=1.10
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11']
+          axes:
+            aiobotocore:
+              aiobotocore-1-0-0: aiobotocore~=1.0.0
+              aiobotocore-1-4-2: aiobotocore~=1.4.2
+              aiobotocore-2-0-0: aiobotocore~=2.0.0
+              aiobotocore-latest: aiobotocore
+            compatibility:
+              aiobotocore: {}
+        - python: ['3.12', '3.13', '3.14']
+          dependencies:
+            - aiobotocore
+          axes:
+            compatibility:
+              aiobotocore-latest: {}
   aiohttp:
     runner: uv
     pattern: ^aiohttp$
@@ -341,6 +364,28 @@ suites:
     services:
       - mysql
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aiomysql
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            aiomysql: &id001
+              aiomysql-0-1-0: aiomysql~=0.1.0
+              aiomysql-latest: aiomysql
+            compatibility:
+              pytest-asyncio-0-23-7: {}
+        - python: ['3.13', '3.14']
+          dependencies:
+            - pytest-asyncio
+          axes:
+            aiomysql: *id001
+            compatibility:
+              pytest-asyncio-latest: {}
   aiokafka:
     env:
       TEST_KAFKA_HOST: kafka
@@ -358,6 +403,20 @@ suites:
     services:
       - kafka
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aiokafka/
+      dependencies:
+        - pytest-asyncio
+        - pytest-randomly
+      env:
+        DD_DATA_STREAMS_ENABLED: 'true'
+        _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        aiokafka:
+          aiokafka-0-9-0: aiokafka~=0.9.0
+          aiokafka-latest: aiokafka
   aiopg:
     paths:
       - '@bootstrap'
@@ -373,7 +432,28 @@ suites:
     services:
       - postgres
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aiopg
+      dependencies:
+        - sqlalchemy
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - aiopg~=0.16.0
+          axes:
+            compatibility:
+              aiopg-0-16-0: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          axes:
+            aiopg:
+              aiopg-1-0: aiopg~=1.0
+              aiopg-1-4-0: aiopg~=1.4.0
+            compatibility:
+              aiopg: {}
   algoliasearch:
+    runner: uv
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -383,6 +463,13 @@ suites:
       - '@algoliasearch'
       - tests/contrib/algoliasearch/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/algoliasearch
+      dependencies:
+        - urllib3~=1.26.15
+        - pytest-randomly
+        - algoliasearch~=2.6
   aredis:
     parallelism: 1
     paths:
@@ -397,6 +484,14 @@ suites:
     services:
       - redis
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aredis
+      dependencies:
+        - pytest-asyncio==0.21.1
+        - aredis
+        - pytest-randomly
+      python: ['3.9']
   asgi:
     venvs_per_job: 1
     paths:
@@ -411,6 +506,19 @@ suites:
       - tests/snapshots/tests.{suite}.*
     pattern: asgi$
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/asgi
+      dependencies:
+        - pytest-asyncio==0.21.1
+        - httpx<0.28.0
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        asgiref:
+          asgiref-3-0-0: asgiref~=3.0.0
+          asgiref-3-0: asgiref~=3.0
+          asgiref-latest: asgiref
   asyncpg:
     retry: 2
     parallelism: 2
@@ -426,6 +534,40 @@ suites:
     snapshot: true
     services:
       - postgres
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/asyncpg
+      dependencies:
+        - pytest-asyncio~=0.21.1
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          axes:
+            asyncpg:
+              asyncpg-0-23-0: asyncpg~=0.23.0
+              asyncpg-latest: asyncpg
+            compatibility:
+              asyncpg: {}
+        - python: ['3.10']
+          axes:
+            asyncpg:
+              asyncpg-0-24-0: asyncpg~=0.24.0
+              asyncpg-latest: asyncpg
+            compatibility:
+              asyncpg-2: {}
+        - python: ['3.11']
+          axes:
+            asyncpg:
+              asyncpg-0-27: asyncpg~=0.27
+              asyncpg-latest: asyncpg
+            compatibility:
+              asyncpg-3: {}
+        - python: ['3.12', '3.13', '3.14']
+          dependencies:
+            - asyncpg
+          axes:
+            compatibility:
+              asyncpg-latest: {}
   asynctest:
     parallelism: 1
     paths:
@@ -435,7 +577,16 @@ suites:
       - '@tracing'
       - tests/contrib/asynctest/*
     pattern: asynctest$
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/asynctest/
+      dependencies:
+        - pytest>=6.0,<7.0
+        - pytest-randomly
+        - asynctest==0.13.0
+      python: ['3.9']
   avro:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -445,6 +596,12 @@ suites:
       - '@avro'
       - tests/contrib/avro/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/avro
+      dependencies:
+        - avro
+        - pytest-randomly
   aws_lambda:
     parallelism: 2
     paths:
@@ -456,6 +613,18 @@ suites:
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aws_lambda
+      dependencies:
+        - boto3
+        - pytest-asyncio==0.21.1
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      axes:
+        datadog-lambda:
+          datadog-lambda-gte-6-105-0: datadog-lambda>=6.105.0
+          datadog-lambda-latest: datadog-lambda
   aws_durable_execution_sdk_python:
     venvs_per_job: 2
     paths:
@@ -467,6 +636,16 @@ suites:
       - tests/contrib/aws_durable_execution_sdk_python/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python
+      dependencies:
+        - aws-durable-execution-sdk-python-testing
+      python: ['3.11', '3.12', '3.13', '3.14']
+      axes:
+        aws-durable-execution-sdk-python:
+          aws-durable-execution-sdk-python-1-4-0: aws-durable-execution-sdk-python~=1.4.0
+          aws-durable-execution-sdk-python-latest: aws-durable-execution-sdk-python
   azure_cosmos:
     venvs_per_job: 4
     paths:
@@ -481,6 +660,18 @@ suites:
     services:
       - azurite
       - azurecosmosemulator
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_cosmos
+      dependencies:
+        - pytest-asyncio==0.23.7
+        - aiohttp
+        - six
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        azure-cosmos:
+          azure-cosmos-4-9-0: azure.cosmos~=4.9.0
+          azure-cosmos-latest: azure.cosmos
   azure_eventhubs:
     parallelism: 4
     paths:
@@ -507,6 +698,16 @@ suites:
       KUBERNETES_SERVICE_CPU_LIMIT: '2'
       KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'      
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_eventhubs
+      dependencies:
+        - pytest-asyncio==0.23.7
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      axes:
+        azure-eventhub:
+          azure-eventhub-5-12-0: azure.eventhub~=5.12.0
+          azure-eventhub-latest: azure.eventhub
   azure_durable_functions:
     venvs_per_job: 3
     paths:
@@ -523,6 +724,14 @@ suites:
   # the azure_functions suites don't work in the arm64 testrunner container
   # (the one that runs from scripts/ddtest on Mac OS)
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_durable_functions
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      axes:
+        azure-functions-durable:
+          azure-functions-durable-1-2-1: azure-functions-durable==1.2.1
+          azure-functions-durable-latest: azure-functions-durable
   azure_functions:
     parallelism: 4
     paths:
@@ -537,6 +746,16 @@ suites:
     snapshot: true
     services:
       - azurite
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_functions
+      dependencies:
+        - requests
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      axes:
+        azure-functions:
+          azure-functions-1-10-1: azure.functions~=1.10.1
+          azure-functions-latest: azure.functions
   azure_functions:cosmos:
     venvs_per_job: 1
     paths:
@@ -553,6 +772,20 @@ suites:
     services:
       - azurite
       - azurecosmosemulator
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_functions_cosmos
+      dependencies:
+        - azure.storage.blob
+        - aiohttp
+      python: ['3.11', '3.12', '3.13']
+      axes:
+        azure-functions:
+          azure-functions-1-10-1: azure.functions~=1.10.1
+          azure-functions-latest: azure.functions
+        azure-cosmos:
+          azure-cosmos-4-9-0: azure.cosmos~=4.9.0
+          azure-cosmos-latest: azure.cosmos
   azure_functions:eventhubs:
     parallelism: 4
     paths:
@@ -569,6 +802,17 @@ suites:
     services:
       - azurite
       - azureeventhubsemulator
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_functions_eventhubs
+      dependencies:
+        - azure.eventhub
+        - azure.storage.blob
+      python: ['3.9', '3.10', '3.11']
+      axes:
+        azure-functions:
+          azure-functions-1-10-1: azure.functions~=1.10.1
+          azure-functions-latest: azure.functions
   azure_functions:servicebus:
     parallelism: 4
     paths:
@@ -586,6 +830,16 @@ suites:
       - azurite
       - azuresqledge
       - azureservicebusemulator
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_functions_servicebus
+      dependencies:
+        - azure.servicebus
+      python: ['3.9', '3.10', '3.11']
+      axes:
+        azure-functions:
+          azure-functions-1-10-1: azure.functions~=1.10.1
+          azure-functions-latest: azure.functions
   azure_servicebus:
     parallelism: 4
     paths:
@@ -600,6 +854,26 @@ suites:
     services:
       - azuresqledge
       - azureservicebusemulator
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/azure_servicebus
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            azure-servicebus:
+              azure-servicebus-7-14-0: azure.servicebus~=7.14.0
+              azure-servicebus-latest: azure.servicebus
+            compatibility:
+              azure-servicebus-pytest-asyncio-0-23-7: {}
+        - python: ['3.14']
+          dependencies:
+            - azure.servicebus
+            - pytest-asyncio
+          axes:
+            compatibility:
+              azure-servicebus-latest-pytest-asyncio-latest: {}
   botocore:
     retry: 2
     parallelism: 11
@@ -618,6 +892,29 @@ suites:
     snapshot: true
     services:
       - localstack
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/botocore
+      dependencies:
+        - moto[all]<5.0
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - vcrpy==6.0.1
+            - botocore==1.34.49
+            - boto3==1.34.49
+          axes:
+            compatibility:
+              vcrpy-6-0-1-botocore-1-34-49-boto3-1-34-49: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - vcrpy==7.0.0
+            - botocore==1.38.26
+            - boto3==1.38.26
+          axes:
+            compatibility:
+              vcrpy-7-0-0-botocore-1-38-26-boto3-1-38-26: {}
   bottle:
     parallelism: 1
     paths:
@@ -628,6 +925,21 @@ suites:
       - '@bottle'
       - tests/contrib/bottle/*
     snapshot: true
+    runner: uv
+    matrix:
+      dependencies:
+        - WebTest
+        - pytest-randomly
+      python: ['3.9']
+      axes:
+        bottle:
+          bottle-gte-0-12-lt-0-13: bottle>=0.12,<0.13
+          bottle-latest: bottle
+      runs:
+        - command: python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/
+        - command: python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
+          env:
+            DD_SERVICE: bottle-app
   celery:
     env:
       DD_DISABLE_ERROR_RESPONSES: true
@@ -647,6 +959,30 @@ suites:
       - redis
     snapshot: true
     venvs_per_job: 1
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/celery
+      dependencies:
+        - more_itertools<8.11.0
+        - pytest-randomly
+      env:
+        PYTEST_PLUGINS: celery.contrib.pytest
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - redis~=3.5
+          axes:
+            celery:
+              celery-5-2: celery~=5.2
+              celery-latest: celery
+            compatibility:
+              celery-redis-3-5: {}
+        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - celery[redis]
+          axes:
+            compatibility:
+              celery-redis-latest: {}
   cherrypy:
     paths:
       - '@bootstrap'
@@ -658,6 +994,29 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: python -m pytest {cmdargs} tests/contrib/cherrypy
+      dependencies:
+        - pytest-randomly
+        - more_itertools<8.11.0
+      cases:
+        - python: ['3.9', '3.10']
+          dependencies:
+            - typing-extensions
+          axes:
+            cherrypy:
+              cherrypy-17-0-0: cherrypy~=17.0.0
+              cherrypy-gte-17-lt-18: cherrypy>=17,<18
+            compatibility:
+              cherrypy-typing-extensions-latest: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          axes:
+            cherrypy:
+              cherrypy-gte-18-0-lt-19: cherrypy>=18.0,<19
+              cherrypy-latest: cherrypy
+            compatibility:
+              cherrypy: {}
   consul:
     parallelism: 1
     paths:
@@ -670,7 +1029,18 @@ suites:
     snapshot: true
     services:
       - consul
+    runner: uv
+    matrix:
+      command: pytest --no-cov {cmdargs} tests/contrib/consul
+      dependencies:
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        python-consul:
+          python-consul-gte-1-1-lt-1-2: python-consul>=1.1,<1.2
+          python-consul-latest: python-consul
   datastreams:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -678,7 +1048,17 @@ suites:
       - '@tracing'
       - '@datastreams'
       - tests/datastreams/*
+    matrix:
+      name: datastreams-latest
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest --no-cov {cmdargs} tests/datastreams/
+      dependencies:
+        - msgpack
+        - pytest-randomly
+      env:
+        AGENT_VERSION: latest
   ddtrace_api:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -687,6 +1067,12 @@ suites:
       - '@ddtrace_api'
       - tests/contrib/ddtrace_api/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/ddtrace_api
+      dependencies:
+        - ddtrace-api==0.0.1
+        - requests
   django:
     parallelism: 6
     env:
@@ -715,6 +1101,122 @@ suites:
       - memcached
       - redis
     snapshot: true
+    runner: uv
+    matrix:
+      dependencies:
+        - requests
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          name: django
+          dependencies:
+            - django-redis>=4.5,<4.6
+            - django-pylibmc>=0.6,<0.7
+            - daphne
+            - redis>=2.10,<2.11
+            - psycopg2-binary>=2.8.6
+            - pytest-django[testing]==3.10.0
+            - pytest-asyncio
+            - setuptools<80
+            - pylibmc
+            - python-memcached
+            - spyne
+            - zeep
+            - bcrypt==4.2.1
+            - channels
+            - django-q
+          axes:
+            django:
+              django-2-2-0: django~=2.2.0
+              django-3-0-0: django~=3.0.0
+              django-4-0: django~=4.0
+            compatibility:
+              django-redis-gte-4-5-lt-4-6-django-pylibmc-gte-0-6-lt-0-7-daphne: {}
+          command: pytest {cmdargs} --ignore=tests/contrib/django/test_django_snapshots.py                         --ignore=tests/contrib/django/test_django_wsgi.py tests/contrib/django
+          env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
+            DD_IAST_REQUEST_SAMPLING: '100'
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          name: django
+          dependencies:
+            - django-redis>=4.5,<4.6
+            - django-pylibmc>=0.6,<0.7
+            - daphne
+            - redis>=2.10,<2.11
+            - psycopg2-binary>=2.8.6
+            - pytest-django[testing]==3.10.0
+            - pytest-asyncio
+            - setuptools<80
+            - pylibmc
+            - python-memcached
+            - spyne
+            - zeep
+            - bcrypt==4.2.1
+            - django~=4.2
+            - psycopg
+            - channels
+            - django-q
+          axes:
+            compatibility:
+              django-redis-gte-4-5-lt-4-6-django-pylibmc-gte-0-6-lt-0-7-daphne-2: {}
+          command: pytest {cmdargs} tests/contrib/django
+          env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
+            DD_IAST_REQUEST_SAMPLING: '100'
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+        - python: ['3.10', '3.11', '3.12', '3.13']
+          name: django
+          dependencies:
+            - django-redis>=4.5,<4.6
+            - django-pylibmc>=0.6,<0.7
+            - daphne
+            - redis>=2.10,<2.11
+            - psycopg2-binary>=2.8.6
+            - pytest-django[testing]==3.10.0
+            - pytest-asyncio
+            - setuptools<80
+            - pylibmc
+            - python-memcached
+            - spyne
+            - zeep
+            - bcrypt==4.2.1
+            - django~=5.1
+            - psycopg
+            - channels
+            - django-q2
+          axes:
+            compatibility:
+              django-redis-gte-4-5-lt-4-6-django-pylibmc-gte-0-6-lt-0-7-daphne-3: {}
+          command: pytest {cmdargs} --ignore=tests/contrib/django/test_django_dbm.py --ignore=tests/contrib/django/test_django_snapshots.py -k 'not test_user_name_included and not test_user_name_excluded and not test_cached_view' tests/contrib/django
+          env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
+            DD_IAST_REQUEST_SAMPLING: '100'
+            PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
+        - python: ['3.9']
+          name: django:celery
+          dependencies:
+            - celery
+            - gevent
+            - typing-extensions
+            - sqlalchemy~=1.2.18
+            - django~=2.2.0
+          axes:
+            compatibility:
+              celery-latest-gevent-latest-typing-extensions-latest-sqlalchemy-: {}
+          command: pytest {cmdargs} tests/contrib/django_celery
+        - python: ['3.12']
+          name: django:celery
+          dependencies:
+            - celery
+            - gevent
+            - typing-extensions
+            - sqlalchemy
+            - django
+          axes:
+            compatibility:
+              celery-latest-gevent-latest-typing-extensions-latest-sqlalchemy--2: {}
+          command: pytest {cmdargs} tests/contrib/django_celery
   django_hosts:
     parallelism: 2
     paths:
@@ -729,6 +1231,31 @@ suites:
       - tests/contrib/django_hosts/django_app/*
     pattern: django:django_hosts
     snapshot: true
+    runner: uv
+    matrix:
+      name: django:django_hosts
+      command: pytest {cmdargs} tests/contrib/django_hosts
+      dependencies:
+        - pytest-django[testing]==3.10.0
+        - pytest-randomly
+        - setuptools
+      cases:
+        - python: ['3.9', '3.10']
+          dependencies:
+            - django_hosts~=4.0
+            - django~=3.2
+          axes:
+            compatibility:
+              django-hosts-4-0-django-3-2: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - django~=4.0
+          axes:
+            django-hosts:
+              django-hosts-5-0: django_hosts~=5.0
+              django-hosts-latest: django_hosts
+            compatibility:
+              django-hosts-django-4-0: {}
   django:djangorestframework:
     parallelism: 2
     env:
@@ -748,6 +1275,39 @@ suites:
       - memcached
       - redis
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/djangorestframework
+      dependencies:
+        - pytest-django[testing]==3.10.0
+        - pytest-randomly
+        - pytest-xdist
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - django>=2.2,<2.3
+          axes:
+            djangorestframework:
+              djangorestframework-3-12-4: djangorestframework==3.12.4
+              djangorestframework-3-13-1: djangorestframework==3.13.1
+            compatibility:
+              django-gte-2-2-lt-2-3-djangorestframework: {}
+        - python: ['3.9', '3.10']
+          dependencies:
+            - django~=3.2
+            - djangorestframework>=3.11,<3.12
+          axes:
+            compatibility:
+              django-3-2-djangorestframework-gte-3-11-lt-3-12: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - django~=4.0
+          axes:
+            djangorestframework:
+              djangorestframework-3-13: djangorestframework~=3.13
+              djangorestframework-latest: djangorestframework
+            compatibility:
+              django-4-0-djangorestframework: {}
   dogpile_cache:
     paths:
       - '@bootstrap'
@@ -758,6 +1318,30 @@ suites:
       - tests/contrib/dogpile_cache/*
     snapshot: true
     venvs_per_job: 3
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/dogpile_cache
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10']
+          axes:
+            dogpile-cache:
+              dogpile-cache-0-6-0: dogpile.cache~=0.6.0
+              dogpile-cache-0-9: dogpile.cache~=0.9
+              dogpile-cache-1-0: dogpile.cache~=1.0
+              dogpile-cache-latest: dogpile.cache
+            compatibility:
+              dogpile-cache: {}
+        - python: ['3.11', '3.12', '3.13', '3.14']
+          axes:
+            dogpile-cache:
+              dogpile-cache-0-9: dogpile.cache~=0.9
+              dogpile-cache-1-0: dogpile.cache~=1.0
+              dogpile-cache-1-1: dogpile.cache~=1.1
+              dogpile-cache-latest: dogpile.cache
+            compatibility:
+              dogpile-cache-2: {}
   dramatiq:
     env:
       TEST_REDIS_HOST: redis
@@ -774,6 +1358,25 @@ suites:
       - redis
       - rabbitmq
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/dramatiq
+      dependencies:
+        - redis
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - dramatiq~=1.10.0
+            - pika
+          axes:
+            compatibility:
+              dramatiq-1-10-0-pika-latest: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - dramatiq
+          axes:
+            compatibility:
+              dramatiq-latest: {}
   elasticsearch:
     pattern: ^elasticsearch(?!:opensearch)
     env:
@@ -795,6 +1398,93 @@ suites:
     services:
       - elasticsearch
     snapshot: true
+    runner: uv
+    matrix:
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch
+          axes:
+            elasticsearch:
+              elasticsearch-7-13-0: elasticsearch~=7.13.0
+              elasticsearch-7-17: elasticsearch~=7.17
+              elasticsearch-8-0-1: elasticsearch==8.0.1
+              elasticsearch-latest: elasticsearch
+            compatibility:
+              elasticsearch: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch
+          dependencies:
+            - elasticsearch1~=1.10.0
+          axes:
+            compatibility:
+              elasticsearch1-1-10-0: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch
+          dependencies:
+            - elasticsearch2~=2.5.0
+          axes:
+            compatibility:
+              elasticsearch2-2-5-0: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch
+          dependencies:
+            - elasticsearch5~=5.5.0
+          axes:
+            compatibility:
+              elasticsearch5-5-5-0: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch
+          dependencies:
+            - elasticsearch6~=6.8.0
+          axes:
+            compatibility:
+              elasticsearch6-6-8-0: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch
+          axes:
+            elasticsearch7:
+              elasticsearch7-7-13-0: elasticsearch7~=7.13.0
+              elasticsearch7-latest: elasticsearch7
+            compatibility:
+              elasticsearch7: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch
+          axes:
+            elasticsearch8:
+              elasticsearch8-8-0-1: elasticsearch8~=8.0.1
+              elasticsearch8-latest: elasticsearch8
+            compatibility:
+              elasticsearch8: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch:multi
+          dependencies:
+            - elasticsearch
+            - elasticsearch7
+          axes:
+            compatibility:
+              elasticsearch-latest-elasticsearch7-latest: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: elasticsearch:async
+          dependencies:
+            - elasticsearch[async]
+            - elasticsearch7[async]
+            - opensearch-py[async]
+          axes:
+            compatibility:
+              elasticsearch-async-latest-elasticsearch7-async-latest-opensearc: {}
+          command: pytest {cmdargs} tests/contrib/elasticsearch/test_async.py
+          env:
+            AIOHTTP_NO_EXTENSIONS: '1'
   opensearch:
     pattern: elasticsearch:opensearch
     env:
@@ -812,6 +1502,18 @@ suites:
     services:
       - opensearch
     snapshot: true
+    runner: uv
+    matrix:
+      name: elasticsearch:opensearch
+      command: pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'
+      dependencies:
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        opensearch-py-requests:
+          opensearch-py-requests-1-1-0: opensearch-py[requests]~=1.1.0
+          opensearch-py-requests-2-0-0: opensearch-py[requests]~=2.0.0
+          opensearch-py-requests-latest: opensearch-py[requests]
   falcon:
     paths:
       - '@bootstrap'
@@ -822,6 +1524,27 @@ suites:
       - tests/contrib/falcon/*
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/falcon
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          axes:
+            falcon:
+              falcon-3-0-0: falcon~=3.0.0
+              falcon-3-0: falcon~=3.0
+              falcon-latest: falcon
+            compatibility:
+              falcon: {}
+        - python: ['3.13', '3.14']
+          axes:
+            falcon:
+              falcon-4-0: falcon~=4.0
+              falcon-latest: falcon
+            compatibility:
+              falcon-2: {}
   fastapi:
     paths:
       - '@bootstrap'
@@ -837,6 +1560,42 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/fastapi
+      dependencies:
+        - httpx<=0.27.2
+        - pytest-asyncio==0.21.1
+        - python-multipart
+        - pytest-randomly
+        - requests
+        - aiofiles
+        - cloudpickle
+      cases:
+        - python: ['3.9', '3.10']
+          axes:
+            fastapi:
+              fastapi-0-64-0: fastapi~=0.64.0
+              fastapi-0-90-0: fastapi~=0.90.0
+              fastapi-latest: fastapi
+            compatibility:
+              fastapi: {}
+        - python: ['3.11', '3.12', '3.13']
+          dependencies:
+            - anyio>=3.4.0,<4.0
+          axes:
+            fastapi:
+              fastapi-0-86-0: fastapi~=0.86.0
+              fastapi-latest: fastapi
+            compatibility:
+              fastapi-anyio-gte-3-4-0-lt-4-0: {}
+        - python: ['3.14']
+          dependencies:
+            - hypothesis
+            - fastapi
+          axes:
+            compatibility:
+              hypothesis-latest-fastapi-latest: {}
   flask:
     runner: uv
     env:
@@ -973,6 +1732,49 @@ suites:
       - tests/contrib/gevent/*
     snapshot: false
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/gevent
+      dependencies:
+        - elasticsearch
+        - pynamodb<6.0
+        - pytest-randomly
+        - setuptools<80
+        - aiobotocore<=2.3.1
+        - aiohttp
+        - botocore
+        - requests
+        - opensearch-py
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - greenlet~=1.0
+          axes:
+            gevent:
+              gevent-21-1-0: gevent~=21.1.0
+              gevent-lt-21-8-0: gevent<21.8.0
+            compatibility:
+              gevent-greenlet-1-0: {}
+        - python: ['3.10']
+          axes:
+            gevent:
+              gevent-21-12-0: gevent~=21.12.0
+              gevent-latest: gevent
+            compatibility:
+              gevent: {}
+        - python: ['3.11']
+          axes:
+            gevent:
+              gevent-22-10-0: gevent~=22.10.0
+              gevent-latest: gevent
+            compatibility:
+              gevent-2: {}
+        - python: ['3.12', '3.13', '3.14']
+          dependencies:
+            - gevent
+          axes:
+            compatibility:
+              gevent-latest: {}
   google_cloud_pubsub:
     env:
       TEST_PUBSUB_HOST: pubsub
@@ -989,6 +1791,33 @@ suites:
       - pubsub
     snapshot: true
     venvs_per_job: 3
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/google_cloud_pubsub
+      dependencies:
+        - falcon
+        - setuptools<82
+      cases:
+        - python: ['3.9', '3.10', '3.11']
+          axes:
+            google-cloud-pubsub:
+              google-cloud-pubsub-2-10-0: google-cloud-pubsub==2.10.0
+              google-cloud-pubsub-latest: google-cloud-pubsub
+            compatibility:
+              google-cloud-pubsub: {}
+        - python: ['3.12']
+          axes:
+            google-cloud-pubsub:
+              google-cloud-pubsub-2-14-0: google-cloud-pubsub==2.14.0
+              google-cloud-pubsub-latest: google-cloud-pubsub
+            compatibility:
+              google-cloud-pubsub-2: {}
+        - python: ['3.13', '3.14']
+          dependencies:
+            - google-cloud-pubsub
+          axes:
+            compatibility:
+              google-cloud-pubsub-latest: {}
   graphql:graphene:
     parallelism: 1
     paths:
@@ -1000,6 +1829,29 @@ suites:
       - tests/contrib/graphene/*
       - tests/snapshots/tests.contrib.graphene*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/graphene
+      dependencies:
+        - graphql-relay
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - pytest-asyncio==0.21.1
+          axes:
+            graphene:
+              graphene-3-0-0: graphene~=3.0.0
+              graphene-latest: graphene
+            compatibility:
+              graphene-pytest-asyncio-0-21-1: {}
+        - python: ['3.14']
+          dependencies:
+            - graphene
+            - pytest-asyncio>=1.0
+          axes:
+            compatibility:
+              graphene-latest-pytest-asyncio-gte-1-0: {}
   graphql:
     parallelism: 1
     paths:
@@ -1012,6 +1864,17 @@ suites:
       - tests/snapshots/tests.contrib.graphql.*
     pattern: graphql$
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/graphql
+      dependencies:
+        - pytest-asyncio==0.21.1
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        graphql-core:
+          graphql-core-3-2-0: graphql-core~=3.2.0
+          graphql-core-latest: graphql-core
   grpc:
     paths:
       - '@bootstrap'
@@ -1024,7 +1887,107 @@ suites:
       - tests/snapshots/tests.contrib.grpc.*
     snapshot: true
     venvs_per_job: 3
+    runner: uv
+    matrix:
+      dependencies:
+        - googleapis-common-protos
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          name: grpc
+          axes:
+            grpcio:
+              grpcio-1-34-0: grpcio~=1.34.0
+              grpcio-latest: grpcio
+            compatibility:
+              grpcio: {}
+          command: python -m pytest -v {cmdargs} tests/contrib/grpc
+        - python: ['3.10']
+          name: grpc
+          axes:
+            grpcio:
+              grpcio-1-42-0: grpcio~=1.42.0
+              grpcio-latest: grpcio
+            compatibility:
+              grpcio-2: {}
+          command: python -m pytest -v {cmdargs} tests/contrib/grpc
+        - python: ['3.11']
+          name: grpc
+          axes:
+            grpcio:
+              grpcio-1-49-0: grpcio~=1.49.0
+              grpcio-latest: grpcio
+            compatibility:
+              grpcio-3: {}
+          command: python -m pytest -v {cmdargs} tests/contrib/grpc
+        - python: ['3.12']
+          name: grpc
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            grpcio:
+              grpcio-1-59-0: grpcio~=1.59.0
+              grpcio-latest: grpcio
+            compatibility:
+              grpcio-pytest-asyncio-0-23-7: {}
+          command: python -m pytest -v {cmdargs} tests/contrib/grpc
+        - python: ['3.13']
+          name: grpc
+          dependencies:
+            - grpcio
+          axes:
+            compatibility:
+              grpcio-latest: {}
+          command: python -m pytest -v {cmdargs} tests/contrib/grpc
+        - python: ['3.14']
+          name: grpc
+          dependencies:
+            - grpcio>=1.75.0
+          axes:
+            compatibility:
+              grpcio-gte-1-75-0: {}
+          command: python -m pytest -v {cmdargs} tests/contrib/grpc
+        - python: ['3.9']
+          name: grpc:grpc_aio
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            grpcio:
+              grpcio-1-34-0: grpcio~=1.34.0
+              grpcio-1-59-0: grpcio~=1.59.0
+            compatibility:
+              grpcio-pytest-asyncio-0-23-7-2: {}
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
+          env:
+            _DD_TRACE_GRPC_AIO_ENABLED: 'true'
+        - python: ['3.10']
+          name: grpc:grpc_aio
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            grpcio:
+              grpcio-1-42-0: grpcio~=1.42.0
+              grpcio-1-59-0: grpcio~=1.59.0
+            compatibility:
+              grpcio-pytest-asyncio-0-23-7-3: {}
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
+          env:
+            _DD_TRACE_GRPC_AIO_ENABLED: 'true'
+        - python: ['3.11']
+          name: grpc:grpc_aio
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            grpcio:
+              grpcio-1-49-0: grpcio~=1.49.0
+              grpcio-1-59-0: grpcio~=1.59.0
+            compatibility:
+              grpcio-pytest-asyncio-0-23-7-4: {}
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
+          env:
+            _DD_TRACE_GRPC_AIO_ENABLED: 'true'
   gunicorn:
+    runner: uv
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -1035,7 +1998,19 @@ suites:
       - tests/contrib/gunicorn/*
       - tests/snapshots/tests.contrib.gunicorn.*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/gunicorn
+      dependencies:
+        - requests
+        - gevent
+        - pytest-randomly
+      axes:
+        gunicorn:
+          gunicorn-20-0: gunicorn==20.0.4
+          gunicorn-latest: gunicorn
   httplib:
+    runner: uv
     paths:
       - '@bootstrap'
       - '@core'
@@ -1047,6 +2022,10 @@ suites:
       - httpbin
     snapshot: true
     venvs_per_job: 1
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/httplib
+      dependencies: pytest-randomly
   httpx:
     parallelism: 3
     paths:
@@ -1060,6 +2039,28 @@ suites:
     services:
       - httpbin
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/httpx
+      dependencies:
+        - pytest-asyncio==0.21.1
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          axes:
+            httpx: &id002
+              httpx-0-25-0: httpx~=0.25.0
+              httpx-0-27-0: httpx~=0.27.0
+              httpx-latest: httpx
+            compatibility:
+              variant-1: {}
+        - python: ['3.13', '3.14']
+          dependencies:
+            - legacy-cgi
+          axes:
+            httpx: *id002
+            compatibility:
+              legacy-cgi-latest: {}
   integration_registry:
     paths:
       - '@bootstrap'
@@ -1070,6 +2071,18 @@ suites:
       - tests/contrib/integration_registry/*
     snapshot: false
     parallelism: 1
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/integration_registry
+      dependencies:
+        - pip==26.2.1
+        - riot==0.22.0
+        - ruamel.yaml==0.18.6
+        - pytest-randomly
+        - pytest-asyncio==0.23.7
+        - PyYAML
+        - jsonschema
+      python: ['3.13']
   jinja2:
     parallelism: 2
     paths:
@@ -1080,6 +2093,26 @@ suites:
       - '@jinja2'
       - tests/contrib/jinja2/*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/jinja2
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - jinja2~=2.10.0
+            - markupsafe<2.0
+          axes:
+            compatibility:
+              jinja2-2-10-0-markupsafe-lt-2-0: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          axes:
+            jinja2:
+              jinja2-3-0-0: jinja2~=3.0.0
+              jinja2-latest: jinja2
+            compatibility:
+              jinja2: {}
   kafka:
     retry: 2
     env:
@@ -1098,6 +2131,29 @@ suites:
     services:
       - kafka
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka
+      dependencies:
+        - pytest-randomly
+        - pytest-xdist
+      env:
+        DD_DATA_STREAMS_ENABLED: 'true'
+        _DD_TRACE_STATS_WRITER_INTERVAL: '1000000000'
+      cases:
+        - python: ['3.9', '3.10']
+          axes:
+            confluent-kafka:
+              confluent-kafka-1-9-2: confluent-kafka~=1.9.2
+              confluent-kafka-latest: confluent-kafka
+            compatibility:
+              confluent-kafka: {}
+        - python: ['3.11', '3.12', '3.13']
+          dependencies:
+            - confluent-kafka
+          axes:
+            compatibility:
+              confluent-kafka-latest: {}
   kombu:
     parallelism: 1
     paths:
@@ -1111,7 +2167,35 @@ suites:
     services:
       - rabbitmq
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/kombu
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          axes:
+            kombu:
+              kombu-gte-4-6-lt-4-7: kombu>=4.6,<4.7
+              kombu-gte-5-0-lt-5-1: kombu>=5.0,<5.1
+              kombu-latest: kombu
+            compatibility:
+              kombu: {}
+        - python: ['3.10', '3.11']
+          axes:
+            kombu:
+              kombu-gte-5-2-lt-5-3: kombu>=5.2,<5.3
+              kombu-latest: kombu
+            compatibility:
+              kombu-2: {}
+        - python: ['3.12', '3.13', '3.14']
+          dependencies:
+            - kombu
+          axes:
+            compatibility:
+              kombu-latest: {}
   logbook:
+    runner: uv
     parallelism: 1
     paths:
       - '@core'
@@ -1120,7 +2204,16 @@ suites:
       - '@logbook'
       - tests/contrib/logbook/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/logbook
+      dependencies: pytest-randomly
+      axes:
+        logbook:
+          logbook-1-0: logbook~=1.0.0
+          logbook-latest: logbook
   loguru:
+    runner: uv
     parallelism: 1
     paths:
       - '@core'
@@ -1129,6 +2222,14 @@ suites:
       - '@loguru'
       - tests/contrib/loguru/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/loguru
+      dependencies: pytest-randomly
+      axes:
+        loguru:
+          loguru-0-4: loguru~=0.4.0
+          loguru-latest: loguru
   mako:
     parallelism: 1
     paths:
@@ -1139,6 +2240,16 @@ suites:
       - '@mako'
       - tests/contrib/mako/*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/mako
+      dependencies:
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        mako:
+          mako-1-0-0: mako~=1.0.0
+          mako-latest: mako
   mariadb:
     paths:
       - '@bootstrap'
@@ -1153,6 +2264,27 @@ suites:
       - mariadb
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/mariadb
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10']
+          axes:
+            mariadb:
+              mariadb-1-0-0: mariadb~=1.0.0
+              mariadb-1-0: mariadb~=1.0
+              mariadb-latest: mariadb
+            compatibility:
+              mariadb: {}
+        - python: ['3.11', '3.12', '3.13', '3.14']
+          axes:
+            mariadb:
+              mariadb-1-1-2: mariadb~=1.1.2
+              mariadb-latest: mariadb
+            compatibility:
+              mariadb-2: {}
   mlflow:
     venvs_per_job: 2
     paths:
@@ -1164,7 +2296,27 @@ suites:
       - tests/contrib/mlflow/*
       - tests/snapshots/tests.contrib.mlflow.*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/mlflow/
+      dependencies:
+        - pytest-randomly
+        - setuptools<82
+      cases:
+        - python: ['3.10', '3.11']
+          dependencies:
+            - mlflow~=2.11.0
+          axes:
+            compatibility:
+              mlflow-2-11-0: {}
+        - python: ['3.12', '3.13']
+          dependencies:
+            - mlflow
+          axes:
+            compatibility:
+              mlflow-latest: {}
   molten:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1175,6 +2327,57 @@ suites:
       - tests/contrib/molten/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten
+      dependencies:
+        - cattrs<23.1.1
+        - pytest-randomly
+        - pytest-xdist
+      axes:
+        molten:
+          molten-1-0: molten>=1.0,<1.1
+          molten-latest: molten
+  mysql:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@dbapi'
+      - '@mysql'
+      - tests/contrib/mysql/*
+      - tests/contrib/shared_tests.py
+    services:
+      - mysql
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/mysql
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          axes:
+            mysql-connector-python:
+              mysql-connector-python-8-0-5: mysql-connector-python==8.0.5
+              mysql-connector-python-latest: mysql-connector-python
+        - python: ['3.10']
+          axes:
+            mysql-connector-python:
+              mysql-connector-python-8-0-28: mysql-connector-python~=8.0.28
+              mysql-connector-python-latest: mysql-connector-python
+        - python: ['3.11']
+          axes:
+            mysql-connector-python:
+              mysql-connector-python-8-0-31: mysql-connector-python~=8.0.31
+              mysql-connector-python-latest: mysql-connector-python
+        - python: ['3.12', '3.13', '3.14']
+          dependencies:
+            - mysql-connector-python
+          axes:
+            compatibility:
+              mysql-connector-python-latest: {}
   mysqlpython:
     paths:
       - '@bootstrap'
@@ -1190,6 +2393,32 @@ suites:
     skip: true
     services:
       - mysql
+    runner: uv
+    matrix:
+      name: mysqldb
+      command: pytest {cmdargs} tests/contrib/mysqldb
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - mysqlclient~=2.0
+          axes:
+            compatibility:
+              mysqlclient-2-0: {}
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          axes:
+            mysqlclient:
+              mysqlclient-2-1: mysqlclient~=2.1
+              mysqlclient-latest: mysqlclient
+            compatibility:
+              mysqlclient: {}
+        - python: ['3.13', '3.14']
+          dependencies:
+            - mysqlclient==2.2.6
+          axes:
+            compatibility:
+              mysqlclient-2-2-6: {}
   opentelemetry:
     parallelism: 4
     paths:
@@ -1200,7 +2429,60 @@ suites:
       - tests/opentelemetry/*
       - tests/snapshots/tests.opentelemetry.*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/opentelemetry
+      dependencies:
+        - pytest-randomly
+        - pytest-asyncio==0.21.1
+        - opentelemetry-instrumentation-flask
+        - flask
+        - gevent
+        - requests==2.28.1
+      env:
+        DD_TRACE_OTEL_ENABLED: 'true'
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - markupsafe==2.0.1
+          axes:
+            opentelemetry-api:
+              opentelemetry-api-1-0-0: opentelemetry-api~=1.0.0
+              opentelemetry-api-1-15-0: opentelemetry-api~=1.15.0
+              opentelemetry-api-1-26-0: opentelemetry-api~=1.26.0
+              opentelemetry-api-latest: opentelemetry-api
+            compatibility:
+              markupsafe-2-0-1-opentelemetry-api: {}
+        - python: ['3.14']
+          dependencies:
+            - markupsafe
+            - opentelemetry-api
+          axes:
+            compatibility:
+              markupsafe-latest-opentelemetry-api-latest: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - markupsafe==2.0.1
+          axes:
+            opentelemetry-exporter-otlp:
+              opentelemetry-exporter-otlp-1-15-0: opentelemetry-exporter-otlp~=1.15.0
+              opentelemetry-exporter-otlp-1-34-0: opentelemetry-exporter-otlp~=1.34.0
+              opentelemetry-exporter-otlp-latest: opentelemetry-exporter-otlp
+            compatibility:
+              markupsafe-2-0-1-opentelemetry-exporter-otlp: {}
+          env:
+            SDK_EXPORTER_INSTALLED: '1'
+        - python: ['3.14']
+          dependencies:
+            - markupsafe
+            - opentelemetry-exporter-otlp
+          axes:
+            compatibility:
+              markupsafe-latest-opentelemetry-exporter-otlp-latest: {}
+          env:
+            SDK_EXPORTER_INSTALLED: '1'
   protobuf:
+    runner: uv
     retry: 2
     parallelism: 1
     paths:
@@ -1211,6 +2493,12 @@ suites:
       - '@protobuf'
       - tests/contrib/protobuf/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/contrib/protobuf
+      dependencies:
+        - protobuf
+        - pytest-randomly
   psycopg:
     paths:
       - '@bootstrap'
@@ -1228,6 +2516,56 @@ suites:
       - postgres
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: psycopg:psycopg2
+          axes:
+            psycopg2-binary:
+              psycopg2-binary-2-9-2: psycopg2-binary~=2.9.2
+              psycopg2-binary-latest: psycopg2-binary
+            compatibility:
+              psycopg2-binary: {}
+          command: pytest {cmdargs} tests/contrib/psycopg2
+        - python: ['3.9']
+          name: psycopg
+          dependencies:
+            - psycopg~=3.0.0
+            - pytest-asyncio==0.21.1
+          axes:
+            compatibility:
+              psycopg-3-0-0-pytest-asyncio-0-21-1: {}
+          command: pytest {cmdargs} tests/contrib/psycopg
+        - python: ['3.9', '3.10', '3.11']
+          name: psycopg
+          dependencies:
+            - psycopg
+            - pytest-asyncio==0.21.1
+          axes:
+            compatibility:
+              psycopg-latest-pytest-asyncio-0-21-1: {}
+          command: pytest {cmdargs} tests/contrib/psycopg
+        - python: ['3.12']
+          name: psycopg
+          dependencies:
+            - psycopg
+            - pytest-asyncio==0.23.7
+          axes:
+            compatibility:
+              psycopg-latest-pytest-asyncio-0-23-7: {}
+          command: pytest {cmdargs} tests/contrib/psycopg
+        - python: ['3.13', '3.14']
+          name: psycopg
+          dependencies:
+            - psycopg
+            - pytest-asyncio>=1.0
+          axes:
+            compatibility:
+              psycopg-latest-pytest-asyncio-gte-1-0: {}
+          command: pytest {cmdargs} tests/contrib/psycopg
   pylibmc:
     parallelism: 1
     paths:
@@ -1240,6 +2578,25 @@ suites:
     services:
       - memcached
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/pylibmc
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10']
+          axes:
+            pylibmc:
+              pylibmc-1-6-2: pylibmc~=1.6.2
+              pylibmc-latest: pylibmc
+            compatibility:
+              pylibmc: {}
+        - python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - pylibmc
+          axes:
+            compatibility:
+              pylibmc-latest: {}
   pymemcache:
     parallelism: 2
     paths:
@@ -1252,6 +2609,19 @@ suites:
     services:
       - memcached
     snapshot: true
+    runner: uv
+    matrix:
+      dependencies:
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        pymemcache:
+          pymemcache-3-4-2: pymemcache~=3.4.2
+          pymemcache-3-5: pymemcache~=3.5
+          pymemcache-latest: pymemcache
+      runs:
+        - command: pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache
+        - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/
   pymongo:
     paths:
       - '@bootstrap'
@@ -1264,6 +2634,31 @@ suites:
       - mongo
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/pymongo
+      dependencies:
+        - mongoengine
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          axes:
+            pymongo:
+              pymongo-3-8-0: pymongo~=3.8.0
+              pymongo-3-9-0: pymongo~=3.9.0
+              pymongo-3-11: pymongo~=3.11
+              pymongo-4-0: pymongo~=4.0
+              pymongo-latest: pymongo
+            compatibility:
+              pymongo: {}
+        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          axes:
+            pymongo:
+              pymongo-3-12-3: pymongo~=3.12.3
+              pymongo-4-0: pymongo~=4.0
+              pymongo-latest: pymongo
+            compatibility:
+              pymongo-2: {}
   pymysql:
     parallelism: 1
     paths:
@@ -1279,7 +2674,33 @@ suites:
     services:
       - mysql
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/pymysql
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - pymysql~=0.10
+          axes:
+            compatibility:
+              pymysql-0-10: {}
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          axes:
+            pymysql:
+              pymysql-1-0: pymysql~=1.0
+              pymysql-latest: pymysql
+            compatibility:
+              pymysql: {}
+        - python: ['3.13', '3.14']
+          dependencies:
+            - pymysql
+          axes:
+            compatibility:
+              pymysql-latest: {}
   pynamodb:
+    runner: uv
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1289,6 +2710,19 @@ suites:
       - '@pynamodb'
       - tests/contrib/pynamodb/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11']
+      command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb
+      dependencies:
+        - moto>=1.0,<2.0
+        - cfn-lint~=0.53.1
+        - Jinja2~=2.10.0
+        - pytest-randomly
+        - pytest-xdist
+      axes:
+        pynamodb:
+          pynamodb-5-3: pynamodb~=5.3
+          pynamodb-5: pynamodb<6.0
   pytorch:
     venvs_per_job: 1
     skip_pip_cache: true
@@ -1300,6 +2734,44 @@ suites:
       - '@pytorch'
       - tests/contrib/pytorch/*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/pytorch
+      cases:
+        - python: ['3.9', '3.10', '3.11']
+          axes:
+            torch:
+              torch-2-0-0: torch~=2.0.0
+              torch-2-1-0: torch~=2.1.0
+            compatibility:
+              torch: {}
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          axes:
+            torch:
+              torch-2-2-0: torch~=2.2.0
+              torch-2-3-0: torch~=2.3.0
+            compatibility:
+              torch-2: {}
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          axes:
+            torch:
+              torch-2-4-0: torch~=2.4.0
+              torch-2-5-0: torch~=2.5.0
+              torch-2-6-0: torch~=2.6.0
+              torch-2-7-0: torch~=2.7.0
+            compatibility:
+              torch-3: {}
+        - python: ['3.12']
+          axes:
+            torch:
+              torch-2-8-0: torch~=2.8.0
+              torch-2-9-0: torch~=2.9.0
+              torch-2-10-0: torch~=2.10.0
+              torch-2-11-0: torch~=2.11.0
+              torch-2-12-0: torch~=2.12.0
+              torch-latest: torch
+            compatibility:
+              torch-4: {}
   pyodbc:
     parallelism: 1
     paths:
@@ -1311,6 +2783,25 @@ suites:
       - '@dbapi'
       - tests/contrib/pyodbc/*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/pyodbc
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10']
+          axes:
+            pyodbc:
+              pyodbc-4-0-34: pyodbc~=4.0.34
+              pyodbc-latest: pyodbc
+            compatibility:
+              pyodbc: {}
+        - python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - pyodbc
+          axes:
+            compatibility:
+              pyodbc-latest: {}
   pyramid:
     parallelism: 1
     paths:
@@ -1322,7 +2813,38 @@ suites:
       - tests/contrib/pyramid/*
       - tests/snapshots/tests.contrib.pyramid.*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/pyramid
+      dependencies:
+        - requests
+        - webtest
+        - pserve-test-app @ ./tests/contrib/pyramid/pserve_app
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          axes:
+            pyramid:
+              pyramid-1-10: pyramid~=1.10
+              pyramid-2-0: pyramid~=2.0
+              pyramid-latest: pyramid
+            compatibility:
+              pyramid: {}
+        - python: ['3.10', '3.11', '3.12']
+          dependencies:
+            - pyramid
+          axes:
+            compatibility:
+              pyramid-latest: {}
+        - python: ['3.13', '3.14']
+          dependencies:
+            - pyramid
+            - legacy-cgi
+          axes:
+            compatibility:
+              pyramid-latest-legacy-cgi-latest: {}
   ray:
+    runner: uv
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -1335,7 +2857,15 @@ suites:
       - tests/snapshots/tests.contrib.ray.*
     pattern: ^ray$
     snapshot: true
+    matrix:
+      python: ['3.11', '3.12', '3.13']
+      command: pytest {cmdargs} tests/contrib/ray
+      axes:
+        ray:
+          ray-2-46: ray[default]~=2.46.0
+          ray-2-54: ray[default]~=2.54.1
   ray_serve:
+    runner: uv
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -1348,6 +2878,16 @@ suites:
       - tests/snapshots/tests.contrib.ray_serve.*
     pattern: ^ray_serve$
     snapshot: true
+    matrix:
+      python: ['3.11', '3.12', '3.13']
+      command: pytest {cmdargs} tests/contrib/ray_serve
+      dependencies:
+        - fastapi
+        - protobuf==4.25.8
+      axes:
+        ray:
+          ray-2-47: ray[serve]~=2.47.1
+          ray-2-54: ray[serve]~=2.54.1
   redis:
     parallelism: 5
     paths:
@@ -1363,7 +2903,47 @@ suites:
       - rediscluster
       - redis
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/redis
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10']
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            redis:
+              redis-4-1: redis~=4.1
+              redis-4-3: redis~=4.3
+              redis-5-0-1: redis==5.0.1
+            compatibility:
+              redis-pytest-asyncio-0-23-7: {}
+        - python: ['3.11']
+          dependencies:
+            - pytest-asyncio==0.23.7
+          axes:
+            redis:
+              redis-4-3: redis~=4.3
+              redis-5-0-1: redis==5.0.1
+            compatibility:
+              redis-pytest-asyncio-0-23-7-2: {}
+        - python: ['3.12', '3.13']
+          dependencies:
+            - redis
+            - pytest-asyncio==0.23.7
+          axes:
+            compatibility:
+              redis-latest-pytest-asyncio-0-23-7: {}
+        - python: ['3.14']
+          dependencies:
+            - redis
+            - pytest-asyncio
+          axes:
+            compatibility:
+              redis-latest-pytest-asyncio-latest: {}
   rediscluster:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1377,6 +2957,14 @@ suites:
       - redis
       - rediscluster
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11']
+      command: pytest {cmdargs} tests/contrib/rediscluster
+      dependencies: pytest-randomly
+      axes:
+        redis-py-cluster:
+          redis-py-cluster-2-0: redis-py-cluster>=2.0,<2.1
+          redis-py-cluster-latest: redis-py-cluster
   requests:
     runner: uv
     parallelism: 1
@@ -1423,6 +3011,30 @@ suites:
     services:
       - redis
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/rq
+      dependencies:
+        - pytest-asyncio==0.21.1
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - click==7.1.2
+          axes:
+            rq:
+              rq-1-8-1: rq~=1.8.1
+              rq-1-10-0: rq~=1.10.0
+              rq-2-0-0: rq~=2.0.0
+              rq-latest: rq
+            compatibility:
+              rq-click-7-1-2: {}
+        - python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - rq
+          axes:
+            compatibility:
+              rq-latest: {}
   sanic:
     paths:
       - '@bootstrap'
@@ -1435,6 +3047,65 @@ suites:
       - tests/snapshots/tests.contrib.sanic.*
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/sanic
+      dependencies:
+        - pytest<8
+        - pytest-asyncio==0.21.1
+        - pytest-randomly
+        - requests
+        - websockets<11.0
+        - setuptools<82
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - sanic~=20.12
+            - pytest-sanic~=1.6.2
+          axes:
+            compatibility:
+              sanic-20-12-pytest-sanic-1-6-2: {}
+        - python: ['3.9']
+          dependencies:
+            - sanic-testing~=0.8.3
+          axes:
+            sanic:
+              sanic-21-3: sanic~=21.3
+              sanic-21-12: sanic~=21.12
+            compatibility:
+              sanic-sanic-testing-0-8-3: {}
+        - python: ['3.10']
+          dependencies:
+            - sanic~=21.12.0
+            - sanic-testing~=0.8.3
+          axes:
+            compatibility:
+              sanic-21-12-0-sanic-testing-0-8-3: {}
+        - python: ['3.9', '3.10']
+          dependencies:
+            - sanic-testing~=22.3.0
+          axes:
+            sanic:
+              sanic-22-3: sanic~=22.3
+              sanic-22-12: sanic~=22.12
+            compatibility:
+              sanic-sanic-testing-22-3-0: {}
+        - python: ['3.11']
+          dependencies:
+            - sanic-testing~=22.3.0
+          axes:
+            sanic:
+              sanic-22-12-0: sanic~=22.12.0
+              sanic-23-12: sanic~=23.12
+            compatibility:
+              sanic-sanic-testing-22-3-0-2: {}
+        - python: ['3.12']
+          dependencies:
+            - sanic~=23.12
+            - sanic-testing~=23.12.0
+          axes:
+            compatibility:
+              sanic-23-12-sanic-testing-23-12-0: {}
   snowflake:
     paths:
       - '@bootstrap'
@@ -1447,7 +3118,38 @@ suites:
       - tests/snapshots/tests.contrib.snowflake.*
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/snowflake
+      dependencies:
+        - responses~=0.16.0
+        - cryptography<39
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          axes:
+            snowflake-connector-python:
+              snowflake-connector-python-2-4-0: snowflake-connector-python~=2.4.0
+              snowflake-connector-python-2-9-0: snowflake-connector-python~=2.9.0
+              snowflake-connector-python-latest: snowflake-connector-python
+            compatibility:
+              snowflake-connector-python: {}
+        - python: ['3.10']
+          axes:
+            snowflake-connector-python:
+              snowflake-connector-python-2-7-2: snowflake-connector-python~=2.7.2
+              snowflake-connector-python-2-9-0: snowflake-connector-python~=2.9.0
+              snowflake-connector-python-latest: snowflake-connector-python
+            compatibility:
+              snowflake-connector-python-2: {}
+        - python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - snowflake-connector-python
+          axes:
+            compatibility:
+              snowflake-connector-python-latest: {}
   sourcecode:
+    runner: uv
     retry: 2
     parallelism: 1
     paths:
@@ -1456,6 +3158,12 @@ suites:
       - '@contrib'
       - '@sourcecode'
       - tests/sourcecode/*
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/sourcecode
+      dependencies:
+        - setuptools
+        - pytest-randomly
   sqlalchemy:
     parallelism: 1
     paths:
@@ -1471,6 +3179,37 @@ suites:
       - postgres
       - mysql
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/sqlalchemy
+      dependencies:
+        - pytest-randomly
+        - psycopg2-binary
+        - mysql-connector-python
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          dependencies:
+            - greenlet==3.0.3
+          axes:
+            sqlalchemy:
+              sqlalchemy-1-3-0: sqlalchemy~=1.3.0
+              sqlalchemy-latest: sqlalchemy
+            compatibility:
+              sqlalchemy-greenlet-3-0-3: {}
+        - python: ['3.12', '3.13']
+          dependencies:
+            - sqlalchemy
+            - greenlet==3.1.0
+          axes:
+            compatibility:
+              sqlalchemy-latest-greenlet-3-1-0: {}
+        - python: ['3.14']
+          dependencies:
+            - sqlalchemy
+            - greenlet==3.2.4
+          axes:
+            compatibility:
+              sqlalchemy-latest-greenlet-3-2-4: {}
   starlette:
     paths:
       - '@bootstrap'
@@ -1483,6 +3222,64 @@ suites:
       - tests/contrib/starlette/*
     snapshot: true
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/starlette
+      dependencies:
+        - pytest-asyncio==0.21.1
+        - greenlet~=3.0
+        - requests
+        - aiofiles
+        - sqlalchemy<2.0
+        - aiosqlite
+        - databases
+        - pytest-randomly
+        - anyio<4.0
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - httpx~=0.22.0
+          axes:
+            starlette:
+              starlette-0-14-0: starlette~=0.14.0
+              starlette-0-20-0: starlette~=0.20.0
+              starlette-0-33-0: starlette~=0.33.0
+            compatibility:
+              starlette-httpx-0-22-0: {}
+        - python: ['3.10']
+          dependencies:
+            - httpx~=0.27.0
+          axes:
+            starlette:
+              starlette-0-15-0: starlette~=0.15.0
+              starlette-0-20-0: starlette~=0.20.0
+              starlette-0-33-0: starlette~=0.33.0
+              starlette-latest: starlette
+            compatibility:
+              starlette-httpx-0-27-0: {}
+        - python: ['3.11']
+          dependencies:
+            - httpx~=0.22.0
+          axes:
+            starlette:
+              starlette-0-21-0: starlette~=0.21.0
+              starlette-0-33-0: starlette~=0.33.0
+            compatibility:
+              starlette-httpx-0-22-0-2: {}
+        - python: ['3.12', '3.13', '3.14']
+          dependencies:
+            - starlette
+            - httpx~=0.27.0
+          axes:
+            compatibility:
+              starlette-latest-httpx-0-27-0: {}
+        - python: ['3.9', '3.10', '3.11']
+          dependencies:
+            - starlette
+            - httpx~=0.22.0
+          axes:
+            compatibility:
+              starlette-latest-httpx-0-22-0: {}
   stdlib:
     retry: 2
     parallelism: 2
@@ -1505,6 +3302,75 @@ suites:
       - tests/snapshots/tests.contrib.sqlite3*
     pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
     snapshot: true
+    runner: uv
+    matrix:
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: futures
+          dependencies:
+            - gevent
+          axes:
+            compatibility:
+              gevent-latest: {}
+          command: pytest {cmdargs} tests/contrib/futures
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          name: sqlite3
+          dependencies:
+            - pysqlite3-binary
+          axes:
+            compatibility:
+              pysqlite3-binary-latest: {}
+          command: pytest {cmdargs} tests/contrib/sqlite3
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          name: dbapi
+          axes:
+            compatibility:
+              dbapi: {}
+          command: pytest {cmdargs} tests/contrib/dbapi
+          env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
+            DD_IAST_REQUEST_SAMPLING: '100'
+        - python: ['3.9', '3.10']
+          name: dbapi_async
+          dependencies:
+            - pytest-asyncio==0.21.1
+          axes:
+            compatibility:
+              pytest-asyncio-0-21-1: {}
+          command: pytest {cmdargs} tests/contrib/dbapi_async
+          env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
+            DD_IAST_REQUEST_SAMPLING: '100'
+        - python: ['3.11', '3.12', '3.13', '3.14']
+          name: dbapi_async
+          dependencies:
+            - pytest-asyncio==0.21.1
+            - attrs
+          axes:
+            compatibility:
+              pytest-asyncio-0-21-1-attrs-latest: {}
+          command: pytest {cmdargs} tests/contrib/dbapi_async
+          env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
+            DD_IAST_REQUEST_SAMPLING: '100'
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          name: asyncio
+          dependencies:
+            - pytest-asyncio==0.21.1
+          axes:
+            compatibility:
+              pytest-asyncio-0-21-1-2: {}
+          command: pytest {cmdargs} tests/contrib/asyncio
+        - python: ['3.13', '3.14']
+          name: asyncio
+          dependencies:
+            - pytest-asyncio>=1.0.0
+          axes:
+            compatibility:
+              pytest-asyncio-gte-1-0-0: {}
+          command: pytest {cmdargs} tests/contrib/asyncio
   structlog:
     parallelism: 1
     paths:
@@ -1514,6 +3380,16 @@ suites:
       - '@structlog'
       - tests/contrib/structlog/*
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/structlog
+      dependencies:
+        - pytest-randomly
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      axes:
+        structlog:
+          structlog-20-2-0: structlog~=20.2.0
+          structlog-latest: structlog
   subprocess:
     runner: uv
     parallelism: 2
@@ -1531,6 +3407,7 @@ suites:
       dependencies:
         - pytest-randomly
   logging:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1540,6 +3417,12 @@ suites:
       - '@logging'
       - tests/contrib/logging/*
     snapshot: true
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/logging
+      dependencies:
+        - pytest-randomly
+        - pytest-xdist
   tornado:
     parallelism: 1
     paths:
@@ -1551,6 +3434,34 @@ suites:
       - '@futures'
       - tests/contrib/tornado/*
     snapshot: true
+    runner: uv
+    matrix:
+      command: python -m pytest {cmdargs} tests/contrib/tornado
+      dependencies:
+        - pytest-randomly
+      cases:
+        - python: ['3.9']
+          dependencies:
+            - pytest<=8
+          axes:
+            tornado:
+              tornado-6-1: tornado==6.1
+              tornado-6-2: tornado~=6.2
+            compatibility:
+              pytest-lte-8-tornado: {}
+        - python: ['3.10', '3.11', '3.12']
+          axes:
+            tornado:
+              tornado-6-2: tornado==6.2
+              tornado-6-3-1: tornado==6.3.1
+            compatibility:
+              tornado: {}
+        - python: ['3.13', '3.14']
+          dependencies:
+            - tornado==6.4.1
+          axes:
+            compatibility:
+              tornado-6-4-1: {}
   urllib3:
     parallelism: 1
     env:
@@ -1567,6 +3478,41 @@ suites:
     services:
       - httpbin
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3
+      dependencies:
+        - pytest-randomly
+        - pytest-xdist
+      cases:
+        - python: ['3.9']
+          axes:
+            urllib3:
+              urllib3-1-25-8: urllib3==1.25.8
+              urllib3-latest: urllib3
+            compatibility:
+              urllib3: {}
+        - python: ['3.10']
+          axes:
+            urllib3:
+              urllib3-1-26-6: urllib3==1.26.6
+              urllib3-latest: urllib3
+            compatibility:
+              urllib3-2: {}
+        - python: ['3.11']
+          axes:
+            urllib3:
+              urllib3-1-26-8: urllib3==1.26.8
+              urllib3-latest: urllib3
+            compatibility:
+              urllib3-3: {}
+        - python: ['3.12', '3.13', '3.14']
+          axes:
+            urllib3:
+              urllib3-2-0-0: urllib3==2.0.0
+              urllib3-latest: urllib3
+            compatibility:
+              urllib3-4: {}
   vertica:
     parallelism: 1
     paths:
@@ -1577,7 +3523,18 @@ suites:
       - '@vertica'
       - tests/contrib/vertica/*
     skip: true # Vertica tests are flaky
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/vertica/
+      dependencies:
+        - pytest-randomly
+      python: ['3.9']
+      axes:
+        vertica-python:
+          vertica-python-gte-0-6-0-lt-0-7-0: vertica-python>=0.6.0,<0.7.0
+          vertica-python-gte-0-7-0-lt-0-8-0: vertica-python>=0.7.0,<0.8.0
   wsgi:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1590,6 +3547,15 @@ suites:
       - tests/contrib/uwsgi/__init__.py
       - tests/snapshots/tests.contrib.wsgi.*
     snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/contrib/wsgi
+      dependencies:
+        - WebTest
+        - pytest-randomly
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12']
+        - python: ['3.13', '3.14']
+          dependencies: legacy-cgi
   yaaredis:
     parallelism: 1
     paths:
@@ -1604,6 +3570,28 @@ suites:
     services:
       - redis
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/yaaredis
+      dependencies:
+        - pytest<8
+        - pytest-asyncio==0.21.1
+        - pytest-randomly
+        - setuptools<82
+      cases:
+        - python: ['3.9']
+          axes:
+            yaaredis:
+              yaaredis-2-0-0: yaaredis~=2.0.0
+              yaaredis-latest: yaaredis
+            compatibility:
+              yaaredis: {}
+        - python: ['3.10']
+          dependencies:
+            - yaaredis
+          axes:
+            compatibility:
+              yaaredis-latest: {}
   valkey:
     parallelism: 1
     paths:
@@ -1619,3 +3607,11 @@ suites:
       - valkeycluster
       - valkey
     snapshot: true
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/contrib/valkey
+      dependencies:
+        - valkey
+        - pytest-randomly
+        - pytest-asyncio==0.23.7
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']

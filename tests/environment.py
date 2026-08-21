@@ -11,7 +11,8 @@ LOCK_ROOT = Path("tests/locks")
 
 def lockfile_path(suite: str, environment_id: str) -> Path:
     """Return the repository-relative lock path for one concrete environment."""
-    return LOCK_ROOT.joinpath(*suite.split("::"), f"{environment_id}.txt")
+    suite_path = (part.replace(":", "-") for part in suite.split("::"))
+    return LOCK_ROOT.joinpath(*suite_path, f"{environment_id}.txt")
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class TestEnvironment:
     environments_per_job: int | None = None
     gpu: bool = False
     skip_pip_cache: bool = False
+    install_project: bool = True
     lockfile: Path | None = None
     ordinal: int = 0
 

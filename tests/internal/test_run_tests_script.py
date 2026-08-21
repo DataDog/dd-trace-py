@@ -1,5 +1,7 @@
+from dataclasses import replace
 import importlib.machinery
 import importlib.util
+import os
 from pathlib import Path
 import types
 from unittest import mock
@@ -47,6 +49,7 @@ def run_tests_script():
 
 def _subprocess_environment(run_tests_script, python="3.12"):
     runner = run_tests_script.TestRunner()
+    runner.in_ci = False
     environments = runner.get_test_environments(
         _SUBPROCESS_CONFIG["pattern"],
         suite_name="contrib::subprocess",
@@ -85,19 +88,88 @@ def test_uv_build_commands_install_descriptive_uv_lock(run_tests_script, monkeyp
         "uv",
         "venv",
         "--allow-existing",
+        "--relocatable",
         "--python",
         "3.12",
         "--no-python-downloads",
         ".cache/uv-test-environments/contrib/subprocess/subprocess-py312",
     ]
-    sync = commands[1]
-    lockfile = "tests/locks/contrib/subprocess/subprocess-py312.txt"
-    assert sync[sync.index("--python") + 2] == lockfile
-    assert "--requirements" not in sync
-    install = commands[2]
+    install = commands[1]
     assert install[install.index("--exclude-newer") + 1] == "2026-08-18T12:00:00Z"
     assert "--editable" in install
+    lock_install = commands[2]
+    lockfile = "tests/locks/contrib/subprocess/subprocess-py312.txt"
+    assert lock_install[lock_install.index("--requirements") + 1] == lockfile
+    assert "--exact" not in lock_install
     assert all("CMAKE_BUILD_PARALLEL_LEVEL=12" in command for command in commands)
+
+
+def test_uv_build_commands_reuse_ci_build_artifacts(run_tests_script):
+    runner, environment = _subprocess_environment(run_tests_script)
+    runner.in_ci = True
+
+    commands = runner._uv_build_commands(environment, {})
+
+    assert len(commands) == 3
+    assert "--relocatable" in commands[0]
+    assert not any("--editable" in command for command in commands)
+    assert commands[1][-4:] == [
+        "cp",
+        "-R",
+        f"{_ROOT}/.cache/uv-test-environments/smoke_test/smoke-test-py312/.",
+        f"{_ROOT}/.cache/uv-test-environments/contrib/subprocess/subprocess-py312",
+    ]
+    assert "--requirements" in commands[2]
+    assert "--reinstall" in commands[2]
+
+
+def test_uv_build_commands_install_ddtrace_in_ci_base_job(run_tests_script, monkeypatch):
+    runner, environment = _subprocess_environment(run_tests_script)
+    runner.in_ci = True
+    monkeypatch.setenv("DD_TEST_INSTALL_DDTRACE", "1")
+
+    commands = runner._uv_build_commands(environment, {})
+
+    assert len(commands) == 3
+    assert "--editable" in commands[1]
+
+
+def test_uv_build_commands_skip_project_for_dependency_only_helpers(run_tests_script):
+    runner, environment = _subprocess_environment(run_tests_script)
+    runner.in_ci = True
+    environment = replace(environment, install_project=False)
+
+    commands = runner._uv_build_commands(environment, {})
+
+    assert len(commands) == 2
+    assert not any("--editable" in command or "cp" in command or "--reinstall" in command for command in commands)
+
+
+def test_direct_environment_selection_requires_suite_for_duplicate_ids(run_tests_script):
+    runner = run_tests_script.TestRunner()
+    config = {
+        **_SUBPROCESS_CONFIG,
+        "matrix": {**_SUBPROCESS_CONFIG["matrix"], "name": "shared"},
+    }
+    suites = {"first": config, "second": config}
+
+    with pytest.raises(ValueError, match="ambiguous environment shared-py312"):
+        runner.get_environments_by_id_direct(suites, ["shared-py312"])
+
+    selected = runner.get_environments_by_id_direct(suites, ["shared-py312"], "second")
+
+    assert len(selected) == 1
+    assert selected[0].suite == "second"
+
+
+def test_uv_environment_path_is_safe_for_subsuites(run_tests_script):
+    runner, environment = _subprocess_environment(run_tests_script)
+    environment = replace(environment, suite="contrib::django:djangorestframework")
+
+    path = runner._uv_environment_path(environment)
+
+    assert path == Path(".cache/uv-test-environments/contrib/django-djangorestframework/subprocess-py312")
+    assert all(os.pathsep not in part for part in path.parts)
 
 
 def test_uv_test_command_uses_environment_executable_and_run_environment(run_tests_script):
@@ -129,6 +201,30 @@ def test_uv_test_command_uses_environment_executable_and_run_environment(run_tes
     ]
 
 
+def test_uv_test_command_supports_shell_pipelines_and_other_executables(run_tests_script):
+    runner, environment = _subprocess_environment(run_tests_script)
+
+    shell_command = runner._uv_test_command(
+        environment,
+        run_tests_script.TestRun("cmake --build . && python -m pytest {cmdargs}"),
+        ["-k", "selected"],
+        {},
+    )
+    bash_command = runner._uv_test_command(
+        environment,
+        run_tests_script.TestRun("bash scripts/check.sh"),
+        [],
+        {},
+    )
+
+    assert shell_command[-3:] == [
+        "bash",
+        "-c",
+        "cmake --build . && python -m pytest -k selected",
+    ]
+    assert bash_command[-2:] == ["bash", "scripts/check.sh"]
+
+
 def test_uv_build_receives_matrix_environment(run_tests_script, monkeypatch):
     runner, environment = _subprocess_environment(run_tests_script)
     captured = {}
@@ -147,6 +243,7 @@ def test_uv_build_receives_matrix_environment(run_tests_script, monkeypatch):
 def test_uv_commands_execute_directly_in_gitlab_ci(run_tests_script, monkeypatch):
     monkeypatch.setenv("GITLAB_CI", "true")
     runner, environment = _subprocess_environment(run_tests_script)
+    runner.in_ci = True
 
     command = runner._uv_test_command(environment, environment.runs[0], [], {})
 
@@ -154,4 +251,4 @@ def test_uv_commands_execute_directly_in_gitlab_ci(run_tests_script, monkeypatch
     environment_bin = str(_ROOT / ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin")
     assert any(argument.startswith(f"PATH={environment_bin}:") for argument in command)
     assert any(argument.startswith(f"PYTHONPATH={_ROOT}") for argument in command)
-    assert str(_ROOT / ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin/pytest") in command
+    assert command[-4] == str(_ROOT / ".cache/uv-test-environments/contrib/subprocess/subprocess-py312/bin/pytest")

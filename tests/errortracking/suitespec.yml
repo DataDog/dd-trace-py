@@ -5,6 +5,7 @@ components:
     - ddtrace/internal/settings/errortracking.py
 suites:
   errortracker:
+    runner: uv
     parallelism: 1
     paths:
       - '@errortracking'
@@ -12,3 +13,9 @@ suites:
       - '@core'
       - '@tracing'
       - tests/errortracking/*
+    matrix:
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/errortracking/
+      dependencies:
+        - flask
+        - pip==26.2.1

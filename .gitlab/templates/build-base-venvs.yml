@@ -10,6 +10,7 @@ build_base_venvs:
     PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
+    UV_NO_CACHE: '1'
     # S3-backed sccache, matches the wheel-build jobs in .gitlab/package.yml
     SCCACHE_BUCKET: 'dd-trace-py-builds'
     SCCACHE_S3_KEY_PREFIX: 'sccache'
@@ -37,10 +38,8 @@ build_base_venvs:
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
-    riot -P -v generate --python=$PYTHON_VERSION
-    .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
-    riot -v run -s --python=$PYTHON_VERSION smoke_test
+    DD_TEST_INSTALL_DDTRACE=1 scripts/run-tests --suite smoke_test --venv "smoke-test-py${{PYTHON_VERSION//./}}"
     sccache --show-stats || true
   artifacts:
     name: venv_$PYTHON_VERSION
@@ -50,4 +49,4 @@ build_base_venvs:
       - ddtrace/**/*.so*
       - src/native/target*/include/
       - .download_cache/_cmake_deps/absl_install_*/
-      - .riot/venv_*
+      - .cache/uv-test-environments/smoke_test/

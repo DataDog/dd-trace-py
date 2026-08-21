@@ -127,6 +127,7 @@ def test_uv_jobs_use_base_venv_artifacts_without_riot_cache(gen_gitlab_config_mo
     assert 'UV_NO_CACHE: "1"' in config
     assert "uv run --no-project --python 3.9" in config
     assert "--with-requirements tests/locks/wait/wait-py39.txt" in config
+    assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent"' in config
     assert "    - job: build_base_venvs" in config
     assert "      artifacts: true" in config
     assert '          - PYTHON_VERSION: "3.12"' in config

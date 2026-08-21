@@ -17,6 +17,12 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 1
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/api/
+      dependencies:
+        - requests
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
   ai_guard_langchain:
     paths:
       - '@bootstrap'
@@ -30,6 +36,39 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/langchain/
+      dependencies:
+        - pytest-asyncio==0.23.7
+      cases:
+        - python: ['3.9', '3.10', '3.11']
+          dependencies:
+            - langchain==0.1.20
+            - langchain-core==0.1.53
+            - langchain-openai==0.1.6
+            - openai==1.102.0
+          axes:
+            compatibility:
+              langchain-0-1-20-langchain-core-0-1-53-langchain-openai-0-1-6-op: {}
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          dependencies:
+            - langchain==0.2.17
+            - langchain-core==0.2.43
+            - langchain-openai==0.1.7
+            - openai==1.102.0
+          axes:
+            compatibility:
+              langchain-0-2-17-langchain-core-0-2-43-langchain-openai-0-1-7-op: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - langchain
+            - langchain-core
+            - langchain-openai
+            - openai
+          axes:
+            compatibility:
+              langchain-latest-langchain-core-latest-langchain-openai-latest-o: {}
   ai_guard_openai:
     paths:
       - '@bootstrap'
@@ -42,6 +81,31 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/openai/
+      dependencies:
+        - pytest-asyncio==0.23.7
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12']
+          dependencies:
+            - openai==1.3.0
+            - httpx<0.28
+          axes:
+            compatibility:
+              openai-1-3-0-httpx-lt-0-28: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies:
+            - openai==1.102.0
+          axes:
+            compatibility:
+              openai-1-102-0: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - openai
+          axes:
+            compatibility:
+              openai-latest: {}
   ai_guard_anthropic:
     paths:
       - '@bootstrap'
@@ -54,6 +118,27 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/anthropic/
+      dependencies:
+        - pytest-asyncio==0.23.7
+        - pyyaml
+      cases:
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - anthropic==0.28.0
+            - httpx~=0.27.0
+          axes:
+            compatibility:
+              anthropic-0-28-0-httpx-0-27-0: {}
+        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - anthropic
+            - httpx<0.28.0
+          axes:
+            compatibility:
+              anthropic-latest-httpx-lt-0-28-0: {}
   ai_guard_strands:
     paths:
       - '@bootstrap'
@@ -65,6 +150,12 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 1
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/strands_hooks/
+      dependencies:
+        - strands-agents>=1.29.0
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
   ai_guard_litellm_guardrail:
     paths:
       - '@bootstrap'
@@ -76,3 +167,21 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 2
+    runner: uv
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
+      dependencies:
+        - pytest-asyncio
+      cases:
+        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - litellm[proxy]==1.78.5
+          axes:
+            compatibility:
+              litellm-proxy-1-78-5: {}
+        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies:
+            - litellm[proxy]==1.82.6
+          axes:
+            compatibility:
+              litellm-proxy-1-82-6: {}

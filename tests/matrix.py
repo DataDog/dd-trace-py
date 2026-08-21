@@ -14,7 +14,7 @@ from tests.environment import TestRun
 from tests.environment import lockfile_path
 
 
-_REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)")
+_REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
 _SLUG_PART = re.compile(r"[^a-z0-9]+")
 _SPEC_FIELDS = {
     "command",
@@ -54,7 +54,8 @@ def _requirement_key(requirement: str) -> str:
     match = _REQUIREMENT_NAME.match(requirement)
     if match is None:
         raise MatrixError(f"invalid dependency requirement: {requirement}")
-    return match.group(1).lower().replace("_", "-")
+    name, extras = match.groups()
+    return f"{name}{extras or ''}".lower().replace("_", "-")
 
 
 def _merge_dependencies(*groups: tuple[str, ...]) -> tuple[str, ...]:
@@ -196,6 +197,7 @@ def _build_environment(
         environments_per_job=suite_config.get("venvs_per_job"),
         gpu=bool(suite_config.get("gpu", False)),
         skip_pip_cache=bool(suite_config.get("skip_pip_cache", False)),
+        install_project=bool(suite_config.get("install_project", True)),
         lockfile=lockfile_path(suite, environment_id),
         ordinal=ordinal,
     )

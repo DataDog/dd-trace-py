@@ -135,8 +135,11 @@ class JobSpec:
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             if self.runner == "uv":
+                wait_environment = ""
+                if "testagent" in wait_for:
+                    wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
                 lines.append(
-                    "    - uv run --no-project --python 3.9 --no-python-downloads "
+                    f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
                     "--with-requirements tests/locks/wait/wait-py39.txt --no-progress "
                     f"python tests/wait-for-services.py {' '.join(wait_for)}"
                 )
@@ -631,7 +634,7 @@ def gen_build_docs() -> None:
             print("  script:", file=f)
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
-            print("      riot -v run -s --pass-env build_docs", file=f)
+            print("      scripts/run-tests --suite build_docs --venv build-docs-py310", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)

@@ -8,6 +8,9 @@ import pytest
 import yaml
 
 import riotfile
+from tests.matrix import expand_suite_matrix
+from tests.suitespec import get_matrix_defaults
+from tests.suitespec import get_suites
 
 
 @pytest.fixture(scope="module")
@@ -174,10 +177,15 @@ def riot_venv_names() -> set[str]:
 
 
 @pytest.fixture(scope="module")
-def test_environment_names(riot_venv_names: set[str], project_root: Path) -> set[str]:
+def test_environment_names(riot_venv_names: set[str]) -> set[str]:
     """Find integration names covered by either Riot or declarative uv environments."""
-    suitespec = yaml.safe_load((project_root / "tests" / "contrib" / "suitespec.yml").read_text())
-    uv_names = {name for name, config in suitespec["suites"].items() if config.get("runner") == "uv"}
+    defaults = get_matrix_defaults()
+    uv_names = {
+        environment.name
+        for suite, config in get_suites().items()
+        if config.get("runner") == "uv"
+        for environment in expand_suite_matrix(suite, config, defaults, nightly=False)
+    }
     return riot_venv_names | uv_names
 
 

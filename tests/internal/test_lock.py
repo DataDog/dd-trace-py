@@ -36,17 +36,6 @@ def _fake_uv(command, **kwargs):
     return subprocess.CompletedProcess(command, 0, requirements, "")
 
 
-def _seed_lock(tmp_path):
-    seed = tmp_path / ".riot/requirements/seed.txt"
-    seed.parent.mkdir(parents=True, exist_ok=True)
-    seed.write_text("example==1.0.0\npytest==8.0.0\n")
-    return seed.relative_to(tmp_path)
-
-
-def _seed_locks(seed):
-    return {("contrib::example", "example-py311"): seed}
-
-
 def test_select_environments_accepts_short_and_full_suite_names():
     suites = {"contrib::example": _suite(), "tracer": _suite("pytest tests/tracer")}
 
@@ -57,6 +46,13 @@ def test_select_environments_accepts_short_and_full_suite_names():
     assert short_suites == full_suites == ("contrib::example",)
     assert short[0].lockfile == Path("tests/locks/contrib/example/example-py311.txt")
     assert short[0].platform == "linux"
+
+
+def test_lockfile_path_is_safe_for_subsuites():
+    path = lockfile_path("ci_visibility::pytest:snapshot", "pytest-snapshot-py312")
+
+    assert path == Path("tests/locks/ci_visibility/pytest-snapshot/pytest-snapshot-py312.txt")
+    assert ":" not in path.as_posix()
 
 
 def test_select_environments_rejects_unknown_suites():
@@ -106,7 +102,6 @@ def test_cooldown_cutoff_rejects_naive_timestamps():
 
 
 def test_generate_locks_prunes_only_selected_suite(tmp_path):
-    seed = _seed_lock(tmp_path)
     obsolete = tmp_path / "tests/locks/contrib/example/obsolete.txt"
     unrelated = tmp_path / "tests/locks/tracer/obsolete.txt"
     obsolete.parent.mkdir(parents=True)
@@ -120,7 +115,6 @@ def test_generate_locks_prunes_only_selected_suite(tmp_path):
         ["example"],
         root=tmp_path,
         jobs=2,
-        seed_locks=_seed_locks(seed),
         run=_fake_uv,
     )
 
@@ -130,8 +124,7 @@ def test_generate_locks_prunes_only_selected_suite(tmp_path):
     assert unrelated.exists()
 
 
-def test_generate_locks_compiles_environments_without_riot_seeds(tmp_path):
-    seed = _seed_lock(tmp_path)
+def test_generate_locks_compiles_all_selected_environments(tmp_path):
     suites = {
         "contrib::example": _suite(),
         "tracer": _suite("pytest tests/tracer"),
@@ -141,7 +134,6 @@ def test_generate_locks_compiles_environments_without_riot_seeds(tmp_path):
         suites,
         {},
         root=tmp_path,
-        seed_locks=_seed_locks(seed),
         run=_fake_uv,
     )
 
@@ -149,7 +141,7 @@ def test_generate_locks_compiles_environments_without_riot_seeds(tmp_path):
         Path("tests/locks/contrib/example/example-py311.txt"),
         Path("tests/locks/tracer/tracer-py311.txt"),
     )
-    assert (tmp_path / written[0]).read_text() == (tmp_path / seed).read_text()
+    assert (tmp_path / written[0]).read_text() == "example==1.0.0\npytest==8.0.0\n"
     assert (tmp_path / written[1]).read_text() == "example==1.0.0\npytest==8.0.0\n"
 
 

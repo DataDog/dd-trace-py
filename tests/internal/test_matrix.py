@@ -115,6 +115,20 @@ def test_matrix_merges_multiple_commands_for_one_dependency_environment():
     assert environments[0].runs[1].environment == {"AUTOPATCH": "1"}
 
 
+def test_matrix_preserves_base_and_extra_requirements_for_the_same_package():
+    config = {
+        "matrix": {
+            "python": ["3.12"],
+            "command": "pytest",
+            "dependencies": ["gunicorn", "gunicorn[gevent]"],
+        }
+    }
+
+    environments = expand_suite_matrix("profiling", config, nightly=False)
+
+    assert environments[0].direct_dependencies == ("gunicorn", "gunicorn[gevent]")
+
+
 def test_matrix_applies_nightly_environment_without_changing_identity():
     config = {"matrix": {"python": ["3.12"], "command": "pytest", "nightly_env": {"NIGHTLY": "yes"}}}
 
