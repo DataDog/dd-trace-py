@@ -3097,7 +3097,7 @@
                         "3.13"
                     ]
                 },
-                "supportedRange": ">=2.46.0",
+                "supportedRange": ">=2.47.1",
                 "tested": [
                     "2.47.1",
                     "2.54.1"
@@ -3822,11 +3822,11 @@
                 },
                 "supportedRange": ">=0.10.2",
                 "tested": [
-                    "0.13.0"
+                    "0.10.2",
+                    "0.27.1"
                 ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "dependencyName": "yaaredis",
