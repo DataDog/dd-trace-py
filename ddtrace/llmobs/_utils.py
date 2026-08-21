@@ -252,16 +252,21 @@ def _unserializable_default_repr(obj):
 _MAX_NESTED_META_DEPTH = 12
 
 
-def _sanitize_span_event_depth(obj: Any) -> Any:
-    """Return a sanitized copy of obj with any container value that exceeds
-    _MAX_NESTED_META_DEPTH levels from the root replaced by its JSON string representation,
-    and every mapping key stringified. The original structure is never mutated.
-    A debug log is emitted for each stringified field, including its dotted path.
+def _sanitize_span_event_data(obj: Any) -> Any:
+    """Return a copy of obj that is safe to encode into a span event.
+
+    Three guarantees, applied to every node: any container that exceeds _MAX_NESTED_META_DEPTH
+    levels from the root is replaced by its JSON string representation, every mapping key is
+    stringified, and every leaf value is made JSON-serializable. The original structure is never
+    mutated. A debug log is emitted for each stringified over-depth field, including its dotted path.
+
+    This is the last line of defense before the agentless APM exporter, which drops the whole trace
+    payload on a single unserializable object. It runs after the user span processor for that reason.
     """
 
     def _walk(node: Any, depth: int, path: str) -> Any:
         if not isinstance(node, (dict, list)):
-            return node
+            return _sanitize_leaf(node, depth, path)
         if depth >= _MAX_NESTED_META_DEPTH:
             log.debug(
                 "LLMObs: span event field %r exceeds the maximum nested depth of %d and will be "
@@ -273,6 +278,21 @@ def _sanitize_span_event_depth(obj: Any) -> Any:
         if isinstance(node, dict):
             return {str(k): _walk(v, depth + 1, f"{path}.{k}" if path else str(k)) for k, v in node.items()}
         return [_walk(v, depth + 1, f"{path}[{i}]" if path else str(i)) for i, v in enumerate(node)]
+
+    def _sanitize_leaf(node: Any, depth: int, path: str) -> Any:
+        if node is None or isinstance(node, (str, int, float, bool)):
+            return node
+        # load_data_value keeps structure where it can (models become dicts) instead of flattening
+        # to a string, so nested objects stay queryable. Re-walk it to apply the depth limit.
+        try:
+            loaded = load_data_value(node)
+        except Exception:
+            log.debug("LLMObs: span event field %r could not be converted; falling back to str.", path)
+            try:
+                return str(node)
+            except Exception:
+                return "[Unserializable object of type {}]".format(type(node).__name__)
+        return _walk(loaded, depth, path) if isinstance(loaded, (dict, list)) else loaded
 
     return _walk(obj, 0, "")
 
@@ -310,13 +330,17 @@ def load_data_value(value):
     elif isinstance(value, type):
         return value.__name__
     elif hasattr(value, "model_dump"):
-        return value.model_dump(exclude_none=True)
+        # model_dump() can leave non-primitive field values (datetime, Enum, ...) unconverted.
+        return load_data_value(value.model_dump(exclude_none=True))
     elif is_dataclass(value):
-        return asdict(value)
+        # asdict() deep-copies non-dataclass field types as-is, leaving them unconverted.
+        return load_data_value(asdict(value))
     elif isinstance(value, (int, float, str, bool)) or value is None:
         return value
     else:
         value_str = safe_json(value)
+        if value_str is None:  # safe_json swallows its failure and returns None
+            return str(value)
         try:
             return json.loads(value_str)
         except json.JSONDecodeError:
@@ -678,9 +702,13 @@ def _sanitize_metric_key(key):
 
     LLMObs ingestion interprets dots in a metric key as nested-path separators, which breaks
     decoding of the flat numeric metrics map and causes the enclosing span batch to be dropped.
-    Non-string keys are returned unchanged (value validation happens upstream in ``annotate``).
+    Non-string keys are stringified first, since a metric key is serialized as a string either way
+    and the encoder has no representation for other key types -- and stringifying can itself
+    introduce a dot (1.5 -> "1.5"). (Value validation happens upstream in annotate.)
     """
-    if not isinstance(key, str) or "." not in key:
+    if not isinstance(key, str):
+        key = str(key)
+    if "." not in key:
         return key
     sanitized = key.replace(".", "_")
     log.warning(
@@ -770,7 +798,8 @@ def _annotate_llmobs_span_data(
         if model_provider is not None:
             meta[LLMOBS_STRUCT.MODEL_PROVIDER] = model_provider
         if metadata is not None:
-            # Metadata keys are serialized as strings, so coerce non-string keys here.
+            # Metadata keys are serialized as strings, so coerce non-string keys here. Values are
+            # left as-is for in-process consumers; _sanitize_span_event_data handles them at finish.
             meta[LLMOBS_STRUCT.METADATA].update({str(k): v for k, v in metadata.items()})
         if agent_manifest is not None or cost_tags is not None:
             # Initialize metadata_dd here to avoid unnecessary empty dict allocations in the top-level metadata dict.
@@ -785,11 +814,11 @@ def _annotate_llmobs_span_data(
         if metrics is not None:
             llmobs_span_data[LLMOBS_STRUCT.METRICS].update({_sanitize_metric_key(k): v for k, v in metrics.items()})
         if tags is not None:
-            # Tag values are serialized as strings, so coerce non-string values here.
-            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({k: str(v) for k, v in tags.items()})
+            # Tag keys and values are both serialized as strings, so coerce non-string ones here.
+            llmobs_span_data[LLMOBS_STRUCT.TAGS].update({str(k): str(v) for k, v in tags.items()})
         if session_id is not None:
             llmobs_span_data[LLMOBS_STRUCT.SESSION_ID] = session_id
-            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = session_id
+            llmobs_span_data[LLMOBS_STRUCT.TAGS]["session_id"] = str(session_id)
             span._set_ctx_item(SESSION_ID, session_id)
         if span_links is not None:
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links

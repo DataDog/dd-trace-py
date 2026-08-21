@@ -19,12 +19,13 @@ from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _human_size
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.writer import AgentlessTraceWriter
@@ -743,7 +744,7 @@ def _make_uds_server(path, request_handler):
     # Wait for the server to start
     resp = None
     while resp != 200:
-        conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
+        conn = HTTPConnection(f"unix://{server.server_address}")
         try:
             conn.request("PUT", "/")
             resp = conn.getresponse().status
@@ -853,7 +854,7 @@ def test_flush_connection_timeout_connect(writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, 2019)) as writer,
     ):
-        exc_type = (OSError, NetworkError)
+        exc_type = (OSError, NetworkError, HttpClientError)
         with pytest.raises(exc_type):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -866,7 +867,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
-        with pytest.raises((socket.timeout, IoError)):
+        with pytest.raises((socket.timeout, IoError, HttpClientError)):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -878,7 +879,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
     import threading
 
     from ddtrace.internal._threads import PeriodicThread
-    from ddtrace.internal.uds import UDSHTTPConnection
+    from ddtrace.internal.http import HTTPConnection
 
     sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
     sock_path = os.path.join(sock_dir, "blackhole.sock")
@@ -906,7 +907,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
 
     def _callback():
         callback_started.set()
-        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        conn = HTTPConnection(f"unix://{sock_path}", timeout=0.5)
         try:
             conn.request("GET", "/")
             conn.getresponse().read()
@@ -946,7 +947,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
     ):
-        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
+        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
@@ -958,7 +959,7 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
     with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
         # IncompleteRead should be raised when the server sends an incomplete chunked response
-        exc_types = (httplib.IncompleteRead, NetworkError)
+        exc_types = (httplib.IncompleteRead, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -976,6 +977,19 @@ def test_flush_connection_uds(endpoint_uds_server):
         writer.flush_queue(raise_exc=True)
 
 
+def test_intake_base_path_uds():
+    """For a unix:// intake URL, the path component is the socket location, not an
+    HTTP path prefix, so it must not be prepended to the request path.
+    """
+    writer = AgentlessTraceWriter("unix:///var/run/datadog/apm.socket", api_key="foobar")
+    assert writer._intake_base_path() == ""
+
+
+def test_intake_base_path_http():
+    writer = AgentlessTraceWriter("http://localhost:8126/some/prefix", api_key="foobar")
+    assert writer._intake_base_path() == "/some/prefix"
+
+
 @pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_queue_raise(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")), managed_writer(writer_class, "http://dne:1234") as writer:
@@ -983,7 +997,7 @@ def test_flush_queue_raise(writer_class):
         writer.write([])
         writer.flush_queue(raise_exc=False)
 
-        error = (OSError, NetworkError)
+        error = (OSError, NetworkError, HttpClientError)
         with pytest.raises(error):
             writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
@@ -1225,6 +1239,37 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
             else:
                 mock_builder.enable_telemetry.assert_not_called()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TAGS": "team:apm,tier:backend,service:ignored,env:ignored,version:ignored,runtime_id:ignored",
+        "DD_TRACE_STATS_ADDITIONAL_TAGS": "customer.tier,region",
+    }
+)
+def test_otlp_metric_tags_configured():
+    from unittest import mock
+
+    from ddtrace.internal import native
+    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+
+    mock_builder = mock.Mock()
+    for method_name in [
+        "set_url",
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_client_computed_top_level",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
+        _build_base_exporter_builder("http://localhost:8126", None, False, False, True)
+
+    mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
+    mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
 
 
 class TestSafelog:

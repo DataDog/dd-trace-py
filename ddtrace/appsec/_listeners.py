@@ -82,6 +82,13 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
     return
 
 
+def _register_exploit_prevention_listeners() -> None:
+    """Register listeners for operations monitored by Exploit Prevention."""
+    import ddtrace.appsec._contrib.dbapi.subscribers  # noqa: F401
+    import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+    import ddtrace.appsec._contrib.subprocess.subscribers  # noqa: F401
+
+
 def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     """Lazily load the appsec module listeners."""
     try:
@@ -109,7 +116,8 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         flask_listen()
         django_listen()
         fastapi_listen()
-        import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+        if asm_config._ep_enabled:
+            _register_exploit_prevention_listeners()
 
         openai_listen()
         stripe_listen()

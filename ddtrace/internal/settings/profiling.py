@@ -40,9 +40,9 @@ def _derive_default_heap_sample_size(
         return 0
 
     try:
-        from ddtrace.vendor import psutil
+        from ddtrace.internal.native import total_memory_bytes
 
-        total_mem = psutil.swap_memory().total + psutil.virtual_memory().total  # type: ignore[no-untyped-call]
+        total_mem = total_memory_bytes()
     except Exception:
         logger.warning(
             "Unable to get total memory available, using default value of %d KB",
@@ -75,9 +75,8 @@ def _check_for_stack_available() -> tuple[str, bool]:
 
 
 def _check_for_native_heap_available() -> tuple[str, bool]:
-    # Importing heap_gotter dlopen's the gotter cdylib (if present) but does
-    # NOT install anything; installation is an explicit, separate call.
-    # The module is fail-closed and never raises on import.
+    # Importing heap_gotter dlopen's the gotter cdylib but does NOT install
+    # anything; installation is an explicit, separate call. Import never raises.
     from ddtrace.internal.datadog.profiling import heap_gotter
 
     return (heap_gotter.failure_msg, heap_gotter.is_available)
@@ -582,7 +581,7 @@ class ProfilingConfigNativeHeap(DDConfig):
         help=(
             "Whether to enable experimental native (C/C++) heap profiling. "
             "Requires DD_PROFILING_ENABLED=true, Linux, and a wheel built with "
-            "DD_PROFILING_NATIVE_HEAP_BUILD=1. Disabled by default."
+            "DD_PROFILING_NATIVE_HEAP_ENABLED=1. Disabled by default."
         ),
     )
 
@@ -716,9 +715,9 @@ exception_failure_msg, exception_is_available = _check_for_exception_available()
 if not exception_is_available and config.exception.enabled:
     config.exception.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
-# Native heap profiling only arms USDT probes via a separately-built cdylib.
+# Native heap profiling only arms USDT probes via the gotter cdylib.
 # Check availability lazily (only when requested) so the common disabled path
-# never dlopen's the gotter library, and fail closed if it can't be loaded.
+# never dlopen's the gotter library. Disable the feature if it can't be loaded.
 if config.native_heap.enabled:
     native_heap_failure_msg, native_heap_is_available = _check_for_native_heap_available()
     if not native_heap_is_available:

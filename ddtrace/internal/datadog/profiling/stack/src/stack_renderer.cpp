@@ -9,7 +9,6 @@
 
 #include "echion/echion_sampler.h"
 #include "echion/strings.h"
-#include <ddup_interface.hpp>
 #include <unordered_map>
 
 using namespace Datadog;

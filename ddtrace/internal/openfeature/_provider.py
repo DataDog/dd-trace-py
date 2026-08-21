@@ -138,11 +138,13 @@ class DataDogProvider(AbstractProvider):
         self._initialization_timeout = initialization_timeout
 
         # Cache for reported exposures to prevent duplicates
-        # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key)
+        # Stores mapping of (flag_key, subject_id) -> (allocation_key, variant_key, serial_id)
+        # The serial id is part of the value because a configuration refresh can add or
+        # change it while the allocation and variant stay the same, and that must be sent.
         # Using LRU cache with maxsize of 65536 to prevent unbounded memory growth
-        self._exposure_cache: LRUCache[tuple[str, str], tuple[typing.Optional[str], typing.Optional[str]]] = LRUCache(
-            maxsize=65536
-        )
+        self._exposure_cache: LRUCache[
+            tuple[str, str], tuple[typing.Optional[str], typing.Optional[str], typing.Optional[int]]
+        ] = LRUCache(maxsize=65536)
 
         # Master gate: the resolved configuration source (stable kill switch +
         # source selection, with legacy grandfathering). Mirrors dd-trace-js,
@@ -497,6 +499,7 @@ class DataDogProvider(AbstractProvider):
                             variant_key=None,
                             allocation_key=None,
                             evaluation_context=evaluation_context,
+                            serial_id=None,
                         )
                     return FlagResolutionDetails(
                         value=default_value,
@@ -525,6 +528,7 @@ class DataDogProvider(AbstractProvider):
                     variant_key=details.variant,
                     allocation_key=details.allocation_key,
                     evaluation_context=evaluation_context,
+                    serial_id=details.serial_id,
                 )
 
             # Add allocation_key to the provider-entry timestamp metadata when present.
@@ -572,6 +576,7 @@ class DataDogProvider(AbstractProvider):
         variant_key: typing.Optional[str],
         allocation_key: typing.Optional[str],
         evaluation_context: typing.Optional[EvaluationContext],
+        serial_id: typing.Optional[int] = None,
     ) -> None:
         """
         Report a feature flag exposure event to the EVP proxy intake.
@@ -587,6 +592,8 @@ class DataDogProvider(AbstractProvider):
             variant_key: The variant key returned by evaluation
             allocation_key: The allocation key
             evaluation_context: The evaluation context with subject information
+            serial_id: Serial id of the split the subject landed in, used by the intake
+                to resolve the holdout behind the allocation
         """
         try:
             exposure_event = build_exposure_event(
@@ -594,13 +601,14 @@ class DataDogProvider(AbstractProvider):
                 variant_key=variant_key,
                 allocation_key=allocation_key,
                 evaluation_context=evaluation_context,
+                serial_id=serial_id,
             )
             if not exposure_event:
                 return
 
             # Check cache to prevent duplicate exposure events
             key = (flag_key, exposure_event["subject"]["id"])
-            value = (allocation_key, variant_key)
+            value = (allocation_key, variant_key, serial_id)
 
             cached_value = self._exposure_cache.get(key, None)
             if cached_value and cached_value == value:

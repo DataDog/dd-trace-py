@@ -3,7 +3,7 @@ components:
   profiling:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
-    - ddtrace/internal/processor/endpoint_call_counter.py
+    - ddtrace/_trace/processor/endpoint_call_counter.py
     - ddtrace/internal/settings/profiling.py
 suites:
   profile:

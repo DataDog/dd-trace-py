@@ -49,15 +49,6 @@ Notes:
    Removed dependency on `pbr` and manually set `__version__`
 
 
-psutil
-------
-
-Website: https://github.com/giampaolo/psutil
-Source: https://github.com/giampaolo/psutil
-Version: 5.6.7
-License: BSD 3
-
-
 sqlcommenter
 ------------
 

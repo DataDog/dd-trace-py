@@ -1,6 +1,7 @@
 import ctypes
 import os
 import sysconfig
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -78,6 +79,17 @@ def get_caller_frame_info() -> tuple[Optional[str], Optional[int], Optional[str]
 
 _DD_ORIGINAL_ATTRIBUTES: dict[Any, Any] = {}
 _MODULE_HOOKS: dict[tuple[str, str], list[Callable[[Any], None]]] = {}
+
+
+def _raise_without_wrapper_frame(exc: Exception) -> Exception:
+    """Prepare an exception so its caller can raise it without the wrapped-call frame."""
+    traceback = exc.__traceback__
+    if traceback is None:
+        return exc
+    previous_frame = traceback.tb_frame.f_back
+    if previous_frame is None:
+        return exc
+    return exc.with_traceback(TracebackType(None, previous_frame, previous_frame.f_lasti, previous_frame.f_lineno))
 
 
 def _module_name(module: Any) -> str:

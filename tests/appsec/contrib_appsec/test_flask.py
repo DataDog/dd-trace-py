@@ -148,6 +148,30 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         path = re.sub(r"<[a-z_]+>", "test", path)
         return path
 
+    @pytest.mark.parametrize("interface", [_FLAT_APP], indirect=True, ids=["flat"])
+    @pytest.mark.subprocess(
+        env={
+            "DD_APPSEC_ENABLED": "true",
+            "DD_APPSEC_RULES": "tests/appsec/appsec/rules-rasp-blocking.json",
+            "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+        },
+        err=None,
+        parametrize={"DD_APPSEC_RASP_ENABLED": ["true", "false"]},
+    )
+    def test_dbapi_exploit_prevention_listener(self):
+        import os
+
+        import ddtrace.auto  # noqa: F401
+        from ddtrace.contrib._events.dbapi import DbApiEvent
+        from ddtrace.internal import core
+        from tests.appsec.contrib_appsec.flask_app.app import app
+
+        rasp_enabled = os.environ["DD_APPSEC_RASP_ENABLED"] == "true"
+        assert core.has_listeners(DbApiEvent.event_name) is rasp_enabled
+
+        response = app.test_client().get("/rasp/sql_injection/?user_id_1=1%20OR%201%3D1")
+        assert response.status_code == (403 if rasp_enabled else 200)
+
     # Helper unit tests live on Test_Flask so the riot venv ``::Test_Flask`` selector picks them up.
 
     def test_collect_flask_routes_registers_every_method_served(self, _isolated_endpoints):

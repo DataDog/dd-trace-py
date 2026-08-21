@@ -4,18 +4,11 @@
 #include <string_view>
 #include <unordered_map>
 
-// Forward declarations
-namespace Datadog {
-class Sample;
-} // namespace Datadog
-
 // Forward declaration of Python types.
 // We avoid including Python.h in this public C++ header because CPython headers
 // use old-style casts and our build treats old-style casts as errors. Keep
 // Python includes in implementation files when full API access is required.
 // NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
-struct _frame;
-typedef struct _frame PyFrameObject;
 struct _traceback;
 typedef struct _traceback PyTracebackObject;
 // NOLINTEND(bugprone-reserved-identifier)
@@ -62,43 +55,6 @@ extern "C"
       std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts);
 
     bool ddup_upload();
-
-    // Proxy functions to the underlying sample
-    Datadog::Sample* ddup_start_sample();
-    void ddup_push_walltime(Datadog::Sample* sample, int64_t walltime, int64_t count);
-    void ddup_push_cputime(Datadog::Sample* sample, int64_t cputime, int64_t count);
-    void ddup_push_acquire(Datadog::Sample* sample, int64_t acquire_time, int64_t count);
-    void ddup_push_release(Datadog::Sample* sample, int64_t release_time, int64_t count);
-    void ddup_push_alloc(Datadog::Sample* sample, int64_t size, int64_t count);
-    void ddup_push_heap(Datadog::Sample* sample, int64_t size, int64_t count);
-    void ddup_push_gpu_gputime(Datadog::Sample* sample, int64_t time, int64_t count);
-    void ddup_push_gpu_memory(Datadog::Sample* sample, int64_t mem, int64_t count);
-    void ddup_push_gpu_flops(Datadog::Sample* sample, int64_t flops, int64_t count);
-    void ddup_push_lock_name(Datadog::Sample* sample, std::string_view lock_name);
-    void ddup_push_threadinfo(Datadog::Sample* sample,
-                              int64_t thread_id,
-                              int64_t thread_native_id,
-                              std::string_view thread_name);
-    void ddup_push_task_id(Datadog::Sample* sample, uint64_t task_id);
-    void ddup_push_task_name(Datadog::Sample* sample, std::string_view task_name);
-    void ddup_push_span_id(Datadog::Sample* sample, uint64_t span_id);
-    void ddup_push_local_root_span_id(Datadog::Sample* sample, uint64_t local_root_span_id);
-    void ddup_push_trace_type(Datadog::Sample* sample, std::string_view trace_type);
-    void ddup_push_exceptioninfo(Datadog::Sample* sample, std::string_view exception_type, int64_t count);
-    void ddup_push_exception_message(Datadog::Sample* sample, std::string_view exception_message);
-    void ddup_push_class_name(Datadog::Sample* sample, std::string_view class_name);
-    void ddup_push_gpu_device_name(Datadog::Sample*, std::string_view device_name);
-    void ddup_push_frame(Datadog::Sample* sample,
-                         std::string_view _name,
-                         std::string_view _filename,
-                         uint64_t address,
-                         int64_t line);
-    void ddup_push_pyframes(Datadog::Sample* sample, PyFrameObject* frame);
-    void ddup_push_absolute_ns(Datadog::Sample* sample, int64_t timestamp_ns);
-    void ddup_push_monotonic_ns(Datadog::Sample* sample, int64_t monotonic_ns);
-
-    void ddup_flush_sample(Datadog::Sample* sample);
-    void ddup_drop_sample(Datadog::Sample* sample);
 #ifdef __cplusplus
 } // extern "C"
 #endif

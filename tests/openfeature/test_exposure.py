@@ -113,3 +113,62 @@ class TestBuildExposureEvent:
         assert event is not None
         assert event["subject"]["id"] == "user-789"
         assert event["subject"]["attributes"] == {}
+
+    def test_build_exposure_event_with_serial_id(self):
+        """Test that a serial id is carried onto the event."""
+        context = EvaluationContext(targeting_key="user-123")
+
+        event = build_exposure_event(
+            flag_key="test-flag",
+            variant_key="variant-a",
+            allocation_key="allocation-1",
+            evaluation_context=context,
+            serial_id=340132,
+        )
+
+        assert event is not None
+        assert event["serial_id"] == 340132
+
+    def test_build_exposure_event_without_serial_id(self):
+        """Test that the key is absent, not null, when no serial id is given."""
+        context = EvaluationContext(targeting_key="user-123")
+
+        event = build_exposure_event(
+            flag_key="test-flag",
+            variant_key="variant-a",
+            allocation_key="allocation-1",
+            evaluation_context=context,
+        )
+
+        assert event is not None
+        assert "serial_id" not in event
+
+    def test_build_exposure_event_serial_id_zero(self):
+        """Test that a serial id of zero is carried, not dropped as falsy."""
+        context = EvaluationContext(targeting_key="user-123")
+
+        event = build_exposure_event(
+            flag_key="test-flag",
+            variant_key="variant-a",
+            allocation_key="allocation-1",
+            evaluation_context=context,
+            serial_id=0,
+        )
+
+        assert event is not None
+        assert event["serial_id"] == 0
+
+    def test_build_exposure_event_serial_id_not_validated(self):
+        """Test that the serial id is sent unchanged. The UFC layer validates it."""
+        context = EvaluationContext(targeting_key="user-123")
+
+        event = build_exposure_event(
+            flag_key="test-flag",
+            variant_key="variant-a",
+            allocation_key="allocation-1",
+            evaluation_context=context,
+            serial_id=-1,
+        )
+
+        assert event is not None
+        assert event["serial_id"] == -1

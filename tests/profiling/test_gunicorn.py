@@ -107,7 +107,10 @@ def _test_gunicorn(
 
     debug_print("Making request to gunicorn server")
     try:
-        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=5) as f:
+        # The handler computes fib(35), which takes over 3s on py3.10 and has been measured at
+        # 5s on a loaded CI runner. This timeout only guards against a hung worker, so it needs
+        # margin over that rather than to be tight.
+        with urllib.request.urlopen("http://127.0.0.1:7644", timeout=20) as f:
             status_code = f.getcode()
             assert status_code == 200, status_code
             response = f.read().decode()

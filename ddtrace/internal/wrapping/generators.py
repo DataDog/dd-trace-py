@@ -4,6 +4,8 @@ from types import CodeType
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 
 
 PY = sys.version_info[:2]
@@ -33,8 +35,8 @@ PY = sys.version_info[:2]
 GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY = None
 
-if PY >= (3, 15):
-    raise NotImplementedError("This version of CPython is not supported yet")
+if PY >= NEXT_PY_VERSION_INFO:
+    pass
 
 elif PY >= (3, 14):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
@@ -480,11 +482,13 @@ elif PY >= (3, 9):
     )
 
 else:
-    msg = "No generator wrapping support for Python %d.%d" % PY[:2]
+    msg = "No generator wrapping support for Python %d.%d" % (PY[0], PY[1])
     raise RuntimeError(msg)
 
 
 def wrap_generator(instrs: bc.Bytecode, code: CodeType, lineno: int) -> None:
+    if PY >= NEXT_PY_VERSION_INFO:
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
     if GENERATOR_HEAD_ASSEMBLY is not None:
         instrs[0:0] = GENERATOR_HEAD_ASSEMBLY.bind(lineno=lineno)
 

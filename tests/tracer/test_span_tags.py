@@ -10,6 +10,7 @@ import sys
 import mock
 import pytest
 
+from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import MANUAL_DROP_KEY
@@ -20,6 +21,7 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.constants import VERSION_KEY
 from ddtrace.ext import http
+from ddtrace.internal.ci_visibility.context import CIContextProvider
 from ddtrace.trace import Span
 from tests.utils import assert_is_measured
 from tests.utils import assert_is_not_measured
@@ -187,6 +189,41 @@ def test_tags_not_string():
 
     s = Span(name="test.span")
     s.set_tag("a", Foo())
+
+
+@pytest.mark.parametrize("context_provider_class", [DefaultContextProvider, CIContextProvider])
+@pytest.mark.parametrize("setter", ["set_tag", "_set_attributes", "_set_default_attributes"])
+def test_attribute_string_coercion_can_read_active_span(tracer, context_provider_class, setter):
+    tracer.context_provider = context_provider_class()
+
+    class ReentrantTag:
+        def __str__(self):
+            active = tracer.current_span()
+            assert active is span
+            with tracer.trace("nested") as nested:
+                assert nested._parent is span
+                assert nested.trace_id == span.trace_id
+            return str(active.trace_id)
+
+    with tracer.trace("test") as span:
+        if setter == "set_tag":
+            span.set_tag("reentrant", ReentrantTag())
+        else:
+            getattr(span, setter)({"reentrant": ReentrantTag()})
+        assert span.get_tag("reentrant") == str(span.trace_id)
+
+
+def test_set_default_attributes_preserves_value_set_during_coercion():
+    span = Span(name="test.span")
+
+    class ReentrantTag:
+        def __str__(self):
+            span.set_tag("reentrant", "set-during-coercion")
+            return "default"
+
+    span._set_default_attributes({"reentrant": ReentrantTag()})
+
+    assert span.get_tag("reentrant") == "set-during-coercion"
 
 
 @mock.patch("ddtrace._trace.span.log")

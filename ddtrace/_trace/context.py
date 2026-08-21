@@ -13,6 +13,7 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import ContextData
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
@@ -22,7 +23,7 @@ _ContextState = tuple[
     Optional[int],  # span_id
     dict[str, str],  # _meta
     dict[str, NumericType],  # _metrics
-    list[SpanLink],  #  span_links
+    list[SpanLink],  # span_links
     dict[str, Any],  # baggage
     bool,  # is_remote
     bool,  # _reactivate
@@ -34,21 +35,13 @@ _DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
 log = get_logger(__name__)
 
 
-class Context(object):
+class Context(ContextData):
     """Represents the state required to propagate a trace across execution
     boundaries.
     """
 
     __slots__ = [
-        "trace_id",
-        "span_id",
         "_lock",
-        "_meta",
-        "_metrics",
-        "_span_links",
-        "_baggage",
-        "_is_remote",
-        "_reactivate",
         "__weakref__",
     ]
 
@@ -65,23 +58,12 @@ class Context(object):
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
     ):
-        self._meta: dict[str, str] = meta if meta is not None else {}
-        self._metrics: dict[str, NumericType] = metrics if metrics is not None else {}
-        self._baggage: dict[str, Any] = baggage if baggage is not None else {}
-
-        self.trace_id: Optional[int] = trace_id
-        self.span_id: Optional[int] = span_id
-        self._is_remote: bool = is_remote
-        self._reactivate: bool = False
-
+        # ContextData.__new__ already populated trace_id/span_id/_meta/_metrics/
+        # _baggage/_span_links/_is_remote/_reactivate.
         if dd_origin is not None and _DD_ORIGIN_INVALID_CHARS_REGEX.search(dd_origin) is None:
             self._meta[_ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
             self._metrics[_SAMPLING_PRIORITY_KEY] = sampling_priority
-        if span_links is not None:
-            self._span_links = span_links
-        else:
-            self._span_links = []
 
         if lock is not None:
             self._lock = lock
@@ -223,23 +205,27 @@ class Context(object):
         """Sets a baggage item in this span context.
         Note that this operation mutates the baggage of this span context
         """
-        self._baggage[key] = value
+        with self._lock:
+            self._baggage[key] = value
 
     def copy(self, trace_id: int, span_id: int) -> "Context":
         """Return a shallow copy of the context with the given correlation IDs."""
-        # PERF: copy() is run once per child span, use __new__ + direct assignment to avoid the
-        # overhead in __init__'s kwargs packing, dd_origin regex, and other processing. This
-        # optimization holds true if we trust that this data has been validated already.
-        ctx = Context.__new__(Context)
-        ctx._meta = self._meta
-        ctx._metrics = self._metrics
-        ctx._baggage = self._baggage
+        # PERF: copy() is run once per child span. Construct via ContextData.__new__
+        # directly, passing the shared _meta/_metrics/_baggage references straight into
+        # native construction, to avoid the overhead of __init__'s dd_origin regex and
+        # other processing. This optimization holds true if we trust that this data has
+        # been validated already.
+        with self._lock:
+            ctx = Context.__new__(
+                Context,
+                trace_id=trace_id,
+                span_id=span_id,
+                meta=self._meta,
+                metrics=self._metrics,
+                baggage=self._baggage,
+                is_remote=False,
+            )
         ctx._lock = self._lock
-        ctx.trace_id = trace_id
-        ctx.span_id = span_id
-        ctx._is_remote = False
-        ctx._reactivate = False
-        ctx._span_links = []
         return ctx
 
     def _with_baggage_item(self, key: str, value: Any) -> "Context":
@@ -265,14 +251,20 @@ class Context(object):
 
     def remove_baggage_item(self, key: str) -> None:
         """Remove a baggage item from this span context."""
-        if key in self._baggage:
-            del self._baggage[key]
+        with self._lock:
+            if key in self._baggage:
+                del self._baggage[key]
 
     def remove_all_baggage_items(self) -> None:
         """Removes all baggage items from this span context."""
-        self._baggage.clear()
+        with self._lock:
+            self._baggage.clear()
 
     def __eq__(self, other: Any) -> bool:
+        # NOTE: span_id/_reactivate are deliberately excluded. A Context compares
+        # equal to any per-span copy() of itself (differing only in span_id) --
+        # e.g. Span.context builds one such copy per child span -- so equality
+        # here means "same trace-level state", not "same span".
         if isinstance(other, Context):
             with self._lock:
                 return (

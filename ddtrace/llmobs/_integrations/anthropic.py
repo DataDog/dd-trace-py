@@ -8,6 +8,8 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_1H_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_5M_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
+from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -15,6 +17,8 @@ from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
+from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -34,6 +38,28 @@ MODEL = "anthropic.request.model"
 _ANTHROPIC_MODEL_PROVIDER = "anthropic"
 _BEDROCK_MODEL_PROVIDER = "amazon"
 _VERTEX_MODEL_PROVIDER = "google"
+
+
+def _extract_anthropic_image_source(block: Any) -> Optional[tuple[Union[bytes, str], str]]:
+    """Return (data, media_type) for an inline base64 Anthropic image block, else None.
+
+    Unencoded, so the caller's guard can reject an oversized image before paying to encode it.
+    """
+    source = _get_attr(block, "source", {})
+    if _get_attr(source, "type", "") != "base64":
+        return None
+    data = _get_attr(source, "data", "")
+    # source.data may be IO[bytes] or PathLike (anthropic Base64FileInput) -- keep those out of spans.
+    if not data or not isinstance(data, (str, bytes)):
+        return None
+    # base64 is ASCII; len() would undercount non-ASCII text 4x and slip it past the guard.
+    if isinstance(data, str) and not data.isascii():
+        return None
+    # Reject bad mime here, not in the guard, so the caller's "too large" marker can't misreport.
+    media_type = str(_get_attr(source, "media_type", ""))
+    if not is_renderable_image_mime(media_type):
+        return None
+    return data, media_type
 
 
 class AnthropicIntegration(BaseLLMIntegration):
@@ -146,8 +172,18 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_messages.append(Message(content=str(_get_attr(block, "text", "")), role=str(role)))
 
                     elif content_type == "image":
-                        # Store a placeholder for potentially enormous binary image data.
-                        input_messages.append(Message(content="([IMAGE DETECTED])", role=str(role)))
+                        source = _extract_anthropic_image_source(block)
+                        if source is None:
+                            input_messages.append(Message(content=IMAGE_DETECTED_MARKER, role=str(role)))
+                            continue
+                        data, media_type = source
+                        image_part = format_image_part_with_guard(data, media_type)
+                        if image_part is None:
+                            input_messages.append(Message(content=IMAGE_TOO_LARGE_MARKER, role=str(role)))
+                            continue
+                        image_message: Message = Message(content="", role=str(role))
+                        image_message["image_parts"] = [image_part]
+                        input_messages.append(image_message)
 
                     elif content_type == "thinking":
                         thinking_text = _get_attr(block, "thinking", "")
@@ -194,7 +230,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                     formatted_content.append(_get_attr(tool_result_block, "text", ""))
                 elif _get_attr(tool_result_block, "type", None) == "image":
                     # Store a placeholder for potentially enormous binary image data.
-                    formatted_content.append("([IMAGE DETECTED])")
+                    formatted_content.append(IMAGE_DETECTED_MARKER)
             return ",".join(formatted_content)
         return str(content)
 

@@ -492,7 +492,7 @@ frame_ptr = <PyFrameObject*><PyObject*>frame
 # _ddup.pyx — NULL check + defensive NULL assignment
 def __dealloc__(self):
     if self.ptr is not NULL:
-        ddup_drop_sample(self.ptr)
+        SampleManager.drop_sample(self.ptr)
         self.ptr = NULL
 ```
 

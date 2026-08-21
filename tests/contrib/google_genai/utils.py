@@ -224,10 +224,24 @@ MOCK_EMBED_CONTENT_RESPONSE = types.EmbedContentResponse(
 )
 
 
+def _as_submitted(value):
+    """Mirror the conversion a metadata value undergoes on its way onto the span.
+
+    Span data is made JSON-serializable at span finish, which turns pydantic config objects such as
+    SafetySetting into plain dicts. Dumping here rather than hardcoding the result keeps these
+    expectations correct across the google-genai versions in the test matrix.
+    """
+    if isinstance(value, list):
+        return [_as_submitted(v) for v in value]
+    if hasattr(value, "model_dump"):
+        return value.model_dump(exclude_none=True)
+    return value
+
+
 def get_expected_metadata():
     metadata = {}
     for param in GENERATE_METADATA_PARAMS:
-        metadata[param] = getattr(FULL_GENERATE_CONTENT_CONFIG, param, None)
+        metadata[param] = _as_submitted(getattr(FULL_GENERATE_CONTENT_CONFIG, param, None))
 
     return metadata
 
@@ -235,6 +249,6 @@ def get_expected_metadata():
 def get_expected_tool_metadata():
     metadata = {}
     for param in GENERATE_METADATA_PARAMS:
-        metadata[param] = getattr(TOOL_GENERATE_CONTENT_CONFIG, param, None)
+        metadata[param] = _as_submitted(getattr(TOOL_GENERATE_CONTENT_CONFIG, param, None))
 
     return metadata

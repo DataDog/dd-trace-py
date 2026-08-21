@@ -177,6 +177,15 @@ DEFAULT_PROJECT_NAME = "default-project"
 IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
 AUDIO_FALLBACK_MARKER = "[audio]"
+# Distinct from IMAGE_FALLBACK_MARKER so a dropped inline image stays greppable instead of looking
+# like a remote reference we never fetch.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
+
+# Anthropic/Bedrock marker for an image we saw but did not capture (URL, file id, unsupported source).
+IMAGE_DETECTED_MARKER = "([IMAGE DETECTED])"
+
+# Deliberately size-free: span content is aggregated, and a per-image size would fragment grouping.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
 
 # OpenAI input types
 INPUT_TYPE_IMAGE = "input_image"
