@@ -1,0 +1,64 @@
+name: Profiling correctness
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/prof-correctness.yml
+      - ddtrace/internal/datadog/profiling/**
+      - ddtrace/profiling/**
+      - src/native/**
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/prof-correctness.yml
+      - ddtrace/internal/datadog/profiling/**
+      - ddtrace/profiling/**
+      - src/native/**
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: dd-trace-py commit SHA (defaults to HEAD)
+        required: false
+        type: string
+      test_scenarios:
+        description: prof-correctness scenario regexp
+        required: false
+        default: python.*
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  trigger-downstream:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - name: Resolve commit SHA
+        id: sha
+        run: |
+          if [ -n "${{ inputs.commit_sha }}" ]; then
+            echo "value=${{ inputs.commit_sha }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "value=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        id: octo-sts
+        with:
+          scope: DataDog/prof-correctness
+          policy: dd-trace-py.github.trigger-ci
+
+      - name: Trigger prof-correctness downstream-python
+        env:
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+        run: |
+          echo "Triggering prof-correctness for commit ${{ steps.sha.outputs.value }}"
+          gh workflow run downstream-python.yml \
+            --repo DataDog/prof-correctness \
+            -f "dd_trace_py_commit_sha=${{ steps.sha.outputs.value }}" \
+            -f "test_scenarios=${{ inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\\.(14|15)' }}"
