@@ -39,10 +39,12 @@ fn w3c_get_dd_list_member_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
     Ok(f)
 }
 
+#[inline]
 fn is_printable_ascii(s: &str) -> bool {
     s.chars().all(|c| (0x20..=0x7E).contains(&(c as u32)))
 }
 
+#[inline]
 fn del_item_if_present(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<()> {
     if dict.contains(key)? {
         dict.del_item(key)?;
@@ -50,10 +52,12 @@ fn del_item_if_present(dict: &Bound<'_, PyDict>, key: &str) -> PyResult<()> {
     Ok(())
 }
 
+#[inline]
 fn extract_trace_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
     v.and_then(|v| v.extract::<u128>().ok())
 }
 
+#[inline]
 fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
     let v = v?;
     if let Ok(id) = v.extract::<u128>() {
@@ -69,14 +73,29 @@ fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
 pub struct Context {
     pub trace_id: Option<u128>,
     pub span_id: Option<u128>,
-    meta: Option<Py<PyDict>>,
-    metrics: Option<Py<PyDict>>,
+    meta: Py<PyDict>,
+    metrics: Py<PyDict>,
     baggage: Option<Py<PyDict>>,
     span_links: Option<Py<PyList>>,
     #[pyo3(get, set, name = "_is_remote")]
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
     pub reactivate: bool,
+}
+
+impl Default for Context {
+    fn default() -> Self {
+        Python::attach(|py| Context {
+            trace_id: None,
+            span_id: None,
+            meta: PyDict::new(py).unbind(),
+            metrics: PyDict::new(py).unbind(),
+            baggage: None,
+            span_links: None,
+            is_remote: false,
+            reactivate: false,
+        })
+    }
 }
 
 impl Context {
@@ -137,8 +156,8 @@ impl Context {
         Ok(Self {
             trace_id: extract_trace_id(trace_id),
             span_id: extract_span_id(span_id),
-            meta: Some(meta_dict),
-            metrics: Some(metrics_dict),
+            meta: meta_dict,
+            metrics: metrics_dict,
             baggage: Some(
                 baggage
                     .map(|d| d.clone().unbind())
@@ -195,31 +214,25 @@ impl Context {
     #[getter(_meta)]
     #[inline(always)]
     fn get_meta<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
-        self.meta
-            .get_or_insert_with(|| PyDict::new(py).unbind())
-            .bind(py)
-            .clone()
+        self.meta.bind(py).clone()
     }
 
     #[setter(_meta)]
     #[inline(always)]
     fn set_meta(&mut self, value: &Bound<'_, PyDict>) {
-        self.meta = Some(value.clone().unbind());
+        self.meta = value.clone().unbind();
     }
 
     #[getter(_metrics)]
     #[inline(always)]
     fn get_metrics<'py>(&mut self, py: Python<'py>) -> Bound<'py, PyDict> {
-        self.metrics
-            .get_or_insert_with(|| PyDict::new(py).unbind())
-            .bind(py)
-            .clone()
+        self.metrics.bind(py).clone()
     }
 
     #[setter(_metrics)]
     #[inline(always)]
     fn set_metrics(&mut self, value: &Bound<'_, PyDict>) {
-        self.metrics = Some(value.clone().unbind());
+        self.metrics = value.clone().unbind();
     }
 
     #[getter(_baggage)]
@@ -451,8 +464,8 @@ impl Context {
         let new_ctx = Self {
             trace_id: extract_trace_id(Some(trace_id)),
             span_id: extract_span_id(Some(span_id)),
-            meta: Some(meta.unbind()),
-            metrics: Some(metrics.unbind()),
+            meta: meta.unbind(),
+            metrics: metrics.unbind(),
             baggage: Some(baggage.unbind()),
             span_links: Some(PyList::empty(py).unbind()),
             is_remote: false,
@@ -580,8 +593,8 @@ impl Context {
     fn __setstate__(&mut self, _py: Python<'_>, state: &Bound<'_, PyTuple>) -> PyResult<()> {
         self.trace_id = state.get_item(0)?.extract()?;
         self.span_id = state.get_item(1)?.extract()?;
-        self.meta = Some(state.get_item(2)?.extract::<Bound<'_, PyDict>>()?.unbind());
-        self.metrics = Some(state.get_item(3)?.extract::<Bound<'_, PyDict>>()?.unbind());
+        self.meta = state.get_item(2)?.extract::<Bound<'_, PyDict>>()?.unbind();
+        self.metrics = state.get_item(3)?.extract::<Bound<'_, PyDict>>()?.unbind();
         self.span_links = Some(state.get_item(4)?.extract::<Bound<'_, PyList>>()?.unbind());
         self.baggage = Some(state.get_item(5)?.extract::<Bound<'_, PyDict>>()?.unbind());
         self.is_remote = state.get_item(6)?.extract()?;
@@ -590,12 +603,8 @@ impl Context {
     }
 
     fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
-        if let Some(d) = &self.meta {
-            visit.call(d)?;
-        }
-        if let Some(d) = &self.metrics {
-            visit.call(d)?;
-        }
+        visit.call(&self.meta)?;
+        visit.call(&self.metrics)?;
         if let Some(d) = &self.baggage {
             visit.call(d)?;
         }
