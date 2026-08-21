@@ -36,6 +36,10 @@ logger = get_logger(__name__)
 config._add("vllm", {})
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"vllm": ">=0.10.2"}
+
+
 def traced_engine_init(func, instance, args, kwargs):
     """Inject model name into OutputProcessor and force-enable stats for tracing."""
     # Force log_stats=True to enable vLLM's internal stats collection.
