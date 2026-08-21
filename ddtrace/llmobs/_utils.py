@@ -853,10 +853,12 @@ def enforce_message_role(messages: list[Message]) -> list[Message]:
 
 
 # Non-LLM span kinds allowed to keep typed messages alongside the collapsed value string.
-# Widening this set requires the serving API to populate messages for the added kind first:
-# until it does, the messages are dropped on read and the inline media has spent the
-# per-event size budget for something that can never render.
-MEDIA_MESSAGE_SPAN_KINDS: frozenset = frozenset(("agent",))
+# Adding a kind here requires the serving API to populate messages for it first, otherwise the
+# messages are dropped on read and the inline media has spent the per-event size budget for
+# something that can never render. The serving API now builds messages for every kind below:
+# agent has its own builder, and workflow / task / step / tool route through defaultSpanFromEvent,
+# which populates them as of the non-LLM span builder change.
+MEDIA_MESSAGE_SPAN_KINDS: frozenset = frozenset(("agent", "workflow", "task", "step", "tool"))
 
 _SCALAR_VALUE_SPAN_KINDS: frozenset = frozenset(("agent", "workflow", "task", "step"))
 _MEDIA_PART_KEYS = (LLMOBS_STRUCT.AUDIO_PARTS, LLMOBS_STRUCT.IMAGE_PARTS)

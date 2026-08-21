@@ -1,8 +1,8 @@
 ---
 fixes:
   - |
-    LLM Observability: Fixes an issue where images and audio annotated on agent spans were lost.
-    Messages annotated via ``LLMObs.annotate`` on an agent span that carry ``image_parts`` or
-    ``audio_parts`` are now recorded as structured messages alongside the span's input and output
-    values, so the media is collected and rendered instead of being flattened into text. Agent
-    spans without media, and non-message input, are unchanged.
+    LLM Observability: Fixes an issue where images and audio annotated on non-LLM spans were lost.
+    Messages annotated via ``LLMObs.annotate`` on an ``agent``, ``workflow``, ``task``, ``tool`` or
+    ``step`` span that carry ``image_parts`` or ``audio_parts`` are now recorded as structured
+    messages alongside the span's input and output values, so the media is collected and rendered
+    instead of being flattened into text. Spans without media, and non-message input, are unchanged.

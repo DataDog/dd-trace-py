@@ -1174,12 +1174,21 @@ def test_annotate_agent_empty_media_lists_unchanged(llmobs):
         assert meta["input"]["value"] == '[{"content": "hello", "image_parts": [], "role": "user"}]'
 
 
-@pytest.mark.parametrize("span_kind", ["workflow", "task", "tool"])
-def test_annotate_non_agent_kinds_with_media_unchanged(llmobs, span_kind):
-    """Regression pin: kinds the serving API still drops messages for keep today's shape.
+@pytest.mark.parametrize(
+    "span_kind,expected_value",
+    [
+        # workflow, task and step collapse a lone plain message to bare text; tool is not a
+        # scalar-value kind, so it keeps the JSON form. Either way the base64 stays out.
+        ("workflow", "describe this"),
+        ("task", "describe this"),
+        ("tool", '[{"content": "describe this", "role": "user"}]'),
+    ],
+)
+def test_annotate_non_agent_kinds_with_media_keep_messages(llmobs, span_kind, expected_value):
+    """Media on workflow, task and tool spans survives as typed messages.
 
-    These stay on the value-only path until the read side populates messages for them;
-    emitting messages sooner would spend the per-event size budget on a dropped payload.
+    The serving API populates messages for these kinds through defaultSpanFromEvent, so the
+    typed parts render instead of being stringified into the value.
     """
     with getattr(llmobs, span_kind)(name="test_span") as span:
         llmobs.annotate(
@@ -1194,11 +1203,21 @@ def test_annotate_non_agent_kinds_with_media_unchanged(llmobs, span_kind):
         )
         llmobs._instance._prepare_llmobs_span_data(span, span_kind)
         meta = llmobs._instance._llmobs_span_event(span)["meta"]
+        assert meta["input"]["messages"] == [
+            {"content": "describe this", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "AAAA"}]}
+        ]
+        assert meta["input"]["value"] == expected_value
+        assert "AAAA" not in meta["input"]["value"]
+
+
+@pytest.mark.parametrize("span_kind", ["workflow", "task", "tool"])
+def test_annotate_non_agent_kinds_without_media_unchanged(llmobs, span_kind):
+    """Regression pin: widening the media set must not change media-free non-agent spans."""
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "hello", "role": "user"}])
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
         assert "messages" not in meta["input"]
-        assert meta["input"]["value"] == (
-            '[{"content": "describe this", "image_parts": [{"content": "AAAA", "mime_type": "image/png"}], '
-            '"role": "user"}]'
-        )
 
 
 def test_annotate_agent_message_malformed_image_parts_raises(llmobs):
