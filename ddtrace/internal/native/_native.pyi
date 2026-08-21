@@ -184,12 +184,19 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
+    def update_otel_thread_context_from_span(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
         Update the OTel thread context from the active span and its local root span.
         :param span: The active span.
         :param local_root: The root span of the local trace chunk.
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
+        """
+        ...
+    def update_otel_thread_context_from_context(context: ContextData, trace_flags: int) -> None:
+        """Update the OTel thread context from an active trace Context.
+
+        Invalid Context identifiers detach the current thread context. The local root span ID is
+        published as zero because a Context does not retain local root span identity.
         """
         ...
     def detach_otel_thread_context() -> None:
