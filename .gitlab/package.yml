@@ -206,8 +206,11 @@ variables:
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
 
-# Rewrites each wheel's version to major.minor.patch[rc].dev<pipeline_id>+<local>.<commit_sha>,
+# Rewrites each wheel's version to major.minor.patch[rc].dev<pipeline_id>+[<branch>.]<commit_sha>,
 # then uploads it to the private prerelease index.
+#
+# Manual trigger only. The pipeline id plus commit sha uniquely identify the build,
+# and the branch slug (when not main/release) makes wheels easier to spot in the index.
 #
 # DEV: only manylinux2014 and macOS wheels get this treatment. musllinux, Windows and the
 # sdist are deliberately left out: the prerelease index exists to hand a custom build to a
@@ -217,15 +220,10 @@ variables:
   image: ${TESTRUNNER_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
+  rules:
+    - when: manual
+      allow_failure: true
   script:
-    - |
-      set -euo pipefail
-      # Only run when the version has a local segment (e.g. 4.1.3rc3+memory-leak-fix).
-      # A plain semver or pre-release (4.1.3, 4.1.3rc3) skips this job.
-      if [[ "${PACKAGE_VERSION:-}" != *+* ]]; then
-        echo "Version '${PACKAGE_VERSION:-}' has no local segment (+...) -- nothing to patch, exiting."
-        exit 0
-      fi
     - python3 .gitlab/scripts/patch-wheel-versions.py pywheels pywheels-patched
     - |
       set -euo pipefail

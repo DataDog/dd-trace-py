@@ -3,11 +3,18 @@
 
 Usage: patch-wheel-versions.py <src_dir> <dest_dir>
 
-Reads CI_PIPELINE_ID, CI_COMMIT_SHA, and PACKAGE_VERSION from the environment.
-For each wheel found in <src_dir>, rewrites the version to
-major.minor.patch[rc].dev<pipeline_id>+<local>.<commit_sha>
-where local is the PEP 440 local segment from pyproject.toml, with '-' and '_'
-normalized to '.' so the filename and METADATA match.
+Reads CI_PIPELINE_ID, CI_COMMIT_SHA, PACKAGE_VERSION, and CI_COMMIT_REF_SLUG
+from the environment. For each wheel found in <src_dir>, rewrites the version
+to major.minor.patch[rc].dev<pipeline_id>+[<local>.]<commit_sha>.
+
+The local segment is:
+  - the PEP 440 local segment from PACKAGE_VERSION when one is present, else
+  - the CI_COMMIT_REF_SLUG (branch slug), unless the branch is main or a
+    release branch of the form X.Y, in which case the local segment is
+    omitted and the version becomes major.minor.patch[rc].dev<pipeline_id>+<commit_sha>.
+
+Hyphens and underscores in the local segment are normalized to '.' so the
+filename and METADATA match.
 
 The distribution name and import package stay ddtrace.
 
@@ -49,19 +56,46 @@ def _parse_dist_info_version(names: list[str]) -> tuple[str, str]:
     raise ValueError("No .dist-info/ directory found in wheel -- cannot determine version")
 
 
-def _build_patched_version(source_version: str, pipeline_id: str, commit_sha: str) -> str:
-    """Build major.minor.patch[rc].dev<pipeline_id>+<local>.<commit_sha>."""
-    public, plus, local = source_version.partition("+")
-    if not plus or not local:
-        raise ValueError(f"Version {source_version!r} has no local segment; cannot patch")
+def _normalize_local(segment: str) -> str:
+    """Normalize a raw string to a PEP 440 local-version fragment.
+
+    PEP 440 local-version normal form uses '.'. Wheel filenames cannot contain
+    '-' (field delimiter). '_' is allowed as a synonym of '-', but adms compares
+    the filename to this dotted form, so use '.' in both filename and METADATA.
+    Branch slugs may contain '/'; treat it the same way.
+    """
+    return segment.replace("-", ".").replace("_", ".").replace("/", ".")
+
+
+def _is_release_branch(ref: str) -> bool:
+    return ref == "main" or bool(re.fullmatch(r"\d+\.\d+", ref))
+
+
+def _build_patched_version(
+    source_version: str,
+    pipeline_id: str,
+    commit_sha: str,
+    branch_ref: str = "",
+) -> str:
+    """Build major.minor.patch[rc].dev<pipeline_id>+[<local>.]<commit_sha>.
+
+    The local segment is taken from source_version if it carries one, else
+    from branch_ref (unless branch_ref is main or a release branch, in which
+    case no local segment is emitted).
+    """
+    public, _, existing_local = source_version.partition("+")
     # Drop an existing .devN so the pipeline id becomes the only dev stamp.
     public = re.sub(r"\.dev\d+$", "", public)
-    # PEP 440 local-version normal form uses '.'. Wheel filenames cannot contain
-    # '-' (field delimiter). '_' is allowed as a synonym of '-', but adms compares
-    # the filename to this dotted form, so use '.' in both filename and METADATA.
-    local = local.replace("-", ".").replace("_", ".")
-    commit_sha = commit_sha.replace("-", ".").replace("_", ".")
-    return f"{public}.dev{pipeline_id}+{local}.{commit_sha}"
+    if existing_local:
+        local = _normalize_local(existing_local)
+    elif branch_ref and not _is_release_branch(branch_ref):
+        local = _normalize_local(branch_ref)
+    else:
+        local = ""
+    commit_sha = _normalize_local(commit_sha)
+    if local:
+        return f"{public}.dev{pipeline_id}+{local}.{commit_sha}"
+    return f"{public}.dev{pipeline_id}+{commit_sha}"
 
 
 def _rewrite_arcname(arcname: str, old_prefix: str, new_prefix: str) -> str:
@@ -168,6 +202,7 @@ def main() -> None:
     pipeline_id = os.environ.get("CI_PIPELINE_ID", "")
     commit_sha = os.environ.get("CI_COMMIT_SHA", "")
     package_version = os.environ.get("PACKAGE_VERSION", "")
+    branch_ref = os.environ.get("CI_COMMIT_REF_SLUG", "")
     if not pipeline_id or not commit_sha:
         print(
             "[ERROR] CI_PIPELINE_ID and CI_COMMIT_SHA must be set in the environment",
@@ -178,7 +213,7 @@ def main() -> None:
         print("[ERROR] PACKAGE_VERSION must be set in the environment", file=sys.stderr)
         sys.exit(1)
     try:
-        new_version = _build_patched_version(package_version, pipeline_id, commit_sha)
+        new_version = _build_patched_version(package_version, pipeline_id, commit_sha, branch_ref)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         sys.exit(1)
