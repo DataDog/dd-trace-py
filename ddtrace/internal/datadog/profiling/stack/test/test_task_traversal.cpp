@@ -39,6 +39,7 @@ import asyncio
 loop = asyncio.new_event_loop()
 async def wait_forever():
     await asyncio.Event().wait()
+valid_task = loop.create_task(wait_forever())
 task = loop.create_task(wait_forever())
 )",
                                     Py_file_input,
@@ -48,8 +49,10 @@ task = loop.create_task(wait_forever())
     Py_DECREF(result);
 
     auto* loop = PyDict_GetItemString(globals, "loop");
+    auto* valid_task = reinterpret_cast<TaskObj*>(PyDict_GetItemString(globals, "valid_task"));
     auto* task = reinterpret_cast<TaskObj*>(PyDict_GetItemString(globals, "task"));
     ASSERT_NE(loop, nullptr);
+    ASSERT_NE(valid_task, nullptr);
     ASSERT_NE(task, nullptr);
 
     EchionSampler echion;
@@ -65,17 +68,23 @@ task = loop.create_task(wait_forever())
     auto maybe_task = TaskInfo::create(echion, task);
     ASSERT_TRUE(maybe_task);
     tasks.push_back(std::move(*maybe_task));
+    TaskInfo* sentinel = tasks.front().get();
 
-    // Echion copied head A while A <-> T. CPython then moved task T under head B, leaving the copied A.next stale:
+    // Model Echion reading A and V from A <-> V <-> T before CPython moves T under head B. Reading T afterward
+    // produces this mixed-time view:
     //
-    //   copied head: A -> T
-    //   live list:   B <-> T
+    //   copied nodes: A -> V -> T
+    //   live task:              B <-> T
     //
-    // Following live links from T would cycle through T -> B -> T without ever returning to A.
+    // Traversal appends V before T.prev != V reveals the malformed edge and requires source-local rollback.
+    const llist_node original_valid_task_node = valid_task->task_node;
     const llist_node original_task_node = task->task_node;
     llist_node expected_head{};
     llist_node moved_head{};
-    expected_head.next = expected_head.prev = &task->task_node;
+    expected_head.next = &valid_task->task_node;
+    expected_head.prev = &task->task_node;
+    valid_task->task_node.prev = &expected_head;
+    valid_task->task_node.next = &task->task_node;
     moved_head.next = moved_head.prev = &task->task_node;
     task->task_node.next = task->task_node.prev = &moved_head;
 
@@ -85,7 +94,11 @@ task = loop.create_task(wait_forever())
     // Reject the malformed source and roll back only the entries it appended.
     EXPECT_FALSE(traversal);
     EXPECT_EQ(tasks.size(), 1);
+    if (!tasks.empty()) {
+        EXPECT_EQ(tasks.front().get(), sentinel);
+    }
 
+    valid_task->task_node = original_valid_task_node;
     task->task_node = original_task_node;
     tasks.clear();
 
@@ -112,11 +125,13 @@ task = loop.create_task(wait_forever())
 
     // Process cancellation and close the loop so the real Task does not remain pending at process exit.
     result = PyRun_String(R"(
-task.cancel()
-try:
-    loop.run_until_complete(task)
-except asyncio.CancelledError:
-    pass
+for pending in (valid_task, task):
+    pending.cancel()
+for pending in (valid_task, task):
+    try:
+        loop.run_until_complete(pending)
+    except asyncio.CancelledError:
+        pass
 loop.close()
 )",
                           Py_file_input,
