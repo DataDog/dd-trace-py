@@ -174,7 +174,7 @@ def rasp(endpoint: str):
             if param.startswith("cmda"):
                 cmd = query_params[param]
                 try:
-                    res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'])}")
+                    res.append(f"cmd stdout: {subprocess.run((cmd, '-c', '3', 'localhost'))}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             elif param.startswith("cmds"):

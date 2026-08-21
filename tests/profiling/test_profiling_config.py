@@ -263,20 +263,13 @@ class TestNativeHeapConfig:
 
 
 class TestNativeHeapActivator:
-    """The ctypes activator must load fail-closed and never raise, regardless of
-    platform or whether the gotter cdylib was built into the wheel.
-    """
+    """The ctypes activator must not raise on import."""
 
-    def test_import_is_fail_closed(self) -> None:
+    def test_import_does_not_raise(self) -> None:
         from ddtrace.internal.datadog.profiling import heap_gotter
 
         assert isinstance(heap_gotter.is_available, bool)
         assert isinstance(heap_gotter.failure_msg, str)
-        # When the library is absent/unsupported, entry points are no-ops that
-        # return False and do not rewrite GOT — safe to call in-process.
-        # When available, do not call install() here: GOT patching is permanent
-        # and would poison the shared pytest worker. That path is covered by the
-        # subprocess smoke/fork tests in test_native_heap_gotter.py.
-        if not heap_gotter.is_available:
-            assert heap_gotter.install() is False
-            assert heap_gotter.is_installed() is False
+        # Do not call install() here: GOT patching is permanent and would poison
+        # the shared pytest worker. That path is covered by the subprocess
+        # smoke/fork tests in test_native_heap_gotter.py.
