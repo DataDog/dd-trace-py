@@ -48,6 +48,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         # single-process case, where the poller dispatches directly.
         self._subscriber: Optional["RemoteConfigSubscriber"] = None
         self._before_fork_registered = False
+        self._start_deferred = False
 
     def _agent_check(self) -> None:
         try:
@@ -105,15 +106,33 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             if not self._before_fork_registered:
-                # Initialize early to avoid race-conditions with forking operations.
+                # AIDEV-NOTE: Initialize and register the fork hook before honoring
+                # the startup barrier. Polling can wait for product registration,
+                # but fork safety must be established as early as possible.
                 self._client.ensure_native()
                 forksafe.register_before_fork(self._before_fork)
                 self._before_fork_registered = True
+
+            if self._start_deferred:
+                return False
 
             self.start()
 
             return True
         return False
+
+    def defer_start(self) -> None:
+        """Delay polling so bootstrap can register every enabled product first."""
+        if self.status != ServiceStatus.RUNNING:
+            self._start_deferred = True
+
+    def start_deferred(self) -> bool:
+        """Release the bootstrap barrier and start polling."""
+        if not self._start_deferred:
+            return self.status == ServiceStatus.RUNNING
+
+        self._start_deferred = False
+        return self.enable()
 
     def _before_fork(self) -> None:
         """Origin hook: enable SHM before forking so children inherit the SHM."""
@@ -177,6 +196,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
     def disable(self, join: bool = False) -> None:
         self.stop_subscriber(join=join)
         self._client.reset_products()
+        self._start_deferred = False
 
         if self._before_fork_registered:
             forksafe.unregister_before_fork(self._before_fork)
