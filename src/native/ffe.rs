@@ -4,9 +4,11 @@ use pyo3::pymodule;
 
 #[pymodule]
 pub mod ffe {
-    use std::collections::HashMap;
+    use std::collections::{HashMap, HashSet};
 
+    use libdd_common::regex_engine::Regex;
     use pyo3::{exceptions::PyValueError, prelude::*};
+    use serde_json::Value;
     use tracing::debug;
 
     use libdd_ffe::rules_based as ffe;
@@ -19,6 +21,8 @@ pub mod ffe {
     #[pyo3(name = "Configuration")]
     struct FfeConfiguration {
         inner: Configuration,
+        variant_type_mismatch_flags: HashMap<String, FlagType>,
+        invalid_regex_flags: HashSet<String>,
     }
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,6 +107,8 @@ pub mod ffe {
                 config_bytes.len()
             );
 
+            let (variant_type_mismatch_flags, invalid_regex_flags) =
+                find_flag_validation_errors(&config_bytes);
             let configuration = Configuration::from_server_response(
                 UniversalFlagConfig::from_json(config_bytes).map_err(|err| {
                     debug!("Failed to parse FFE configuration: {err}");
@@ -112,6 +118,8 @@ pub mod ffe {
 
             Ok(FfeConfiguration {
                 inner: configuration,
+                variant_type_mismatch_flags,
+                invalid_regex_flags,
             })
         }
 
@@ -130,6 +138,19 @@ pub mod ffe {
                     ))
                 }
             };
+
+            if self.variant_type_mismatch_flags.get(flag_key) == Some(&expected_type) {
+                return Ok(ResolutionDetails::error(
+                    ErrorCode::ParseError,
+                    "variant value does not match the declared variation type",
+                ));
+            }
+            if self.invalid_regex_flags.contains(flag_key) {
+                return Ok(ResolutionDetails::error(
+                    ErrorCode::ParseError,
+                    "condition contains an invalid regular expression",
+                ));
+            }
 
             let assignment = get_assignment(
                 Some(&self.inner),
@@ -157,6 +178,96 @@ pub mod ffe {
             };
 
             Ok(result)
+        }
+    }
+
+    fn find_flag_validation_errors(
+        config_bytes: &[u8],
+    ) -> (HashMap<String, FlagType>, HashSet<String>) {
+        let Ok(config) = serde_json::from_slice::<Value>(config_bytes) else {
+            return (HashMap::new(), HashSet::new());
+        };
+        let Some(flags) = config.get("flags").and_then(Value::as_object) else {
+            return (HashMap::new(), HashSet::new());
+        };
+
+        let mut variant_type_mismatch_flags = HashMap::new();
+        let mut invalid_regex_flags = HashSet::new();
+        for (flag_key, flag) in flags {
+            if flag.get("enabled").and_then(Value::as_bool) == Some(false) {
+                continue;
+            }
+
+            if let Some((variation_type, flag_type, variations)) = flag
+                .get("variationType")
+                .and_then(Value::as_str)
+                .and_then(|variation_type| {
+                    Some((
+                        variation_type,
+                        declared_flag_type(variation_type)?,
+                        flag.get("variations")?.as_object()?,
+                    ))
+                })
+            {
+                let has_mismatch = variations.values().any(|variation| {
+                    variation
+                        .get("value")
+                        .is_some_and(|value| !variant_value_matches(variation_type, value))
+                });
+                if has_mismatch {
+                    variant_type_mismatch_flags.insert(flag_key.clone(), flag_type);
+                }
+            }
+
+            if flag_has_invalid_regex(flag) {
+                invalid_regex_flags.insert(flag_key.clone());
+            }
+        }
+
+        (variant_type_mismatch_flags, invalid_regex_flags)
+    }
+
+    fn flag_has_invalid_regex(flag: &Value) -> bool {
+        flag.get("allocations")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|allocation| allocation.get("rules").and_then(Value::as_array))
+            .flatten()
+            .filter_map(|rule| rule.get("conditions").and_then(Value::as_array))
+            .flatten()
+            .any(|condition| {
+                matches!(
+                    condition.get("operator").and_then(Value::as_str),
+                    Some("MATCHES" | "NOT_MATCHES")
+                ) && condition
+                    .get("value")
+                    .and_then(Value::as_str)
+                    .is_some_and(|pattern| Regex::new(pattern).is_err())
+            })
+    }
+
+    fn declared_flag_type(variation_type: &str) -> Option<FlagType> {
+        match variation_type {
+            "BOOLEAN" => Some(FlagType::Boolean),
+            "STRING" => Some(FlagType::String),
+            "INTEGER" => Some(FlagType::Integer),
+            "NUMERIC" => Some(FlagType::Float),
+            "JSON" => Some(FlagType::Object),
+            _ => None,
+        }
+    }
+
+    fn variant_value_matches(variation_type: &str, value: &Value) -> bool {
+        match variation_type {
+            "BOOLEAN" => value.is_boolean(),
+            "STRING" => value.is_string(),
+            "INTEGER" => value.is_i64() || value.is_u64(),
+            "NUMERIC" => value.is_number(),
+            // JSON flag values may be any valid JSON value.
+            "JSON" => true,
+            // Preserve libdatadog's existing handling for unknown flag types.
+            _ => true,
         }
     }
 
@@ -197,9 +308,11 @@ pub mod ffe {
                     ErrorCode::TypeMismatch,
                     format!("type mismatch, expected={expected:?}, found={found:?}"),
                 ),
-                EvaluationError::ConfigurationParseError
-                | EvaluationError::FlagConfigurationInvalid => {
+                EvaluationError::ConfigurationParseError => {
                     ResolutionDetails::error(ErrorCode::ParseError, "configuration error")
+                }
+                EvaluationError::FlagConfigurationInvalid => {
+                    ResolutionDetails::empty(Reason::Default)
                 }
                 EvaluationError::ConfigurationMissing => ResolutionDetails::error(
                     ErrorCode::ProviderNotReady,
