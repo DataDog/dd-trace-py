@@ -465,7 +465,7 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
     if (copy_type(reinterpret_cast<void*>(head_addr), head_node)) {
         return fail();
     }
-    struct llist_node current_node = head_node;
+   llist_node current_node = head_node;
 
     constexpr size_t max_iterations = 1 << 16;
     size_t iteration_count = 0;
