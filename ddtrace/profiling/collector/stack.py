@@ -44,6 +44,14 @@ def _span_info(span: typing.Optional[typing.Union[Context, Span]]) -> typing.Opt
     return None
 
 
+def _link_logical_span(
+    domain: _span_links.SpanLinkDomain,
+    logical_id: int,
+    span: typing.Optional[typing.Union[Context, Span]],
+) -> None:
+    _span_links.link_logical_span(domain, logical_id, _span_info(span))
+
+
 def _unlink_finished_span(span: Span) -> None:
     _span_links.unlink_finished_span(span.span_id)
 
@@ -123,13 +131,22 @@ class StackCollector(collector.Collector):
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)
                 core.on("trace.span_finish", _unlink_finished_span)
-                _span_links.enable_span_linking()
+                gevent_helper = sys.modules.get("ddtrace.profiling._gevent")
+                if gevent_helper is not None:
+                    gevent_helper._restart_gevent_tracking()
+                _span_links.enable_span_linking(self._current_span_link)
             except Exception:
                 core.reset_listeners("ddtrace.context_provider.activate", self._link_span)
                 core.reset_listeners("trace.span_finish", _unlink_finished_span)
                 raise
             # Register after the tracer's fork hook so reset is followed by republishing its restored active context.
             forksafe.register(self._child_after_fork)
+
+    def _current_span_link(self) -> tuple[typing.Optional[_span_links._SpanInfo], typing.Optional[Span]]:
+        if self.tracer is None:
+            return None, None
+        active = self.tracer.context_provider.active()
+        return _span_info(active), active if isinstance(active, Span) else None
 
     def _link_span(
         self,

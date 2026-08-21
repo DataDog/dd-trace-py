@@ -781,6 +781,10 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
     for (auto& snap : snapshots) {
         bool on_cpu = snap.frame == Py_None;
         auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu, snap.greenlet_id);
+        // Snapshot attribution with the frame pointers so deferred rendering cannot observe a newer span activation.
+        stack_info->span_context.use_task_attribution = true;
+        stack_info->span_context.span = Datadog::SpanLinks::get_instance().get_active_span_from_logical_id(
+          Datadog::SpanLinkDomain::GeventGreenlet, snap.greenlet_id);
         auto& stack = stack_info->stack;
         if (snap_idx > 0) {
             stack_info->walltime_ns = scaled_walltime_ns_g;

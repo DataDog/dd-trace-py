@@ -43,6 +43,7 @@ class _SpanLinkContext(typing.NamedTuple):
 
 
 _LogicalSpanProvider = typing.Callable[[], typing.Optional[LogicalSpanTarget]]
+_CurrentSpanProvider = typing.Callable[[], tuple[typing.Optional[_SpanInfo], typing.Optional[typing.Any]]]
 
 _span_linking_enabled = False
 _span_link_generation = 0
@@ -50,6 +51,7 @@ _active_span_link: contextvars.ContextVar[typing.Optional[_SpanLinkContext]] = c
     "ddtrace_profiling_active_span_link", default=None
 )
 _logical_span_providers: list[tuple[int, _LogicalSpanProvider]] = []
+_current_span_provider: typing.Optional[_CurrentSpanProvider] = None
 
 if sys.version_info < (3, 12):
     from ddtrace.internal.native._native import safe_contextvar_set
@@ -70,17 +72,20 @@ def _reset_span_link_state() -> None:
     _set_active_span_link(None)
 
 
-def enable_span_linking() -> None:
-    global _span_linking_enabled
+def enable_span_linking(current_span_provider: typing.Optional[_CurrentSpanProvider] = None) -> None:
+    global _current_span_provider, _span_linking_enabled
 
     _reset_span_link_state()
+    _current_span_provider = current_span_provider
     _span_linking_enabled = True
+    link_current_span()
 
 
 def disable_span_linking() -> None:
-    global _span_linking_enabled
+    global _current_span_provider, _span_linking_enabled
 
     _span_linking_enabled = False
+    _current_span_provider = None
     _set_active_span_link(None)
     stack.reset_span_links()
 
@@ -147,6 +152,18 @@ def link_span(span_info: typing.Optional[_SpanInfo], source: typing.Optional[typ
         _publish_span(target, span_info)
 
 
+def link_current_span() -> bool:
+    """Republish the configured tracer's current context after a profiler lifecycle transition."""
+    if not _span_linking_enabled or _current_span_provider is None:
+        return False
+    try:
+        span_info, source = _current_span_provider()
+    except Exception:
+        return False
+    link_span(span_info, source)
+    return span_info is not None
+
+
 def _inherited_span_info(task_context: typing.Optional[contextvars.Context] = None) -> typing.Optional[_SpanInfo]:
     linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
     if linked_span is None or linked_span.generation != _span_link_generation:
@@ -175,6 +192,21 @@ def clear_thread_span() -> None:
         stack.clear_span()
 
 
+def link_logical_span(
+    domain: SpanLinkDomain,
+    logical_id: int,
+    span_info: typing.Optional[_SpanInfo],
+) -> None:
+    """Seed or update attribution for a native-tracked logical execution context."""
+    if not _span_linking_enabled:
+        return
+    target = LogicalSpanTarget(domain, logical_id)
+    if span_info is None:
+        _clear_span(target)
+    else:
+        _publish_span(target, span_info)
+
+
 def link_logical_span_context(
     domain: SpanLinkDomain,
     logical_id: int,
@@ -189,6 +221,24 @@ def link_logical_span_context(
         _clear_span(target)
         return False
     _publish_span(target, span_info)
+    return True
+
+
+def link_current_logical_span(domain: SpanLinkDomain, logical_id: int) -> bool:
+    """Seed a logical target from the configured tracer's current context."""
+    if not _span_linking_enabled or _current_span_provider is None:
+        return False
+    try:
+        span_info, source = _current_span_provider()
+    except Exception:
+        return False
+    if span_info is None:
+        _set_active_span_link(None)
+        _clear_span(LogicalSpanTarget(domain, logical_id))
+        return False
+    span_ref = weakref.ref(source) if source is not None else None
+    _set_active_span_link(_SpanLinkContext(_span_link_generation, span_info, span_ref))
+    _publish_span(LogicalSpanTarget(domain, logical_id), span_info)
     return True
 
 
