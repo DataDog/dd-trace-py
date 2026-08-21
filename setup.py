@@ -299,28 +299,6 @@ def verify_checksum_from_hash(expected_checksum, filename):
         sys.exit(1)
 
 
-def load_module_from_project_file(mod_name, fname):
-    """
-    Helper used to load a module from a file in this project
-
-    DEV: Loading this way will by-pass loading all parent modules
-         e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
-         which has side effects like loading the tracer
-    """
-    fpath = HERE / fname
-
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(mod_name, fpath)
-    if spec is None:
-        raise ImportError(f"Could not find module {mod_name} in {fpath}")
-    mod = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        raise ImportError(f"Could not load module {mod_name} from {fpath}")
-    spec.loader.exec_module(mod)
-    return mod
-
-
 def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
@@ -1727,17 +1705,6 @@ except EnvironmentError as e:
     sys.exit(1)
 
 
-def get_exts_for(name):
-    try:
-        mod = load_module_from_project_file(
-            "ddtrace.vendor.{}.setup".format(name), "ddtrace/vendor/{}/setup.py".format(name)
-        )
-        return mod.get_extensions()
-    except Exception as e:
-        print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
-        return []
-
-
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -1959,6 +1926,6 @@ setup(
         "setuptools-rust<2",
         "patchelf>=0.17.0.0; sys_platform == 'linux'",
     ],
-    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
+    ext_modules=ext_modules + cython_exts,  # type: ignore[arg-type]
     distclass=PatchedDistribution,
 )
