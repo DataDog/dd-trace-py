@@ -36,6 +36,25 @@ def _get_span_inputs(args: OrderedDict) -> dict:
     return {arg: value for arg, value in args.items() if arg != "self"}
 
 
+def _annotate_or_log(span, operation_kind: str, io_kind: str, **annotation) -> None:
+    """Annotate a decorated span without letting an annotation failure reach the caller.
+
+    Automatic annotation is on by default, so the decorator inspects whatever the user's
+    arguments and return value happen to be. A shape annotate rejects must not take down
+    the function being traced, especially on the input side, where this runs before the
+    function body.
+    """
+    try:
+        LLMObs.annotate(span=span, **annotation)
+    except LLMObsAnnotateSpanError:
+        log.debug(
+            "Failed to auto-annotate %s for @%s decorated function. Use LLMObs.annotate() to manually annotate the %s.",
+            io_kind,
+            operation_kind,
+            io_kind,
+        )
+
+
 async def yield_from_async_gen(func, span, args, kwargs):
     try:
         gen = func(*args, **kwargs)
@@ -235,7 +254,9 @@ def _llmobs_decorator(operation_kind):
                     func_signature = signature(func)
                     bound_args = func_signature.bind_partial(*args, **kwargs)
                     if _automatic_io_annotation and bound_args.arguments:
-                        LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
+                        _annotate_or_log(
+                            span, operation_kind, "input", input_data=_get_span_inputs(bound_args.arguments)
+                        )
                     return yield_from_async_gen(func, span, args, kwargs)
 
                 @wraps(func)
@@ -256,11 +277,13 @@ def _llmobs_decorator(operation_kind):
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
+                            _annotate_or_log(
+                                span, operation_kind, "input", input_data=_get_span_inputs(bound_args.arguments)
+                            )
                         resp = await func(*args, **kwargs)
                         if _automatic_io_annotation and resp is not None and operation_kind != "retrieval":
-                            if get_llmobs_output_value(span) is None:
-                                LLMObs.annotate(span=span, output_data=resp)
+                            if get_llmobs_output_value(span) is None and get_llmobs_output_messages(span) is None:
+                                _annotate_or_log(span, operation_kind, "output", output_data=resp)
                         return resp
 
             else:
@@ -284,7 +307,9 @@ def _llmobs_decorator(operation_kind):
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
+                            _annotate_or_log(
+                                span, operation_kind, "input", input_data=_get_span_inputs(bound_args.arguments)
+                            )
                         try:
                             yield from func(*args, **kwargs)
                         except (StopIteration, GeneratorExit):
@@ -314,11 +339,13 @@ def _llmobs_decorator(operation_kind):
                         func_signature = signature(func)
                         bound_args = func_signature.bind_partial(*args, **kwargs)
                         if _automatic_io_annotation and bound_args.arguments:
-                            LLMObs.annotate(span=span, input_data=_get_span_inputs(bound_args.arguments))
+                            _annotate_or_log(
+                                span, operation_kind, "input", input_data=_get_span_inputs(bound_args.arguments)
+                            )
                         resp = func(*args, **kwargs)
                         if _automatic_io_annotation and resp is not None and operation_kind != "retrieval":
-                            if get_llmobs_output_value(span) is None:
-                                LLMObs.annotate(span=span, output_data=resp)
+                            if get_llmobs_output_value(span) is None and get_llmobs_output_messages(span) is None:
+                                _annotate_or_log(span, operation_kind, "output", output_data=resp)
                         return resp
 
             return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper

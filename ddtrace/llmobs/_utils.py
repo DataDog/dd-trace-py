@@ -41,6 +41,7 @@ from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import _ToolField
+from ddtrace.llmobs.utils import Messages
 from ddtrace.trace import Span
 
 
@@ -795,14 +796,25 @@ def _annotate_llmobs_span_data(
             llmobs_span_data[LLMOBS_STRUCT.SPAN_LINKS] = span_links
         if config is not None:
             llmobs_span_data[LLMOBS_STRUCT.CONFIG] = config
-        # Add I/O messages to messages field only for LLM spans, otherwise add to value field
-        is_llm = meta[LLMOBS_STRUCT.SPAN].get(LLMOBS_STRUCT.KIND) == "llm"
+        # Add I/O messages to the messages field for LLM spans, and for the non-LLM kinds that
+        # keep messages when a message carries media; every other case collapses to value.
+        annotated_span_kind = meta[LLMOBS_STRUCT.SPAN].get(LLMOBS_STRUCT.KIND)
+        # meta.input persists across annotate calls and the emit path prefers messages over value,
+        # so on the kinds that can hold both a write has to clear its sibling to stay authoritative.
+        # LLM spans have always let messages win regardless of write order, and integrations write a
+        # value at operation end on spans a user may already have annotated, so leave them alone.
+        clears_sibling = annotated_span_kind != "llm"
         if input_messages is not None:
-            if is_llm:
+            if span_kind_keeps_messages(annotated_span_kind, input_messages):
+                if clears_sibling:
+                    meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.VALUE, None)
                 meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
             else:
+                meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
                 meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_messages, ensure_ascii=False) or ""
         if input_value is not None:
+            if clears_sibling:
+                meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_value, ensure_ascii=False) or ""
         if input_documents is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
@@ -811,11 +823,16 @@ def _annotate_llmobs_span_data(
             existing_prompt.update(cast(Prompt, prompt))
             span._set_ctx_item(INPUT_PROMPT, existing_prompt)
         if output_messages is not None:
-            if is_llm:
+            if span_kind_keeps_messages(annotated_span_kind, output_messages):
+                if clears_sibling:
+                    meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.VALUE, None)
                 meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
             else:
+                meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
                 meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_messages, ensure_ascii=False) or ""
         if output_value is not None:
+            if clears_sibling:
+                meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_value, ensure_ascii=False) or ""
         if output_documents is not None:
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents
@@ -849,6 +866,125 @@ def enforce_message_role(messages: list[Message]) -> list[Message]:
     for message in messages:
         message.setdefault("role", "")
     return messages
+
+
+# Non-LLM span kinds allowed to keep typed messages alongside the collapsed value string.
+# Adding a kind here requires the serving API to populate messages for it first, otherwise the
+# messages are dropped on read and the inline media has spent the per-event size budget for
+# something that can never render. The serving API now builds messages for every kind below:
+# agent has its own builder, and workflow / task / step / tool route through defaultSpanFromEvent,
+# which populates them as of the non-LLM span builder change.
+MEDIA_MESSAGE_SPAN_KINDS: frozenset = frozenset(("agent", "workflow", "task", "step", "tool"))
+
+_SCALAR_VALUE_SPAN_KINDS: frozenset = frozenset(("agent", "workflow", "task", "step"))
+_MEDIA_PART_KEYS = (LLMOBS_STRUCT.AUDIO_PARTS, LLMOBS_STRUCT.IMAGE_PARTS)
+
+
+def messages_carry_media(messages: Any) -> bool:
+    """True when any message carries a non-empty audio_parts or image_parts list.
+
+    Runs on the annotate path against unvalidated user input, so it tolerates any shape
+    rather than raising. A media key holding anything other than a non-empty list of dicts
+    does not count, which leaves malformed input on whatever path it takes today: routing it
+    here instead would hand it to Messages(), which raises TypeError on a non-dict part, and
+    annotate turns that into an LLMObsAnnotateSpanError in the caller's own code.
+
+    A dict only counts as a message when it carries content or role. The decorators annotate a
+    traced function's arguments as a plain dict, so a parameter named image_parts would otherwise
+    look like a message and take every other argument down the Messages path, which drops the
+    keys it does not recognize.
+    """
+    if isinstance(messages, Messages):
+        messages = messages.messages
+    if isinstance(messages, dict):
+        messages = [messages]
+    if not isinstance(messages, list):
+        return False
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        if "content" not in message and "role" not in message:
+            continue
+        for key in _MEDIA_PART_KEYS:
+            parts = message.get(key)
+            if isinstance(parts, list) and parts and all(isinstance(part, dict) for part in parts):
+                return True
+    return False
+
+
+def span_kind_keeps_messages(span_kind: Optional[str], messages: Any) -> bool:
+    """True when message-shaped I/O should be stored as typed messages for this span kind.
+
+    LLM spans always keep messages. The other kinds keep them only when a message actually
+    carries media, mirroring the trace indexer, which retains messages on a non-LLM span
+    only for the typed parts the collapsed value string cannot represent.
+    """
+    if span_kind == "llm":
+        return True
+    return span_kind in MEDIA_MESSAGE_SPAN_KINDS and messages_carry_media(messages)
+
+
+def _strip_media_parts(messages: list[Message]) -> list[dict]:
+    """Drop the media part lists so base64 payloads never reach the value string."""
+    return [{k: v for k, v in message.items() if k not in _MEDIA_PART_KEYS} for message in messages]
+
+
+_VALUE_OMITTED_MARKER = "[value omitted: event size limit]"
+
+
+def _media_payload_chars(messages: list[Message]) -> int:
+    """Characters the inline media parts contribute, without serializing the whole list."""
+    total = 0
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        for key in _MEDIA_PART_KEYS:
+            parts = message.get(key)
+            if not isinstance(parts, list):
+                continue
+            for part in parts:
+                if isinstance(part, dict):
+                    total += len(part.get("content", "") or "")
+    return total
+
+
+def _messages_have_tool_structure(messages: list[dict]) -> bool:
+    """True when any message carries tool_calls or tool_results.
+
+    Plain-text rendering cannot represent tool structure without dropping it, so its
+    presence forces the JSON form of the value string.
+    """
+    return any("tool_calls" in message or "tool_results" in message for message in messages)
+
+
+def collapse_messages_to_value(span_kind: str, messages: list[Message]) -> str:
+    """Render the scalar value string for a non-LLM span that also carries typed messages.
+
+    Mirrors nonLLMValueString in the trace indexer so a natively instrumented span and an
+    OTel one read back the same way. Agent, workflow, task and step render a lone
+    plain-text, non-system message as readable text; anything else keeps the JSON form,
+    which preserves roles, turns and tool structure. Media parts are stripped either way,
+    so the value stays small and the payload lives only on messages.
+    """
+    if not messages:
+        return ""
+    stripped = _strip_media_parts(messages)
+    if (
+        span_kind in _SCALAR_VALUE_SPAN_KINDS
+        and len(stripped) == 1
+        and not _messages_have_tool_structure(stripped)
+        and stripped[0].get("role") != "system"
+    ):
+        value = stripped[0].get("content", "") or ""
+    else:
+        value = safe_json(stripped, ensure_ascii=False) or ""
+    # The messages already carry this text, so the derived value duplicates it and halves the
+    # headroom the media needs. Past the limit the writer replaces input and output wholesale
+    # (_writer._truncate_span_event), discarding the very media this field exists to accompany,
+    # so drop the duplicate instead and keep the payload.
+    if _media_payload_chars(messages) + 2 * len(value) > config._llmobs_event_size_limit:
+        return _VALUE_OMITTED_MARKER
+    return value
 
 
 def validate_tags_list(tags: list[str]) -> None:

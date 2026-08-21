@@ -180,6 +180,31 @@ class TestLLMIOProcessing:
         return span
 
     @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_remove_input_output)])
+    def test_content_scrub_leaves_media_on_non_llm_span(self, llmobs, llmobs_enable_opts):
+        """A processor that clears content does not clear media.
+
+        Non-LLM spans carrying media now reach processors as a typed message list, so the payload
+        sits on image_parts/audio_parts rather than in the text. The span reads as scrubbed while
+        the media is still attached, which processor authors need to know.
+        """
+        with llmobs.agent() as span:
+            llmobs.annotate(
+                span,
+                input_data=[
+                    {
+                        "content": "SECRET",
+                        "role": "user",
+                        "image_parts": [{"mime_type": "image/png", "content": "QkFTRTY0"}],
+                    }
+                ],
+            )
+
+        llmobs_input = get_llmobs_input(span)
+        assert llmobs_input["messages"][0]["content"] == ""
+        assert llmobs_input["messages"][0]["image_parts"] == [{"mime_type": "image/png", "content": "QkFTRTY0"}]
+        assert llmobs_input["value"] == ""
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_remove_input_output)])
     def test_input_output_processor_remove(self, llmobs, llmobs_enable_opts):
         with llmobs.llm() as messages_span:
             llmobs.annotate(messages_span, input_data="value", output_data="value")

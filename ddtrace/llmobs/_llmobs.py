@@ -159,6 +159,7 @@ from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import add_span_link
+from ddtrace.llmobs._utils import collapse_messages_to_value
 from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import get_llmobs_ml_app
@@ -174,6 +175,7 @@ from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import span_kind_keeps_messages
 from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -424,7 +426,7 @@ def _build_llmobs_span(
         llmobs_span.input = [Message(content=safe_json(input_value, ensure_ascii=False) or "", role="")]
 
     input_messages = llmobs_input.get(LLMOBS_STRUCT.MESSAGES)
-    if span_kind == "llm" and input_messages is not None:
+    if input_messages is not None and span_kind_keeps_messages(span_kind, input_messages):
         input_type = "messages"
         llmobs_span.input = enforce_message_role(input_messages)
 
@@ -439,7 +441,7 @@ def _build_llmobs_span(
         llmobs_span.output = [Message(content=safe_json(output_value, ensure_ascii=False) or "", role="")]
 
     output_messages = llmobs_output.get(LLMOBS_STRUCT.MESSAGES)
-    if span_kind == "llm" and output_messages is not None:
+    if output_messages is not None and span_kind_keeps_messages(span_kind, output_messages):
         output_type = "messages"
         llmobs_span.output = enforce_message_role(output_messages)
 
@@ -541,6 +543,11 @@ def _normalize_llmobs_meta(
 
     if input_type == "messages":
         meta_input[LLMOBS_STRUCT.MESSAGES] = llmobs_span.input
+        if span_kind != "llm":
+            # Non-LLM spans carry both: value for readers that only understand value, and
+            # messages for the typed media parts value cannot represent. Derived here, after
+            # the user span processor, so processor edits reach both fields.
+            meta_input[LLMOBS_STRUCT.VALUE] = collapse_messages_to_value(span_kind, llmobs_span.input)
     elif input_type == "value" and llmobs_span.input:
         meta_input[LLMOBS_STRUCT.VALUE] = llmobs_span.input[0].get("content", "")
     elif input_type == "documents":
@@ -552,6 +559,8 @@ def _normalize_llmobs_meta(
 
     if output_type == "messages":
         meta_output[LLMOBS_STRUCT.MESSAGES] = llmobs_span.output
+        if span_kind != "llm":
+            meta_output[LLMOBS_STRUCT.VALUE] = collapse_messages_to_value(span_kind, llmobs_span.output)
     elif output_type == "value" and llmobs_span.output:
         meta_output[LLMOBS_STRUCT.VALUE] = llmobs_span.output[0].get("content", "")
     elif output_type == "documents":
@@ -2950,6 +2959,10 @@ class LLMObs(Service):
                                         "mime_type" and one of "content" (base64-encoded image) or "attachment_key".
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
+                           - agent, workflow, task, step and tool spans: any JSON serializable type. A message-shaped
+                                              payload whose messages carry "image_parts" or "audio_parts" is recorded
+                                              as typed messages alongside the collapsed value string, and keys outside
+                                              the message schema described above are dropped.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...",
@@ -2963,6 +2976,10 @@ class LLMObs(Service):
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
+                           - agent, workflow, task, step and tool spans: any JSON serializable type. A message-shaped
+                                              payload whose messages carry "image_parts" or "audio_parts" is recorded
+                                              as typed messages alongside the collapsed value string, and keys outside
+                                              the message schema described above are dropped.
                            - other: any JSON serializable type.
         :param metadata: Dictionary of JSON serializable key-value metadata pairs relevant to the input/output operation
                          described by the LLMObs span.
@@ -3077,6 +3094,32 @@ class LLMObs(Service):
                     )
                 elif span_kind == "experiment":
                     cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
+                elif span_kind_keeps_messages(span_kind, input_data) or span_kind_keeps_messages(
+                    span_kind, output_data
+                ):
+                    # Media-bearing sides route through the message tagger so the typed parts
+                    # survive. Each side is decided on its own: a plain-string side keeps the
+                    # value tagging it has today rather than being reshaped into a message.
+                    media_input = input_data if span_kind_keeps_messages(span_kind, input_data) else None
+                    media_output = output_data if span_kind_keeps_messages(span_kind, output_data) else None
+                    # Tagged one side at a time so a malformed input cannot suppress a valid output,
+                    # and so a side that fails to parse falls back to the value path below instead of
+                    # going unrecorded. Under a decorator the failure is logged rather than raised,
+                    # which would otherwise make that loss silent.
+                    input_failed = output_failed = False
+                    if media_input is not None:
+                        annotation_error_message, error = cls._tag_llm_io(span, input_messages=media_input)
+                        input_failed = annotation_error_message is not None
+                    if media_output is not None:
+                        output_error_message, output_error = cls._tag_llm_io(span, output_messages=media_output)
+                        output_failed = output_error_message is not None
+                        if output_failed:
+                            annotation_error_message, error = output_error_message, output_error
+                    cls._tag_text_io(
+                        span,
+                        input_value=input_data if (media_input is None or input_failed) else None,
+                        output_value=output_data if (media_output is None or output_failed) else None,
+                    )
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
             if _linked_spans and isinstance(_linked_spans, list):
