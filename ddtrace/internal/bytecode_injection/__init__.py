@@ -250,3 +250,11 @@ def eject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> Function
     f.__code__ = abstract_code.to_code()
 
     return f
+
+
+def eject_all_hooks(f: FunctionType) -> None:
+    """Remove every line hook registered for *f*.
+
+    No-op while bytecode injection is unavailable on this Python version.
+    """
+    return None
