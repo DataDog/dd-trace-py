@@ -62,6 +62,101 @@ def get_dependency_names(package_name: str) -> list[str]:
     return sorted(INTEGRATION_TO_DEPENDENCY_MAPPING.get(package_name, set()))
 
 
+def _extract_supported_versions(py_file: Path) -> dict[str, str] | None:
+    """Return the dict returned by an integration's ``_supported_versions`` function.
+
+    The function is parsed statically (never imported) because the instrumented
+    packages are not necessarily installed in the environment running this script.
+    Returns ``None`` when the file does not define ``_supported_versions``.
+    """
+    module = ast.parse(py_file.read_text())
+    for node in ast.walk(module):
+        if not (isinstance(node, ast.FunctionDef) and node.name == "_supported_versions"):
+            continue
+        for child in ast.walk(node):
+            if isinstance(child, ast.Return) and isinstance(child.value, ast.Dict):
+                try:
+                    value = ast.literal_eval(child.value)
+                except (ValueError, SyntaxError):
+                    return None
+                if isinstance(value, dict):
+                    return {str(key): str(range_) for key, range_ in value.items()}
+    return None
+
+
+def get_supported_ranges() -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Collect declared supported ranges per integration.
+
+    Returns a tuple of ``(supported_ranges, integrations_without_declaration)`` where
+    ``supported_ranges`` maps an integration name to the dict returned by its
+    ``patch.py`` module's ``_supported_versions`` function, and the second element
+    lists integrations with a ``patch.py`` module that do not implement it.
+    """
+    supported_ranges: dict[str, dict[str, str]] = {}
+    missing: list[str] = []
+
+    for path in sorted(CONTRIB_INTERNAL_ROOT.iterdir()):
+        if not path.is_dir() or path.name == "__pycache__":
+            continue
+
+        patch_file = path / "patch.py"
+        if not patch_file.is_file():
+            continue
+
+        declared = _extract_supported_versions(patch_file)
+
+        if declared is None:
+            missing.append(path.name)
+        else:
+            supported_ranges[path.name] = declared
+
+    return supported_ranges, missing
+
+
+def _normalize_dependency_name(name: str) -> str:
+    return re.sub(r"[-.]", "_", name.lower())
+
+
+def resolve_supported_range(
+    dependency_name: str,
+    declared_ranges: dict[str, str] | None,
+    is_sole_dependency: bool,
+) -> str | None:
+    """Resolve the supported range for a dependency from an integration's declaration.
+
+    ``_supported_versions`` is keyed by import/module name, which does not always match
+    the distribution name used as ``dependencyName`` (e.g. ``psycopg2`` vs
+    ``psycopg2-binary``, or a stdlib module vs its ``stdlib.*`` entry). We match by
+    normalized name, then by longest shared-prefix match (which pairs distribution
+    variants like ``psycopg2-binary`` with ``psycopg2`` without matching unrelated
+    substrings). As a last resort, when the integration has a single dependency and
+    declares a single range, that range is used even if the names differ (covers stdlib
+    modules).
+    """
+    if not declared_ranges:
+        return None
+
+    normalized = {_normalize_dependency_name(key): range_ for key, range_ in declared_ranges.items()}
+    dependency_norm = _normalize_dependency_name(dependency_name)
+
+    if dependency_norm in normalized:
+        return normalized[dependency_norm]
+
+    best_match: tuple[str, str] | None = None
+    for key_norm, range_ in normalized.items():
+        if dependency_norm.startswith(key_norm) or key_norm.startswith(dependency_norm):
+            if best_match is None or len(key_norm) > len(best_match[0]):
+                best_match = (key_norm, range_)
+
+    if best_match:
+        return best_match[1]
+
+    if is_sole_dependency and len(declared_ranges) == 1:
+        return next(iter(declared_ranges.values()))
+
+    return None
+
+
 def is_stdlib_package(package_name: str) -> bool:
     """Return whether an integration targets a module from Python's standard library."""
     root_package = package_name.partition(".")[0]
@@ -216,28 +311,42 @@ def get_pinned_integrations(integration_names: set[str]) -> set[str]:
     return pinned_integrations
 
 
-def build_python_versions(
+def build_versions(
     tested_versions: set[TestedVersion],
-) -> dict[str, dict[str, object]]:
-    tested_by_python: dict[str, set[str]] = defaultdict(set)
+    supported_range: str | None,
+) -> list[dict[str, object]]:
+    """Group runtimes that tested the same set of package versions.
 
+    Python versions whose tested package versions are identical are merged into a
+    single entry to deduplicate repeated version lists.
+    """
+    tested_by_python: dict[str, set[str]] = defaultdict(set)
     for tested_version in tested_versions:
         tested_by_python[tested_version.python_version].add(tested_version.version)
 
-    python_versions = {}
-    for python_version in sorted(tested_by_python, key=_python_sort_key):
-        tested_python_versions = tested_by_python[python_version]
-        supported_versions = sorted(tested_python_versions, key=_version_sort_key)
-        python_versions[python_version] = {
-            "minimum_package_version": supported_versions[0],
-            "maximum_package_version": supported_versions[-1],
-            "tested_versions": supported_versions,
+    runtimes_by_tested: dict[tuple[str, ...], list[str]] = defaultdict(list)
+    for python_version, versions in tested_by_python.items():
+        tested_sorted = tuple(sorted((version for version in versions if version), key=_version_sort_key))
+        runtimes_by_tested[tested_sorted].append(python_version)
+
+    entries: list[dict[str, object]] = []
+    for tested_sorted, python_versions in runtimes_by_tested.items():
+        entry: dict[str, object] = {
+            "testedRuntimes": {"python": sorted(python_versions, key=_python_sort_key)},
         }
+        if supported_range is not None:
+            entry["supportedRange"] = supported_range
+        entry["tested"] = list(tested_sorted)
+        entries.append(entry)
 
-    return python_versions
+    entries.sort(key=lambda entry: _python_sort_key(entry["testedRuntimes"]["python"][0]))
+    return entries
 
 
-def build_supported_versions_entries(tested_versions_per_integration: dict[str, dict[str, set[TestedVersion]]]):
+def build_supported_versions_entries(
+    tested_versions_per_integration: dict[str, dict[str, set[TestedVersion]]],
+    supported_ranges: dict[str, dict[str, str]],
+):
     """Build the JSON payload for supported_versions.json."""
     entries = []
     integration_names = set(get_integration_names())
@@ -248,43 +357,51 @@ def build_supported_versions_entries(tested_versions_per_integration: dict[str, 
             continue
 
         dependency_names = set(get_dependency_names(integration_name))
-        tested_dependency_names = set(tested_versions_per_integration.get(integration_name, {}))
+        tested_versions_by_dependency = tested_versions_per_integration.get(integration_name, {})
+        tested_dependency_names = set(tested_versions_by_dependency)
+        declared_ranges = supported_ranges.get(integration_name)
+        is_sole_dependency = len(tested_versions_by_dependency) == 1
 
-        for dependency_name, tested_versions in sorted(
-            tested_versions_per_integration.get(integration_name, {}).items()
-        ):
-            entry = {
-                "dependency": dependency_name,
+        for dependency_name, tested_versions in sorted(tested_versions_by_dependency.items()):
+            supported_range = resolve_supported_range(dependency_name, declared_ranges, is_sole_dependency)
+
+            entry: dict[str, object] = {
+                "dependencyName": dependency_name,
+                "integrationName": integration_name,
+                "autoInstrumented": is_auto_instrumented_package(integration_name),
+                "versions": build_versions(tested_versions, supported_range),
             }
 
             aliases = sorted(dependency_names - tested_dependency_names)
             if aliases:
                 entry["aliases"] = aliases
 
-            entry.update(
-                {
-                    "integration": integration_name,
-                    "auto-instrumented": is_auto_instrumented_package(integration_name),
-                    "python_versions": build_python_versions(
-                        tested_versions,
-                    ),
-                }
-            )
-
             if integration_name in pinned_integrations:
                 entry["pinned"] = True
 
             entries.append(entry)
 
-    return sorted(entries, key=lambda entry: (entry["integration"], entry["dependency"]))
+    return sorted(entries, key=lambda entry: (entry["integrationName"], entry["dependencyName"]))
 
 
 def main() -> None:
     """Generate supported_versions.json from riot requirement lock files."""
     tested_versions_per_integration = collect_tested_versions()
+    supported_ranges, integrations_without_declaration = get_supported_ranges()
+
     SUPPORTED_VERSIONS_PATH.write_text(
-        json.dumps(build_supported_versions_entries(tested_versions_per_integration), indent=4) + "\n"
+        json.dumps(build_supported_versions_entries(tested_versions_per_integration, supported_ranges), indent=4) + "\n"
     )
+
+    if integrations_without_declaration:
+        print(
+            "ERROR: the following integrations do not implement _supported_versions() and are missing "
+            "a supported range:",
+            file=sys.stderr,
+        )
+        for integration_name in integrations_without_declaration:
+            print(f"  - {integration_name}", file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
