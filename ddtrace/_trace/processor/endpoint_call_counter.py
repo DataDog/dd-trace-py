@@ -19,7 +19,9 @@ class EndpointCallCounterProcessor(SpanProcessor):
     # endpoint to span_ids instead of mapping from span_id to endpoint to
     # avoid creating a new string object for each span id.
     endpoint_to_span_ids: dict[str, list[int]] = field(default_factory=dict, init=False, repr=False, compare=False)
-    _endpoint_counts_lock: typing.ContextManager = field(default_factory=Lock, init=False, repr=False, compare=False)
+    _endpoint_counts_lock: typing.ContextManager[bool] = field(
+        default_factory=Lock, init=False, repr=False, compare=False
+    )
     _enabled: bool = field(default=False, repr=False, compare=False)
 
     def enable(self) -> None:
