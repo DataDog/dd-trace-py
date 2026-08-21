@@ -2,4 +2,3 @@
 features:
   - |
     tracing: add consistent probability sampling support for distributed traces in mixed Datadog - OpenTelemetry environment
-    
