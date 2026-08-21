@@ -6,7 +6,6 @@ from typing import Any
 # ddtrace.internal.datadog.profiling.{ddup,stack}.
 is_available: bool = False
 failure_msg: str = ""
-
 try:
     from .profiler import Profiler  # noqa: F401
 
@@ -14,7 +13,6 @@ try:
 except Exception as e:
     failure_msg = str(e)
     _profiler_import_error: BaseException = e
-
     class Profiler:  # type: ignore[no-redef]
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise ImportError(
