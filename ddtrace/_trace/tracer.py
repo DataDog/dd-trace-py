@@ -7,7 +7,6 @@ from itertools import chain
 import logging
 import os
 from os import getpid
-from threading import Lock
 from typing import Any
 from typing import AsyncGenerator
 from typing import Callable
@@ -57,6 +56,7 @@ from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import format_trace_id

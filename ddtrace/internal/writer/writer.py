@@ -4,7 +4,6 @@ from collections import defaultdict
 import gzip
 import socket
 import sys
-import threading
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -52,6 +51,7 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
+from ..threads import RLock
 from ..utils.formats import get_test_session_token
 from ..utils.http import Response
 from ..utils.http import verify_url
@@ -226,7 +226,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
-        self._conn_lck: threading.RLock = threading.RLock()
+        self._conn_lck: RLock = RLock()
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
