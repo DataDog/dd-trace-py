@@ -1,5 +1,6 @@
 import asyncio
 from contextvars import Context
+from contextvars import copy_context
 from functools import partial
 from typing import Any
 from typing import Callable
@@ -60,7 +61,7 @@ def unpatch():
         _context_switch_instrumentation_patched = False
 
 
-def _dispatch_context_switch(loop: Optional[Any], context: Optional[Context] = None, **details: Any) -> None:
+def _dispatch_context_switch(loop: Optional[Any], **details: Any) -> None:
     """Publish a context switch, reporting a listener failure rather than raising it at the call site.
 
     core.dispatch re-raises BaseException, and these dispatches sit outside the guards asyncio wraps
@@ -69,10 +70,7 @@ def _dispatch_context_switch(loop: Optional[Any], context: Optional[Context] = N
     none to report to, so it passes loop as None and the failure is logged instead.
     """
     try:
-        if context is None:
-            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
-        else:
-            context.run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
+        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
     except (SystemExit, KeyboardInterrupt):
         raise
     except BaseException as exc:
@@ -95,8 +93,15 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
         # Dispatching here, inside the callback, means it runs as part of the single
         # context.run() that the real _run performs below, instead of a redundant one of
         # our own just to enter handle._context before the real call does.
-        _dispatch_context_switch(handle._loop, handle=handle)
-        return original_callback(*cb_args, **cb_kwargs)
+        _dispatch_context_switch(handle._loop)
+        try:
+            return original_callback(*cb_args, **cb_kwargs)
+        except BaseException:
+            # Handle._run formats callback failures before the outer finally below runs.
+            # Restore the application callback now so asyncio reports the right callable.
+            if handle._callback is _callback_with_entry_dispatch:
+                handle._callback = original_callback
+            raise
 
     handle._callback = _callback_with_entry_dispatch
     try:
@@ -109,21 +114,29 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
         _dispatch_context_switch(handle._loop, handle=handle)
 
 
-def _run_with_context_switches(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
-    """Publish the copied worker context on entry and detach it before exit.
+def _run_with_context_switches(context: Context, func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    """Publish the copied context on entry and the restored worker context on exit.
 
-    The worker thread is pooled and reused, so its exit dispatch has to report an empty
-    context rather than the (still-active) worker context -- otherwise the next job run on
-    that thread would appear to inherit this one's active span.
-
-    func is positional-only, like in asyncio.to_thread, so that a target taking its own func
-    keyword argument still works.
+    asyncio.to_thread propagates a copied Context into a pooled worker. The exit dispatch
+    must run after context.run restores that worker's ambient Context so native state agrees
+    with the context provider before the thread accepts another job.
     """
-    _dispatch_context_switch(None)
-    try:
+
+    def run_in_context() -> Any:
+        _dispatch_context_switch(None)
         return func(*args, **kwargs)
+
+    try:
+        return context.run(run_in_context)
     finally:
-        _dispatch_context_switch(None, Context())
+        _dispatch_context_switch(None)
+
+
+async def _to_thread_with_context_switches(func: Callable[..., Any], /, *args: Any, **kwargs: Any) -> Any:
+    loop = asyncio.get_running_loop()
+    context = copy_context()
+    func_call = partial(_run_with_context_switches, context, func, *args, **kwargs)
+    return await loop.run_in_executor(None, func_call)
 
 
 def _wrapped_to_thread(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -131,8 +144,7 @@ def _wrapped_to_thread(wrapped: Callable[..., Any], args: tuple[Any, ...], kwarg
         # A missing target is asyncio.to_thread's own TypeError to raise.
         return wrapped(*args, **kwargs)
 
-    args = (partial(_run_with_context_switches, args[0]),) + args[1:]
-    return wrapped(*args, **kwargs)
+    return _to_thread_with_context_switches(args[0], *args[1:], **kwargs)
 
 
 def _may_start_eagerly(loop: Any, kwargs: dict[str, Any]) -> bool:

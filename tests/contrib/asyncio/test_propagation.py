@@ -1,5 +1,8 @@
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
+from contextvars import copy_context
 import sys
 import threading
 import time
@@ -380,6 +383,58 @@ async def test_context_switch_listener_failure_does_not_kill_the_loop(python_con
     assert all(isinstance(context["exception"], failing_listener) for context in handled)
 
 
+def test_context_switch_entry_listener_failure_reaches_the_custom_exception_handler(python_context_fallback):
+    loop = asyncio.new_event_loop()
+    phase = ContextVar("phase", default="ambient")
+    callback_context = copy_context()
+    callback_context.run(phase.set, "handle")
+    handled = []
+    secondary = []
+
+    class ListenerFailure(Exception):
+        pass
+
+    def failing_listener():
+        raise ListenerFailure(phase.get())
+
+    loop.set_exception_handler(lambda _loop, context: handled.append(context))
+    loop.default_exception_handler = lambda context: secondary.append(context)
+    core.on(PYTHON_CONTEXT_SWITCH_EVENT, failing_listener)
+    try:
+        asyncio.Handle(lambda: None, (), loop, context=callback_context)._run()
+    finally:
+        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, failing_listener)
+        loop.close()
+
+    assert [str(context["exception"]) for context in handled] == ["handle", "ambient"]
+    assert secondary == []
+
+
+def test_callback_failure_reports_the_application_callback(python_context_fallback):
+    loop = asyncio.new_event_loop()
+    handled = []
+
+    def application_callback():
+        raise RuntimeError("application failure")
+
+    def exception_handler(_loop, context):
+        handled.append((context, context["handle"]._callback))
+
+    loop.set_exception_handler(exception_handler)
+    handle = asyncio.Handle(application_callback, (), loop, context=copy_context())
+    try:
+        handle._run()
+    finally:
+        loop.close()
+
+    assert len(handled) == 1
+    context, reported_callback = handled[0]
+    assert context["exception"].args == ("application failure",)
+    assert "application_callback" in context["message"]
+    assert "_callback_with_entry_dispatch" not in context["message"]
+    assert reported_callback is application_callback
+
+
 @pytest.mark.asyncio
 async def test_context_switch_listener_failure_does_not_reach_the_to_thread_worker(
     python_context_fallback, failing_listener
@@ -572,6 +627,39 @@ async def test_to_thread_context_switch_events(tracer, python_context_fallback):
 
     assert worker_id is not None
     assert [context for ident, context in switches if ident == worker_id] == [parent, None]
+
+
+def test_to_thread_restores_ambient_worker_context(tracer, python_context_fallback):
+    switches = []
+    ambient_worker = tracer.start_span("ambient-worker")
+    executor = ThreadPoolExecutor(max_workers=1, initializer=lambda: tracer.context_provider.activate(ambient_worker))
+    loop = asyncio.new_event_loop()
+    loop.set_default_executor(executor)
+
+    def record_context_switch():
+        switches.append((threading.get_ident(), tracer.context_provider.active()))
+
+    def active_context():
+        return threading.get_ident(), tracer.context_provider.active()
+
+    async def exercise():
+        with tracer.trace("parent") as parent:
+            copied = await asyncio.to_thread(active_context)
+        restored = await loop.run_in_executor(None, active_context)
+        return parent, copied, restored
+
+    core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+    try:
+        parent, copied, restored = loop.run_until_complete(exercise())
+    finally:
+        loop.run_until_complete(loop.shutdown_default_executor())
+        loop.close()
+        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+        ambient_worker.finish()
+
+    assert copied == (restored[0], parent)
+    assert restored[1] is ambient_worker
+    assert [context for ident, context in switches if ident == restored[0]] == [parent, ambient_worker]
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
