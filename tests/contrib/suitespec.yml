@@ -1375,6 +1375,7 @@ suites:
       - rediscluster
     snapshot: true
   requests:
+    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1511,6 +1512,7 @@ suites:
       - tests/contrib/structlog/*
     snapshot: true
   subprocess:
+    runner: uv
     parallelism: 2
     paths:
       - '@bootstrap'

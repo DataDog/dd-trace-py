@@ -387,6 +387,28 @@ suites:
       - tests/tracer/uwsgi-app.py
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
+  wait:
+    runner: uv
+    type: helper
+    paths:
+      - tests/wait-for-services.py
+    matrix:
+      # Python 3.10 is incompatible with the pinned kombu and vertica clients.
+      python: ['3.9']
+      command: python tests/wait-for-services.py {cmdargs}
+      dependencies:
+        - azure-data-tables
+        - azure-storage-blob
+        - azure-storage-queue
+        - cassandra-driver
+        - psycopg2-binary
+        - mysql-connector-python!=8.0.18
+        - vertica-python>=0.6.0,<0.7.0
+        - kombu>=4.2.0,<4.3.0
+        - pymssql
+        - pytest-randomly
+        - redis
+        - requests
   vendor:
     parallelism: 1
     paths:

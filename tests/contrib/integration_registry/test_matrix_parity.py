@@ -6,6 +6,7 @@ import pytest
 import yaml
 
 from tests.environment import TestEnvironment as Environment
+from tests.internal.riot_seed_locks import RIOT_SEED_LOCKS
 from tests.lock import match_riot_seed_locks
 from tests.matrix import expand_suite_matrix
 from tests.riot_adapter import load_riot_test_environments
@@ -15,12 +16,14 @@ pytest.importorskip("riot")
 _ROOT = Path(__file__).parents[3]
 _ROOT_SPEC = yaml.safe_load((_ROOT / "tests" / "suitespec.yml").read_text())
 _CONTRIB_SPEC = yaml.safe_load((_ROOT / "tests" / "contrib" / "suitespec.yml").read_text())
-_SUITES = (
-    "contrib::requests",
+_RIOT_SUITES = (
     "contrib::flask",
     "contrib::aiohttp",
     "contrib::aiohttp_jinja2",
     "tracer",
+)
+_UV_SUITES = (
+    "contrib::requests",
     "contrib::subprocess",
 )
 
@@ -63,10 +66,10 @@ def _suite_config(suite):
 
 @pytest.fixture(scope="module")
 def riot_environments():
-    return load_riot_test_environments({suite: _suite_config(suite) for suite in _SUITES})
+    return load_riot_test_environments({suite: _suite_config(suite) for suite in _RIOT_SUITES})
 
 
-@pytest.mark.parametrize("suite", _SUITES)
+@pytest.mark.parametrize("suite", _RIOT_SUITES)
 def test_declarative_matrix_is_covered_by_riot(suite, riot_environments):
     config = _suite_config(suite)
     matrix_environments = expand_suite_matrix(suite, config, _ROOT_SPEC["matrix_defaults"], nightly=False)
@@ -75,7 +78,7 @@ def test_declarative_matrix_is_covered_by_riot(suite, riot_environments):
     assert not missing
 
 
-@pytest.mark.parametrize("suite", _SUITES)
+@pytest.mark.parametrize("suite", _RIOT_SUITES)
 def test_each_declarative_environment_maps_to_existing_riot_lock(suite, riot_environments):
     config = _suite_config(suite)
     environments = expand_suite_matrix(suite, config, _ROOT_SPEC["matrix_defaults"], nightly=False)
@@ -93,7 +96,7 @@ def test_each_declarative_environment_maps_to_existing_riot_lock(suite, riot_env
         assert _normalized(environment) == _normalized(riot_by_lock[seed])
 
 
-@pytest.mark.parametrize("suite", _SUITES)
+@pytest.mark.parametrize("suite", _RIOT_SUITES)
 def test_declarative_locks_copy_riot_contents(suite):
     config = _suite_config(suite)
     matrix_environments = expand_suite_matrix(suite, config, _ROOT_SPEC["matrix_defaults"], nightly=False)
@@ -103,3 +106,11 @@ def test_declarative_locks_copy_riot_contents(suite):
         assert environment.lockfile is not None
         seed = seeds[(environment.suite, environment.id)]
         assert (_ROOT / environment.lockfile).read_bytes() == (_ROOT / seed).read_bytes()
+
+
+@pytest.mark.parametrize("suite", _UV_SUITES)
+def test_uv_migrated_suites_have_no_riot_environment_or_seed_lock(suite):
+    environments = load_riot_test_environments({suite: _suite_config(suite)})
+
+    assert environments[suite] == ()
+    assert suite not in RIOT_SEED_LOCKS

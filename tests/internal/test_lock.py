@@ -130,6 +130,29 @@ def test_generate_locks_prunes_only_selected_suite(tmp_path):
     assert unrelated.exists()
 
 
+def test_generate_locks_compiles_environments_without_riot_seeds(tmp_path):
+    seed = _seed_lock(tmp_path)
+    suites = {
+        "contrib::example": _suite(),
+        "tracer": _suite("pytest tests/tracer"),
+    }
+
+    written, _ = generate_locks(
+        suites,
+        {},
+        root=tmp_path,
+        seed_locks=_seed_locks(seed),
+        run=_fake_uv,
+    )
+
+    assert written == (
+        Path("tests/locks/contrib/example/example-py311.txt"),
+        Path("tests/locks/tracer/tracer-py311.txt"),
+    )
+    assert (tmp_path / written[0]).read_text() == (tmp_path / seed).read_text()
+    assert (tmp_path / written[1]).read_text() == "example==1.0.0\npytest==8.0.0\n"
+
+
 def test_generate_locks_does_not_modify_existing_locks_on_compile_failure(tmp_path):
     lockfile = tmp_path / "tests/locks/contrib/example/example-py311.txt"
     lockfile.parent.mkdir(parents=True)

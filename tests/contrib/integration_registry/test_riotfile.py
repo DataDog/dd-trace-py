@@ -4,26 +4,26 @@ from typing import Any
 from mappings import EXCLUDED_FROM_TESTING
 
 
-def test_integrations_have_riot_envs(
+def test_integrations_have_test_environments(
     integration_dir_names: set[str],
-    riot_venv_names: set[str],
+    test_environment_names: set[str],
     project_root: pathlib.Path,
     internal_contrib_dir: pathlib.Path,
     untested_integrations: set[str],
 ):
     """
     Verify that every integration directory in ddtrace/contrib/internal has a
-    corresponding Venv defined in riotfile.py.
+    corresponding test environment.
     """
-    missing_riot_envs = integration_dir_names - riot_venv_names - untested_integrations
+    missing_test_environments = integration_dir_names - test_environment_names - untested_integrations
 
     contrib_internal_rel_path = internal_contrib_dir.relative_to(project_root)
 
-    assert not missing_riot_envs, (
+    assert not missing_test_environments, (
         f"\nThe following integration directories in '{contrib_internal_rel_path}' "
-        f"are MISSING a corresponding environment definition in 'riotfile.py':\n"
-        f"  - " + "\n  - ".join(sorted(list(missing_riot_envs))) + "\n"
-        "\nPlease add a Venv definition in riotfile.py with a matching 'name'."
+        "are MISSING a corresponding test environment:\n"
+        f"  - " + "\n  - ".join(sorted(missing_test_environments)) + "\n"
+        "\nPlease add a matching suite definition."
     )
 
 

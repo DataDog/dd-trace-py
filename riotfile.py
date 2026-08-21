@@ -805,32 +805,6 @@ venv = Venv(
             # ],
         ),
         Venv(
-            name="wait",
-            command="python tests/wait-for-services.py {cmdargs}",
-            # Default Python 3 (3.10) collections package breaks with kombu/vertica, so specify Python 3.9 instead.
-            pys="3.9",
-            create=True,
-            skip_dev_install=True,
-            pkgs={
-                "azure-data-tables": latest,
-                "azure-storage-blob": latest,
-                "azure-storage-queue": latest,
-                "cassandra-driver": latest,
-                "psycopg2-binary": latest,
-                "mysql-connector-python": "!=8.0.18",
-                "vertica-python": ">=0.6.0,<0.7.0",
-                "kombu": ">=4.2.0,<4.3.0",
-                "pymssql": latest,
-                "pytest-randomly": latest,
-                "redis": latest,
-                "requests": latest,
-            },
-            env={
-                "DD_TRACE_AGENT_URL": "http://testagent:9126",
-                "AGENT_VERSION": "testagent",
-            },
-        ),
-        Venv(
             name="httplib",
             command="pytest {cmdargs} tests/contrib/httplib",
             pkgs={
@@ -1660,55 +1634,6 @@ venv = Venv(
                     pys=select_pys(min_version="3.14"),
                     pkgs={
                         "greenlet": "==3.2.4",
-                    },
-                ),
-            ],
-        ),
-        Venv(
-            name="requests",
-            command="pytest {cmdargs} tests/contrib/requests",
-            pkgs={
-                "pytest-randomly": latest,
-                "urllib3": "~=1.0",
-                "requests-mock": ">=1.4",
-            },
-            venvs=[
-                Venv(
-                    # requests added support for Python 3.9 in 2.25
-                    pys="3.9",
-                    pkgs={
-                        "requests": [
-                            "~=2.25.0",
-                            latest,
-                        ],
-                    },
-                ),
-                Venv(
-                    # requests added support for Python 3.10 in 2.27
-                    pys="3.10",
-                    pkgs={
-                        "requests": [
-                            "~=2.27",
-                            latest,
-                        ],
-                    },
-                ),
-                Venv(
-                    # requests added support for Python 3.11 in 2.28
-                    pys="3.11",
-                    pkgs={
-                        "requests": [
-                            "~=2.28.0",
-                            latest,
-                        ],
-                    },
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.12"),
-                    pkgs={
-                        "requests": [
-                            latest,
-                        ],
                     },
                 ),
             ],
@@ -3594,14 +3519,6 @@ venv = Venv(
                 "DD_AGENT_PORT": "9126",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
-        ),
-        Venv(
-            name="subprocess",
-            command="pytest -vvvv {cmdargs} --no-cov tests/contrib/subprocess",
-            pkgs={
-                "pytest-randomly": latest,
-            },
-            pys=select_pys(),
         ),
         Venv(
             name="integration_registry",

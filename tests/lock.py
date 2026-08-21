@@ -74,13 +74,16 @@ def match_riot_seed_locks(
     environments: Sequence[TestEnvironment],
     *,
     root: Path = PROJECT_ROOT,
+    require_all: bool = True,
 ) -> dict[tuple[str, str], Path]:
     """Map descriptive environment IDs to their checked-in Riot seed locks."""
     seeds = {}
     for environment in environments:
         riot_id = RIOT_SEED_LOCKS.get(environment.suite, {}).get(environment.id)
         if not isinstance(riot_id, str) or re.fullmatch(r"[0-9a-f]{7}", riot_id) is None:
-            raise LockError(f"no matching Riot lock for {environment.suite}/{environment.id}")
+            if require_all:
+                raise LockError(f"no matching Riot lock for {environment.suite}/{environment.id}")
+            continue
         seed = Path(".riot/requirements") / f"{riot_id}.txt"
         if not (root / seed).is_file():
             raise LockError(f"Riot seed lock does not exist: {seed}")
@@ -175,17 +178,19 @@ def generate_locks(
         raise LockError("no concrete test environments selected")
 
     compiled: dict[TestEnvironment, str] = {}
-    if seed_locks is not None:
-        for environment in environments:
-            key = (environment.suite, environment.id)
-            seed = seed_locks.get(key)
-            if seed is None:
-                raise LockError(f"no Riot seed lock for {environment.suite}/{environment.id}")
+    pending = []
+    for environment in environments:
+        key = (environment.suite, environment.id)
+        seed = seed_locks.get(key) if seed_locks is not None else None
+        if seed is not None:
             seed_path = root / seed
             if not seed_path.is_file():
                 raise LockError(f"Riot seed lock does not exist: {seed}")
             compiled[environment] = seed_path.read_text()
-    else:
+        else:
+            pending.append(environment)
+
+    if pending:
         cutoff = exclude_newer or cooldown_cutoff()
         errors = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
@@ -197,7 +202,7 @@ def generate_locks(
                     exclude_newer=cutoff,
                     run=run,
                 ): environment
-                for environment in environments
+                for environment in pending
             }
             for future in concurrent.futures.as_completed(futures):
                 environment = futures[future]
@@ -223,6 +228,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Manage concrete uv locks for test environments.")
     subparsers = parser.add_subparsers(dest="command", required=True)
+    list_parser = subparsers.add_parser("list", help="List concrete environment IDs for selected suites.")
+    list_parser.add_argument("suites", nargs="+", help="Full or unambiguous short suite names.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
     lock_parser.add_argument("suites", nargs="*", help="Full or unambiguous short suite names; defaults to all.")
     lock_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers (default: 4).")
@@ -232,7 +239,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         suites = get_suites()
         defaults = get_matrix_defaults()
         environments, _ = select_environments(suites, defaults, args.suites)
-        seeds = match_riot_seed_locks(environments)
+        if args.command == "list":
+            for environment in environments:
+                print(environment.id)
+            return 0
+        seeds = match_riot_seed_locks(environments, require_all=False)
         written, pruned = generate_locks(
             suites,
             defaults,

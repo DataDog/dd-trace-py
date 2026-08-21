@@ -174,6 +174,14 @@ def riot_venv_names() -> set[str]:
 
 
 @pytest.fixture(scope="module")
+def test_environment_names(riot_venv_names: set[str], project_root: Path) -> set[str]:
+    """Find integration names covered by either Riot or declarative uv environments."""
+    suitespec = yaml.safe_load((project_root / "tests" / "contrib" / "suitespec.yml").read_text())
+    uv_names = {name for name, config in suitespec["suites"].items() if config.get("runner") == "uv"}
+    return riot_venv_names | uv_names
+
+
+@pytest.fixture(scope="module")
 def docs_index_path(project_root: Path) -> Path:
     """Returns the path to docs/index.rst."""
     return project_root / "docs" / "index.rst"

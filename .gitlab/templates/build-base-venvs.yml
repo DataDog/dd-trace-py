@@ -48,4 +48,6 @@ build_base_venvs:
     paths:
       - core.*
       - ddtrace/**/*.so*
+      - src/native/target*/include/
+      - .download_cache/_cmake_deps/absl_install_*/
       - .riot/venv_*

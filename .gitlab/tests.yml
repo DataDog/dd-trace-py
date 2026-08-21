@@ -86,4 +86,67 @@ include:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
+.test_base_uv:
+  extends: .testrunner
+  stage: riot
+  needs: [prechecks]
+  services:
+    - !reference [.services, ddagent]
+  before_script:
+    - !reference [.testrunner, before_script]
+    # Artifact extraction preserves build timestamps, so refresh native outputs after checkout.
+    - find ddtrace -type f -name '*.so*' -exec touch {} +
+    - unset DD_SERVICE
+    - unset DD_ENV
+    - unset DD_TAGS
+    - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+  script:
+    - |
+      environment_ids=( $(scripts/test-env list "${TEST_SUITE}" | ./.gitlab/ci-split-input.sh) )
+      if [[ ${#environment_ids[@]} -eq 0 ]]; then
+        echo "No uv environments found for ${TEST_SUITE}"
+        exit 1
+      fi
+      for environment_id in "${environment_ids[@]}"
+      do
+        echo "Running uv environment: ${environment_id}"
+        export _CI_DD_TAGS="test.configuration.environment_id:${environment_id}"
+        scripts/run-tests --venv "${environment_id}" -- -- --ddtrace
+      done
+      ./scripts/check-diff "tests/locks/" \
+        "Changes detected in uv locks. Run scripts/test-env lock and commit the result."
+
+.test_base_uv_snapshot:
+  extends: .test_base_uv
+  services:
+    - !reference [.test_base_uv, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.test_base_uv, before_script]
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+
+.test_base_uv_gpu:
+  extends: .test_base_uv
+  image: !reference [.testrunner_gpu, image]
+  tags: !reference [.testrunner_gpu, tags]
+  timeout: 40m
+  parallel: 2
+  variables:
+    KUBERNETES_MEMORY_REQUEST: "12Gi"
+    KUBERNETES_MEMORY_LIMIT: "12Gi"
+    KUBERNETES_CPU_REQUEST: "2"
+    KUBERNETES_CPU_LIMIT: "2"
+  before_script:
+    - !reference [.testrunner_gpu, before_script]
+    - !reference [.test_base_uv, before_script]
+
+.test_base_uv_gpu_snapshot:
+  extends: .test_base_uv_gpu
+  services:
+    - !reference [.test_base_uv_gpu, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.test_base_uv_gpu, before_script]
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+
 # Required jobs will appear here

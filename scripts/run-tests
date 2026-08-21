@@ -11,10 +11,12 @@
 
 This script helps developers run the appropriate test suites based on changed files.
 It maps source files to their corresponding test suites and provides granular control
-over which specific riot venvs to run.
+over which specific test environments to run.
 
 Note: This runs entire test suites, not individual test files.
 """
+
+from __future__ import annotations
 
 import argparse
 from dataclasses import replace
@@ -24,6 +26,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shlex
 import subprocess
 import sys
 
@@ -48,7 +51,11 @@ def _ensure_compose_project_name():
 _ensure_compose_project_name()
 
 from tests.environment import TestEnvironment  # noqa: E402
+from tests.environment import TestRun  # noqa: E402
+from tests.lock import cooldown_cutoff  # noqa: E402
+from tests.matrix import expand_suite_matrix  # noqa: E402
 from tests.riot_adapter import load_riot_test_environments  # noqa: E402
+from tests.suitespec import get_matrix_defaults  # noqa: E402
 from tests.suitespec import get_patterns  # noqa: E402
 from tests.suitespec import get_suites  # noqa: E402
 
@@ -59,6 +66,11 @@ PODMAN_COMPAT_ENV_VAR = "DD_TEST_PODMAN_COMPAT"
 BASE_COMPOSE_FILE = ROOT / "docker-compose.base.yml"
 DOCKER_COMPOSE_FILE = ROOT / "docker-compose.yml"
 PODMAN_COMPOSE_FILE = ROOT / "docker-compose.podman.yml"
+CONTAINER_PROJECT_ROOT = Path("/home/bits/project")
+TEST_CONTAINER_PATH = (
+    "/home/bits/.cargo/bin:/home/bits/.local/bin:/home/bits/.pyenv/shims:/home/bits/.pyenv/bin:"
+    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+)
 
 
 class TestRunner:
@@ -68,6 +80,7 @@ class TestRunner:
         self.matching_suites: dict[str, dict] = {}
         self.required_services: set[str] = set()
         self.podman_compat = os.environ.get(PODMAN_COMPAT_ENV_VAR, "0") == "1"
+        self.in_ci = os.environ.get("GITLAB_CI", "").lower() == "true"
         self._environment_cache: dict[str, tuple[TestEnvironment, ...]] = {}
 
     def _compose_command(self, *args: str) -> list[str]:
@@ -169,7 +182,15 @@ class TestRunner:
             if suite_name not in self._environment_cache:
                 config = dict(suite_config or {})
                 config["pattern"] = pattern
-                self._environment_cache.update(load_riot_test_environments({suite_name: config}))
+                if config.get("runner") == "uv":
+                    self._environment_cache[suite_name] = expand_suite_matrix(
+                        suite_name,
+                        config,
+                        get_matrix_defaults(),
+                        nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true",
+                    )
+                else:
+                    self._environment_cache.update(load_riot_test_environments({suite_name: config}))
             return list(self._environment_cache[suite_name])
 
         except Exception as e:
@@ -371,6 +392,173 @@ class TestRunner:
 
         return self.select_environments_for_suites(selected_suites)
 
+    def _uv_environment_path(self, environment: TestEnvironment) -> Path:
+        return Path(".cache/uv-test-environments").joinpath(*environment.suite.split("::"), environment.id)
+
+    def _uv_execution_path(self, environment: TestEnvironment) -> Path:
+        path = self._uv_environment_path(environment)
+        return self.root / path if self.in_ci else path
+
+    def _ddtest_command(self, command: list[str], environment: dict[str, str]) -> list[str]:
+        assignments = [f"{key}={value}" for key, value in sorted(environment.items())]
+        if self.in_ci:
+            return ["env", *assignments, *command]
+        return [str(self.root / "scripts" / "ddtest"), "env", *assignments, *command]
+
+    def _uv_command_environment(self, environment: TestEnvironment, forwarded_env: dict[str, str]) -> dict[str, str]:
+        command_env = dict(forwarded_env)
+        execution_root = self.root if self.in_ci else CONTAINER_PROJECT_ROOT
+        venv = execution_root / self._uv_environment_path(environment)
+        default_path = os.environ.get("PATH", TEST_CONTAINER_PATH) if self.in_ci else TEST_CONTAINER_PATH
+        command_env["PATH"] = f"{venv}/bin:{command_env.get('PATH', default_path)}"
+        command_env["VIRTUAL_ENV"] = str(venv)
+        return command_env
+
+    def _uv_build_commands(self, environment: TestEnvironment, forwarded_env: dict[str, str]) -> tuple[list[str], ...]:
+        if environment.lockfile is None:
+            raise ValueError(f"uv environment has no lockfile: {environment.suite}/{environment.id}")
+        lockfile = self.root / environment.lockfile
+        if not lockfile.is_file():
+            raise ValueError(f"uv lockfile does not exist: {environment.lockfile}")
+
+        venv = self._uv_execution_path(environment)
+        python = venv / "bin/python"
+        command_env = self._uv_command_environment(environment, forwarded_env)
+        return (
+            self._ddtest_command(
+                [
+                    "uv",
+                    "venv",
+                    "--allow-existing",
+                    "--python",
+                    environment.python,
+                    "--no-python-downloads",
+                    str(venv),
+                ],
+                command_env,
+            ),
+            self._ddtest_command(
+                [
+                    "uv",
+                    "pip",
+                    "sync",
+                    "--python",
+                    str(python),
+                    str(environment.lockfile),
+                    "--strict",
+                    "--no-progress",
+                ],
+                command_env,
+            ),
+            self._ddtest_command(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--python",
+                    str(python),
+                    "--editable",
+                    ".",
+                    "--exclude-newer",
+                    cooldown_cutoff(),
+                    "--strict",
+                    "--no-progress",
+                ],
+                command_env,
+            ),
+            self._ddtest_command(["uv", "pip", "check", "--python", str(python)], command_env),
+        )
+
+    def _uv_test_command(
+        self,
+        environment: TestEnvironment,
+        run: TestRun,
+        pytest_args: list[str],
+        forwarded_env: dict[str, str],
+    ) -> list[str]:
+        command = shlex.split(run.command)
+        expanded = []
+        for argument in command:
+            if argument == "{cmdargs}":
+                expanded.extend(pytest_args)
+            else:
+                expanded.append(argument)
+
+        if not expanded:
+            raise ValueError(f"empty uv test command for {environment.id}")
+
+        python = self._uv_execution_path(environment) / "bin/python"
+        if expanded[0] == "pytest":
+            expanded[:1] = [str(python), "-m", "pytest"]
+        elif expanded[0] in ("python", "python3"):
+            expanded[0] = str(python)
+        else:
+            raise ValueError(f"unsupported uv test command for {environment.id}: {run.command}")
+
+        run_env = dict(forwarded_env)
+        run_env.update(run.environment)
+        return self._ddtest_command(expanded, self._uv_command_environment(environment, run_env))
+
+    def _run_uv_suite(
+        self,
+        environments: list[TestEnvironment],
+        forwarded_env: dict[str, str],
+        runner_args: list[str],
+        dry_run: bool,
+    ) -> bool:
+        pytest_args = runner_args[runner_args.index("--") + 1 :] if "--" in runner_args else []
+        lock_path = self.root / ".cache" / "uv-test-environments" / ".build.lock"
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+
+        for environment in environments:
+            try:
+                build_env = dict(forwarded_env)
+                if environment.runs:
+                    build_env.update(environment.runs[0].environment)
+                build_commands = self._uv_build_commands(environment, build_env)
+            except ValueError as error:
+                print(f"❌ {error}")
+                return False
+
+            print(f"\n🔨 Building uv environment ({environment.display_name}): {environment.id}")
+            if dry_run:
+                for command in build_commands:
+                    print(f"[DRY RUN] Would execute: {' '.join(command)}")
+                continue
+
+            with lock_path.open("w") as lock_file:
+                fcntl.flock(lock_file, fcntl.LOCK_EX)
+                print("   🔒 Acquired build lock")
+                try:
+                    for command in build_commands:
+                        result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
+                        if result.returncode != 0:
+                            print(f"❌ Build failed for {environment.display_name} (exit code {result.returncode})")
+                            return False
+                    print("   ✅ uv environment built successfully")
+                finally:
+                    fcntl.flock(lock_file, fcntl.LOCK_UN)
+                    print("   🔓 Released build lock")
+
+        for environment in environments:
+            for run in environment.runs:
+                try:
+                    command = self._uv_test_command(environment, run, pytest_args, forwarded_env)
+                except ValueError as error:
+                    print(f"❌ {error}")
+                    return False
+                if dry_run:
+                    print(f"[DRY RUN] Would execute: {' '.join(command)}")
+                    continue
+
+                print(f"\n▶️  Executing with uv ({environment.display_name}): {' '.join(command)}")
+                result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
+                if result.returncode != 0:
+                    print(f"❌ {environment.display_name} failed with exit code {result.returncode}")
+                    return False
+                print(f"✅ {environment.display_name} completed successfully")
+        return True
+
     def run_tests(
         self,
         selected_environments: list[TestEnvironment],
@@ -411,10 +599,12 @@ class TestRunner:
                 suite_services.add("testagent")
 
             # Start services for this suite
-            if suite_services:
+            if suite_services and not self.in_ci:
                 if not self.start_services(suite_services):
                     print(f"❌ Failed to start services for suite '{suite_name}'")
                     return False
+            elif suite_services:
+                print(f"ℹ️  Using CI-provisioned services: {', '.join(sorted(suite_services))}")
             else:
                 print(f"ℹ️  No services required for suite '{suite_name}'")
 
@@ -437,9 +627,25 @@ class TestRunner:
 
             # Override with testagent URL if needed
             if needs_testagent:
-                testagent_url = self.get_testagent_url()
+                testagent_url = env.get("DD_TRACE_AGENT_URL") if self.in_ci else self.get_testagent_url()
+                if not testagent_url:
+                    print("❌ DD_TRACE_AGENT_URL is required for snapshot tests in CI")
+                    return False
                 env["DD_TRACE_AGENT_URL"] = testagent_url
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
+
+            if matching_suites.get(suite_name, {}).get("runner") == "uv":
+                forwarded_env = {key: env[key] for key in suite_env}
+                if needs_testagent:
+                    forwarded_env["DD_TRACE_AGENT_URL"] = env["DD_TRACE_AGENT_URL"]
+                suite_success = self._run_uv_suite(environments, forwarded_env, riot_args or [], dry_run)
+                if suite_services and not self.in_ci:
+                    self.stop_services(suite_services)
+                if not suite_success:
+                    print(f"\n❌ Suite '{suite_name}' failed. Stopping execution.")
+                    return False
+                print(f"\n✅ Suite '{suite_name}' completed successfully!")
+                continue
 
             # Execute each unique venv hash in this suite
             # Note: riot will run all instances for each hash (different commands, env vars, etc.)
@@ -487,7 +693,7 @@ class TestRunner:
 
             if not suite_success:
                 # Stop services and bail out
-                if suite_services:
+                if suite_services and not self.in_ci:
                     self.stop_services(suite_services)
                 print(f"\n❌ Suite '{suite_name}' failed during build phase. Stopping execution.")
                 return False
@@ -552,7 +758,7 @@ class TestRunner:
                         break
 
             # Stop services for this suite
-            if suite_services:
+            if suite_services and not self.in_ci:
                 self.stop_services(suite_services)
 
             # If this suite failed, stop processing further suites
@@ -617,28 +823,27 @@ class TestRunner:
     def get_environments_by_id_direct(self, environment_ids: list[str]) -> list[TestEnvironment]:
         """Get specific environment IDs, deduplicated consistently with CI.
 
-        Deduplicates hashes to avoid running the same hash multiple times when riot
-        expands environment variable arrays into multiple instances with the same hash.
+        Deduplicates IDs to avoid running the same environment multiple times when a
+        caller repeats an ID.
 
-        This uses the same deduplication strategy as CI (.gitlab/tests.yml), where
-        'riot list --hash-only' returns each unique hash only once, even if multiple
-        instances share that hash due to env var expansion.
+        Riot-backed environments use hashes as IDs, while uv-backed environments use
+        descriptive IDs from the declarative matrix.
         """
-        # Deduplicate hashes while preserving order (same as CI behavior)
+        # Deduplicate IDs while preserving order.
         seen = set()
-        unique_hashes = []
+        unique_ids = []
         for environment_id in environment_ids:
             if environment_id not in seen:
                 seen.add(environment_id)
-                unique_hashes.append(environment_id)
+                unique_ids.append(environment_id)
 
-        if len(unique_hashes) < len(environment_ids):
-            print(f"ℹ️  Deduplicated {len(environment_ids)} ID(s) to {len(unique_hashes)} unique ID(s)")
+        if len(unique_ids) < len(environment_ids):
+            print(f"ℹ️  Deduplicated {len(environment_ids)} ID(s) to {len(unique_ids)} unique ID(s)")
 
-        print(f"📌 Using {len(unique_hashes)} unique environment ID(s): {', '.join(unique_hashes)}")
+        print(f"📌 Using {len(unique_ids)} unique environment ID(s): {', '.join(unique_ids)}")
 
         selected_environments = []
-        for environment_id in unique_hashes:
+        for environment_id in unique_ids:
             selected_environments.append(
                 TestEnvironment(
                     id=environment_id,
@@ -700,8 +905,8 @@ Examples:
         "--venv",
         action="append",
         help=(
-            "Run specific venvs (by hash) without interactive prompts. "
-            "Can be used multiple times (e.g., --venv hash1 --venv hash2)"
+            "Run specific environments by ID without interactive prompts. "
+            "Can be used multiple times (e.g., --venv id1 --venv id2)"
         ),
     )
 
@@ -723,7 +928,7 @@ Examples:
         print("🎯 Using directly specified venvs (skipping file/suite analysis)")
         selected_environments = runner.get_environments_by_id_direct(args.venv)
         if not selected_environments:
-            print(f"❌ No venvs found matching hashes: {', '.join(args.venv)}")
+            print(f"❌ No environments found matching IDs: {', '.join(args.venv)}")
             return 1
 
         # Get all suites to determine service requirements for selected venvs
