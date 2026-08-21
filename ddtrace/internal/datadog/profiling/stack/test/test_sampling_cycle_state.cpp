@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <memory>
 
 #if PY_VERSION_HEX >= 0x030e0000
@@ -16,6 +17,12 @@ interpreter(int64_t id, uint64_t generation)
     info.code_object_generation = generation;
     return info;
 }
+
+struct InterpreterWithAlternateGeneration
+{
+    PyInterpreterState interpreter{};
+    uint64_t generation = 0;
+};
 } // namespace
 #endif
 
@@ -52,6 +59,21 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
 }
 
 #if PY_VERSION_HEX >= 0x030e0000
+TEST(SamplingCycleState, ReadsCodeObjectGenerationFromRuntimeOffset)
+{
+    _PyRuntimeState runtime{};
+    InterpreterWithAlternateGeneration node;
+    node.interpreter.id = 1;
+    node.generation = 42;
+    runtime.interpreters.head = &node.interpreter;
+    runtime.debug_offsets.interpreter_state.code_object_generation =
+      offsetof(InterpreterWithAlternateGeneration, generation);
+
+    InterpreterInfo result;
+    ASSERT_TRUE(for_each_interp(&runtime, [&](InterpreterInfo& info) { result = info; }));
+    EXPECT_EQ(result.code_object_generation, 42);
+}
+
 TEST(SamplingCycleState, CodeObjectGenerationInvalidatesFrameIdentityCache)
 {
     EchionSampler echion(2);
