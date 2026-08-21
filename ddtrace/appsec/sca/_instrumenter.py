@@ -44,36 +44,36 @@ _lazy_module_targets: dict[str, set[str]] = {}
 _lazy_hooks_lock = Lock()
 
 
-if sys.version_info < (3, 11):
+def _first_instr_line(code: types.CodeType) -> int:
+    """Return the line number of the first instrumentable body instruction.
 
-    def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first body-instruction line on Python 3.9 and 3.10."""
-        import dis
+    inject_hook needs the first line of the function *body*, not the ``def``
+    line. The ``def`` line (``co_firstlineno``) carries the function prologue
+    (e.g. ``RESUME`` on 3.11+, which is attributed to that line on 3.13+), which
+    is not an instrumentable line: ``linenos()`` -- used by ``inject_hook`` to
+    validate the target line -- explicitly excludes ``co_firstlineno``. We must
+    therefore skip any leading instruction attributed to the ``def`` line and
+    return the first body line, keeping this consistent with what
+    ``inject_hook`` accepts.
 
-        for instr in dis.get_instructions(code):
-            if instr.starts_line is not None:
-                return instr.starts_line
-        return code.co_firstlineno
+    In CPython, ``dis.Instruction.line_number`` (3.13+) is the absolute line
+    number (or ``None``). On older versions we fall back to ``starts_line``,
+    which is the absolute line number as an ``int`` (on 3.15+ it is instead a
+    ``bool`` flag, so we ignore it there and rely on ``line_number``).
+    """
+    import dis
 
-
-elif sys.version_info < (3, 14):
-
-    def _first_instr_line(code: types.CodeType) -> int:
-        """Return the RESUME instruction's line on Python 3.11 through 3.13."""
-        return code.co_firstlineno
-
-
-else:
-
-    def _first_instr_line(code: types.CodeType) -> int:
-        """Return the first instruction line on Python 3.14 and later."""
-        import dis
-
-        for instr in dis.get_instructions(code):
-            if instr.line_number is not None:
-                return instr.line_number
-        return code.co_firstlineno
-
+    for instr in dis.get_instructions(code):
+        # Prefer explicit line_number when provided by the instruction object.
+        line = getattr(instr, "line_number", None)
+        if line is None:
+            starts_line = instr.starts_line
+            if isinstance(starts_line, int) and not isinstance(starts_line, bool):
+                line = starts_line
+        if line is None or line == code.co_firstlineno:
+            continue
+        return line
+    return code.co_firstlineno
 
 def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
