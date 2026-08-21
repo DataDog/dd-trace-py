@@ -219,6 +219,8 @@ venv = Venv(
                 "requests": latest,
                 "flask": latest,
                 "pytest-xdist": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -242,6 +244,8 @@ venv = Venv(
                 "aiosqlite": latest,
                 "tortoise-orm": latest,
                 "peewee": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -278,6 +282,8 @@ venv = Venv(
                 "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -330,6 +336,8 @@ venv = Venv(
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
                 "pytest-asyncio": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -376,6 +384,7 @@ venv = Venv(
                 "pip": "<25",
             },
             env={
+                "BROWSER": "true",  # Prevent webbrowser tests from launching the host browser.
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
@@ -3730,15 +3739,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.10
@@ -3769,15 +3769,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3814,15 +3805,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
@@ -3854,15 +3836,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3969,6 +3942,8 @@ venv = Venv(
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
