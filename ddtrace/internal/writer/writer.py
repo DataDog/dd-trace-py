@@ -757,6 +757,7 @@ def _build_base_exporter_builder(
         .set_tracer_version(__version__)
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
+        .disable_restart_after_fork()
     )
     # Only report the hostname when DD_TRACE_REPORT_HOSTNAME is enabled. Otherwise it must be omitted
     # from both the trace payload and the OTLP resource attributes (host.name).

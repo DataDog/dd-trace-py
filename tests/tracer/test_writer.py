@@ -1228,6 +1228,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_input_format",
         "set_output_format",
         "enable_telemetry",
+        "disable_restart_after_fork",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 

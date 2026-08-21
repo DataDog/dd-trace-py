@@ -804,6 +804,11 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
+    def disable_restart_after_fork(self) -> TraceExporterBuilder:
+        """
+        Disable automatic restart of the TraceExporter's background components in the child after a fork.
+        """
+        ...
     def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
