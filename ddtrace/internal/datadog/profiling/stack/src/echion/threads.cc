@@ -2,6 +2,8 @@
 #include <echion/tasks.h>
 #include <echion/threads.h>
 
+#include "cpu_timer.hpp"
+
 #include <echion/echion_sampler.h>
 
 #include "dd_wrapper/include/defer.hpp"
@@ -413,7 +415,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
 // ----------------------------------------------------------------------------
 #if PY_VERSION_HEX >= 0x030e0000
 Result<void>
-ThreadInfo::get_tasks_from_thread_linked_list(EchionSampler& echion, std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::get_tasks_from_thread_linked_list(const TaskAddressCallback& callback)
 {
     if (this->tstate_addr == 0 || this->asyncio_loop == 0) {
         return ErrorKind::TaskInfoError;
@@ -428,13 +430,11 @@ ThreadInfo::get_tasks_from_thread_linked_list(EchionSampler& echion, std::vector
     constexpr size_t asyncio_tasks_head_offset = offsetof(_PyThreadStateImpl, asyncio_tasks_head);
     uintptr_t head_addr = this->tstate_addr + asyncio_tasks_head_offset;
 
-    return get_tasks_from_linked_list(echion, head_addr, tasks);
+    return get_tasks_from_linked_list(head_addr, callback);
 }
 
 Result<void>
-ThreadInfo::get_tasks_from_interpreter_linked_list(EchionSampler& echion,
-                                                   PyThreadState* tstate,
-                                                   std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::get_tasks_from_interpreter_linked_list(PyThreadState* tstate, const TaskAddressCallback& callback)
 {
     if (tstate == nullptr || tstate->interp == nullptr || this->asyncio_loop == 0) {
         return ErrorKind::TaskInfoError;
@@ -443,11 +443,11 @@ ThreadInfo::get_tasks_from_interpreter_linked_list(EchionSampler& echion,
     constexpr size_t asyncio_tasks_head_offset = offsetof(PyInterpreterState, asyncio_tasks_head);
     uintptr_t head_addr = reinterpret_cast<uintptr_t>(tstate->interp) + asyncio_tasks_head_offset;
 
-    return get_tasks_from_linked_list(echion, head_addr, tasks);
+    return get_tasks_from_linked_list(head_addr, callback);
 }
 
 Result<void>
-ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks)
+ThreadInfo::get_tasks_from_linked_list(uintptr_t head_addr, const TaskAddressCallback& callback)
 {
     if (head_addr == 0 || this->asyncio_loop == 0) {
         return ErrorKind::TaskInfoError;
@@ -491,14 +491,7 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
         size_t task_node_offset_val = offsetof(TaskObj, task_node);
         uintptr_t task_addr_uint = next_node_addr - task_node_offset_val;
 
-        // Create TaskInfo for the task
-        auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr_uint));
-        if (maybe_task_info) {
-            auto& task_info = *maybe_task_info;
-            if (task_info->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-                tasks.push_back(std::move(task_info));
-            }
-        }
+        callback(reinterpret_cast<TaskObj*>(task_addr_uint));
 
         // Read next node from current_node.next into current_node
         if (copy_type(reinterpret_cast<void*>(next_node_addr), current_node)) {
@@ -509,12 +502,11 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
     return Result<void>::ok();
 }
 
-Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
+Result<void>
+ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState* tstate, const TaskAddressCallback& callback)
 {
-    std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
-        return tasks;
+        return Result<void>::ok();
 
     // Python 3.14+: Native tasks are in linked-list per thread AND per interpreter
     // CPython iterates over both:
@@ -523,10 +515,10 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     // First, get tasks from this thread's linked-list (if tstate_addr is set)
     // Note: We continue processing even if one source fails to maximize partial results
     if (tstate != nullptr && this->tstate_addr != 0) {
-        (void)get_tasks_from_thread_linked_list(echion, tasks);
+        (void)get_tasks_from_thread_linked_list(callback);
 
         // Second, get tasks from interpreter's linked-list (lingering tasks)
-        (void)get_tasks_from_interpreter_linked_list(echion, tstate, tasks);
+        (void)get_tasks_from_interpreter_linked_list(tstate, callback);
     }
 
     // Handle third-party tasks from Python _scheduled_tasks WeakSet
@@ -542,11 +534,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
                 auto scheduled_tasks = std::move(*maybe_scheduled_tasks);
                 for (auto task_addr : scheduled_tasks) {
                     // In WeakSet.data (set), elements are the Task objects themselves
-                    auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-                    if (maybe_task_info &&
-                        (*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-                        tasks.push_back(std::move(*maybe_task_info));
-                    }
+                    callback(reinterpret_cast<TaskObj*>(task_addr));
                 }
             }
         }
@@ -568,25 +556,19 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
-            auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-            if (maybe_task_info) {
-                if ((*maybe_task_info)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-                    tasks.push_back(std::move(*maybe_task_info));
-                }
-            }
+            callback(reinterpret_cast<TaskObj*>(task_addr));
         }
     }
 
-    return tasks;
+    return Result<void>::ok();
 }
 #else
-// Pre-Python 3.14: get_all_tasks uses WeakSet approach
-Result<std::vector<TaskInfo::Ptr>>
-ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
+// Pre-Python 3.14: asyncio tracks tasks through Python weak sets.
+Result<void>
+ThreadInfo::for_each_task_address(EchionSampler& echion, PyThreadState*, const TaskAddressCallback& callback)
 {
-    std::vector<TaskInfo::Ptr> tasks;
     if (this->asyncio_loop == 0)
-        return tasks;
+        return Result<void>::ok();
 
     auto asyncio_scheduled_tasks = echion.asyncio_scheduled_tasks();
     auto maybe_scheduled_tasks_set = MirrorSet::create(asyncio_scheduled_tasks);
@@ -606,12 +588,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
         if (copy_type(task_wr_addr, task_wr))
             continue;
 
-        auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_wr.wr_object));
-        if (maybe_task_info) {
-            if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
-                tasks.push_back(std::move(*maybe_task_info));
-            }
-        }
+        callback(reinterpret_cast<TaskObj*>(task_wr.wr_object));
     }
 
     auto asyncio_eager_tasks = echion.asyncio_eager_tasks();
@@ -630,20 +607,66 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 
         auto eager_tasks = std::move(*maybe_eager_tasks);
         for (auto task_addr : eager_tasks) {
-            auto maybe_task_info = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-            if (maybe_task_info) {
-                if (reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
-                    tasks.push_back(std::move(*maybe_task_info));
-                }
-            }
+            callback(reinterpret_cast<TaskObj*>(task_addr));
         }
     }
 
-    return tasks;
+    return Result<void>::ok();
 }
 #endif // PY_VERSION_HEX >= 0x030e0000
 
+Result<std::vector<TaskInfo::Ptr>>
+ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
+{
+    std::vector<TaskInfo::Ptr> tasks;
+    auto result = for_each_task_address(echion, tstate, [&](TaskObj* task_addr) {
+        auto maybe_task_info = TaskInfo::create(echion, task_addr);
+        if (maybe_task_info && reinterpret_cast<uintptr_t>((*maybe_task_info)->loop) == this->asyncio_loop) {
+            tasks.push_back(std::move(*maybe_task_info));
+        }
+    });
+    if (!result) {
+        return result.error();
+    }
+    return tasks;
+}
+
 // ----------------------------------------------------------------------------
+namespace {
+
+std::optional<GreenletSnapshot>
+snapshot_greenlet(EchionSampler& echion, GreenletInfo::ID greenlet_id)
+{
+    const std::lock_guard<std::mutex> guard(echion.greenlet_info_map_lock());
+    auto& greenlets = echion.greenlet_info_map();
+    auto selected = greenlets.find(greenlet_id);
+    if (selected == greenlets.end() || selected->second->frame == FRAME_NOT_SET) {
+        return std::nullopt;
+    }
+
+    GreenletSnapshot snapshot{ greenlet_id, selected->second->name, selected->second->frame, {} };
+    auto& parents = echion.greenlet_parent_map();
+    std::unordered_set<GreenletInfo::ID> visited;
+    GreenletInfo::ID current = greenlet_id;
+    constexpr size_t max_greenlet_depth = 512;
+    for (size_t depth = 0; depth < max_greenlet_depth && visited.insert(current).second; depth++) {
+        auto parent = parents.find(current);
+        if (parent == parents.end()) {
+            break;
+        }
+        auto parent_info = greenlets.find(parent->second);
+        if (parent_info == greenlets.end() || parent_info->second->frame == FRAME_NOT_SET ||
+            parent_info->second->frame == Py_None) {
+            break;
+        }
+        snapshot.parent_chain.emplace_back(parent_info->second->name, parent_info->second->frame);
+        current = parent->second;
+    }
+    return snapshot;
+}
+
+} // namespace
+
 void
 ThreadInfo::unwind_greenlets(EchionSampler& echion,
                              PyThreadState* tstate,
@@ -820,6 +843,299 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
     }
 }
 
+namespace {
+
+using Datadog::CpuTimer::CoroutineFingerprint;
+using Datadog::CpuTimer::RawSample;
+
+bool
+fingerprint_matches_frame(const CoroutineFingerprint& fingerprint, const Frame& frame)
+{
+    return fingerprint.code_object == frame.code_object && fingerprint.lasti == frame.lasti &&
+           fingerprint.first_lineno == frame.first_lineno;
+}
+
+const GenInfo*
+active_coroutine(const TaskInfo& task)
+{
+    const GenInfo* active = task.coro.get();
+    while (active != nullptr && active->await != nullptr) {
+        active = active->await.get();
+    }
+    return active;
+}
+
+struct TaskIdentity
+{
+    TaskObj* origin;
+    PyObject* coroutine;
+    PyObject* waiter;
+};
+
+bool
+raw_contains_coroutine(const RawSample& raw, PyObject* coroutine)
+{
+    for (uint8_t i = 0; i < raw.coroutine_fingerprint_count; i++) {
+        if (raw.coroutine_fingerprints[i].coroutine == reinterpret_cast<uintptr_t>(coroutine)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool
+coroutine_chain_matches(PyObject* coroutine, const RawSample& raw)
+{
+    for (size_t depth = 0; coroutine != nullptr && depth < MAX_RECURSION_DEPTH; depth++) {
+        if (raw_contains_coroutine(raw, coroutine)) {
+            return true;
+        }
+
+        PyGenObject gen;
+        if (copy_type(coroutine, gen)) {
+            return false;
+        }
+        PyTypeObject* type = gen.ob_base.ob_type;
+        if (type == &_PyAsyncGenASend_Type) {
+            PyAsyncGenASend asend;
+            if (copy_type(coroutine, asend)) {
+                return false;
+            }
+            coroutine = reinterpret_cast<PyObject*>(asend.ags_gen);
+            continue;
+        }
+        if (type != &PyCoro_Type && type != &PyAsyncGen_Type) {
+            return false;
+        }
+
+#if PY_VERSION_HEX >= 0x030b0000
+        PyObject* frame =
+          gen.gi_frame_state == FRAME_CLEARED
+            ? nullptr
+            : reinterpret_cast<PyObject*>(reinterpret_cast<char*>(coroutine) + offsetof(PyGenObject, gi_iframe));
+#else
+        PyObject* frame = reinterpret_cast<PyObject*>(gen.gi_frame);
+#endif
+        PyObject* awaited = frame != nullptr ? PyGen_yf(&gen, frame) : nullptr;
+        if (awaited == nullptr || awaited == coroutine) {
+            return false;
+        }
+        coroutine = awaited;
+    }
+    return false;
+}
+
+template<typename Predicate>
+TaskObj*
+find_unique_task(const std::vector<TaskIdentity>& tasks, Predicate&& matches)
+{
+    TaskObj* selected = nullptr;
+    for (const auto& task : tasks) {
+        if (!matches(task)) {
+            continue;
+        }
+        if (selected != nullptr && selected != task.origin) {
+            return nullptr;
+        }
+        selected = task.origin;
+    }
+    return selected;
+}
+
+TaskObj*
+find_captured_task(const std::vector<TaskIdentity>& tasks, const RawSample& raw)
+{
+    if (raw.asyncio_task != 0) {
+        return find_unique_task(tasks, [&](const TaskIdentity& task) {
+            return reinterpret_cast<uintptr_t>(task.origin) == raw.asyncio_task;
+        });
+    }
+
+    // The task's root coroutine is normally present in the captured physical stack.
+    // Check it first so unrelated tasks do not require await-chain traversal.
+    TaskObj* root_match = nullptr;
+    for (const auto& task : tasks) {
+        if (!raw_contains_coroutine(raw, task.coroutine)) {
+            continue;
+        }
+        if (root_match != nullptr && root_match != task.origin) {
+            return nullptr;
+        }
+        root_match = task.origin;
+    }
+    if (root_match != nullptr) {
+        return root_match;
+    }
+
+    return find_unique_task(tasks,
+                            [&](const TaskIdentity& task) { return coroutine_chain_matches(task.coroutine, raw); });
+}
+
+void
+unwind_selected_task(EchionSampler& echion,
+                     TaskInfo& selected,
+                     const std::vector<TaskIdentity>& tasks,
+                     bool using_uvloop,
+                     FrameStack& stack)
+{
+    std::unordered_map<PyObject*, TaskObj*> tasks_by_origin;
+    std::unordered_map<PyObject*, PyObject*> waiter_parents;
+    for (const auto& task : tasks) {
+        tasks_by_origin.emplace(reinterpret_cast<PyObject*>(task.origin), task.origin);
+        if (task.waiter != nullptr) {
+            waiter_parents.emplace(task.waiter, reinterpret_cast<PyObject*>(task.origin));
+        }
+    }
+
+    std::unordered_set<PyObject*> visited;
+    TaskInfo* current = &selected;
+    TaskInfo::Ptr parent;
+    for (size_t depth = 0; current != nullptr && depth < MAX_RECURSION_DEPTH; depth++) {
+        if (!visited.insert(current->origin).second) {
+            break;
+        }
+        (void)current->unwind(echion, stack, using_uvloop);
+
+        PyObject* parent_origin = nullptr;
+        if (auto waiter_parent = waiter_parents.find(current->origin); waiter_parent != waiter_parents.end()) {
+            parent_origin = waiter_parent->second;
+        } else {
+            std::lock_guard<std::mutex> lock(echion.task_link_map_lock());
+            auto& task_link_map = echion.task_link_map();
+            auto& weak_task_link_map = echion.weak_task_link_map();
+            if (auto task_parent = task_link_map.find(current->origin); task_parent != task_link_map.end()) {
+                parent_origin = task_parent->second;
+            } else if (auto weak_parent = weak_task_link_map.find(current->origin);
+                       weak_parent != weak_task_link_map.end()) {
+                parent_origin = weak_parent->second;
+            }
+        }
+
+        auto parent_address = tasks_by_origin.find(parent_origin);
+        if (parent_address == tasks_by_origin.end()) {
+            break;
+        }
+        auto maybe_parent = TaskInfo::create(echion, parent_address->second);
+        if (!maybe_parent) {
+            break;
+        }
+        parent = std::move(*maybe_parent);
+        current = parent.get();
+    }
+}
+
+const CoroutineFingerprint*
+matching_active_fingerprint(EchionSampler& echion, const TaskInfo& task, const RawSample& raw)
+{
+    if (!task.is_on_cpu) {
+        return nullptr;
+    }
+
+    const GenInfo* active = active_coroutine(task);
+    if (active == nullptr || active->frame == nullptr) {
+        return nullptr;
+    }
+
+    const uintptr_t active_origin = reinterpret_cast<uintptr_t>(active->origin);
+    const CoroutineFingerprint* fingerprint = nullptr;
+    for (uint8_t i = 0; i < raw.coroutine_fingerprint_count; i++) {
+        if (raw.coroutine_fingerprints[i].coroutine == active_origin) {
+            fingerprint = &raw.coroutine_fingerprints[i];
+            break;
+        }
+    }
+    if (fingerprint == nullptr) {
+        return nullptr;
+    }
+
+    FrameStack active_stack;
+    if (unwind_frame(echion, active->frame, active_stack, echion.seen_frames_scratch(), 1) != 1) {
+        return nullptr;
+    }
+    return fingerprint_matches_frame(*fingerprint, active_stack[0]) ? fingerprint : nullptr;
+}
+
+bool
+greenlet_snapshot_matches(EchionSampler& echion,
+                          const GreenletSnapshot& snapshot,
+                          PyThreadState* tstate,
+                          unsigned long native_id,
+                          const FrameStack& captured_stack)
+{
+    if (snapshot.frame == Py_None) {
+        return Datadog::CpuTimer::Engine::get().current_greenlet(native_id) == snapshot.greenlet_id;
+    }
+
+    FrameStack snapshot_stack;
+    GreenletInfo selected(snapshot.greenlet_id, snapshot.frame, snapshot.name);
+    selected.unwind(echion, snapshot.frame, tstate, snapshot_stack);
+    return std::any_of(snapshot_stack.begin(), snapshot_stack.end(), [&](const Frame& snapshot_frame) {
+        return std::any_of(captured_stack.begin(), captured_stack.end(), [&](const Frame& captured_frame) {
+            return snapshot_frame.code_object == captured_frame.code_object &&
+                   snapshot_frame.first_lineno == captured_frame.first_lineno;
+        });
+    });
+}
+
+void
+append_greenlet_parents(EchionSampler& echion,
+                        const GreenletSnapshot& snapshot,
+                        PyThreadState* tstate,
+                        FrameStack& captured_stack)
+{
+    for (const auto& [parent_name, parent_frame] : snapshot.parent_chain) {
+        FrameStack parent_stack;
+        GreenletInfo parent(0, parent_frame, parent_name);
+        parent.unwind(echion, parent_frame, tstate, parent_stack);
+        for (const Frame& frame : parent_stack) {
+            if (captured_stack.size() >= max_frames) {
+                return;
+            }
+            const bool already_captured =
+              std::any_of(captured_stack.begin(), captured_stack.end(), [&](const Frame& captured) {
+                  return captured.cache_key == frame.cache_key;
+              });
+            if (!already_captured) {
+                captured_stack.push_back(frame);
+            }
+        }
+    }
+}
+
+FrameStack
+stitch_captured_stack(FrameStack captured_stack,
+                      const FrameStack& logical_stack,
+                      const CoroutineFingerprint& fingerprint)
+{
+    auto captured_boundary = std::find_if(captured_stack.begin(), captured_stack.end(), [&](const Frame& frame) {
+        return fingerprint_matches_frame(fingerprint, frame);
+    });
+    auto logical_boundary = std::find_if(logical_stack.begin(), logical_stack.end(), [&](const Frame& frame) {
+        return fingerprint_matches_frame(fingerprint, frame);
+    });
+    if (captured_boundary == captured_stack.end() || logical_boundary == logical_stack.end() ||
+        captured_stack.size() >= max_frames) {
+        return captured_stack;
+    }
+
+    const size_t available = max_frames - captured_stack.size();
+    std::vector<Frame> logical_ancestors;
+    logical_ancestors.reserve(std::min(available, static_cast<size_t>(logical_stack.end() - logical_boundary - 1)));
+    for (auto it = logical_boundary + 1; it != logical_stack.end() && logical_ancestors.size() < available; ++it) {
+        const bool already_captured = std::any_of(captured_stack.begin(),
+                                                  captured_stack.end(),
+                                                  [&](const Frame& frame) { return frame.cache_key == it->cache_key; });
+        if (!already_captured) {
+            logical_ancestors.push_back(*it);
+        }
+    }
+
+    captured_stack.insert(captured_boundary + 1, logical_ancestors.begin(), logical_ancestors.end());
+    return captured_stack;
+}
+
+} // namespace
+
 // ----------------------------------------------------------------------------
 void
 ThreadInfo::render_unwound_stacks(EchionSampler& echion)
@@ -861,7 +1177,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta, bool include_cpu_time)
 {
     auto& renderer = echion.renderer();
 
@@ -875,18 +1191,91 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
-    microsecond_t previous_cpu_time = cpu_time;
-    auto update_cpu_time_success = update_cpu_time();
-    if (!update_cpu_time_success) {
-        return ErrorKind::CpuTimeError;
-    }
+    if (include_cpu_time) {
+        microsecond_t previous_cpu_time = cpu_time;
+        auto update_cpu_time_success = update_cpu_time();
+        if (!update_cpu_time_success) {
+            return ErrorKind::CpuTimeError;
+        }
 
-    renderer.render_cpu_time(cpu_time - previous_cpu_time);
+        renderer.render_cpu_time(cpu_time - previous_cpu_time);
+    }
 
     this->unwind(echion, tstate, delta);
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
+}
+
+void
+ThreadInfo::sample_cpu_timer(EchionSampler& echion,
+                             PyThreadState* tstate,
+                             FrameStack&& captured_stack,
+                             microsecond_t cpu_time_us,
+                             const Datadog::CpuTimer::RawSample& raw)
+{
+    auto& renderer = echion.renderer();
+    renderer.render_cpu_sample_begin(name, cpu_time_us, thread_id, native_id);
+
+    current_tasks.clear();
+    current_greenlets.clear();
+
+    // timer_create CPU samples capture physical frames and task
+    // identity in the signal handler. A later task snapshot may contribute
+    // logical ancestors only after exact object-identity and active-coroutine
+    // fingerprint checks. Never select a task from drain-time on_cpu state or
+    // code-location overlap alone.
+    if (asyncio_loop) {
+        // Without signal-time task identity, no drain-time task snapshot can be matched safely.
+        if (raw.asyncio_task == 0 && raw.coroutine_fingerprint_count == 0) {
+            captured_stack.render(echion);
+            renderer.render_stack_end();
+            return;
+        }
+
+        // Snapshot each lightweight identity as its address is visited. Retaining bare addresses for a later pass
+        // would widen the race with task completion and address reuse.
+        std::vector<TaskIdentity> tasks;
+        auto visit_result = for_each_task_address(echion, tstate, [&](TaskObj* address) {
+            TaskObj task;
+            if (!copy_type(address, task) && reinterpret_cast<uintptr_t>(task.task_loop) == asyncio_loop) {
+                tasks.push_back({ address, task.task_coro, task.task_fut_waiter });
+            }
+        });
+        if (visit_result) {
+            if (TaskObj* address = find_captured_task(tasks, raw)) {
+                auto maybe_task = TaskInfo::create(echion, address);
+                if (maybe_task) {
+                    auto task = std::move(*maybe_task);
+                    task->name.visit_string([&](std::string_view task_name) {
+                        renderer.render_task_begin(task_name, true, reinterpret_cast<uintptr_t>(task->origin));
+                    });
+
+                    if (const CoroutineFingerprint* fingerprint = matching_active_fingerprint(echion, *task, raw)) {
+                        FrameStack logical_stack;
+                        unwind_selected_task(echion, *task, tasks, using_uvloop, logical_stack);
+                        captured_stack = stitch_captured_stack(std::move(captured_stack), logical_stack, *fingerprint);
+                    }
+                }
+            }
+        }
+
+        captured_stack.render(echion);
+        renderer.render_stack_end();
+        return;
+    }
+
+    if (raw.greenlet_id != 0) {
+        auto snapshot = snapshot_greenlet(echion, raw.greenlet_id);
+        if (snapshot && greenlet_snapshot_matches(echion, *snapshot, tstate, native_id, captured_stack)) {
+            snapshot->name.visit_string(
+              [&](std::string_view task_name) { renderer.render_task_begin(task_name, true, snapshot->greenlet_id); });
+            append_greenlet_parents(echion, *snapshot, tstate, captured_stack);
+        }
+    }
+
+    captured_stack.render(echion);
+    renderer.render_stack_end();
 }
 
 Result<void>
@@ -961,14 +1350,35 @@ for_each_thread(EchionSampler& echion, InterpreterInfo& interp, const PyThreadSt
         if (tstate.prev != NULL && seen_threads.find(tstate.prev) == seen_threads.end())
             threads.insert(tstate.prev);
 
+#if PY_VERSION_HEX >= 0x030c0000
+        const uint64_t native_thread_id = tstate.native_thread_id;
+#else
+        const uint64_t native_thread_id = 0;
+#endif
+
         {
             const std::lock_guard<std::mutex> guard(echion.thread_info_map_lock());
 
             auto it = echion.thread_info_map().find(tstate.thread_id);
             if (it == echion.thread_info_map().end()) {
-                // We failed to find ThreadInfo for thread_id, maybe there's a
-                // race condition between this call and `register_thread()`.
+                // PyThreadState is copied from a concurrently changing interpreter
+                // list. Do not create ThreadInfo from its pthread_t: the thread may
+                // already have exited, and pthread_getcpuclockid() is unsafe for a
+                // stale pthread_t on glibc.
                 continue;
+            }
+
+            // timer_create CPU timers are per native thread, while the historical
+            // ThreadInfo map is metadata for wall sampling. A thread can have
+            // ThreadInfo from best-effort registration but no armed CPU timer, for
+            // example an already-existing main thread when profiling starts from an
+            // auxiliary thread. Reconcile CPU timer arming from the PyThreadState
+            // walk so wall-sampler discovery is the safety net. The CPU timer's
+            // supported CPython versions expose native_thread_id here.
+            if (native_thread_id != 0 &&
+                !Datadog::CpuTimer::Engine::get().has_thread(tstate.thread_id, native_thread_id)) {
+                Datadog::CpuTimer::Engine::get().register_thread(
+                  tstate.thread_id, native_thread_id, "Thread", tstate_addr);
             }
 
             // Update the tstate_addr for thread info, so we can access

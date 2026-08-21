@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    profiling: adds an opt-in Linux CPU timer stack profiler for CPython 3.12+ that collects CPU-time samples with best-effort per-thread CPU timers. The configured CPU accounting mode remains fixed for the process lifetime. Set ``_DD_PROFILING_STACK_CPU_TIMER_ENABLED=true`` to enable it.
