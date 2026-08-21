@@ -38,7 +38,6 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
     target_host: Optional[str] = event_field(default=None)
     retries_remain: Optional[Union[int, str]] = event_field(default=None)
     server_address: Optional[str] = event_field(default=None)
-    response: Optional[_HttpResponse] = event_field(default=None)
 
     def __post_init__(self):
         self.operation_name = schematize_url_operation(
@@ -47,7 +46,6 @@ class HttpClientRequestEvent(HttpRequestBaseEvent, TracingEvent):
 
     def set_response(self, response: _HttpResponse) -> None:
         super().set_response(response)
-        self.response = response
 
 
 @dataclass

@@ -2,7 +2,9 @@ import httpx
 import pytest
 
 from ddtrace import config
+from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
+from ddtrace.contrib.internal.httpx.patch import _set_response
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
 from ddtrace.internal.compat import is_wrapted
@@ -49,6 +51,49 @@ def test_patching():
     unpatch()
     assert not is_wrapted(httpx.Client.send)
     assert not is_wrapted(httpx.AsyncClient.send)
+
+
+def _http_client_event():
+    return HttpClientRequestEvent(
+        http_operation="http.request",
+        service=None,
+        component=config.httpx.integration_name,
+        integration_config=config.httpx,
+        request_method="GET",
+        request_headers={},
+        request_url="https://example.test/",
+        query="",
+    )
+
+
+def test_http_client_event_does_not_read_generic_response_body():
+    class Response:
+        status_code = 200
+        headers = {}
+
+        @property
+        def content(self):
+            raise AssertionError("shared HTTP client event must not read response content")
+
+    event = _http_client_event()
+    event.set_response(Response())
+
+    assert event.response_status_code == 200
+    assert event.response_body is None
+
+    event.set_response_body({"response": "body"})
+
+    assert event.response_body == {"response": "body"}
+
+
+def test_httpx_response_body_is_captured_after_response_is_buffered():
+    event = _http_client_event()
+    response = httpx.Response(200, json={"response": "body"})
+    response.close()
+
+    _set_response(event, response)
+
+    assert event.response_body == {"response": "body"}
 
 
 @pytest.mark.snapshot(ignores=["meta.http.useragent"])

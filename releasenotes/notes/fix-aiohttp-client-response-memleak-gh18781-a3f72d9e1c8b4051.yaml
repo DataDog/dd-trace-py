@@ -1,0 +1,5 @@
+---
+
+fixes:
+  - |
+    tracing: Fixes a memory leak that can cause memory usage to grow over time when using HTTP client integrations.
