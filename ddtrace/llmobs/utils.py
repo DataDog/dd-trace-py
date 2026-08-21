@@ -237,20 +237,27 @@ class Messages:
                 formatted_image_parts = [_extract_image_part(image_part) for image_part in image_parts]
                 msg_dict["image_parts"] = formatted_image_parts
 
-            # Rebuilding from a whitelist drops anything else the caller sent. On a non-LLM span
-            # the collapsed value is derived from this result, so a silent drop would empty both
-            # representations at once; media keys are plausible in arbitrary user data, so the
-            # caller may not have meant message semantics at all.
-            unrecognized = [key for key in message if key not in _MESSAGE_SCHEMA_KEYS]
-            if unrecognized:
-                log.warning(
-                    "Dropping message keys %s: not part of the LLM Observability message schema. "
-                    "Record additional fields with LLMObs.annotate(metadata=...).",
-                    # Coerced before sorting: keys reaching here are unvalidated, and a mix of
-                    # types (1 and "extra") makes sorted() raise, which would reject the whole
-                    # message instead of dropping the unknown keys as documented.
-                    sorted(str(key) for key in unrecognized),
-                )
+            # Rebuilding from a whitelist drops anything else the caller sent. That has always been
+            # true for llm spans, where dropping a provider field like tool_call_id is expected, so
+            # warning there would be noise on every annotation. The case worth surfacing is new: a
+            # media key makes an arbitrary payload look like a message on a non-LLM span, and the
+            # collapsed value is derived from this stripped result, so the rest of it is lost from
+            # both representations at once.
+            #
+            # Wrapped because this is a diagnostic. Messages() sits under annotate's TypeError
+            # handler, so anything raised here would reject an otherwise valid message.
+            try:
+                if any(key in message for key in ("image_parts", "audio_parts")):
+                    unrecognized = [key for key in message if key not in _MESSAGE_SCHEMA_KEYS]
+                    if unrecognized:
+                        log.warning(
+                            "Dropping message keys %s: not part of the LLM Observability message "
+                            "schema. Record additional fields with LLMObs.annotate(metadata=...).",
+                            # Coerced before sorting: a mix of key types would otherwise raise.
+                            sorted(str(key) for key in unrecognized),
+                        )
+            except Exception:
+                log.debug("Failed to report dropped message keys.", exc_info=True)
 
             self.messages.append(msg_dict)
 

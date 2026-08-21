@@ -18,12 +18,26 @@ upgrade:
   - |
     LLM Observability: On ``agent``, ``workflow``, ``task``, ``tool`` and ``step`` spans, a
     message-shaped payload carrying ``image_parts`` or ``audio_parts`` is rebuilt against the
-    LLM Observability message schema, and any key outside that schema is dropped and logged at
-    warning level. Record additional fields with ``LLMObs.annotate(metadata=...)`` instead. A media
-    key holding anything other than a list of dictionaries is not treated as media at all, and the
-    payload is recorded as a value exactly as it was before.
+    LLM Observability message schema, and any key outside that schema is dropped. Dropping a key
+    from a message that carries media is logged at warning level, since the collapsed value is
+    derived from the stripped result and the rest of the payload is lost from both fields. Record
+    additional fields with ``LLMObs.annotate(metadata=...)`` instead. A media key holding anything
+    other than a list of dictionaries is not treated as media at all, and the payload is recorded
+    as a value exactly as it was before. Only a payload that is treated as a message on one of
+    these span kinds is affected: a traced function's arguments are recorded as a value even when a
+    parameter is named ``image_parts`` or ``audio_parts``.
   - |
     LLM Observability: When a message carries inline media, the collapsed value string derived for
-    a non-LLM span duplicates the message text. If that duplication would take the span event past
-    ``DD_LLMOBS_EVENT_SIZE_BYTES``, the value is replaced with ``[value omitted: event size limit]``
-    and the typed messages are kept, rather than the whole input and output being dropped.
+    a non-LLM span duplicates the message text. If that one side's media and duplicated text would
+    on their own exceed ``DD_LLMOBS_EVENT_SIZE_BYTES``, the value is replaced with
+    ``[value omitted: event size limit]`` and the typed messages are kept. The check looks at a
+    single side in isolation, so a span whose input and output are each under the limit but exceed
+    it together is still truncated by the writer, which replaces both with a placeholder.
+  - |
+    LLM Observability: ``LLMObs.annotate`` can now raise ``LLMObsAnnotateSpanError`` on ``agent``,
+    ``workflow``, ``task``, ``tool`` and ``step`` spans when a message carries ``image_parts`` or
+    ``audio_parts`` whose entries are dictionaries but are individually invalid, for example an
+    image part with no ``mime_type``. Media keys holding anything other than a list of dictionaries
+    are not treated as media and cannot raise. Automatic annotation from the ``@agent``,
+    ``@workflow``, ``@task`` and ``@tool`` decorators logs the failure instead of raising, so a
+    traced function is never interrupted by it.

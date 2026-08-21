@@ -3102,13 +3102,23 @@ class LLMObs(Service):
                     # value tagging it has today rather than being reshaped into a message.
                     media_input = input_data if span_kind_keeps_messages(span_kind, input_data) else None
                     media_output = output_data if span_kind_keeps_messages(span_kind, output_data) else None
-                    annotation_error_message, error = cls._tag_llm_io(
-                        span, input_messages=media_input, output_messages=media_output
-                    )
+                    # Tagged one side at a time so a malformed input cannot suppress a valid output,
+                    # and so a side that fails to parse falls back to the value path below instead of
+                    # going unrecorded. Under a decorator the failure is logged rather than raised,
+                    # which would otherwise make that loss silent.
+                    input_failed = output_failed = False
+                    if media_input is not None:
+                        annotation_error_message, error = cls._tag_llm_io(span, input_messages=media_input)
+                        input_failed = annotation_error_message is not None
+                    if media_output is not None:
+                        output_error_message, output_error = cls._tag_llm_io(span, output_messages=media_output)
+                        output_failed = output_error_message is not None
+                        if output_failed:
+                            annotation_error_message, error = output_error_message, output_error
                     cls._tag_text_io(
                         span,
-                        input_value=input_data if media_input is None else None,
-                        output_value=output_data if media_output is None else None,
+                        input_value=input_data if (media_input is None or input_failed) else None,
+                        output_value=output_data if (media_output is None or output_failed) else None,
                     )
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)

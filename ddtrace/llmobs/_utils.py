@@ -799,18 +799,22 @@ def _annotate_llmobs_span_data(
         # Add I/O messages to the messages field for LLM spans, and for the non-LLM kinds that
         # keep messages when a message carries media; every other case collapses to value.
         annotated_span_kind = meta[LLMOBS_STRUCT.SPAN].get(LLMOBS_STRUCT.KIND)
+        # meta.input persists across annotate calls and the emit path prefers messages over value,
+        # so on the kinds that can hold both a write has to clear its sibling to stay authoritative.
+        # LLM spans have always let messages win regardless of write order, and integrations write a
+        # value at operation end on spans a user may already have annotated, so leave them alone.
+        clears_sibling = annotated_span_kind != "llm"
         if input_messages is not None:
             if span_kind_keeps_messages(annotated_span_kind, input_messages):
-                # meta.input persists across annotate calls, and the emit path prefers messages
-                # over value. Clearing the sibling keeps a later annotate authoritative rather
-                # than leaving a stale representation to win.
-                meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.VALUE, None)
+                if clears_sibling:
+                    meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.VALUE, None)
                 meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.MESSAGES] = input_messages
             else:
                 meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
                 meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_messages, ensure_ascii=False) or ""
         if input_value is not None:
-            meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
+            if clears_sibling:
+                meta[LLMOBS_STRUCT.INPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.VALUE] = safe_json(input_value, ensure_ascii=False) or ""
         if input_documents is not None:
             meta[LLMOBS_STRUCT.INPUT][LLMOBS_STRUCT.DOCUMENTS] = input_documents
@@ -820,13 +824,15 @@ def _annotate_llmobs_span_data(
             span._set_ctx_item(INPUT_PROMPT, existing_prompt)
         if output_messages is not None:
             if span_kind_keeps_messages(annotated_span_kind, output_messages):
-                meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.VALUE, None)
+                if clears_sibling:
+                    meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.VALUE, None)
                 meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.MESSAGES] = output_messages
             else:
                 meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
                 meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_messages, ensure_ascii=False) or ""
         if output_value is not None:
-            meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
+            if clears_sibling:
+                meta[LLMOBS_STRUCT.OUTPUT].pop(LLMOBS_STRUCT.MESSAGES, None)
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.VALUE] = safe_json(output_value, ensure_ascii=False) or ""
         if output_documents is not None:
             meta[LLMOBS_STRUCT.OUTPUT][LLMOBS_STRUCT.DOCUMENTS] = output_documents

@@ -3997,3 +3997,51 @@ def test_annotate_media_message_with_unorderable_extra_keys_does_not_raise(llmob
         llmobs._instance._prepare_llmobs_span_data(span, "agent")
         meta = llmobs._instance._llmobs_span_event(span)["meta"]
     assert meta["input"]["messages"][0]["image_parts"] == [{"mime_type": "image/png", "content": "QQ=="}]
+
+
+@pytest.mark.parametrize("span_kind", ["agent", "workflow", "task", "tool"])
+def test_annotate_malformed_media_input_falls_back_to_value(llmobs, span_kind):
+    """A side that fails to parse as messages is still recorded as a value.
+
+    Dropping it instead loses I/O that the pre-media code recorded, and under a decorator the
+    annotation error is logged rather than raised, so the loss would be silent.
+    """
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(
+            span=span,
+            input_data={"image_parts": [{"url": "no mime type"}], "user_id": 5},
+            output_data="the answer",
+        )
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert "user_id" in meta["input"]["value"]
+    assert "the answer" in meta["output"]["value"]
+
+
+@pytest.mark.parametrize("span_kind", ["agent", "workflow", "task", "tool"])
+def test_annotate_malformed_media_on_both_sides_keeps_both_as_values(llmobs, span_kind):
+    """A malformed input must not suppress a malformed-but-recordable output."""
+    bad = {"image_parts": [{"url": "no mime type"}], "marker": "kept"}
+    with getattr(llmobs, span_kind)(name="test_span") as span:
+        llmobs.annotate(span=span, input_data=bad, output_data=bad)
+        llmobs._instance._prepare_llmobs_span_data(span, span_kind)
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert "kept" in meta["input"]["value"]
+    assert "kept" in meta["output"]["value"]
+
+
+def test_annotate_llm_span_value_does_not_clear_messages(llmobs):
+    """LLM spans keep messages-wins precedence regardless of write order.
+
+    Integrations write a value at operation end on spans a user may already have annotated with
+    media, so clearing the sibling there would drop the user's payload.
+    """
+    from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+
+    media = [{"content": "hi", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "QQ=="}]}]
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=media)
+        _annotate_llmobs_span_data(span, input_value="integration input")
+        llmobs._instance._prepare_llmobs_span_data(span, "llm")
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert meta["input"]["messages"] == media
