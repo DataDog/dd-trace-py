@@ -15,9 +15,11 @@ from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.types import _AttributeValueType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -225,15 +227,14 @@ class Span(SpanData):
         for cb in self._on_finish_callbacks:
             cb(self)
 
-    def _override_sampling_decision(
-        self, decision: Optional[NumericType], *, otel_probabilistic_decision: bool = False
-    ):
-        self.context.sampling_priority = decision
-        if otel_probabilistic_decision:
-            self.context._otel_sampling_state.clear()
-        else:
-            self.context._otel_sampling_state.set_non_probabilistic_decision()
-        self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
+    def _override_sampling_decision(self, decision: Optional[NumericType]):
+        with self.context:
+            _update_otel_sampling_decision(self.context, bool(decision and decision > 0), 0.0, False)
+            if decision is None:
+                self.context._metrics.pop(_SAMPLING_PRIORITY_KEY, None)
+            else:
+                self.context._metrics[_SAMPLING_PRIORITY_KEY] = decision
+            self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 self._local_root._remove_attribute(key)
