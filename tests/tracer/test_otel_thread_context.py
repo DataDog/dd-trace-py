@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 from contextvars import Context
 import ctypes
@@ -10,6 +11,8 @@ import pytest
 from ddtrace._trace.context import Context as DDContext
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
+from ddtrace.contrib.internal.asyncio.patch import patch
+from ddtrace.contrib.internal.asyncio.patch import unpatch
 from ddtrace.internal import core
 from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
 
@@ -195,6 +198,28 @@ def test_python_context_switch_syncs_active_context(tracer: Tracer):
     core.dispatch("python.context.switch")
 
     assert _published_context() == (context.trace_id, context.span_id, 1, 0)
+
+
+def test_asyncio_to_thread_syncs_thread_context(tracer: Tracer):
+    """The OTel TLS record follows the active context copied into an asyncio worker thread."""
+
+    async def exercise():
+        with tracer.trace("parent") as parent:
+            assert await asyncio.to_thread(_published_span_id) == parent.span_id
+        assert await asyncio.to_thread(_published_span_id) is None
+
+    was_patched = getattr(asyncio, "_datadog_patch", False)
+    unpatch()
+    patch()
+    loop = asyncio.new_event_loop()
+    try:
+        loop.run_until_complete(exercise())
+    finally:
+        loop.run_until_complete(loop.shutdown_default_executor())
+        loop.close()
+        unpatch()
+        if was_patched:
+            patch()
 
 
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):

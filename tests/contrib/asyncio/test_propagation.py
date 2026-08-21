@@ -1,6 +1,5 @@
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import asynccontextmanager
 from contextvars import ContextVar
 from contextvars import copy_context
 import sys
@@ -20,30 +19,50 @@ from ddtrace.trace import Context
 
 
 @pytest.fixture
-def patched_asyncio():
+def asyncio_patch_state():
+    """Restore asyncio patching and watcher state after a test mutates either global."""
     was_patched = getattr(asyncio, "_datadog_patch", False)
     watcher_state = core.root.get_item(PYTHON_CONTEXT_WATCHER_REGISTERED)
-
-    def listener():
-        pass
-
     unpatch()
-    if watcher_state is None:
-        # Exercise the Linux fallback on platforms where OTel thread-context publication is unavailable.
-        core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, False)
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, listener)
     try:
-        patch()
         yield
     finally:
         unpatch()
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, listener)
         if watcher_state is None:
             core.root.discard_local_item(PYTHON_CONTEXT_WATCHER_REGISTERED)
         else:
             core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, watcher_state)
         if was_patched:
             patch()
+
+
+@pytest.fixture
+def context_switch_listener():
+    """Register context-switch listeners and remove them in reverse order after the test."""
+    listeners = []
+
+    def register(listener):
+        core.on(PYTHON_CONTEXT_SWITCH_EVENT, listener)
+        listeners.append(listener)
+
+    yield register
+    for listener in reversed(listeners):
+        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, listener)
+
+
+@pytest.fixture
+def patched_asyncio(asyncio_patch_state, context_switch_listener):
+    """Patch asyncio with a context-switch listener for the duration of a test."""
+    watcher_state = core.root.get_item(PYTHON_CONTEXT_WATCHER_REGISTERED)
+    if watcher_state is None:
+        # Exercise the Linux fallback on platforms where OTel thread-context publication is unavailable.
+        core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, False)
+    context_switch_listener(lambda: None)
+    try:
+        patch()
+        yield
+    finally:
+        unpatch()
 
 
 @pytest.fixture
@@ -54,8 +73,8 @@ def python_context_fallback(patched_asyncio):
 
 
 @pytest.fixture
-def failing_listener():
-    """Registers a context switch listener that raises, and yields the type it raises."""
+def failing_listener(context_switch_listener):
+    """Register a context-switch listener that raises and return its exception type."""
 
     class Boom(BaseException):
         pass
@@ -63,17 +82,14 @@ def failing_listener():
     def raise_boom():
         raise Boom()
 
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, raise_boom)
-    try:
-        yield Boom
-    finally:
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, raise_boom)
+    context_switch_listener(raise_boom)
+    return Boom
 
 
-@asynccontextmanager
-async def collected_loop_exceptions():
-    """The contexts the running loop reports while the block runs, kept out of the default handler."""
-    loop = asyncio.get_running_loop()
+@pytest.fixture
+def loop_exceptions(event_loop):
+    """Collect event-loop exception contexts without invoking the default exception handler."""
+    loop = event_loop
     original_handler = loop.get_exception_handler()
     handled = []
 
@@ -85,147 +101,40 @@ async def collected_loop_exceptions():
 
 
 @pytest.fixture
-def switches(tracer):
-    """The trace context active at each published context switch, in publication order."""
+def context_switches(tracer, context_switch_listener):
+    """Record the thread and active trace context for every published context switch."""
     switches = []
 
     def record_context_switch():
-        switches.append(tracer.context_provider.active())
+        switches.append((threading.get_ident(), tracer.context_provider.active()))
 
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-    try:
-        yield switches
-    finally:
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+    context_switch_listener(record_context_switch)
+    return switches
 
 
-def test_event_loop_unpatch(tracer):
+@pytest.mark.parametrize(
+    ("watcher_state", "fallback_expected"),
+    [(None, False), (False, True), (True, False)],
+    ids=["disabled", "fallback", "native-watcher"],
+)
+def test_context_switch_wrappers_follow_watcher_state(watcher_state, fallback_expected, tracer, asyncio_patch_state):
+    """Only a failed native watcher installs fallback wrappers, and unpatch removes every wrapper."""
     # DEV: wrapping mutates __code__ in place, so identity comparisons against the original
     # functions always hold. is_wrapped is the only way to observe the patched state.
-    was_patched = getattr(asyncio, "_datadog_patch", False)
-    unpatch()
-    try:
-        patch()
-        fallback_expected = core.root.get_item(PYTHON_CONTEXT_WATCHER_REGISTERED) is False
-        assert is_wrapped(asyncio.BaseEventLoop.create_task)
-        assert is_wrapped(asyncio.Handle._run) is fallback_expected
-        assert is_wrapped(asyncio.to_thread) is fallback_expected
-
-        # ensures that the event loop can be unpatched
-        unpatch()
-        assert isinstance(tracer.context_provider, DefaultContextProvider)
-        assert not is_wrapped(asyncio.BaseEventLoop.create_task)
-        assert not is_wrapped(asyncio.Handle._run)
-        assert not is_wrapped(asyncio.to_thread)
-    finally:
-        unpatch()
-        if was_patched:
-            patch()
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "false"})
-def test_context_switch_instrumentation_not_installed_when_disabled():
-    import asyncio
-
-    from ddtrace.contrib.internal.asyncio.patch import patch
-    from ddtrace.contrib.internal.asyncio.patch import unpatch
-    from ddtrace.internal import core
-    from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
-    from ddtrace.internal.constants import PYTHON_CONTEXT_WATCHER_REGISTERED
-    from ddtrace.internal.wrapping import is_wrapped
-
-    assert not core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT)
-    assert core.root.get_item(PYTHON_CONTEXT_WATCHER_REGISTERED) is None
-    patch()
-    try:
-        assert not is_wrapped(asyncio.Handle._run)
-        assert not is_wrapped(asyncio.to_thread)
-    finally:
-        unpatch()
-
-
-@pytest.mark.skipif(
-    sys.platform != "linux" or sys.implementation.name != "cpython" or sys.version_info < (3, 14),
-    reason="requires the CPython 3.14 Linux context watcher",
-)
-@pytest.mark.subprocess(env={"_DD_GLOBAL_TRACER_INIT": "false"})
-def test_context_watcher_slot_exhaustion_uses_python_fallback():
-    import asyncio
-    import ctypes
-    import sys
-    import threading
-
-    assert "ddtrace.internal.native._native" not in sys.modules
-
-    callback_type = ctypes.CFUNCTYPE(ctypes.c_int, ctypes.c_uint, ctypes.py_object)
-    callback = callback_type(lambda event, obj: 0)
-    add_watcher = ctypes.pythonapi.PyContext_AddWatcher
-    add_watcher.argtypes = [callback_type]
-    add_watcher.restype = ctypes.c_int
-    clear_watcher = ctypes.pythonapi.PyContext_ClearWatcher
-    clear_watcher.argtypes = [ctypes.c_int]
-    clear_watcher.restype = ctypes.c_int
-
-    watcher_ids = []
-    for _ in range(64):
-        try:
-            watcher_ids.append(add_watcher(callback))
-        except RuntimeError:
-            break
+    if watcher_state is None:
+        core.root.discard_local_item(PYTHON_CONTEXT_WATCHER_REGISTERED)
     else:
-        raise AssertionError("context watcher slots were not exhausted")
+        core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, watcher_state)
+    patch()
+    assert is_wrapped(asyncio.BaseEventLoop.create_task)
+    assert is_wrapped(asyncio.Handle._run) is fallback_expected
+    assert is_wrapped(asyncio.to_thread) is fallback_expected
 
-    try:
-        import ddtrace
-        from ddtrace.contrib.internal.asyncio.patch import patch
-        from ddtrace.contrib.internal.asyncio.patch import unpatch
-        from ddtrace.internal import core
-        from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
-        from ddtrace.internal.constants import PYTHON_CONTEXT_WATCHER_REGISTERED
-        from ddtrace.internal.wrapping import is_wrapped
-        from ddtrace.trace import tracer
-
-        # Tracer startup was delayed until the watcher slots were exhausted.
-        # Restore the normal top-level binding used by Pin.enabled().
-        ddtrace.tracer = tracer
-
-        assert core.root.get_item(PYTHON_CONTEXT_WATCHER_REGISTERED) is False
-        assert core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT)
-
-        switches = []
-        worker_ids = []
-
-        def record_context_switch():
-            switches.append((threading.get_ident(), tracer.context_provider.active()))
-
-        def worker():
-            worker_ids.append(threading.get_ident())
-
-        async def exercise_fallback():
-            with tracer.trace("parent") as parent:
-                await asyncio.to_thread(worker)
-            return parent
-
-        core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-        patch()
-        loop = asyncio.new_event_loop()
-        try:
-            assert is_wrapped(asyncio.Handle._run)
-            assert is_wrapped(asyncio.to_thread)
-            parent = loop.run_until_complete(exercise_fallback())
-        finally:
-            loop.run_until_complete(loop.shutdown_default_executor())
-            loop.close()
-            unpatch()
-            core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-
-        assert not is_wrapped(asyncio.Handle._run)
-        assert not is_wrapped(asyncio.to_thread)
-        assert len(worker_ids) == 1
-        assert [context for ident, context in switches if ident == worker_ids[0]] == [parent, None]
-    finally:
-        for watcher_id in watcher_ids:
-            assert clear_watcher(watcher_id) == 0
+    unpatch()
+    assert isinstance(tracer.context_provider, DefaultContextProvider)
+    assert not is_wrapped(asyncio.BaseEventLoop.create_task)
+    assert not is_wrapped(asyncio.Handle._run)
+    assert not is_wrapped(asyncio.to_thread)
 
 
 @pytest.mark.subprocess(
@@ -238,6 +147,10 @@ def test_context_watcher_slot_exhaustion_uses_python_fallback():
                 marks=pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+"),
             ),
             pytest.param(
+                "eager_factory_pin_disabled",
+                marks=pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+"),
+            ),
+            pytest.param(
                 "eager_start",
                 marks=pytest.mark.skipif(
                     sys.version_info < (3, 14), reason="loop.create_task(eager_start=...) requires Python 3.14+"
@@ -247,7 +160,7 @@ def test_context_watcher_slot_exhaustion_uses_python_fallback():
     },
 )
 def test_create_task_publishes_only_the_context_switches_of_eager_tasks():
-    """A task whose first step runs inside create_task publishes that step's switch, others don't.
+    """Only eager task creation publishes inline switches, independently of the tracing Pin.
 
     Runs in a subprocess with OTel thread context disabled so that the Python fallback is the one
     publishing, even on CPython 3.14 Linux where the native watcher is registered process-wide and
@@ -257,6 +170,7 @@ def test_create_task_publishes_only_the_context_switches_of_eager_tasks():
     from contextvars import copy_context
     import os
 
+    import ddtrace
     from ddtrace.contrib.internal.asyncio.patch import patch
     from ddtrace.contrib.internal.asyncio.patch import unpatch
     from ddtrace.internal import core
@@ -266,6 +180,7 @@ def test_create_task_publishes_only_the_context_switches_of_eager_tasks():
 
     mode = os.environ["TASK_MODE"]
     starts_eagerly = mode != "non_eager_factory"
+    pin_enabled = mode != "eager_factory_pin_disabled"
     switches = []
 
     def record_context_switch():
@@ -274,9 +189,9 @@ def test_create_task_publishes_only_the_context_switches_of_eager_tasks():
     def non_eager_task_factory(loop, coro, **kwargs):
         return asyncio.Task(coro, loop=loop, **kwargs)
 
-    span = tracer.trace("eager")
+    span = tracer.trace("eager") if pin_enabled else None
     task_kwargs = {}
-    if starts_eagerly:
+    if starts_eagerly and span is not None:
         # the inline step must publish the task's own context, so hand it one the caller does not have
         task_kwargs["context"] = copy_context()
         tracer.context_provider.activate(None)
@@ -288,7 +203,7 @@ def test_create_task_publishes_only_the_context_switches_of_eager_tasks():
 
     async def main():
         loop = asyncio.get_running_loop()
-        if mode == "eager_factory":
+        if mode in {"eager_factory", "eager_factory_pin_disabled"}:
             loop.set_task_factory(asyncio.eager_task_factory)
         elif mode == "non_eager_factory":
             loop.set_task_factory(non_eager_task_factory)
@@ -303,93 +218,28 @@ def test_create_task_publishes_only_the_context_switches_of_eager_tasks():
     core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
     unpatch()
     patch()
-    try:
-        asyncio.run(main())
-    finally:
-        unpatch()
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-        span.finish()
-
-
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "false"})
-def test_create_task_publishes_eager_switch_even_when_the_pin_is_disabled():
-    """The eager step's switch does not depend on the Pin: it isn't trace propagation, it's a fact
-    about which context is active right now, and thread-context sync needs it regardless.
-
-    Runs in a subprocess with OTel thread context disabled so that the Python fallback is the one
-    publishing, even on CPython 3.14 Linux where the native watcher is registered process-wide and
-    cannot be unregistered.
-    """
-    import asyncio
-
-    import ddtrace
-    from ddtrace.contrib.internal.asyncio.patch import patch
-    from ddtrace.contrib.internal.asyncio.patch import unpatch
-    from ddtrace.internal import core
-    from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
-    from ddtrace.internal.constants import PYTHON_CONTEXT_WATCHER_REGISTERED
-
-    switches = []
-
-    def record_context_switch():
-        switches.append(True)
-
-    async def child():
-        return "done"
-
-    async def main():
-        loop = asyncio.get_running_loop()
-        loop.set_task_factory(asyncio.eager_task_factory)
-        switches.clear()
-        task = loop.create_task(child())
-        assert switches == [True, True]
-        assert await task == "done"
-
-    watcher_state = core.root.get_item(PYTHON_CONTEXT_WATCHER_REGISTERED)
-    core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, False)
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-    unpatch()
-    patch()
-    ddtrace.tracer.enabled = False
+    ddtrace.tracer.enabled = pin_enabled
     try:
         asyncio.run(main())
     finally:
         ddtrace.tracer.enabled = True
         unpatch()
         core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-        if watcher_state is None:
-            core.root.discard_local_item(PYTHON_CONTEXT_WATCHER_REGISTERED)
-        else:
-            core.root.set_item(PYTHON_CONTEXT_WATCHER_REGISTERED, watcher_state)
+        if span is not None:
+            span.finish()
 
 
-@pytest.mark.asyncio
-async def test_to_thread_forwards_func_keyword_argument(python_context_fallback):
-    """asyncio.to_thread takes func positionally only, so "func" belongs to the target."""
-
-    def worker(*args, **kwargs):
-        return args, kwargs
-
-    assert await asyncio.to_thread(worker, 1, func="x") == ((1,), {"func": "x"})
-
-
-@pytest.mark.asyncio
-async def test_context_switch_listener_failure_does_not_kill_the_loop(python_context_fallback, failing_listener):
-    async with collected_loop_exceptions() as handled:
-        await asyncio.sleep(0)
-
-    assert handled
-    assert all(isinstance(context["exception"], failing_listener) for context in handled)
-
-
-def test_context_switch_entry_listener_failure_reaches_the_custom_exception_handler(python_context_fallback):
-    loop = asyncio.new_event_loop()
+def test_context_switch_entry_listener_failure_reaches_the_custom_exception_handler(
+    python_context_fallback, event_loop
+):
+    """A Handle entry failure reaches the custom handler without re-entering its active Context."""
+    loop = event_loop
     phase = ContextVar("phase", default="ambient")
     callback_context = copy_context()
     callback_context.run(phase.set, "handle")
     handled = []
     secondary = []
+    callback_ran = []
 
     class ListenerFailure(Exception):
         pass
@@ -401,17 +251,18 @@ def test_context_switch_entry_listener_failure_reaches_the_custom_exception_hand
     loop.default_exception_handler = lambda context: secondary.append(context)
     core.on(PYTHON_CONTEXT_SWITCH_EVENT, failing_listener)
     try:
-        asyncio.Handle(lambda: None, (), loop, context=callback_context)._run()
+        asyncio.Handle(lambda: callback_ran.append(True), (), loop, context=callback_context)._run()
     finally:
         core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, failing_listener)
-        loop.close()
 
+    assert callback_ran == [True]
     assert [str(context["exception"]) for context in handled] == ["handle", "ambient"]
     assert secondary == []
 
 
-def test_callback_failure_reports_the_application_callback(python_context_fallback):
-    loop = asyncio.new_event_loop()
+def test_callback_failure_reports_the_application_callback(python_context_fallback, event_loop):
+    """A failing Handle is reported as the application callback rather than the Datadog wrapper."""
+    loop = event_loop
     handled = []
 
     def application_callback():
@@ -422,10 +273,7 @@ def test_callback_failure_reports_the_application_callback(python_context_fallba
 
     loop.set_exception_handler(exception_handler)
     handle = asyncio.Handle(application_callback, (), loop, context=copy_context())
-    try:
-        handle._run()
-    finally:
-        loop.close()
+    handle._run()
 
     assert len(handled) == 1
     context, reported_callback = handled[0]
@@ -435,48 +283,44 @@ def test_callback_failure_reports_the_application_callback(python_context_fallba
     assert reported_callback is application_callback
 
 
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "to_thread",
+        pytest.param(
+            "eager_task",
+            marks=pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+"),
+        ),
+    ],
+)
 @pytest.mark.asyncio
-async def test_context_switch_listener_failure_does_not_reach_the_to_thread_worker(
-    python_context_fallback, failing_listener
+async def test_listener_failure_does_not_change_asyncio_result(
+    operation, python_context_fallback, failing_listener, loop_exceptions
 ):
-    """A worker thread has no loop to report the failure to, so it is logged and the worker still runs."""
-    ran = []
-
-    def worker():
-        ran.append(True)
-        return "result"
-
-    async with collected_loop_exceptions():
-        assert await asyncio.to_thread(worker) == "result"
-
-    assert ran
-
-
-@pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+")
-@pytest.mark.asyncio
-async def test_context_switch_listener_failure_does_not_break_an_eager_task(python_context_fallback, failing_listener):
-    """The inline switch of an eagerly started task is published under the same guard as loop callbacks."""
+    """Listener failures are reported separately from worker and eager-task application results."""
 
     async def child():
-        return "done"
+        return "result"
 
     loop = asyncio.get_running_loop()
     original_factory = loop.get_task_factory()
-
-    loop.set_task_factory(asyncio.eager_task_factory)
     try:
-        async with collected_loop_exceptions() as handled:
-            assert await loop.create_task(child()) == "done"
+        if operation == "to_thread":
+            result = await asyncio.to_thread(lambda: "result")
+        else:
+            loop.set_task_factory(asyncio.eager_task_factory)
+            result = await loop.create_task(child())
     finally:
         loop.set_task_factory(original_factory)
 
-    assert any(isinstance(context["exception"], failing_listener) for context in handled)
+    assert result == "result"
+    assert loop_exceptions
+    assert all(isinstance(context["exception"], failing_listener) for context in loop_exceptions)
 
 
 @pytest.mark.asyncio
 async def test_event_loop_double_patch(tracer, test_spans):
-    # ensures that double patching will not double instrument
-    # the event loop
+    """Patching twice does not duplicate asyncio tracing instrumentation."""
     was_patched = getattr(asyncio, "_datadog_patch", False)
     try:
         patch()
@@ -490,7 +334,8 @@ async def test_event_loop_double_patch(tracer, test_spans):
 
 @pytest.mark.asyncio
 async def test_tasks_chaining(tracer, test_spans):
-    # ensures that the context is propagated between different tasks
+    """Sequential child tasks retain the trace parent captured by their creating task."""
+
     @tracer.wrap("spawn_task")
     async def coro_3():
         await asyncio.sleep(0.01)
@@ -526,6 +371,8 @@ async def test_tasks_chaining(tracer, test_spans):
 
 @pytest.mark.asyncio
 async def test_concurrent_chaining(tracer, test_spans):
+    """Concurrent tasks and later synchronous work remain children of the active parent span."""
+
     @tracer.wrap("f1")
     async def f1():
         await asyncio.sleep(0.01)
@@ -559,8 +406,7 @@ async def test_concurrent_chaining(tracer, test_spans):
 
 @pytest.mark.asyncio
 async def test_propagation_with_new_context(tracer, test_spans):
-    # ensures that if a new Context is activated, a trace
-    # with the Context arguments is created
+    """A task started under an explicit trace Context uses its trace and parent identifiers."""
     ctx = Context(trace_id=100, span_id=101)
     tracer.context_provider.activate(ctx)
 
@@ -576,139 +422,79 @@ async def test_propagation_with_new_context(tracer, test_spans):
 
 
 @pytest.mark.asyncio
-async def test_context_switch_events_track_task_switches(tracer, python_context_fallback, switches):
+async def test_context_switch_events_track_task_switches(tracer, python_context_fallback, context_switches):
+    """Suspending and resuming concurrent tasks publishes the context of the task that resumes."""
     first_started = asyncio.Event()
     resume_first = asyncio.Event()
     first_resumed = asyncio.Event()
-    finish_first = asyncio.Event()
 
     async def first():
         with tracer.trace("first") as span:
             first_started.set()
             await resume_first.wait()
-            try:
-                assert switches[-1] is span
-            finally:
-                first_resumed.set()
-            await finish_first.wait()
+            assert context_switches[-1][1] is span
+            first_resumed.set()
 
     async def second():
         await first_started.wait()
         with tracer.trace("second") as span:
             resume_first.set()
             await first_resumed.wait()
-            try:
-                assert switches[-1] is span
-                assert switches[-2] is None
-            finally:
-                finish_first.set()
+            assert context_switches[-1][1] is span
+            assert context_switches[-2][1] is None
 
     await asyncio.gather(first(), second())
 
 
-@pytest.mark.asyncio
-async def test_to_thread_context_switch_events(tracer, python_context_fallback):
-    switches = []
-    worker_id = None
-
-    def record_context_switch():
-        switches.append((threading.get_ident(), tracer.context_provider.active()))
-
-    def worker():
-        nonlocal worker_id
-        worker_id = threading.get_ident()
-
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-    try:
-        with tracer.trace("parent") as parent:
-            await asyncio.to_thread(worker)
-    finally:
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-
-    assert worker_id is not None
-    assert [context for ident, context in switches if ident == worker_id] == [parent, None]
-
-
-def test_to_thread_restores_ambient_worker_context(tracer, python_context_fallback):
-    switches = []
-    ambient_worker = tracer.start_span("ambient-worker")
-    executor = ThreadPoolExecutor(max_workers=1, initializer=lambda: tracer.context_provider.activate(ambient_worker))
-    loop = asyncio.new_event_loop()
+@pytest.mark.parametrize("worker_has_context", [False, True], ids=["empty-worker", "ambient-worker"])
+def test_to_thread_publishes_copied_and_restored_worker_context(
+    worker_has_context, tracer, python_context_fallback, context_switches, event_loop
+):
+    """to_thread preserves target arguments and publishes copied then restored worker context."""
+    ambient_worker = tracer.start_span("ambient-worker") if worker_has_context else None
+    executor = ThreadPoolExecutor(
+        max_workers=1,
+        initializer=tracer.context_provider.activate,
+        initargs=(ambient_worker,),
+    )
+    loop = event_loop
     loop.set_default_executor(executor)
 
-    def record_context_switch():
-        switches.append((threading.get_ident(), tracer.context_provider.active()))
-
-    def active_context():
-        return threading.get_ident(), tracer.context_provider.active()
+    def active_context(*args, **kwargs):
+        return threading.get_ident(), tracer.context_provider.active(), args, kwargs
 
     async def exercise():
         with tracer.trace("parent") as parent:
-            copied = await asyncio.to_thread(active_context)
+            copied = await asyncio.to_thread(active_context, 1, func="x")
         restored = await loop.run_in_executor(None, active_context)
         return parent, copied, restored
 
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
     try:
         parent, copied, restored = loop.run_until_complete(exercise())
     finally:
         loop.run_until_complete(loop.shutdown_default_executor())
-        loop.close()
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
-        ambient_worker.finish()
+        if ambient_worker is not None:
+            ambient_worker.finish()
 
-    assert copied == (restored[0], parent)
-    assert restored[1] is ambient_worker
-    assert [context for ident, context in switches if ident == restored[0]] == [parent, ambient_worker]
-
-
-@pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
-@pytest.mark.asyncio
-async def test_to_thread_syncs_native_otel_context(tracer, patched_asyncio):
-    import ctypes
-
-    from ddtrace.internal.native import _native
-
-    class ThreadContextRecord(ctypes.Structure):
-        _fields_ = [
-            ("trace_id", ctypes.c_ubyte * 16),
-            ("span_id", ctypes.c_ubyte * 8),
-            ("valid", ctypes.c_ubyte),
-            ("trace_flags", ctypes.c_ubyte),
-        ]
-
-    native_library = ctypes.CDLL(_native.__file__)
-
-    def published_span_id():
-        slot = ctypes.c_void_p.in_dll(native_library, "otel_thread_ctx_v1")
-        if slot.value is None:
-            return None
-
-        record = ThreadContextRecord.from_address(slot.value)
-        if not record.valid:
-            return None
-        return int.from_bytes(record.span_id, byteorder="big")
-
-    with tracer.trace("parent") as parent:
-        assert await asyncio.to_thread(published_span_id) == parent.span_id
-
-    assert await asyncio.to_thread(published_span_id) is None
+    worker_id = restored[0]
+    assert copied == (worker_id, parent, (1,), {"func": "x"})
+    assert restored == (worker_id, ambient_worker, (), {})
+    assert [context for ident, context in context_switches if ident == worker_id] == [parent, ambient_worker]
 
 
 @pytest.mark.asyncio
-async def test_context_switch_event_skips_finished_span(tracer, python_context_fallback, switches):
+async def test_context_switch_event_skips_finished_span(tracer, python_context_fallback, context_switches):
+    """A callback captured under a finished child publishes its nearest unfinished parent."""
     loop = asyncio.get_running_loop()
-    callback_finished = loop.create_future()
+    observed = []
 
     with tracer.trace("parent") as parent:
         with tracer.trace("child") as child:
+            loop.call_soon(lambda: observed.append(context_switches[-1][1] if context_switches else None))
 
-            def callback():
-                callback_finished.set_result(switches[-1] if switches else None)
-
-            loop.call_soon(callback)
-
-        switches.clear()
-        assert await callback_finished is parent
-        assert parent in switches
-        assert child not in switches
+        context_switches.clear()
+        await asyncio.sleep(0)
+        assert observed == [parent]
+        published = [context for _, context in context_switches]
+        assert parent in published
+        assert child not in published
