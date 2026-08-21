@@ -391,9 +391,13 @@ class PromptManager:
         Returns a prompt only on a positive FF hit. All other outcomes (not ready, disabled,
         no flag, error) return None and fall through to the HTTP floor.
         """
+        from ddtrace.internal.openfeature._source_selection import DISABLED
+        from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
+        from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
         from ddtrace.internal.settings.openfeature import config as ffe_config
 
-        if not ffe_config.experimental_flagging_provider_enabled:
+        source = resolve_configuration_source(ffe_config)
+        if source == DISABLED:
             return None
 
         try:
@@ -404,7 +408,8 @@ class PromptManager:
             log.debug("OpenFeature SDK unavailable for FF prompt evaluation")
             return None
 
-        self._ensure_ffe_rc()
+        if source == REMOTE_CONFIG:
+            self._ensure_ffe_rc()
         self._ensure_ffe_provider()
 
         try:
