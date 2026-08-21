@@ -41,6 +41,7 @@ from ddtrace.llmobs.types import _MetaIO
 from ddtrace.llmobs.types import _SpanField
 from ddtrace.llmobs.types import _SpanLink
 from ddtrace.llmobs.types import _ToolField
+from ddtrace.llmobs.utils import Messages
 from ddtrace.trace import Span
 
 
@@ -881,13 +882,22 @@ def messages_carry_media(messages: Any) -> bool:
     does not count, which leaves malformed input on whatever path it takes today: routing it
     here instead would hand it to Messages(), which raises TypeError on a non-dict part, and
     annotate turns that into an LLMObsAnnotateSpanError in the caller's own code.
+
+    A dict only counts as a message when it carries content or role. The decorators annotate a
+    traced function's arguments as a plain dict, so a parameter named image_parts would otherwise
+    look like a message and take every other argument down the Messages path, which drops the
+    keys it does not recognize.
     """
+    if isinstance(messages, Messages):
+        messages = messages.messages
     if isinstance(messages, dict):
         messages = [messages]
     if not isinstance(messages, list):
         return False
     for message in messages:
         if not isinstance(message, dict):
+            continue
+        if "content" not in message and "role" not in message:
             continue
         for key in _MEDIA_PART_KEYS:
             parts = message.get(key)

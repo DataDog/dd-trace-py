@@ -246,7 +246,10 @@ class Messages:
                 log.warning(
                     "Dropping message keys %s: not part of the LLM Observability message schema. "
                     "Record additional fields with LLMObs.annotate(metadata=...).",
-                    sorted(unrecognized),
+                    # Coerced before sorting: keys reaching here are unvalidated, and a mix of
+                    # types (1 and "extra") makes sorted() raise, which would reject the whole
+                    # message instead of dropping the unknown keys as documented.
+                    sorted(str(key) for key in unrecognized),
                 )
 
             self.messages.append(msg_dict)

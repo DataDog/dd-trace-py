@@ -3952,3 +3952,48 @@ class TestExperimentScope:
         with llmobs.task(name="standalone_task") as span:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
             assert "scope" not in data.get("_dd", {})
+
+
+def test_annotate_messages_wrapper_with_media_on_non_llm_span(llmobs):
+    """The public Messages wrapper must take the media path, not be serialized as an object repr."""
+    from ddtrace.llmobs.utils import Messages
+
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=Messages(
+                [
+                    {
+                        "content": "describe",
+                        "role": "user",
+                        "image_parts": [{"mime_type": "image/png", "content": "QQ=="}],
+                    }
+                ]
+            ),
+        )
+        llmobs._instance._prepare_llmobs_span_data(span, "agent")
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert meta["input"]["messages"] == [
+        {"content": "describe", "role": "user", "image_parts": [{"mime_type": "image/png", "content": "QQ=="}]}
+    ]
+    assert "object at 0x" not in str(meta["input"])
+
+
+def test_annotate_media_message_with_unorderable_extra_keys_does_not_raise(llmobs):
+    """Unrecognized keys are logged, and a mix of key types must not make the log call raise."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(
+            span=span,
+            input_data=[
+                {
+                    "content": "describe",
+                    "role": "user",
+                    "image_parts": [{"mime_type": "image/png", "content": "QQ=="}],
+                    1: "int key",
+                    "extra": "str key",
+                }
+            ],
+        )
+        llmobs._instance._prepare_llmobs_span_data(span, "agent")
+        meta = llmobs._instance._llmobs_span_event(span)["meta"]
+    assert meta["input"]["messages"][0]["image_parts"] == [{"mime_type": "image/png", "content": "QQ=="}]

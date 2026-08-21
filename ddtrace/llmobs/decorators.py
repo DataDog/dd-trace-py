@@ -282,7 +282,7 @@ def _llmobs_decorator(operation_kind):
                             )
                         resp = await func(*args, **kwargs)
                         if _automatic_io_annotation and resp is not None and operation_kind != "retrieval":
-                            if get_llmobs_output_value(span) is None:
+                            if get_llmobs_output_value(span) is None and get_llmobs_output_messages(span) is None:
                                 _annotate_or_log(span, operation_kind, "output", output_data=resp)
                         return resp
 
@@ -344,7 +344,7 @@ def _llmobs_decorator(operation_kind):
                             )
                         resp = func(*args, **kwargs)
                         if _automatic_io_annotation and resp is not None and operation_kind != "retrieval":
-                            if get_llmobs_output_value(span) is None:
+                            if get_llmobs_output_value(span) is None and get_llmobs_output_messages(span) is None:
                                 _annotate_or_log(span, operation_kind, "output", output_data=resp)
                         return resp
 
