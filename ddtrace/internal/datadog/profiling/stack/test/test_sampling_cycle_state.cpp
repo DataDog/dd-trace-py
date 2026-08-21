@@ -19,6 +19,39 @@ TEST(ThreadInfoCreate, IgnoresNonPthreadPythonThreadId)
 }
 #endif
 
+TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
+{
+    PyAsyncioDebugOffsets table{};
+    table.task.size = 512;
+    table.task.task_name = 8;
+    table.task.task_awaited_by = 16;
+    table.task.task_is_task = 24;
+    table.task.task_awaited_by_is_set = 25;
+    table.task.task_coro = 32;
+    table.task.task_node = 40;
+    table.interpreter.size = 4096;
+    table.interpreter.asyncio_tasks_head = 128;
+    table.thread.size = 1024;
+    table.thread.asyncio_running_loop = 8;
+    table.thread.asyncio_running_task = 16;
+    table.thread.asyncio_tasks_head = 256;
+
+    auto offsets = parse_asyncio_debug_offsets(&table);
+    ASSERT_TRUE(offsets);
+
+    EchionSampler echion;
+    echion.set_asyncio_offsets(*offsets);
+    EXPECT_EQ(echion.asyncio_interpreter_tasks_head_offset(), 128);
+    EXPECT_EQ(echion.asyncio_thread_tasks_head_offset(), 256);
+
+    table.task.task_node = table.task.size;
+    EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
+    table.task.task_node = 40;
+
+    table.thread.asyncio_tasks_head = table.thread.size;
+    EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
+}
+
 TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
 {
     EchionSampler echion;

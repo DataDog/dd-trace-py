@@ -9,6 +9,7 @@
 #include "echion/vm.h"
 
 #include <cmath>
+#include <cstring>
 #include <string_view>
 #include <utility>
 
@@ -329,6 +330,11 @@ stack_init_asyncio(PyObject* self, PyObject* args)
         return nullptr;
     }
 
+#if PY_VERSION_HEX >= 0x030e0000
+    if (auto offsets = find_asyncio_debug_offsets()) {
+        Sampler::get().get_echion().set_asyncio_offsets(*offsets);
+    }
+#endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);
 
     Py_RETURN_NONE;
