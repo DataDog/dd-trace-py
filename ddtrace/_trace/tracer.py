@@ -786,8 +786,12 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
-            return self._span_aggregator.writer.intake_url
+        writer = self._span_aggregator.writer
+        if isinstance(writer, AgentWriterInterface):
+            # An agentless writer points at the trace intake, which is not an agent..
+            if getattr(writer, "agentless", False):
+                return None
+            return writer.intake_url
 
         return None
 
