@@ -12,6 +12,7 @@ struct AsyncioOffsets
 };
 
 // Mirrors the runtime table defined in CPython 3.14's Modules/_asynciomodule.c.
+// TODO: Use more of these runtime offsets on Python 3.14+ to replace compile-time private-layout assumptions.
 struct PyAsyncioDebugOffsets
 {
     struct
