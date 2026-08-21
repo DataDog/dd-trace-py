@@ -1,3 +1,4 @@
+from functools import cache
 import logging
 import sys
 from typing import Optional
@@ -20,8 +21,6 @@ class NativeRuntime(SharedRuntime):
     after_fork_child hooks so the runtime is correctly paused and resumed
     around process forks.
     """
-
-    _instance: Optional["NativeRuntime"] = None
 
     def __init__(self) -> None:
         super().__init__()
@@ -55,11 +54,10 @@ class NativeRuntime(SharedRuntime):
         forksafe.unregister(self.after_fork_child)
 
 
+@cache
 def get_native_runtime() -> NativeRuntime:
     """Return the process-wide NativeRuntime singleton, creating it on first use.
 
     The first call also registers an atexit hook to shut the runtime down.
     """
-    if NativeRuntime._instance is None:
-        NativeRuntime._instance = NativeRuntime()
-    return NativeRuntime._instance
+    return NativeRuntime()

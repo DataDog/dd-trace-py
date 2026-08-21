@@ -1,40 +1,32 @@
-"""Activator for native (C/C++) heap allocation profiling via GOT rewriting.
+"""Load libdd_heap_gotter and patch the process GOT so ddheap USDT probes fire.
 
-Dlopens ``libdd_heap_gotter`` (see ``src/native_heap_gotter``) and drives:
+C ABI (see `src/native_heap_gotter`)::
 
     bool ddtrace_heap_gotter_install(void);
     bool ddtrace_heap_gotter_is_installed(void);
     bool ddtrace_heap_gotter_live_heap_enabled(void);  # True if built with ddheap:free
 
-``install()`` patches GOT entries so ``ddheap:alloc`` (and, on live-heap builds,
-``ddheap:free``) USDT sites fire; the Full Host eBPF profiler attaches uprobes.
-Nothing is collected or uploaded from Python.
+Python never collects or uploads native-heap samples. The Full Host eBPF
+profiler attaches to `ddheap:alloc` (and `ddheap:free` on live-heap
+builds) after `install()` rewrites the GOT.
 
-Runtime and build gates:
+`DD_PROFILING_NATIVE_HEAP_ENABLED` is checked twice: at wheel build
+(`setup.py` compiles the `.so`) and at process start (the profiler
+imports this module and calls `install()`). Turning it on in a running
+process cannot add a library that was not in the wheel.
 
-* ``DD_PROFILING_NATIVE_HEAP_ENABLED`` — runtime arming gate. When false, this
-  module is not imported from the profiler and ``install()`` is never called.
-  The same variable is read at wheel build time (via setup.py) to decide
-  whether to compile and ship ``libdd_heap_gotter``; setting it at process
-  start does not add the artifact to an already-installed wheel.
-* ``DD_HEAP_SAMPLING_ENABLED`` — libdatadog process-start bypass (unset =
-  on; ``0``/``false``/``no``/``off`` disables). Honored inside
-  ``install_heap_overrides``; a falsey value leaves the GOT untouched and
-  ``install()`` returns False. ddtrace does not set or wrap this variable.
+libdatadog also reads `DD_HEAP_SAMPLING_ENABLED` (unset means on;
+`0`/`false`/`no`/`off` skip the GOT patch). If it is off,
+`install()` returns False.
 
-``live_heap_enabled()`` is a compile-time property of the loaded artifact
-(default-on ``live-heap`` feature): True when the cdylib stamps retain flags and
-emits ``ddheap:free``. False if the cdylib is missing, alloc-only
-(``--no-default-features``), or predates this symbol (bound defensively).
+`live_heap_enabled()` is about how the `.so` was compiled (live-heap
+is on by default). It is False when the library is missing, alloc-only,
+or old enough not to export the symbol.
 
-Missing/broken load → ``is_available`` False, ``install()`` no-op; import never
-raises. Install is permanent (GOT points into the cdylib), so the CDLL handle
-stays mapped for the process lifetime.
-
-After a successful ``install()``, fork children inherit the mapping and patched
-GOT; ``_armed`` skips re-entering the native installer. Upstream has no
-``pthread_atfork`` reset for its registry mutex — prefer arming on the main
-thread or in the worker after fork; mid-install fork is unsafe.
+If dlopen fails, `is_available` is False, `install()` is a no-op, and
+import does not raise. A successful install is permanent — GOT entries
+point into this library — so we keep the CDLL handle for the life of the
+process.
 """
 
 from __future__ import annotations
@@ -48,7 +40,7 @@ import sysconfig
 is_available: bool = False
 failure_msg: str = ""
 
-# Compile-time live-heap capability of the loaded artifact (see module docstring).
+# True if this .so was built with live-heap (ddheap:free). See module docstring.
 _live_heap_available: bool = False
 
 _lib: ctypes.CDLL | None = None  # process lifetime; never dlclose'd
@@ -72,7 +64,8 @@ try:
     if not os.path.exists(_path):
         raise FileNotFoundError(_path)
 
-    # RTLD_GLOBAL for resolvability; RTLD_NOW fail-closed on unresolved symbols.
+    # RTLD_GLOBAL: loaded code is unambiguously resolvable.
+    # RTLD_NOW: any unresolved symbol fails here and not at first call.
     _lib = ctypes.CDLL(_path, mode=ctypes.RTLD_GLOBAL | getattr(os, "RTLD_NOW", 0))
 
     _lib.ddtrace_heap_gotter_install.argtypes = []
@@ -96,11 +89,15 @@ except Exception as e:
 
 
 def install() -> bool:
-    """Install native heap GOT overrides. True if installed; False otherwise.
+    """Patch heap GOT entries. True if they are installed afterwards.
 
-    Idempotent at the Python layer: after success (including in a fork child that
-    inherited ``_armed``), further calls return True without re-entering the native
-    installer. See module docstring for fork-safety limits.
+    Safe to call more than once. After a successful install, later calls
+    return True without talking to the native installer again. Fork children
+    inherit the mapping and `_armed`, so they skip a second native install.
+
+    Call this on the main thread, or in the worker after fork. Do not fork
+    while it is running — upstream does not reset its registry mutex in
+    `pthread_atfork`.
     """
     global _armed
     if not is_available or _lib is None:
@@ -129,9 +126,5 @@ def is_installed() -> bool:
 
 
 def live_heap_enabled() -> bool:
-    """Return whether the loaded cdylib was built with live-heap tracking.
-
-    Compile-time property of the artifact (default-on feature). False when the
-    cdylib is missing, alloc-only, or predates this symbol.
-    """
+    """Return whether the loaded cdylib was built with live-heap tracking."""
     return _live_heap_available

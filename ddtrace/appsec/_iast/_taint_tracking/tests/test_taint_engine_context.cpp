@@ -398,3 +398,26 @@ TEST_F(ApplicationContextTest, ClearAllIsIdempotent)
     taint_engine_context->clear_all_request_context_slots();
     ASSERT_EQ(safe_get_tainted_object_map_by_ctx_id(id), nullptr);
 }
+
+TEST_F(ApplicationContextTest, SetRangesOnUnhashableObjectErasesTheStaleEntry)
+{
+    auto idx_opt = taint_engine_context->start_request_context();
+    ASSERT_TRUE(idx_opt.has_value());
+    auto tx_map = safe_get_tainted_object_map_by_ctx_id(*idx_opt);
+    ASSERT_NE(tx_map, nullptr);
+
+    // Taintable but unhashable, the one input that reaches the NotIndexable path.
+    py::exec("class NoHash(str):\n    __hash__ = None\n");
+    py::object unhashable = py::eval("NoHash('abc')");
+    ASSERT_TRUE(is_tainteable(unhashable.ptr()));
+
+    // A freed object's entry, sitting at the address this object now occupies.
+    const auto obj_id = get_unique_id(unhashable.ptr());
+    tx_map->insert({ obj_id, std::make_pair(Py_hash_t{ 1234 }, make_tainted_with_one_range(3)) });
+
+    const auto result = set_ranges(unhashable.ptr(), make_tainted_with_one_range(3)->get_ranges(), tx_map);
+
+    EXPECT_EQ(result, SetRangesResult::NotIndexable);
+    EXPECT_EQ(tx_map->count(obj_id), 0u) << "a stale entry must not outlive the object that replaced it";
+    EXPECT_EQ(PyErr_Occurred(), nullptr);
+}
