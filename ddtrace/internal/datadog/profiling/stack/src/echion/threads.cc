@@ -514,7 +514,7 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState* tstate)
     if (this->asyncio_loop == 0)
         return tasks;
 
-    // Python 3.14 task discovery combines four sources:
+    // Python 3.14+ task discovery combines four sources:
     // - per-thread linked lists for active native Tasks;
     // - the per-interpreter linked list for native Tasks surviving thread-state clearing;
     // - _scheduled_tasks for third-party Task implementations;
