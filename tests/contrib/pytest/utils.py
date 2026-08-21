@@ -1,8 +1,8 @@
 import json
 
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.util import collapse_ranges
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 _LEGACY_PYTEST_PLUGIN_DEPRECATION = "DD_PYTEST_USE_NEW_PLUGIN=false is deprecated"

@@ -36,12 +36,12 @@ from ddtrace.internal.ci_visibility.constants import TEST_RETRY_REASON
 from ddtrace.internal.ci_visibility.telemetry.constants import EVENT_TYPES
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_created_test
 from ddtrace.internal.ci_visibility.telemetry.events import record_event_finished_test
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 
 

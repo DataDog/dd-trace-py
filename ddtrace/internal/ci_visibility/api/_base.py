@@ -34,9 +34,9 @@ from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_forced_run
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_skipped
 from ddtrace.internal.ci_visibility.telemetry.itr import record_itr_unskippable
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
