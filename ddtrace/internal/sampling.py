@@ -4,9 +4,11 @@ from typing import Any
 from typing import Optional
 from typing import TypedDict
 
+from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
@@ -276,15 +278,12 @@ def _set_sampling_tags(
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
-    # AIDEV-NOTE: Injection treats a non-None sampling priority as the publication marker for
-    # the complete decision. Update the OTel state first and publish priority last under the
-    # shared context lock so concurrent branches cannot propagate a partial decision.
+    # AIDEV-NOTE: Injection treats a non-None sampling priority as the publication marker for the
+    # complete decision. Materialize canonical ot= first and publish priority last under
+    # the shared trace-level lock so concurrent branches cannot propagate a partial decision.
     with span.context:
-        if probabilistic_decision:
-            span.context._otel_sampling_state.set_probabilistic_decision(sample_rate)
-        else:
-            span.context._otel_sampling_state.set_non_probabilistic_decision()
-        span.context.sampling_priority = priorities[priority_index]
+        _update_otel_sampling_decision(span.context, sampled, sample_rate, probabilistic_decision)
+        span.context._metrics[_SAMPLING_PRIORITY_KEY] = priorities[priority_index]
 
 
 def add_trace_source(span: Span, source: int) -> None:
