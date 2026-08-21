@@ -40,6 +40,35 @@ def _main_thread_has_native_id() -> bool:
     return getattr(threading.main_thread(), "native_id", None) is not None
 
 
+@pytest.mark.subprocess()
+def test_thread_lifecycle_callbacks_are_not_wrapped_twice() -> None:
+    """Initialize stack tracking twice, then verify one worker emits one register/unregister callback pair."""
+    import threading
+    from unittest.mock import patch
+
+    from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.profiling.collector import threading as profiling_threading
+
+    with (
+        patch.object(stack, "register_thread") as register_thread,
+        patch.object(stack, "unregister_thread") as unregister_thread,
+    ):
+        profiling_threading.init_stack()
+        profiling_threading.init_stack()
+
+        # Ignore registrations for threads that were already alive during initialization.
+        register_thread.reset_mock()
+        unregister_thread.reset_mock()
+
+        worker = threading.Thread(target=lambda: None, name="worker")
+        worker.start()
+        worker.join()
+
+        assert worker.ident is not None
+        assert [call.args[0] for call in register_thread.call_args_list].count(worker.ident) == 1
+        assert [call.args[0] for call in unregister_thread.call_args_list].count(worker.ident) == 1
+
+
 def func1() -> None:
     return func2()
 
