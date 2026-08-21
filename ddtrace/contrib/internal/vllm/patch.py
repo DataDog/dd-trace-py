@@ -42,22 +42,34 @@ config._add("vllm", {})
 
 
 def _resolve_processor_target() -> "tuple[str, str]":
-    """Resolve the (module, Class.process_inputs) wrap target for the installed vLLM version.
-
-    vLLM >= 0.14.0 removed vllm.v1.engine.processor and moved Processor to
-    vllm.v1.engine.input_processor.InputProcessor. Probe for the new module
-    first (without importing it) and fall back to the legacy one so vLLM
-    0.10.2-0.13.x keeps working too.
+    """Resolve the (module, Class.process_inputs) wrap target, preferring the new
+    module/class location and falling back to the legacy one.
     """
-    import importlib.util
+    import importlib
 
-    try:
-        found = importlib.util.find_spec(PROCESSOR_MODULE_NEW) is not None
-    except (ImportError, ValueError):
-        found = False
+    for module_name, cls_name in (
+        (PROCESSOR_MODULE_NEW, PROCESSOR_CLASS_NEW),
+        (PROCESSOR_MODULE_OLD, PROCESSOR_CLASS_OLD),
+    ):
+        try:
+            module = importlib.import_module(module_name)
+        except ModuleNotFoundError as e:
+            # Skip only if this candidate module itself is missing; a broken
+            # import inside it should propagate, not fall through silently.
+            if e.name and (module_name == e.name or module_name.startswith(e.name + ".")):
+                continue
+            raise
+        if hasattr(module, cls_name):
+            return module_name, f"{cls_name}.{PROCESSOR_METHOD}"
 
-    if found:
-        return PROCESSOR_MODULE_NEW, f"{PROCESSOR_CLASS_NEW}.{PROCESSOR_METHOD}"
+    logger.debug(
+        "vLLM processor class not found at %s.%s or %s.%s for vLLM %s.",
+        PROCESSOR_MODULE_NEW,
+        PROCESSOR_CLASS_NEW,
+        PROCESSOR_MODULE_OLD,
+        PROCESSOR_CLASS_OLD,
+        getattr(vllm, "__version__", "unknown"),
+    )
     return PROCESSOR_MODULE_OLD, f"{PROCESSOR_CLASS_OLD}.{PROCESSOR_METHOD}"
 
 

@@ -1,7 +1,6 @@
 ---
 fixes:
   - |
-    vllm: Fixes an issue where the integration failed to instrument vLLM with
-    ``ModuleNotFoundError: No module named 'vllm.v1.engine.processor'`` when
-    using vLLM versions that renamed this module, silently disabling all
-    vLLM tracing and metrics.
+    vllm: Fixes an issue where the integration failed to instrument vLLM >= 0.14.0
+    with ``ModuleNotFoundError: No module named 'vllm.v1.engine.processor'``,
+    silently disabling all vLLM tracing and metrics.
