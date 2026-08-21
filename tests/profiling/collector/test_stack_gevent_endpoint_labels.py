@@ -109,7 +109,7 @@ def test_stack_preserves_greenlet_span_after_fork():
     from ddtrace.trace import tracer
     from tests.profiling.collector import pprof_utils
 
-    def child_work_after_switch():
+    def child_work_without_switch():
         deadline = time.thread_time_ns() + 500_000_000
         while time.thread_time_ns() < deadline:
             pass
@@ -119,16 +119,14 @@ def test_stack_preserves_greenlet_span_after_fork():
             pid = os.fork()
             if pid == 0:
                 try:
-                    # Force the surviving greenlet through a post-fork switch before it is sampled.
-                    gevent.sleep(0.05)
-                    child_work_after_switch()
+                    child_work_without_switch()
                     p.stop()
 
                     profile = pprof_utils.parse_newest_profile(
                         os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
                     )
                     wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-                    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "child_work_after_switch")
+                    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "child_work_without_switch")
 
                     assert samples
                     span_ids = {pprof_utils.get_num_label(profile, sample, "span id") for sample in samples}
@@ -146,6 +144,64 @@ def test_stack_preserves_greenlet_span_after_fork():
     p.start()
     gevent.spawn(fork_under_active_span).get(timeout=10)
     p.stop()
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_PROFILING_OUTPUT_PPROF": "/tmp/test_stack_preserves_greenlet_span_after_restart",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+    },
+    err=None,
+)
+def test_stack_preserves_greenlet_span_after_restart():
+    from gevent import monkey
+
+    monkey.patch_all()
+
+    import os
+    import time
+
+    import gevent
+    from gevent import event
+
+    from ddtrace.profiling import profiler
+    from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
+
+    def work_after_restart():
+        deadline = time.thread_time_ns() + 500_000_000
+        while time.thread_time_ns() < deadline:
+            pass
+
+    started = event.Event()
+    resume = event.Event()
+    span_ids = []
+
+    def worker():
+        with tracer.trace("greenlet.restart.request") as span:
+            span_ids.append(span.span_id)
+            started.set()
+            resume.wait(timeout=5)
+            work_after_restart()
+
+    p = profiler.Profiler(tracer=tracer)
+    p.start()
+    greenlet = gevent.spawn(worker)
+    started.wait(timeout=5)
+    p.stop()
+    p.start()
+    resume.set()
+    greenlet.get(timeout=5)
+    p.stop()
+
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    wall_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    samples = pprof_utils.get_samples_with_function(profile, wall_samples, "work_after_restart")
+
+    assert samples
+    sampled_span_ids = {pprof_utils.get_num_label(profile, sample, "span id") for sample in samples}
+    assert any(span_id is not None and span_id % (1 << 64) == span_ids[0] for span_id in sampled_span_ids)
 
 
 @pytest.mark.subprocess(

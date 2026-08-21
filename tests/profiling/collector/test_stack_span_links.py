@@ -26,9 +26,11 @@ def restore_span_linking_state():
     generation = _span_links._span_link_generation
     active_span_link = _span_links._active_span_link.get()
     providers = list(_span_links._logical_span_providers)
+    current_span_provider = _span_links._current_span_provider
     _span_links._span_linking_enabled = False
     _span_links._set_active_span_link(None)
     _span_links._logical_span_providers.clear()
+    _span_links._current_span_provider = None
     _span_links.stack.reset_span_links()
     try:
         yield
@@ -38,6 +40,7 @@ def restore_span_linking_state():
         _span_links._span_link_generation = generation
         _span_links._set_active_span_link(active_span_link)
         _span_links._logical_span_providers[:] = providers
+        _span_links._current_span_provider = current_span_provider
 
 
 def _target(domain: _span_links.SpanLinkDomain, identifier: int) -> _span_links.LogicalSpanTarget:
@@ -46,6 +49,15 @@ def _target(domain: _span_links.SpanLinkDomain, identifier: int) -> _span_links.
 
 def _info(span_id: int, local_root_span_id: typing.Optional[int] = None) -> _span_links._SpanInfo:
     return _span_links._SpanInfo(span_id, local_root_span_id or span_id, None)
+
+
+def test_enable_republishes_current_span(monkeypatch: pytest.MonkeyPatch) -> None:
+    linked = []
+    monkeypatch.setattr(_span_links.stack, "link_span", lambda *args: linked.append(args))
+
+    _span_links.enable_span_linking(lambda: (_info(700), None))
+
+    assert linked == [(700, 700, None)]
 
 
 def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.MonkeyPatch) -> None:

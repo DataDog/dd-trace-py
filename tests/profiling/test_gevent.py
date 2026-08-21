@@ -275,6 +275,34 @@ def test_logical_provider_requires_native_greenlet_tracking() -> None:
     reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
 )
 @pytest.mark.subprocess()
+def test_new_greenlet_seeds_from_configured_tracer_not_gevent_trace_context() -> None:
+    from unittest.mock import patch
+
+    import gevent
+    from gevent import thread
+
+    from ddtrace.profiling import _gevent as _gevent_module
+
+    candidate = gevent.Greenlet(lambda: None)
+    candidate.trace_context = object()
+    candidate_id = thread.get_ident(candidate)
+    domain = _gevent_module._span_links.SpanLinkDomain.GEVENT_GREENLET
+    with (
+        patch.object(_gevent_module.stack, "track_greenlet"),
+        patch.object(_gevent_module._span_links, "link_current_logical_span") as link_current,
+        patch.object(_gevent_module._span_links, "link_logical_span_context") as link_inherited,
+    ):
+        _gevent_module.track_gevent_greenlet(candidate)
+
+    link_current.assert_called_once_with(domain, candidate_id)
+    link_inherited.assert_not_called()
+
+
+@pytest.mark.skipif(
+    not GEVENT_COMPATIBLE_WITH_PYTHON_VERSION,
+    reason=f"gevent is not compatible with Python {'.'.join(map(str, tuple(sys.version_info)[:3]))}",
+)
+@pytest.mark.subprocess()
 def test_late_origin_discovery_seeds_active_context_not_construction_context() -> None:
     from unittest.mock import patch
 
@@ -289,7 +317,7 @@ def test_late_origin_discovery_seeds_active_context_not_construction_context() -
     domain = _gevent_module._span_links.SpanLinkDomain.GEVENT_GREENLET
     with (
         patch.object(_gevent_module.stack, "track_greenlet") as track,
-        patch("ddtrace.profiling.collector.stack._link_logical_span") as link_inherited,
+        patch.object(_gevent_module._span_links, "link_current_logical_span") as link_current,
         patch.object(_gevent_module._span_links, "link_logical_span_context") as link_active,
     ):
         _gevent_module.track_gevent_greenlet(
@@ -299,7 +327,7 @@ def test_late_origin_discovery_seeds_active_context_not_construction_context() -
         )
 
     track.assert_called_once()
-    link_inherited.assert_not_called()
+    link_current.assert_not_called()
     link_active.assert_called_once_with(domain, candidate_id)
 
 
@@ -309,17 +337,33 @@ def test_late_origin_discovery_seeds_active_context_not_construction_context() -
 )
 @pytest.mark.subprocess()
 def test_fork_reset_drops_python_greenlet_tracking_state() -> None:
+    from unittest.mock import patch
+
+    import gevent
+
     from ddtrace.profiling import _gevent as _gevent_module
 
+    current = gevent.Greenlet(lambda: None)
     _gevent_module._tracked_greenlets.add(101)
     _gevent_module._greenlet_parent_map[102] = 101
     _gevent_module._parent_greenlet_count[101] = 1
+    _gevent_module._is_patched = True
 
-    _gevent_module._reset_gevent_state_after_fork()
+    try:
+        with (
+            patch.object(_gevent_module.gevent, "getcurrent", return_value=current),
+            patch.object(_gevent_module.stack, "track_greenlet") as track,
+            patch.object(_gevent_module._span_links, "link_logical_span_context"),
+        ):
+            _gevent_module._reset_gevent_state_after_fork()
+    finally:
+        _gevent_module._is_patched = False
 
-    assert not _gevent_module._tracked_greenlets
+    assert _gevent_module._tracked_greenlets == {thread_id := _gevent_module.thread.get_ident(current)}
     assert not _gevent_module._greenlet_parent_map
     assert not _gevent_module._parent_greenlet_count
+    assert track.call_args.args[0] == thread_id
+    assert track.call_args.args[2] is None
 
 
 @pytest.mark.skipif(

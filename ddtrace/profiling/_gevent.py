@@ -12,7 +12,6 @@ from greenlet import settrace
 from ddtrace.internal import forksafe
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.profiling import _span_links
-from ddtrace.profiling.collector.stack import _link_logical_span
 
 
 # Original objects
@@ -48,6 +47,18 @@ def _reset_gevent_state_after_fork() -> None:
 forksafe.register(_reset_gevent_state_after_fork)
 
 
+def _restart_gevent_tracking() -> None:
+    """Invalidate surviving tracking so each greenlet is re-seeded after profiler restart."""
+    if not _is_patched:
+        return
+    for greenlet_id in tuple(_tracked_greenlets):
+        _untrack_greenlet_by_id(greenlet_id)
+    try:
+        track_gevent_greenlet(gevent.getcurrent(), _from_tracer=True)
+    except GreenletTrackingError:
+        pass
+
+
 def _current_greenlet_span_target() -> t.Optional[_span_links.LogicalSpanTarget]:
     greenlet_id = t.cast(int, thread.get_ident(gevent.getcurrent()))
     if not stack.is_greenlet_tracked(greenlet_id):
@@ -67,7 +78,7 @@ def track_gevent_greenlet(
     _seed_context: bool = True,
 ) -> _Greenlet:
     greenlet_id: int = thread.get_ident(gl)
-    frame: t.Union[FrameType, bool, None] = FRAME_NOT_SET
+    frame: t.Union[FrameType, bool, None] = None if gl is gevent.getcurrent() else FRAME_NOT_SET
 
     try:
         stack.track_greenlet(greenlet_id, gl.name or type(gl).__qualname__, frame)
@@ -95,13 +106,11 @@ def track_gevent_greenlet(
 
     _tracked_greenlets.add(greenlet_id)
 
-    # The tracing integration captures the parent's Context before the child first runs. Seed that copied attribution
-    # now because installing the Context in TracingMixin.run does not dispatch a context-provider activation event.
-    trace_context = getattr(gl, "trace_context", None)
     try:
-        if _seed_context and trace_context is not None:
-            _link_logical_span(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id, trace_context)
-        elif not _seed_context and _from_tracer:
+        if _seed_context:
+            # Read only the tracer configured on the profiler, not the gevent integration's process-global tracer.
+            _span_links.link_current_logical_span(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
+        elif _from_tracer:
             # A lazily discovered origin may have activated a newer span since its construction Context was captured.
             _span_links.link_logical_span_context(_span_links.SpanLinkDomain.GEVENT_GREENLET, greenlet_id)
     except Exception:  # nosec B110
