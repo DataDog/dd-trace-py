@@ -43,7 +43,7 @@ def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
 
 
 @forksafe.register
-def _set_runtime_id():
+def _set_runtime_id() -> None:
     global _RUNTIME_ID, _ANCESTOR_RUNTIME_ID, _PARENT_RUNTIME_ID
 
     # Save the runtime ID of the common ancestor of all processes.

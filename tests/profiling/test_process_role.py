@@ -98,7 +98,7 @@ def test_uwsgi_postfork_worker_role_via_mock(monkeypatch: pytest.MonkeyPatch) ->
     postfork callback would.  The role check verifies the detection primitive
     under mock.
     """
-    import ddtrace.internal.runtime as _runtime_mod
+    import ddtrace.internal._runtime_id as _runtime_id_mod
 
     def _raise_main(*args: object, **kwargs: object) -> None:
         raise profiler.uwsgi.uWSGIMasterProcess()  # type: ignore[attr-defined]
@@ -106,7 +106,7 @@ def test_uwsgi_postfork_worker_role_via_mock(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setattr(profiler.uwsgi, "check_uwsgi", _raise_main)  # type: ignore[attr-defined]
 
     # Simulate what happens to _PARENT_RUNTIME_ID after a real fork in a worker.
-    monkeypatch.setattr(_runtime_mod, "_PARENT_RUNTIME_ID", "fake-parent-id")
+    monkeypatch.setattr(_runtime_id_mod, "_PARENT_RUNTIME_ID", "fake-parent-id")
 
     from ddtrace.internal.runtime import get_process_role
 
@@ -121,13 +121,13 @@ def test_uwsgi_postfork_worker_role_via_mock(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_uwsgi_main_role_via_mock(monkeypatch: pytest.MonkeyPatch) -> None:
     """uWSGI main process: get_process_role() returns None before any fork."""
+    import ddtrace.internal._runtime_id as _runtime_id_mod
     import ddtrace.internal.forksafe as _forksafe
-    import ddtrace.internal.runtime as _runtime_mod
 
     # Reset process-lifetime state that may be True if subprocess.run() was called
     # earlier in this pytest session (subprocess.run uses os.fork on Linux).
     monkeypatch.setattr(_forksafe, "_forked", False)
-    monkeypatch.setattr(_runtime_mod, "_PARENT_RUNTIME_ID", None)
+    monkeypatch.setattr(_runtime_id_mod, "_PARENT_RUNTIME_ID", None)
 
     from ddtrace.internal.runtime import get_process_role
 
