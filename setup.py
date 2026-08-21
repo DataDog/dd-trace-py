@@ -130,6 +130,15 @@ VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
+# TODO(py-315): pyo3-build-config 0.27.x (max Python 3.14) may be resolved by cargo
+# if the lock file is regenerated without --locked (e.g. in some CI cache scenarios).
+# Setting PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1 tells pyo3-build-config to bypass
+# the max-version check and build via the stable ABI, which is correct since we
+# already use py_limited_api="auto" in the RustExtension definition.
+# pyo3 0.28+ supports Python 3.15 natively, so this is only a safety net.
+if sys.version_info >= (3, 15):
+    os.environ.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
+
 
 def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
@@ -1830,7 +1839,7 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
             ),
         ]
 
-        if sys.version_info < (3, 15):
+        if sys.version_info < (3, 16):
             _cython_sources += [
                 CythonExtension(
                     "ddtrace.profiling._threading",

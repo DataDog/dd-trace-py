@@ -606,7 +606,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    # TODO(py-315): 3.15 explicitly opted in for crashtracker native validation.
+                    pys=select_pys(min_version="3.12", max_version="3.14") + ["3.15"],
                     env={
                         "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
@@ -2227,7 +2228,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.14",
+                    pys=["3.14", "3.15"],
                     pkgs={
                         "grpcio": ">=1.75.0",
                     },
@@ -3910,7 +3911,7 @@ venv = Venv(
                         ),
                     ],
                 ),
-                # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
+                # Python 3.14+ - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
                 Venv(
                     pys="3.14",
                     pkgs={"uwsgi": latest},
