@@ -910,15 +910,11 @@ venv = Venv(
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
                     },
                     pkgs={
-                        "celery": [
-                            "~=5.2",
-                            latest,
-                        ],
-                        "redis": "~=3.5",
+                        "celery[redis]": "~=5.2",
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.9"),
                     env={
                         # https://docs.celeryproject.org/en/v5.0.5/userguide/testing.html#enabling
                         "PYTEST_PLUGINS": "celery.contrib.pytest",
