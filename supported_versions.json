@@ -1198,7 +1198,8 @@
                     "5.6.3"
                 ]
             }
-        }
+        },
+        "pinned": true
     },
     {
         "dependency": "cherrypy",
