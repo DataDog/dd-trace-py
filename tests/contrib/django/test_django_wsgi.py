@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import sys
 
 import django
 from django.core.signals import request_finished
@@ -54,18 +55,18 @@ def wsgi_app():
     env = os.environ.copy()
     env.update(
         {
-            "PYTHONPATH": os.path.dirname(os.path.abspath(__file__)) + ":" + env["PYTHONPATH"],
             "DJANGO_SETTINGS_MODULE": "test_django_wsgi",
             "DD_TRACE_ENABLED": "true",
         }
     )
-    cmd = ["django-admin", "runserver", "--noreload", str(SERVER_PORT)]
+    cmd = [sys.executable, "-m", "django", "runserver", "--noreload", str(SERVER_PORT)]
     proc = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         close_fds=True,
         env=env,
+        cwd=os.path.dirname(os.path.abspath(__file__)),
     )
 
     yield proc

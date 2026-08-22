@@ -96,7 +96,7 @@ def test_collect_pins_deduplicates_across_lockfiles(cooldown_mod, tmp_path):
 
 
 def test_default_lockfiles_include_uv_and_riot_locks(cooldown_mod, tmp_path, monkeypatch):
-    uv_lock = tmp_path / "tests/locks/contrib/example/example-py311.txt"
+    uv_lock = tmp_path / ".uv/contrib-example--example-py311.txt"
     riot_lock = tmp_path / ".riot/requirements/abcdef0.txt"
     uv_lock.parent.mkdir(parents=True)
     riot_lock.parent.mkdir(parents=True)

@@ -3,7 +3,6 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.22.0",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -23,7 +22,6 @@ import datetime
 import hashlib
 import os
 import re
-import subprocess
 import typing as t
 
 
@@ -73,15 +71,13 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
-    skip_pip_cache: bool = False
-    runner: str = "riot"
     suite: t.Optional[str] = None
 
     python_versions: t.Optional[set[str]] = None
 
     def __str__(self) -> str:
         lines = []
-        base = ".test_base_uv" if self.runner == "uv" else ".test_base_riot"
+        base = ".test_base"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -93,7 +89,7 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Base environment artifacts provide the native extensions for both runners.
+        # Base environment artifacts provide the native extensions for test jobs.
         lines.append("  needs:")
         lines.append("    - prechecks")
         if self.python_versions:
@@ -130,40 +126,22 @@ class JobSpec:
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
-        if self.runner != "uv":
-            lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            if self.runner == "uv":
-                wait_environment = ""
-                if "testagent" in wait_for:
-                    wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
-                lines.append(
-                    f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
-                    "--with-requirements tests/locks/wait/wait-py39.txt --no-progress "
-                    f"python tests/wait-for-services.py {' '.join(wait_for)}"
-                )
-            else:
-                lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            wait_environment = ""
+            if "testagent" in wait_for:
+                wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
+            lines.append(
+                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
+                "--with-requirements .uv/wait--wait-py39.txt --no-progress "
+                f"python tests/wait-for-services.py {' '.join(wait_for)}"
+            )
 
         env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
-        if self.runner == "uv":
-            env["TEST_SUITE"] = self.suite or self.name
-            env["UV_NO_CACHE"] = '"1"'
-
-        suite_name = env["SUITE_NAME"]
-        if self.runner != "uv":
-            env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-            env["PIP_CACHE_KEY"] = (
-                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-            )
-        if self.runner != "uv" and not self.skip_pip_cache:
-            lines.append("  cache:")
-            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
+        env["TEST_SUITE"] = self.suite or self.name
+        env["UV_NO_CACHE"] = '"1"'
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -198,7 +176,6 @@ class SuiteVenvInfo:
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
 _global_python_versions: set[str] = set()
 _needs_base_venvs = True
-_migration_canary_mode = False
 
 # Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
 TARGET_JOBS = 200
@@ -216,21 +193,19 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    riot_configs = {suite: config for suite, config in suite_configs.items() if config.get("runner") != "uv"}
-    environments_by_suite = load_riot_test_environments(riot_configs)
-    uv_configs = {suite: config for suite, config in suite_configs.items() if config.get("runner") == "uv"}
-    if uv_configs:
-        from tests.matrix import expand_suite_matrix
-        from tests.suitespec import get_matrix_defaults
+    from tests.suitespec import expand_suite_matrix
+    from tests.suitespec import get_matrix_defaults
 
-        defaults = get_matrix_defaults()
-        for suite, config in uv_configs.items():
-            environments_by_suite[suite] = expand_suite_matrix(
-                suite,
-                config,
-                defaults,
-                nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true",
-            )
+    defaults = get_matrix_defaults()
+    environments_by_suite = {
+        suite: expand_suite_matrix(
+            suite,
+            config,
+            defaults,
+            nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true",
+        )
+        for suite, config in suite_configs.items()
+    }
 
     result: dict[str, SuiteVenvInfo] = {}
     for suite, environments in environments_by_suite.items():
@@ -334,7 +309,7 @@ def _scale_suites(
 
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
-    import suitespec
+    from tests import suitespec
 
     suites = suitespec.get_suites()
 
@@ -376,25 +351,8 @@ def gen_required_suites() -> None:
     if any(suite in required_suites for suite in ci_visibility_suites):
         required_suites = sorted(suites.keys())
 
-    global _migration_canary_mode
-
-    uv_canaries = sorted(
-        suite
-        for suite, config in suites.items()
-        if config.get("type", "test") == "test" and config.get("runner") == "uv"
-    )
-    riot_suites_remain = any(
-        config.get("type", "test") == "test" and config.get("runner") != "uv" for config in suites.values()
-    )
-    _migration_canary_mode = bool(uv_canaries and riot_suites_remain)
-    disabled_suites: list[str] = []
-    if _migration_canary_mode:
-        disabled_suites = sorted(set(required_suites) - set(uv_canaries))
-        required_suites = uv_canaries
-        LOGGER.info("Limiting migration CI to uv canaries: %s", required_suites)
-
-    _gen_tests(suites, required_suites, disabled_suites)
-    _gen_benchmarks(suites, [] if _migration_canary_mode else required_suites)
+    _gen_tests(suites, required_suites)
+    _gen_benchmarks(suites, required_suites)
 
 
 def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
@@ -484,7 +442,7 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
     MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
 
-def _gen_tests(suites: dict, required_suites: list[str], disabled_suites: t.Optional[list[str]] = None) -> None:
+def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
     global _needs_base_venvs
 
@@ -493,12 +451,6 @@ def _gen_tests(suites: dict, required_suites: list[str], disabled_suites: t.Opti
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
-    if disabled_suites:
-        with TESTS_GEN.open("a") as f:
-            print("\n# Suites disabled while the Riot-to-uv migration canaries are under test:", file=f)
-            for suite in disabled_suites:
-                print(f"# - {suite}", file=f)
-
     # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
@@ -602,9 +554,6 @@ def _gen_tests(suites: dict, required_suites: list[str], disabled_suites: t.Opti
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
-    if _migration_canary_mode:
-        return
-
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -692,6 +641,11 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
+        name="Check test locks",
+        command="scripts/test-env check",
+        paths={"**/suitespec.yml", ".uv/*", "scripts/test-env", "tests/suitespec.py"},
+    )
+    check(
         name="Check ddtrace error logs",
         command="scripts/lint error-log-check",
         paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
@@ -729,8 +683,6 @@ def gen_pre_checks() -> None:
         command="scripts/lint hook-tests",
         paths={"hooks/scripts/*.sh", "hooks/pre-commit/*", "hooks/tests/*", "scripts/lint"},
     )
-    if _migration_canary_mode and not checks:
-        checks.append(("Migration canary setup", "true"))
     if not checks:
         return
 
@@ -876,12 +828,9 @@ import ruamel.yaml as _ruamel_yaml  # noqa: E402
 
 _testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
 TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
-# Make the project root, scripts, and tests folders available for importing.
+# Make the project root and scripts folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
-sys.path.append(str(ROOT / "tests"))
-
-from tests.riot_adapter import load_riot_test_environments  # noqa: E402
 
 
 def template(name: str, **params):

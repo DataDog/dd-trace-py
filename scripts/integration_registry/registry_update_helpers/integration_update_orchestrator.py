@@ -10,7 +10,7 @@ from typing import Union
 
 class IntegrationUpdateOrchestrator:
     TOOLING_VENV_DIR = ".venv-registry-tools"
-    TOOLING_DEPS = ["pyyaml", "riot", "filelock"]
+    TOOLING_DEPS = ["pyyaml", "filelock"]
     REGISTRY_UPDATER_MODULE = "registry_update_helpers.integration_registry_updater"
     REGISTRY_UPDATER_CLASS = "IntegrationRegistryUpdater"
     MAIN_UPDATE_SCRIPT = "scripts/integration_registry/update_and_format_registry.py"

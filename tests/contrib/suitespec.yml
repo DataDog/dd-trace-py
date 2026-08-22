@@ -235,7 +235,6 @@ suites:
       TEST_MOTO_PORT: '3000'
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} --no-cov tests/contrib/aiobotocore
       dependencies:
@@ -259,7 +258,6 @@ suites:
             compatibility:
               aiobotocore-latest: {}
   aiohttp:
-    runner: uv
     pattern: ^aiohttp$
     venvs_per_job: 3
     paths:
@@ -313,7 +311,6 @@ suites:
         - compatibility: [aiohttp-py39-py312, aiohttp-py313-plus]
           aiohttp: aiohttp-legacy-3-7
   aiohttp_jinja2:
-    runner: uv
     venvs_per_job: 6
     paths:
       - '@bootstrap'
@@ -364,7 +361,6 @@ suites:
     services:
       - mysql
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/aiomysql
       dependencies:
@@ -403,7 +399,6 @@ suites:
     services:
       - kafka
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/aiokafka/
       dependencies:
@@ -432,7 +427,6 @@ suites:
     services:
       - postgres
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/aiopg
       dependencies:
@@ -453,7 +447,6 @@ suites:
             compatibility:
               aiopg: {}
   algoliasearch:
-    runner: uv
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -484,7 +477,6 @@ suites:
     services:
       - redis
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/aredis
       dependencies:
@@ -506,7 +498,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     pattern: asgi$
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/asgi
       dependencies:
@@ -534,7 +525,6 @@ suites:
     snapshot: true
     services:
       - postgres
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/asyncpg
       dependencies:
@@ -577,7 +567,6 @@ suites:
       - '@tracing'
       - tests/contrib/asynctest/*
     pattern: asynctest$
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/asynctest/
       dependencies:
@@ -586,7 +575,6 @@ suites:
         - asynctest==0.13.0
       python: ['3.9']
   avro:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -613,7 +601,6 @@ suites:
       - tests/contrib/aws_lambda/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/aws_lambda
       dependencies:
@@ -636,7 +623,6 @@ suites:
       - tests/contrib/aws_durable_execution_sdk_python/*
       - tests/snapshots/tests.{suite}.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python
       dependencies:
@@ -660,7 +646,6 @@ suites:
     services:
       - azurite
       - azurecosmosemulator
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_cosmos
       dependencies:
@@ -698,7 +683,6 @@ suites:
       KUBERNETES_SERVICE_CPU_LIMIT: '2'
       KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'      
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       dependencies:
@@ -724,7 +708,6 @@ suites:
   # the azure_functions suites don't work in the arm64 testrunner container
   # (the one that runs from scripts/ddtest on Mac OS)
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -746,7 +729,6 @@ suites:
     snapshot: true
     services:
       - azurite
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_functions
       dependencies:
@@ -772,7 +754,6 @@ suites:
     services:
       - azurite
       - azurecosmosemulator
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_functions_cosmos
       dependencies:
@@ -802,7 +783,6 @@ suites:
     services:
       - azurite
       - azureeventhubsemulator
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_functions_eventhubs
       dependencies:
@@ -830,7 +810,6 @@ suites:
       - azurite
       - azuresqledge
       - azureservicebusemulator
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_functions_servicebus
       dependencies:
@@ -854,7 +833,6 @@ suites:
     services:
       - azuresqledge
       - azureservicebusemulator
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/azure_servicebus
       cases:
@@ -892,7 +870,6 @@ suites:
     snapshot: true
     services:
       - localstack
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/botocore
       dependencies:
@@ -925,7 +902,6 @@ suites:
       - '@bottle'
       - tests/contrib/bottle/*
     snapshot: true
-    runner: uv
     matrix:
       dependencies:
         - WebTest
@@ -959,7 +935,6 @@ suites:
       - redis
     snapshot: true
     venvs_per_job: 1
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/celery
       dependencies:
@@ -994,7 +969,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: python -m pytest {cmdargs} tests/contrib/cherrypy
       dependencies:
@@ -1029,7 +1003,6 @@ suites:
     snapshot: true
     services:
       - consul
-    runner: uv
     matrix:
       command: pytest --no-cov {cmdargs} tests/contrib/consul
       dependencies:
@@ -1040,7 +1013,6 @@ suites:
           python-consul-gte-1-1-lt-1-2: python-consul>=1.1,<1.2
           python-consul-latest: python-consul
   datastreams:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1058,7 +1030,6 @@ suites:
       env:
         AGENT_VERSION: latest
   ddtrace_api:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1101,7 +1072,6 @@ suites:
       - memcached
       - redis
     snapshot: true
-    runner: uv
     matrix:
       dependencies:
         - requests
@@ -1231,7 +1201,6 @@ suites:
       - tests/contrib/django_hosts/django_app/*
     pattern: django:django_hosts
     snapshot: true
-    runner: uv
     matrix:
       name: django:django_hosts
       command: pytest {cmdargs} tests/contrib/django_hosts
@@ -1275,7 +1244,6 @@ suites:
       - memcached
       - redis
     snapshot: true
-    runner: uv
     matrix:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/djangorestframework
       dependencies:
@@ -1318,7 +1286,6 @@ suites:
       - tests/contrib/dogpile_cache/*
     snapshot: true
     venvs_per_job: 3
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/dogpile_cache
       dependencies:
@@ -1358,7 +1325,6 @@ suites:
       - redis
       - rabbitmq
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/dramatiq
       dependencies:
@@ -1398,7 +1364,6 @@ suites:
     services:
       - elasticsearch
     snapshot: true
-    runner: uv
     matrix:
       dependencies:
         - pytest-randomly
@@ -1502,7 +1467,6 @@ suites:
     services:
       - opensearch
     snapshot: true
-    runner: uv
     matrix:
       name: elasticsearch:opensearch
       command: pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'
@@ -1524,7 +1488,6 @@ suites:
       - tests/contrib/falcon/*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/falcon
       dependencies:
@@ -1560,7 +1523,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/fastapi
       dependencies:
@@ -1597,7 +1559,6 @@ suites:
             compatibility:
               hypothesis-latest-fastapi-latest: {}
   flask:
-    runner: uv
     env:
       TEST_MEMCACHED_HOST: memcached
       TEST_REDIS_HOST: redis
@@ -1732,7 +1693,6 @@ suites:
       - tests/contrib/gevent/*
     snapshot: false
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/gevent
       dependencies:
@@ -1791,7 +1751,6 @@ suites:
       - pubsub
     snapshot: true
     venvs_per_job: 3
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/google_cloud_pubsub
       dependencies:
@@ -1829,7 +1788,6 @@ suites:
       - tests/contrib/graphene/*
       - tests/snapshots/tests.contrib.graphene*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/graphene
       dependencies:
@@ -1864,7 +1822,6 @@ suites:
       - tests/snapshots/tests.contrib.graphql.*
     pattern: graphql$
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/graphql
       dependencies:
@@ -1887,7 +1844,6 @@ suites:
       - tests/snapshots/tests.contrib.grpc.*
     snapshot: true
     venvs_per_job: 3
-    runner: uv
     matrix:
       dependencies:
         - googleapis-common-protos
@@ -1987,7 +1943,6 @@ suites:
           env:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
   gunicorn:
-    runner: uv
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -2010,7 +1965,6 @@ suites:
           gunicorn-20-0: gunicorn==20.0.4
           gunicorn-latest: gunicorn
   httplib:
-    runner: uv
     paths:
       - '@bootstrap'
       - '@core'
@@ -2039,7 +1993,6 @@ suites:
     services:
       - httpbin
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/httpx
       dependencies:
@@ -2071,12 +2024,10 @@ suites:
       - tests/contrib/integration_registry/*
     snapshot: false
     parallelism: 1
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/integration_registry
       dependencies:
         - pip==26.2.1
-        - riot==0.22.0
         - ruamel.yaml==0.18.6
         - pytest-randomly
         - pytest-asyncio==0.23.7
@@ -2093,7 +2044,6 @@ suites:
       - '@jinja2'
       - tests/contrib/jinja2/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/jinja2
       dependencies:
@@ -2131,7 +2081,6 @@ suites:
     services:
       - kafka
     snapshot: true
-    runner: uv
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} -vv tests/contrib/kafka
       dependencies:
@@ -2167,7 +2116,6 @@ suites:
     services:
       - rabbitmq
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/kombu
       dependencies:
@@ -2195,7 +2143,6 @@ suites:
             compatibility:
               kombu-latest: {}
   logbook:
-    runner: uv
     parallelism: 1
     paths:
       - '@core'
@@ -2213,7 +2160,6 @@ suites:
           logbook-1-0: logbook~=1.0.0
           logbook-latest: logbook
   loguru:
-    runner: uv
     parallelism: 1
     paths:
       - '@core'
@@ -2240,7 +2186,6 @@ suites:
       - '@mako'
       - tests/contrib/mako/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/mako
       dependencies:
@@ -2264,7 +2209,6 @@ suites:
       - mariadb
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/mariadb
       dependencies:
@@ -2296,7 +2240,6 @@ suites:
       - tests/contrib/mlflow/*
       - tests/snapshots/tests.contrib.mlflow.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/mlflow/
       dependencies:
@@ -2316,7 +2259,6 @@ suites:
             compatibility:
               mlflow-latest: {}
   molten:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -2352,7 +2294,6 @@ suites:
     services:
       - mysql
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/mysql
       dependencies:
@@ -2394,7 +2335,6 @@ suites:
     skip: true
     services:
       - mysql
-    runner: uv
     matrix:
       name: mysqldb
       command: pytest {cmdargs} tests/contrib/mysqldb
@@ -2430,7 +2370,6 @@ suites:
       - tests/opentelemetry/*
       - tests/snapshots/tests.opentelemetry.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/opentelemetry
       dependencies:
@@ -2483,7 +2422,6 @@ suites:
           env:
             SDK_EXPORTER_INSTALLED: '1'
   protobuf:
-    runner: uv
     retry: 2
     parallelism: 1
     paths:
@@ -2517,7 +2455,6 @@ suites:
       - postgres
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       dependencies:
         - pytest-randomly
@@ -2579,7 +2516,6 @@ suites:
     services:
       - memcached
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/pylibmc
       dependencies:
@@ -2610,7 +2546,6 @@ suites:
     services:
       - memcached
     snapshot: true
-    runner: uv
     matrix:
       dependencies:
         - pytest-randomly
@@ -2635,7 +2570,6 @@ suites:
       - mongo
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/pymongo
       dependencies:
@@ -2675,7 +2609,6 @@ suites:
     services:
       - mysql
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/pymysql
       dependencies:
@@ -2701,7 +2634,6 @@ suites:
             compatibility:
               pymysql-latest: {}
   pynamodb:
-    runner: uv
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -2726,7 +2658,6 @@ suites:
           pynamodb-5: pynamodb<6.0
   pytorch:
     venvs_per_job: 1
-    skip_pip_cache: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -2735,7 +2666,6 @@ suites:
       - '@pytorch'
       - tests/contrib/pytorch/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/pytorch
       cases:
@@ -2784,7 +2714,6 @@ suites:
       - '@dbapi'
       - tests/contrib/pyodbc/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/pyodbc
       dependencies:
@@ -2814,7 +2743,6 @@ suites:
       - tests/contrib/pyramid/*
       - tests/snapshots/tests.contrib.pyramid.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/pyramid
       dependencies:
@@ -2845,7 +2773,6 @@ suites:
             compatibility:
               pyramid-latest-legacy-cgi-latest: {}
   ray:
-    runner: uv
     parallelism: 3
     # Ray 2.47+ mistakes scripts/run-tests' uv bootstrap for the driver environment.
     # Keep workers in the suite's prebuilt venv instead of propagating the runner venv.
@@ -2870,7 +2797,6 @@ suites:
           ray-2-46: ray[default]~=2.46.0
           ray-2-54: ray[default]~=2.54.1
   ray_serve:
-    runner: uv
     parallelism: 6
     # Ray 2.47+ mistakes scripts/run-tests' uv bootstrap for the driver environment.
     # Keep workers in the suite's prebuilt venv instead of propagating the runner venv.
@@ -2912,7 +2838,6 @@ suites:
       - rediscluster
       - redis
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/redis
       dependencies:
@@ -2952,7 +2877,6 @@ suites:
             compatibility:
               redis-latest-pytest-asyncio-latest: {}
   rediscluster:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -2975,7 +2899,6 @@ suites:
           redis-py-cluster-2-0: redis-py-cluster>=2.0,<2.1
           redis-py-cluster-latest: redis-py-cluster
   requests:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -3020,7 +2943,6 @@ suites:
     services:
       - redis
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/rq
       dependencies:
@@ -3056,7 +2978,6 @@ suites:
       - tests/snapshots/tests.contrib.sanic.*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/sanic
       dependencies:
@@ -3127,7 +3048,6 @@ suites:
       - tests/snapshots/tests.contrib.snowflake.*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/snowflake
       dependencies:
@@ -3158,7 +3078,6 @@ suites:
             compatibility:
               snowflake-connector-python-latest: {}
   sourcecode:
-    runner: uv
     retry: 2
     parallelism: 1
     paths:
@@ -3188,7 +3107,6 @@ suites:
       - postgres
       - mysql
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/sqlalchemy
       dependencies:
@@ -3231,7 +3149,6 @@ suites:
       - tests/contrib/starlette/*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/starlette
       dependencies:
@@ -3311,7 +3228,6 @@ suites:
       - tests/snapshots/tests.contrib.sqlite3*
     pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
     snapshot: true
-    runner: uv
     matrix:
       dependencies:
         - pytest-randomly
@@ -3389,7 +3305,6 @@ suites:
       - '@structlog'
       - tests/contrib/structlog/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/structlog
       dependencies:
@@ -3400,7 +3315,6 @@ suites:
           structlog-20-2-0: structlog~=20.2.0
           structlog-latest: structlog
   subprocess:
-    runner: uv
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -3416,7 +3330,6 @@ suites:
       dependencies:
         - pytest-randomly
   logging:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -3443,7 +3356,6 @@ suites:
       - '@futures'
       - tests/contrib/tornado/*
     snapshot: true
-    runner: uv
     matrix:
       command: python -m pytest {cmdargs} tests/contrib/tornado
       dependencies:
@@ -3487,7 +3399,6 @@ suites:
     services:
       - httpbin
     snapshot: true
-    runner: uv
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3
       dependencies:
@@ -3532,7 +3443,6 @@ suites:
       - '@vertica'
       - tests/contrib/vertica/*
     skip: true # Vertica tests are flaky
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/vertica/
       dependencies:
@@ -3543,7 +3453,6 @@ suites:
           vertica-python-gte-0-6-0-lt-0-7-0: vertica-python>=0.6.0,<0.7.0
           vertica-python-gte-0-7-0-lt-0-8-0: vertica-python>=0.7.0,<0.8.0
   wsgi:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -3579,7 +3488,6 @@ suites:
     services:
       - redis
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/yaaredis
       dependencies:
@@ -3616,7 +3524,6 @@ suites:
       - valkeycluster
       - valkey
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/valkey
       dependencies:

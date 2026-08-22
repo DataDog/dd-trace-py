@@ -1,4 +1,4 @@
-name: Update riot lockfiles
+name: Update test locks
 
 on:
   workflow_dispatch: # can be triggered manually
@@ -6,8 +6,8 @@ on:
     - cron: "0 0 * * *" # daily at midnight
 
 jobs:
-  update-riot-lockfiles:
-    name: Update riot lockfiles
+  update-test-locks:
+    name: Update test locks
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     runs-on: ubuntu-22.04
     outputs:
@@ -79,26 +79,8 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - name: Compute supply-chain cooldown cutoff
-        id: cooldown
-        run: |
-          # TEST-CD (APMLP-1362): forward a cutoff 48h in the past to riot's
-          # uv pip compile backend so transitive deps younger than the
-          # cooldown can't be pulled into a regenerated lockfile.
-          CUTOFF=$(date -u -d "2 days ago" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
-                   || python -c "import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
-          echo "cutoff=${CUTOFF}" >> "$GITHUB_OUTPUT"
-          echo "Using exclude-newer cutoff: ${CUTOFF}"
-
-      - name: Run regenerate-riot-latest
-        env:
-          # Opt riot's `requirements` compile step into `uv pip compile` so
-          # that --exclude-newer can be forwarded for the cooldown. Older
-          # riot versions ignore both variables silently, so this is safe
-          # to set before the riot upgrade lands.
-          RIOT_PIP_COMPILE_BACKEND: "uv"
-          RIOT_PIP_COMPILE_EXCLUDE_NEWER: ${{ steps.cooldown.outputs.cutoff }}
-        run: scripts/regenerate-riot-latest.sh
+      - name: Regenerate test locks
+        run: scripts/regenerate-test-locks-latest.sh
 
       - name: Run integration registry update
         run: python scripts/integration_registry/update_and_format_registry.py
@@ -128,8 +110,8 @@ jobs:
 
   create-pull-request:
     name: Create pull request
-    needs: update-riot-lockfiles
-    if: needs.update-riot-lockfiles.outputs.changed == 'true'
+    needs: update-test-locks
+    if: needs.update-test-locks.outputs.changed == 'true'
     runs-on: ubuntu-22.04
     permissions:
       actions: read
@@ -166,14 +148,14 @@ jobs:
         with:
           token: ${{ steps.octo-sts.outputs.token }}
           sign-commits: true
-          branch: "upgrade-latest-${{ needs.update-riot-lockfiles.outputs.venv_name }}-version"
+          branch: "upgrade-latest-${{ needs.update-test-locks.outputs.venv_name }}-version"
           commit-message: "Update package version"
           delete-branch: true
           base: main
-          title: "chore: update ${{ needs.update-riot-lockfiles.outputs.venv_name }} latest version to ${{ needs.update-riot-lockfiles.outputs.new_latest }}"
+          title: "chore: update ${{ needs.update-test-locks.outputs.venv_name }} latest version to ${{ needs.update-test-locks.outputs.new_latest }}"
           labels: changelog/no-changelog
           body: |
-            Update ${{ needs.update-riot-lockfiles.outputs.venv_name }} lockfiles and dependency package lockfiles.
+            Update ${{ needs.update-test-locks.outputs.venv_name }} lockfiles and dependency package lockfiles.
             This performs the following updates:
-              1) Some ${{ needs.update-riot-lockfiles.outputs.venv_name }} lockfiles use ${{ needs.update-riot-lockfiles.outputs.venv_name }} `latest`. This will update ${{ needs.update-riot-lockfiles.outputs.venv_name }} and dependencies.
-              2) Some ${{ needs.update-riot-lockfiles.outputs.venv_name }} lockfiles use a pinned (non-latest) version of ${{ needs.update-riot-lockfiles.outputs.venv_name }}, but require the `latest` version of another package. This will update all such packages.
+              1) Some ${{ needs.update-test-locks.outputs.venv_name }} locks use ${{ needs.update-test-locks.outputs.venv_name }} `latest`. This updates that package and its dependencies.
+              2) Some locks pin ${{ needs.update-test-locks.outputs.venv_name }} but use the latest version of another package. This updates those dependencies.

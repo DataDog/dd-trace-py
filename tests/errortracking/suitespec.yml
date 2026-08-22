@@ -5,7 +5,6 @@ components:
     - ddtrace/internal/settings/errortracking.py
 suites:
   errortracker:
-    runner: uv
     parallelism: 1
     paths:
       - '@errortracking'

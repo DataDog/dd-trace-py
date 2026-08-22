@@ -193,7 +193,7 @@ class PackageForTesting:
         env = {}
         env.update(os.environ)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
-        # doesn't work correctly with riot environment and python packages path
+        # doesn't work correctly with the test environment's Python package path
         proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
         proc.wait()
 

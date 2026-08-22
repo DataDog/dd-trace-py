@@ -30,6 +30,7 @@ releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
+.uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
@@ -108,11 +109,6 @@ tests/commands/                     @DataDog/python-guild  @DataDog/apm-core-pyt
 tests/contrib/django/django1_app/urls.py @DataDog/python-guild
 tests/contrib/flask/app.py         @DataDog/python-guild
 tests/contrib/suitespec.yml         @DataDog/python-guild
-tests/environment.py                @DataDog/python-guild
-tests/lock.py                       @DataDog/python-guild
-tests/locks/**                      @DataDog/python-guild
-tests/matrix.py                     @DataDog/python-guild
-tests/riot_adapter.py               @DataDog/python-guild
 tests/smoke_test.py                 @DataDog/python-guild
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.yml                 @DataDog/python-guild
@@ -132,11 +128,6 @@ docs/                               @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
-tests/internal/test_lock.py                  @DataDog/python-guild
-tests/internal/test_matrix.py                @DataDog/python-guild
-tests/internal/test_riot_adapter.py          @DataDog/python-guild
-tests/internal/test_run_tests_script.py      @DataDog/python-guild
-tests/internal/test_test_environment.py      @DataDog/python-guild
 tests/lib-injection                 @DataDog/apm-core-python
 
 # Test Visibility and related

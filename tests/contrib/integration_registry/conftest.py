@@ -1,16 +1,13 @@
 import json
 from pathlib import Path
 import re
-from typing import Any
 from typing import cast
 
 import pytest
 import yaml
 
-import riotfile
-from tests.matrix import expand_suite_matrix
-from tests.suitespec import get_matrix_defaults
-from tests.suitespec import get_suites
+from tests.suitespec import TestEnvironment as _TestEnvironment
+from tests.suitespec import get_test_environments
 
 
 @pytest.fixture(scope="module")
@@ -151,42 +148,15 @@ def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
 
 
 @pytest.fixture(scope="module")
-def riot_venvs() -> Any:
-    """Gets all Venv defined in riotfile.py."""
-    return riotfile.venv.venvs  # type: ignore[attr-defined]
+def test_environments() -> tuple[_TestEnvironment, ...]:
+    return tuple(
+        environment for environments in get_test_environments(nightly=False).values() for environment in environments
+    )
 
 
 @pytest.fixture(scope="module")
-def riot_venv_names() -> set[str]:
-    """Finds all Venv names defined in riotfile.py."""
-
-    names: set[str] = set()
-    nodes_to_visit: list[Any] = [riotfile.venv]  # type: ignore[attr-defined]
-
-    while nodes_to_visit:
-        current_node = nodes_to_visit.pop()
-        if hasattr(current_node, "name") and isinstance(current_node.name, str):
-            names.add(current_node.name)
-
-        if hasattr(current_node, "venvs") and isinstance(current_node.venvs, list):
-            nodes_to_visit.extend(current_node.venvs)
-
-    if not names:
-        pytest.fail("No integration Venv names found in riotfile.venv structure.")
-    return names
-
-
-@pytest.fixture(scope="module")
-def test_environment_names(riot_venv_names: set[str]) -> set[str]:
-    """Find integration names covered by either Riot or declarative uv environments."""
-    defaults = get_matrix_defaults()
-    uv_names = {
-        environment.name
-        for suite, config in get_suites().items()
-        if config.get("runner") == "uv"
-        for environment in expand_suite_matrix(suite, config, defaults, nightly=False)
-    }
-    return riot_venv_names | uv_names
+def test_environment_names(test_environments: tuple[_TestEnvironment, ...]) -> set[str]:
+    return {environment.name for environment in test_environments}
 
 
 @pytest.fixture(scope="module")

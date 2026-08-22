@@ -6,7 +6,6 @@ components:
     - ddtrace/internal/settings/exception_replay.py
 suites:
   debugger:
-    runner: uv
     parallelism: 1
     paths:
       - '@debugging'

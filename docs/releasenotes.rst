@@ -125,9 +125,9 @@ Bad — leaks internal root cause and mechanism instead of the symptom::
 Generating a Release Note
 -------------------------
 
-You can generate a release note with the command line tool ``reno`` via ``riot``::
+You can generate a release note with the command line tool ``reno`` in the test container::
 
-    $ riot run reno new <title-slug>
+    $ scripts/ddtest reno new <title-slug>
 
 The ``<title-slug>`` is used as the prefix for a new file created in ``releasenotes/notes``.
 The ``<title-slug>`` is used internally and is not visible in the the product documentation.

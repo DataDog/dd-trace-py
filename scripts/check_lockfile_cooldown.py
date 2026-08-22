@@ -2,8 +2,8 @@
 """Validate that pinned releases in test lockfiles are past the cooldown.
 
 The concrete uv resolver excludes packages uploaded in the last 48 hours.
-This checker remains as defense in depth for both the new uv locks and the
-Riot locks retained during the migration. It queries PyPI for each unique
+This checker remains as defense in depth for uv locks and retained legacy
+Riot locks. It queries PyPI for each unique
 pin and fails when a release is younger than the policy permits.
 
 The intent matches the cross-language cooldown standard documented in
@@ -13,7 +13,7 @@ Usage:
 
     python scripts/check_lockfile_cooldown.py [--cooldown-days 2] [PATH ...]
 
-PATH defaults to tests/locks/**/*.txt and .riot/requirements/*.txt.
+PATH defaults to .uv/*.txt and .riot/requirements/*.txt.
 """
 
 import argparse
@@ -29,7 +29,7 @@ import urllib.error
 import urllib.request
 
 
-# Keep this in sync with scripts/freshvenvs.py and tests/lock.py.
+# Keep this in sync with scripts/freshvenvs.py and scripts/test-env.
 COOLDOWN_DAYS = 2
 
 # Matches the name==version form in requirements-style locks. Anchored to the
@@ -59,7 +59,7 @@ _PYPI_SKIP = {
 
 
 def _default_lockfiles() -> list[pathlib.Path]:
-    uv_locks = pathlib.Path("tests/locks").rglob("*.txt")
+    uv_locks = pathlib.Path(".uv").glob("*.txt")
     riot_locks = pathlib.Path(".riot/requirements").glob("*.txt")
     return sorted((*uv_locks, *riot_locks))
 

@@ -962,7 +962,7 @@ class TestPydanticAIAgentManifest:
         assert manifest["model_settings"] == {"top_p": 0.9}
 
     def test_mcp_servers_are_named_but_never_addressed(self, pydantic_ai):
-        """MCP capture, which no other test reaches: the mcp extra is in none of the riot venvs.
+        """MCP capture, which no other test reaches: the mcp extra is in no other test environment.
 
         No URI is emitted, so a server address cannot carry a credential onto the wire.
         """

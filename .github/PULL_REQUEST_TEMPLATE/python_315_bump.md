@@ -15,13 +15,13 @@ This PR enables the **`<integration>`** integration on Python 3.15.
 <!-- One-paragraph summary of the upstream blocker and what changed.
      Example: "Bumps `tiktoken` to 0.x.y, which adds Python 3.15 wheels
      (https://github.com/openai/tiktoken/releases/tag/x.y). Lifts the
-     `max_version="3.13"` cap on the `<integration>` venv in riotfile.py." -->
+     Python 3.13 cap in the `<integration>` suitespec matrix." -->
 
 ## Checklist
 
-- [ ] Bumped upstream pin in `riotfile.py` to a version that supports Python 3.15
-- [ ] Lifted `max_version="3.13"` / `"3.14"` cap on the affected venv(s) (if present)
-- [ ] Ran `riot generate <suite-pattern>` and committed the regenerated `.riot/requirements/*.txt` lockfiles
+- [ ] Bumped the upstream pin in suitespec to a version that supports Python 3.15
+- [ ] Added Python 3.15 to the affected matrix cases where supported
+- [ ] Ran `scripts/test-env lock <suite>` and committed the regenerated `.uv/*.txt` locks
 - [ ] Ran the suite locally on 3.15 via `scripts/run-tests <suite>` (paste a link or summary of the result)
 - [ ] Updated `supported_versions.json` if integration min/max versions changed
 - [ ] Release note added under `releasenotes/notes/`, **or** PR labeled `changelog/no-changelog` (test/CI-only changes)

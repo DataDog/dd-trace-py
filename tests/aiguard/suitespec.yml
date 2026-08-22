@@ -17,7 +17,6 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 1
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/aiguard/api/
       dependencies:
@@ -36,7 +35,6 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/aiguard/langchain/
       dependencies:
@@ -81,7 +79,6 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/aiguard/openai/
       dependencies:
@@ -118,7 +115,6 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/aiguard/anthropic/
       dependencies:
@@ -150,7 +146,6 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 1
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/aiguard/strands_hooks/
       dependencies:
@@ -167,7 +162,6 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
       dependencies:

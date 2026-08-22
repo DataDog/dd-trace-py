@@ -31,8 +31,6 @@ components:
     - docker-compose.base.yml
     - docker-compose.podman.yml
     - docker-compose.yml
-    - riotfile.py
-    - .riot/requirements/*
     - scripts/ddtest
     - scripts/test-env
     - pyproject.toml
@@ -41,11 +39,7 @@ components:
     - tests/__init__.py
     - tests/suitespec.yml
     - tests/suitespec.py
-    - tests/environment.py
-    - tests/lock.py
-    - tests/locks/**/*.txt
-    - tests/matrix.py
-    - tests/riot_adapter.py
+    - .uv/*.txt
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py
@@ -184,7 +178,6 @@ components:
     - ddtrace/vendor/*
 suites:
   build_docs:
-    runner: uv
     type: helper
     paths:
       - docs/*
@@ -210,7 +203,6 @@ suites:
       env:
         DD_TRACE_ENABLED: 'false'
   smoke_test:
-    runner: uv
     type: helper
     paths:
       - '@core'
@@ -219,7 +211,6 @@ suites:
       python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
       command: python tests/smoke_test.py {cmdargs}
   reno:
-    runner: uv
     type: helper
     install_project: false
     paths:
@@ -232,7 +223,6 @@ suites:
         - reno
         - PyYAML>=6.0.1
   crashtracker:
-    runner: uv
     venvs_per_job: 6
     paths:
       - '@crashtracker'
@@ -259,7 +249,6 @@ suites:
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
   conftest:
-    runner: uv
     parallelism: 1
     paths:
       - 'conftest.py'
@@ -273,7 +262,6 @@ suites:
       env:
         DD_CIVISIBILITY_FLAKY_RETRY_ENABLED: '0'
   ddtracerun:
-    runner: uv
     parallelism: 3
     paths:
       - '@contrib'
@@ -291,7 +279,6 @@ suites:
         - gevent
         - pytest-randomly
   detect_global_locks:
-    runner: uv
     venvs_per_job: 1
     paths:
       - 'ddtrace/*'
@@ -325,7 +312,6 @@ suites:
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
-    runner: uv
     matrix:
       dependencies:
         - msgpack
@@ -357,7 +343,6 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
     snapshot: true
-    runner: uv
     matrix:
       dependencies:
         - msgpack
@@ -382,12 +367,10 @@ suites:
     paths:
       - '@contrib'
       - scripts/integration_registry/*
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/integration_registry
       dependencies:
         - pip==26.2.1
-        - riot==0.22.0
         - ruamel.yaml==0.18.6
         - pytest-randomly
         - pytest-asyncio==0.23.7
@@ -395,7 +378,6 @@ suites:
         - jsonschema
       python: ['3.13']
   internal:
-    runner: uv
     retry: 2
     venvs_per_job: 2
     paths:
@@ -447,7 +429,6 @@ suites:
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
   wrapping:
-    runner: uv
     venvs_per_job: 6
     paths:
       - '@core'
@@ -468,7 +449,6 @@ suites:
           wrapt-1:
             dependencies: wrapt<2.0.0
   lib_injection:
-    runner: uv
     paths:
       - '@bootstrap'
       - '@core'
@@ -486,7 +466,6 @@ suites:
         - "pip==26.2.1; python_version >= '3.10'"
         - pytest-randomly
   runtime:
-    runner: uv
     paths:
       - '@bootstrap'
       - '@core'
@@ -501,7 +480,6 @@ suites:
         - msgpack
         - pytest-randomly
   openfeature:
-    runner: uv
     parallelism: 1
     paths:
       - '@openfeature'
@@ -521,7 +499,6 @@ suites:
           openfeature-latest:
             dependencies: openfeature-sdk
   telemetry:
-    runner: uv
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -556,7 +533,6 @@ suites:
             - werkzeug<2.0
             - markupsafe<2.0
   tracer:
-    runner: uv
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
@@ -623,7 +599,6 @@ suites:
             command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
             dependencies: uwsgi
   wait:
-    runner: uv
     type: helper
     paths:
       - tests/wait-for-services.py
@@ -648,7 +623,6 @@ suites:
         AGENT_VERSION: testagent
         DD_TRACE_AGENT_URL: http://testagent:9126
   vendor:
-    runner: uv
     parallelism: 1
     paths:
       - '@vendor'

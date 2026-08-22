@@ -1,3 +1,15 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "packaging>=23.1,<26",
+#     "pip>=25,<26",
+#     "pyyaml>=6,<7",
+#     "ruamel.yaml>=0.17.21",
+# ]
+# ///
+
 import argparse
 from collections import defaultdict
 import datetime as dt
@@ -7,38 +19,35 @@ from io import StringIO
 import json
 import pathlib
 import sys
-from typing import Any
 from typing import Optional
 
+from packaging.requirements import Requirement
 from packaging.version import Version
 from pip import _internal
 
 
-# add project root to path to import riotfile, and scripts/ to import integration_registry
+# Add project root and integration-registry helpers to the import path.
 sys.path.append(str(pathlib.Path(__file__).parent.parent.resolve()))
 sys.path.append(str(pathlib.Path(__file__).parent.resolve() / "integration_registry"))
 
 from mappings import DEPENDENCY_TO_INTEGRATION_MAPPING  # noqa: I001,E402
 from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: I001,E402
 
-import riotfile  # noqa: I001,E402
+from tests.suitespec import TestEnvironment  # noqa: I001,E402
+from tests.suitespec import get_test_environments  # noqa: I001,E402
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
-LATEST = ""
 
 # Supply-chain hardening (TEST-CD, APMLP-1362): when deciding whether the
 # packages we test against are "outdated" with respect to PyPI, we ignore
 # any release that was published less than COOLDOWN_DAYS ago. This prevents
-# the daily "update riot lockfiles" workflow from pulling in a freshly
+# the daily test-lock update workflow from pulling in a freshly
 # published (and potentially compromised) version before the broader
 # community / security tooling has had a chance to flag it.
 #
 # 2 days = 48h matches the cross-language cooldown standard documented in
 # the supply-chain hardening epic (APMLP-1343).
 COOLDOWN_DAYS = 2
-
-supported_versions = []
-pinned_packages = set()
 
 
 class Capturing(list):
@@ -58,7 +67,7 @@ class Capturing(list):
 
 def parse_args():
     """
-    usage: python scripts/freshvenvs.py <output>
+    usage: scripts/freshvenvs.py <output>
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("mode", choices=["output"], help="mode: output")
@@ -80,78 +89,34 @@ def _get_contrib_modules() -> set[str]:
     return all_integration_names
 
 
-def _get_riot_envs_including_any(contrib_modules: set[str]) -> set[str]:
-    """Return the set of riot env hashes where each env uses at least one of the given modules"""
-    envs = set()
-    riot_requirements_dir = pathlib.Path(".riot/requirements")
-    for item in riot_requirements_dir.iterdir():
-        if item.suffix == ".txt":
-            lockfile_content = item.read_text()
-            for contrib_module in contrib_modules:
-                if contrib_module in lockfile_content or (
-                    _integration_to_dependency_mapping_contains(contrib_module, lockfile_content)
-                ):
-                    envs.add(item.stem)
-                    break
-    return envs
+def _all_test_environments() -> tuple[TestEnvironment, ...]:
+    return tuple(
+        environment for environments in get_test_environments(nightly=False).values() for environment in environments
+    )
 
 
-def _integration_to_dependency_mapping_contains(integration: str, lockfile_content: str) -> bool:
-    if integration not in INTEGRATION_TO_DEPENDENCY_MAPPING:
-        return False
-
-    for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING[integration]:
-        if dependency in lockfile_content:
-            return True
-
-    return False
+def _get_test_environments_including_any(contrib_modules: set[str]) -> tuple[TestEnvironment, ...]:
+    return tuple(
+        environment for environment in _all_test_environments() if environment.name.split(":", 1)[0] in contrib_modules
+    )
 
 
 def _get_updatable_packages_implementing(contrib_modules: set[str]) -> set[str]:
-    """Return all integrations that can be updated"""
-    all_venvs = riotfile.venv.venvs  # type: ignore[attr-defined]
-    all_venvs = _propagate_venv_names_to_child_venvs(all_venvs)
-
+    """Return integrations with an environment that tracks their latest dependency."""
     packages_setting_latest = set()
-
-    def recurse_venvs(venvs: list[Any]):
-        for venv in venvs:
-            # split venv name by ":" since some venvs are named after the integration:subintegration
-            package = venv.name.split(":")[0] if venv.name is not None else venv.name
-            # Check if the package name is an integration as all contrib venvs are named after the integration
-            if package not in contrib_modules:
-                continue
-            if not _venv_sets_latest_for_package(venv, package) and package not in packages_setting_latest:
-                pinned_packages.add(package)
-            else:
-                packages_setting_latest.add(package)
-                if package in pinned_packages:
-                    pinned_packages.remove(package)
-            recurse_venvs(venv.venvs)
-
-    recurse_venvs(all_venvs)
-
-    packages = {m for m in contrib_modules if "." not in m and m not in pinned_packages}
-    return packages
-
-
-def _propagate_venv_names_to_child_venvs(all_venvs: list[Any]) -> list[Any]:
-    """
-    Propagate the venv name to child venvs, since most child venvs in riotfile are unnamed. Since most contrib
-    venvs are nested within each other, we will get a consistent integration name for each venv / child venv. Also
-    lowercase the package names to ensure consistent lookups.
-    """
-
-    def _lower_pkg_names(venv: Any):
-        venv.pkgs = {k.lower(): v for k, v in venv.pkgs.items()}
-
-    for venv in all_venvs:
-        _lower_pkg_names(venv)
-        if venv.venvs:
-            for child_venv in venv.venvs:
-                child_venv.name = venv.name
-
-    return all_venvs
+    for environment in _all_test_environments():
+        integration = environment.name.split(":", 1)[0]
+        if integration not in contrib_modules:
+            continue
+        dependencies = {
+            dependency.lower() for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING.get(integration, {integration})
+        }
+        for value in environment.direct_dependencies:
+            requirement = Requirement(value)
+            if requirement.name.lower() in dependencies and not requirement.specifier:
+                packages_setting_latest.add(integration)
+                break
+    return {package for package in packages_setting_latest if "." not in package}
 
 
 def _parse_pypi_upload_time(upload_timestamp: str) -> Optional[dt.datetime]:
@@ -248,58 +213,16 @@ def _get_version_extremes(contrib_module: str) -> tuple[Optional[str], Optional[
     return earliest_within_window, latest_after_cooldown
 
 
-def _get_riot_hash_to_venv_name() -> dict[str, str]:
-    """Get a mapping of riot hash to venv name."""
-    import re
-
-    import riot
-
-    ctx = riot.Session.from_config_file("riotfile.py")
-    old_stdout = sys.stdout
-    result = StringIO()
-    sys.stdout = result
-
-    try:
-        pattern = re.compile(r"^.*$")
-        venv_pattern = re.compile(r"^.*$")
-        ctx.list_venvs(pattern=pattern, venv_pattern=venv_pattern, pipe_mode=True)
-        output = result.getvalue()
-    finally:
-        sys.stdout = old_stdout
-
-    hash_to_name = {}
-    for line in output.splitlines():
-        match = re.match(r"\[#\d+\]\s+([a-f0-9]+)\s+(\S+)", line)
-        if match:
-            venv_hash, venv_name = match.groups()
-            hash_to_name[venv_hash] = venv_name.lower()
-    return hash_to_name
-
-
-def _get_package_versions_from(
-    env: str, contrib_modules: set[str], riot_hash_to_venv_name: dict[str, str]
-) -> list[tuple[str, str]]:
+def _get_package_versions_from(environment: TestEnvironment, contrib_modules: set[str]) -> list[tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
-    lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
+    if environment.lockfile is None:
+        return []
+    lockfile_content = environment.lockfile.read_text().splitlines()
     lock_packages = []
-    integration = None
-    dependencies: set[str] = set()
-    if riot_hash_to_venv_name.get(env):
-        venv_name = riot_hash_to_venv_name[env].split(":")[0]
-
-        def get_integration_and_dependencies(venv_name: str) -> tuple[Optional[str], set[str]]:
-            if venv_name in contrib_modules:
-                integration = venv_name
-                dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING.get(venv_name) or {integration}
-                return integration, dependencies
-            elif venv_name in DEPENDENCY_TO_INTEGRATION_MAPPING:
-                integration = DEPENDENCY_TO_INTEGRATION_MAPPING[venv_name]
-                dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING[integration]
-                return integration, dependencies
-            else:
-                return None, set()
-
-        integration, dependencies = get_integration_and_dependencies(venv_name)
+    integration = environment.name.split(":", 1)[0]
+    if integration not in contrib_modules and integration in DEPENDENCY_TO_INTEGRATION_MAPPING:
+        integration = DEPENDENCY_TO_INTEGRATION_MAPPING[integration]
+    dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING.get(integration) or {integration}
 
     for line in lockfile_content:
         package, _, versions = line.partition("==")
@@ -326,39 +249,6 @@ def _versions_fully_cover_bounds(bounds: tuple[str, str], versions: list[Version
     return versions[0] >= Version(upper_bound)
 
 
-def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
-    """
-    Returns whether the Venv for the package uses `latest` or not.
-    DFS traverse through the Venv, as it may have nested Venvs.
-
-    If the module name is in INTEGRATION_TO_DEPENDENCY_MAPPING, remap it.
-    """
-    packages = INTEGRATION_TO_DEPENDENCY_MAPPING.get(suite_name, [suite_name])
-
-    for package in packages:
-        if package in venv.pkgs:
-            if LATEST in venv.pkgs[package]:
-                return True
-
-        if venv.venvs:
-            for child_venv in venv.venvs:
-                if _venv_sets_latest_for_package(child_venv, package):
-                    return True
-    return False
-
-
-def _get_all_used_versions(envs, contrib_modules, riot_hash_to_venv_name) -> dict:
-    """
-    Returns dict(module, set(versions)) for a venv, as defined from riot lockfiles.
-    """
-    all_used_versions = defaultdict(set)
-    for env in envs:
-        versions_used = _get_package_versions_from(env, contrib_modules, riot_hash_to_venv_name)
-        for package, version in versions_used:
-            all_used_versions[package].add(version)
-    return all_used_versions
-
-
 def _get_version_bounds(contrib_modules: set[str]) -> dict:
     """
     Return dict(module: (earliest, latest)) of the module from PyPI
@@ -370,7 +260,7 @@ def _get_version_bounds(contrib_modules: set[str]) -> dict:
     return bounds
 
 
-def output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name):
+def output_outdated_packages(all_updatable_contribs, environments, bounds):
     """
     Output a list of package names that can be updated.
     """
@@ -381,8 +271,8 @@ def output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_
         bounds[contrib_module] = (earliest, latest)
 
     all_used_versions = defaultdict(set)
-    for env in envs:
-        versions_used = _get_package_versions_from(env, all_updatable_contribs, riot_hash_to_venv_name)
+    for environment in environments:
+        versions_used = _get_package_versions_from(environment, all_updatable_contribs)
         for pkg, version in versions_used:
             all_used_versions[pkg].add(version)
 
@@ -402,11 +292,10 @@ def main():
     parse_args()
     contribs = _get_contrib_modules()
     all_updatable_contribs = _get_updatable_packages_implementing(contribs)  # MODULE names
-    riot_hash_to_venv_name = _get_riot_hash_to_venv_name()
-    envs = _get_riot_envs_including_any(contribs)
+    environments = _get_test_environments_including_any(contribs)
 
     bounds = _get_version_bounds(contribs)
-    output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name)
+    output_outdated_packages(all_updatable_contribs, environments, bounds)
 
 
 if __name__ == "__main__":

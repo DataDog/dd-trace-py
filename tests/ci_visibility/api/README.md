@@ -20,15 +20,15 @@ tests.
 
 #### Manually
  
-1. Set up (and activate) an environment (eg: using `pip install ddtrace` or `riot shell`)
+1. Set up and activate an environment with `ddtrace` installed.
 1. Run the script:
    1. Set expected environment variables (eg: `DD_API_KEY` and `DD_CIVISIBILITY_AGENTLESS_ENABLED`)
    1. Run the script, eg: `python tests/ci_visibility/api/fake_runner_all_pass.py`
 
 #### As tests
 
-1. Choose a `riot` environment (eg: using `riot list ci_visibility`)
+1. List the available environments with `scripts/test-env list ci_visibility`.
 1. Make sure the `testagent` is running (refer to contributor docs again)
-1. Run the test(s) (note: you may want to pass `-s` `riot run` to speed up tests)
-   1. All tests: `riot -v run 1b90fc9 -- -k FakeApiRunnersSnapshotTestCase`
-   1. Individual test: `riot -v run 1b90fc9 -- -k test_manual_api_fake_runner_mix_fail_itr_test_level` 
+1. Run the selected environment:
+   1. All tests: `scripts/run-tests --suite ci_visibility --venv <environment-id> -- -k FakeApiRunnersSnapshotTestCase`
+   1. Individual test: `scripts/run-tests --suite ci_visibility --venv <environment-id> -- -k test_manual_api_fake_runner_mix_fail_itr_test_level`

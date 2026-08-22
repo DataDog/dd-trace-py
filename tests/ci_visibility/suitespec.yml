@@ -31,7 +31,6 @@ suites:
       - '@testing'
       - tests/ci_visibility/*
     pattern: 'ci_visibility$'
-    runner: uv
     matrix:
       command: pytest --ddtrace -n auto --dist=worksteal {cmdargs} tests/ci_visibility --ignore=tests/ci_visibility/api/test_api_fake_runners.py
       dependencies:
@@ -58,7 +57,6 @@ suites:
       - tests/snapshots/test_api_fake_runners.*
     snapshot: true
     pattern: 'ci_visibility:snapshot'
-    runner: uv
     matrix:
       command: pytest --ddtrace {cmdargs} tests/ci_visibility/api/test_api_fake_runners.py
       dependencies:
@@ -77,7 +75,6 @@ suites:
       - '@dd_coverage'
       - tests/coverage/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest --no-cov {cmdargs} tests/coverage -s
       python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
@@ -97,7 +94,6 @@ suites:
       - tests/contrib/internal/coverage/*
     snapshot: true
     pattern: 'pytest$'
-    runner: uv
     matrix:
       command: pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/contrib/pytest/ --ignore=tests/contrib/pytest/snapshot/
       dependencies:
@@ -154,7 +150,6 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
     pattern: 'pytest:snapshot'
-    runner: uv
     matrix:
       command: pytest {cmdargs} --ddtrace tests/contrib/pytest/snapshot/
       dependencies:
@@ -201,7 +196,6 @@ suites:
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py
       dependencies:
@@ -226,7 +220,6 @@ suites:
       - tests/contrib/internal/coverage/*
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py
       dependencies:
@@ -266,7 +259,6 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
     pattern: 'pytest:flaky'
-    runner: uv
     matrix:
       name: pytest:flaky
       command: pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py
@@ -290,7 +282,6 @@ suites:
       - tests/testing/*
       - tests/contrib/internal/coverage/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/testing/
       dependencies:
@@ -344,7 +335,6 @@ suites:
     snapshot: true
     services:
       - selenium-chrome
-    runner: uv
     matrix:
       name: selenium-pytest
       command: pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium
@@ -365,7 +355,6 @@ suites:
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/unittest/
       dependencies:

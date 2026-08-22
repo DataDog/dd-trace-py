@@ -19,7 +19,6 @@ suites:
       - tests/profiling/*
     pattern: profile$
     retry: 2
-    runner: uv
     matrix:
       command: python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling
       dependencies:
@@ -91,7 +90,6 @@ suites:
       - tests/profiling/*
     pattern: profile-uwsgi
     retry: 2
-    runner: uv
     matrix:
       command: python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py
       dependencies:
@@ -125,7 +123,6 @@ suites:
       - tests/profiling/*
     pattern: profile-memalloc
     retry: 2
-    runner: uv
     matrix:
       command: python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
       dependencies:

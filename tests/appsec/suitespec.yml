@@ -29,7 +29,6 @@ suites:
     pattern: appsec$
     retry: 2
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/appsec/appsec/
       dependencies:
@@ -50,7 +49,6 @@ suites:
     retry: 2
     snapshot: true
     timeout: 30m
-    runner: uv
     matrix:
       command: pytest -v -n auto --dist=worksteal {cmdargs} tests/appsec/iast/
       dependencies:
@@ -95,7 +93,6 @@ suites:
       - tests/appsec/iast_memcheck/*
     retry: 2
     timeout: 30m
-    runner: uv
     matrix:
       command: pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/
       dependencies:
@@ -123,7 +120,6 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: uv
     matrix:
       command: cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking && make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests && ddtrace/appsec/_iast/_taint_tracking/tests/native_tests
       dependencies:
@@ -141,7 +137,6 @@ suites:
     paths:
       - '@appsec_iast'
       - 'tests/appsec/iast_aggregated_memcheck/*'
-    runner: uv
     matrix:
       command: pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py
       dependencies:
@@ -162,7 +157,6 @@ suites:
       - tests/appsec/app.py
       - tests/appsec/appsec_utils.py
     timeout: 50m
-    runner: uv
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs}  -vvv -rxf tests/appsec/iast_packages/
       dependencies:
@@ -190,7 +184,6 @@ suites:
       - tests/appsec/appsec_utils.py
     retry: 2
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/appsec/iast_tdd_propagation/
       dependencies:
@@ -222,7 +215,6 @@ suites:
       - tests/snapshots/tests.appsec.*
     retry: 2
     snapshot: true
-    runner: uv
     matrix:
       command: bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh tests/appsec/integrations/pygoat_tests/
       dependencies:
@@ -258,7 +250,6 @@ suites:
     services:
       - postgres
       - mysql
-    runner: uv
     matrix:
       command: pytest -v tests/appsec/integrations/packages_tests/
       dependencies:
@@ -289,7 +280,6 @@ suites:
       - '@appsec'
       - tests/appsec/integrations/stripe_tests/*
     retry: 2
-    runner: uv
     matrix:
       command: 'pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ '
       dependencies:
@@ -313,7 +303,6 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/
       dependencies:
@@ -366,7 +355,6 @@ suites:
     # test_appsec_flask_telemetry.py asserts on payloads received by the test agent.
     snapshot: true
     timeout: 15m
-    runner: uv
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/test_iast_flask.py tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       dependencies:
@@ -419,7 +407,6 @@ suites:
     services:
       - testagent
     timeout: 40m
-    runner: uv
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/ --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       dependencies:
@@ -466,7 +453,6 @@ suites:
     services:
       - testagent
     timeout: 30m
-    runner: uv
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/
       dependencies:
@@ -551,7 +537,6 @@ suites:
     retry: 2
     services:
       - testagent
-    runner: uv
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/
       dependencies:
@@ -612,7 +597,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
       dependencies:
@@ -676,7 +660,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
       dependencies:
@@ -742,7 +725,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django_RC {cmdargs}
       dependencies:
@@ -771,7 +753,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
       dependencies:
@@ -827,7 +808,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
       dependencies:
@@ -884,7 +864,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI_RC {cmdargs}
       dependencies:
@@ -913,7 +892,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
       dependencies:
@@ -968,7 +946,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
       dependencies:
@@ -1025,7 +1002,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask_RC {cmdargs}
       dependencies:
@@ -1054,7 +1030,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
       dependencies:
@@ -1100,7 +1075,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
       dependencies:
@@ -1148,7 +1122,6 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: uv
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado_RC {cmdargs}
       dependencies:
@@ -1171,7 +1144,6 @@ suites:
       - '@urllib'
       - tests/appsec/iast/taint_sinks/test_ssrf.py
     skip: true  # TODO: No environment available
-    runner: uv
     matrix:
       name: urllib3
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3
@@ -1208,7 +1180,6 @@ suites:
             compatibility:
               urllib3-4: {}
   webbrowser:
-    runner: uv
     paths:
       - '@bootstrap'
       - '@core'
@@ -1226,7 +1197,6 @@ suites:
       - tests/appsec/sca/*
     retry: 2
     venvs_per_job: 1
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/appsec/sca/
       dependencies:

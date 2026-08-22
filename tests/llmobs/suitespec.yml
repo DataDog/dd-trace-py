@@ -48,7 +48,6 @@ suites:
       - tests/contrib/anthropic/*
       - tests/snapshots/tests.contrib.anthropic.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/anthropic
       dependencies:
@@ -81,7 +80,6 @@ suites:
       - tests/contrib/claude_agent_sdk/*
       - tests/snapshots/tests.contrib.claude_agent_sdk.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/claude_agent_sdk/
       dependencies:
@@ -104,7 +102,6 @@ suites:
       - '@llmobs'
       - tests/contrib/google_adk/*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/google_adk
       dependencies:
@@ -129,7 +126,6 @@ suites:
       - tests/contrib/google_genai/*
       - tests/snapshots/tests.contrib.google_genai.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/google_genai
       dependencies:
@@ -148,7 +144,6 @@ suites:
       - tests/contrib/vertexai/*
       - tests/snapshots/tests.contrib.vertexai.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
       dependencies:
@@ -168,7 +163,6 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       dependencies:
@@ -195,7 +189,6 @@ suites:
       - tests/contrib/langchain/*
       - tests/snapshots/tests.contrib.langchain.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest -v {cmdargs} tests/contrib/langchain
       dependencies:
@@ -255,7 +248,6 @@ suites:
       - tests/snapshots/tests.contrib.litellm.*
     snapshot: true
     venvs_per_job: 1
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/litellm
       dependencies:
@@ -295,7 +287,6 @@ suites:
       - tests/cassettes/tests.llmobs.*
     snapshot: true
     venvs_per_job: 1
-    runner: uv
     matrix:
       dependencies:
         - pytest-xdist
@@ -349,7 +340,6 @@ suites:
       - tests/snapshots/tests.contrib.mcp.*
     snapshot: true
     venvs_per_job: 5
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/mcp
       dependencies:
@@ -372,7 +362,6 @@ suites:
       - tests/cassettes/mistral/*
       - tests/snapshots/tests.contrib.mistralai.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/mistralai
       dependencies:
@@ -396,7 +385,6 @@ suites:
       - tests/snapshots/tests.contrib.openai.*
     pattern: ^openai$
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/openai
       dependencies:
@@ -438,7 +426,6 @@ suites:
       - tests/contrib/langgraph/*
     snapshot: true
     venvs_per_job: 4
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/langgraph
       dependencies:
@@ -477,7 +464,6 @@ suites:
       - tests/contrib/crewai/*
       - tests/snapshots/tests.contrib.crewai.*
     snapshot: true
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/crewai
       dependencies:
@@ -501,7 +487,6 @@ suites:
       - tests/snapshots/tests.contrib.openai_agents.*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/openai_agents
       dependencies:
@@ -545,7 +530,6 @@ suites:
       - tests/snapshots/tests.contrib.pydantic_ai.*
     snapshot: true
     venvs_per_job: 2
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/pydantic_ai
       dependencies:
@@ -589,7 +573,6 @@ suites:
     gpu: true
     snapshot: true
     skip: true # Temporarily disabled
-    runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
       dependencies:
