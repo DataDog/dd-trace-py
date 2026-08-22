@@ -1,0 +1,117 @@
+# Allowlist of external-reference literals that the `external-refs-lint` job
+# permits even though they are not centralized in `.gitlab/external-refs.yml`.
+#
+# Format: each line is `<file>:<line> <justification>` or `<file>:* <justification>`.
+# `<file>:*` whitelists every line in the file. Lines starting with `#` are comments.
+#
+# Prefer fixing the underlying file (use a variable from external-refs.yml)
+# over adding entries here. New entries should describe WHY the literal cannot
+# be replaced. See docs/github-org-migration-audit.md.
+
+# ===== Files exempt by design =====
+# These files exist to enumerate or define external references. They will not
+# be scanned at all by check-external-refs.py (see EXEMPT_FILES there), but we
+# document the policy here for code reviewers.
+#
+#   .gitlab/external-refs.yml                 — the registry itself
+#   .gitlab/external-refs.allowlist.txt       — this file
+#   .gitlab/services.yml                      — pure registry of service-container
+#                                                images (every line is
+#                                                `name: registry.ddbuild.io/...`)
+#   .github/chainguard/*.yaml                 — STS policies pin GitLab/GitHub
+#                                                paths by design
+#   docs/github-org-migration-audit.md        — the audit doc lists every ref
+
+
+# ===== Public OSS Datadog GitHub repos (no migration risk expected) =====
+# These repos are open source and are expected to remain on `Datadog/`.
+# If that assumption changes, update the audit doc and these references.
+#
+# .github/workflows/system-tests.yml is auto-managed by
+# `scripts/update-system-tests-version.py` and the SHA pins are bumped
+# via plain string substitution, so the line numbers here remain stable
+# across version bumps. If the file structure changes, re-run
+# `python scripts/check-external-refs.py` and update these entries.
+
+.gitlab/system-tests.yml:50 OSS DataDog/system-tests, expected to stay public
+.github/workflows/system-tests.yml:76 OSS DataDog/datadog-lambda-python checkout
+.github/workflows/system-tests.yml:98 OSS DataDog/system-tests reusable workflow (serverless)
+.github/workflows/system-tests.yml:129 OSS DataDog/system-tests reusable workflow (integration-frameworks)
+.github/workflows/system-tests.yml:141 OSS DataDog/system-tests reusable workflow (tracer-release)
+
+
+# ===== Internal benchmarking platform =====
+# `DataDog/benchmarking-platform` is internal but is currently fetched from a
+# public mirror at github.com via internal CI token; the URL rewrite in
+# microbenchmarks.yml reroutes it through gitlab.ddbuild.io.
+
+.gitlab/benchmarks/microbenchmarks.yml:36 URL rewrite for internal benchmarking-platform clone
+.gitlab/benchmarks/microbenchmarks.yml:38 internal benchmarking-platform clone (rerouted via insteadOf)
+.gitlab/benchmarks/microbenchmarks.yml:93 dd-trace-py.git URL set as origin in benchmarking script
+.gitlab/benchmarks/microbenchmarks.yml:176 URL rewrite for internal benchmarking-platform clone
+.gitlab/benchmarks/microbenchmarks.yml:178 internal benchmarking-platform clone (rerouted via insteadOf)
+.gitlab/benchmarks/microbenchmarks.yml:189 URL rewrite for internal benchmarking-platform clone (upload-results path)
+.gitlab/benchmarks/macrobenchmarks.yml:61 internal benchmarking-platform clone via gitlab.ddbuild.io
+
+
+# ===== CodeQL scan =====
+# scripts/codeql_scan.sh sets up the gitlab.ddbuild.io URL rewrite and clones
+# DataDog/codescanning (internal). Both remain hardcoded for now; the audit
+# doc tracks them.
+
+scripts/codeql_scan.sh:10 URL rewrite for internal codescanning clone
+scripts/codeql_scan.sh:11 internal DataDog/codescanning clone (rerouted via insteadOf)
+
+
+# ===== Wrapper composite actions =====
+# `.github/actions/<wrapper>/action.yml` files reference `DataDog/<action>@<sha>`
+# upstream — that is exactly what the wrappers exist to centralize. They are
+# NOT allowlisted with `:*` anymore; instead, `check-external-refs.py` applies
+# the stricter `wrapper-uses-not-sha-pinned` pattern to wrapper files, which
+# requires every `uses:` line to be SHA-pinned (40 hex chars). A tag or branch
+# ref like `@v1.0.4` or `@main` slipped into a wrapper would fail lint.
+
+
+# ===== Cross-project GitLab `include:` directives =====
+# `include: - project:` is resolved at YAML parse time (before `variables:`
+# is applied), so these cannot be replaced with $EXT_GITLAB_* variables.
+# See the comment block at the bottom of .gitlab/external-refs.yml.
+
+.gitlab/benchmarks/macrobenchmarks.yml:8 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
+.gitlab/benchmarks/macrobenchmarks.yml:10 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
+.gitlab/benchmarks/microbenchmarks.yml:2 include of DataDog/benchmarking-platform-tools (cannot use variable in `include:`)
+
+
+# ===== Internal `registry.ddbuild.io` image references =====
+# These are pre-existing image refs in CI configs. They are pre-approved for
+# the current state of the repo. Any NEW `registry.ddbuild.io/...` reference
+# must either replace one of these (and update the line numbers below) or be
+# added here with a justification. The migration audit (APMLP-1185) is the
+# canonical inventory of internal endpoints; see docs/github-org-migration-audit.md.
+
+.gitlab-ci.yml:22 PROFILING_NATIVE_IMAGE base for the profiling-native job
+.gitlab-ci.yml:265 code-scanning image for the codeql-scan job
+.gitlab-ci.yml:335 mirror/python image for the package-version helper
+.gitlab-ci.yml:343 mirror/ubuntu image for the codeowners job
+.gitlab-ci.yml:547 dd-octo-sts-ci-base image for the prof-correctness trigger
+.gitlab-ci.yml:582 lib-injection image for the lib_injection_tests job
+.gitlab-ci.yml:677 mirror/ubuntu image for the test-dd-sts job
+.gitlab/benchmarks/microbenchmarks.yml:18 PACKAGE_IMAGE (manylinux2014_x86_64) for benchmarks
+.gitlab/benchmarks/microbenchmarks.yml:19 GITHUB_CLI_IMAGE (dd-octo-sts-ci-base) for benchmarks
+.gitlab/benchmarks/serverless.yml:2 SLS_CI_IMAGE for the serverless-tools trigger
+.gitlab/fuzz.yml:3 FUZZ_IMAGE registry path (fuzz pipeline)
+.gitlab/fuzz.yml:5 FUZZ_BASE_IMAGE (fuzz pipeline)
+.gitlab/fuzz.yml:10 mirror/docker image for the fuzz pipeline
+.gitlab/multi-os-tests.yml:12 mirror/ubuntu image for the multi-os-tests job
+.gitlab/native.yml:27 profiling-native image for native unit tests
+.gitlab/package.yml:2 IMAGE_BASE_URL for all dd-trace-py CI builder images
+.gitlab/package.yml:61 mirror/aws-cli image for wheel uploads
+.gitlab/package.yml:288 WINDOWS_BUILD_IMAGE for build-windows
+.gitlab/package.yml:300 dd-octo-sts-ci-base for download-win_arm64-wheels job
+.gitlab/package.yml:325 mirror/python image for download_dependency_wheels
+.gitlab/package.yml:391 mirror/python image for package version detection
+.gitlab/package.yml:413 mirror/python image for ddtrace-package validation
+.gitlab/package.yml:430 mirror/python image for ddtrace-package serverless validation
+.gitlab/release.yml:2 PYPI_PUBLISH_IMAGE (mirror/python)
+.gitlab/system-tests.yml:5 mirror/docker image for the system-tests-base template
+.gitlab/testrunner.yml:2 TESTRUNNER_IMAGE — the main CI test runner image

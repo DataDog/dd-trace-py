@@ -189,3 +189,27 @@ Making a New GitHub Release
 6. Click the the green “Publish release” button on the draft release. Double check that you have the correct check boxes checked and unchecked
     based on the release you’re about to publish. Wait for build and publish to succeed.
     The GitHub release will trigger the GitLab workflow that builds wheels and publishes to PyPI.
+
+
+Infrastructure Dependencies
+---------------------------
+
+The release pipeline depends on several pieces of Datadog-internal infrastructure
+whose names are tied to organization and project paths: the internal GitLab project
+path (``DataDog/apm-reliability/dd-trace-py``), Chainguard STS policies under
+``.github/chainguard/``, ``dd-octo-sts`` token scopes (e.g. ``--scope DataDog/dd-trace-py``),
+internal endpoints under ``*.ddbuild.io``, and several Datadog-org GitHub Actions
+referenced from workflows in ``.github/workflows/``.
+
+If any of these names change — for example, as part of the
+`GitHub organization split <https://datadoghq.atlassian.net/browse/APMLP-1185>`_
+that moves Datadog-internal code to the ``ddoghq`` organization — the release
+pipeline will fail in subtle ways: tokens will not mint, ``git clone`` rewrites
+will silently reroute to nonexistent paths, and reusable workflows will become
+unreachable from this public repo.
+
+Before adding a new external reference (a new ``Datadog/...`` GitHub Action,
+a new ``gitlab.ddbuild.io/...`` clone, a new ``--scope`` argument, or a new
+``registry.ddbuild.io/...`` image), record it in
+`docs/github-org-migration-audit.md <https://github.com/DataDog/dd-trace-py/blob/main/docs/github-org-migration-audit.md>`_.
+The audit document is the inventory used by DevEx to plan the migration runbook.
