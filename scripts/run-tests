@@ -430,7 +430,12 @@ class TestRunner:
         command_env["VIRTUAL_ENV"] = str(venv)
         return command_env
 
-    def _uv_build_commands(self, environment: TestEnvironment, forwarded_env: dict[str, str]) -> tuple[list[str], ...]:
+    def _uv_build_commands(
+        self,
+        environment: TestEnvironment,
+        forwarded_env: dict[str, str],
+        skip_ddtrace_install: bool,
+    ) -> tuple[list[str], ...]:
         if environment.lockfile is None:
             raise ValueError(f"uv environment has no lockfile: {environment.suite}/{environment.id}")
         lockfile = self.root / environment.lockfile
@@ -441,13 +446,21 @@ class TestRunner:
         venv = self._uv_execution_path(environment)
         python = venv / "bin/python"
         command_env = self._uv_command_environment(environment, forwarded_env)
-        install_project = environment.install_project and (
-            not self.in_ci or os.environ.get("DD_TEST_INSTALL_DDTRACE") == "1"
+        install_project = environment.install_project and not skip_ddtrace_install
+        reuse_base = environment.install_project and skip_ddtrace_install
+        base_environment_config = replace(
+            environment, suite="smoke_test", id=f"smoke-test-py{environment.python.replace('.', '')}"
         )
-        reuse_artifact = environment.install_project and not install_project
-        base_environment = self.root / self._uv_environment_path(
-            replace(environment, suite="smoke_test", id=f"smoke-test-py{environment.python.replace('.', '')}")
-        )
+        base_environment = self._uv_execution_path(base_environment_config)
+        base_environment_on_host = self.root / self._uv_environment_path(base_environment_config)
+        if reuse_base and environment.suite == "smoke_test":
+            raise ValueError("the smoke_test suite builds the base environment and cannot reuse itself")
+        if reuse_base and not base_environment_on_host.is_dir():
+            raise ValueError(
+                f"base environment does not exist: {base_environment}; "
+                f"build it with scripts/run-tests --suite smoke_test "
+                f"--venv smoke-test-py{environment.python.replace('.', '')}"
+            )
         commands = [
             self._ddtest_command(
                 [
@@ -484,7 +497,7 @@ class TestRunner:
                     command_env,
                 )
             )
-        elif reuse_artifact:
+        elif reuse_base:
             commands.append(
                 self._ddtest_command(
                     ["cp", "-R", f"{base_environment}/.", str(venv)],
@@ -503,7 +516,7 @@ class TestRunner:
         ]
         if excludes_ddtrace:
             lock_command.append("--no-deps")
-        if reuse_artifact:
+        if reuse_base:
             lock_command.append("--reinstall")
         commands.append(
             self._ddtest_command(
@@ -551,6 +564,7 @@ class TestRunner:
         environments: list[TestEnvironment],
         forwarded_env: dict[str, str],
         test_args: list[str],
+        skip_ddtrace_install: bool,
         dry_run: bool,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
@@ -562,7 +576,7 @@ class TestRunner:
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
-                build_commands = self._uv_build_commands(environment, build_env)
+                build_commands = self._uv_build_commands(environment, build_env, skip_ddtrace_install)
             except ValueError as error:
                 print(f"❌ {error}")
                 return False
@@ -610,6 +624,7 @@ class TestRunner:
         self,
         selected_environments: list[TestEnvironment],
         test_args: list[str] | None = None,
+        skip_ddtrace_install: bool = False,
         dry_run: bool = False,
     ) -> bool:
         """Execute the selected environments with per-suite service management."""
@@ -683,7 +698,9 @@ class TestRunner:
             forwarded_env = {key: env[key] for key in suite_env}
             if needs_testagent:
                 forwarded_env["DD_TRACE_AGENT_URL"] = env["DD_TRACE_AGENT_URL"]
-            suite_success = self._run_uv_suite(environments, forwarded_env, test_args or [], dry_run)
+            suite_success = self._run_uv_suite(
+                environments, forwarded_env, test_args or [], skip_ddtrace_install, dry_run
+            )
 
             # Stop services for this suite
             if suite_services and not self.in_ci:
@@ -824,6 +841,9 @@ Examples:
   # Show what would be run without executing
   scripts/run-tests --dry-run
 
+  # Reuse a base environment that was already built for this Python version
+  scripts/run-tests -s --suite contrib::requests --venv requests-py311-requests-latest
+
   # Pass additional arguments to pytest
   scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
         """,
@@ -836,6 +856,13 @@ Examples:
     )
 
     parser.add_argument("--dry-run", action="store_true", help="Show what would be run without executing")
+
+    parser.add_argument(
+        "-s",
+        "--skip-ddtrace-install",
+        action="store_true",
+        help="Reuse the prebuilt ddtrace base environment for the selected Python version",
+    )
 
     parser.add_argument(
         "--all-suites", action="store_true", help="Show all available suites regardless of file changes"
@@ -878,7 +905,12 @@ Examples:
             print(f"❌ {error}")
             return 1
 
-        success = runner.run_tests(environments_with_suite, test_args=test_args, dry_run=args.dry_run)
+        success = runner.run_tests(
+            environments_with_suite,
+            test_args=test_args,
+            skip_ddtrace_install=args.skip_ddtrace_install,
+            dry_run=args.dry_run,
+        )
         return 0 if success else 1
 
     # Normal flow: determine which files to check
@@ -927,7 +959,12 @@ Examples:
     selected_environments = runner.interactive_environment_selection(matching_suites)
 
     # Execute tests
-    success = runner.run_tests(selected_environments, test_args=test_args, dry_run=args.dry_run)
+    success = runner.run_tests(
+        selected_environments,
+        test_args=test_args,
+        skip_ddtrace_install=args.skip_ddtrace_install,
+        dry_run=args.dry_run,
+    )
 
     return 0 if success else 1
 

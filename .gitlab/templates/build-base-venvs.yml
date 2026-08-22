@@ -39,7 +39,7 @@ build_base_venvs:
       export PIP_PRE=true
     fi
     echo "Running smoke tests"
-    DD_TEST_INSTALL_DDTRACE=1 scripts/run-tests --suite smoke_test --venv "smoke-test-py${{PYTHON_VERSION//./}}"
+    scripts/run-tests --suite smoke_test --venv "smoke-test-py${{PYTHON_VERSION//./}}"
     sccache --show-stats || true
   artifacts:
     name: venv_$PYTHON_VERSION
