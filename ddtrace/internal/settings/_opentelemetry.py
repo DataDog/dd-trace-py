@@ -26,12 +26,12 @@ def _default_headers(config: "ExporterConfig", signal_endpoint_env_var: str) -> 
     return config.HEADERS
 
 
-def _default_protocol(config: "ExporterConfig") -> str:
+def _default_protocol(config: "ExporterConfig", signal_endpoint_env_var: str = "") -> str:
     """The protocol to fall back on when no signal-specific one is set.
 
-    Agentless overrides the gRPC default: the intake is https only.
+    Agentless to our intake overrides the gRPC default because the intake speaks https only.
     """
-    if agentless_config.enabled and "OTEL_EXPORTER_OTLP_PROTOCOL" not in env:
+    if _targets_agentless_intake(signal_endpoint_env_var) and "OTEL_EXPORTER_OTLP_PROTOCOL" not in env:
         return "http/protobuf"
     return config.PROTOCOL
 
@@ -53,7 +53,7 @@ def _derive_logs_endpoint(config: "ExporterConfig"):
 
 
 def _derive_logs_protocol(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", _default_protocol(config))
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", _default_protocol(config, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"))
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
@@ -70,7 +70,10 @@ def _derive_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _derive_metrics_protocol(config: "ExporterConfig"):
-    return get_config(["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"], _default_protocol(config))
+    return get_config(
+        ["OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "OTEL_EXPORTER_OTLP_PROTOCOL"],
+        _default_protocol(config, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"),
+    )
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
