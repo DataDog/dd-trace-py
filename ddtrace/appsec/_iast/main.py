@@ -25,6 +25,7 @@ Supported vulnerability types include:
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_tainting_patch
+from ddtrace.appsec._iast._taint_tracking.aspects import urllib_parse_quote_from_bytes_aspect
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
 from ddtrace.appsec._iast.secure_marks import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks import sqli_sanitizer
@@ -77,8 +78,9 @@ def patch_iast():
     # propagation
     if asm_config._iast_propagation_enabled:
         json_tainting_patch()
-
         iast_funcs = WrapFunctonsForIAST()
+
+        iast_funcs.wrap_function("urllib.parse", "quote_from_bytes", urllib_parse_quote_from_bytes_aspect)
 
         _apply_custom_security_controls(iast_funcs)
 

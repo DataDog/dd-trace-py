@@ -1776,7 +1776,7 @@ Lorem Ipsum Foobar
                 _iast_request_sampling=100.0,
             )
         ):
-            resp = self.client.get("/unvalidated_redirect/?url=http://localhost:8080/malicious")
+            resp = self.client.get("/unvalidated_redirect/?url=http://localhost:8080/redirect%20target")
             assert resp.status_code == 302
             assert b"Redirecting..." in resp.data
 
@@ -1784,15 +1784,20 @@ Lorem Ipsum Foobar
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
             loaded = load_iast_report(root_span)
+            assert len(loaded["vulnerabilities"]) == 1
             assert loaded["sources"] == [
-                {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
+                {
+                    "origin": "http.request.parameter",
+                    "name": "url",
+                    "value": "http://localhost:8080/redirect target",
+                }
             ]
 
             get_line_and_hash("test_flask_unvalidated_redirect", VULN_UNVALIDATED_REDIRECT, filename=TEST_FILE_PATH)
             vulnerability = loaded["vulnerabilities"][0]
             assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
             assert vulnerability["evidence"] == {
-                "valueParts": [{"source": 0, "value": "http://localhost:8080/malicious"}]
+                "valueParts": [{"source": 0, "value": "http://localhost:8080/redirect target"}]
             }
             # TODO: This test fails in the CI in some scenarios with with this location:
             #  {'spanId': 2149503346182698386, 'path': 'tests/contrib/flask/__init__.py', 'line': 21, 'method': 'open'}

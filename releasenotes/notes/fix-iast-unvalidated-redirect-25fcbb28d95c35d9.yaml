@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    IAST: Fixes an issue where duplicate unvalidated redirect vulnerabilities are reported.
