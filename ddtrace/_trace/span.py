@@ -240,13 +240,17 @@ class Span(SpanData):
         self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
-    def set_tag(self, key: str, value: Optional[str] = None) -> None:
-        """Set a tag key/value pair on the span."""
+    def set_tag(self, key: str, value: Any = None) -> None:
+        """Set a tag key/value pair on the span.
+
+        Boolean and bytes values are stored as their string representation.
+        ``int`` and ``float`` values are stored as metrics (see ``set_metric``).
+        """
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
         if key == net.TARGET_PORT:
             try:
-                value = int(value)  # type: ignore
+                value = int(value)
             except (ValueError, TypeError):
                 pass
 
@@ -261,14 +265,14 @@ class Span(SpanData):
         elif key == SERVICE_VERSION_KEY:
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
-            self._set_attribute(VERSION_KEY, value)  # type: ignore[arg-type]
+            self._set_attribute(VERSION_KEY, value)
         elif key == _SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
-                value = 1  # type: ignore
+                value = 1
 
-            self.set_metric(key, value)  # type: ignore[arg-type]  # ast-grep-ignore: span-set-metric
+            self.set_metric(key, value)  # ast-grep-ignore: span-set-metric
             return
 
         if isinstance(key, bytes):
@@ -278,7 +282,7 @@ class Span(SpanData):
             value = str(value)
 
         try:
-            self._set_attribute(key, value)  # type: ignore[arg-type]
+            self._set_attribute(key, value)
         except Exception:
             log.warning("error setting tag %s, ignoring it", key, exc_info=True)
 
