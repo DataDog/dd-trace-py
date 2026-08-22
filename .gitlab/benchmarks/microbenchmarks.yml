@@ -18,6 +18,8 @@ variables:
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
   BENCHMARKING_BRANCH: dd-trace-py
   BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
+  # Known flaky benchmarks
+  FLAKY_BENCHMARKS_REGEX: "^iastaspects-(casefold_aspect|casefold_noaspect|lower_aspect|upper_noaspect|ljust_noaspect|swapcase_aspect|translate_aspect|translate_noaspect|index_aspect|replace_aspect|title_noaspect)$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^telemetryaddmetric-record-100-metrics$|^span-start$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
 
 .benchmarks:
   stage: test
@@ -218,7 +220,7 @@ check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
   # Temporary override while benchmarking platform updates their template
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:6845f3c7
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:16a75e4d
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: tests-gen
