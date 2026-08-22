@@ -1141,6 +1141,11 @@ static PyTypeObject PeriodicThreadType = {
 };
 
 // ----------------------------------------------------------------------------
+// Per-thread timeout for atexit joins, in seconds. If a thread's on_shutdown
+// callback or final periodic() call takes longer than this, we give up waiting
+// and move on so the process can exit.
+static constexpr double AT_EXIT_JOIN_TIMEOUT = 2.0;
+
 /**
  * Module-level atexit handler: sets the at_exit flag so all threads stop making
  * Python VM calls.
@@ -1172,18 +1177,18 @@ _threads_at_exit(PyObject* module, PyObject* Py_UNUSED(args))
                     Py_DECREF(result);
             }
 
-            // Join all threads.
+            // Join all threads with a timeout to prevent hanging on exit.
+            auto timeout = std::chrono::milliseconds((long long)(AT_EXIT_JOIN_TIMEOUT * 1000));
             for (Py_ssize_t i = 0; i < n; i++) {
                 PyObject* thread = PyList_GET_ITEM(threads, i);
                 if (thread == NULL) {
                     PyErr_SetString(PyExc_RuntimeError, "Failed to get periodic thread from state");
                     break;
                 }
-                PyObject* result = PeriodicThread_join((PeriodicThread*)thread, NULL, NULL);
-                if (result == NULL)
-                    PyErr_Clear();
-                else
-                    Py_DECREF(result);
+                PeriodicThread* pt = (PeriodicThread*)thread;
+
+                AllowThreads _(state);
+                pt->_stopped->wait(timeout);
             }
 
             Py_DECREF(threads);
