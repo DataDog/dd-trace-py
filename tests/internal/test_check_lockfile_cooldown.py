@@ -95,6 +95,18 @@ def test_collect_pins_deduplicates_across_lockfiles(cooldown_mod, tmp_path):
     assert sorted(p.name for p in pins[("attrs", "26.1.0")]) == ["b.txt", "lockfile.txt"]
 
 
+def test_default_lockfiles_include_uv_and_riot_locks(cooldown_mod, tmp_path, monkeypatch):
+    uv_lock = tmp_path / ".uv/contrib-example--example-py311.txt"
+    riot_lock = tmp_path / ".riot/requirements/abcdef0.txt"
+    uv_lock.parent.mkdir(parents=True)
+    riot_lock.parent.mkdir(parents=True)
+    uv_lock.write_text("attrs==26.1.0\n")
+    riot_lock.write_text("attrs==26.1.0\n")
+    monkeypatch.chdir(tmp_path)
+
+    assert cooldown_mod._default_lockfiles() == [riot_lock.relative_to(tmp_path), uv_lock.relative_to(tmp_path)]
+
+
 def test_check_pin_flags_too_fresh(cooldown_mod):
     now = dt.datetime(2026, 5, 20, 10, 0, 0, tzinfo=dt.timezone.utc)
     uploaded = now - dt.timedelta(hours=12)

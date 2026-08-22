@@ -2,9 +2,11 @@
 
 import os
 import subprocess
+import sys
 import typing as t
 from unittest.mock import Mock
 
+from _pytest.pytester import Pytester
 import pytest
 
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
@@ -18,6 +20,20 @@ pytest_plugins = ["pytester"]
 
 
 @pytest.fixture(autouse=True)
+def suppress_editable_finder_rewrite_warning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the loaded editable finder out of nested pytest result counts."""
+    if not any(name.startswith("__editable___ddtrace_") and name.endswith("_finder") for name in sys.modules):
+        return
+
+    inline_run = Pytester.inline_run
+
+    def run_with_filter(self: Pytester, *args: t.Any, **kwargs: t.Any) -> t.Any:
+        return inline_run(self, "-W", "ignore:Module already imported so cannot be rewritten", *args, **kwargs)
+
+    monkeypatch.setattr(Pytester, "inline_run", run_with_filter)
+
+
+@pytest.fixture(autouse=True)
 def clear_ci_itr_rollout_env() -> None:
     clear_itr_rollout_env()
 
@@ -28,7 +44,7 @@ def set_env() -> None:
     Make sure that we don't send inner tests to Datadog.
     """
     os.environ["DD_API_KEY"] = "test-key"
-    # The riotfile enables out-of-session retries globally (_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED=1)
+    # Suitespec enables out-of-session retries globally (_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED=1).
     # for dd-trace-py's own test runs. These plugin tests drive the plugin via pytester.inline_run,
     # which shares this process's environment, so we force OSR off here and let the OSR tests opt in explicitly
     # (see test_pytest_osr.py).

@@ -123,16 +123,16 @@ Note: The ``--all`` option also removes build artifacts (egg-info, dist, .eggs, 
 Omitting it removes Rust targets and native extensions (``.so``, ``.dylib``) only.
 
 
-ModuleNotFoundError when running tests with riot
-================================================
+ModuleNotFoundError when running tests
+=======================================
 If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``
 
-Your base virtual environment was likely created without a package.
-Remove all the ``.riot/venv*``  directories and run the tests without the -s option.
+The selected uv environment may be stale or its lock may not include the package.
+Remove its directory under ``.cache/uv-test-environments`` and run it again:
 
-``scripts/ddtest DD_TRACE_AGENT_URL=http://localhost:9126 riot -v run -p3.12 --pass-env <integration_name>``
+``scripts/run-tests --suite <suite> --venv <environment-id>``
 
-This will re-create all your virtual environments and hopefully install package in the correct venv.
+If the dependency declaration changed, regenerate that suite with ``scripts/test-env lock <suite>``.
 
 
 Still having issues?

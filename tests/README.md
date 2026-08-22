@@ -44,6 +44,7 @@ The suite schema is as follows:
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
     services: # The services to start before running the suite, defined in .gitlab/services.yml
+    matrix: # Python versions, dependencies, and test command for concrete environments
 ```
 
 For example
@@ -63,6 +64,11 @@ suites:
       - tests/profiling/*
     services:
       - redis
+    matrix:
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      command: pytest {cmdargs} tests/profiling
+      dependencies:
+        - pytest-randomly
 ```
 
 Components do not need to be declared within the same `suitespec.yml` file. They

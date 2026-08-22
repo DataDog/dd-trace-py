@@ -3,7 +3,6 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.22.0",
 #     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
 # ]
@@ -23,7 +22,6 @@ import datetime
 import hashlib
 import os
 import re
-import subprocess
 import typing as t
 
 
@@ -73,13 +71,13 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
-    skip_pip_cache: bool = False
+    suite: t.Optional[str] = None
 
     python_versions: t.Optional[set[str]] = None
 
     def __str__(self) -> str:
         lines = []
-        base = ".test_base_riot"
+        base = ".test_base"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -91,7 +89,7 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Jobs need build_base_venvs artifacts
+        # Base environment artifacts provide the native extensions for test jobs.
         lines.append("  needs:")
         lines.append("    - prechecks")
         if self.python_versions:
@@ -128,26 +126,22 @@ class JobSpec:
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
-        lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            wait_environment = ""
+            if "testagent" in wait_for:
+                wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
+            lines.append(
+                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
+                "--with-requirements .uv/wait--wait-py39.txt --no-progress "
+                f"python tests/wait-for-services.py {' '.join(wait_for)}"
+            )
 
-        env = self.env
+        env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
-            env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
-
-        suite_name = env["SUITE_NAME"]
-        env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-        )
-        if not self.skip_pip_cache:
-            lines.append("  cache:")
-            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
+        env["TEST_SUITE"] = self.suite or self.name
+        env["UV_NO_CACHE"] = '"1"'
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -181,6 +175,7 @@ class SuiteVenvInfo:
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
 _global_python_versions: set[str] = set()
+_needs_base_venvs = True
 
 # Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
 TARGET_JOBS = 200
@@ -189,51 +184,44 @@ TARGET_JOBS = 200
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
-def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
-    """Collect venv count and Python versions for multiple suites in a single pass.
-
-    Iterates riotfile.venv.instances() once and matches each instance against all
-    suite patterns simultaneously, which is much more efficient than per-suite iteration.
+def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
+    """Collect environment count and Python versions for multiple suites in a single pass.
 
     Args:
-        suite_patterns: mapping of suite name -> regex pattern string
+        suite_configs: mapping of suite name -> suite configuration
 
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    # Importing will load/evaluate the whole riotfile.py
-    import riotfile
+    from tests.suitespec import expand_suite_matrix
+    from tests.suitespec import get_matrix_defaults
 
-    compiled: dict[str, re.Pattern] = {}
-    for suite, pattern in suite_patterns.items():
-        try:
-            compiled[suite] = re.compile(pattern)
-        except re.error:
-            LOGGER.warning("Invalid pattern for suite %s: %s", suite, pattern)
-
-    venv_hashes: dict[str, set] = {s: set() for s in compiled}
-    python_versions: dict[str, set] = {s: set() for s in compiled}
-
-    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
-        if not inst.name:
-            continue
-        hint = inst.py._hint  # type: ignore[attr-defined]
-        for suite, regex in compiled.items():
-            if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
-                # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
-                if re.match(r"^3\.\d+$", hint):
-                    python_versions[suite].add(hint)
+    defaults = get_matrix_defaults()
+    environments_by_suite = {
+        suite: expand_suite_matrix(
+            suite,
+            config,
+            defaults,
+            nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true",
+        )
+        for suite, config in suite_configs.items()
+    }
 
     result: dict[str, SuiteVenvInfo] = {}
-    for suite in compiled:
-        if venv_hashes[suite]:
+    for suite, environments in environments_by_suite.items():
+        if environments:
             result[suite] = SuiteVenvInfo(
-                venv_count=len(venv_hashes[suite]),
-                python_versions=python_versions[suite],
+                venv_count=len(environments),
+                python_versions={
+                    environment.python for environment in environments if re.match(r"^3\.\d+$", environment.python)
+                },
             )
         else:
-            LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
+            LOGGER.warning(
+                "No test environments found for suite %s with pattern %s",
+                suite,
+                suite_configs[suite].get("pattern", suite),
+            )
     return result
 
 
@@ -321,7 +309,7 @@ def _scale_suites(
 
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
-    import suitespec
+    from tests import suitespec
 
     suites = suitespec.get_suites()
 
@@ -456,13 +444,13 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
+    global _needs_base_venvs
 
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
-
     # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
@@ -491,8 +479,9 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     # === PASS 1: Collect venv info for all non-skipped required suites ===
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
-    suite_patterns = {s: suites[s].get("pattern", s) for s in non_skipped}
-    suite_venv_info = collect_all_suite_venv_info(suite_patterns)
+    suite_configs = {s: suites[s] for s in non_skipped}
+    suite_venv_info = collect_all_suite_venv_info(suite_configs)
+    _needs_base_venvs = bool(non_skipped)
 
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
@@ -542,6 +531,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config = suites[suite].copy()
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
+            suite_config.pop("matrix", None)
+            suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
             jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
@@ -592,7 +583,7 @@ def gen_build_docs() -> None:
             print("  script:", file=f)
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
-            print("      riot -v run -s --pass-env build_docs", file=f)
+            print("      scripts/run-tests -s --suite build_docs --venv build-docs-py310", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
@@ -648,6 +639,11 @@ def gen_pre_checks() -> None:
         name="Check suitespec coverage",
         command="scripts/lint suitespec-check",
         paths={"*"},
+    )
+    check(
+        name="Check test locks",
+        command="scripts/test-env check",
+        paths={"**/suitespec.yml", ".uv/*", "scripts/test-env", "tests/suitespec.py"},
     )
     check(
         name="Check ddtrace error logs",
@@ -746,6 +742,10 @@ def gen_build_base_venvs() -> None:
     Only builds venvs for the Python versions actually needed by the required suites,
     falling back to all supported versions when no venv info is available.
     """
+    if not _needs_base_venvs:
+        LOGGER.info("Skipping base environments because no test suites were selected")
+        return
+
     if _global_python_versions:
         py_versions = sorted(_global_python_versions)
         LOGGER.info("Building base venvs for Python versions: %s", py_versions)
@@ -828,10 +828,9 @@ import ruamel.yaml as _ruamel_yaml  # noqa: E402
 
 _testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
 TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
-# Make the project root, scripts, and tests folders available for importing.
+# Make the project root and scripts folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
-sys.path.append(str(ROOT / "tests"))
 
 
 def template(name: str, **params):

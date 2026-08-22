@@ -1,29 +1,19 @@
 #!/usr/bin/env python3
-"""Validate that every pinned version in riot lockfiles is past the cooldown.
+"""Validate that pinned releases in test lockfiles are past the cooldown.
 
-This is the defense-in-depth half of the TEST-CD (APMLP-1362) supply-chain
-hardening work. ``scripts/freshvenvs.py`` already prevents the daily
-"update riot lockfiles" workflow from *triggering* on a too-fresh direct
-package, but once a lockfile recompile runs, riot calls
-``python -m piptools compile`` which has no native ``--exclude-newer``
-equivalent and may therefore resolve transitive dependencies to versions
-that are younger than the cooldown.
-
-This script walks one or more lockfiles (``.riot/requirements/*.txt`` by
-default), extracts every ``name==version`` pin, queries PyPI for each
-version's upload time, and exits non-zero if any pin is younger than
-``COOLDOWN_DAYS``. CI is expected to run it after
-``scripts/compile-and-prune-test-requirements`` and before creating the
-update PR.
+The concrete uv resolver excludes packages uploaded in the last 48 hours.
+This checker remains as defense in depth for uv locks and retained legacy
+Riot locks. It queries PyPI for each unique
+pin and fails when a release is younger than the policy permits.
 
 The intent matches the cross-language cooldown standard documented in
 the supply-chain hardening epic (APMLP-1343).
 
-Usage::
+Usage:
 
     python scripts/check_lockfile_cooldown.py [--cooldown-days 2] [PATH ...]
 
-PATH defaults to all ``.riot/requirements/*.txt`` lockfiles in the repo.
+PATH defaults to .uv/*.txt and .riot/requirements/*.txt.
 """
 
 import argparse
@@ -39,10 +29,10 @@ import urllib.error
 import urllib.request
 
 
-# Keep this in sync with scripts/freshvenvs.py::COOLDOWN_DAYS.
+# Keep this in sync with scripts/freshvenvs.py and scripts/test-env.
 COOLDOWN_DAYS = 2
 
-# Matches the ``name==version`` form pip-tools emits. Anchored to the
+# Matches the name==version form in requirements-style locks. Anchored to the
 # start of the line, tolerant of trailing inline comments / hash
 # specifiers / extras (e.g. ``flask[async]==3.0.0  # comment``).
 PIN_RE = re.compile(
@@ -66,6 +56,12 @@ _PYPI_SKIP = {
     "wheel",
     "pkg-resources",
 }
+
+
+def _default_lockfiles() -> list[pathlib.Path]:
+    uv_locks = pathlib.Path(".uv").glob("*.txt")
+    riot_locks = pathlib.Path(".riot/requirements").glob("*.txt")
+    return sorted((*uv_locks, *riot_locks))
 
 
 def _http_get_json(url: str, timeout: float = 30.0) -> Optional[dict]:
@@ -178,7 +174,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "paths",
         nargs="*",
         type=pathlib.Path,
-        help="Lockfile paths. Defaults to .riot/requirements/*.txt.",
+        help="Lockfile paths. Defaults to generated uv and Riot test locks.",
     )
     parser.add_argument(
         "--cooldown-days",
@@ -197,7 +193,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.paths:
         paths = [p for p in args.paths if p.suffix == ".txt"]
     else:
-        paths = sorted(pathlib.Path(".riot/requirements").glob("*.txt"))
+        paths = _default_lockfiles()
 
     if not paths:
         print("No lockfiles to check.", file=sys.stderr)

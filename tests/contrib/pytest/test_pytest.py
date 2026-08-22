@@ -138,6 +138,32 @@ class PytestTestCaseBase(TracerTestCase):
         ):
             yield
 
+    def make_xdist_conftest(self, content):
+        """Create a conftest that installs and removes settings for an xdist run."""
+        xdist_hooks = """
+import pytest
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    for xdist_patch in XDIST_PATCHES:
+        xdist_patch.start()
+    if CIVisibility.enabled:
+        CIVisibility.disable()
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_sessionstart(session):
+    configure_xdist = globals().get("configure_xdist")
+    if configure_xdist is not None:
+        configure_xdist()
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config):
+    for xdist_patch in reversed(XDIST_PATCHES):
+        xdist_patch.stop()
+"""
+        self.testdir.makeconftest(f"{content}\n{xdist_hooks}")
+
     def inline_run(
         self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None, expect_enabled=True
     ):
