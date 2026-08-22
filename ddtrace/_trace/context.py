@@ -14,8 +14,13 @@ from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import ContextData
+from ddtrace.internal.opentelemetry.sampling import normalize_otel_member
+from ddtrace.internal.opentelemetry.sampling import resolve_otel_sampling_decision
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.http import w3c_build_tracestate_members
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
+from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
+from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
 
 
 _ContextState = tuple[
@@ -33,6 +38,33 @@ _ContextState = tuple[
 _DD_ORIGIN_INVALID_CHARS_REGEX = re.compile(r"[^\x20-\x7E]+")
 
 log = get_logger(__name__)
+
+
+def _store_otel_member(meta: dict[str, str], ot_value: str) -> None:
+    tracestate = w3c_update_tracestate_list_member(meta.get(W3C_TRACESTATE_KEY, ""), "ot", ot_value or None)
+    if tracestate:
+        meta[W3C_TRACESTATE_KEY] = tracestate
+    else:
+        meta.pop(W3C_TRACESTATE_KEY, None)
+
+
+def _update_otel_sampling_decision(
+    context: "Context", sampled: bool, sample_rate: float, probabilistic_decision: bool
+) -> None:
+    """Update canonical trace-level ot= state while context._lock is held."""
+    # AIDEV-NOTE: _meta and _metrics are shared by every Context in a trace. Callers
+    # resolve ot= under that shared lock and publish sampling priority only afterwards,
+    # so injectors cannot observe a partial decision.
+    raw_tracestate = context._meta.get(W3C_TRACESTATE_KEY, "")
+    ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot")
+    resolved = resolve_otel_sampling_decision(
+        ot_value,
+        context.trace_id,
+        sampled,
+        sample_rate,
+        probabilistic_decision,
+    )
+    _store_otel_member(context._meta, resolved)
 
 
 class Context(ContextData):
@@ -64,6 +96,11 @@ class Context(ContextData):
             self._meta[_ORIGIN_KEY] = dd_origin
         if sampling_priority is not None:
             self._metrics[_SAMPLING_PRIORITY_KEY] = sampling_priority
+
+        raw_tracestate = self._meta.get(W3C_TRACESTATE_KEY, "")
+        ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot")
+        if ot_value is not None:
+            _store_otel_member(self._meta, normalize_otel_member(ot_value))
 
         if lock is not None:
             self._lock = lock
@@ -132,33 +169,47 @@ class Context(ContextData):
         # determine the trace_id value
         if tp:
             # grab the original traceparent trace id, not the converted value
-            trace_id = tp.split("-")[1]
+            trace_id = tp[3:35]
         else:
             trace_id = f"{self.trace_id:032x}"
 
-        return f"00-{trace_id}-{self.span_id:016x}-{self._traceflags}"
+        return f"00-{trace_id}-{self.span_id:016x}-{self._trace_flags:02x}"
+
+    @property
+    def _trace_flags(self) -> int:
+        tp = self._meta.get(W3C_TRACEPARENT_KEY)
+        # W3C Trace Context Level 2 requires the random trace-id flag to survive when
+        # the trace ID is continued. Other currently-reserved flags are cleared.
+        trace_flags = int(tp[53:55], 16) & 0x2 if tp else 0
+        if self.sampling_priority and self.sampling_priority > 0:
+            trace_flags |= 0x1
+        return trace_flags
 
     @property
     def _traceflags(self) -> str:
-        return "01" if self.sampling_priority and self.sampling_priority > 0 else "00"
+        return "{:02x}".format(self._trace_flags)
+
+    def _build_tracestate(self, parent_id: Optional[int] = None) -> list[str]:
+        dd_list_member = _w3c_get_dd_list_member(self)
+        if parent_id is not None:
+            parent_member = "p:{:016x}".format(parent_id)
+            dd_list_member = parent_member + (";" + dd_list_member if dd_list_member else "")
+
+        raw_tracestate = self._meta.get(W3C_TRACESTATE_KEY, "")
+        if not raw_tracestate:
+            return ["dd=" + dd_list_member] if dd_list_member else []
+        return w3c_build_tracestate_members(raw_tracestate, dd_list_member)
+
+    def _tracestate_entries(self, parent_id: Optional[int] = None) -> list[tuple[str, str]]:
+        entries = []
+        for member in self._build_tracestate(parent_id):
+            key, _, value = member.partition("=")
+            entries.append((key, value))
+        return entries
 
     @property
     def _tracestate(self) -> str:
-        dd_list_member = _w3c_get_dd_list_member(self)
-
-        # if there's a preexisting tracestate we need to update it to preserve other vendor data
-        ts = self._meta.get(W3C_TRACESTATE_KEY, "")
-        if ts and dd_list_member:
-            # cut out the original dd list member from tracestate so we can replace it with the new one we created
-            ts_w_out_dd = re.sub("dd=(.+?)(?:,|$)", "", ts)
-            if ts_w_out_dd:
-                ts = f"dd={dd_list_member},{ts_w_out_dd}"
-            else:
-                ts = f"dd={dd_list_member}"
-        # if there is no original tracestate value then tracestate is just the dd list member we created
-        elif dd_list_member:
-            ts = f"dd={dd_list_member}"
-        return ts
+        return ",".join(self._build_tracestate())
 
     @property
     def dd_origin(self) -> Optional[Text]:

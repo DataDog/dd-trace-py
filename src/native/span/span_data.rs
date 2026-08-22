@@ -145,6 +145,7 @@ fn set_default_attribute(
     slf: &Bound<'_, SpanData>,
     key: &Bound<'_, PyAny>,
     value: &Bound<'_, PyAny>,
+    excluded_key: Option<&str>,
 ) {
     let Ok(key_str) = key.cast::<PyString>() else {
         return;
@@ -152,6 +153,9 @@ fn set_default_attribute(
     let Ok(key_text) = key_str.to_str() else {
         return;
     };
+    if excluded_key == Some(key_text) {
+        return;
+    }
     if slf.borrow().attributes.contains_key(key_text) {
         return;
     }
@@ -773,16 +777,18 @@ impl SpanData {
     /// (routing str→meta, numeric→metrics). Keys that already exist are skipped.
     ///
     /// Accepts any Python dict (fast path) or mapping. Bails silently on bad input.
-    /// Used by callers that previously called `_update_tags_from_context`.
-    /// Callers handle any locking on the source dict themselves.
+    /// `excluded_key` allows propagation-only context state to be omitted without
+    /// allocating a filtered dict. Callers handle any locking on the source dict.
     #[pyo3(name = "_set_default_attributes")]
+    #[pyo3(signature = (values, excluded_key=None))]
     fn set_default_attributes(
         slf: &Bound<'_, Self>,
         values: &Bound<'_, PyAny>,
+        excluded_key: Option<&str>,
     ) -> pyo3::PyResult<()> {
         if let Ok(d) = values.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
-                set_default_attribute(slf, &k, &v);
+                set_default_attribute(slf, &k, &v, excluded_key);
             }
         } else if let Ok(m) = values.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
@@ -796,7 +802,7 @@ impl SpanData {
                     let Ok(v) = pair.get_item(1) else {
                         continue;
                     };
-                    set_default_attribute(slf, &k, &v);
+                    set_default_attribute(slf, &k, &v, excluded_key);
                 }
             }
         }

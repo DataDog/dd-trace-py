@@ -198,12 +198,11 @@ impl ContextData {
 
     // --- Cyclic GC support ---
     //
-    // `_meta`/`_metrics`/`_baggage`/`_span_links` are Python containers whose
-    // contents are arbitrary user data (e.g. a baggage value can reference
-    // something that references this Context). Without `__traverse__`/`__clear__`
-    // such a cycle is invisible to CPython's cyclic GC and leaks forever -- see
-    // the identical rationale on `SpanData`, which hit exactly this class of bug
-    // for `meta_struct`.
+    // `_meta`/`_metrics`/`_baggage`/`_span_links` are Python objects that can
+    // participate in reference cycles. Without
+    // `__traverse__`/`__clear__` such a cycle is invisible to CPython's cyclic GC
+    // and leaks forever -- see the identical rationale on `SpanData`, which hit
+    // exactly this class of bug for `meta_struct`.
     fn __traverse__(&self, visit: pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
         if let Some(d) = &self.meta {
             visit.call(d)?;

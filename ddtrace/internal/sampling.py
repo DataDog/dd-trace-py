@@ -4,9 +4,11 @@ from typing import Any
 from typing import Optional
 from typing import TypedDict
 
+from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
@@ -250,7 +252,13 @@ def _check_unsupported_pattern(string: str) -> None:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
+def _set_sampling_tags(
+    span: Span,
+    sampled: bool,
+    sample_rate: float,
+    mechanism: int,
+    probabilistic_decision: bool = True,
+) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
         span._set_sampling_decision_maker(mechanism)
@@ -270,7 +278,12 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
-    span.context.sampling_priority = priorities[priority_index]
+    # AIDEV-NOTE: Injection treats a non-None sampling priority as the publication marker for the
+    # complete decision. Materialize canonical ot= first and publish priority last under
+    # the shared trace-level lock so concurrent branches cannot propagate a partial decision.
+    with span.context:
+        _update_otel_sampling_decision(span.context, sampled, sample_rate, probabilistic_decision)
+        span.context._metrics[_SAMPLING_PRIORITY_KEY] = priorities[priority_index]
 
 
 def add_trace_source(span: Span, source: int) -> None:

@@ -15,9 +15,11 @@ from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.types import _AttributeValueType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -38,6 +40,7 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import SpanData
@@ -180,7 +183,9 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         ctx = self.context
         with ctx:
-            self._set_default_attributes(ctx._meta)
+            # AIDEV-NOTE: tracestate is propagation state, not DD-native span metadata.
+            # OTel consumers read it from Context when building SpanContext/OTLP output.
+            self._set_default_attributes(ctx._meta, W3C_TRACESTATE_KEY)
             self._set_default_attributes(ctx._metrics)
 
     def _ignore_exception(self, exc: type[BaseException]) -> None:
@@ -226,8 +231,13 @@ class Span(SpanData):
             cb(self)
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
-        self.context.sampling_priority = decision
-        self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
+        with self.context:
+            _update_otel_sampling_decision(self.context, bool(decision and decision > 0), 0.0, False)
+            if decision is None:
+                self.context._metrics.pop(_SAMPLING_PRIORITY_KEY, None)
+            else:
+                self.context._metrics[_SAMPLING_PRIORITY_KEY] = decision
+            self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 self._local_root._remove_attribute(key)

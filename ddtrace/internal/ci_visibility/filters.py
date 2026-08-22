@@ -28,7 +28,7 @@ class TraceCiVisibilityFilter(TraceFilter):
             return None
 
         local_root.context.dd_origin = ci.CI_APP_TEST_ORIGIN
-        _set_sampling_tags(local_root, True, 1.0, SamplingMechanism.DEFAULT)
+        _set_sampling_tags(local_root, True, 1.0, SamplingMechanism.DEFAULT, probabilistic_decision=False)
         for span in trace:
             span.set_tags(self._tags)
             span._set_attribute(ci.LIBRARY_VERSION, __version__)
