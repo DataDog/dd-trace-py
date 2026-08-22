@@ -25,6 +25,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_trace_metrics_enabled
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
+from ddtrace.internal.settings._opentelemetry import _targets_agentless_intake
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -1257,6 +1258,13 @@ def create_trace_writer(
         return LogWriter()
 
     otlp_metrics_endpoint = _resolve_otlp_metrics_endpoint()
+    otlp_endpoint = (
+        otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
+    )
+
+    if agentless and otlp_endpoint is not None and not _targets_agentless_intake("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"):
+        # explicit otlp endpoints take precedence
+        agentless = False
 
     if agentless:
         intake_url = compute_agentless_intake_url(config._dd_site.lower())
@@ -1288,10 +1296,6 @@ def create_trace_writer(
         )
 
     verify_url(agent_config.trace_agent_url)
-
-    otlp_endpoint = (
-        otel_config.exporter.TRACES_ENDPOINT if _is_otlp_traces_exporter_enabled(otel_config.exporter) else None
-    )
 
     return NativeWriter(
         intake_url=agent_config.trace_agent_url,

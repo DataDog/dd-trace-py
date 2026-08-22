@@ -229,26 +229,31 @@ class SessionManagerMockBuilder:
             mock_client.configuration_errors = {}
             mock_api_client.return_value = mock_client
 
-            with (
-                patch(
-                    "ddtrace.testing.internal.session_manager.get_env_tags",
-                    return_value=effective_env_tags,
-                ),
-                patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
-                patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
-                patch.dict(os.environ, effective_env),
-            ):
-                # The agentless settings resolve once at import, so refresh them against the
-                # environment just patched in -- SessionManager picks its backend connector from
-                # them during __init__.
+            try:
+                with (
+                    patch(
+                        "ddtrace.testing.internal.session_manager.get_env_tags",
+                        return_value=effective_env_tags,
+                    ),
+                    patch("ddtrace.testing.internal.session_manager.get_platform_tags", return_value={}),
+                    patch("ddtrace.testing.internal.session_manager.Git", return_value=get_mock_git_instance()),
+                    patch.dict(os.environ, effective_env),
+                ):
+                    # The agentless settings resolve once at import, so refresh them against the
+                    # environment just patched in -- SessionManager picks its backend connector from
+                    # them during __init__.
+                    reinitialize_agentless_config()
+
+                    # Create session manager
+                    test_session = MockDefaults.test_session()
+                    session_manager = SessionManager(session=test_session)
+                    session_manager.skippable_items = self._skippable_items
+
+                    return session_manager
+            finally:
+                # patch.dict has put os.environ back; resync the singleton with it so the next test
+                # does not inherit this one's agentless settings.
                 reinitialize_agentless_config()
-
-                # Create session manager
-                test_session = MockDefaults.test_session()
-                session_manager = SessionManager(session=test_session)
-                session_manager.skippable_items = self._skippable_items
-
-                return session_manager
 
 
 class TestMockBuilder:

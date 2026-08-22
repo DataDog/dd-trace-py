@@ -224,9 +224,14 @@ def _prepare_agentless_export(endpoint_env_var: str, headers_env_var: str, proto
             protocol,
         )
 
-    if not agentless_config.api_key or env.get("OTEL_EXPORTER_OTLP_HEADERS") or env.get(headers_env_var):
+    if not agentless_config.api_key:
         return
-    env[headers_env_var] = f"dd-api-key={agentless_config.api_key}"
+    # Signal-specific headers win over the global ones, so carry those over rather than drop them.
+    configured = env.get(headers_env_var) or env.get("OTEL_EXPORTER_OTLP_HEADERS") or ""
+    if "dd-api-key" in configured.lower():
+        return
+    api_key_header = f"dd-api-key={agentless_config.api_key}"
+    env[headers_env_var] = f"{configured},{api_key_header}" if configured else api_key_header
 
 
 def _initialize_logging(exporter_class, protocol, resource):
