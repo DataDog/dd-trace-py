@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where type checkers rejected valid application code passing
+    non-string values to ``Span.set_tag`` (for example ``span.set_tag("custom.tag", True)``). The
+    ``value`` parameter was annotated as ``Optional[str]``, but the implementation accepts the
+    historic domain: booleans and bytes are stringified into tags, and numeric values are stored
+    as metrics.
