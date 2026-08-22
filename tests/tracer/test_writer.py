@@ -1634,3 +1634,47 @@ def test_agent_mode_sends_stats_through_the_agent():
     writer = tracer._span_aggregator.writer
     assert writer.agentless is False
     assert writer._agentless_stats_endpoint is None
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+    }
+)
+def test_explicit_otlp_trace_endpoint_wins_over_agentless():
+    """libdatadog cannot do both, and the endpoint the user configured is the more specific ask."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_endpoint == "http://collector:4318/v1/traces"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://collector:4318/v1/traces",
+    }
+)
+def test_signal_specific_otlp_trace_endpoint_wins_over_agentless():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_endpoint == "http://collector:4318/v1/traces"
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "OTEL_TRACES_EXPORTER": "otlp"})
+def test_otlp_without_an_explicit_endpoint_still_goes_agentless():
+    """With no endpoint of their own, OTel traces follow the tracer to the span intake."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._otlp_endpoint is None
+    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com/v1/input"
