@@ -1005,6 +1005,30 @@ Agent
         v0.17.0:
         v1.7.0:
 
+   DD_AGENTLESS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Submit data directly to the Datadog intake instead of through a Datadog Agent. This
+         covers instrumentation telemetry, traces, Remote Configuration, Dynamic Instrumentation,
+         OpenTelemetry metrics and logs, crash reports, Test Optimization and LLM Observability.
+
+         ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
+         startup. ``DD_SITE`` selects the intake to submit to.
+
+         The per-product settings ``_DD_APM_TRACING_AGENTLESS_ENABLED``,
+         ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this
+         value and can each be set explicitly to override it for that product. An explicit
+         ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-specific variants, likewise keeps
+         OpenTelemetry data going to your own collector.
+
+         Health metrics are disabled in agentless mode, since they rely on the Agent. Profiling
+         and tracer flares always require an Agent.
+
+     version_added:
+        v4.13.0:
+
    DD_DOGSTATSD_URL:
      type: URL
 

@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    tracing: Adds ``DD_AGENTLESS_ENABLED`` (default ``false``), a single switch that submits all
+    telemetry, traces, Remote Configuration, Dynamic Instrumentation, crash reports, Test
+    Optimization and LLM Observability data directly to the Datadog intake instead of through a
+    local Datadog Agent. It becomes the default for the per-product agentless settings, which can
+    still be set individually to override it. ``DD_API_KEY`` is required when it is enabled.

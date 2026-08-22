@@ -1580,3 +1580,18 @@ class TestParallelInit:
         mock_client.get_test_management_properties.assert_called_once_with(
             statuses=("active", "quarantined", "disabled")
         )
+
+
+def test_build_real_with_mocks_restores_the_agentless_config() -> None:
+    """The builder reinitializes the process-wide agentless settings against its patched env.
+
+    Leaving them behind makes later tests pick a backend connector from an environment that is no
+    longer set, so the outcome depends on execution order.
+    """
+    from ddtrace.internal.settings._agentless import config as agentless_config
+
+    before = (agentless_config.enabled, agentless_config.ci_visibility, agentless_config.api_key)
+
+    session_manager_mock().build_real_with_mocks(MockDefaults.test_environment())
+
+    assert (agentless_config.enabled, agentless_config.ci_visibility, agentless_config.api_key) == before
