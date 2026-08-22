@@ -45,7 +45,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"mcp": ">=1.10.0"}
+    return {"mcp": ">=1.10.0,<2"}
 
 
 def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "ClientRequest":
