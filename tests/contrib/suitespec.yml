@@ -2351,6 +2351,7 @@ suites:
       - tests/contrib/shared_tests.py
     services:
       - mysql
+    snapshot: true
     runner: uv
     matrix:
       command: pytest {cmdargs} tests/contrib/mysql
@@ -2360,7 +2361,7 @@ suites:
         - python: ['3.9']
           axes:
             mysql-connector-python:
-              mysql-connector-python-8-0-5: mysql-connector-python==8.0.5
+              mysql-connector-python-8-0-28: mysql-connector-python~=8.0.28
               mysql-connector-python-latest: mysql-connector-python
         - python: ['3.10']
           axes:
