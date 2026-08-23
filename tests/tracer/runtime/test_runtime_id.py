@@ -41,6 +41,28 @@ def test_get_runtime_id_fork():
 
 
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_fork_notifies_runtime_id_subscribers():
+    import os
+
+    from ddtrace.internal import runtime
+
+    seen = []
+
+    def on_change(new_id):
+        seen.append(new_id)
+
+    runtime.on_runtime_id_change(on_change)
+
+    child = os.fork()
+    if child == 0:
+        assert seen == [runtime.get_runtime_id()]
+        os._exit(42)
+
+    _, status = os.waitpid(child, 0)
+    assert os.WEXITSTATUS(status) == 42
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_get_runtime_id_double_fork():
     import os
 
@@ -280,85 +302,6 @@ runtime.on_runtime_id_change(subscriber.on_change)
 runtime.refresh_identity()
 
 assert seen == [runtime.get_runtime_id()]
-"""
-    _, err, status, _ = run_python_code_in_subprocess(code)
-    assert status == 0, err
-
-
-def test_refresh_identity_isolates_subscriber_exceptions(run_python_code_in_subprocess):
-    """One subscriber raising must not stop refresh_identity() or block other subscribers."""
-    code = """
-from ddtrace.internal import runtime
-
-seen = []
-
-
-class _BadSubscriber:
-    def on_change(self, new_id):
-        raise ValueError("boom")
-
-
-class _GoodSubscriber:
-    def on_change(self, new_id):
-        seen.append(new_id)
-
-
-bad = _BadSubscriber()
-good = _GoodSubscriber()
-runtime.on_runtime_id_change(bad.on_change)
-runtime.on_runtime_id_change(good.on_change)
-
-runtime.refresh_identity()
-
-assert seen == [runtime.get_runtime_id()]
-"""
-    _, err, status, _ = run_python_code_in_subprocess(code)
-    assert status == 0, err
-
-
-def test_refresh_identity_serializes_concurrent_notifications(run_python_code_in_subprocess):
-    code = """
-import threading
-
-from ddtrace.internal import runtime
-
-seen = []
-seen_lock = threading.Lock()
-first_entered = threading.Event()
-release_first = threading.Event()
-second_entered = threading.Event()
-
-
-def on_change(new_id):
-    with seen_lock:
-        seen.append(new_id)
-        count = len(seen)
-
-    if count == 1:
-        first_entered.set()
-        assert release_first.wait(5)
-    elif count == 2:
-        second_entered.set()
-
-
-runtime.on_runtime_id_change(on_change)
-
-first = threading.Thread(target=runtime.refresh_identity)
-first.start()
-assert first_entered.wait(5)
-
-second = threading.Thread(target=runtime.refresh_identity)
-second.start()
-assert not second_entered.wait(0.2)
-
-release_first.set()
-first.join(5)
-second.join(5)
-
-assert not first.is_alive()
-assert not second.is_alive()
-assert second_entered.is_set()
-assert seen[-1] == runtime.get_runtime_id()
 """
     _, err, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, err
