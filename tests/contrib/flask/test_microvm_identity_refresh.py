@@ -3,17 +3,13 @@ import mock
 from ddtrace.contrib._events.web_framework import WebFrameworkEvents
 from ddtrace.contrib.internal.flask.patch import patched_wsgi_app
 from ddtrace.internal import core
+import ddtrace.internal.runtime as runtime
 
 from . import BaseFlaskTestCase
 
 
-REQUEST_STARTING_PATH = "/web-request-starting"
-MICROVM_RUNTIME_PREFIX = "/aws/lambda-microvms/runtime/v1"
-MICROVM_RUN_HOOK_PATH = "/run"
-
-
 class FlaskMicrovmIdentityRefreshTestCase(BaseFlaskTestCase):
-    """patched_wsgi_app() must dispatch every request's method/path before tracing starts.
+    """patched_wsgi_app() must dispatch MicroVM requests before tracing starts.
 
     The matching logic itself is tested in tests/tracer/runtime/test_runtime_id.py.
     """
@@ -27,10 +23,38 @@ class FlaskMicrovmIdentityRefreshTestCase(BaseFlaskTestCase):
             mock.patch("ddtrace.contrib.internal.flask.patch.in_aws_lambda_microvm", return_value=True),
             mock.patch("ddtrace.contrib.internal.flask.patch.core.dispatch", wraps=core.dispatch) as m,
         ):
-            res = self.client.post(REQUEST_STARTING_PATH)
+            res = self.client.post(runtime.MICROVM_RUN_HOOK_PATH)
 
         self.assertEqual(res.status_code, 404)
-        m.assert_any_call(WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", REQUEST_STARTING_PATH))
+        m.assert_any_call(WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", runtime.MICROVM_RUN_HOOK_PATH))
+
+    def test_microvm_run_hook_refreshes_identity(self):
+        event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+        core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+        runtime._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+
+        try:
+            with (
+                mock.patch("ddtrace.contrib.internal.flask.patch.in_aws_lambda_microvm", return_value=True),
+                mock.patch("ddtrace.internal.runtime.in_aws_lambda_microvm", return_value=True),
+            ):
+                runtime.listen_for_identity_refresh_hooks(core.on)
+
+                runtime_id = runtime.get_runtime_id()
+
+                res = self.client.post(runtime.MICROVM_RUN_HOOK_PATH)
+
+                self.assertEqual(res.status_code, 404)
+                refreshed_runtime_id = runtime.get_runtime_id()
+                self.assertNotEqual(refreshed_runtime_id, runtime_id)
+
+                res = self.client.post(runtime.MICROVM_RUN_HOOK_PATH)
+
+                self.assertEqual(res.status_code, 404)
+                self.assertEqual(runtime.get_runtime_id(), refreshed_runtime_id)
+        finally:
+            core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+            runtime._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
 
     def test_other_request_does_not_dispatch_outside_microvm(self):
         @self.app.route("/")
@@ -47,21 +71,24 @@ class FlaskMicrovmIdentityRefreshTestCase(BaseFlaskTestCase):
         assert all(call.args[0] != WebFrameworkEvents.WEB_REQUEST_STARTING.value for call in m.call_args_list)
 
     def test_dispatches_script_name_prefixed_request_path(self):
+        script_name, hook_name = runtime.MICROVM_RUN_HOOK_PATH.rsplit("/", 1)
+        path_info = "/" + hook_name
+
         with (
             mock.patch("ddtrace.contrib.internal.flask.patch.in_aws_lambda_microvm", return_value=True),
             mock.patch("ddtrace.contrib.internal.flask.patch.core.dispatch", wraps=core.dispatch) as m,
         ):
-            res = self.client.post(MICROVM_RUN_HOOK_PATH, environ_overrides={"SCRIPT_NAME": MICROVM_RUNTIME_PREFIX})
+            res = self.client.post(path_info, environ_overrides={"SCRIPT_NAME": script_name})
 
         self.assertEqual(res.status_code, 404)
         m.assert_any_call(
             WebFrameworkEvents.WEB_REQUEST_STARTING.value,
-            ("POST", MICROVM_RUNTIME_PREFIX + MICROVM_RUN_HOOK_PATH),
+            (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH),
         )
 
     def test_pre_request_event_dispatches_before_wsgi_middleware(self):
         events = []
-        environ = {"REQUEST_METHOD": "POST", "PATH_INFO": REQUEST_STARTING_PATH, "SCRIPT_NAME": ""}
+        environ = {"REQUEST_METHOD": "POST", "PATH_INFO": runtime.MICROVM_RUN_HOOK_PATH, "SCRIPT_NAME": ""}
 
         def start_response(status, headers, exc_info=None):
             pass

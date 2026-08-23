@@ -6,30 +6,38 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
-from ._logger import configure_ddtrace_logger
+from ._logger import configure_ddtrace_logger  # noqa: E402
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
-import ddtrace.internal.telemetry  # noqa: E402
-from ddtrace.vendor import debtcollector
+# isort: off
+import ddtrace.internal.telemetry  # noqa: F401,E402
+from ddtrace.internal.runtime import listen_for_identity_refresh_hooks  # noqa: E402,I001
+
+# isort: on
+from ddtrace.vendor import debtcollector  # noqa: E402
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
+from .internal import core as _core  # noqa: E402
 from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
-from .internal.settings import env
-from .internal.settings._config import config
+from .internal.settings import env  # noqa: E402
+from .internal.settings._config import config  # noqa: E402
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .version import __version__
+from .version import __version__  # noqa: E402
 
+
+# Register import-time hooks that depend on ddtrace.config being exported.
+listen_for_identity_refresh_hooks(_core.on)
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):
     from ddtrace.trace import tracer  # noqa: F401
 
 # Initialize DSM support and register DSM handlers (if enabled)
-import ddtrace.internal.datastreams as _  # noqa: F401
+import ddtrace.internal.datastreams as _  # noqa: F401,E402
 
 
 __all__ = [

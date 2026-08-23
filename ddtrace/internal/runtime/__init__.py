@@ -1,6 +1,7 @@
 import typing as t
 import uuid
 
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.settings import env
 
 from .. import forksafe
@@ -12,6 +13,8 @@ __all__ = [
     "get_runtime_id",
     "get_parent_runtime_id",
     "get_runtime_propagation_envs",
+    "listen_for_identity_refresh_hooks",
+    "maybe_refresh_identity",
     "refresh_identity",
 ]
 
@@ -73,6 +76,40 @@ def refresh_identity() -> None:
     other than fork().
     """
     _refresh_runtime_id()
+
+
+# Fixed platform request details for the AWS Lambda MicroVM /run lifecycle hook.
+MICROVM_RUN_HOOK_METHOD = "POST"
+MICROVM_RUN_HOOK_PATH = "/aws/lambda-microvms/runtime/v1/run"
+
+# Multiple request layers can observe the same /run hook. Refresh identity once per
+# process so a single logical MicroVM instance gets one runtime-id rotation.
+_IDENTITY_REFRESH_HOOK_REFRESHED = forksafe.Event()
+_IDENTITY_REFRESH_HOOK_REFRESH_LOCK = forksafe.Lock()
+
+
+def listen_for_identity_refresh_hooks(
+    on_event: t.Callable[[str, t.Callable[[t.Optional[str], t.Optional[str]], None]], None],
+) -> None:
+    """Refresh MicroVM identity from request events emitted before root span creation."""
+    if not in_aws_lambda_microvm():
+        return
+
+    on_event("web.request.starting", maybe_refresh_identity)
+
+
+def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
+    """Call refresh_identity() if this request is the AWS Lambda MicroVM /run hook."""
+    if not method or not path:
+        return
+    if method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
+        return
+
+    with _IDENTITY_REFRESH_HOOK_REFRESH_LOCK:
+        if _IDENTITY_REFRESH_HOOK_REFRESHED.is_set():
+            return
+        refresh_identity()
+        _IDENTITY_REFRESH_HOOK_REFRESHED.set()
 
 
 def get_runtime_id() -> str:

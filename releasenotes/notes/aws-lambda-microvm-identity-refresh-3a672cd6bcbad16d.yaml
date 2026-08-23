@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    flask: Adds support for refreshing stable identifiers, including the runtime ID and
+    Remote Config client ID, when Flask applications start in AWS Lambda MicroVM
+    environments.
