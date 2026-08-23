@@ -400,8 +400,15 @@ def finalize_asm_env(env: ASM_Environment) -> None:
                 entry_span._set_attribute(APPSEC.EVENT_RULE_ERROR_COUNT, info.failed)
             except Exception:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
-        if asm_config._rc_client_id is not None:
-            entry_span.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
+        if asm_config._rc_client_id_enabled:
+            from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+
+            # Fetch the current id from the RC client at span finalization. asm_config only
+            # tracks whether AppSec RC enabled tagging; mirroring the id there would go stale
+            # when runtime identity refresh rebuilds the RC client.
+            rc_client_id = remoteconfig_poller._client.id
+            if rc_client_id is not None:
+                entry_span.set_tag(APPSEC.RC_CLIENT_ID, rc_client_id)
         waf_adresses = env.waf_addresses
         req_headers = waf_adresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
         if req_headers:
