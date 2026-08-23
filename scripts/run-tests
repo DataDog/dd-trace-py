@@ -487,8 +487,6 @@ class TestRunner:
                         str(python),
                         "--editable",
                         ".",
-                        "--config-setting",
-                        "editable_mode=compat",
                         "--exclude-newer",
                         _cooldown_cutoff(),
                         "--strict",
