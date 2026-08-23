@@ -320,6 +320,19 @@ pub fn crashtracker_on_fork<'py>(
     libdd_crashtracker::on_fork(inner_config, inner_receiver_config, inner_metadata)
 }
 
+#[pyfunction(name = "crashtracker_reconfigure")]
+pub fn crashtracker_reconfigure<'py>(
+    mut config: PyRefMut<'py, CrashtrackerConfigurationPy>,
+    mut receiver_config: PyRefMut<'py, CrashtrackerReceiverConfigPy>,
+    mut metadata: PyRefMut<'py, CrashtrackerMetadataPy>,
+) -> anyhow::Result<()> {
+    let inner_config = (*config).take_inner_or_err()?;
+    let inner_receiver_config = (*receiver_config).take_inner_or_err()?;
+    let inner_metadata = (*metadata).take_inner_or_err()?;
+
+    libdd_crashtracker::reconfigure(inner_config, inner_receiver_config, inner_metadata)
+}
+
 #[pyfunction(name = "crashtracker_status")]
 pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
     CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))

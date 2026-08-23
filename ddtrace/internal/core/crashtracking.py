@@ -14,6 +14,7 @@ from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
@@ -33,12 +34,33 @@ try:
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
+    from ddtrace.internal.native._native import crashtracker_reconfigure
     from ddtrace.internal.native._native import crashtracker_report_unhandled_exception
     from ddtrace.internal.native._native import crashtracker_status
 
     is_available = True
 except ImportError:  # pragma: no cover
     is_available = False
+
+
+# Runtime ID callbacks only receive the new ID, so keep the start() tags here
+# to rebuild crashtracker metadata on explicit identity refreshes.
+_identity_refresh_additional_tags: Optional[dict[str, str]] = None
+_identity_refresh_fork_generation = forksafe.get_generation()
+
+
+def _on_identity_refresh(_new_runtime_id: str) -> None:
+    global _identity_refresh_fork_generation
+
+    fork_generation = forksafe.get_generation()
+    if fork_generation != _identity_refresh_fork_generation:
+        # Runtime ID callbacks also run from the forksafe hook, before crashtracker's
+        # own fork handler. Skip that notification so the native crashtracker is
+        # reset only by crashtracker_on_fork; explicit later identity refreshes in
+        # the child still reconfigure below.
+        _identity_refresh_fork_generation = fork_generation
+        return
+    _reconfigure_for_identity_refresh(_identity_refresh_additional_tags)
 
 
 def _get_tags(additional_tags: Optional[dict[str, str]]) -> dict[str, str]:
@@ -211,11 +233,31 @@ def is_started() -> bool:
     return crashtracker_status() == CrashtrackerStatus.Initialized
 
 
+def _reconfigure_for_identity_refresh(additional_tags: Optional[dict[str, str]]) -> None:
+    # Native reconfigure is best-effort during identity refresh: if it fails,
+    # do not break runtime.refresh_identity() or later runtime ID callbacks.
+    try:
+        if not is_started():
+            return
+
+        config, receiver_config, metadata = _get_args(additional_tags)
+        if config is None or receiver_config is None or metadata is None:
+            log.error("Failed to reconfigure crashtracker after identity refresh: failed to construct configuration")
+            return
+        crashtracker_reconfigure(config, receiver_config, metadata)
+    except Exception:
+        log.debug("Failed to reconfigure crashtracker after identity refresh", exc_info=True)
+
+
 def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
+    global _identity_refresh_additional_tags, _identity_refresh_fork_generation
+
     if not is_available:
         return False
     if not crashtracker_config.enabled:
         return False
+
+    additional_tags = dict(additional_tags) if additional_tags is not None else None
 
     try:
         config, receiver_config, metadata = _get_args(additional_tags)
@@ -256,6 +298,9 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
             crashtracker_on_fork(config, receiver_config, metadata)
 
         forksafe.register(crashtracker_fork_handler)
+        _identity_refresh_additional_tags = additional_tags
+        _identity_refresh_fork_generation = forksafe.get_generation()
+        on_runtime_id_change(_on_identity_refresh)
     except Exception:
         log.exception("Failed to start crashtracker")
         return False
