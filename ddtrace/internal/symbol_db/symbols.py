@@ -38,6 +38,7 @@ from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.periodic import Timer
 from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
@@ -560,22 +561,45 @@ class ScopeContext:
             "final": False,
         }
 
+        self._runtime_id_change_fork_generation = forksafe.get_generation()
         forksafe.register(self._reset_on_fork)
+        # Same rebuild, triggered by an explicit identity refresh (e.g. an AWS Lambda
+        # MicroVM /run hook) rather than an actual fork.
+        on_runtime_id_change(self._on_identity_refresh)
 
     @cached_property
     def _sender(self) -> SymDBSender:
         # Built on the first upload to reduce startup cost.
         return build_symdb_sender()
 
-    def _reset_on_fork(self) -> None:
-        # Runs after fork in the child. The runtime module's own forksafe
-        # hook regenerates the runtime_id first (registered earlier at
-        # import time), so the calls below return the post-fork values.
+    def _reset_upload_metadata(self) -> None:
         self._upload_id = str(uuid.uuid4())
         self._batch_counter = 0
         self._event_data["uploadId"] = self._upload_id
         self._event_data["runtimeId"] = get_runtime_id()
         self._event_data["parentId"] = get_ancestor_runtime_id()
+
+    def _reset_on_fork(self) -> None:
+        # Runs after fork in the child. The runtime module's own forksafe
+        # hook regenerates the runtime_id first (registered earlier at
+        # import time), so the calls below return the post-fork values.
+        self._runtime_id_change_fork_generation = forksafe.get_generation()
+        self._reset_upload_metadata()
+
+    def _on_identity_refresh(self, new_runtime_id: str) -> None:
+        fork_generation = forksafe.get_generation()
+        if fork_generation != self._runtime_id_change_fork_generation:
+            # Runtime ID callbacks also run from the forksafe hook, before this
+            # context's own fork hook. Skip that notification so fork setup keeps
+            # one reset path; explicit later identity refreshes in the child still
+            # reset below.
+            self._runtime_id_change_fork_generation = fork_generation
+            return
+
+        # Explicit identity refresh runs in a live process and can race with the
+        # timer upload thread, which reads the same upload metadata.
+        with self._scopes_lock:
+            self._reset_upload_metadata()
 
     def _set_timer(self) -> None:
         with self._timer_lock:
