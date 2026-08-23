@@ -5,11 +5,12 @@ from typing import Any
 from typing import Optional
 from typing import Sequence
 import uuid
+import weakref
 
 import ddtrace
+from ddtrace.internal import forksafe
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import process_tags
-from ddtrace.internal import runtime
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_distribution_available
@@ -17,6 +18,8 @@ from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.runtime import on_runtime_id_change
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
@@ -98,6 +101,17 @@ class RemoteConfigClient:
         self._native: Optional[Any] = None
         self._reader: Optional[Any] = None
 
+        client_ref = weakref.ref(self)
+
+        # Runtime keeps callbacks in a module-level set, so registering a bound
+        # method would keep this client alive after callers drop their reference.
+        def _on_identity_refresh(new_runtime_id: str) -> None:
+            client = client_ref()
+            if client is not None:
+                client._on_identity_refresh(new_runtime_id)
+
+        on_runtime_id_change(_on_identity_refresh)
+
     def ensure_native(self) -> Any:
         if self._native is None:
             from ddtrace.internal.native import RemoteConfigClient as _NativeClient
@@ -109,7 +123,7 @@ class RemoteConfigClient:
                 agent_url=str(self.agent_url),
                 tracer_version=tracer_version,
                 client_id=self.id,
-                runtime_id=runtime.get_runtime_id(),
+                runtime_id=get_runtime_id(),
                 service=ddtrace.config.service or "",
                 env=ddtrace.config.env or "",
                 app_version=ddtrace.config.version or "",
@@ -124,6 +138,25 @@ class RemoteConfigClient:
 
     def renew_id(self) -> None:
         self.id = str(uuid.uuid4())
+
+    def _on_identity_refresh(self, new_runtime_id: str) -> None:
+        # Regenerate the client id and drop the native client, which bakes both ids in
+        # as immutable constructor arguments (get_client_id() is documented "stable for
+        # the process lifetime"). The next ensure_native() call rebuilds it bound to the
+        # fresh ids. Safe across threads: request() captures self._native into a local
+        # before calling .poll(), so an in-flight poll on the old client is unaffected.
+        # After fork, keep a reader over inherited SHM before dropping the inherited
+        # native client; otherwise forked consumers lose the only handles they can read.
+        if forksafe.is_fork_child():
+            if self._native is not None and self._reader is None:
+                try:
+                    self._reader = self._native.make_reader()
+                except Exception:
+                    log.debug("failed to create remote config reader after fork", exc_info=True)
+        else:
+            self._reader = None
+        self.renew_id()
+        self._native = None
 
     def register_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> None:
         self._product_callbacks[product_name] = callback

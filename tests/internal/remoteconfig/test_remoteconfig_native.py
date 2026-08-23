@@ -418,3 +418,68 @@ def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
         assert poller.enable() is True
 
     assert order == ["native", "before_fork", "start"], order
+
+
+def test_identity_refresh_renews_client_id_and_drops_native():
+    # get_client_id() on the native client is documented "stable for the process lifetime",
+    # so refreshing must drop it (not mutate it in place) for the id to actually change.
+    client = RemoteConfigClient()
+    old_id = client.id
+    client.ensure_native()
+    assert client._native is not None
+
+    client._on_identity_refresh("some-new-runtime-id")
+
+    assert client.id != old_id
+    assert client._native is None
+
+
+def test_identity_refresh_drops_cached_reader_outside_fork():
+    client = RemoteConfigClient()
+    client._reader = object()
+
+    client._on_identity_refresh("some-new-runtime-id")
+
+    assert client._reader is None
+
+
+def test_identity_refresh_callback_does_not_keep_client_alive():
+    import gc
+    import weakref
+
+    client = RemoteConfigClient()
+    client_ref = weakref.ref(client)
+
+    del client
+    gc.collect()
+
+    assert client_ref() is None
+
+
+def test_identity_refresh_rebuilds_native_client_with_fresh_id():
+    client = RemoteConfigClient()
+    native_before = client.ensure_native()
+    old_native_client_id = native_before.get_client_id()
+
+    client._on_identity_refresh("some-new-runtime-id")
+    native_after = client.ensure_native()
+
+    assert native_after is not native_before
+    assert native_after.get_client_id() == client.id
+    assert native_after.get_client_id() != old_native_client_id
+
+
+@pytest.mark.subprocess
+def test_identity_refresh_wired_to_runtime_id_change():
+    """A RemoteConfigClient subscribes itself at construction; refresh_identity() reaches it."""
+    from ddtrace.internal import runtime
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+
+    client = RemoteConfigClient()
+    old_id = client.id
+    client.ensure_native()
+
+    runtime.refresh_identity()
+
+    assert client.id != old_id
+    assert client._native is None
