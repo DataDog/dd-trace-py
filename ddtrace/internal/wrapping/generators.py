@@ -556,7 +556,7 @@ elif PY >= (3, 9):
     )
 
 else:
-    msg = "No generator wrapping support for Python %d.%d" % PY[:2]
+    msg = "No generator wrapping support for Python %d.%d" % (PY[0], PY[1])
     raise RuntimeError(msg)
 
 
