@@ -74,6 +74,7 @@ class JobSpec:
     suite: t.Optional[str] = None
 
     python_versions: t.Optional[set[str]] = None
+    environment_ids: t.Optional[tuple[str, ...]] = None
 
     def __str__(self) -> str:
         lines = []
@@ -145,6 +146,11 @@ class JobSpec:
         lines.append("  variables:")
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
+        if self.environment_ids:
+            shard_count = self.parallelism or 1
+            for index in range(shard_count):
+                shard = " ".join(self.environment_ids[index::shard_count])
+                lines.append(f'    TEST_ENVIRONMENTS_{index + 1}: "{shard}"')
 
         if self.only:
             lines.append("  only:")
@@ -168,8 +174,12 @@ class JobSpec:
 
 @dataclass
 class SuiteVenvInfo:
-    venv_count: int
+    environment_ids: tuple[str, ...]
     python_versions: set[str]
+
+    @property
+    def venv_count(self) -> int:
+        return len(self.environment_ids)
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -210,7 +220,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     for suite, environments in environments_by_suite.items():
         if environments:
             result[suite] = SuiteVenvInfo(
-                venv_count=len(environments),
+                environment_ids=tuple(environment.id for environment in environments),
                 python_versions={
                     environment.python for environment in environments if re.match(r"^3\.\d+$", environment.python)
                 },
@@ -534,7 +544,14 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
-            jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
+            environment_ids = suite_venv_info[suite].environment_ids if suite in suite_venv_info else None
+            jobspec = JobSpec(
+                clean_name,
+                stage=stage,
+                python_versions=py_versions,
+                environment_ids=environment_ids,
+                **suite_config,
+            )
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue

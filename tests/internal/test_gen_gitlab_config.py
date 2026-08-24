@@ -123,6 +123,7 @@ def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_confi
     info = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": suite})
 
     assert info["contrib::requests"].venv_count == 2
+    assert info["contrib::requests"].environment_ids == ("requests-py311", "requests-py312")
     assert info["contrib::requests"].python_versions == {"3.11", "3.12"}
 
 
@@ -184,6 +185,8 @@ def test_jobs_use_uv_locks_and_base_venv_artifacts(gen_gitlab_config_mod):
             snapshot=True,
             services=["httpbin"],
             python_versions={"3.12"},
+            environment_ids=("requests-py39", "requests-py310", "requests-py311"),
+            parallelism=2,
         )
     )
 
@@ -193,6 +196,8 @@ def test_jobs_use_uv_locks_and_base_venv_artifacts(gen_gitlab_config_mod):
     assert "uv run --no-project --python 3.9" in config
     assert "--with-requirements .uv/wait--wait-py39-*.txt" in config
     assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent"' in config
+    assert 'TEST_ENVIRONMENTS_1: "requests-py39 requests-py311"' in config
+    assert 'TEST_ENVIRONMENTS_2: "requests-py310"' in config
     assert "    - job: build_base_venvs" in config
     assert "      artifacts: true" in config
     assert '          - PYTHON_VERSION: "3.12"' in config

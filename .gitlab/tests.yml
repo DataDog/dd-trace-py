@@ -28,7 +28,8 @@ include:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
   script:
     - |
-      environment_ids=( $(.gitlab/scripts/get-test-environments.sh "${TEST_SUITE}") )
+      shard_variable="TEST_ENVIRONMENTS_${CI_NODE_INDEX:-1}"
+      read -ra environment_ids <<< "${!shard_variable:-}"
       if [[ ${#environment_ids[@]} -eq 0 ]]; then
         echo "No uv environments found for ${TEST_SUITE}"
         exit 1
