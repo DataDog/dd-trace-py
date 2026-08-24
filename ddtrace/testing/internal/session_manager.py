@@ -752,11 +752,14 @@ class SessionManager:
             return
 
         latest_commits = git.get_latest_commits()
+        log.warning("ITR_DEBUG: git upload: latest_commits=%s", latest_commits[:5])
         backend_commits = self.api_client.get_known_commits(latest_commits)
         if backend_commits is None:
-            log.warning("search_commits failed, aborting git metadata upload")
+            log.warning("ITR_DEBUG: git upload FAILED — search_commits returned None, aborting")
             TelemetryAPI.get().record_git_pack_data(0, 0)
             return
+
+        log.warning("ITR_DEBUG: git upload: backend_commits=%s", backend_commits[:5])
 
         commits_not_in_backend = list(set(latest_commits) - set(backend_commits))
 
