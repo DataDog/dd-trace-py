@@ -141,7 +141,6 @@ class JobSpec:
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
         env["TEST_SUITE"] = self.suite or self.name
-        env["UV_NO_CACHE"] = '"1"'
 
         lines.append("  variables:")
         for key, value in env.items():

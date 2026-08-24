@@ -189,7 +189,7 @@ def test_jobs_use_uv_locks_and_base_venv_artifacts(gen_gitlab_config_mod):
 
     assert "extends: .test_base_snapshot" in config
     assert "TEST_SUITE: contrib::requests" in config
-    assert 'UV_NO_CACHE: "1"' in config
+    assert "UV_NO_CACHE" not in config
     assert "uv run --no-project --python 3.9" in config
     assert "--with-requirements .uv/wait--wait-py39-*.txt" in config
     assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent"' in config
