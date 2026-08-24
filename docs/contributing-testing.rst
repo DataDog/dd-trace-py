@@ -125,6 +125,10 @@ Anatomy of a Riot Command
 * ``-vv``: Be loud about which tests are being run
 * ``-k 'test1 or test2'``: Test selection by `keyword expression <https://docs.pytest.org/en/7.1.x/how-to/usage.html#specifying-which-tests-to-run>`_
 
+When using ``scripts/run-tests``, pass ``-s`` or ``--skip-ddtrace-install`` before the pytest separator to reuse
+the selected environment's existing ddtrace installation while still refreshing its suite dependencies. An ``-s``
+after the separator remains a pytest option that disables output capture.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 
