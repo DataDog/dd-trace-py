@@ -554,6 +554,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
+    global _needs_base_venvs
+
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -568,6 +570,7 @@ def gen_build_docs() -> None:
     ):
         # build_docs uses Python 3.10; ensure it's included in build_base_venvs
         _global_python_versions.add("3.10")
+        _needs_base_venvs = True
 
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)

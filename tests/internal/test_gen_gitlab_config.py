@@ -95,6 +95,23 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert "$DD_API_KEY" not in config
 
 
+def test_docs_only_pipeline_includes_required_base_environment(gen_gitlab_config_mod, monkeypatch, tmp_path):
+    needs_testrun = types.ModuleType("needs_testrun")
+    needs_testrun.pr_matches_patterns = lambda _patterns: True
+    monkeypatch.setitem(sys.modules, "needs_testrun", needs_testrun)
+    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tmp_path / "tests-gen.yml")
+    monkeypatch.setattr(gen_gitlab_config_mod, "_global_python_versions", set())
+    monkeypatch.setattr(gen_gitlab_config_mod, "_needs_base_venvs", False)
+
+    gen_gitlab_config_mod.gen_build_docs()
+    gen_gitlab_config_mod.gen_build_base_venvs()
+
+    config = (tmp_path / "tests-gen.yml").read_text()
+    assert "build_docs:" in config
+    assert "build_base_venvs:" in config
+    assert 'PYTHON_VERSION: ["3.10"]' in config
+
+
 def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_config_mod):
     suite = {
         "matrix": {
