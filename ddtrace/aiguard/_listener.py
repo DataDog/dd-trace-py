@@ -437,7 +437,7 @@ def _uninstall_anthropic_wrappers() -> None:
 
 
 class _SpanTypeCarrier(Protocol):
-    """Structural stand-in for ``ddtrace._trace.span.Span``"""
+    """Structural stand-in for ddtrace._trace.span.Span"""
 
     span_type: Optional[str]
 
