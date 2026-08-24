@@ -1,5 +1,4 @@
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
 from pathlib import Path
 import threading
 
@@ -9,7 +8,6 @@ from scripts._testenv import UvTestEnvironmentError
 from scripts._testenv import ensure_environment
 from scripts._testenv import environment_commands
 from scripts._testenv import environment_is_current
-from scripts._testenv import package_content_hash
 from scripts._testenv import prepare_environment
 
 
@@ -35,10 +33,9 @@ def _install_fake_environment(root: Path, prepared) -> None:
     (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
     site_packages = venv / f"lib/python{PYTHON}/site-packages"
     site_packages.mkdir(parents=True)
-    for name, version in prepared.packages:
-        metadata = site_packages / f"{name.replace('-', '_')}-{version}.dist-info/METADATA"
-        metadata.parent.mkdir()
-        metadata.write_text(f"Name: {name}\nVersion: {version}\n")
+    metadata = site_packages / "alpha-1.0.dist-info/METADATA"
+    metadata.parent.mkdir()
+    metadata.write_text("Name: alpha\nVersion: 1.0\n")
 
 
 def _build(root: Path, prepared, calls: list[list[str]]):
@@ -50,24 +47,8 @@ def _build(root: Path, prepared, calls: list[list[str]]):
     return run
 
 
-def test_package_content_hash_is_stable():
-    contents = "Flask==3.0.0\nrequests==2.31.0\n"
-
-    assert package_content_hash(contents) == "5c2d22d6a5c2"
-
-
-def test_package_content_hash_ignores_order_comments_and_whitespace():
-    first = "Flask[async] == 3.0.0\nrequests==2.31.0  # pinned\n"
-    second = "\n# generated\n  requests == 2.31.0\nflask==3.0.0\n"
-
-    assert package_content_hash(first) == package_content_hash(second)
-
-
-def test_package_content_hash_changes_with_name_or_version():
-    original = package_content_hash("alpha==1.0\n")
-
-    assert package_content_hash("beta==1.0\n") != original
-    assert package_content_hash("alpha==2.0\n") != original
+def _ensure(root: Path, prepared, run):
+    return ensure_environment(root, prepared, python=PYTHON, standard_editable=False, run=run)
 
 
 def test_missing_and_incomplete_environments_are_not_current(tmp_path):
@@ -82,15 +63,10 @@ def test_missing_and_incomplete_environments_are_not_current(tmp_path):
 
 def test_lock_change_makes_environment_stale(tmp_path):
     prepared = _prepared(tmp_path)
-    ensure_environment(
-        tmp_path,
-        prepared,
-        python=PYTHON,
-        standard_editable=False,
-        run=_build(tmp_path, prepared, []),
-    )
-    changed = replace(prepared, package_hash=package_content_hash("alpha==2.0\n"))
+    _ensure(tmp_path, prepared, _build(tmp_path, prepared, []))
+    changed = _prepared(tmp_path, contents="alpha==2.0\n")
 
+    assert changed.path != prepared.path
     assert not environment_is_current(tmp_path, changed, python=PYTHON, standard_editable=False)
 
 
@@ -99,20 +75,14 @@ def test_current_environment_is_reused(tmp_path):
     calls = []
     run = _build(tmp_path, prepared, calls)
 
-    assert ensure_environment(tmp_path, prepared, python=PYTHON, standard_editable=False, run=run)
-    assert not ensure_environment(tmp_path, prepared, python=PYTHON, standard_editable=False, run=run)
+    assert _ensure(tmp_path, prepared, run)
+    assert not _ensure(tmp_path, prepared, run)
     assert len(calls) == 2
 
 
 def test_installed_package_drift_makes_environment_stale(tmp_path):
     prepared = _prepared(tmp_path)
-    ensure_environment(
-        tmp_path,
-        prepared,
-        python=PYTHON,
-        standard_editable=False,
-        run=_build(tmp_path, prepared, []),
-    )
+    _ensure(tmp_path, prepared, _build(tmp_path, prepared, []))
     metadata = tmp_path / prepared.path / f"lib/python{PYTHON}/site-packages/beta-1.0.dist-info/METADATA"
     metadata.parent.mkdir()
     metadata.write_text("Name: beta\nVersion: 1.0\n")
@@ -127,13 +97,7 @@ def test_failed_build_is_not_marked_current(tmp_path):
         raise UvTestEnvironmentError("install failed")
 
     with pytest.raises(UvTestEnvironmentError, match="install failed"):
-        ensure_environment(
-            tmp_path,
-            prepared,
-            python=PYTHON,
-            standard_editable=False,
-            run=fail,
-        )
+        _ensure(tmp_path, prepared, fail)
     assert not environment_is_current(tmp_path, prepared, python=PYTHON, standard_editable=False)
 
 
@@ -153,13 +117,7 @@ def test_same_environment_builds_once_under_concurrency(tmp_path):
         _install_fake_environment(tmp_path, prepared)
 
     def ensure():
-        return ensure_environment(
-            tmp_path,
-            prepared,
-            python=PYTHON,
-            standard_editable=False,
-            run=run,
-        )
+        return _ensure(tmp_path, prepared, run)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         first = executor.submit(ensure)
@@ -181,13 +139,7 @@ def test_different_environments_do_not_share_a_build_lock(tmp_path):
                 barrier.wait(timeout=5)
                 _install_fake_environment(tmp_path, prepared)
 
-        return ensure_environment(
-            tmp_path,
-            prepared,
-            python=PYTHON,
-            standard_editable=False,
-            run=run,
-        )
+        return _ensure(tmp_path, prepared, run)
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         results = tuple(executor.map(ensure, (first, second)))
