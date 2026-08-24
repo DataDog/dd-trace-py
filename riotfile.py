@@ -4687,6 +4687,12 @@ def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
         if _is_protected_ci_branch():
             # On protected branches (main, mq-*): force coverage collection.
             inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+        else:
+            # Feature branches: explicitly enable test skipping. This overrides any
+            # CI-level _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING variable that may
+            # survive into the test process, since inst.env wins over the shell env
+            # via riot's --pass-env merge (env.update(dict(inst.env))).
+            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "0")
 
 
 _venv_instances = venv.instances
