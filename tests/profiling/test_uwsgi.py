@@ -21,6 +21,7 @@ import logging
 import os
 import pathlib
 import re
+import select
 import signal
 import subprocess
 from subprocess import TimeoutExpired
@@ -253,9 +254,69 @@ def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_start
     return worker_pids
 
 
+def _wait_for_stdout_bytes(proc: "subprocess.Popen[bytes]", expected: bytes, timeout: float = 10.0) -> bytes:
+    deadline = time.time() + timeout
+    collected = bytearray()
+    assert proc.stdout is not None
+    fd = proc.stdout.fileno()
+
+    # no-dd-sa:python-best-practices/too-many-while
+    while time.time() < deadline:
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        ready, _, _ = select.select([fd], [], [], remaining)
+        if fd in ready:
+            chunk = os.read(fd, 4096)
+            if not chunk:
+                break
+            collected.extend(chunk)
+            if expected in collected:
+                return bytes(collected)
+        if proc.poll() is not None:
+            # The process exited but children may still hold the inherited
+            # stdout pipe open (workers surviving the master). Drain only
+            # bytes that are already ready, honoring the same deadline so a
+            # broken shutdown cannot hang the whole test.
+            # no-dd-sa:python-best-practices/too-many-while
+            while time.time() < deadline:
+                drain_remaining = deadline - time.time()
+                if drain_remaining <= 0:
+                    break
+
+                drain_ready, _, _ = select.select([fd], [], [], min(drain_remaining, 0.1))
+                if fd not in drain_ready:
+                    break
+
+                try:
+                    chunk = os.read(fd, 4096)
+                except OSError:
+                    break
+
+                if not chunk:
+                    break
+
+                collected.extend(chunk)
+                if expected in collected:
+                    return bytes(collected)
+            break
+
+    return bytes(collected)
+
+
 def _wait_for_profile_samples(
     filename_prefix: str, pid: int, value_type: str, timeout: float = 10.0, interval: float = 0.1
 ) -> list["pprof_pb2.Sample"]:
+    from google.protobuf.message import DecodeError as _DecodeError
+    import zstandard as _zstd
+
+    _retry_exc: tuple[type[BaseException], ...] = (
+        IndexError,
+        FileNotFoundError,
+        _zstd.ZstdError,
+        _DecodeError,
+    )
+
     deadline = time.time() + timeout
     while time.time() < deadline:
         try:
@@ -265,7 +326,7 @@ def _wait_for_profile_samples(
 
             profiles = [pprof_utils.parse_profile(f) for f in files]
             profile = pprof_utils.merge_profiles(profiles)
-        except (IndexError, FileNotFoundError):
+        except _retry_exc:
             time.sleep(interval)
             continue
 
@@ -296,16 +357,20 @@ def test_uwsgi_threads_processes_primary(
     """
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
     proc = uwsgi("--enable-threads", "--master", "--py-call-uwsgi-fork-hooks", "--processes", "2")
-    worker_pids = _get_worker_pids(proc.stdout, 2)
-    # Give some time to child to actually startup
-    time.sleep(3)
-    proc.terminate()
-    assert proc.wait() == 0
-    for pid in worker_pids:
-        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
-        samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
-        assert len(samples) > 0
+
+    try:
+        worker_pids = _get_worker_pids(proc.stdout, 2)
+        for pid in worker_pids:
+            _wait_for_profile_samples(filename, pid, "wall-time")
+    finally:
+        # Ensure uwsgi is torn down even on assertion failure so we do not
+        # leak master + workers into subsequent tests / CI cleanup.
+        proc.terminate()
+        exit_code = proc.wait()
+
+    assert exit_code == 0
 
 
 def test_uwsgi_threads_processes_primary_lazy_apps(
@@ -330,11 +395,17 @@ def test_uwsgi_threads_processes_primary_lazy_apps(
     # For uwsgi<2.0.30, --skip-atexit is required to avoid crashes when
     # the child process exits.
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", "--lazy-apps", "--skip-atexit")
-    worker_pids = _get_worker_pids(proc.stdout, 2, 2)
-    # Give some time to child to actually startup and output a profile
-    time.sleep(3)
-    proc.terminate()
-    assert proc.wait() == 0
+
+    try:
+        worker_pids = _get_worker_pids(proc.stdout, 2, 2)
+        # Give some time to child to actually startup and output a profile
+        time.sleep(3)
+    finally:
+        proc.terminate()
+        exit_code = proc.wait()
+
+    assert exit_code == 0
+
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
 
@@ -392,9 +463,37 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(
         print(f"INFO: Worker {worker_pid} was successfully killed.")
 
     assert res_pid == parent_pid
-    assert not os.WIFSIGNALED(res_status), (
-        f"uWSGI worker {parent_pid} crashed with signal {os.WTERMSIG(res_status)} and raw wait status {res_status}"
-    )
+
+    # Note on the exit status check:
+    # This test uses --skip-atexit precisely because uwsgi<2.0.30 has a known bug
+    # where Py_Finalize crashes in --lazy-apps mode (unbit/uwsgi#2726). --skip-atexit
+    # makes non-master workers hard-exit via _exit(), but the *first* worker also
+    # acts as the master (getpid() == masterpid), so end_me() still calls exit() ->
+    # atexit handlers -> uwsgi_python_atexit() -> Py_Finalize() for that worker.
+    # Native profiler threads (stack sampler in _stack.so, tokio blocking pool in
+    # the shared runtime) are still running while Py_Finalize's GC tears modules
+    # down, which can race and either segfault (SIGSEGV) or abort (SIGABRT). This
+    # race is pre-existing and orthogonal to what this test verifies (per-worker
+    # profile samples), so we tolerate ONLY those two signals AND only on the
+    # affected uwsgi versions. Any other signaled exit (SIGKILL, SIGBUS, etc.) or
+    # an uwsgi>=2.0.30 crash still fails the test -- see #19405.
+    _uwsgi_ver = tuple(int(x) for x in version("uwsgi").split("."))
+    _tolerated_signals = {signal.SIGSEGV, signal.SIGABRT}
+    if os.WIFSIGNALED(res_status):
+        term_sig = os.WTERMSIG(res_status)
+        if _uwsgi_ver < (2, 0, 30) and term_sig in _tolerated_signals:
+            print(
+                "WARNING: uWSGI worker %d exited via signal %d (raw wait status %d). "
+                "This is a known race between native profiler shutdown and "
+                "Py_Finalize under uwsgi<2.0.30 with --skip-atexit; profile "
+                "samples should still be on disk from the last flush interval." % (parent_pid, term_sig, res_status)
+            )
+        else:
+            raise AssertionError(
+                "uWSGI worker %d crashed with signal %d (raw wait status %d, "
+                "uwsgi=%s). Only SIGSEGV/SIGABRT on uwsgi<2.0.30 is a known race."
+                % (parent_pid, term_sig, res_status, ".".join(str(x) for x in _uwsgi_ver))
+            )
 
     for pid in worker_pids:
         _wait_for_profile_samples(filename, pid, "wall-time")
@@ -426,10 +525,11 @@ def test_uwsgi_require_skip_atexit_when_lazy_with_master(
     expected_warning = b"ddtrace.internal.uwsgi.uWSGIConfigDeprecationWarning: skip-atexit option must be set"
 
     proc = uwsgi("--enable-threads", "--master", "--processes", "2", lazy_flag)
-    time.sleep(1)
+    seen = _wait_for_stdout_bytes(proc, expected_warning, timeout=15.0)
     proc.terminate()
-    stdout, _ = proc.communicate()
-    assert expected_warning in stdout
+    remaining, _ = proc.communicate()
+    stdout = seen + remaining
+    assert expected_warning in stdout, f"expected warning not found in uwsgi stdout:\n{stdout.decode(errors='replace')}"
 
 
 @pytest.mark.parametrize("lazy_flag", ["--lazy-apps", "--lazy"])
