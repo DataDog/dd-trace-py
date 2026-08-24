@@ -47,14 +47,13 @@ include:
           unset DD_CIVISIBILITY_ITR_ENABLED _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
           unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
 
-          # Force ITR coverage collection for Python >= 3.12 to build coverage history
-          # in the backend. Coverage-only mode: collect/upload per-test coverage, do NOT
-          # skip tests yet. Once the backend has enough history, flip PREVENT_TEST_SKIPPING
-          # to 0 to enable actual skipping.
+          # Enable ITR with test skipping for Python >= 3.12. Coverage collection
+          # stays on (FORCE_ENABLE_COVERAGE) so the backend keeps accumulating history
+          # while tests are actually skipped.
           force_itr=$(awk -v v="${riot_python_version:-0}" 'BEGIN{ split(v,a,"."); if (a[1]>3 || (a[1]==3 && a[2]>=12)) print 1; else print 0 }')
           if [[ "${force_itr}" == "1" ]]; then
             export DD_CIVISIBILITY_ITR_ENABLED=true
-            export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=1
+            export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=0
             export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
           fi
 
