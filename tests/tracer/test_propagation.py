@@ -1480,9 +1480,9 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         ),
         (
             "dd=invalid,congo=123",
+            (None, {}, None, None),
             None,
-            ["received invalid dd header value in tracestate: 'dd=invalid,congo=123'"],
-            ValueError,
+            None,
         ),
         (  # "ts_string,expected_tuple,expected_logging,expected_exception",
             "dd=foo|bar:hi|l¢¢¢¢¢¢:",
@@ -1531,7 +1531,7 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         "tracestate_with_unknown_t._values",
         "tracestate_with_no_dd_list_member",
         "tracestate_no_origin",
-        "tracestate_invalid_dd_list_member",
+        "tracestate_with_only_malformed_dd_element",
         "tracestate_invalid_tracestate_char_outside_ascii_range_20-70",
         "tracestate_tilda_replaced_with_equals",
         "tracestate_colon_acceptable_char_in_value",
@@ -1549,6 +1549,26 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
             if caplog.text or expected_logging:
                 for expected_log in expected_logging:
                     assert expected_log in caplog.text
+
+
+@pytest.mark.parametrize(
+    "tracestate",
+    [
+        "dd=s:2;o:some;",
+        "dd=s:2;o:some; \t",
+        "dd=s:2;o:some;;",
+        "dd=s:2;o:some;,other=x",
+        "dd=;s:2;o:some",
+        "dd=s:2;;o:some",
+        "dd=s:2;;;o:some",
+        "dd=s:2;flag;o:some",
+        "dd=flag;s:2;o:some",
+        "dd=s:2;o:some;flag",
+        "dd=s:2; z:w;o:some",
+    ],
+)
+def test_extract_tracestate_skips_empty_and_malformed_dd_elements(tracestate):
+    assert _TraceContext._get_tracestate_values(tracestate.split(",")) == (2, {}, "some", None)
 
 
 @pytest.mark.parametrize(
