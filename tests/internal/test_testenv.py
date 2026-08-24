@@ -215,5 +215,7 @@ def test_environment_commands_use_exact_synchronization(tmp_path):
     requirements = (tmp_path / prepared.requirements).read_text()
     assert commands[1][0:3] == ["uv", "pip", "install"]
     assert "--exact" in commands[1]
+    assert "--config-setting" not in commands[1]
+    assert commands[1][-2:] == ["--config-settings-package", "ddtrace:editable_mode=compat"]
     assert "ddtrace==2.20.1" not in requirements
     assert "-e ." in requirements

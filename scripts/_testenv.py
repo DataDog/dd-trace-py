@@ -162,7 +162,7 @@ def environment_commands(
         "--no-progress",
     ]
     if prepared.install_project and not standard_editable:
-        synchronize.extend(["--config-setting", "editable_mode=compat"])
+        synchronize.extend(["--config-settings-package", "ddtrace:editable_mode=compat"])
     return (
         [
             "uv",
