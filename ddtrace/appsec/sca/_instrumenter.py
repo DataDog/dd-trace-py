@@ -6,7 +6,6 @@ bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 
 from __future__ import annotations
 
-import sys
 from threading import Lock
 import types
 from types import FunctionType
@@ -47,19 +46,18 @@ _lazy_hooks_lock = Lock()
 def _first_instr_line(code: types.CodeType) -> int:
     """Return the line number of the first instrumentable body instruction.
 
-    inject_hook needs the first line of the function *body*, not the ``def``
-    line. The ``def`` line (``co_firstlineno``) carries the function prologue
-    (e.g. ``RESUME`` on 3.11+, which is attributed to that line on 3.13+), which
-    is not an instrumentable line: ``linenos()`` -- used by ``inject_hook`` to
-    validate the target line -- explicitly excludes ``co_firstlineno``. We must
-    therefore skip any leading instruction attributed to the ``def`` line and
-    return the first body line, keeping this consistent with what
-    ``inject_hook`` accepts.
+    inject_hook needs the first line of the function body, not the def line.
+    The def line (co_firstlineno) carries the function prologue (e.g. RESUME on
+    3.11+, which is attributed to that line on 3.13+), which is not an
+    instrumentable line: linenos() -- used by inject_hook to validate the target
+    line -- explicitly excludes co_firstlineno. We must therefore skip any
+    leading instruction attributed to the def line and return the first body
+    line, keeping this consistent with what inject_hook accepts.
 
-    In CPython, ``dis.Instruction.line_number`` (3.13+) is the absolute line
-    number (or ``None``). On older versions we fall back to ``starts_line``,
-    which is the absolute line number as an ``int`` (on 3.15+ it is instead a
-    ``bool`` flag, so we ignore it there and rely on ``line_number``).
+    In CPython, dis.Instruction.line_number (3.13+) is the absolute line number
+    (or None). On older versions we fall back to starts_line, which is the
+    absolute line number as an int (on 3.15+ it is instead a bool flag, so we
+    ignore it there and rely on line_number).
     """
     import dis
 
@@ -74,6 +72,7 @@ def _first_instr_line(code: types.CodeType) -> int:
             continue
         return line
     return code.co_firstlineno
+
 
 def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
