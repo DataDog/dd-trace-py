@@ -4792,13 +4792,14 @@ def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
         inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        # By default, prevent test skipping — suites must opt-in by setting
+        # _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=0 in their env.
+        inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
         # inst.env.setdefault("DD_TRACE_DEBUG", "1")
 
         if _is_protected_ci_branch():
-            # On protected branches (main, mq-*): force coverage collection and prevent
-            # test skipping — we want to build up coverage data without skipping tests.
+            # On protected branches (main, mq-*): force coverage collection.
             inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
 
 _venv_instances = venv.instances
