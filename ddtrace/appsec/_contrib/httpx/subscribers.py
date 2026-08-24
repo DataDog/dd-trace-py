@@ -9,8 +9,8 @@ from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._asm_request_context import should_analyze_body_response
-from ddtrace.appsec._common_module_patches import _get_rasp_capability
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._rasp import get_rasp_capability
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
@@ -27,7 +27,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[HttpClientRequestEvent]) -> None:
-        if not _get_rasp_capability("ssrf"):
+        if not get_rasp_capability("ssrf"):
             return
         asm_context = _get_asm_context()
         if asm_context is None:
@@ -50,7 +50,7 @@ class AppSecHttpxRequestContextSubscriber(ContextSubscriber[HttpClientRequestEve
         if exc_type is not None:
             return
 
-        if not _get_rasp_capability("ssrf"):
+        if not get_rasp_capability("ssrf"):
             return
 
         event: HttpClientRequestEvent = ctx.event
@@ -77,7 +77,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
 
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext[HttpClientSendEvent]) -> None:
-        if not _get_rasp_capability("ssrf"):
+        if not get_rasp_capability("ssrf"):
             return
 
         asm_context = _get_asm_context()
@@ -116,7 +116,7 @@ class AppSecHttpxSingleRequestContextSubscriber(ContextSubscriber[HttpClientSend
         if exc_type is not None:
             return
 
-        if not _get_rasp_capability("ssrf"):
+        if not get_rasp_capability("ssrf"):
             return
 
         status = ctx.event.response_status_code

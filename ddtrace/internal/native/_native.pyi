@@ -19,6 +19,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
+_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
 
 class DDSketch:
     def __init__(self): ...
@@ -183,12 +184,19 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
+    def update_otel_thread_context_from_span(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
         Update the OTel thread context from the active span and its local root span.
         :param span: The active span.
         :param local_root: The root span of the local trace chunk.
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
+        """
+        ...
+    def update_otel_thread_context_from_context(context: ContextData, trace_flags: int) -> None:
+        """Update the OTel thread context from an active trace Context.
+
+        Invalid Context identifiers detach the current thread context. The local root span ID is
+        published as zero because a Context does not retain local root span identity.
         """
         ...
     def detach_otel_thread_context() -> None:
@@ -648,6 +656,9 @@ class TraceExporterBuilder:
         :param process_tags: Comma-separated list of key:value process tags (e.g., "key1:val1,key2:val2").
         """
         ...
+    def set_tracer_tags(self, tracer_tags: list[str]) -> TraceExporterBuilder:
+        """Set tracer tags on the OTLP metrics resource."""
+        ...
     def set_tracer_version(self, version: str) -> TraceExporterBuilder:
         """
         Set the tracer version of the TraceExporter.
@@ -716,6 +727,10 @@ class TraceExporterBuilder:
         :param bucket_size_ns: The size of stats bucket in nanoseconds.
         """
 
+    def set_additional_metric_tag_keys(self, tag_keys: list[str]) -> TraceExporterBuilder:
+        """Set span tag keys included in computed stats."""
+        ...
+
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """
         Obfuscate client side stats buckets in the client instead of in the agent.
@@ -737,6 +752,25 @@ class TraceExporterBuilder:
     def enable_health_metrics(self) -> TraceExporterBuilder:
         """
         Enable health metrics in the TraceExporter
+        """
+        ...
+    def set_agentless_endpoint(self, url: str, api_key: str) -> TraceExporterBuilder:
+        """
+        Send spans straight to the Datadog trace intake instead of to an agent.
+
+        Payloads are always JSON in this mode, so the output format is ignored. Mutually
+        exclusive with :meth:`set_url` and :meth:`set_otlp_endpoint`; ``build`` rejects the
+        combination.
+        :param url: Full intake URL including the path
+            (e.g. "https://public-trace-http-intake.logs.datadoghq.com/v1/input").
+        :param api_key: API key sent as the ``dd-api-key`` header.
+        """
+        ...
+    def set_agentless_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Request timeout for the agentless intake transport (default 15s).
+
+        Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
         """
         ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
@@ -1000,6 +1034,30 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
+class ContextData:
+    trace_id: Optional[int]
+    span_id: Optional[int]
+    _meta: dict[str, str]
+    _metrics: dict[str, Any]
+    _baggage: dict[str, Any]
+    _span_links: list[Any]
+    _is_remote: bool
+    _reactivate: bool
+
+    def __new__(
+        cls: type[_ContextDataT],
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
+        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        meta: Optional[dict[str, str]] = None,
+        metrics: Optional[dict[str, Any]] = None,
+        lock: Optional[Any] = None,  # placeholder for Context.__init__
+        span_links: Optional[list[Any]] = None,
+        baggage: Optional[dict[str, Any]] = None,
+        is_remote: bool = True,
+    ) -> _ContextDataT: ...
+
 class SpanData:
     name: str
     service: Optional[str]
@@ -1147,6 +1205,18 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def process_metrics() -> tuple[int, int, int, int, int, int]:
+    """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
+
+    :return: A tuple of (cpu_time_sys_ns, cpu_time_user_ns, ctx_switches_voluntary,
+        ctx_switches_involuntary, num_threads, rss_bytes). The ctx-switch fields are
+        negative when unavailable on the current platform.
+    """
+    ...
+
+def total_memory_bytes() -> int:
+    """Return total physical RAM plus swap, in bytes."""
+    ...
 
 class config:
     """Native config module for tracer configuration managed in Rust."""

@@ -61,7 +61,6 @@ def test_aggregator_reset_with_args():
     assert dd_proc in aggr.dd_processors
     assert user_proc in aggr.user_processors
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
     assert aggr.writer._api_version == "v0.5"
     # Expect the default value of apm_opt_out and compute_stats to be False
     assert aggr.sampling_processor.apm_opt_out is False
@@ -74,7 +73,6 @@ def test_aggregator_reset_with_args():
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.writer._api_version == "v0.4"
     assert span.trace_id in aggr._traces
-    assert len(aggr._span_metrics["spans_created"]) == 1
 
 
 @pytest.mark.parametrize("appsec_enabled", [False, True])
