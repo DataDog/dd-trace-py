@@ -1,5 +1,6 @@
 import typing as t
 
+from ddtrace._trace.context import Context
 from ddtrace.internal.compat import NumericType
 
 
@@ -20,11 +21,16 @@ class SpanProtocol(t.Protocol):
     @property
     def _service_entry_span(self) -> "SpanProtocol": ...
 
+    @property
+    def context(self) -> Context: ...
+
     def get_tag(self, key: str) -> t.Optional[str]: ...
 
     def get_metric(self, key: str) -> t.Optional[NumericType]: ...
 
     def set_tag(self, key: str, value: t.Optional[str] = None) -> None: ...
+
+    def _has_attribute(self, key: str) -> bool: ...
 
     def _set_attribute(self, key: str, value: t.Union[str, int, float]) -> None: ...
 
