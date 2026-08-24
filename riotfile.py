@@ -4798,9 +4798,9 @@ def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
             inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
             inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
         elif inst.env.get("_DD_CIVISIBILITY_ITR_TEST_SKIPPING_OPT_IN") == "1":
-            # Feature branch + suite opted in: enable test skipping.
-            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
-            inst.env["_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE"] = "false"
+            # Feature branch + suite opted in: coverage-only to register this commit.
+            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
+            inst.env["_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE"] = "true"
         else:
             # Feature branch + suite not opted in: coverage-only, no skipping.
             inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
