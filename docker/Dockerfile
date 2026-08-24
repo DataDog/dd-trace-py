@@ -50,6 +50,8 @@ RUN apt-get update \
       libncurses5-dev \
       libncursesw5-dev \
       libtool \
+      libxml2-dev \
+      libxslt1-dev \
       libpq-dev \
       libreadline-dev \
       libsasl2-dev \
