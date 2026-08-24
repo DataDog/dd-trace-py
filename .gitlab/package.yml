@@ -393,6 +393,12 @@ download_dependency_wheels:
       artifacts: true
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+  rules:
+    # cp315 ddtrace wheels are still allow_failure on build linux; keep SSI dep
+    # wheel download non-blocking until the wheel pipeline is stable (#17849).
+    - if: '$PYTHON_VERSION == "3.15"'
+      allow_failure: true
+    - when: on_success
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.9.13"
@@ -407,6 +413,8 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.13"
       - PYTHON_IMAGE_TAG: "3.14.0"
         PYTHON_VERSION: "3.14"
+      - PYTHON_IMAGE_TAG: "3.15.0rc1"
+        PYTHON_VERSION: "3.15"
   script:
     - .gitlab/download-dependency-wheels.sh
   cache:
