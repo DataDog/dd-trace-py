@@ -21,6 +21,7 @@
 #include <mutex>
 #include <pthread.h>
 #include <thread>
+#include <typeinfo>
 #include <utility>
 
 using namespace Datadog;
@@ -351,6 +352,22 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
 }
 
 void
+Sampler::record_sampling_thread_error(const std::exception& e)
+{
+    const std::lock_guard<std::mutex> guard(sampling_thread_error_mutex_);
+    sampling_thread_error_ = SamplingThreadError{ typeid(e).name(), e.what() };
+}
+
+std::optional<SamplingThreadError>
+Sampler::take_sampling_thread_error()
+{
+    const std::lock_guard<std::mutex> guard(sampling_thread_error_mutex_);
+    std::optional<SamplingThreadError> error;
+    error.swap(sampling_thread_error_);
+    return error;
+}
+
+void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
     // Mark thread as running
@@ -520,7 +537,9 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 }
             }
         } catch (const std::exception& e) {
-            std::cerr << "Unexpected error in sampling thread: " << e.what() << std::endl;
+            // We cannot touch Python from this thread, so stash the error for the Python
+            // side to pick up (see StackCollector.snapshot) and report to telemetry.
+            record_sampling_thread_error(e);
 
             // If the exception interrupted a sample mid-build (after render_thread_begin
             // but before render_stack_end), return it to the pool instead of leaking it.
@@ -592,6 +611,11 @@ Sampler::postfork_child()
     paused_.store(false);
     new (&pause_mutex_) std::mutex();
     new (&pause_cv_) std::condition_variable();
+
+    // Drop any error inherited from the parent: the parent reports its own errors, and
+    // reporting it again here would attribute it to the wrong process.
+    new (&sampling_thread_error_mutex_) std::mutex();
+    new (&sampling_thread_error_) std::optional<SamplingThreadError>();
 
     // Clear stale echion state (mutexes, maps) from parent process
     if (echion) {
@@ -852,6 +876,12 @@ Sampler::resume()
 }
 
 void
+Sampler::set_max_tasks_per_sample(unsigned int value)
+{
+    echion->set_max_tasks_per_sample(value);
+}
+
+void
 Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
 {
     // Holds echion's global lock
@@ -924,15 +954,22 @@ Sampler::link_greenlets(uintptr_t parent, uintptr_t child)
 }
 
 void
-Sampler::update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame)
+Sampler::record_greenlet_switch(uintptr_t origin_id,
+                                PyObject* origin_frame,
+                                uintptr_t target_id,
+                                PyObject* target_frame,
+                                bool update_target_frame)
 {
     std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
-
     auto& greenlet_info_map = echion->greenlet_info_map();
-    auto entry = greenlet_info_map.find(greenlet_id);
-    if (entry != greenlet_info_map.end()) {
-        // Update the frame of the greenlet
-        entry->second->frame = frame;
+
+    if (auto origin = greenlet_info_map.find(origin_id); origin != greenlet_info_map.end()) {
+        origin->second->frame = origin_frame;
+    }
+    if (update_target_frame) {
+        if (auto target = greenlet_info_map.find(target_id); target != greenlet_info_map.end()) {
+            target->second->frame = target_frame;
+        }
     }
 }
 

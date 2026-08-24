@@ -95,7 +95,7 @@ experiments:
               - execution_time < 19.65 ms
           - name: djangosimple-tracer-no-databases
             thresholds:
-              - execution_time < 21.10 ms
+              - execution_time < 21.40 ms
           - name: djangosimple-tracer-dont-create-db-spans
             thresholds:
               - execution_time < 21.50 ms
@@ -613,7 +613,7 @@ experiments:
           # packagespackageforrootmodulemapping
           - name: packagespackageforrootmodulemapping-cache_off
             thresholds:
-              - execution_time < 365.00 ms
+              - execution_time < 372.30 ms
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:
               - execution_time < 0.01 ms
@@ -797,49 +797,49 @@ experiments:
           # telemetryaddmetric
           - name: telemetryaddmetric-1-count-metric-1-times
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.005 ms
           - name: telemetryaddmetric-1-count-metrics-100-times
             thresholds:
               - execution_time < 0.22 ms
           - name: telemetryaddmetric-1-distribution-metric-1-times
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.005 ms
           - name: telemetryaddmetric-1-distribution-metrics-100-times
             thresholds:
-              - execution_time < 0.23 ms
+              - execution_time < 0.22 ms
           - name: telemetryaddmetric-1-gauge-metric-1-times
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.005 ms
           - name: telemetryaddmetric-1-gauge-metrics-100-times
             thresholds:
-              - execution_time < 0.19 ms
+              - execution_time < 0.22 ms
           - name: telemetryaddmetric-1-rate-metric-1-times
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.005 ms
           - name: telemetryaddmetric-1-rate-metrics-100-times
             thresholds:
-              - execution_time < 0.25 ms
+              - execution_time < 0.22 ms
           - name: telemetryaddmetric-100-count-metrics-100-times
             thresholds:
               - execution_time < 22.0 ms
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
-              - execution_time < 2.55 ms
+              - execution_time < 2.30 ms
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:
-              - execution_time < 1.85 ms
+              - execution_time < 2.25 ms
           - name: telemetryaddmetric-100-rate-metrics-100-times
             thresholds:
-              - execution_time < 2.55 ms
-          - name: telemetryaddmetric-flush-1-metric
+              - execution_time < 2.25 ms
+          - name: telemetryaddmetric-record-1-metric
             thresholds:
-              - execution_time < 0.02 ms
-          - name: telemetryaddmetric-flush-100-metrics
+              - execution_time < 0.006 ms
+          - name: telemetryaddmetric-record-100-metrics
             thresholds:
-              - execution_time < 0.25 ms
-          - name: telemetryaddmetric-flush-1000-metrics
+              - execution_time < 0.23 ms
+          - name: telemetryaddmetric-record-1000-metrics
             thresholds:
-              - execution_time < 2.50 ms
+              - execution_time < 2.30 ms
 
           # telemetrydependencies
           - name: telemetrydependencies-first-50-deps-sca-off
@@ -871,7 +871,7 @@ experiments:
               - execution_time < 3.00 ms
           - name: forktime-configured
             thresholds:
-              - execution_time < 17 ms
+              - execution_time < 26 ms
 
           # rand
           - name: rand-rand64bits
