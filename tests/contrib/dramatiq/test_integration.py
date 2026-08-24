@@ -14,6 +14,9 @@ class DramatiqSnapshotTests(unittest.TestCase):
 
     def tearDown(self):
         unpatch()
+        # Every test redeclares fn_task on the shared global broker, so drop
+        # registered actors between tests to keep them isolated.
+        dramatiq.get_broker().actors.clear()
 
     @snapshot(wait_for_num_traces=2)
     def test_idempotent_patch(self):

@@ -29,7 +29,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
 from ddtrace.internal.threads import RLock
-from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import create_trace_writer
@@ -507,14 +506,12 @@ class SpanAggregator(SpanProcessor):
 
     def configure_agentless_writer(self, enable: bool) -> bool:
         """
-        Swap the writer to AgentlessTraceWriter if needed. Returns True if a swap occurred, otherwise False.
+        Swap the writer between intake and agent submission. Returns True if a swap occurred.
         """
         if isinstance(self.writer, LogWriter):
             # perf: LogWriter is chosen by create_trace_writer regardless of agentless configs; skip the swap early.
             return False
-        if enable and isinstance(self.writer, AgentlessTraceWriter):
-            return False
-        if not enable and not isinstance(self.writer, AgentlessTraceWriter):
+        if getattr(self.writer, "agentless", False) is enable:
             return False
 
         old_writer = self.writer
@@ -531,7 +528,11 @@ class SpanAggregator(SpanProcessor):
             old_writer.flush_queue()
             old_writer.stop()
         except ServiceStatusError:
-            pass  # writer was never started; nothing to stop
+            # The writer never started, so there is no periodic thread to stop
+            # But the native writer builds its exporter in __init__, so we free it
+            shutdown_exporter = getattr(old_writer, "shutdown_exporter", None)
+            if shutdown_exporter is not None:
+                shutdown_exporter()
         except Exception:
             log.warning(
                 "Failed to flush and stop previous APM trace writer while configuring agentless writer", exc_info=True
