@@ -136,7 +136,7 @@ elseif(UNIX)
     endif()
 endif()
 
-target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads ${CMAKE_DL_LIBS})
+target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper Threads::Threads)
 
 # Set the output directory for the built library
 if(LIB_INSTALL_DIR)
