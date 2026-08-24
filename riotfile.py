@@ -4799,7 +4799,11 @@ def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
             inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
         elif inst.env.get("_DD_CIVISIBILITY_ITR_TEST_SKIPPING_OPT_IN") == "1":
             # Feature branch + suite opted in to test skipping: enable it.
+            # Explicitly set FORCE_ENABLE_COVERAGE=false to override any CI-level
+            # variable — the forcing block in session_manager only fires when both
+            # PREVENT is falsy AND FORCE_ENABLE_COVERAGE is falsy.
             inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+            inst.env["_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE"] = "false"
         else:
             # Feature branch + suite not opted in: coverage-only, no skipping.
             inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
