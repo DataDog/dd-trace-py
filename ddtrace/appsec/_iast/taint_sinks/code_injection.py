@@ -103,9 +103,8 @@ def _iast_coi(wrapped, instance, args, kwargs):
                 frames = inspect.currentframe()
                 if frames is not None:
                     caller_frame = _resolve_caller_frame(frames.f_back)
-                    # Left unguarded on purpose: a None caller_frame raises AttributeError here and
-                    # the except below falls back to a native wrapped(*args, **kwargs) eval, which
-                    # is more correct than evaluating against ddtrace's own globals.
+                    # Left unguarded on purpose: AttributeError here routes to the except below,
+                    # which re-dispatches the caller's original args instead of forcing None.
                     func_globals = caller_frame.f_globals
 
             if len(args) > 2:

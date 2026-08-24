@@ -62,7 +62,7 @@ def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, ta
         # Python 3.15 dropped the "or None" clause from this message.
         assert re.fullmatch(
             r"slice indices must be integers or (None or )?have an __index__ method", str(excinfo.value)
-        )
+        ), str(excinfo.value)
     else:
         result = mod.do_slice_2(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
         assert result == expected_result
