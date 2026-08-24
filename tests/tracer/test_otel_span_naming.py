@@ -309,7 +309,8 @@ def test_processor_is_installed_when_the_flag_is_on():
     from ddtrace.trace import tracer
 
     assert any(isinstance(p, OtelSpanNamingProcessor) for p in tracer._span_processors)
-    assert any(isinstance(p, ResourceRenamingProcessor) for p in tracer._span_processors)
+    # http.endpoint belongs to resource renaming, which this flag must not switch on.
+    assert not any(isinstance(p, ResourceRenamingProcessor) for p in tracer._span_processors)
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})

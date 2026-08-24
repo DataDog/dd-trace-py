@@ -120,7 +120,7 @@ def _default_span_processors_factory(
     span_processors: list[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    if config._trace_resource_renaming_enabled or config._otel_trace_semantics_enabled:
+    if config._trace_resource_renaming_enabled:
         span_processors.append(ResourceRenamingProcessor())
 
     # After ResourceRenamingProcessor, which only sets http.endpoint and never the name, so the
