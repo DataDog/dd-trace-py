@@ -250,13 +250,3 @@ def eject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> Function
     f.__code__ = abstract_code.to_code()
 
     return f
-
-
-def eject_all_hooks(f: FunctionType) -> None:
-    """No-op stub for FunctionStore.restore_all on unsupported Python versions.
-
-    Bytecode injection is disabled when running on Python versions at or above
-    NEXT_PY_VERSION_INFO, so there are no injected hooks to remove. Callers on
-    supported versions should use eject_hooks with explicit hook metadata.
-    """
-    return None
