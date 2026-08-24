@@ -254,13 +254,12 @@ def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_start
     return worker_pids
 
 
-def _wait_for_stdout_bytes(proc: "subprocess.Popen[bytes]", expected: bytes, timeout: float = 10.0) -> bytes:
-    deadline = time.time() + timeout
+def _wait_for_stdout_bytes(proc: subprocess.Popen[bytes], expected: bytes, timeout: float = 10.0) -> bytes:
+    deadline: float = time.time() + timeout
     collected = bytearray()
     assert proc.stdout is not None
-    fd = proc.stdout.fileno()
+    fd: int = proc.stdout.fileno()
 
-    # no-dd-sa:python-best-practices/too-many-while
     while time.time() < deadline:
         remaining = deadline - time.time()
         if remaining <= 0:
@@ -278,7 +277,6 @@ def _wait_for_stdout_bytes(proc: "subprocess.Popen[bytes]", expected: bytes, tim
             # stdout pipe open (workers surviving the master). Drain only
             # bytes that are already ready, honoring the same deadline so a
             # broken shutdown cannot hang the whole test.
-            # no-dd-sa:python-best-practices/too-many-while
             while time.time() < deadline:
                 drain_remaining = deadline - time.time()
                 if drain_remaining <= 0:
