@@ -8,6 +8,7 @@
 #     "riot>=0.22.0",
 # ]
 # ///
+import argparse
 import ast
 from collections import defaultdict
 from dataclasses import dataclass
@@ -386,6 +387,14 @@ def build_supported_versions_entries(
 
 def main() -> None:
     """Generate supported_versions.json from riot requirement lock files."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--main",
+        action="store_true",
+        help="Fail when integrations do not declare supported versions (intended for the main branch).",
+    )
+    args = parser.parse_args()
+
     tested_versions_per_integration = collect_tested_versions()
     supported_ranges, integrations_without_declaration = get_supported_ranges()
 
@@ -393,7 +402,7 @@ def main() -> None:
         json.dumps(build_supported_versions_entries(tested_versions_per_integration, supported_ranges), indent=4) + "\n"
     )
 
-    if integrations_without_declaration:
+    if args.main and integrations_without_declaration:
         print(
             "ERROR: the following integrations do not implement _supported_versions() and are missing "
             "a supported range:",
