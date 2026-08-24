@@ -253,8 +253,10 @@ def eject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> Function
 
 
 def eject_all_hooks(f: FunctionType) -> None:
-    """Remove every line hook registered for *f*.
+    """No-op stub for FunctionStore.restore_all on unsupported Python versions.
 
-    No-op while bytecode injection is unavailable on this Python version.
+    Bytecode injection is disabled when running on Python versions at or above
+    NEXT_PY_VERSION_INFO, so there are no injected hooks to remove. Callers on
+    supported versions should use eject_hooks with explicit hook metadata.
     """
     return None
