@@ -22,6 +22,7 @@ def start_profiler() -> None:
         return
 
     from ddtrace.profiling import profiler
+
     if hasattr(bootstrap, "profiler"):
         bootstrap.profiler.stop()  # pyright: ignore[reportAttributeAccessIssue, reportCallIssue]
 
