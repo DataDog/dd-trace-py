@@ -212,9 +212,10 @@ def patch():
     trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq))
     trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq))
 
-    # Patch rq.worker.Worker
-    Pin().onto(rq.worker.Worker)
-    trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
+    # RQ 2.7 moved perform_job to BaseWorker, which SimpleWorker inherits directly.
+    worker_class = getattr(rq.worker, "BaseWorker", rq.worker.Worker)
+    Pin().onto(worker_class)
+    trace_utils.wrap(worker_class, "perform_job", traced_perform_job(rq))
 
     rq._datadog_patch = True
 
@@ -236,8 +237,9 @@ def unpatch():
     trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
     trace_utils.unwrap(rq.queue.Queue, "fetch_job")
 
-    # Unpatch rq.worker.Worker
-    Pin().remove_from(rq.worker.Worker)
-    trace_utils.unwrap(rq.worker.Worker, "perform_job")
+    # RQ 2.7 moved perform_job to BaseWorker, which SimpleWorker inherits directly.
+    worker_class = getattr(rq.worker, "BaseWorker", rq.worker.Worker)
+    Pin().remove_from(worker_class)
+    trace_utils.unwrap(worker_class, "perform_job")
 
     rq._datadog_patch = False
