@@ -469,6 +469,8 @@ suites:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_TRACE_AGENT_URL: http://testagent:9126
+        # Compatibility editable mode prevents IAST from discovering Django's runserver command.
+        _DD_TEST_USE_STANDARD_EDITABLE: 'true'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       cases:
         - python: ['3.9']

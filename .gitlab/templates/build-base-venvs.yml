@@ -42,11 +42,11 @@ build_base_venvs:
     scripts/run-tests --suite smoke_test --venv "smoke-test-py${{PYTHON_VERSION//./}}"
     sccache --show-stats || true
   artifacts:
-    name: venv_$PYTHON_VERSION
+    name: native_$PYTHON_VERSION
     when: always
     paths:
       - core.*
       - ddtrace/**/*.so*
+      - ddtrace/appsec/_ddwaf/libddwaf/.version
       - src/native/target*/include/
       - .download_cache/_cmake_deps/absl_install_*/
-      - .cache/uv-test-environments/smoke_test/

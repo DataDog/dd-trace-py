@@ -148,16 +148,9 @@ Then run the environment again. ``scripts/run-tests`` rebuilds the local editabl
 
     $ scripts/run-tests --suite <suite> --venv <environment-id> -- -vv -k test_name
 
-CI builds one ddtrace base environment per Python version and reuses it with
-``-s``/``--skip-ddtrace-install``. You can use the same flow locally:
-
-.. code-block:: bash
-
-    $ scripts/run-tests --suite smoke_test --venv smoke-test-py311
-    $ scripts/run-tests -s --suite contrib::requests --venv <python-3.11-environment-id>
-
-Here, ``-s`` before ``--`` selects base reuse. A ``-s`` after ``--`` is passed to pytest and disables output
-capture.
+CI builds the native ddtrace extensions once per Python version and passes those artifacts to each test job.
+Each suite still creates its own uv environment and editable installation so its locked dependencies and package
+metadata remain isolated.
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
