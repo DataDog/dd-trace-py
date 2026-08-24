@@ -453,11 +453,11 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
         return ErrorKind::TaskInfoError;
     }
 
-    const size_t tasks_start = tasks.size();
+    const size_t tasks_start_size = tasks.size();
     // This traversal only appends to tasks. On structural failure, remove its partial results while preserving entries
     // from earlier sources.
-    auto fail = [&tasks, tasks_start]() -> Result<void> {
-        tasks.resize(tasks_start);
+    auto fail = [&tasks, tasks_start_size]() -> Result<void> {
+        tasks.resize(tasks_start_size);
         return ErrorKind::TaskInfoError;
     };
 
