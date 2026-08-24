@@ -802,7 +802,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             contexts = storage["__contexts__"]
         except (TypeError, KeyError):
             log.debug("Universal wrapping context returned without entering")
-            return super().__return__(value)
+            return t.cast(T, super().__return__(value))
 
         try:
             for context in contexts[::-1]:
