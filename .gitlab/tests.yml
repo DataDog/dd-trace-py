@@ -40,7 +40,31 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
-        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
+        riot_python_versions=( $(riot -P list --interpreters "^${hash}$" | sort -u) )
+
+        for riot_python_version in "${riot_python_versions[@]}"
+        do
+          unset DD_CIVISIBILITY_ITR_ENABLED _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
+          unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
+
+          if [[ "${DD_TRACE_PY_ENABLE_ITR_FOR_JOB:-false}" == "true" ]] \
+            && [[ " ${DD_TRACE_PY_ITR_PYTHON_VERSIONS:-} " == *" ${riot_python_version:-} "* ]]; then
+            export DD_CIVISIBILITY_ITR_ENABLED=true
+            export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=1
+
+            if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
+              # Protected branches run ITR in coverage-only mode: collect/upload coverage but do not skip tests.
+              export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
+            elif [[ "${DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB:-false}" == "true" ]]; then
+              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=0
+            fi
+          fi
+
+          echo "ITR gate debug: suite=${SUITE_NAME:-} hash=${hash} python=${riot_python_version:-unknown} branch=${CI_COMMIT_BRANCH:-} itr_job=${DD_TRACE_PY_ENABLE_ITR_FOR_JOB:-} itr_skip_job=${DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB:-} itr_pys=${DD_TRACE_PY_ITR_PYTHON_VERSIONS:-} itr=${DD_CIVISIBILITY_ITR_ENABLED:-} prevent_skip=${_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING:-} force_coverage=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE:-}"
+
+          export _CI_DD_TAGS="test.configuration.riot_hash:${hash},test.configuration.python:${riot_python_version}"
+          ${RIOT_RUN_CMD} --python "${riot_python_version}" "${hash}" -- --ddtrace
+        done
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
