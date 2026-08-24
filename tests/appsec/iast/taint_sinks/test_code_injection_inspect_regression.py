@@ -11,7 +11,7 @@ import types
 from unittest import mock
 
 import pytest
-from wrapt.wrappers import FunctionWrapper as _MaybePurePythonFunctionWrapper
+from wrapt.wrappers import FunctionWrapper as PurePythonFunctionWrapper
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -24,11 +24,11 @@ from tests.appsec.iast.iast_utils import _iast_patched_module
 
 mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
 
-# wrapt 1.x re-imports the C classes over the pure-Python ones defined in wrapt.wrappers, so that
-# name is only the pure-Python implementation when the C extension is absent (or on wrapt 2.x).
-_PURE_PYTHON_WRAPT_AVAILABLE = _MaybePurePythonFunctionWrapper.__module__.startswith("wrapt")
 
-
+# wrapt.wrappers.FunctionWrapper is the pure-Python class on every supported wrapt version; the C
+# substitution happens on wrapt.__init__/wrapt.__wrapt__, so importing it here never picks up the C
+# class. Do not probe __module__ on it: ObjectProxy declares that as a property, so on the class it
+# is a property object rather than a str before wrapt 2.2.
 def _wrapt_call_template(*args, **kwargs):
     return _IAST_HOOK(_WRAPPED_EVAL, None, args, kwargs)  # noqa: F821
 
@@ -283,8 +283,8 @@ class TestCodeInjectionWraptExtraFrame:
     def _eval_wrapped_behind_wrapt_frame():
         """Wrap eval so the hook is invoked from a frame reporting itself as wrapt.wrappers.
 
-        This is the only thing wrapt's pure-Python FunctionWrapper contributes to the stack, and
-        rebuilding it here keeps the test independent of which wrapt implementation is installed.
+        This is the only thing wrapt's pure-Python FunctionWrapper contributes to the stack, so
+        rebuilding it pins the contract even if wrapt reshapes its wrapper internals.
         """
         # Start from this module's globals so any IAST-injected names stay resolvable, then
         # override __name__ so the frame reports itself as wrapt.
@@ -367,7 +367,6 @@ class TestCodeInjectionWraptExtraFrame:
         assert len(data["vulnerabilities"]) == 1
         assert data["vulnerabilities"][0]["type"] == VULN_CODE_INJECTION
 
-    @pytest.mark.skipif(not _PURE_PYTHON_WRAPT_AVAILABLE, reason="wrapt.wrappers exposes the C FunctionWrapper here")
     def test_eval_resolves_caller_locals_with_real_pure_python_wrapper(self, iast_context_defaults):
         """Same regression driven through wrapt's own pure-Python wrapper, to catch frame shape drift."""
         code_string = "local_value + 1"
@@ -376,7 +375,7 @@ class TestCodeInjectionWraptExtraFrame:
         )
 
         original_eval = getattr(builtins.eval, "__wrapped__", builtins.eval)
-        wrapped_eval = _MaybePurePythonFunctionWrapper(original_eval, _iast_coi)
+        wrapped_eval = PurePythonFunctionWrapper(original_eval, _iast_coi)
         with mock.patch.object(builtins, "eval", wrapped_eval):
             result = mod.pt_eval_caller_locals(tainted_string)
 

@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import logging
+import re
 
 import pytest
 
@@ -59,8 +60,9 @@ def test_string_slice_2(input_str, start_pos, end_pos, step, expected_result, ta
         with pytest.raises(TypeError) as excinfo:
             mod.do_slice_2(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
         # Python 3.15 dropped the "or None" clause from this message.
-        assert "slice indices must be integers or" in str(excinfo.value)
-        assert "have an __index__ method" in str(excinfo.value)
+        assert re.fullmatch(
+            r"slice indices must be integers or (None or )?have an __index__ method", str(excinfo.value)
+        )
     else:
         result = mod.do_slice_2(input_str, start_pos, end_pos, step)  # pylint: disable=no-member
         assert result == expected_result

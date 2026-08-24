@@ -25,8 +25,9 @@ def get_version() -> Text:
 
 _IS_PATCHED = False
 
-# Upper bound on wrapper frames to skip when locating the caller of eval.
-_MAX_WRAPPER_FRAMES = 8
+# Upper bound on frames inspected when locating the caller of eval, so a pathological stack
+# cannot turn the walk into an unbounded loop.
+_MAX_FRAMES_TO_INSPECT = 8
 
 
 def patch():
@@ -63,7 +64,7 @@ def _resolve_caller_frame(frame):
     fixed f_back depth resolves to the wrong scope whenever the C extension is unavailable.
     """
     candidate = frame
-    for _ in range(_MAX_WRAPPER_FRAMES):
+    for _ in range(_MAX_FRAMES_TO_INSPECT):
         if candidate is None:
             break
         module_name = candidate.f_globals.get("__name__") or ""
@@ -102,7 +103,9 @@ def _iast_coi(wrapped, instance, args, kwargs):
                 frames = inspect.currentframe()
                 if frames is not None:
                     caller_frame = _resolve_caller_frame(frames.f_back)
-                if caller_frame is not None:
+                    # Left unguarded on purpose: a None caller_frame raises AttributeError here and
+                    # the except below falls back to a native wrapped(*args, **kwargs) eval, which
+                    # is more correct than evaluating against ddtrace's own globals.
                     func_globals = caller_frame.f_globals
 
             if len(args) > 2:
