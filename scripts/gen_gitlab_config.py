@@ -133,7 +133,7 @@ class JobSpec:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             lines.append(
                 f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
-                "--with-requirements .uv/wait--wait-py39.txt --no-progress "
+                "--with-requirements .uv/wait--wait-py39-*.txt --no-progress "
                 f"python tests/wait-for-services.py {' '.join(wait_for)}"
             )
 

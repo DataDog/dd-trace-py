@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from dataclasses import replace
 from functools import cache
+import hashlib
 from itertools import product
 import os
 from pathlib import Path
@@ -122,6 +123,11 @@ def _slug(value: str) -> str:
 def lockfile_path(suite: str, environment_id: str) -> Path:
     """Return the repository-relative lock path for one concrete environment."""
     return LOCK_ROOT / f"{_slug(suite)}--{environment_id}.txt"
+
+
+def _lock_input_hash(python: str, platform: str, dependencies: tuple[str, ...]) -> str:
+    inputs = (python, platform, *sorted(dependencies, key=str.casefold))
+    return hashlib.sha256("\0".join(inputs).encode()).hexdigest()[:12]
 
 
 @dataclass(frozen=True)
@@ -342,13 +348,16 @@ def _build_environment(
     dependency_groups = _merge_unique(spec["dependency_groups"], selected_groups)
     name = str(spec.get("name", suite.rsplit("::", 1)[-1]))
     environment_id = _environment_id(name, python, selected_groups)
+    platform = str(spec.get("platform", "linux"))
+    dependencies = spec["dependencies"]
+    lock_hash = _lock_input_hash(python, platform, dependencies)
     return TestEnvironment(
         id=environment_id,
         suite=suite,
         name=name,
         python=python,
-        platform=str(spec.get("platform", "linux")),
-        direct_dependencies=spec["dependencies"],
+        platform=platform,
+        direct_dependencies=dependencies,
         dependency_groups=dependency_groups,
         runs=_runs(spec),
         env=tuple(
@@ -362,7 +371,7 @@ def _build_environment(
         environments_per_job=suite_config.get("venvs_per_job"),
         gpu=bool(suite_config.get("gpu", False)),
         install_project=bool(suite_config.get("install_project", True)),
-        lockfile=lockfile_path(suite, environment_id),
+        lockfile=lockfile_path(suite, f"{environment_id}-{lock_hash}"),
         ordinal=ordinal,
     )
 
