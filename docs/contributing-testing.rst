@@ -165,6 +165,78 @@ dependencies change, regenerate only the affected suite:
 
 Commit the resulting ``.uv`` changes with the suitespec change.
 
+How do suitespec matrices expand?
+---------------------------------
+
+A suite expands along only two dimensions: its named variants and Python versions. Python 3.9 through 3.14 is the
+repository default, so omit ``python`` when a variant supports that complete range.
+
+.. list-table:: Suitespec matrix concepts
+   :header-rows: 1
+
+   * - Concept
+     - Creates environments?
+     - Purpose
+   * - Suite
+     - No
+     - Groups environments for CI triggers, services, and shared configuration.
+   * - Variant
+     - Yes
+     - Names a dependency, command, or environment override.
+   * - Python
+     - Yes
+     - Selects interpreter compatibility. Omission means Python 3.9 through 3.14.
+   * - Dependencies
+     - No
+     - Adds packages to a variant; a matching package replaces the shared constraint.
+   * - Environment variables
+     - No
+     - Adds runtime settings, with variant values overriding shared values.
+   * - Command
+     - No
+     - Selects the test invocation, with a variant command replacing the shared command.
+   * - Runs
+     - No
+     - Executes multiple commands in one dependency environment.
+   * - Lock platform
+     - No
+     - Always targets Linux so locks generated on macOS remain CI-compatible.
+
+Use a restricted ``python`` list only when compatibility requires a real subset. Put common configuration on the matrix
+and dependency combinations in named variants:
+
+.. code-block:: yaml
+
+    matrix:
+      command: pytest {cmdargs} tests/contrib/example
+      dependencies: [pytest-asyncio]
+      env:
+        EXAMPLE_MODE: shared
+      variants:
+        - name: example-1
+          python: ['3.9', '3.10']
+          dependencies: ['example~=1.0', 'httpx<0.28']
+        - name: example-latest
+          dependencies: [example]
+          env:
+            EXAMPLE_MODE: latest
+          command: pytest {cmdargs} tests/contrib/example tests/contrib/example_async
+
+Multiple invocations can share one locked environment:
+
+.. code-block:: yaml
+
+    matrix:
+      dependencies: [example]
+      runs:
+        - command: pytest {cmdargs} tests/contrib/example
+        - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/example_autopatch
+          env:
+            DD_SERVICE: example-app
+
+When translating a Riot child venv, use its distinguishing dependency as the variant name and copy its Python subset,
+dependency overrides, command, and environment values. Inherited Riot packages belong in the shared matrix configuration.
+
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
 
@@ -215,14 +287,13 @@ Add the suite and its dependency matrix to the appropriate ``suitespec.yml`` fil
         - redis
       snapshot: true
       matrix:
-        python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
         command: pytest {cmdargs} tests/contrib/yaaredis
-        dependencies:
-          - pytest-asyncio==0.21.1
-        axes:
-          yaaredis:
-            yaaredis-2: yaaredis~=2.0.0
-            yaaredis-latest: yaaredis
+        dependencies: [pytest-asyncio==0.21.1]
+        variants:
+          - name: yaaredis-2
+            dependencies: ['yaaredis~=2.0.0']
+          - name: yaaredis-latest
+            dependencies: [yaaredis]
 
 Generate its locks with ``scripts/test-env lock yaaredis``. See ``tests/README.md`` for suite-selection details.
 
@@ -243,9 +314,13 @@ Commit the changed ``.uv`` locks. The generator applies the repository's package
 How do I resolve conflicts from a branch that changed Riot?
 -----------------------------------------------------------
 
-After updating your branch from main, translate the dependency or Python-version change from ``riotfile.py`` into the matching
-suitespec matrix. Regenerate only that suite with ``scripts/test-env lock <suite>`` and keep unrelated uv locks unchanged. Do
-not restore migrated Riot environments or regenerate all locks.
+Before updating your branch, record its current merge-base with main. After the update, inspect only the new main commits' changes
+to ``riotfile.py`` and ``.riot/requirements``. Translate each changed Riot child into the matching named variant, then copy the
+new Riot requirements content to that environment's ``.uv`` lock path. Keep unrelated suites and locks unchanged.
+
+Use ``scripts/test-env list <suite>`` to confirm the expanded environment and target lock. Do not restore migrated Riot
+environments or resolve the whole suite again. If the upstream change has no compiled Riot requirements, regenerate only that
+suite with ``scripts/test-env lock <suite>`` and call out the resolution change in the pull request.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------

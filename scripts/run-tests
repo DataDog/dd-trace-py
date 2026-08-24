@@ -366,7 +366,7 @@ class TestRunner:
             print("=" * 80)
 
             def format_environment(environment):
-                return f"#{environment.ordinal:3d}  {environment.id}  {environment.name}  {environment.display_name}"
+                return f"{environment.id}  {environment.integration_name}/{environment.variant_name}"
 
             selected = self._interactive_select(environments, "environments", format_environment)
 
@@ -374,7 +374,7 @@ class TestRunner:
                 selected_environments.extend(selected)
                 print(f"   Selected {len(selected)} environment(s) for suite '{suite_name}':")
                 for environment in selected:
-                    print(f"     • {environment.id}: {environment.name} - {environment.display_name}")
+                    print(f"     • {environment.id}: {environment.variant_name}")
 
         return selected_environments
 
@@ -391,14 +391,12 @@ class TestRunner:
         return self.select_environments_for_suites(selected_suites)
 
     def _prepare_uv_environment(self, environment: TestEnvironment) -> PreparedEnvironment:
-        if environment.lockfile is None:
-            raise UvTestEnvironmentError(f"uv environment has no lockfile: {environment.suite}/{environment.id}")
         return prepare_environment(
             self.root,
             suite=environment.suite,
             environment_id=environment.id,
             lockfile=environment.lockfile,
-            install_project=environment.install_project,
+            install_project=bool(get_suites()[environment.suite].get("install_project", True)),
         )
 
     def _uv_execution_path(self, prepared: PreparedEnvironment) -> Path:
@@ -476,7 +474,7 @@ class TestRunner:
                 print(f"❌ {error}")
                 return False
 
-            print(f"\n🔨 Preparing uv environment ({environment.display_name}): {environment.id}")
+            print(f"\n🔨 Preparing uv environment {environment.id} (Python {environment.python})")
             if dry_run:
                 for command in environment_commands(
                     prepared,
@@ -491,9 +489,7 @@ class TestRunner:
                 wrapped = self._ddtest_command(command, command_env)
                 result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
                 if result.returncode != 0:
-                    raise UvTestEnvironmentError(
-                        f"build failed for {environment.display_name} (exit code {result.returncode})"
-                    )
+                    raise UvTestEnvironmentError(f"build failed for {environment.id} (exit code {result.returncode})")
 
             try:
                 rebuilt = ensure_environment(
@@ -523,12 +519,12 @@ class TestRunner:
                     print(f"[DRY RUN] Would execute: {' '.join(command)}")
                     continue
 
-                print(f"\n▶️  Executing with uv ({environment.display_name}): {' '.join(command)}")
+                print(f"\n▶️  Executing with uv ({environment.id}): {' '.join(command)}")
                 result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
                 if result.returncode != 0:
-                    print(f"❌ {environment.display_name} failed with exit code {result.returncode}")
+                    print(f"❌ {environment.id} failed with exit code {result.returncode}")
                     return False
-                print(f"✅ {environment.display_name} completed successfully")
+                print(f"✅ {environment.id} completed successfully")
         return True
 
     def run_tests(
@@ -563,9 +559,9 @@ class TestRunner:
             print(f"🎯 Suite: {suite_name}")
             print(f"{'=' * 80}")
 
-            suite_environment = environments[0]
-            suite_services = set(suite_environment.services)
-            needs_testagent = suite_environment.snapshot
+            suite_config = get_suites()[suite_name]
+            suite_services = set(suite_config.get("services", ()))
+            needs_testagent = bool(suite_config.get("snapshot", False))
             if needs_testagent:
                 suite_services.add("testagent")
 
@@ -583,7 +579,7 @@ class TestRunner:
             env = os.environ.copy()
 
             # Apply suite-specific environment variables
-            suite_env = suite_environment.environment
+            suite_env = {str(key): str(value) for key, value in suite_config.get("env", {}).items()}
             if suite_env:
                 for key, value in suite_env.items():
                     value = str(value)
@@ -633,14 +629,14 @@ class TestRunner:
             environments = self.get_test_environments(pattern, suite_name=suite_name, suite_config=suite_config)
 
             venvs_data = []
-            for environment in environments:
+            for number, environment in enumerate(environments):
                 venvs_data.append(
                     {
                         "id": environment.id,
-                        "number": environment.ordinal,
+                        "number": number,
                         "python_version": environment.python,
                         "packages": ", ".join(environment.direct_dependencies),
-                        "command": environment.command,
+                        "command": environment.runs[0].command,
                     }
                 )
 

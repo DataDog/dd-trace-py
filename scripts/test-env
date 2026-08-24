@@ -24,6 +24,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts._testenv import cooldown_cutoff  # noqa: E402
+from tests.suitespec import LOCK_PLATFORM  # noqa: E402
 from tests.suitespec import LOCK_ROOT  # noqa: E402
 from tests.suitespec import TestEnvironment  # noqa: E402
 from tests.suitespec import expand_declared_matrices  # noqa: E402
@@ -58,11 +59,7 @@ def _resolve_suites(matrices: Mapping[str, tuple[TestEnvironment, ...]], request
 def select_environments(requested: Sequence[str] = ()) -> tuple[tuple[TestEnvironment, ...], tuple[str, ...]]:
     matrices = expand_declared_matrices(get_suites(), get_matrix_defaults(), nightly=False)
     selected_suites = _resolve_suites(matrices, requested)
-    environments = tuple(
-        environment
-        for suite in selected_suites
-        for environment in sorted(matrices[suite], key=lambda item: item.ordinal)
-    )
+    environments = tuple(environment for suite in selected_suites for environment in matrices[suite])
     return environments, selected_suites
 
 
@@ -72,8 +69,6 @@ def compile_environment(
     exclude_newer: str,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> str:
-    if environment.lockfile is None:
-        raise LockError(f"environment has no lockfile path: {environment.id}")
     if not environment.direct_dependencies:
         raise LockError(f"environment has no dependencies: {environment.id}")
 
@@ -89,7 +84,7 @@ def compile_environment(
             "--python-version",
             environment.python,
             "--python-platform",
-            environment.platform,
+            LOCK_PLATFORM,
             "--exclude-newer",
             exclude_newer,
             "--no-annotate",
@@ -159,7 +154,6 @@ def generate_locks(
 
     written = []
     for environment in environments:
-        assert environment.lockfile is not None
         _write_lock(PROJECT_ROOT / environment.lockfile, compiled[environment])
         written.append(environment.lockfile)
     return tuple(written), _prune_locks(set(written), selected_suites)
@@ -168,12 +162,10 @@ def generate_locks(
 def check_locks() -> int:
     environments, _ = select_environments()
     expected = [environment.lockfile for environment in environments]
-    if any(path is None for path in expected):
-        raise LockError("one or more test environments have no lock path")
     if len(expected) != len(set(expected)):
         raise LockError("multiple test environments map to the same uv lock")
 
-    expected_paths = {path for path in expected if path is not None}
+    expected_paths = set(expected)
     actual_paths = {path.relative_to(PROJECT_ROOT) for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")}
     missing = sorted(expected_paths - actual_paths)
     obsolete = sorted(actual_paths - expected_paths)

@@ -93,24 +93,14 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert "$DD_API_KEY" not in config
 
 
-def test_docs_only_pipeline_includes_required_base_environment(gen_gitlab_config_mod, monkeypatch, tmp_path):
-    needs_testrun = types.ModuleType("needs_testrun")
-    needs_testrun.pr_matches_patterns = lambda _patterns: True
-    monkeypatch.setitem(sys.modules, "needs_testrun", needs_testrun)
-    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tmp_path / "tests-gen.yml")
-    monkeypatch.setattr(gen_gitlab_config_mod, "_global_python_versions", set())
-    monkeypatch.setattr(gen_gitlab_config_mod, "_needs_base_venvs", False)
+def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_config_mod, monkeypatch):
+    from tests import suitespec
 
-    gen_gitlab_config_mod.gen_build_docs()
-    gen_gitlab_config_mod.gen_build_base_venvs()
-
-    config = (tmp_path / "tests-gen.yml").read_text()
-    assert "build_docs:" in config
-    assert "build_base_venvs:" in config
-    assert 'PYTHON_VERSION: ["3.10"]' in config
-
-
-def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_config_mod):
+    monkeypatch.setattr(
+        suitespec,
+        "get_matrix_defaults",
+        lambda: {"python": ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]},
+    )
     suite = {
         "matrix": {
             "command": "pytest tests/contrib/requests",
@@ -123,43 +113,3 @@ def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_confi
     assert info["contrib::requests"].venv_count == 2
     assert info["contrib::requests"].environment_ids == ("requests-py311", "requests-py312")
     assert info["contrib::requests"].python_versions == {"3.11", "3.12"}
-
-
-def test_lock_path_tracks_resolver_inputs(gen_gitlab_config_mod):
-    from tests import suitespec
-
-    matrix = {"python": ["3.12"], "command": "pytest", "dependencies": ["pytest==8.4.2"]}
-    original = suitespec.expand_suite_matrix("example", {"matrix": matrix})[0]
-
-    matrix["dependencies"] = ["pytest==9.0.2"]
-    changed = suitespec.expand_suite_matrix("example", {"matrix": matrix})[0]
-
-    assert original.id == changed.id
-    assert original.lockfile != changed.lockfile
-
-
-def test_jobs_use_uv_locks_and_base_venv_artifacts(gen_gitlab_config_mod):
-    config = str(
-        gen_gitlab_config_mod.JobSpec(
-            name="requests",
-            suite="contrib::requests",
-            stage="contrib",
-            snapshot=True,
-            services=["httpbin"],
-            python_versions={"3.12"},
-            environment_ids=("requests-py39", "requests-py310", "requests-py311"),
-            parallelism=2,
-        )
-    )
-
-    assert "extends: .test_base_snapshot" in config
-    assert "TEST_SUITE: contrib::requests" in config
-    assert "UV_NO_CACHE" not in config
-    assert "uv run --no-project --python 3.9" in config
-    assert "--with-requirements .uv/wait--wait-py39-*.txt" in config
-    assert 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent"' in config
-    assert 'TEST_ENVIRONMENTS_1: "requests-py39 requests-py311"' in config
-    assert 'TEST_ENVIRONMENTS_2: "requests-py310"' in config
-    assert "    - job: build_base_venvs" in config
-    assert "      artifacts: true" in config
-    assert '          - PYTHON_VERSION: "3.12"' in config

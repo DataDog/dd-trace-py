@@ -115,9 +115,9 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
         for environment in suite_environments
     )
     for environment in environments:
-        if not is_concrete_python_version(environment.python) or environment.lockfile is None:
+        if not is_concrete_python_version(environment.python):
             continue
-        integration_name = environment.name.split(":", 1)[0]
+        integration_name = environment.integration_name
 
         dependency_names = get_dependency_names(integration_name)
         found_dependency_version = False
@@ -172,7 +172,7 @@ def get_pinned_integrations(integration_names: set[str]) -> set[str]:
     integrations_setting_latest = set()
     for suite_environments in get_test_environments(nightly=False).values():
         for environment in suite_environments:
-            integration_name = environment.name.split(":", 1)[0]
+            integration_name = environment.integration_name
             if integration_name not in integration_names:
                 continue
             if _environment_sets_latest_for_package(environment, integration_name):

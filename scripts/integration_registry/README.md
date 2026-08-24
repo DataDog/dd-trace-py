@@ -118,16 +118,6 @@ The registry has a test suite in [`tests/contrib/integration_registry/`](../../.
     * Reports detailed errors for missing or invalid packages
   * Ensures non-external integrations don't have dependency-related fields
 
-* [`test_suitespec.py`](../../../tests/contrib/integration_registry/test_suitespec.py):
-  * Verifies every integration has corresponding suitespec environments:
-    * Checks that each integration directory has a matching environment
-    * Excludes explicitly untested integrations
-    * Reports missing test environment definitions
-  * Validates test paths in declared environments:
-    * Ensures test paths under `tests/contrib` correspond to actual integrations
-    * Handles special cases for utility test environments
-    * Verifies proper organization of integration-specific tests
-
 ## Troubleshooting
 
 ### Running the Integration Registry Updater Locally

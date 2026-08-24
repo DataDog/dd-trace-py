@@ -166,7 +166,7 @@ From `scripts/run-tests --list`, you'll see output like:
 
 1. **Latest Python version is your default choice**
    - Unless your change specifically targets an older Python version
-   - Example: if fixing Python 3.8 compatibility, also test 3.8
+   - Example: if fixing Python 3.9 compatibility, also test 3.9
 
 2. **One venv per suite is usually enough for iteration**
    - Only run multiple venvs per suite if:

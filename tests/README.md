@@ -44,7 +44,7 @@ The suite schema is as follows:
     pattern: # The pattern/environment name (if different from the suite name)
     paths: # The paths/components that trigger the job
     services: # The services to start before running the suite, defined in .gitlab/services.yml
-    matrix: # Python versions, dependencies, and test command for concrete environments
+    matrix: # Shared configuration and named dependency variants
 ```
 
 For example
@@ -65,11 +65,20 @@ suites:
     services:
       - redis
     matrix:
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
       command: pytest {cmdargs} tests/profiling
-      dependencies:
-        - pytest-randomly
+      dependencies: [pytest-randomly]
+      variants:
+        - name: protobuf-4
+          python: ['3.9', '3.10']
+          dependencies: ['protobuf~=4.0']
+        - name: protobuf-latest
+          dependencies: [protobuf]
 ```
+
+Variants and Python versions are the only fields that expand a matrix. Omitting
+`python` uses the repository's complete supported range. Dependencies,
+environment variables, commands, and runs configure a variant without creating
+additional environments.
 
 Components do not need to be declared within the same `suitespec.yml` file. They
 can be declared in any file within the `/tests` sub-tree. The CI configuration

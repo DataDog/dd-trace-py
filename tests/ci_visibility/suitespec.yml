@@ -32,12 +32,9 @@ suites:
       - tests/ci_visibility/*
     pattern: 'ci_visibility$'
     matrix:
-      command: pytest --ddtrace -n auto --dist=worksteal {cmdargs} tests/ci_visibility --ignore=tests/ci_visibility/api/test_api_fake_runners.py
-      dependencies:
-        - msgpack
-        - pytest-randomly
-        - pytest-xdist
-        - gevent
+      command: >-
+        pytest --ddtrace -n auto --dist=worksteal {cmdargs} tests/ci_visibility --ignore=tests/ci_visibility/api/test_api_fake_runners.py
+      dependencies: [msgpack, pytest-randomly, pytest-xdist, gevent]
       env:
         DD_AGENT_PORT: '9126'
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -59,10 +56,7 @@ suites:
     pattern: 'ci_visibility:snapshot'
     matrix:
       command: pytest --ddtrace {cmdargs} tests/ci_visibility/api/test_api_fake_runners.py
-      dependencies:
-        - msgpack
-        - pytest-randomly
-        - gevent
+      dependencies: [msgpack, pytest-randomly, gevent]
       env:
         DD_AGENT_PORT: '9126'
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -77,7 +71,6 @@ suites:
     snapshot: true
     matrix:
       command: pytest --no-cov {cmdargs} tests/coverage -s
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
   pytest:
     venvs_per_job: 2
     paths:
@@ -95,45 +88,33 @@ suites:
     snapshot: true
     pattern: 'pytest$'
     matrix:
-      command: pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/contrib/pytest/ --ignore=tests/contrib/pytest/snapshot/
-      dependencies:
-        - pytest-randomly
-        - pytest-xdist
-        - msgpack
-        - more_itertools<8.11.0
-        - httpx<0.28.0
+      command: >-
+        pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/contrib/pytest/
+        --ignore=tests/contrib/pytest/snapshot/
+      dependencies: [pytest-randomly, pytest-xdist, msgpack, more_itertools<8.11.0,
+        httpx<0.28.0]
       env:
         DD_AGENT_PORT: '9126'
         DD_PYTEST_USE_NEW_PLUGIN: 'false'
-      cases:
-        - python: ['3.9']
-          dependencies:
-            - pytest~=6.0
-            - pytest-mock==2.0.0
-            - pytest-cov==2.9.0
-          axes:
-            compatibility:
-              pytest-6-0-pytest-mock-2-0-0-pytest-cov-2-9-0: {}
-        - python: ['3.9']
-          dependencies:
-            - pytest-mock==2.0.0
-            - pytest-cov==2.12.0
-          axes:
-            pytest:
-              pytest-7-0: pytest~=7.0
-              pytest-latest: pytest
-            compatibility:
-              pytest-pytest-mock-2-0-0-pytest-cov-2-12-0: {}
-        - python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies:
-            - asynctest==0.13.0
-          axes:
-            pytest:
-              pytest-6-0: pytest~=6.0
-              pytest-7-0: pytest~=7.0
-              pytest-latest: pytest
-            compatibility:
-              pytest-asynctest-0-13-0: {}
+      variants:
+        - name: pytest-6-0-pytest-mock-2-0-0-pytest-cov-2-9-0
+          python: ['3.9']
+          dependencies: [pytest~=6.0, pytest-mock==2.0.0, pytest-cov==2.9.0]
+        - name: pytest-7-0-pytest-pytest-mock-2-0-0-pytest-cov-2-12-0
+          python: ['3.9']
+          dependencies: [pytest~=7.0, pytest-mock==2.0.0, pytest-cov==2.12.0]
+        - name: pytest-latest-pytest-pytest-mock-2-0-0-pytest-cov-2-12-0
+          python: ['3.9']
+          dependencies: [pytest-mock==2.0.0, pytest-cov==2.12.0]
+        - name: pytest-6-0-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest~=6.0, asynctest==0.13.0]
+        - name: pytest-7-0-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest~=7.0, asynctest==0.13.0]
+        - name: pytest-latest-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [asynctest==0.13.0]
   pytest:snapshot:
     venvs_per_job: 1
     paths:
@@ -152,33 +133,27 @@ suites:
     pattern: 'pytest:snapshot'
     matrix:
       command: pytest {cmdargs} --ddtrace tests/contrib/pytest/snapshot/
-      dependencies:
-        - pytest-randomly
-        - pytest-xdist
-        - msgpack
-        - more_itertools<8.11.0
-        - httpx<0.28.0
+      dependencies: [pytest-randomly, pytest-xdist, msgpack, more_itertools<8.11.0,
+        httpx<0.28.0]
       env:
         DD_AGENT_PORT: '9126'
         DD_PYTEST_USE_NEW_PLUGIN: 'false'
-      cases:
-        - python: ['3.9']
-          axes:
-            pytest:
-              pytest-7-2: pytest~=7.2
-              pytest-8-0: pytest~=8.0
-            compatibility:
-              pytest: {}
-        - python: ['3.10', '3.11', '3.12', '3.13']
-          dependencies:
-            - asynctest==0.13.0
-          axes:
-            pytest:
-              pytest-7-2: pytest~=7.2
-              pytest-8-0: pytest~=8.0
-              pytest-latest: pytest
-            compatibility:
-              pytest-asynctest-0-13-0: {}
+      variants:
+        - name: pytest-7-2-pytest
+          python: ['3.9']
+          dependencies: [pytest~=7.2]
+        - name: pytest-8-0-pytest
+          python: ['3.9']
+          dependencies: [pytest~=8.0]
+        - name: pytest-7-2-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest~=7.2, asynctest==0.13.0]
+        - name: pytest-8-0-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [pytest~=8.0, asynctest==0.13.0]
+        - name: pytest-latest-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [asynctest==0.13.0]
   pytest_benchmark:
     venvs_per_job: 3
     paths:
@@ -198,11 +173,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py
-      dependencies:
-        - msgpack
-        - pytest-randomly
-        - pytest-benchmark>=3.1.0,<=4.0.0
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      dependencies: [msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
   pytest_bdd:
     venvs_per_job: 3
     paths:
@@ -222,25 +193,13 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py
-      dependencies:
-        - pytest==7.4.4
-        - msgpack
-        - more_itertools<8.11.0
-        - pytest-randomly
-      cases:
-        - python: ['3.9']
-          axes:
-            pytest-bdd:
-              pytest-bdd-gte-4-0-lt-5-0: pytest-bdd>=4.0,<5.0
-              pytest-bdd-gte-6-0-lt-6-1: pytest-bdd>=6.0,<6.1
-            compatibility:
-              pytest-bdd: {}
-        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies:
-            - pytest-bdd>=6.0,<6.1
-          axes:
-            compatibility:
-              pytest-bdd-gte-6-0-lt-6-1: {}
+      dependencies: [pytest==7.4.4, msgpack, more_itertools<8.11.0, pytest-randomly]
+      variants:
+        - name: pytest-bdd-gte-4-0-lt-5-0-pytest-bdd
+          python: ['3.9']
+          dependencies: ['pytest-bdd>=4.0,<5.0']
+        - name: pytest-bdd-gte-6-0-lt-6-1
+          dependencies: ['pytest-bdd>=6.0,<6.1']
   pytest_flaky:
     venvs_per_job: 3
     paths:
@@ -260,12 +219,9 @@ suites:
     snapshot: true
     pattern: 'pytest:flaky'
     matrix:
-      name: pytest:flaky
       command: pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py
-      dependencies:
-        - flaky
-        - pytest-randomly
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      dependencies: [flaky, pytest-randomly]
+    integration: pytest
   testing:
     retry: 2
     venvs_per_job: 1
@@ -297,25 +253,25 @@ suites:
         DD_AGENT_PORT: '9126'
         DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: 'false'
         _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER: '0'
-      cases:
-        - python: ['3.9']
-          axes:
-            pytest:
-              pytest-6-2-5: pytest==6.2.5
-              pytest-7-2: pytest~=7.2
-              pytest-8-0: pytest~=8.0
-            compatibility:
-              pytest: {}
-        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies:
-            - asynctest==0.13.0
-          axes:
-            pytest:
-              pytest-7-2: pytest~=7.2
-              pytest-8-0: pytest~=8.0
-              pytest-latest: pytest
-            compatibility:
-              pytest-asynctest-0-13-0: {}
+      variants:
+        - name: pytest-6-2-5-pytest
+          python: ['3.9']
+          dependencies: [pytest==6.2.5]
+        - name: pytest-7-2-pytest
+          python: ['3.9']
+          dependencies: [pytest~=7.2]
+        - name: pytest-8-0-pytest
+          python: ['3.9']
+          dependencies: [pytest~=8.0]
+        - name: pytest-7-2-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest~=7.2, asynctest==0.13.0]
+        - name: pytest-8-0-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest~=8.0, asynctest==0.13.0]
+        - name: pytest-latest-pytest-asynctest-0-13-0
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [asynctest==0.13.0]
   selenium:
     parallelism: 2
     env:
@@ -336,14 +292,13 @@ suites:
     services:
       - selenium-chrome
     matrix:
-      name: selenium-pytest
       command: pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium
-      dependencies:
-        - selenium~=4.0
-        - webdriver-manager
+      dependencies: [selenium~=4.0, webdriver-manager]
       env:
         DD_AGENT_PORT: '9126'
-      python: ['3.10', '3.12']
+      variants:
+        - name: pytest
+          python: ['3.10', '3.12']
   unittest:
     parallelism: 2
     paths:
@@ -357,11 +312,8 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/unittest/
-      dependencies:
-        - msgpack
-        - pytest-randomly
+      dependencies: [msgpack, pytest-randomly]
       env:
         DD_AGENT_PORT: '9126'
         DD_PATCH_MODULES: unittest:true
         DD_UNITTEST_SERVICE: dd-trace-py
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']

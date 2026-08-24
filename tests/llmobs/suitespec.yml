@@ -50,24 +50,13 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/anthropic
-      dependencies:
-        - pytest-asyncio
-        - vcrpy
-      cases:
-        - python: ['3.9', '3.10', '3.11', '3.12']
-          dependencies:
-            - anthropic~=0.28.0
-            - httpx~=0.27.0
-          axes:
-            compatibility:
-              anthropic-0-28-0-httpx-0-27-0: {}
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies:
-            - anthropic
-            - httpx<0.28.0
-          axes:
-            compatibility:
-              anthropic-latest-httpx-lt-0-28-0: {}
+      dependencies: [pytest-asyncio, vcrpy]
+      variants:
+        - name: anthropic-0-28-0-httpx-0-27-0
+          python: ['3.9', '3.10', '3.11', '3.12']
+          dependencies: [anthropic~=0.28.0, httpx~=0.27.0]
+        - name: anthropic-latest-httpx-lt-0-28-0
+          dependencies: [anthropic, httpx<0.28.0]
   claude_agent_sdk:
     parallelism: 3
     paths:
@@ -82,15 +71,20 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/claude_agent_sdk/
-      dependencies:
-        - pytest-asyncio
-      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-      axes:
-        claude-agent-sdk:
-          claude-agent-sdk-0-0-23: claude-agent-sdk==0.0.23
-          claude-agent-sdk-0-1-29: claude-agent-sdk==0.1.29
-          claude-agent-sdk-0-1-49: claude-agent-sdk==0.1.49
-          claude-agent-sdk-latest: claude-agent-sdk
+      dependencies: [pytest-asyncio]
+      variants:
+        - name: claude-agent-sdk-0-0-23
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [claude-agent-sdk==0.0.23]
+        - name: claude-agent-sdk-0-1-29
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [claude-agent-sdk==0.1.29]
+        - name: claude-agent-sdk-0-1-49
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [claude-agent-sdk==0.1.49]
+        - name: claude-agent-sdk-latest
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [claude-agent-sdk]
   google_adk:
     venvs_per_job: 2
     paths:
@@ -104,16 +98,12 @@ suites:
     snapshot: true
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/google_adk
-      dependencies:
-        - pytest-asyncio
-        - pytest-xdist
-        - vcrpy
-        - deprecated
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-      axes:
-        google-adk:
-          google-adk-1-0-0: google-adk~=1.0.0
-          google-adk-latest: google-adk
+      dependencies: [pytest-asyncio, pytest-xdist, vcrpy, deprecated]
+      variants:
+        - name: google-adk-1-0-0
+          dependencies: [google-adk~=1.0.0]
+        - name: google-adk-latest
+          dependencies: [google-adk]
   google_genai:
     parallelism: 1
     paths:
@@ -128,10 +118,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/google_genai
-      dependencies:
-        - pytest-asyncio
-        - google-genai
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+      dependencies: [pytest-asyncio, google-genai]
   vertexai:
     parallelism: 2
     paths:
@@ -146,11 +133,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/vertexai
-      dependencies:
-        - pytest-asyncio
-        - vertexai
-        - google-ai-generativelanguage
-        - google-cloud-aiplatform
+      dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
       python: ['3.9', '3.10', '3.11', '3.12']
   llama_index:
     paths:
@@ -165,16 +148,14 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
-      dependencies:
-        - pytest-asyncio
-        - vcrpy
-        - llama-index-llms-openai
-        - llama-index-embeddings-openai
-      python: ['3.10', '3.11', '3.12', '3.13']
-      axes:
-        llama-index-core:
-          llama-index-core-0-11-0: llama-index-core~=0.11.0
-          llama-index-core-latest: llama-index-core
+      dependencies: [pytest-asyncio, vcrpy, llama-index-llms-openai, llama-index-embeddings-openai]
+      variants:
+        - name: llama-index-core-0-11-0
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [llama-index-core~=0.11.0]
+        - name: llama-index-core-latest
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [llama-index-core]
   langchain:
     retry: 2
     parallelism: 6
@@ -203,18 +184,17 @@ suites:
         - greenlet==3.0.3
         - respx
         - numpy
-      cases:
-        - python: ['3.9', '3.10', '3.11', '3.12']
+      variants:
+        - name: langchain-core-0-1-0-langchain-openai-0-1-0-langchain-anthropic
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies:
             - langchain-core~=0.1.0
             - langchain-openai~=0.1.0
             - langchain-anthropic~=0.1.0
             - langchain-aws~=0.1.0
             - langchain-cohere~=0.1.0
-          axes:
-            compatibility:
-              langchain-core-0-1-0-langchain-openai-0-1-0-langchain-anthropic-: {}
-        - python: ['3.9', '3.10', '3.11', '3.12']
+        - name: langchain-core-0-3-0-langchain-openai-0-3-0-langchain-anthropic
+          python: ['3.9', '3.10', '3.11', '3.12']
           dependencies:
             - langchain-core~=0.3.0
             - langchain-openai~=0.3.0
@@ -222,10 +202,8 @@ suites:
             - langchain-aws~=0.2.0
             - langchain-cohere~=0.3.0
             - langchain-google-genai~=2.0.0
-          axes:
-            compatibility:
-              langchain-core-0-3-0-langchain-openai-0-3-0-langchain-anthropic-: {}
-        - python: ['3.10', '3.11', '3.12']
+        - name: langchain-core-latest-langchain-openai-latest-langchain-anthropi
+          python: ['3.10', '3.11', '3.12']
           dependencies:
             - langchain-core
             - langchain-openai
@@ -233,9 +211,6 @@ suites:
             - langchain-aws
             - langchain-cohere
             - langchain-google-genai
-          axes:
-            compatibility:
-              langchain-core-latest-langchain-openai-latest-langchain-anthropi: {}
   litellm:
     paths:
       - '@bootstrap'
@@ -250,26 +225,14 @@ suites:
     venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/contrib/litellm
-      dependencies:
-        - vcrpy
-        - pytest-asyncio
-        - botocore
-        - boto3
-      cases:
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies:
-            - litellm==1.65.4
-            - openai==1.68.2
-          axes:
-            compatibility:
-              litellm-1-65-4-openai-1-68-2: {}
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies:
-            - litellm==1.80.16
-            - openai>=2.8.0
-          axes:
-            compatibility:
-              litellm-1-80-16-openai-gte-2-8-0: {}
+      dependencies: [vcrpy, pytest-asyncio, botocore, boto3]
+      variants:
+        - name: litellm-1-65-4-openai-1-68-2
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [litellm==1.65.4, openai==1.68.2]
+        - name: litellm-1-80-16-openai-gte-2-8-0
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [litellm==1.80.16, openai>=2.8.0]
   llmobs:
     paths:
       - '@bootstrap'
@@ -288,10 +251,11 @@ suites:
     snapshot: true
     venvs_per_job: 1
     matrix:
-      dependencies:
-        - pytest-xdist
-      cases:
-        - python: ['3.9']
+      command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
+      dependencies: [pytest-xdist]
+      variants:
+        - name: vcrpy-latest-openai-latest-google-cloud-aiplatform-latest-boto3
+          python: ['3.9']
           dependencies:
             - vcrpy
             - openai
@@ -301,11 +265,8 @@ suites:
             - langchain
             - pandas
             - openfeature-sdk>=0.8,<1
-          axes:
-            compatibility:
-              vcrpy-latest-openai-latest-google-cloud-aiplatform-latest-boto3-: {}
-          command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
-        - python: ['3.10', '3.11', '3.12', '3.13']
+        - name: vcrpy-latest-openai-latest-google-cloud-aiplatform-latest-boto3-2
+          python: ['3.10', '3.11', '3.12', '3.13']
           dependencies:
             - vcrpy
             - openai
@@ -317,16 +278,9 @@ suites:
             - openfeature-sdk>=0.8,<1
             - deepeval
             - pydantic-evals>=1.31
-          axes:
-            compatibility:
-              vcrpy-latest-openai-latest-google-cloud-aiplatform-latest-boto3--2: {}
-          command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies:
-            - pydantic~=1.10
-          axes:
-            compatibility:
-              pydantic-1-10: {}
+        - name: pydantic-1-10
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pydantic~=1.10]
           command: pytest -n auto --dist=worksteal {cmdargs} tests/llmobs/test_utils.py
   mcp:
     paths:
@@ -342,13 +296,14 @@ suites:
     venvs_per_job: 5
     matrix:
       command: pytest {cmdargs} tests/contrib/mcp
-      dependencies:
-        - pytest-asyncio
-      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-      axes:
-        mcp:
-          mcp-1-10-0: mcp~=1.10.0
-          mcp-latest: mcp
+      dependencies: [pytest-asyncio]
+      variants:
+        - name: mcp-1-10-0
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [mcp~=1.10.0]
+        - name: mcp-latest
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [mcp]
   mistralai:
     parallelism: 1
     paths:
@@ -364,13 +319,14 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/mistralai
-      dependencies:
-        - pytest-asyncio
-      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-      axes:
-        mistralai:
-          mistralai-2-0-0: mistralai~=2.0.0
-          mistralai-latest: mistralai
+      dependencies: [pytest-asyncio]
+      variants:
+        - name: mistralai-2-0-0
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [mistralai~=2.0.0]
+        - name: mistralai-latest
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [mistralai]
   openai:
     venvs_per_job: 1
     paths:
@@ -387,33 +343,28 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/openai
-      dependencies:
-        - vcrpy
-        - urllib3~=1.26
-        - pytest-asyncio==0.21.1
-        - pytest-randomly
-      cases:
-        - python: ['3.9', '3.10', '3.11']
-          dependencies:
-            - pillow==9.5.0
-            - httpx==0.27.2
-          axes:
-            openai-embeddings-datalib:
-              openai-embeddings-datalib-1-0-0: openai[embeddings,datalib]==1.0.0
-              openai-embeddings-datalib-1-30-1: openai[embeddings,datalib]==1.30.1
-            compatibility:
-              openai-embeddings-datalib-pillow-9-5-0-httpx-0-27-2: {}
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies:
-            - pillow
-          axes:
-            openai:
-              openai-latest: openai
-              openai-lt-2-0-0: openai<2.0.0
-              openai-1-76-2: openai~=1.76.2
-              openai-1-66-0: openai==1.66.0
-            compatibility:
-              openai-pillow-latest: {}
+      dependencies: [vcrpy, urllib3~=1.26, pytest-asyncio==0.21.1, pytest-randomly]
+      variants:
+        - name:
+            openai-embeddings-datalib-1-0-0-openai-embeddings-datalib-pillow-9-5-0-httpx-0-27-2
+          python: ['3.9', '3.10', '3.11']
+          dependencies: [pillow==9.5.0, httpx==0.27.2, 'openai[embeddings,datalib]==1.0.0']
+        - name:
+            openai-embeddings-datalib-1-30-1-openai-embeddings-datalib-pillow-9-5-0-httpx-0-27-2
+          python: ['3.9', '3.10', '3.11']
+          dependencies: [pillow==9.5.0, httpx==0.27.2, 'openai[embeddings,datalib]==1.30.1']
+        - name: openai-latest-openai-pillow-latest
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pillow, openai]
+        - name: openai-lt-2-0-0-openai-pillow-latest
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pillow, openai<2.0.0]
+        - name: openai-1-76-2-openai-pillow-latest
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pillow, openai~=1.76.2]
+        - name: openai-1-66-0-openai-pillow-latest
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [pillow, openai==1.66.0]
   langgraph:
     paths:
       - '@bootstrap'
@@ -428,28 +379,32 @@ suites:
     venvs_per_job: 4
     matrix:
       command: pytest {cmdargs} tests/contrib/langgraph
-      dependencies:
-        - pytest-asyncio
-        - langchain_openai
-        - langchain_core
-        - langchain
-      cases:
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          axes:
-            langgraph: &id001
-              langgraph-0-2-23: langgraph==0.2.23
-              langgraph-0-3-21: langgraph==0.3.21
-              langgraph-0-3-22: langgraph==0.3.22
-              langgraph-latest: langgraph
-            compatibility:
-              variant-1: {}
-        - python: ['3.14']
-          dependencies:
-            - ormsgpack>=1.11.0
-          axes:
-            langgraph: *id001
-            compatibility:
-              ormsgpack-gte-1-11-0: {}
+      dependencies: [pytest-asyncio, langchain_openai, langchain_core, langchain]
+      variants:
+        - name: langgraph-0-2-23-variant-1
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [langgraph==0.2.23]
+        - name: langgraph-0-3-21-variant-1
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [langgraph==0.3.21]
+        - name: langgraph-0-3-22-variant-1
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [langgraph==0.3.22]
+        - name: langgraph-latest-variant-1
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [langgraph]
+        - name: langgraph-0-2-23-ormsgpack-gte-1-11-0
+          python: ['3.14']
+          dependencies: [ormsgpack>=1.11.0, langgraph==0.2.23]
+        - name: langgraph-0-3-21-ormsgpack-gte-1-11-0
+          python: ['3.14']
+          dependencies: [ormsgpack>=1.11.0, langgraph==0.3.21]
+        - name: langgraph-0-3-22-ormsgpack-gte-1-11-0
+          python: ['3.14']
+          dependencies: [ormsgpack>=1.11.0, langgraph==0.3.22]
+        - name: langgraph-latest-ormsgpack-gte-1-11-0
+          python: ['3.14']
+          dependencies: [ormsgpack>=1.11.0, langgraph]
   crewai:
     retry: 2
     parallelism: 3
@@ -466,15 +421,14 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/crewai
-      dependencies:
-        - pytest-asyncio
-        - openai
-        - vcrpy==7.0.0
-      python: ['3.10', '3.11', '3.12']
-      axes:
-        crewai:
-          crewai-0-102-0: crewai~=0.102.0
-          crewai-latest: crewai
+      dependencies: [pytest-asyncio, openai, vcrpy==7.0.0]
+      variants:
+        - name: crewai-0-102-0
+          python: ['3.10', '3.11', '3.12']
+          dependencies: [crewai~=0.102.0]
+        - name: crewai-latest
+          python: ['3.10', '3.11', '3.12']
+          dependencies: [crewai]
   openai_agents:
     paths:
       - '@bootstrap'
@@ -489,35 +443,26 @@ suites:
     venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/openai_agents
-      dependencies:
-        - vcrpy
-        - pytest-asyncio
-        - openai
-      cases:
-        - python: ['3.9']
-          dependencies:
-            - urllib3<2
-            - eval-type-backport
-          axes:
-            openai-agents:
-              openai-agents-0-0-0: openai-agents~=0.0.0
-              openai-agents-0-8-0: openai-agents~=0.8.0
-            compatibility:
-              openai-agents-urllib3-lt-2-eval-type-backport-latest: {}
-        - python: ['3.10', '3.11', '3.12', '3.13']
-          axes:
-            openai-agents:
-              openai-agents-0-0-0: openai-agents~=0.0.0
-              openai-agents-0-8-0: openai-agents~=0.8.0
-            compatibility:
-              openai-agents: {}
-        - python: ['3.10', '3.11', '3.12', '3.13']
-          axes:
-            openai-agents:
-              openai-agents-0-14-0: openai-agents~=0.14.0
-              openai-agents-latest: openai-agents
-            compatibility:
-              openai-agents-2: {}
+      dependencies: [vcrpy, pytest-asyncio, openai]
+      variants:
+        - name: openai-agents-0-0-0-openai-agents-urllib3-lt-2-eval-type-backport-latest
+          python: ['3.9']
+          dependencies: [urllib3<2, eval-type-backport, openai-agents~=0.0.0]
+        - name: openai-agents-0-8-0-openai-agents-urllib3-lt-2-eval-type-backport-latest
+          python: ['3.9']
+          dependencies: [urllib3<2, eval-type-backport, openai-agents~=0.8.0]
+        - name: openai-agents-0-0-0-openai-agents
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [openai-agents~=0.0.0]
+        - name: openai-agents-0-8-0-openai-agents
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [openai-agents~=0.8.0]
+        - name: openai-agents-0-14-0-openai-agents-2
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [openai-agents~=0.14.0]
+        - name: openai-agents-latest-openai-agents-2
+          python: ['3.10', '3.11', '3.12', '3.13']
+          dependencies: [openai-agents]
   pydantic_ai:
     paths:
       - '@bootstrap'
@@ -532,33 +477,20 @@ suites:
     venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/contrib/pydantic_ai
-      dependencies:
-        - pytest-asyncio
-        - vcrpy==7.0.0
-        - typing_extensions
-      cases:
-        - python: ['3.9']
-          dependencies:
-            - pydantic-ai-slim[openai]==0.8.1
-            - pydantic==2.12.0a1
-          axes:
-            compatibility:
-              pydantic-ai-slim-openai-0-8-1-pydantic-2-12-0a1: {}
-        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies:
-            - pydantic==2.12.0a1
-          axes:
-            pydantic-ai-slim-openai:
-              pydantic-ai-slim-openai-0-8-1: pydantic-ai-slim[openai]==0.8.1
-              pydantic-ai-slim-openai-1-0-0: pydantic-ai-slim[openai]==1.0.0
-            compatibility:
-              pydantic-ai-slim-openai-pydantic-2-12-0a1: {}
-        - python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies:
-            - pydantic-ai-slim[openai]==1.63.0
-          axes:
-            compatibility:
-              pydantic-ai-slim-openai-1-63-0: {}
+      dependencies: [pytest-asyncio, vcrpy==7.0.0, typing_extensions]
+      variants:
+        - name: pydantic-ai-slim-openai-0-8-1-pydantic-2-12-0a1
+          python: ['3.9']
+          dependencies: ['pydantic-ai-slim[openai]==0.8.1', pydantic==2.12.0a1]
+        - name: pydantic-ai-slim-openai-0-8-1-pydantic-ai-slim-openai-pydantic-2-12-0a1
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pydantic==2.12.0a1, 'pydantic-ai-slim[openai]==0.8.1']
+        - name: pydantic-ai-slim-openai-1-0-0-pydantic-ai-slim-openai-pydantic-2-12-0a1
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pydantic==2.12.0a1, 'pydantic-ai-slim[openai]==1.0.0']
+        - name: pydantic-ai-slim-openai-1-63-0
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: ['pydantic-ai-slim[openai]==1.63.0']
   vllm:
     venvs_per_job: 1
     paths:
@@ -575,9 +507,5 @@ suites:
     skip: true # Temporarily disabled
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
-      dependencies:
-        - pytest-asyncio==0.21.1
-        - pytest-randomly
-        - torch
-        - vllm>=0.10.2
+      dependencies: [pytest-asyncio==0.21.1, pytest-randomly, torch, vllm>=0.10.2]
       python: ['3.10', '3.11', '3.12', '3.13']

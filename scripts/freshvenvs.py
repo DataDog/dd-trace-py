@@ -87,7 +87,7 @@ def _all_test_environments() -> tuple[TestEnvironment, ...]:
 
 def _get_test_environments_including_any(contrib_modules: set[str]) -> tuple[TestEnvironment, ...]:
     return tuple(
-        environment for environment in _all_test_environments() if environment.name.split(":", 1)[0] in contrib_modules
+        environment for environment in _all_test_environments() if environment.integration_name in contrib_modules
     )
 
 
@@ -95,7 +95,7 @@ def _get_updatable_packages_implementing(contrib_modules: set[str]) -> set[str]:
     """Return integrations with an environment that tracks their latest dependency."""
     packages_setting_latest = set()
     for environment in _all_test_environments():
-        integration = environment.name.split(":", 1)[0]
+        integration = environment.integration_name
         if integration not in contrib_modules:
             continue
         dependencies = {
@@ -205,11 +205,9 @@ def _get_version_extremes(contrib_module: str) -> tuple[Optional[str], Optional[
 
 def _get_package_versions_from(environment: TestEnvironment, contrib_modules: set[str]) -> list[tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
-    if environment.lockfile is None:
-        return []
     lockfile_content = environment.lockfile.read_text().splitlines()
     lock_packages = []
-    integration = environment.name.split(":", 1)[0]
+    integration = environment.integration_name
     if integration not in contrib_modules and integration in DEPENDENCY_TO_INTEGRATION_MAPPING:
         integration = DEPENDENCY_TO_INTEGRATION_MAPPING[integration]
     dependencies = INTEGRATION_TO_DEPENDENCY_MAPPING.get(integration) or {integration}

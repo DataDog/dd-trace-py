@@ -13,8 +13,6 @@ suites:
       - '@tracing'
       - tests/errortracking/*
     matrix:
-      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
       command: pytest {cmdargs} tests/errortracking/
-      dependencies:
-        - flask
-        - pip==26.2.1
+      dependencies: [flask, pip==26.2.1]
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14']

@@ -6,9 +6,6 @@ from typing import cast
 import pytest
 import yaml
 
-from tests.suitespec import TestEnvironment as _TestEnvironment
-from tests.suitespec import get_test_environments
-
 
 @pytest.fixture(scope="module")
 def project_root() -> Path:
@@ -145,18 +142,6 @@ def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
     if not names:
         pytest.fail(f"No directories (excluding __pycache__) found in {internal_contrib_dir}")
     return names
-
-
-@pytest.fixture(scope="module")
-def test_environments() -> tuple[_TestEnvironment, ...]:
-    return tuple(
-        environment for environments in get_test_environments(nightly=False).values() for environment in environments
-    )
-
-
-@pytest.fixture(scope="module")
-def test_environment_names(test_environments: tuple[_TestEnvironment, ...]) -> set[str]:
-    return {environment.name for environment in test_environments}
 
 
 @pytest.fixture(scope="module")

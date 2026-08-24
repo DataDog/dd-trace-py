@@ -20,7 +20,10 @@ suites:
     pattern: profile$
     retry: 2
     matrix:
-      command: python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling
+      command: >-
+        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py'
+        {cmdargs} tests/profiling
       dependencies:
         - gunicorn
         - jsonschema
@@ -37,46 +40,23 @@ suites:
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
-      cases:
-        - python: ['3.9', '3.10']
-          axes:
-            protobuf:
-              protobuf-3-19-0: protobuf==3.19.0
-              protobuf-latest: protobuf
-            compatibility:
-              protobuf: {}
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies:
-            - gunicorn[gevent]
-            - gevent
-            - protobuf
-          axes:
-            compatibility:
-              gunicorn-gevent-latest-gevent-latest-protobuf-latest: {}
+      variants:
+        - name: protobuf-3-19-0-protobuf
+          python: ['3.9', '3.10']
+          dependencies: [protobuf==3.19.0]
+        - name: protobuf-latest
+          dependencies: [protobuf]
+        - name: gunicorn-gevent-latest-gevent-latest-protobuf-latest
+          dependencies: ['gunicorn[gevent]', gevent, protobuf]
           env:
             DD_PROFILE_TEST_GEVENT: '1'
-        - python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies:
-            - uvloop
-            - protobuf
-          axes:
-            compatibility:
-              uvloop-latest-protobuf-latest: {}
+        - name: uvloop-latest-protobuf-latest
+          dependencies: [uvloop, protobuf]
           env:
             USE_UVLOOP: '1'
-        - python: ['3.11', '3.12', '3.13']
-          axes:
-            protobuf:
-              protobuf-4-22-0: protobuf==4.22.0
-              protobuf-latest: protobuf
-            compatibility:
-              protobuf-2: {}
-        - python: ['3.14']
-          dependencies:
-            - protobuf
-          axes:
-            compatibility:
-              protobuf-latest: {}
+        - name: protobuf-4-22-0-protobuf-2
+          python: ['3.11', '3.12', '3.13']
+          dependencies: [protobuf==4.22.0]
   profile-uwsgi:
     env:
       DD_TRACE_AGENT_URL: ''
@@ -91,7 +71,9 @@ suites:
     pattern: profile-uwsgi
     retry: 2
     matrix:
-      command: python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py
+      command: >-
+        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        {cmdargs} tests/profiling/test_uwsgi.py
       dependencies:
         - gunicorn
         - jsonschema
@@ -124,7 +106,9 @@ suites:
     pattern: profile-memalloc
     retry: 2
     matrix:
-      command: python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
+      command: >-
+        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
       dependencies:
         - gunicorn
         - jsonschema
@@ -141,7 +125,6 @@ suites:
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
-      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
       runs:
         - env:
             PYTHONMALLOC: malloc
