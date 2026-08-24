@@ -754,6 +754,25 @@ class TraceExporterBuilder:
         Enable health metrics in the TraceExporter
         """
         ...
+    def set_agentless_endpoint(self, url: str, api_key: str) -> TraceExporterBuilder:
+        """
+        Send spans straight to the Datadog trace intake instead of to an agent.
+
+        Payloads are always JSON in this mode, so the output format is ignored. Mutually
+        exclusive with :meth:`set_url` and :meth:`set_otlp_endpoint`; ``build`` rejects the
+        combination.
+        :param url: Full intake URL including the path
+            (e.g. "https://public-trace-http-intake.logs.datadoghq.com/v1/input").
+        :param api_key: API key sent as the ``dd-api-key`` header.
+        """
+        ...
+    def set_agentless_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Request timeout for the agentless intake transport (default 15s).
+
+        Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
+        """
+        ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
         Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
