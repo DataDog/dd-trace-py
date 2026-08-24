@@ -32,7 +32,7 @@ if [ -n "$staged_files" ]; then
                 exit 1
             fi
         done
-        staged_ruff_now=$(git diff --staged --name-only HEAD | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
+        staged_ruff_now=$(git diff --staged --name-only HEAD --diff-filter=ACMR | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
         if [ -n "$(printf '%s' "$staged_ruff_now" | tr -d ' \t\n')" ]; then
             ruff_staged_output=$("$LINT_CMD" ruff format --check --no-cache $staged_ruff_now 2>&1)
             if [ $? -ne 0 ]; then
