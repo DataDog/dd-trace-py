@@ -39,6 +39,8 @@ build_base_venvs:
       export PIP_PRE=true
     fi
     echo "Running smoke tests"
+    # This job must run the editable install to materialize source-tree artifacts such as libddwaf.
+    rm -rf .cache/uv-test-environments/smoke_test
     scripts/run-tests --suite smoke_test --venv "smoke-test-py${{PYTHON_VERSION//./}}"
     sccache --show-stats || true
   artifacts:
