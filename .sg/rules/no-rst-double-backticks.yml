@@ -1,6 +1,6 @@
 id: no-rst-double-backticks
 message: Use single backticks (`name`) in Python comments and docstrings, not rST-style double backticks (``name``)
-severity: error
+severity: warning
 language: Python
 files:
   - "ddtrace/**"
@@ -18,6 +18,9 @@ rule:
 note: |
   dd-trace-py uses plain-text / Google-style docstrings, not Sphinx rST. Double
   backticks are for .rst docs only.
+
+  Warning (not error) until existing ddtrace hits are cleaned up (~888 today).
+  Pre-commit can enforce on staged files via: ast-grep scan --error=no-rst-double-backticks
 
   Bad:  # ``logging.__version__``
   Good: # `logging.__version__`
