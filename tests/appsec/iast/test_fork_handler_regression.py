@@ -35,16 +35,15 @@ def test_fork_handler_callable(iast_context_defaults):
     from ddtrace.internal.settings.asm import config as asm_config
 
     # Should not raise any exception
+    original_state = asm_config._iast_enabled
     try:
-        original_state = asm_config._iast_enabled
         _disable_iast_after_fork()
         # Fork handler should disable IAST
         assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
+    finally:
         # Restore for other tests - reinitialize native state for clean slate
         asm_config._iast_enabled = original_state
         reset_native_state()  # Reinitialize to clean state for next test
-    except Exception as e:
-        pytest.fail(f"Fork handler raised unexpected exception: {e}")
 
 
 def test_fork_handler_with_active_context(iast_context_defaults):
@@ -62,17 +61,18 @@ def test_fork_handler_with_active_context(iast_context_defaults):
 
     # Reset simulates what happens after fork - IAST is disabled
     original_state = asm_config._iast_enabled
-    _disable_iast_after_fork()
+    try:
+        _disable_iast_after_fork()
 
-    # IAST should now be disabled
-    assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
+        # IAST should now be disabled
+        assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
 
-    # After reset, we should be able to call these safely (they're no-ops now)
-    _end_iast_context_and_oce()
-
-    # Restore for other tests - reinitialize native state for clean slate
-    asm_config._iast_enabled = original_state
-    reset_native_state()  # Reinitialize to clean state for next test
+        # After reset, we should be able to call these safely (they're no-ops now)
+        _end_iast_context_and_oce()
+    finally:
+        # Restore for other tests - reinitialize native state for clean slate
+        asm_config._iast_enabled = original_state
+        reset_native_state()  # Reinitialize to clean state for next test
 
 
 @pytest.mark.skip(reason="multiprocessing fork doesn't work correctly in ddtrace-py 4.0")
@@ -264,33 +264,36 @@ def test_fork_handler_clears_state(iast_context_defaults):
     """
     from ddtrace.appsec._iast import _disable_iast_after_fork
     from ddtrace.appsec._iast._taint_tracking import is_tainted
+    from ddtrace.appsec._iast._taint_tracking import reset_native_state
     from ddtrace.internal.settings.asm import config as asm_config
 
     _start_iast_context_and_oce()
-    tainted = taint_pyobject("test", "source", "value", OriginType.PARAMETER)
-    assert is_tainted(tainted), "Should be tainted before fork"
-
-    # Manually call the fork handler (simulating what happens after fork)
     original_state = asm_config._iast_enabled
-    _disable_iast_after_fork()
+    try:
+        tainted = taint_pyobject("test", "source", "value", OriginType.PARAMETER)
+        assert is_tainted(tainted), "Should be tainted before fork"
 
-    # IAST should now be disabled
-    assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
+        # Manually call the fork handler (simulating what happens after fork)
+        _disable_iast_after_fork()
 
-    # After reset, these should be safe no-ops
-    _end_iast_context_and_oce()
-    _start_iast_context_and_oce()
+        # IAST should now be disabled
+        assert asm_config._iast_enabled is False, "IAST should be disabled after fork"
 
-    # taint_pyobject should be a no-op (IAST disabled)
-    tainted2 = taint_pyobject("test2", "source2", "value2", OriginType.PARAMETER)
-    count = _num_objects_tainted_in_request()
-    assert count == 0, "Should have 0 tainted objects (IAST disabled)"
-    assert not is_tainted(tainted2), "Should not be tainted (IAST disabled)"
+        # After reset, these should be safe no-ops
+        _end_iast_context_and_oce()
+        _start_iast_context_and_oce()
 
-    _end_iast_context_and_oce()
+        # taint_pyobject should be a no-op (IAST disabled)
+        tainted2 = taint_pyobject("test2", "source2", "value2", OriginType.PARAMETER)
+        count = _num_objects_tainted_in_request()
+        assert count == 0, "Should have 0 tainted objects (IAST disabled)"
+        assert not is_tainted(tainted2), "Should not be tainted (IAST disabled)"
 
-    # Restore for other tests
-    asm_config._iast_enabled = original_state
+        _end_iast_context_and_oce()
+    finally:
+        # Restore for other tests
+        asm_config._iast_enabled = original_state
+        reset_native_state()
 
 
 @pytest.mark.skip(reason="multiprocessing fork doesn't work correctly in ddtrace-py 4.0")
@@ -362,34 +365,37 @@ def test_early_fork_keeps_iast_enabled():
     remain enabled in the child and work normally.
     """
     from ddtrace.appsec._iast import _disable_iast_after_fork
-    from ddtrace.appsec._iast._taint_tracking import initialize_native_state
     from ddtrace.appsec._iast._taint_tracking import is_tainted
+    from ddtrace.appsec._iast._taint_tracking import reset_native_state
     from ddtrace.internal.settings.asm import config as asm_config
 
     # Ensure IAST is enabled but NO context is active (simulating early fork)
     # Don't call _start_iast_context_and_oce() - this simulates pre-fork state
-    initialize_native_state()
+    reset_native_state()
     original_state = asm_config._iast_enabled
-    asm_config._iast_enabled = True
+    try:
+        asm_config._iast_enabled = True
 
-    # Call the fork handler - should detect no active context and keep IAST enabled
-    _disable_iast_after_fork()
+        # Call the fork handler - should detect no active context and keep IAST enabled
+        _disable_iast_after_fork()
 
-    # IAST should still be enabled (early fork scenario)
-    assert asm_config._iast_enabled is True, "IAST should remain enabled for early forks"
+        # IAST should still be enabled (early fork scenario)
+        assert asm_config._iast_enabled is True, "IAST should remain enabled for early forks"
 
-    # Now we can initialize IAST fresh in this "worker"
-    _start_iast_context_and_oce()
+        # Now we can initialize IAST fresh in this "worker"
+        _start_iast_context_and_oce()
 
-    # IAST should work normally
-    tainted = taint_pyobject("worker_data", "source", "value", OriginType.PARAMETER)
-    assert is_tainted(tainted), "IAST should work in early fork (web worker)"
+        # IAST should work normally
+        tainted = taint_pyobject("worker_data", "source", "value", OriginType.PARAMETER)
+        assert is_tainted(tainted), "IAST should work in early fork (web worker)"
 
-    count = _num_objects_tainted_in_request()
-    assert count > 0, "Should have tainted objects in early fork"
+        count = _num_objects_tainted_in_request()
+        assert count > 0, "Should have tainted objects in early fork"
 
-    _end_iast_context_and_oce()
-    asm_config._iast_enabled = original_state
+        _end_iast_context_and_oce()
+    finally:
+        asm_config._iast_enabled = original_state
+        reset_native_state()
 
 
 if __name__ == "__main__":
