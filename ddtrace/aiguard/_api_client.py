@@ -6,6 +6,7 @@ from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
 from typing import TypedDict
+from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.aiguard._constants import AI_GUARD
@@ -21,12 +22,12 @@ from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
+from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
 from ddtrace.internal.utils.http import Response
-from ddtrace.internal.utils.http import get_connection
 from ddtrace.version import __version__
 
 
@@ -374,10 +375,13 @@ class AIGuardClient:
                 raise
 
     def _execute_request(self, url: str, payload: Any) -> Response:
+        parsed = urlparse(url)
+        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        conn = HTTPConnection(base_url, timeout=self._timeout)
         try:
-            conn = get_connection(url, self._timeout)
             json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
-            conn.request("POST", url, json_body, self._headers)  # type: ignore[no-untyped-call]
+            target = parsed.path + (f"?{parsed.query}" if parsed.query else "")
+            conn.request("POST", target, json_body, self._headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)  # type: ignore[no-any-return,no-untyped-call]
         finally:
