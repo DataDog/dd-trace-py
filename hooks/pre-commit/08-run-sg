@@ -4,7 +4,7 @@ staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '
 if [ -n "$staged_files" ]; then
     file_count=$(echo "$staged_files" | wc -w | tr -d ' ')
     echo "Running ast-grep on $file_count staged Python file(s)..."
-    "$LINT_CMD" ast-grep scan -- $staged_files
+    "$LINT_CMD" ast-grep scan --error=no-rst-double-backticks -- $staged_files
 else
     echo 'Run ast-grep skipped: No Python files were found in `git diff --staged`'
 fi
