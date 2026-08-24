@@ -1094,9 +1094,7 @@ venv = Venv(
                         "coverage": (
                             "@git+https://github.com/coveragepy/coveragepy.git@392a0e21efc041098a3aa8de3c8fde20c6ab4cce"
                         ),
-                        # lxml 6.1.2's CPython 3.15 wheel targets the final ABI. Build its
-                        # released source revision for the 3.15 release candidate instead.
-                        "lxml": "@git+https://github.com/lxml/lxml.git@f2874e9008c83d2d26e0b7292772eb74d2b83ce3",
+                        "lxml": "==6.1.2",
                         "django": ["~=6.0"],
                         "psycopg": latest,
                         "channels": latest,
