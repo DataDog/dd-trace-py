@@ -7,8 +7,8 @@
       LOG_LEVEL: ERROR
       DD_REMOTE_CONFIGURATION_ENABLED: true
       DD_SITE: datadoghq.com
-      DD_API_KEY: ${DD_API_KEY}
-      DD_REMOTE_CONFIGURATION_KEY: ${DD_API_KEY}
+      DD_API_KEY: invalid_but_this_is_fine
+      DD_REMOTE_CONFIGURATION_KEY: invalid_but_this_is_fine
       DD_REMOTE_CONFIGURATION_REFRESH_INTERVAL: 5s
       DD_DOGSTATSD_NON_LOCAL_TRAFFIC: true
   testagent:
