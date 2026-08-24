@@ -3,7 +3,7 @@
 # docker-compose.podman.yml.
 services:
     elasticsearch:
-        image: elasticsearch:9.5.1
+        image: elasticsearch:9.5.2
         environment:
             - discovery.type=single-node
             - xpack.security.enabled=false
@@ -70,7 +70,7 @@ services:
         environment:
             - MOTO_PORT=3000
     rabbitmq:
-        image: rabbitmq:4.3.4-alpine
+        image: rabbitmq:4.3.5-alpine
     ddagent:
         image: datadog/agent:latest
         environment:
@@ -189,7 +189,7 @@ services:
     valkey:
         image: valkey/valkey:9.1-alpine
     pubsub:
-        image: google/cloud-sdk:580.0.0-emulators
+        image: google/cloud-sdk:581.0.0-emulators
         command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
     valkeycluster:
         platform: linux/amd64
