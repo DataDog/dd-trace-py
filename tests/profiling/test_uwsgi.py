@@ -299,7 +299,7 @@ def _wait_for_stdout_bytes(proc: "subprocess.Popen[bytes]", expected: bytes, tim
                 collected.extend(chunk)
                 if expected in collected:
                     return bytes(collected)
-            break
+            break  # outer while
 
     return bytes(collected)
 
