@@ -40,34 +40,7 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
-        riot_python_versions=( $(riot -P list --interpreters "^${hash}$" | sort -u) )
-
-        for riot_python_version in "${riot_python_versions[@]}"
-        do
-          unset DD_CIVISIBILITY_ITR_ENABLED _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE
-          unset _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING
-
-          # Enable ITR test skipping for Python >= 3.12. Do NOT set
-          # FORCE_ENABLE_COVERAGE here: the forcing block in session_manager
-          # only forces skipping_enabled=True when FORCE_ENABLE_COVERAGE is unset,
-          # so setting it would silently keep skipping off (coverage-only mode).
-          # Coverage history is built on protected branches (main/mq-*) instead.
-          force_itr=$(awk -v v="${riot_python_version:-0}" 'BEGIN{ split(v,a,"."); if (a[1]>3 || (a[1]==3 && a[2]>=12)) print 1; else print 0 }')
-          if [[ "${force_itr}" == "1" ]]; then
-            export DD_CIVISIBILITY_ITR_ENABLED=true
-            export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=0
-            if [[ "${CI_COMMIT_BRANCH:-}" == "main" ]] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^mq- ]]; then
-              # Protected branches: coverage-only mode (build history, no skipping).
-              export _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=1
-              export _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE=true
-            fi
-          fi
-
-          echo "ITR gate debug: suite=${SUITE_NAME:-} hash=${hash} python=${riot_python_version:-unknown} branch=${CI_COMMIT_BRANCH:-} itr=${DD_CIVISIBILITY_ITR_ENABLED:-} prevent_skip=${_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING:-} force_coverage=${_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE:-}"
-
-          export _CI_DD_TAGS="test.configuration.riot_hash:${hash},test.configuration.python:${riot_python_version}"
-          ${RIOT_RUN_CMD} --python "${riot_python_version}" "${hash}" -- --ddtrace
-        done
+        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
