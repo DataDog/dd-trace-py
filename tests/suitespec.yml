@@ -410,6 +410,9 @@ suites:
       env:
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         DD_CIVISIBILITY_ITR_ENABLED: '0'
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # Disable that cache only for internal-suite environment construction.
+        UV_NO_CACHE: '1'
       axes:
         wrapt:
           wrapt-latest:
