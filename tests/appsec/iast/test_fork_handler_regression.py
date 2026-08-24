@@ -370,7 +370,8 @@ def test_early_fork_keeps_iast_enabled():
     from ddtrace.internal.settings.asm import config as asm_config
 
     # Ensure IAST is enabled but NO context is active (simulating early fork)
-    # Don't call _start_iast_context_and_oce() - this simulates pre-fork state
+    # Don't call _start_iast_context_and_oce() - this simulates pre-fork state.
+    # A leaked context would make the handler see a late fork and disable IAST, so reset state.
     reset_native_state()
     original_state = asm_config._iast_enabled
     try:
