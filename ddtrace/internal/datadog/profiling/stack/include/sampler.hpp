@@ -102,7 +102,7 @@ class Sampler
 
     // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
     // when max_threads_per_sample is set).
-    void capture_samples(microsecond_t wall_time_us);
+    void capture_samples(microsecond_t wall_time_us, bool include_wall_sampler_cpu_time);
 
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
     // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
@@ -127,6 +127,7 @@ class Sampler
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
+    std::atomic<uint64_t> greenlet_native_id_generation_{ 0 };
 
     void atfork_child();
     friend void stack_atfork_prepare();
@@ -144,7 +145,7 @@ class Sampler
     void stop();
     PauseResult pause();
     void resume();
-    void register_thread(uint64_t id, uint64_t native_id, const char* name);
+    void register_thread(uint64_t id, uint64_t native_id, const char* name, PyThreadState* tstate = nullptr);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
     void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
