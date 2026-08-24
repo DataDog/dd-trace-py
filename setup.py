@@ -130,6 +130,11 @@ VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
+# pyo3 0.28 supports Python 3.15 natively; keep this as a safety net when the
+# lockfile is resolved without --locked and an older pyo3-build-config slips in.
+if sys.version_info >= (3, 15):
+    os.environ.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
+
 
 def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")

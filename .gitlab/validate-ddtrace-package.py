@@ -6,7 +6,7 @@ Validates that all expected wheels and sdist are present with correct versions.
 Uses the packaging library to properly parse and validate filenames.
 
 Expected artifacts:
-  - 52 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64
+  - 60 wheels: 7 Python versions × 8 base platforms + 4 versions × win_arm64
   - 1 sdist: source distribution
 
 Usage:
@@ -28,7 +28,7 @@ from packaging.version import Version
 
 
 # Configuration
-PYTHON_TAGS = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314"]
+PYTHON_TAGS = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314", "cp315"]
 WIN_ARM64_PYTHON_TAGS = ["cp311", "cp312", "cp313", "cp314"]
 
 BASE_PLATFORMS = [
@@ -216,7 +216,7 @@ def main(args: argparse.Namespace) -> None:
     print("[Phase 4] Building Expected Set")
     expected_set = build_expected_set(package_version, args)
     print(f"Expected {len(expected_set)} wheels:")
-    print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
+    print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp315)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
     print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
