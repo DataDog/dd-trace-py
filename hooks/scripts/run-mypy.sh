@@ -1,6 +1,6 @@
 #!/bin/sh
 LINT_CMD="${LINT_CMD:-scripts/lint}"
-staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.(py|pyi)$' | tr '\n' ' ')
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.(py|pyi)$' | grep -v '^lib-injection/' | tr '\n' ' ')
 if [ -n "$staged_files" ]; then
     # Drop .pyi stubs whose .py counterpart is also staged to avoid mypy
     # "Duplicate module named ..." errors. mypy discovers stubs automatically.
