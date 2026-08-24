@@ -91,11 +91,11 @@ def test_appsec_product_wires_remote_configuration():
 
 
 @pytest.mark.xfail(
-    reason="DD_REMOTE_CONFIGURATION_ENABLED is set to false for all test environments, "
+    reason="DD_REMOTE_CONFIGURATION_ENABLED is set to false for all riot venvs, "
     "this is not the default behavior for users"
 )
 def test_rc_enabled_by_default(tracer):
-    # TODO: Enable remote configuration for this suite or refactor this test.
+    # TODO: remove https://github.com/DataDog/dd-trace-py/blob/1.x/riotfile.py#L100 or refactor this test
     result = _set_and_get_appsec_tags(tracer)
     assert result is None
     assert asm_config._asm_can_be_enabled

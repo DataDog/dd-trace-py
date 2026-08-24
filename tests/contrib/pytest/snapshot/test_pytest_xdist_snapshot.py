@@ -1,3 +1,4 @@
+import os
 import subprocess
 from unittest import mock
 
@@ -7,6 +8,14 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
+
+
+######
+# Skip these tests if they are not running under riot
+riot_env_value = os.getenv("RIOT", None)
+if not riot_env_value:
+    pytest.importorskip("xdist", reason="Pytest xdist tests, not running under riot")
+######
 
 
 _USE_PLUGIN_V2 = True

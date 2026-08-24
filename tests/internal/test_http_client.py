@@ -10,7 +10,7 @@ own test suite; these tests do not re-verify transport internals.
 Fixtures spin up `http.server.ThreadingHTTPServer` on port 0 so the suite is
 ``pytest -n auto`` friendly. Handlers are inlined rather than imported from
 ``tests/tracer/test_writer`` because importing that module pulls in ``msgpack``,
-which is not in the ``internal`` test environment.
+which is not in the ``internal`` riot venv.
 """
 
 from __future__ import annotations

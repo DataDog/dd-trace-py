@@ -138,32 +138,6 @@ class PytestTestCaseBase(TracerTestCase):
         ):
             yield
 
-    def make_xdist_conftest(self, content):
-        """Create a conftest that installs and removes settings for an xdist run."""
-        xdist_hooks = """
-import pytest
-from ddtrace.internal.ci_visibility.recorder import CIVisibility
-
-@pytest.hookimpl(tryfirst=True)
-def pytest_configure(config):
-    for xdist_patch in XDIST_PATCHES:
-        xdist_patch.start()
-    if CIVisibility.enabled:
-        CIVisibility.disable()
-
-@pytest.hookimpl(tryfirst=True)
-def pytest_sessionstart(session):
-    configure_xdist = globals().get("configure_xdist")
-    if configure_xdist is not None:
-        configure_xdist()
-
-@pytest.hookimpl(trylast=True)
-def pytest_unconfigure(config):
-    for xdist_patch in reversed(XDIST_PATCHES):
-        xdist_patch.stop()
-"""
-        self.testdir.makeconftest(f"{content}\n{xdist_hooks}")
-
     def inline_run(
         self, *args, mock_ci_env=True, block_gitlab_env=False, project_dir=None, extra_env=None, expect_enabled=True
     ):
@@ -226,6 +200,30 @@ def pytest_unconfigure(config):
             if CIVisibility.enabled:
                 CIVisibility.disable()
             CIVisibility._resume(_suspended)
+
+    def make_xdist_worker_sitecustomize(self):
+        """Load sitecustomize.py in nested xdist workers without relying on PYTHONPATH."""
+        self.testdir.makeconftest(
+            """
+import os
+import runpy
+
+import pytest
+
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+
+_IS_XDIST_WORKER = bool(os.environ.get("PYTEST_XDIST_WORKER"))
+if _IS_XDIST_WORKER:
+    runpy.run_path(os.path.join(os.path.dirname(__file__), "sitecustomize.py"))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    if _IS_XDIST_WORKER and CIVisibility.enabled:
+        CIVisibility.disable()
+"""
+        )
 
     def subprocess_run(self, *args, env: t.Optional[dict[str, t.Optional[str]]] = None):
         """Execute test script with test tracer."""

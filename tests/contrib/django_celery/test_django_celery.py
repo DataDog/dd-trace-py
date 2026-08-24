@@ -2,12 +2,9 @@ from os.path import dirname
 from os.path import sep
 import subprocess
 
-import pytest
-
 from tests.utils import call_program
 
 
-@pytest.mark.skip(reason="FIXME: make the flaky Celery gevent startup check deterministic")
 def test_django_celery_gevent_startup():
     """Test that Celery starts correctly with the Django integration enabled.
 

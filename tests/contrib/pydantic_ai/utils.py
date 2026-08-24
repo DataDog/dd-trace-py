@@ -11,7 +11,7 @@ PYDANTIC_AI_TAGS = {
 }
 
 
-# pydantic-ai's own defaults for an agent that configures none of these, at the versions suitespec
+# pydantic-ai's own defaults for an agent that configures none of these, at the versions riotfile.py
 # pins. They are framework defaults rather than caller choices, which is why they are asserted here
 # once instead of being repeated per test. They are NOT a framework invariant: end_strategy defaults
 # to "graceful" at 2.x, so adding a 2.x pin will fail here on purpose.
