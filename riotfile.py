@@ -103,6 +103,8 @@ _base_env = {
     # Default: prevent test skipping. Individual venvs opt in by setting this to "0".
     # ITR itself (itr_enabled, skipping_enabled) is controlled by the backend settings endpoint.
     "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "1",
+    # Force coverage collection so the backend has data to compute skippable tests.
+    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "true",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
