@@ -219,6 +219,8 @@ venv = Venv(
                 "requests": latest,
                 "flask": latest,
                 "pytest-xdist": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -242,6 +244,8 @@ venv = Venv(
                 "aiosqlite": latest,
                 "tortoise-orm": latest,
                 "peewee": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -278,6 +282,8 @@ venv = Venv(
                 "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -330,6 +336,8 @@ venv = Venv(
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
                 "pytest-asyncio": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -3938,6 +3946,8 @@ venv = Venv(
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
