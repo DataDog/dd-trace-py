@@ -29,8 +29,11 @@ import urllib.error
 import urllib.request
 
 
-# Keep this in sync with scripts/freshvenvs.py and scripts/test-env.
-COOLDOWN_DAYS = 2
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts._testenv import COOLDOWN_DAYS  # noqa: E402
+
 
 # Matches the name==version form in requirements-style locks. Anchored to the
 # start of the line, tolerant of trailing inline comments / hash

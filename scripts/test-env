@@ -14,7 +14,6 @@ from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 import concurrent.futures
-import datetime as dt
 from pathlib import Path
 import subprocess
 import sys
@@ -24,6 +23,7 @@ import tempfile
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from scripts._testenv import cooldown_cutoff  # noqa: E402
 from tests.suitespec import LOCK_ROOT  # noqa: E402
 from tests.suitespec import TestEnvironment  # noqa: E402
 from tests.suitespec import expand_declared_matrices  # noqa: E402
@@ -32,19 +32,8 @@ from tests.suitespec import get_suites  # noqa: E402
 from tests.suitespec import lockfile_path  # noqa: E402
 
 
-COOLDOWN_DAYS = 2
-
-
 class LockError(RuntimeError):
     """Raised when concrete test-environment locks cannot be generated."""
-
-
-def cooldown_cutoff(now: dt.datetime | None = None) -> str:
-    current = now or dt.datetime.now(dt.timezone.utc)
-    if current.tzinfo is None:
-        raise LockError("cooldown timestamp must be timezone-aware")
-    cutoff = current.astimezone(dt.timezone.utc) - dt.timedelta(days=COOLDOWN_DAYS)
-    return cutoff.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _resolve_suites(matrices: Mapping[str, tuple[TestEnvironment, ...]], requested: Sequence[str]) -> tuple[str, ...]:

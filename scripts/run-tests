@@ -19,8 +19,6 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import replace
-import datetime as dt
-import fcntl
 import fnmatch
 import hashlib
 import json
@@ -49,6 +47,11 @@ def _ensure_compose_project_name():
 
 _ensure_compose_project_name()
 
+from scripts._testenv import PreparedEnvironment  # noqa: E402
+from scripts._testenv import UvTestEnvironmentError  # noqa: E402
+from scripts._testenv import ensure_environment  # noqa: E402
+from scripts._testenv import environment_commands  # noqa: E402
+from scripts._testenv import prepare_environment  # noqa: E402
 from tests.suitespec import TestEnvironment  # noqa: E402
 from tests.suitespec import TestRun  # noqa: E402
 from tests.suitespec import expand_suite_matrix  # noqa: E402
@@ -69,12 +72,6 @@ TEST_CONTAINER_PATH = (
     "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 )
 SHELL_OPERATORS = frozenset({"&&", "||", ";", "|"})
-COOLDOWN_DAYS = 2
-
-
-def _cooldown_cutoff() -> str:
-    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=COOLDOWN_DAYS)
-    return cutoff.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 class TestRunner:
@@ -393,27 +390,19 @@ class TestRunner:
 
         return self.select_environments_for_suites(selected_suites)
 
-    def _uv_environment_path(self, environment: TestEnvironment) -> Path:
-        suite_path = (part.replace(":", "-") for part in environment.suite.split("::"))
-        return Path(".cache/uv-test-environments").joinpath(*suite_path, environment.id)
-
-    def _uv_execution_path(self, environment: TestEnvironment) -> Path:
-        path = self._uv_environment_path(environment)
-        return self.root / path if self.in_ci else path
-
-    def _uv_install_lockfile(self, environment: TestEnvironment, lockfile: Path) -> tuple[Path, bool]:
-        contents = lockfile.read_text()
-        filtered = "".join(
-            line for line in contents.splitlines(keepends=True) if not line.lower().startswith("ddtrace==")
+    def _prepare_uv_environment(self, environment: TestEnvironment) -> PreparedEnvironment:
+        if environment.lockfile is None:
+            raise UvTestEnvironmentError(f"uv environment has no lockfile: {environment.suite}/{environment.id}")
+        return prepare_environment(
+            self.root,
+            suite=environment.suite,
+            environment_id=environment.id,
+            lockfile=environment.lockfile,
+            install_project=environment.install_project,
         )
-        if filtered == contents or not environment.install_project:
-            return lockfile.relative_to(self.root), False
 
-        install_lockfile = Path(".cache/uv-test-environments/.requirements") / lockfile.name
-        path = self.root / install_lockfile
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(filtered)
-        return install_lockfile, True
+    def _uv_execution_path(self, prepared: PreparedEnvironment) -> Path:
+        return self.root / prepared.path if self.in_ci else prepared.path
 
     def _ddtest_command(self, command: list[str], environment: dict[str, str]) -> list[str]:
         assignments = [f"{key}={value}" for key, value in sorted(environment.items())]
@@ -421,90 +410,19 @@ class TestRunner:
             return ["env", *assignments, *command]
         return [str(self.root / "scripts" / "ddtest"), "env", *assignments, *command]
 
-    def _uv_command_environment(self, environment: TestEnvironment, forwarded_env: dict[str, str]) -> dict[str, str]:
+    def _uv_command_environment(self, prepared: PreparedEnvironment, forwarded_env: dict[str, str]) -> dict[str, str]:
         command_env = dict(forwarded_env)
         execution_root = self.root if self.in_ci else CONTAINER_PROJECT_ROOT
-        venv = execution_root / self._uv_environment_path(environment)
+        venv = execution_root / prepared.path
         default_path = os.environ.get("PATH", TEST_CONTAINER_PATH) if self.in_ci else TEST_CONTAINER_PATH
         command_env["PATH"] = f"{venv}/bin:{command_env.get('PATH', default_path)}"
         command_env["VIRTUAL_ENV"] = str(venv)
         return command_env
 
-    def _uv_build_commands(
-        self,
-        environment: TestEnvironment,
-        forwarded_env: dict[str, str],
-    ) -> tuple[list[str], ...]:
-        if environment.lockfile is None:
-            raise ValueError(f"uv environment has no lockfile: {environment.suite}/{environment.id}")
-        lockfile = self.root / environment.lockfile
-        if not lockfile.is_file():
-            raise ValueError(f"uv lockfile does not exist: {environment.lockfile}")
-        install_lockfile, excludes_ddtrace = self._uv_install_lockfile(environment, lockfile)
-
-        venv = self._uv_execution_path(environment)
-        python = venv / "bin/python"
-        command_env = self._uv_command_environment(environment, forwarded_env)
-        standard_editable = forwarded_env.get("_DD_TEST_USE_STANDARD_EDITABLE", "").lower() == "true"
-        install_project = environment.install_project
-        commands = [
-            self._ddtest_command(
-                [
-                    "uv",
-                    "venv",
-                    "--allow-existing" if install_project else "--clear",
-                    "--relocatable",
-                    "--python",
-                    environment.python,
-                    "--no-python-downloads",
-                    str(venv),
-                ],
-                command_env,
-            ),
-        ]
-        if install_project:
-            commands.append(
-                self._ddtest_command(
-                    [
-                        "uv",
-                        "pip",
-                        "install",
-                        "--python",
-                        str(python),
-                        "--editable",
-                        ".",
-                        *([] if standard_editable else ["--config-setting", "editable_mode=compat"]),
-                        "--exclude-newer",
-                        _cooldown_cutoff(),
-                        "--strict",
-                        "--no-progress",
-                    ],
-                    command_env,
-                )
-            )
-        lock_command = [
-            "uv",
-            "pip",
-            "install",
-            "--python",
-            str(python),
-            "--requirements",
-            str(install_lockfile),
-            "--no-progress",
-        ]
-        if excludes_ddtrace:
-            lock_command.append("--no-deps")
-        commands.append(
-            self._ddtest_command(
-                lock_command,
-                command_env,
-            )
-        )
-        return tuple(commands)
-
     def _uv_test_command(
         self,
         environment: TestEnvironment,
+        prepared: PreparedEnvironment,
         run: TestRun,
         pytest_args: list[str],
         forwarded_env: dict[str, str],
@@ -520,7 +438,7 @@ class TestRunner:
         if not expanded:
             raise ValueError(f"empty uv test command for {environment.id}")
 
-        environment_bin = self._uv_execution_path(environment) / "bin"
+        environment_bin = self._uv_execution_path(prepared) / "bin"
         if any(argument in SHELL_OPERATORS for argument in expanded):
             shell_command = " ".join(
                 argument if argument in SHELL_OPERATORS else shlex.quote(argument) for argument in expanded
@@ -533,7 +451,7 @@ class TestRunner:
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
-        return self._ddtest_command(expanded, self._uv_command_environment(environment, run_env))
+        return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
 
     def _run_uv_suite(
         self,
@@ -543,43 +461,61 @@ class TestRunner:
         dry_run: bool,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
-        lock_path = self.root / ".cache" / "uv-test-environments" / ".build.lock"
-        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        prepared_environments: dict[TestEnvironment, PreparedEnvironment] = {}
 
         for environment in environments:
             try:
+                prepared = self._prepare_uv_environment(environment)
+                prepared_environments[environment] = prepared
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
-                build_commands = self._uv_build_commands(environment, build_env)
-            except ValueError as error:
+                command_env = self._uv_command_environment(prepared, build_env)
+                standard_editable = build_env.get("_DD_TEST_USE_STANDARD_EDITABLE", "").lower() == "true"
+            except UvTestEnvironmentError as error:
                 print(f"❌ {error}")
                 return False
 
-            print(f"\n🔨 Building uv environment ({environment.display_name}): {environment.id}")
+            print(f"\n🔨 Preparing uv environment ({environment.display_name}): {environment.id}")
             if dry_run:
-                for command in build_commands:
-                    print(f"[DRY RUN] Would execute: {' '.join(command)}")
+                for command in environment_commands(
+                    prepared,
+                    python=environment.python,
+                    standard_editable=standard_editable,
+                ):
+                    wrapped = self._ddtest_command(command, command_env)
+                    print(f"[DRY RUN] Would execute: {' '.join(wrapped)}")
                 continue
 
-            with lock_path.open("w") as lock_file:
-                fcntl.flock(lock_file, fcntl.LOCK_EX)
-                print("   🔒 Acquired build lock")
-                try:
-                    for command in build_commands:
-                        result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
-                        if result.returncode != 0:
-                            print(f"❌ Build failed for {environment.display_name} (exit code {result.returncode})")
-                            return False
-                    print("   ✅ uv environment built successfully")
-                finally:
-                    fcntl.flock(lock_file, fcntl.LOCK_UN)
-                    print("   🔓 Released build lock")
+            def run_build(command: list[str]) -> None:
+                wrapped = self._ddtest_command(command, command_env)
+                result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
+                if result.returncode != 0:
+                    raise UvTestEnvironmentError(
+                        f"build failed for {environment.display_name} (exit code {result.returncode})"
+                    )
+
+            try:
+                rebuilt = ensure_environment(
+                    self.root,
+                    prepared,
+                    python=environment.python,
+                    standard_editable=standard_editable,
+                    run=run_build,
+                )
+            except UvTestEnvironmentError as error:
+                print(f"❌ {error}")
+                return False
+            if rebuilt:
+                print("   ✅ uv environment synchronized successfully")
+            else:
+                print("   ✅ Reusing current uv environment")
 
         for environment in environments:
+            prepared = prepared_environments[environment]
             for run in environment.runs:
                 try:
-                    command = self._uv_test_command(environment, run, pytest_args, forwarded_env)
+                    command = self._uv_test_command(environment, prepared, run, pytest_args, forwarded_env)
                 except ValueError as error:
                     print(f"❌ {error}")
                     return False

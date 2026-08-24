@@ -142,15 +142,16 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run the environment again. ``scripts/run-tests`` rebuilds the local editable installation before executing tests:
+Then run the environment again. ``scripts/run-tests`` validates the cached environment and rebuilds it when its lock,
+project metadata, or installed package set is stale:
 
 .. code-block:: bash
 
     $ scripts/run-tests --suite <suite> --venv <environment-id> -- -vv -k test_name
 
 CI builds the native ddtrace extensions once per Python version and passes those artifacts to each test job.
-Each suite still creates its own uv environment and editable installation so its locked dependencies and package
-metadata remain isolated.
+Each suite still uses its own uv environment and exact editable installation so its locked dependencies and package
+metadata remain isolated. Current environments are reused without reinstalling packages.
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------

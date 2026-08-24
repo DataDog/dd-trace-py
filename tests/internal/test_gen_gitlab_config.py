@@ -8,6 +8,8 @@ from unittest import mock
 
 import pytest
 
+from scripts._testenv import prepare_environment
+
 
 _SCRIPT_PATH = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "gen_gitlab_config.py"
 
@@ -105,6 +107,42 @@ def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_confi
 
     assert info["contrib::requests"].venv_count == 2
     assert info["contrib::requests"].python_versions == {"3.11", "3.12"}
+
+
+def test_cache_identity_does_not_change_generated_parallelism(gen_gitlab_config_mod, tmp_path):
+    suite = {
+        "venvs_per_job": 2,
+        "matrix": {
+            "command": "pytest tests/contrib/requests",
+            "dependencies": ["pytest"],
+            "python": ["3.11", "3.12"],
+        },
+    }
+    before = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": suite})["contrib::requests"]
+    lockfile = tmp_path / "requests.txt"
+    lockfile.write_text("requests==2.31.0\n")
+    first = prepare_environment(
+        tmp_path,
+        suite="contrib::requests",
+        environment_id="requests-py311",
+        lockfile=lockfile.relative_to(tmp_path),
+        install_project=False,
+    )
+    lockfile.write_text("requests==2.32.0\n")
+    second = prepare_environment(
+        tmp_path,
+        suite="contrib::requests",
+        environment_id="requests-py311",
+        lockfile=lockfile.relative_to(tmp_path),
+        install_project=False,
+    )
+    after = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": suite})["contrib::requests"]
+
+    assert first.path != second.path
+    assert before == after
+    assert gen_gitlab_config_mod.calculate_parallelism_from_venvs(before.venv_count, 2) == (
+        gen_gitlab_config_mod.calculate_parallelism_from_venvs(after.venv_count, 2)
+    )
 
 
 def test_jobs_use_uv_locks_and_base_venv_artifacts(gen_gitlab_config_mod):

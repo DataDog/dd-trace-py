@@ -35,19 +35,9 @@ from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: I001,E402
 
 from tests.suitespec import TestEnvironment  # noqa: I001,E402
 from tests.suitespec import get_test_environments  # noqa: I001,E402
+from scripts._testenv import COOLDOWN_DAYS  # noqa: I001,E402
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
-
-# Supply-chain hardening (TEST-CD, APMLP-1362): when deciding whether the
-# packages we test against are "outdated" with respect to PyPI, we ignore
-# any release that was published less than COOLDOWN_DAYS ago. This prevents
-# the daily test-lock update workflow from pulling in a freshly
-# published (and potentially compromised) version before the broader
-# community / security tooling has had a chance to flag it.
-#
-# 2 days = 48h matches the cross-language cooldown standard documented in
-# the supply-chain hardening epic (APMLP-1343).
-COOLDOWN_DAYS = 2
 
 
 class Capturing(list):
