@@ -204,3 +204,46 @@ def test_always_excluded_modules_cannot_be_overridden() -> None:
         assert not isinstance(internal_lock, _ProfiledLock), (
             "Stdlib-internal lock must remain native even when DD_PROFILING_LOCK_EXCLUDE_MODULES is empty"
         )
+
+
+class TestNativeHeapConfig:
+    """Config plumbing for experimental native (C/C++) heap profiling.
+
+    These assert the runtime gate only; they are platform-independent and do not
+    require the (opt-in, Linux-only) gotter cdylib to be present.
+    """
+
+    def test_default_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_NATIVE_HEAP_ENABLED", raising=False)
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.native_heap.enabled is False
+
+    def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "true")
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.native_heap.enabled is True
+
+    def test_config_str_includes_tag_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.setenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "true")
+        assert "nativeheap" in config_str(ProfilingConfig())
+
+    def test_config_str_omits_tag_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.delenv("DD_PROFILING_NATIVE_HEAP_ENABLED", raising=False)
+        assert "nativeheap" not in config_str(ProfilingConfig())
+
+
+class TestNativeHeapActivator:
+    """The ctypes activator must not raise on import."""
+
+    def test_import_does_not_raise(self) -> None:
+        from ddtrace.internal.datadog.profiling import heap_gotter
+
+        assert isinstance(heap_gotter.is_available, bool)
+        assert isinstance(heap_gotter.failure_msg, str)
+        # Do not call install() here: GOT patching is permanent and would poison
+        # the shared pytest worker. That path is covered by the subprocess
+        # smoke/fork tests in test_native_heap_gotter.py.

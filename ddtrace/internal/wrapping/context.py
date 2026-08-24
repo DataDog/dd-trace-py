@@ -16,6 +16,9 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -110,6 +113,10 @@ _CONTEXT_PLACEHOLDER = object()
 
 T = t.TypeVar("T")
 
+# Hoisted out of the hot enter/exit/return paths: subscripting a generic alias
+# like dict[str, t.Any] allocates a new types.GenericAlias on every evaluation,
+# so re-typing it inline on each call is not free.
+WrappingContextStorage = dict[str, t.Any]
 StorageVar = ContextVar[t.Optional[dict[str, t.Any]]]
 
 _STORAGE_PREV = "__dd_wrapping_context_prev__"
@@ -210,8 +217,8 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
+    pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -469,7 +476,7 @@ class BaseWrappingContext(ABC):
         return self
 
     def _pop_storage(self) -> dict[str, t.Any]:
-        storage = t.cast(dict[str, t.Any], self._storage.get())
+        storage = t.cast(WrappingContextStorage, self._storage.get())
         self._storage.set(storage.pop(_STORAGE_PREV))
         del storage[_STORAGE_OWNER]
         return storage
@@ -487,10 +494,10 @@ class BaseWrappingContext(ABC):
         self._pop_storage()
 
     def get(self, key: str) -> t.Any:
-        return t.cast(dict[str, t.Any], self._storage.get())[key]
+        return t.cast(WrappingContextStorage, self._storage.get())[key]
 
     def set(self, key: str, value: T) -> T:
-        t.cast(dict[str, t.Any], self._storage.get())[key] = value
+        t.cast(WrappingContextStorage, self._storage.get())[key] = value
         return value
 
     @classmethod
@@ -678,11 +685,25 @@ class _UniversalWrappingContext(BaseWrappingContext):
     def __enter__(self) -> "_UniversalWrappingContext":
         super().__enter__()
 
-        # Make the frame object available to the contexts
-        self.set("__frame__", sys._getframe(1))
+        storage = t.cast(WrappingContextStorage, self._storage.get())
 
+        # Make the frame object available to the contexts
+        storage["__frame__"] = sys._getframe(1)
+
+        # Freeze the list of contexts so that we know exactly which ones to
+        # exit, in case new contexts are registered during the execution of
+        # the wrapped function. Contexts are appended only once entered, so
+        # that a failure partway through does not leave contexts that never
+        # entered in the snapshot.
+        entered: list[WrappingContext] = []
+        storage["__contexts__"] = entered
         for context in self._contexts:
-            context.__enter__()
+            try:
+                context.__enter__()
+            except Exception:
+                log.debug("Failed to enter wrapping context %r", context, exc_info=True)
+                continue
+            entered.append(context)
 
         return self
 
@@ -698,13 +719,25 @@ class _UniversalWrappingContext(BaseWrappingContext):
         if exc_value is None:
             return
 
-        for context in self._contexts[::-1]:
+        try:
+            contexts = t.cast(WrappingContextStorage, self._storage.get())["__contexts__"]
+        except (TypeError, KeyError):
+            log.debug("Universal wrapping context exited without entering")
+            return
+
+        for context in contexts[::-1]:
             context.__exit__(exc_type, exc_value, traceback)
 
         super().__exit__(exc_type, exc_value, traceback)
 
     def __return__(self, value: T) -> T:
-        for context in self._contexts[::-1]:
+        try:
+            contexts = t.cast(WrappingContextStorage, self._storage.get())["__contexts__"]
+        except (TypeError, KeyError):
+            log.debug("Universal wrapping context returned without entering")
+            return super().__return__(value)
+
+        for context in contexts[::-1]:
             context.__return__(value)
 
         return super().__return__(value)
@@ -732,6 +765,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
             return t.cast(_UniversalWrappingContext, _registry[f].uwc)
 
     def wrap(self) -> None:
+        if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
+            raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
         f = t.cast(FunctionType, self.__wrapped__)
 
         with _registry_lock:

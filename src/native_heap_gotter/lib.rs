@@ -10,10 +10,22 @@
 /// Returns the result of `install_heap_overrides`, i.e. whether at least one
 /// allocator symbol's GOT entry was resolved and patched (so hooks will run).
 ///
-/// Idempotent: safe to call more than once (e.g. after `fork()`). The resolved
-/// ORIG slots are process-global and inherited across `fork()`, and upstream
-/// re-runs `apply_overrides` on every call, so a re-install in the child still
-/// returns `true`.
+/// libdatadog independently honors `DD_HEAP_SAMPLING_ENABLED` (unset =
+/// enabled). That check lives inside
+/// `install_heap_overrides`: a falsey value returns false without touching
+/// the GOT. Distinct from `DD_PROFILING_NATIVE_HEAP_ENABLED`, which is the
+/// ddtrace-side gate that decides whether this function is called. This
+/// wrapper does not read or set the libdatadog env var.
+///
+/// After a successful install, a `fork()` child inherits the mapping and the
+/// patched GOT, so a second native install is usually unnecessary. Upstream has
+/// no `pthread_atfork` child reset for the process-global registry mutex
+/// (`GLOBAL_OVERRIDES`); forking during an in-flight `install()`/`update()` can
+/// leave that mutex locked in the child — treat mid-install fork as unsafe.
+/// Prefer installing on the main thread (or in the worker after fork). The
+/// Python activator's `_armed` skip avoids re-entering this cdylib after a
+/// successful install on the common post-fork path; that is not a claim that
+/// all inherited native state is fork-safe.
 ///
 /// # Safety
 ///
@@ -55,6 +67,18 @@ pub extern "C" fn ddtrace_heap_gotter_set_sampling_distance(distance: u64) {
 #[no_mangle]
 pub extern "C" fn ddtrace_heap_gotter_update() {
     libdd_profiling_heap_gotter::update_heap_overrides();
+}
+
+/// Compile-time live-heap capability: `true` when built with the `live-heap`
+/// feature (`ddheap:free` + retain flagging). Not a runtime toggle; keep in
+/// lockstep with Cargo.toml's forward to `libdd-profiling-heap-gotter/live-heap`.
+///
+/// # Safety
+///
+/// C ABI entry point with no arguments and no pointers; always safe to call.
+#[no_mangle]
+pub extern "C" fn ddtrace_heap_gotter_live_heap_enabled() -> bool {
+    cfg!(feature = "live-heap")
 }
 
 /// Test-only: number of times a patched hook has run in this process. Lets

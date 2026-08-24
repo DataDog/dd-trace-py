@@ -21,6 +21,7 @@ anyhow = { version = "1.0" }
 # `bytes 1.10+` is required for `Bytes::from_owner` (used in http_client to
 # wrap PyBackedBytes zero-copy across the GIL release).
 bytes = "1.10"
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 url = "2"
 libc = { version = "0.2", optional = true }
 rand = "0.9"
@@ -29,27 +30,35 @@ serde = "1.0"
 serde_json = "1.0"
 smallvec = "1"
 tokio = "1"
-libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true, features = ["pyo3"] }
-datadog-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = ["one_way_shm_futex"] }
-datadog-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true }
-libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true }
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = [
+libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", optional = true, features = ["pyo3"] }
+datadog-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", features = ["one_way_shm_futex"] }
+datadog-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", optional = true }
+libdd-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", optional = true }
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", features = [
   "stats-obfuscation"
 ] }
-libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", optional = true, features = [
+# DEV: `hyper-backend` (rather than the default `reqwest-backend`) avoids
+# hickory-dns, a pure-Rust DNS resolver that mishandles bare, single-label
+# hostnames resolved through custom search/ndots resolv.conf setups (e.g.
+# Docker Compose/Kubernetes service names via embedded DNS) — it uses the
+# system resolver instead, like the stdlib http.client this replaces did.
+libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", default-features = false, features = [
+  "https",
+  "hyper-backend",
+] }
+libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", optional = true, features = [
     "cbindgen",
 ] }
-libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
-libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
+libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
 percent-encoding = "2.3"
@@ -58,12 +67,16 @@ tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = ["otel-thread-ctx"]}
-libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
+libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", features = ["otel-thread-ctx"]}
+libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
 
 [build-dependencies]
 pyo3-build-config = "0.28"
-build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = [
+build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", features = [
     "cbindgen",
 ] }
 
