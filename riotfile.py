@@ -108,6 +108,8 @@ _base_env = {
     # Enable out-of-session retries for dd-trace-py's own test runs (opt-in feature) so state-leaking flaky tests get a
     # clean-slate retry. Only acts on ATR-exhausted failures. See ddtrace/testing/internal/pytest/plugin.py.
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
+    # Default: prevent test skipping. Individual venvs opt in by setting this to "0".
+    "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING": "1",
 }
 if _nightly_build:
     _base_env["DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED"] = "1"
@@ -4792,9 +4794,6 @@ def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
         inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
-        # By default, prevent test skipping — suites must opt-in by setting
-        # _DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING=0 in their env.
-        inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
         # inst.env.setdefault("DD_TRACE_DEBUG", "1")
 
         if _is_protected_ci_branch():
