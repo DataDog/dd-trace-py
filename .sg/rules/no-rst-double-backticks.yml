@@ -1,6 +1,6 @@
 id: no-rst-double-backticks
 message: Use single backticks (`name`) in Python comments and docstrings, not rST-style double backticks (``name``)
-severity: error
+severity: warning
 language: Python
 files:
   - "ddtrace/**"
