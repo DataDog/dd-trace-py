@@ -18,7 +18,7 @@ Usage:
 
 import argparse
 import pathlib
-import subprocess
+import subprocess  # nosec: B404
 import sys
 from typing import Optional
 
@@ -28,9 +28,23 @@ from typing import Optional
 MAX_FILE_SIZE_BYTES = 100_000
 
 
+def _merge_base(base_ref: str) -> str:
+    result = subprocess.run(  # nosec: B603, B607
+        ["git", "merge-base", base_ref, "HEAD"],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
 def _added_files(base_ref: str) -> list[str]:
-    result = subprocess.run(
-        ["git", "diff", "--name-only", "--diff-filter=A", base_ref],
+    # Diff against the merge-base, not the (possibly moved-on) tip of base_ref.
+    # Otherwise a file removed from base_ref after this branch forked, but never
+    # touched by this branch, would show up as "added" here.
+    merge_base = _merge_base(base_ref)
+    result = subprocess.run(  # nosec: B603, B607
+        ["git", "diff", "--name-only", "--diff-filter=A", merge_base],
         capture_output=True,
         check=True,
         text=True,

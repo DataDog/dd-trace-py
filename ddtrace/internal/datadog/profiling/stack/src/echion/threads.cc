@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <optional>
+#include <random>
 #include <string_view>
 
 void
@@ -18,7 +19,7 @@ ThreadInfo::reset_cycle_state() noexcept
 }
 
 void
-ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
 {
     // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
     reset_cycle_state();
@@ -28,46 +29,47 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate)
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(echion, tstate);
+        (void)unwind_tasks(echion, tstate, wall_time_us);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(echion, tstate, native_id);
+        unwind_greenlets(echion, tstate, native_id, wall_time_us);
     }
 }
 
 // ----------------------------------------------------------------------------
-Result<void>
-ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
+size_t
+ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 {
-    // The size of the "pure Python" stack (before asyncio Frames).
     // Defaults to the full Python stack size (and updated if we find the boundary frame)
     size_t upper_python_stack_size = python_stack.size();
 
     // Check if the Python stack contains the asyncio boundary frame.
     // For regular asyncio, this is "Handle._run" from asyncio/events.py.
     // For uvloop, this is "Runner.run" from asyncio/runners.py (uvloop uses asyncio.Runner internally).
-    // To avoid having to do string comparisons every time we unwind Tasks, we keep track
-    // of the cache key of the boundary frame.
-
-    // Note: We use separate cache keys for asyncio and uvloop because switching between them
+    // To avoid having to do string comparisons every time we unwind Tasks, we memoize the interned
+    // name and filename of the boundary Frame the first time we identify it.
+    // Note: We memoize asyncio and uvloop separately because switching between them
     // (though unlikely at runtime) would cause incorrect boundary detection otherwise.
-    auto& asyncio_frame_cache_key = echion.asyncio_frame_cache_key();
-    auto& uvloop_frame_cache_key = echion.uvloop_frame_cache_key();
+    auto& asyncio_boundary_frame = echion.asyncio_boundary_frame();
+    auto& uvloop_boundary_frame = echion.uvloop_boundary_frame();
 
-    auto& frame_cache_key = using_uvloop ? uvloop_frame_cache_key : asyncio_frame_cache_key;
+    auto& boundary_frame = using_uvloop ? uvloop_boundary_frame : asyncio_boundary_frame;
 
-    if (!frame_cache_key) {
-        for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i];
+    for (size_t i = 0; i < python_stack.size(); i++) {
+        const auto& frame = python_stack[i];
+
+        bool is_boundary_frame = false;
+
+        if (boundary_frame) {
+            is_boundary_frame = frame.name == boundary_frame->name && frame.filename == boundary_frame->filename;
+        } else {
             auto maybe_frame_name = echion.string_table().lookup(frame.name);
             if (!maybe_frame_name) {
                 continue;
             }
             const auto& frame_name = maybe_frame_name->get();
-
-            bool is_boundary_frame = false;
 
             if (using_uvloop) {
                 // For uvloop, the boundary frame depends on the Python version:
@@ -112,24 +114,25 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
             }
 
             if (is_boundary_frame) {
-                // Although Frames are stored in an LRUCache, the cache key is ALWAYS the same
-                // even if the Frame gets evicted from the cache.
-                // This means we can keep the cache key and reuse it to determine
-                // whether we see the boundary Frame in the Python stack.
-                frame_cache_key = frame.cache_key;
-                upper_python_stack_size = python_stack.size() - i;
-                break;
+                boundary_frame = BoundaryFrame{ frame.name, frame.filename };
             }
         }
-    } else {
-        for (size_t i = 0; i < python_stack.size(); i++) {
-            const auto& frame = python_stack[i];
-            if (frame.cache_key == *frame_cache_key) {
-                upper_python_stack_size = python_stack.size() - i;
-                break;
-            }
+
+        if (is_boundary_frame) {
+            upper_python_stack_size = python_stack.size() - i;
+            break;
         }
     }
+
+    return upper_python_stack_size;
+}
+
+// ----------------------------------------------------------------------------
+Result<void>
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
+{
+    // The size of the "pure Python" stack (before asyncio Frames).
+    const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
 
     std::vector<TaskInfo::Ref> leaf_tasks;
     std::unordered_set<PyObject*> parent_tasks;
@@ -236,21 +239,65 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate)
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
-    // Make sure the on CPU task is first
+    // Swap the on-CPU task to slot 0 so it is always retained by reservoir sampling.
+    bool found_on_cpu = false;
     for (size_t i = 0; i < leaf_tasks.size(); i++) {
         if (leaf_tasks[i].get().is_on_cpu) {
             if (i > 0) {
                 std::swap(leaf_tasks[i], leaf_tasks[0]);
             }
+            found_on_cpu = true;
             break;
         }
     }
 
+    // Algorithm R reservoir sampling
+    const size_t n_total = leaf_tasks.size();
+    const unsigned int max_tasks = echion.max_tasks_per_sample();
+    size_t n_selected = n_total;
+    if (max_tasks > 0 && n_total > static_cast<size_t>(max_tasks)) {
+        n_selected = max_tasks;
+        auto& rng = echion.rng();
+        for (size_t i = max_tasks; i < n_total; i++) {
+            std::uniform_int_distribution<size_t> dist(found_on_cpu ? 1 : 0, i);
+            const size_t j = dist(rng);
+            if (j < max_tasks) {
+                std::swap(leaf_tasks[j], leaf_tasks[i]);
+            }
+        }
+        leaf_tasks.erase(leaf_tasks.begin() + static_cast<std::ptrdiff_t>(n_selected), leaf_tasks.end());
+    }
+
+    // Per-task wall-time scaling. Slot 0 keeps the unscaled thread wall time and the remaining
+    // n_selected-1 slots each represent (n_total-1)/(n_selected-1) tasks, so the per-thread total is correct.
+    // XXX: Known limitation
+    // Slot 0 cannot be scaled, which is why the factor is spread over n_selected-1 slots
+    // rather than applied uniformly. StackRenderer::render_thread_begin has already committed
+    // push_walltime(thread_walltime) before we know n_total, and render_task_begin reuses that sample
+    // for the first task on the thread, taking the branch that never reads walltime_ns_override. So an
+    // override on slot 0 is silently dropped, and push_walltime accumulates rather than assigns, so it
+    // cannot be corrected after the fact either.
+    // Consequence: max_tasks == 1 under-reports task wall time by a factor of n_total, because slot 0
+    // is then the only slot and there is nothing left to carry the other n_total-1 tasks. Fixing that
+    // means deferring the walltime push out of render_thread_begin, which affects every non-task
+    // thread too. See test_task_reservoir_sampling_single_slot_under_reports for the characterization.
+    const int64_t thread_walltime_ns = static_cast<int64_t>(1000) * static_cast<int64_t>(wall_time_us);
+    int64_t scaled_walltime_ns = thread_walltime_ns;
+    if (n_selected > 1 && n_selected < n_total) {
+        scaled_walltime_ns =
+          thread_walltime_ns * static_cast<int64_t>(n_total - 1) / static_cast<int64_t>(n_selected - 1);
+    }
+
+    size_t leaf_task_idx = 0;
     for (auto& leaf_task : leaf_tasks) {
         // Must match _task.task_object_address() so lock and stack samples correlate.
         auto task_id = reinterpret_cast<uintptr_t>(leaf_task.get().origin);
         auto stack_info = std::make_unique<StackInfo>(leaf_task.get().name, leaf_task.get().is_on_cpu, task_id);
         auto& stack = stack_info->stack;
+        if (leaf_task_idx > 0) {
+            stack_info->walltime_ns = scaled_walltime_ns;
+        }
+        ++leaf_task_idx;
 
         // Safety: prevent infinite loops from cycles in task chain maps
         size_t task_chain_depth = 0;
@@ -598,13 +645,16 @@ ThreadInfo::get_all_tasks(EchionSampler& echion, PyThreadState*)
 
 // ----------------------------------------------------------------------------
 void
-ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsigned long cur_native_id)
+ThreadInfo::unwind_greenlets(EchionSampler& echion,
+                             PyThreadState* tstate,
+                             unsigned long cur_native_id,
+                             microsecond_t wall_time_us)
 {
     std::vector<GreenletSnapshot> snapshots;
 
     // Phase 1: Snapshot greenlet data under the lock.
     // This minimises the time we hold greenlet_info_map_lock, which is also
-    // acquired by update_greenlet_frame() on every greenlet switch.  Holding
+    // acquired by record_greenlet_switch() on every greenlet switch. Holding
     // the lock during the expensive unwind (Phase 2) would block ALL greenlet
     // switches and lead to resource exhaustion (e.g. DB connection pools).
     {
@@ -617,13 +667,22 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
         if (greenlet_thread_map.find(cur_native_id) == greenlet_thread_map.end())
             return;
 
+        snapshots.reserve(greenlet_info_map.size());
+
         std::unordered_set<GreenletInfo::ID> parent_greenlets;
+        parent_greenlets.reserve(greenlet_parent_map.size());
 
         // Collect all parent greenlets
         std::transform(greenlet_parent_map.cbegin(),
                        greenlet_parent_map.cend(),
                        std::inserter(parent_greenlets, parent_greenlets.begin()),
                        [](const std::pair<GreenletInfo::ID, GreenletInfo::ID>& kv) { return kv.second; });
+
+        // Reuse visited set for cycle detection across all leaf greenlets to minimize allocations
+        // The limit here is arbitrary, but it should be more than enough for most use cases.
+        const size_t MAX_GREENLET_DEPTH = 512;
+        std::unordered_set<GreenletInfo::ID> visited;
+        visited.reserve(MAX_GREENLET_DEPTH);
 
         // Snapshot the leaf greenlets and precompute their parent chains
         for (auto& [gid, greenlet] : greenlet_info_map) {
@@ -640,10 +699,8 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
 
             // Precompute parent chain while we still hold the lock
             auto current_id = gid;
-            std::unordered_set<GreenletInfo::ID> visited;
-            // The limit here is arbitrary, but it should be more than enough for
-            // most use cases.
-            const size_t MAX_GREENLET_DEPTH = 512;
+            visited.clear();
+
             // Safety: prevent infinite loops from cycles or corrupted parent maps
             for (size_t iteration_count = 0; iteration_count < MAX_GREENLET_DEPTH; ++iteration_count) {
                 // Check for cycles
@@ -674,15 +731,57 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion, PyThreadState* tstate, unsig
         }
     } // Lock released here
 
+    // Move the on-CPU greenlet to slot 0 before reservoir sampling, so the on-CPU entry is always present.
+    bool found_on_cpu = false;
+    for (size_t i = 0; i < snapshots.size(); i++) {
+        if (snapshots[i].frame == Py_None) {
+            if (i > 0) {
+                std::swap(snapshots[i], snapshots[0]);
+            }
+            found_on_cpu = true;
+            break;
+        }
+    }
+
+    // Algorithm R reservoir sampling on the greenlet snapshots
+    const size_t n_greenlets_total = snapshots.size();
+    const unsigned int max_tasks = echion.max_tasks_per_sample();
+    size_t n_selected_greenlets = n_greenlets_total;
+    if (max_tasks > 0 && n_greenlets_total > static_cast<size_t>(max_tasks)) {
+        n_selected_greenlets = max_tasks;
+        auto& rng = echion.rng();
+        for (size_t i = max_tasks; i < n_greenlets_total; i++) {
+            std::uniform_int_distribution<size_t> dist(found_on_cpu ? 1 : 0, i);
+            const size_t j = dist(rng);
+            if (j < max_tasks) {
+                std::swap(snapshots[j], snapshots[i]);
+            }
+        }
+        snapshots.erase(snapshots.begin() + static_cast<std::ptrdiff_t>(n_selected_greenlets), snapshots.end());
+    }
+    // Slot 0 keeps the unscaled thread wall time (the first entry on a thread reuses the sample created by
+    // render_thread_begin, with no way to override it).
+    const int64_t thread_walltime_ns_g = static_cast<int64_t>(1000) * static_cast<int64_t>(wall_time_us);
+    int64_t scaled_walltime_ns_g = thread_walltime_ns_g;
+    if (n_selected_greenlets > 1 && n_selected_greenlets < n_greenlets_total) {
+        scaled_walltime_ns_g = thread_walltime_ns_g * static_cast<int64_t>(n_greenlets_total - 1) /
+                               static_cast<int64_t>(n_selected_greenlets - 1);
+    }
+
     // Phase 2: Unwind outside the lock.
     // The expensive process_vm_readv / copy_type calls happen here, without
     // blocking greenlet switches.  Snapshotted frame pointers may have become
     // stale, but unwind_frame() handles invalid pointers gracefully via
     // copy_type() which returns non-zero on failure.
+    size_t snap_idx = 0;
     for (auto& snap : snapshots) {
         bool on_cpu = snap.frame == Py_None;
         auto stack_info = std::make_unique<StackInfo>(snap.name, on_cpu, snap.greenlet_id);
         auto& stack = stack_info->stack;
+        if (snap_idx > 0) {
+            stack_info->walltime_ns = scaled_walltime_ns_g;
+        }
+        ++snap_idx;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
         temp.unwind(echion, snap.frame, tstate, stack);
@@ -734,7 +833,8 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     if (!current_tasks.empty()) {
         for (auto& task_stack_info : current_tasks) {
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(task_name, task_stack_info->on_cpu, task_stack_info->task_id);
+                renderer.render_task_begin(
+                  task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
             });
 
             task_stack_info->stack.render(echion);
@@ -744,7 +844,8 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
-                renderer.render_task_begin(task_name, greenlet_stack->on_cpu, greenlet_stack->task_id);
+                renderer.render_task_begin(
+                  task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
             });
 
             auto& stack = greenlet_stack->stack;
@@ -769,6 +870,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
     defer
     {
         reset_cycle_state();
+        renderer.abort_sample();
     };
 
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
@@ -781,7 +883,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
-    this->unwind(echion, tstate);
+    this->unwind(echion, tstate, delta);
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();

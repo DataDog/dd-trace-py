@@ -80,6 +80,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_tracer_tags(
+        mut slf: PyRefMut<'_, Self>,
+        tracer_tags: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_tracer_tags(tracer_tags);
+        Ok(slf.into())
+    }
+
     fn set_tracer_version(mut slf: PyRefMut<'_, Self>, version: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_tracer_version(version);
         Ok(slf.into())
@@ -152,6 +160,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_additional_metric_tag_keys(
+        mut slf: PyRefMut<'_, Self>,
+        tag_keys: Vec<String>,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_additional_metric_tag_keys(tag_keys);
+        Ok(slf.into())
+    }
+
     fn enable_client_side_stats_obfuscation(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_client_side_stats_obfuscation();
         Ok(slf.into())
@@ -173,6 +189,21 @@ impl TraceExporterBuilderPy {
 
     fn enable_health_metrics(mut slf: PyRefMut<'_, Self>) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_health_metrics();
+        Ok(slf.into())
+    }
+
+    fn set_agentless_endpoint(
+        mut slf: PyRefMut<'_, Self>,
+        url: &'_ str, // full intake url
+        api_key: &'_ str,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_agentless_endpoint(url, api_key);
+        Ok(slf.into())
+    }
+
+    fn set_agentless_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?
+            .set_agentless_timeout(Duration::from_millis(timeout_ms));
         Ok(slf.into())
     }
 
@@ -278,6 +309,21 @@ impl TraceExporterPy {
                 Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
         })
+    }
+
+    /// Report `trace_api.*` health metrics through an externally-owned telemetry worker.
+    #[pyo3(signature = (worker=None))]
+    fn set_telemetry_handle(
+        &self,
+        worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
+    ) -> PyResult<()> {
+        self.inner
+            .as_ref()
+            .ok_or(PyValueError::new_err(
+                "TraceExporter has already been consumed",
+            ))?
+            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        Ok(())
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {

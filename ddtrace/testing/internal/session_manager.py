@@ -292,7 +292,7 @@ class SessionManager:
 
     def setup_retry_handlers(self) -> None:
         if self.settings.test_management.enabled:
-            self.retry_handlers.append(AttemptToFixHandler(self))
+            self.retry_handlers.append(AttemptToFixHandler(self.settings))
 
         if self.settings.early_flake_detection.enabled:
             if self.known_tests:
@@ -309,12 +309,12 @@ class SessionManager:
                     log.debug("Not enabling Early Flake Detection: too many new tests")
                     self.session.set_early_flake_detection_abort_reason("faulty")
                 else:
-                    self.retry_handlers.append(EarlyFlakeDetectionHandler(self))
+                    self.retry_handlers.append(EarlyFlakeDetectionHandler(self.settings))
             else:
                 log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
-            self.retry_handlers.append(AutoTestRetriesHandler(self))
+            self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
 
     def start(self) -> None:
         self.writer.start()
