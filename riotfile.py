@@ -4770,21 +4770,6 @@ def _is_protected_ci_branch() -> bool:
 
 
 def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
-    import sys
-
-    prevent = inst.env.get("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "<unset>")
-    force = inst.env.get("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "<unset>")
-    itr = inst.env.get("DD_CIVISIBILITY_ITR_ENABLED", "<unset>")
-    opt_in = inst.env.get("_DD_CIVISIBILITY_ITR_TEST_SKIPPING_OPT_IN", "<unset>")
-    branch = os.environ.get("CI_COMMIT_BRANCH", "<unset>")
-    print(
-        f"ITR_CONFIGURE: name={getattr(inst, 'name', '?')}"
-        f" py={getattr(inst.py, '_hint', '?')}"
-        f" branch={branch}"
-        f" ITR={itr} PREVENT={prevent} FORCE={force} OPT_IN={opt_in}",
-        file=sys.stderr,
-        flush=True,
-    )
     python_hint = getattr(inst.py, "_hint", "")
     python_version = _python_hint_to_version(python_hint)
 
@@ -4813,12 +4798,9 @@ def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
             inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
             inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
         elif inst.env.get("_DD_CIVISIBILITY_ITR_TEST_SKIPPING_OPT_IN") == "1":
-            # Feature branch + suite opted in to test skipping: enable it.
-            # Explicitly set FORCE_ENABLE_COVERAGE=false to override any CI-level
-            # variable — the forcing block in session_manager only fires when both
-            # PREVENT is falsy AND FORCE_ENABLE_COVERAGE is falsy.
-            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
-            inst.env["_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE"] = "false"
+            # Feature branch + suite opted in: TEMPORARILY force coverage-only to build history.
+            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
+            inst.env["_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE"] = "true"
         else:
             # Feature branch + suite not opted in: coverage-only, no skipping.
             inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "1"
