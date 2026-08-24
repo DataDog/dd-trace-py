@@ -2,6 +2,8 @@
 import logging
 import os
 
+from packaging.version import InvalidVersion
+from packaging.version import Version
 from riot import Venv
 
 
@@ -4627,3 +4629,59 @@ venv = Venv(
         ),
     ],
 )
+
+
+_ITR_MIN_PYTHON_VERSION = Version("3.12")
+
+
+def _is_true_env(name: str) -> bool:
+    return os.environ.get(name, "").lower() in ("true", "1")
+
+
+def _python_hint_to_version(hint: str) -> Version | None:
+    try:
+        return Version(hint)
+    except InvalidVersion:
+        return None
+
+
+def _is_protected_ci_branch() -> bool:
+    branch = os.environ.get("CI_COMMIT_BRANCH", "")
+    return branch == "main" or branch.startswith("mq-")
+
+
+def _configure_ci_itr_env_for_instance(inst) -> None:
+    python_hint = getattr(inst.py, "_hint", "")
+    python_version = _python_hint_to_version(python_hint)
+    inst_env = dict(getattr(inst, "env", {}) or {})
+
+    if (ci_tags := os.environ.get("_CI_DD_TAGS")) and python_hint:
+        inst_env["_CI_DD_TAGS"] = f"{ci_tags},test.configuration.python:{python_hint}"
+
+    if (
+        _is_true_env("DD_TRACE_PY_ENABLE_ITR_FOR_JOB")
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst_env
+        and python_version is not None
+        and python_version >= _ITR_MIN_PYTHON_VERSION
+    ):
+        inst_env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        inst_env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+        if _is_protected_ci_branch():
+            inst_env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+        elif _is_true_env("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB"):
+            inst_env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+
+    inst.env = inst_env
+
+
+_venv_instances = venv.instances
+
+
+def _ci_itr_venv_instances(parent_inst=None):
+    for inst in _venv_instances(parent_inst):
+        _configure_ci_itr_env_for_instance(inst)
+        yield inst
+
+
+venv.instances = _ci_itr_venv_instances
