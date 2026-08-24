@@ -168,6 +168,8 @@ def _wrap_putrequest(func, instance, args, kwargs):
         trace_utils.set_http_meta(
             span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
         )
+        if config._otel_trace_semantics_enabled:
+            span.resource = method.upper()
 
     except Exception:
         log.debug("error applying request tags", exc_info=True)

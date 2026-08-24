@@ -2,10 +2,10 @@ import sys
 from typing import Any
 from typing import Union
 
+from _ddtrace_internal.modules import check_module_path
 import google.adk as adk
 
 from ddtrace import config
-from ddtrace.contrib.internal.trace_utils import check_module_path
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
@@ -47,6 +47,7 @@ def _traced_agent_run_async(wrapped, instance, args, kwargs):
         model=model_name,
         kind="agent",
         submit_to_llmobs=True,
+        _dd_agent=agent,
         **kwargs,
     )
 

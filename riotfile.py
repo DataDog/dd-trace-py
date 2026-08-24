@@ -219,6 +219,8 @@ venv = Venv(
                 "requests": latest,
                 "flask": latest,
                 "pytest-xdist": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -242,6 +244,8 @@ venv = Venv(
                 "aiosqlite": latest,
                 "tortoise-orm": latest,
                 "peewee": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -278,6 +282,8 @@ venv = Venv(
                 "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -330,6 +336,8 @@ venv = Venv(
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
                 "pytest-asyncio": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -345,8 +353,8 @@ venv = Venv(
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
-                    pkgs={"fastapi": "==0.94.1"},
+                    pys=["3.10", "3.14"],
+                    pkgs={"fastapi": "==0.141.1"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
@@ -376,6 +384,7 @@ venv = Venv(
                 "pip": "<25",
             },
             env={
+                "BROWSER": "true",  # Prevent webbrowser tests from launching the host browser.
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
@@ -2804,17 +2813,28 @@ venv = Venv(
                 "requests": "==2.28.1",  # specific version expected by tests
             },
             venvs=[
+                # API-only environments verify behavior without the OpenTelemetry SDK and exporters.
                 Venv(
-                    # opentelemetry-api doesn't yet work with Python 3.14
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
                     pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
                 ),
                 Venv(
-                    # opentelemetry-exporter-otlp doesn't yet work with Python 3.14
+                    pys=select_pys(min_version="3.14", max_version="3.14"),
+                    # The inherited MarkupSafe 2.0 pin constrains Flask and Werkzeug to versions incompatible with 3.14.
+                    pkgs={"opentelemetry-api": latest, "markupsafe": latest},
+                ),
+                # Exporter environments install the SDK and select the exporter-dependent tests.
+                Venv(
                     pys=select_pys(min_version="3.9", max_version="3.13"),
                     # v1.15.0 introduced support for logs
-                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", "~=1.34.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.14", max_version="3.14"),
+                    # The inherited MarkupSafe 2.0 pin constrains Flask and Werkzeug to versions incompatible with 3.14.
+                    pkgs={"opentelemetry-exporter-otlp": latest, "markupsafe": latest},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
             ],
@@ -3723,15 +3743,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.10
@@ -3751,23 +3762,9 @@ venv = Venv(
                             },
                             pkgs={
                                 "gunicorn[gevent]": latest,
+                                "gevent": latest,
                                 "protobuf": latest,
                             },
-                            venvs=[
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "greenlet": latest,
-                                        "protobuf": latest,
-                                    }
-                                ),
-                                Venv(
-                                    pkgs={
-                                        "gevent": latest,
-                                        "protobuf": latest,
-                                    },
-                                ),
-                            ],
                         ),
                         # uvloop
                         Venv(
@@ -3776,15 +3773,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3821,15 +3809,6 @@ venv = Venv(
                                 "protobuf": latest,
                             },
                         ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
-                                "protobuf": latest,
-                            },
-                        ),
                     ],
                 ),
                 # Python 3.14 - protobuf 4.22.0 is not compatible (TypeError: Metaclasses with custom tp_new)
@@ -3861,15 +3840,6 @@ venv = Venv(
                             },
                             pkgs={
                                 "uvloop": latest,
-                                "protobuf": latest,
-                            },
-                        ),
-                        # safe_memcpy fast-copy path (process_vm_readv is the default)
-                        Venv(
-                            env={
-                                "_DD_PROFILING_STACK_FAST_COPY": "1",
-                            },
-                            pkgs={
                                 "protobuf": latest,
                             },
                         ),
@@ -3976,6 +3946,8 @@ venv = Venv(
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4315,6 +4287,12 @@ venv = Venv(
                         "fastapi": "~=0.114.2",
                     },
                 ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "fastapi": "==0.141.1",
+                    },
+                ),
             ],
         ),
         Venv(
@@ -4353,6 +4331,12 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "fastapi": "==0.141.1",
                     },
                 ),
             ],
@@ -4621,6 +4605,7 @@ venv = Venv(
         Venv(
             name="sca",
             command="pytest {cmdargs} tests/appsec/sca/",
+            pkgs={"jsonschema": latest},
             pys=select_pys(),
         ),
     ],

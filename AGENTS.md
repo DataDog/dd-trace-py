@@ -18,6 +18,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 12. **No stray prints** — Check for and remove unexpected `print()` calls.
 13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 14. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
+15. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
 
 ## Docstrings and Comments
 
@@ -114,6 +115,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `find-cpython-usage` | Investigating CPython API dependencies or adding a new Python version. |
 | `compare-cpython-versions` | Comparing CPython source between two Python versions. |
 | `circular-import-analysis` | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules. |
+| `dependency-direction-analysis` | Detecting `ddtrace.internal`/`ddtrace.contrib` depending on product code, or products depending on each other, and proposing fixes. Use when the `detect_layering_violations` CI job reports new violations, or proactively when adding/moving modules across those boundaries. |
 | `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
 | `run-benchmarks` | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact. |
 | `debug-build-times` | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow. |

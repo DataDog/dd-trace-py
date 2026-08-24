@@ -3,15 +3,20 @@ import json
 import os
 from typing import Optional
 from typing import Union
+from unittest.mock import Mock
 from unittest.mock import patch
 import warnings
 
 import pytest
 
 from ddtrace import config
+from ddtrace.internal.openfeature._source_selection import AGENTLESS
+from ddtrace.internal.openfeature._source_selection import DISABLED
+from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import PROMPTS_ENDPOINT
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
@@ -151,6 +156,18 @@ class TestPrompts:
         assert isinstance(prompt, ManagedPrompt)
         assert_prompt_matches_response(prompt, TEXT_PROMPT_RESPONSE, "registry")
         assert prompt.format(name="Alice") == "Hello Alice!"
+
+    def test_get_prompt_reattaches_base_url_path_prefix(self):
+        """A base_url with a path prefix (e.g. DD_LLMOBS_OVERRIDE_ORIGIN pointing at a proxy) must
+        have that prefix reattached to the request path, since get_connection() strips it.
+        """
+        manager = PromptManager(
+            api_key="test-key", base_url="https://proxy.example.com/dd-proxy", file_cache_enabled=False
+        )
+        with mock_api(200, TEXT_PROMPT_RESPONSE) as conn:
+            manager.get_prompt("greeting")
+
+        assert conn.requests[0]["path"] == "/dd-proxy" + PROMPTS_ENDPOINT + "/greeting"
 
     def test_fetch_and_render_chat_prompt(self):
         """Fetch a chat template and render as messages."""
@@ -508,6 +525,44 @@ class TestPrompts:
         assert prompt.source == "ff"
         assert prompt.version == "ff-v1"
         assert prompt.template == "FF Hello!"
+
+    @pytest.mark.parametrize(
+        "source,expected_source,provider_calls,rc_calls",
+        [
+            (AGENTLESS, "ff", 1, 0),
+            (REMOTE_CONFIG, "ff", 1, 1),
+            (DISABLED, "resolve", 0, 0),
+        ],
+    )
+    def test_route_env_honors_ffe_configuration_source(self, source, expected_source, provider_calls, rc_calls):
+        manager = _make_manager()
+        client = Mock()
+        client.get_object_details.return_value = Mock(
+            error_code=None,
+            value={"prompt_id": "greeting", "version": "ff-v1", "template": "FF Hello!"},
+        )
+        resolved_prompt = ManagedPrompt(
+            id="greeting", version="v1", label=None, source="resolve", template="HTTP Hello!"
+        )
+
+        with patch("ddtrace.internal.settings.openfeature.resolve_configuration_source", return_value=source):
+            with patch("ddtrace.internal.openfeature._remoteconfiguration.enable_featureflags_rc") as enable_rc:
+                with patch("openfeature.api.set_provider") as set_provider:
+                    with patch("openfeature.api.get_client", return_value=client):
+                        with patch.object(manager, "_get_prompt_http", return_value=resolved_prompt) as fetch_http:
+                            with patch("ddtrace.llmobs._prompts.manager.config") as cfg:
+                                cfg.env = "staging"
+                                prompts = [manager.get_prompt("greeting") for _ in range(2)]
+
+        assert [prompt.source for prompt in prompts] == [expected_source, expected_source]
+        assert set_provider.call_count == provider_calls
+        assert client.get_object_details.call_count == provider_calls * 2
+        assert enable_rc.call_count == rc_calls
+        assert fetch_http.call_count == (0 if provider_calls else 2)
+        if provider_calls:
+            from ddtrace.internal.openfeature._provider import DataDogProvider
+
+            assert isinstance(set_provider.call_args.args[0], DataDogProvider)
 
     def test_route_env_agentless_to_http_resolve(self):
         manager = _make_manager(agentless=True)

@@ -262,6 +262,7 @@ def traced_pregel_stream(func, instance, args, kwargs):
         "%s.%s.%s" % (_get_module_name(instance.__module__), instance.__class__.__name__, name),
         submit_to_llmobs=True,
         instance=instance,
+        kind="agent",  # known at start for agent attribution
     )
 
     try:
@@ -309,6 +310,7 @@ def traced_pregel_astream(func, instance, args, kwargs):
         "%s.%s.%s" % (_get_module_name(instance.__module__), instance.__class__.__name__, name),
         submit_to_llmobs=True,
         instance=instance,
+        kind="agent",  # known at start for agent attribution
     )
 
     try:
