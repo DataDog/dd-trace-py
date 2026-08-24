@@ -6,7 +6,6 @@ bytecode injection via dd-trace-py's bytecode_injection infrastructure.
 
 from __future__ import annotations
 
-import sys
 from threading import Lock
 import types
 from types import FunctionType
@@ -74,6 +73,7 @@ def _first_instr_line(code: types.CodeType) -> int:
             continue
         return line
     return code.co_firstlineno
+
 
 def _get_caller_info() -> tuple[str, int, str]:
     """Walk the stack to find the first user-code caller frame.
