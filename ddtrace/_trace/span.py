@@ -243,8 +243,11 @@ class Span(SpanData):
     def set_tag(self, key: str, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
 
-        Boolean and bytes values are stored as their string representation.
-        ``int`` and ``float`` values are stored as metrics (see ``set_metric``).
+        Boolean and bytes values are stored as their string representation. Finite floats
+        and integers within the signed 64-bit range are stored as metrics (see
+        ``set_metric``); integers outside that range fall back to their string
+        representation, and NaN or infinite floats are discarded. ``http.status_code`` is
+        always stored as a string.
         """
         # Explicitly try to convert expected integers to `int`
         # DEV: Some integrations parse these values from strings, but don't call `int(value)` themselves
