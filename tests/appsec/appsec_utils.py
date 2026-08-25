@@ -14,12 +14,20 @@ from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.utils.retry import RetryError
 from tests.utils import _build_env
 from tests.webclient import Client
 
 
 FILE_PATH = Path(__file__).resolve().parent
+
+# How long to wait for a freshly spawned server to accept connections, and how often to retry.
+# The budget is wall clock, but what it has to cover is CPU: a ddtrace-run server with IAST
+# enabled AST-rewrites every module it imports, and the iast_packages suite boots several of
+# them concurrently under xdist on a CPU-capped CI container, so a start that takes a second
+# locally can take tens of seconds there. Overridable so a slow environment does not need a
+# code change.
+SERVER_STARTUP_TIMEOUT = float(os.environ.get("DD_TEST_SERVER_STARTUP_TIMEOUT", "60"))
+SERVER_STARTUP_POLL_INTERVAL = 0.1
 
 
 def _port_is_available(port: int) -> bool:
@@ -50,6 +58,37 @@ def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
             return True
         time.sleep(0.1)
     return _port_is_available(port)
+
+
+def _wait_for_server_ready(client: Client, port: int, use_multiprocess: bool, deadline: float) -> None:
+    """Block until the server answers, re-raising the last failure if it never does.
+
+    Every probe timeout is clamped to the time left, so the caller's budget is a real wall
+    clock bound: without that, a server that binds the port but never answers would sit in
+    one ten second request per attempt and overrun the budget by orders of magnitude.
+
+    The multiprocess path gets a TCP probe because it execs an arbitrary command, while the
+    Popen path serves HTTP and is probed for a 200: a socket that is bound but not yet
+    serving would satisfy a TCP probe and hand the test a server that cannot answer.
+    """
+    # A server needs a moment before the first probe is worth making, and a refused connect
+    # returns too fast for the poll interval alone to keep this from spinning.
+    time.sleep(1.0)
+    while True:
+        try:
+            if use_multiprocess:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(min(0.2, max(0.05, deadline - time.monotonic())))
+                    sock.connect(("0.0.0.0", int(port)))
+            else:
+                timeout = min(10.0, max(0.5, deadline - time.monotonic()))
+                response = client.get_ignored("/", timeout=timeout)
+                assert response.status_code == 200, f"server answered {response.status_code}"
+            return
+        except Exception:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(SERVER_STARTUP_POLL_INTERVAL)
 
 
 def _server_diagnostics(server_process, port: int, cmd: list) -> str:
@@ -462,40 +501,26 @@ def appsec_application_server(
     try:
         client = Client("http://0.0.0.0:%s" % port)
 
+        startup_started = time.monotonic()
         try:
             print("Waiting for server to start...")
             print(f"* Command: {cmd}")
             print(f"* Environment {env}")
             print("* *****************************************")
-            if use_multiprocess:
-                # Socket-based readiness check similar to the provided fixture snippet
-                max_attempts = 120
-                attempt = 0
-                while attempt < max_attempts:
-                    try:
-                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.settimeout(0.2)
-                            s.connect(("0.0.0.0", int(port)))
-                            break
-                    except (ConnectionRefusedError, OSError):
-                        time.sleep(0.1)
-                        attempt += 1
-                else:
-                    raise RetryError("Server failed to accept connections in time")
-                print("Server started")
-            else:
-                client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
-                print("Server started")
-        except RetryError:
+            _wait_for_server_ready(client, port, use_multiprocess, startup_started + SERVER_STARTUP_TIMEOUT)
+            print("Server started in %.3fs" % (time.monotonic() - startup_started))
+        except Exception as exc:
+            # Every failure here is the same failure: the server never answered in time. It is
+            # reported with the elapsed time because the interesting question is whether the
+            # budget was missed by a little (a slow, contended start) or never approached at
+            # all (a server that died on import), and the diagnostics below answer the rest.
             raise AssertionError(
-                "Server failed to start; its output is in the captured stdout/stderr above.\n"
+                "Server failed to start within %.3fs (of a %.1fs budget, override with "
+                "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
+                "above.\n"
+                % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT)
                 + _server_diagnostics(server_process, port, cmd)
-            )
-        except Exception:
-            raise AssertionError(
-                "Server FAILED; its output is in the captured stdout/stderr above.\n"
-                + _server_diagnostics(server_process, port, cmd)
-            )
+            ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         # Obtain child PID tree for gunicorn when possible
