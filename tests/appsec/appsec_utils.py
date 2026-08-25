@@ -20,12 +20,8 @@ from tests.webclient import Client
 
 FILE_PATH = Path(__file__).resolve().parent
 
-# How long to wait for a freshly spawned server to accept connections, and how often to retry.
-# The budget is wall clock, but what it has to cover is CPU: a ddtrace-run server with IAST
-# enabled AST-rewrites every module it imports, and the iast_packages suite boots several of
-# them concurrently under xdist on a CPU-capped CI container, so a start that takes a second
-# locally can take tens of seconds there. Overridable so a slow environment does not need a
-# code change.
+# Startup is CPU bound (IAST rewrites every import) and the CI runners are contended, so this
+# is deliberately generous. Override it rather than editing the default.
 SERVER_STARTUP_TIMEOUT = float(os.environ.get("DD_TEST_SERVER_STARTUP_TIMEOUT", "60"))
 SERVER_STARTUP_POLL_INTERVAL = 0.1
 
@@ -60,25 +56,27 @@ def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
     return _port_is_available(port)
 
 
-def _wait_for_server_ready(client: Client, port: int, use_multiprocess: bool, deadline: float) -> None:
-    """Block until the server answers, re-raising the last failure if it never does.
+def _process_exit_code(server_process) -> _t.Optional[int]:
+    """The server's exit status, or None while it is still running, whichever API it provides."""
+    if isinstance(server_process, multiprocessing.Process):
+        return server_process.exitcode
+    return server_process.poll()
 
-    Every probe timeout is clamped to the time left, so the caller's budget is a real wall
-    clock bound: without that, a server that binds the port but never answers would sit in
-    one ten second request per attempt and overrun the budget by orders of magnitude.
 
-    The multiprocess path gets a TCP probe because it execs an arbitrary command, while the
-    Popen path serves HTTP and is probed for a 200: a socket that is bound but not yet
-    serving would satisfy a TCP probe and hand the test a server that cannot answer.
+def _wait_for_server_ready(client: Client, server_process, port: int, use_multiprocess: bool, deadline: float) -> None:
+    """Block until the server answers, re-raising the last probe failure if it never does.
+
+    Probed over HTTP unless the server was exec'd by _mp_target, which may run something that
+    does not speak it; a TCP probe alone would pass on a socket that is bound but not serving.
     """
-    # A server needs a moment before the first probe is worth making, and a refused connect
-    # returns too fast for the poll interval alone to keep this from spinning.
-    time.sleep(1.0)
+    if not use_multiprocess:
+        # Matches the initial_wait the replaced client.wait() applied only to this path.
+        time.sleep(1.0)
     while True:
         try:
             if use_multiprocess:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.settimeout(min(0.2, max(0.05, deadline - time.monotonic())))
+                    sock.settimeout(0.2)
                     sock.connect(("0.0.0.0", int(port)))
             else:
                 timeout = min(10.0, max(0.5, deadline - time.monotonic()))
@@ -86,17 +84,16 @@ def _wait_for_server_ready(client: Client, port: int, use_multiprocess: bool, de
                 assert response.status_code == 200, f"server answered {response.status_code}"
             return
         except Exception:
-            if time.monotonic() >= deadline:
+            # A server that died on import is never going to answer, so spending the rest of
+            # the budget on it only makes a suite of these slow to fail.
+            if time.monotonic() >= deadline or _process_exit_code(server_process) is not None:
                 raise
             time.sleep(SERVER_STARTUP_POLL_INTERVAL)
 
 
 def _server_diagnostics(server_process, port: int, cmd: list) -> str:
     """Facts that are not in the captured server output but explain most startup failures."""
-    if isinstance(server_process, multiprocessing.Process):
-        exit_code = server_process.exitcode
-    else:
-        exit_code = server_process.poll()
+    exit_code = _process_exit_code(server_process)
     return (
         f"port={port} port_still_bound={not _port_is_available(port)} pid={server_process.pid} "
         f"exit_code={exit_code} (None means it was still running, so it was too slow rather "
@@ -507,13 +504,12 @@ def appsec_application_server(
             print(f"* Command: {cmd}")
             print(f"* Environment {env}")
             print("* *****************************************")
-            _wait_for_server_ready(client, port, use_multiprocess, startup_started + SERVER_STARTUP_TIMEOUT)
+            _wait_for_server_ready(
+                client, server_process, port, use_multiprocess, startup_started + SERVER_STARTUP_TIMEOUT
+            )
             print("Server started in %.3fs" % (time.monotonic() - startup_started))
         except Exception as exc:
-            # Every failure here is the same failure: the server never answered in time. It is
-            # reported with the elapsed time because the interesting question is whether the
-            # budget was missed by a little (a slow, contended start) or never approached at
-            # all (a server that died on import), and the diagnostics below answer the rest.
+            # Elapsed time separates a slow contended start from a server that died on import.
             raise AssertionError(
                 "Server failed to start within %.3fs (of a %.1fs budget, override with "
                 "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
