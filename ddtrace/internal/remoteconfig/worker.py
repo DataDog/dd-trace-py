@@ -208,7 +208,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self,
         product: "RemoteConfigProduct",
         callback: RCCallback,
-        capabilities: "Iterable[RemoteConfigCapabilities]" = [],
+        capabilities: "Iterable[RemoteConfigCapabilities]" = (),
     ) -> None:
         """Register a product callback for remote configuration updates.
 
