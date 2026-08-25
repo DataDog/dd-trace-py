@@ -19,35 +19,19 @@ Alternatively, use :func:`patch()<ddtrace.patch>` to manually enable the integra
 Configuration
 ~~~~~~~~~~~~~
 
-.. py:data:: ddtrace.config.httpx2['service']
+Use the following environment variables to configure the integration:
 
-   The default service name for ``httpx2`` requests.
-   By default the ``httpx2`` integration will not define a service name and inherit
-   its service name from its parent span.
+``DD_HTTPX2_SERVICE``
+   The service name for ``httpx2`` requests. By default, requests inherit the
+   service name from their parent span.
 
-   If you are making calls to uninstrumented third party applications you can
-   set this setting or use the ``ddtrace.config.httpx2['split_by_domain']`` setting.
+``DD_HTTPX2_DISTRIBUTED_TRACING``
+   Whether to inject distributed tracing headers into requests. Defaults to
+   ``True``.
 
-   This option can also be set with the ``DD_HTTPX2_SERVICE`` environment
-   variable.
-
-   Default: ``None``
-
-
-.. py:data:: ddtrace.config.httpx2['distributed_tracing']
-
-   Whether or not to inject distributed tracing headers into requests.
-
-   Default: ``True``
-
-
-.. py:data:: ddtrace.config.httpx2['split_by_domain']
-
-   Whether or not to use the domain name of requests as the service name.
-
-   This setting takes precedence over ``ddtrace.config.httpx2['service']``.
-
-   Default: ``False``
+``DD_HTTPX2_SPLIT_BY_DOMAIN``
+   Whether to use the request domain as the service name. Defaults to
+   ``False``.
 
 :ref:`Headers tracing <http-headers-tracing>` is supported for this integration.
 
