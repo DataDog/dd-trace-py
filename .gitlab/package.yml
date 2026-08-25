@@ -30,11 +30,11 @@ variables:
   - "cp313-cp313"
   - "cp314-cp314"
 
-# 2026.05.13-1 (dd mirror) still ships cp315 as 3.15.0b1 and the native wheel build
-# SIGSEGVs. 2026.08.24-1 has 3.15.0rc1+. Pull from quay until DataDog/images mirrors
-# 2026.08.24-1 (see https://github.com/DataDog/images/blob/master/mirror.yaml).
-.MANYLINUX2014_PYPA_AMD64: &MANYLINUX2014_PYPA_AMD64 "quay.io/pypa/manylinux2014_x86_64:2026.08.24-1"
-.MANYLINUX2014_PYPA_AARCH64: &MANYLINUX2014_PYPA_AARCH64 "quay.io/pypa/manylinux2014_aarch64:2026.08.24-1"
+# Latest mirrored pypa manylinux2014 tag (2026.05.13-1) still ships cp315 as 3.15.0b1;
+# the native wheel build SIGSEGVs on b1. ensure-cp315-rc1.sh rebuilds rc1 in-job until
+# DataDog/images mirrors >= 2026.08.04-1 (see mirror.yaml).
+.MANYLINUX2014_PYPA_AMD64: &MANYLINUX2014_PYPA_AMD64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2026.05.13-1"
+.MANYLINUX2014_PYPA_AARCH64: &MANYLINUX2014_PYPA_AARCH64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_aarch64:2026.05.13-1"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v113741357-d2b8243-manylinux2014_aarch64"
@@ -150,8 +150,8 @@ variables:
   script: *build_linux_script
 
 # cp315 manylinux2014: derived dd-trace-py manylinux images (d2b8243 / May 2026) ship
-# stale cp315 (3.15.0b1) and the native wheel build SIGSEGVs. Use a fresh upstream pypa
-# image until manylinux2014 derived images are rebuilt (musllinux 233089d is fine).
+# stale cp315 (3.15.0b1) and the native wheel build SIGSEGVs. Use the approved pypa
+# mirror (2026.05.13-1) plus ensure-cp315-rc1.sh until the mirror catches up.
 "build linux cp315 manylinux":
   extends: .build_base
   image: ${PYPA_MANYLINUX_IMAGE}
@@ -167,6 +167,7 @@ variables:
         PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AARCH64
   before_script:
     - yum install -y autoconf automake libtool openssl-devel openssl-static libzstd-devel libzstd-static
+    - .gitlab/scripts/ensure-cp315-rc1.sh
   script: *build_linux_script
 
 "build linux serverless":
