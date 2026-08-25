@@ -233,11 +233,12 @@ def ensure_environment(
     *,
     python: str,
     standard_editable: bool,
+    reuse_current: bool,
     run: Callable[[list[str]], None],
 ) -> bool:
     """Ensure an exact environment, returning True when it was rebuilt."""
     with _environment_lock(root, prepared):
-        if environment_is_current(
+        if reuse_current and environment_is_current(
             root,
             prepared,
             python=python,

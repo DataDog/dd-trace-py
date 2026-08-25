@@ -30,9 +30,10 @@ Use this skill when you have:
 
 1. **Always use the run-tests skill** when testing code changes - it's optimized for intelligent suite discovery
 2. **Never run pytest directly** - use `scripts/run-tests`
-3. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
-4. **Use `--dry-run` first** - see what would run before executing
-5. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
+3. **Use `-s` only for reruns** - first establish a current ddtrace installation, then reuse it
+4. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
+5. **Use `--dry-run` first** - see what would run before executing
+6. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
 
 ## How This Skill Works
 
@@ -102,6 +103,15 @@ Run the selected environment hashes. The runner creates the uv environment, inst
 scripts/run-tests --venv <environment-hash-1> --venv <environment-hash-2>
 ```
 
+After a successful first run, reuse the verified ddtrace installation for faster iteration:
+
+```bash
+scripts/run-tests -s --venv <environment-hash-1> --venv <environment-hash-2>
+```
+
+Use `-s` before the `--` separator. A `-s` after the separator is pytest's output-capture option. Omit the runner flag
+after native-code or project-metadata changes, or after updating the branch from main.
+
 This will:
 - Start required Docker services (redis, postgres, etc.)
 - Run tests in the specified venvs sequentially
@@ -121,7 +131,7 @@ This will:
 
 For re-running specific tests:
 ```bash
-scripts/run-tests --venv <environment-hash> -- -vv -k test_name
+scripts/run-tests -s --venv <environment-hash> -- -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -191,6 +201,9 @@ When you have a specific environment hash, run it directly without specifying fi
 
 ```bash
 scripts/run-tests --venv <environment-hash>
+
+# Subsequent run while iterating on Python code
+scripts/run-tests -s --venv <environment-hash>
 ```
 
 The `--venv` flag automatically searches **all available venvs** across all suites, so it works regardless of what files you have locally changed. This is useful when:
@@ -245,7 +258,7 @@ scripts/run-tests --venv <environment-hash> -- -vv tests/contrib/flask/test_view
 After the first run shows a test failing, narrow the pytest selection:
 
 ```bash
-scripts/run-tests --venv <environment-hash> -- -vv -k test_view_called_twice
+scripts/run-tests -s --venv <environment-hash> -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -253,6 +266,7 @@ scripts/run-tests --venv <environment-hash> -- -vv -k test_view_called_twice
 
 ### DO ✅
 
+- **Use `-s` for current environments**: Skip reinstalling ddtrace during ordinary Python-only iteration
 - **Start small**: Run 1 venv first, expand only if needed
 - **Be specific**: Use pytest `-k` filter when re-running failures
 - **Check git**: Verify you're testing the right files with `git status`
@@ -261,6 +275,7 @@ scripts/run-tests --venv <environment-hash> -- -vv -k test_view_called_twice
 
 ### DON'T ❌
 
+- **Use `-s` after native or metadata changes**: Refresh the editable installation first
 - **Run all venvs initially**: That's what CI is for
 - **Skip the minimal set guidance**: It's designed to save you time
 - **Ignore service requirements**: Some suites need Docker services up
@@ -324,6 +339,7 @@ The `scripts/run-tests` system:
 - Expands suitespec matrices into uv environments with committed locks
 - Each venv is a self-contained environment
 - Docker services are managed per suite lifecycle
+- `-s` explicitly enables reuse of a verified ddtrace installation
 - Pass test-command arguments after one `--` separator.
 
 ### Supported Suite Types

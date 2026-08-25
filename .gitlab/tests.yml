@@ -38,7 +38,7 @@ include:
       do
         echo "Running uv environment: ${environment_hash}"
         export _CI_DD_TAGS="test.configuration.environment_id:${environment_hash}"
-        scripts/run-tests --venv "${environment_hash}" -- --ddtrace
+        scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
       done
       ./scripts/check-diff ".uv/" \
         "Changes detected in uv locks. Run scripts/test-env lock and commit the result."

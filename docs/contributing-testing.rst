@@ -89,6 +89,16 @@ List a suite's environment hashes, then select one directly:
     $ scripts/test-env list contrib::django --python 3.12
     $ scripts/run-tests --venv <environment-hash> -- -k test_name
 
+The first run installs ddtrace and the suite's exact dependencies. For faster reruns, pass ``-s`` or
+``--skip-ddtrace-install`` before the pytest separator to reuse that verified ddtrace installation:
+
+.. code-block:: bash
+
+    $ scripts/run-tests -s --venv <environment-hash> -- -k test_name
+
+An ``-s`` after ``--`` is passed to pytest and disables output capture. Omit the runner's ``-s`` after changing native
+code or project metadata, or after updating from main, so the editable installation is refreshed.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 
@@ -142,8 +152,7 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run the environment again. ``scripts/run-tests`` validates the cached environment and rebuilds it when its lock,
-project metadata, or installed package set is stale:
+Then run the environment again without ``-s`` to refresh the editable ddtrace installation:
 
 .. code-block:: bash
 
@@ -151,7 +160,8 @@ project metadata, or installed package set is stale:
 
 CI builds the native ddtrace extensions once per Python version and passes those artifacts to each test job.
 Each suite still uses its own uv environment and exact editable installation so its locked dependencies and package
-metadata remain isolated. Current environments are reused without reinstalling packages.
+metadata remain isolated. CI passes ``-s`` explicitly so test jobs reuse the base build artifacts; a missing or stale
+environment is still synchronized before its tests run.
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------

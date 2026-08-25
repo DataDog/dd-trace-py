@@ -605,7 +605,7 @@ def gen_build_docs() -> None:
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
             print("      find ddtrace -type f -name '*.so*' -exec touch {} +", file=f)
-            print('      scripts/run-tests --venv "$(scripts/test-env list build_docs)"', file=f)
+            print('      scripts/run-tests -s --venv "$(scripts/test-env list build_docs)"', file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)

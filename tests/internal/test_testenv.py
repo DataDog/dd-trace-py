@@ -14,14 +14,21 @@ from scripts._testenv import prepare_environment
 PYTHON = "3.11"
 
 
-def _prepared(tmp_path: Path, contents: str = "alpha==1.0\n", environment_hash: str = "example"):
+def _prepared(
+    tmp_path: Path,
+    contents: str = "alpha==1.0\n",
+    environment_hash: str = "example",
+    install_project: bool = False,
+):
     lockfile = tmp_path / f"{environment_hash}.txt"
     lockfile.write_text(contents)
+    if install_project:
+        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'example'\nversion = '1.0'\n")
     return prepare_environment(
         tmp_path,
         environment_hash=environment_hash,
         lockfile=lockfile.relative_to(tmp_path),
-        install_project=False,
+        install_project=install_project,
     )
 
 
@@ -31,9 +38,9 @@ def _install_fake_environment(root: Path, prepared) -> None:
     (venv / "bin/python").touch()
     (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
     site_packages = venv / f"lib/python{PYTHON}/site-packages"
-    site_packages.mkdir(parents=True)
+    site_packages.mkdir(parents=True, exist_ok=True)
     metadata = site_packages / "alpha-1.0.dist-info/METADATA"
-    metadata.parent.mkdir()
+    metadata.parent.mkdir(exist_ok=True)
     metadata.write_text("Name: alpha\nVersion: 1.0\n")
 
 
@@ -46,8 +53,15 @@ def _build(root: Path, prepared, calls: list[list[str]]):
     return run
 
 
-def _ensure(root: Path, prepared, run):
-    return ensure_environment(root, prepared, python=PYTHON, standard_editable=False, run=run)
+def _ensure(root: Path, prepared, run, reuse_current: bool = True):
+    return ensure_environment(
+        root,
+        prepared,
+        python=PYTHON,
+        standard_editable=False,
+        reuse_current=reuse_current,
+        run=run,
+    )
 
 
 def test_missing_and_incomplete_environments_are_not_current(tmp_path):
@@ -77,6 +91,17 @@ def test_current_environment_is_reused(tmp_path):
     assert _ensure(tmp_path, prepared, run)
     assert not _ensure(tmp_path, prepared, run)
     assert len(calls) == 2
+
+
+def test_project_environment_is_rebuilt_unless_reuse_is_explicit(tmp_path):
+    prepared = _prepared(tmp_path, install_project=True)
+    calls = []
+    run = _build(tmp_path, prepared, calls)
+
+    assert _ensure(tmp_path, prepared, run, reuse_current=False)
+    assert _ensure(tmp_path, prepared, run, reuse_current=False)
+    assert not _ensure(tmp_path, prepared, run, reuse_current=True)
+    assert len(calls) == 4
 
 
 def test_installed_package_drift_makes_environment_stale(tmp_path):
