@@ -217,17 +217,14 @@ def patch():
 
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
-    try:
-        if _uses_input_processor():
-            wrap(
-                "vllm.v1.engine.input_processor",
-                "InputProcessor.process_inputs",
-                traced_processor_process_inputs,
-            )
-        else:
-            wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
-    except (ModuleNotFoundError, AttributeError) as e:
-        logger.warning("Failed to patch vLLM's input processor: %s", e)
+    if _uses_input_processor():
+        wrap(
+            "vllm.v1.engine.input_processor",
+            "InputProcessor.process_inputs",
+            traced_processor_process_inputs,
+        )
+    else:
+        wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
@@ -243,13 +240,10 @@ def unpatch():
 
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
-    try:
-        if _uses_input_processor():
-            unwrap(vllm.v1.engine.input_processor.InputProcessor, "process_inputs")
-        else:
-            unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
-    except (ModuleNotFoundError, AttributeError):
-        pass
+    if _uses_input_processor():
+        unwrap(vllm.v1.engine.input_processor.InputProcessor, "process_inputs")
+    else:
+        unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
 
     delattr(vllm, ATTR_DATADOG_INTEGRATION)
