@@ -142,6 +142,9 @@ async def _traced_tool_stream(agen, span, integration, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        # A consumer that stops early closes this generator, but the one it wraps would otherwise
+        # wait for async generator finalization. google-adk closes the stream itself, so mirror it.
+        await agen.aclose()
         if dropped:
             chunks.append("... %d further streamed items omitted" % dropped)
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
@@ -173,6 +176,7 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
     ) as span:
         result = []
         dropped = 0
+        agen = None
         try:
             agen = wrapped(*args, **kwargs)
             async for item in agen:
@@ -185,6 +189,8 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
             span.set_exc_info(*sys.exc_info())
             raise
         finally:
+            if agen is not None:
+                await agen.aclose()
             if dropped:
                 result.append("... %d further streamed items omitted" % dropped)
             integration.llmobs_set_tags(

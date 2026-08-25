@@ -170,6 +170,13 @@ async def stream_values(count: int):
         yield {"value": i}
 
 
+async def stream_then_raise(count: int):
+    """A streaming tool that fails partway through the stream."""
+    for i in range(count):
+        yield {"value": i}
+    raise RuntimeError("stream blew up")
+
+
 @pytest.fixture
 def streaming_tool_context(adk):
     """A ToolContext backed by a real Session, whose `state` ToolContext reads on init.
