@@ -13,32 +13,52 @@ use libdd_trace_utils::span::{SpanBytes, SpanText, TraceData};
 use serde::Serialize;
 use std::borrow::Borrow;
 
+enum Storage {
+    Static,
+    PyObject(Py<PyAny>),
+    Rust(Box<str>),
+}
+
+impl Storage {
+    pub fn clone_ref<'py>(&self, py: Python<'py>) -> Self {
+        match self {
+            Storage::Static => Storage::Static,
+            Storage::PyObject(ob) => Storage::PyObject(ob.clone_ref(py)),
+            Storage::Rust(s) => Storage::Rust(s.clone()),
+        }
+    }
+}
+
 /// A Python bytes/str backed utf-8 string we can read without needing access to the GIL
 /// that can be put in a libdatadog span.
 ///
 /// ## Storage Semantics
 ///
 /// The `storage` field has the following semantics:
-/// - `Some(py_obj)` where `py_obj` is a `PyString` or `PyBytes`: Holds the Python string/bytes object
-/// - `Some(py_obj)` where `py_obj` is `PyNone`: Represents Python `None` (empty string for Rust)
-/// - `None`: Static Rust string (from `from_static_str`/`Default`), no Python object to keep alive
+/// - `PyObject(obj)` where `obj` is a `PyString` or `PyBytes`: holds the Python
+///   string/bytes object.
+/// - `PyObject(obj)` where `obj` is `PyNone`: represents Python `None`.
+/// - `Static`: static Rust string (from `from_static_str`/`Default`), no Python
+///   object to keep alive.
+/// - `Rust(s)`: owned Rust string (from `from_owned`)
 ///
-/// When converting back to Python via `IntoPyObject`:
-/// - `Some(py_obj)` returns the stored Python object (zero-copy)
-/// - `None` creates an interned Python string (cached by Python for repeated access)
+/// When converting back to Python via `IntoPyObject` (see `as_py`):
+/// - `PyObject` returns the stored Python object (zero-copy).
+/// - `Static`/`Storage::Rust` create an interned Python string (cached by Python
+///   for repeated access).
 pub struct PyBackedString {
-    /// memory view over the python object bytes, or static data
+    /// memory view over the python object bytes, or static/owned Rust data
     data: ptr::NonNull<str>,
-    /// Prevents the underlying Python object from being garbage collected.
-    /// See Storage Semantics above for details.
-    storage: Option<Py<PyAny>>,
+    /// Backing storage that keeps `data` valid; prevents any held Python object from being
+    /// garbage collected.
+    storage: Storage,
 }
 
 impl PyBackedString {
     pub fn clone_ref<'py>(&self, py: Python<'py>) -> Self {
         Self {
             data: self.data,
-            storage: self.storage.as_ref().map(|s| s.clone_ref(py)),
+            storage: self.storage.clone_ref(py),
         }
     }
 
@@ -48,26 +68,30 @@ impl PyBackedString {
     /// Returns `false` for empty strings created from static data or Python empty strings.
     #[inline(always)]
     pub fn is_py_none(&self, py: Python<'_>) -> bool {
-        self.storage.as_ref().is_some_and(|obj| obj.is_none(py))
+        match &self.storage {
+            Storage::Static => false,
+            Storage::PyObject(obj) => obj.is_none(py),
+            Storage::Rust(_) => false,
+        }
     }
 
     pub fn py_none<'py>(py: Python<'py>) -> Self {
         Self {
             // SAFETY: "" is a non-null 'static str literal
             data: unsafe { ptr::NonNull::new_unchecked("" as *const str as *mut _) },
-            storage: Some(py.None()),
+            storage: Storage::PyObject(py.None()),
         }
     }
 
     /// Get the underlying Python object directly for zero-copy semantics.
     ///
     /// Returns the stored Python object if available (PyString, PyBytes, or PyNone),
-    /// or creates an interned Python string for static strings.
+    /// or creates an interned Python string for static and owned Rust strings.
     #[inline(always)]
     pub fn as_py<'py>(&self, py: Python<'py>) -> pyo3::Bound<'py, PyAny> {
         match &self.storage {
-            Some(obj) => obj.bind(py).clone(),
-            None => PyString::intern(py, self.deref()).into_any(),
+            Storage::PyObject(obj) => obj.bind(py).clone(),
+            Storage::Static | Storage::Rust(_) => PyString::intern(py, self.deref()).into_any(),
         }
     }
 
@@ -79,7 +103,7 @@ impl PyBackedString {
     /// CPython's perspective.
     #[inline(always)]
     pub fn traverse(&self, visit: &pyo3::PyVisit<'_>) -> Result<(), pyo3::PyTraverseError> {
-        if let Some(obj) = &self.storage {
+        if let Storage::PyObject(obj) = &self.storage {
             visit.call(obj)?;
         }
         Ok(())
@@ -140,7 +164,7 @@ impl TryFrom<pyo3::Bound<'_, pyo3::types::PyString>> for PyBackedString {
         let s = py_string.to_str()?;
         let data = ptr::NonNull::from(s);
         Ok(Self {
-            storage: Some(py_string.unbind().into_any()),
+            storage: Storage::PyObject(py_string.unbind().into_any()),
             data,
         })
     }
@@ -153,7 +177,7 @@ impl TryFrom<pyo3::Bound<'_, pyo3::types::PyBytes>> for PyBackedString {
             .map_err(|_e| pyo3::PyErr::new::<PyValueError, _>("'bytes' are not utf8 encoded"))?;
         let data = ptr::NonNull::from(s);
         Ok(Self {
-            storage: Some(py_bytes.unbind().into_any()),
+            storage: Storage::PyObject(py_bytes.unbind().into_any()),
             data,
         })
     }
@@ -164,7 +188,7 @@ impl From<pyo3::Bound<'_, PyNone>> for PyBackedString {
         Self {
             // SAFETY: "" is a non-null 'static str literal
             data: unsafe { NonNull::new_unchecked("" as *const str as *mut _) },
-            storage: Some(value.to_owned().unbind().into_any()),
+            storage: Storage::PyObject(value.to_owned().unbind().into_any()),
         }
     }
 }
@@ -230,7 +254,17 @@ impl SpanText for PyBackedString {
         Self {
             // SAFETY: value is a 'static str reference, guaranteed to be non-null
             data: unsafe { ptr::NonNull::new_unchecked(value as *const str as *mut _) },
-            storage: None,
+            storage: Storage::Static,
+        }
+    }
+
+    fn from_owned(value: String) -> Self {
+        let value = value.into_boxed_str();
+        Self {
+            // SAFETY: `value.deref()` is a reference into the box, guaranteed non-null. The box
+            // is moved into `storage` below, keeping the pointed-to bytes alive alongside `data`.
+            data: unsafe { ptr::NonNull::new_unchecked(value.deref() as *const str as *mut _) },
+            storage: Storage::Rust(value),
         }
     }
 }
