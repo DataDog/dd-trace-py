@@ -166,7 +166,7 @@ variables:
       - ARCH_TAG: "arm64"
         PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AARCH64
   before_script:
-    - yum install -y autoconf automake libtool openssl-devel openssl-static libzstd-devel libzstd-static
+    - .gitlab/scripts/install-manylinux-build-deps.sh
     - .gitlab/scripts/ensure-cp315-rc1.sh
   script: *build_linux_script
 
