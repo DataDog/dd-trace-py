@@ -201,26 +201,8 @@ class SessionManager:
                 # Fetch settings again after uploading git data, as it may change ITR settings.
                 self.settings = self.api_client.get_settings()
                 self.override_settings_with_env_vars()
-            log.warning(
-                "ITR_DEBUG: after git upload: itr_enabled=%s skipping_enabled=%s coverage_enabled=%s require_git=%s",
-                self.settings.itr_enabled,
-                self.settings.skipping_enabled,
-                self.settings.coverage_enabled,
-                self.settings.require_git,
-            )
             if not self.atf_all_flaky_tests and self.settings.itr_enabled:
-                result = self.api_client.get_skippable_tests()
-                log.warning(
-                    "ITR_DEBUG: skippable fetch returned %d items, correlation_id=%s",
-                    len(result[0]),
-                    result[1],
-                )
-                return result
-            log.warning(
-                "ITR_DEBUG: skipping skippable fetch (itr_enabled=%s or atf_all_flaky=%s)",
-                self.settings.itr_enabled,
-                self.atf_all_flaky_tests,
-            )
+                return self.api_client.get_skippable_tests()
             return set(), None
 
         with ThreadPoolExecutor(max_workers=3) as executor:

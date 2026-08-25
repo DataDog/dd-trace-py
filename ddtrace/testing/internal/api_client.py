@@ -427,11 +427,6 @@ class APIClient:
         try:
             result = self.connector.post_json("/api/v2/ci/tests/skippable", request_data, telemetry=telemetry)
             result.on_error_raise_exception()
-            log.warning(
-                "ITR_DEBUG: skippable API response error_type=%s, data_count=%s",
-                result.error_type,
-                len(result.parsed_response.get("data", [])) if result.parsed_response else "<none>",
-            )
 
         except Exception as e:
             log.warning("Error getting skippable tests from API: %s", e)
