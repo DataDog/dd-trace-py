@@ -26,6 +26,7 @@ class SamplingRule(object):
         resource: Optional[str] = None,
         tags: Optional[dict[str, Any]] = None,
         provenance: str = "default",
+        discard: bool = False,
     ) -> None:
         """
         Configure a new :class:`SamplingRule`
@@ -44,6 +45,10 @@ class SamplingRule(object):
 
                 # Sample based on service name using custom function
                 SamplingRule(sample_rate=0.75, service=lambda service: 'my-app' in service),
+
+                # Fully drop rejected traces for a noisy health check, instead of sending
+                # them with a reject priority
+                SamplingRule(sample_rate=0.0, resource='/health', discard=True),
             ])
 
         :param sample_rate: The sample rate to apply to any matching spans
@@ -56,6 +61,9 @@ class SamplingRule(object):
             values are glob-matches with the expected span tag values. Glob matching supports "*" meaning any
             number of characters, and "?" meaning any one character. If all tags specified in a SamplingRule are
             matches with a given span, that span is considered to have matching tags with the rule.
+        :param discard: When ``True``, a trace chunk rejected by this rule (i.e. not selected by ``sample_rate``)
+            is fully dropped instead of being kept with a reject priority: it is excluded from client-side stats
+            and never sent to the Agent. Has no effect on chunks that are sampled (kept).
         """
         self.sample_rate = min(1.0, max(0.0, float(sample_rate)))
         # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
@@ -65,6 +73,7 @@ class SamplingRule(object):
         self.name = GlobMatcher(name) if name is not None else None
         self.resource = GlobMatcher(resource) if resource else None
         self.provenance = provenance
+        self.discard = bool(discard)
 
     @property
     def sample_rate(self) -> float:
@@ -126,7 +135,7 @@ class SamplingRule(object):
 
         return True
 
-    def sample(self, span):
+    def sample(self, span: Span) -> bool:
         """
         Return if this rule chooses to sample the span
 
@@ -145,7 +154,8 @@ class SamplingRule(object):
     def __repr__(self):
         return (
             f"SamplingRule(sample_rate={self.sample_rate}, service={self.service}, "
-            f"name={self.name}, resource={self.resource}, tags={self.tags}, provenance={self.provenance})"
+            f"name={self.name}, resource={self.resource}, tags={self.tags}, provenance={self.provenance}, "
+            f"discard={self.discard})"
         )
 
     def __eq__(self, other: Any) -> bool:
@@ -158,4 +168,5 @@ class SamplingRule(object):
             and self.resource == other.resource
             and self.tags == other.tags
             and self.provenance == other.provenance
+            and self.discard == other.discard
         )

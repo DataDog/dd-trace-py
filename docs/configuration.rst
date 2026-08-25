@@ -1215,9 +1215,15 @@ Sampling
      type: JSON array
 
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", "tags", and "discard" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+
+         When "discard" is set to ``true`` on a rule, a trace chunk that the rule rejects (does not select via "sample_rate") is fully dropped instead of being kept with a reject priority: it is excluded from client-side stats and never sent to the Agent. "discard" has no effect on chunks the rule selects (keeps).
+
+         **Note** that a rule is matched against the current state of the trace chunk's local root span at the time each chunk is evaluated. When partial flushing is enabled (the default), child-span-only chunks may be evaluated and sent before the local root finishes, so a rule keyed on a field only assigned late in the request lifecycle (for example, the resolved HTTP route/resource in some web framework integrations) may not match, and therefore not discard, chunks flushed earlier in that trace even though the eventual root would have matched.
 
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
+
+         **Example (fully drop a noisy, unsampled endpoint):** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.0,"resource":"/health","discard":true}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.'
 
@@ -1225,6 +1231,7 @@ Sampling
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
+       v4.15.0: added support for "discard"
 
 Feature Flagging
 ----------------

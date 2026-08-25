@@ -3,6 +3,8 @@
 import mock
 import pytest
 
+from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
@@ -167,6 +169,38 @@ class TestRescuePath:
                 _annotate_llm_span(child)
         assert child.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
         mock_writer.enqueue.assert_called_once()
+
+
+class TestDiscardSuppressesRealLLMObsProcessor:
+    """Discard means the trace must not influence any Datadog product, including LLMObs: a
+    discarded chunk must never reach the real LLMObsProcessor, so its fallback enqueue() to
+    the LLMObs writer never fires.
+    """
+
+    def test_discarded_chunk_never_reaches_llmobs_processor(self, llmobs_agent_proxy, tracer):
+        _llmobs, mock_writer = llmobs_agent_proxy
+        tracer._span_aggregator.sampling_processor.sampler = DatadogSampler(
+            rules=[SamplingRule(sample_rate=0.0, discard=True)]
+        )
+        with mock.patch.object(
+            tracer._span_aggregator.llmobs_processor,
+            "process_trace",
+            wraps=tracer._span_aggregator.llmobs_processor.process_trace,
+        ) as mock_process_trace:
+            with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                _annotate_llm_span(span)
+        mock_process_trace.assert_not_called()
+        mock_writer.enqueue.assert_not_called()
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+
+    def test_non_discarded_reject_still_reaches_llmobs_processor(self, llmobs_agent_proxy, tracer):
+        """Sanity check: without discard, the existing rescue path is unaffected."""
+        _llmobs, mock_writer = llmobs_agent_proxy
+        tracer._span_aggregator.sampling_processor.sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0)])
+        with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+            _annotate_llm_span(span)
+        mock_writer.enqueue.assert_called_once()
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
 
 
 class TestV04Forcing:

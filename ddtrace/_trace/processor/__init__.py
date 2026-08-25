@@ -123,6 +123,8 @@ class TraceSamplingProcessor(TraceProcessor):
     * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
     * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
+    * If the chunk is rejected by a rule with ``discard=True``, the whole chunk is dropped instead of being kept
+      with a reject priority, so it is excluded from stats and never serialized or sent to the Agent.
     """
 
     def __init__(
@@ -164,7 +166,9 @@ class TraceSamplingProcessor(TraceProcessor):
                     span._set_attribute(_APM_ENABLED_METRIC_KEY, 0)
 
             if chunk_root.context.sampling_priority is None:
-                self.sampler.sample(chunk_root._local_root)
+                _, discard = self.sampler.sample_or_discard(chunk_root._local_root)
+                if discard:
+                    return None
                 if chunk_root.context.sampling_priority is None:
                     # NOTE: This should never happen, `self.sampler.sample(..)` should always set the sampling priority.
                     log.error(

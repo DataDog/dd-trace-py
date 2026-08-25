@@ -141,10 +141,28 @@ class DatadogSampler:
 
     def set_sampling_rules(self, rules: str) -> None:
         """Sets the trace sampling rules from a JSON string"""
-        sampling_rules = []
+        sampling_rules: list[SamplingRule] = []
         try:
             json_rules = json.loads(rules)
-            for rule in json_rules:
+        except (JSONDecodeError, ValueError):
+            log.error(
+                "Failed to parse DD_TRACE_SAMPLING_RULES=%r, no sampling rules will be applied",
+                rules,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
+            )
+            self.rules = []
+            return
+        if not isinstance(json_rules, list):
+            log.error(
+                "DD_TRACE_SAMPLING_RULES=%r is not a JSON array, no sampling rules will be applied",
+                rules,
+                extra={"send_to_telemetry": False},
+            )
+            self.rules = []
+            return
+        for rule in json_rules:
+            try:
                 if "sample_rate" not in rule:
                     log.error(
                         "No sample_rate provided for sampling rule: %s. Skipping.",
@@ -153,17 +171,20 @@ class DatadogSampler:
                     )
                     continue
                 sampling_rules.append(SamplingRule(**rule))
-        except (JSONDecodeError, ValueError):
-            log.error(
-                "Failed to apply all sampling rules. Rules=%s, Applied=%s",
-                rules,
-                sampling_rules,
-                exc_info=True,
-                extra={"send_to_telemetry": False},
-            )
+            except Exception:
+                log.error(
+                    "Failed to apply sampling rule %r, skipping it",
+                    rule,
+                    exc_info=True,
+                    extra={"send_to_telemetry": False},
+                )
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
+        sampled, _ = self.sample_or_discard(span)
+        return sampled
+
+    def sample_or_discard(self, span: Span) -> tuple[bool, bool]:
         span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
@@ -208,7 +229,8 @@ class DatadogSampler:
             str(self.rules) if self.rules is not None else "None",
             id(self),
         )
-        return sampled
+        discard = bool(matched_rule is not None and matched_rule.discard and not sampled)
+        return sampled, discard
 
     def _get_sampling_mechanism(self, matched_rule: Optional[SamplingRule], agent_service_based: bool) -> int:
         if matched_rule and matched_rule.provenance == "customer":
