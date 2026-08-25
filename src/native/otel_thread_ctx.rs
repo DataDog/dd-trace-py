@@ -1,4 +1,4 @@
-use crate::context::ContextData;
+use crate::context::Context;
 use crate::span::SpanData;
 use libdd_otel_thread_ctx::linux::ThreadContext;
 use pyo3::{pyfunction, PyRef};
@@ -31,7 +31,7 @@ pub fn update_otel_thread_context_from_span(
 }
 
 #[pyfunction]
-pub fn update_otel_thread_context_from_context(context: PyRef<'_, ContextData>, trace_flags: u8) {
+pub fn update_otel_thread_context_from_context(context: PyRef<'_, Context>, trace_flags: u8) {
     let Some(trace_id) = context.trace_id.filter(|trace_id| *trace_id != 0) else {
         ThreadContext::detach();
         return;
