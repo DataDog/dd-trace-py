@@ -2,7 +2,7 @@
 name: debug-build-times
 description: >
   Diagnose and fix slow base venv build times caused by unnecessary recompilation of
-  native extensions (CMake, Cython, Rust) across riot generate runs. Use when CI base
+  native extensions (CMake, Cython, Rust) across uv environment builds. Use when CI base
   venv builds are slow, when ext_cache isn't saving time, or when investigating warm
   build regressions.
 allowed-tools:
@@ -49,6 +49,7 @@ CACHE_ROOT="/tmp/dd_ext_cache_test"
 EXT_CACHE_VENV="/tmp/dd_ext_cache_venv${PYTHON_VERSION}"
 METADATA_COLD="debug_ext_metadata_cold.txt"
 METADATA_WARM="debug_ext_metadata_warm.txt"
+SMOKE_HASH="$(scripts/test-env list smoke_test --python "$PYTHON_VERSION")"
 
 header() { echo; echo "══════════════════════════════════════════"; echo "  $*"; echo "══════════════════════════════════════════"; }
 step()   { echo "── $*"; }
@@ -67,32 +68,32 @@ run_build() {
     local label="$1" metadata_out="$2"
     header "$label build (python $PYTHON_VERSION)"
     step "Restoring from cache"; cache_restore
-    step "riot generate"
+    step "Building smoke test environment"
     export _DD_DEBUG_EXT=1 _DD_DEBUG_EXT_FILE="$metadata_out"
-    riot -P generate --python="$PYTHON_VERSION"
+    scripts/run-tests --venv "$SMOKE_HASH"
     unset _DD_DEBUG_EXT _DD_DEBUG_EXT_FILE
     step "Saving to cache"; cache_save
     cat "$metadata_out" 2>/dev/null || echo "(no metadata written)"
 }
 
 header "Clearing test state"
-rm -rf ".riot/venv_py${PYTHON_VERSION/./}"*
+rm -rf ".cache/uv-test-environments/${SMOKE_HASH}-"*
 rm -rf "$CACHE_ROOT"
 rm -rf .eggs  # stale eggs cause ENOTEMPTY on Python ≤3.10's legacy setuptools
 # Remove compiled .so files for a true cold state
 find ddtrace -name "*.so" -o -name "*.dylib" -o -name "*.pyd" | grep -v "_vendor" | xargs rm -f 2>/dev/null || true
 
 run_build "COLD" "$METADATA_COLD"
-header "Clearing riot venv for warm run"
-rm -rf ".riot/venv_py${PYTHON_VERSION/./}"*
+header "Clearing smoke test environment for warm run"
+rm -rf ".cache/uv-test-environments/${SMOKE_HASH}-"*
 run_build "WARM" "$METADATA_WARM"
 
 header "Summary"
 diff --unified=0 --label COLD --label WARM "$METADATA_COLD" "$METADATA_WARM" || true
 ```
 
-**Expected results:** Cold ~100s, warm <10s. Any extension showing >0.05s on warm is
-rebuilding unnecessarily.
+**Expected results:** The warm editable build completes in under 30s. Any extension showing
+more than 0.05s on warm is rebuilding unnecessarily.
 
 ## Diagnosing a New Warm Rebuild
 
@@ -112,7 +113,9 @@ print(f"DEBUG {ext.name}: ext_path={ext_path} exists={ext_path.exists()} needs_r
 ```
 
 ```bash
-.riot/venv_py3131/bin/pip --disable-pip-version-check install -e . -v 2>&1 | grep "DEBUG\|skipping\|building"
+smoke_hash=$(scripts/test-env list smoke_test --python 3.13)
+rm -rf ".cache/uv-test-environments/${smoke_hash}-"*
+_DD_DEBUG_EXT=1 scripts/run-tests --venv "$smoke_hash" 2>&1 | grep "DEBUG\|skipping\|building"
 ```
 
 ### Step 4: Find the newer source

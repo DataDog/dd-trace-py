@@ -32,4 +32,4 @@ See: `.claude/skills/run-tests/SKILL.md`
 ## Related
 
 - Official testing guide: `docs/contributing-testing.rst`
-- Test infrastructure: `tests/suitespec.yml`, `riotfile.py`
+- Test infrastructure: suitespec files under `tests/`, `scripts/test-env`, and `.uv/`

@@ -70,48 +70,33 @@ See the **llmobs-integrations** skill for the full LLM-specific implementation g
 
 ## 4. Add test environment
 
-### riotfile.py
-
-Add a `Venv()` entry to `riotfile.py` near similar integrations. Place it alphabetically within the appropriate section.
-
-```python
-Venv(
-    name="{name}",
-    command="pytest {cmdargs} tests/contrib/{name}",
-    pkgs={
-        "pytest-asyncio": latest,  # if async support
-        "vcrpy": latest,           # if the suite uses vcrpy cassettes; match nearby pins
-    },
-    venvs=[
-        # Pin oldest supported version
-        Venv(
-            pys=select_pys(min_version="3.9", max_version="3.13"),
-            pkgs={"{package}": "~=1.0.0"},
-        ),
-        # Latest version
-        Venv(
-            pys=select_pys(),
-            pkgs={"{package}": latest},
-        ),
-    ],
-),
-```
-
-Key rules:
-- `name` must match the integration name used in `PATCH_MODULES`
-- `command` points to the test directory
-- Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
-- Use `select_pys()` for Python version ranges
-- Pin oldest supported + latest in separate nested `Venv()` entries
-- Check neighboring entries in the file for consistent formatting
-
-### suitespec.yml
-
 Add **component** and **suite** entries to the correct suitespec file:
 - LLM/AI integrations: `tests/llmobs/suitespec.yml`
 - Standard integrations: `tests/contrib/suitespec.yml`
 
-Look at a similar integration's entry in the same suitespec file and follow the same pattern for both the `components:` and `suites:` sections.
+Follow a similar integration in the same file. Put shared settings on the matrix and define the oldest and latest supported dependency versions as named variants:
+
+```yaml
+components:
+  {name}:
+    - ddtrace/contrib/internal/{name}/*
+
+suites:
+  {name}:
+    paths:
+      - '@{name}'
+      - tests/contrib/{name}/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/{name}
+      dependencies: [pytest-asyncio]
+      variants:
+        - name: {name}-1
+          dependencies: ['{package}~=1.0']
+        - name: {name}-latest
+          dependencies: ['{package}']
+```
+
+Omit dependencies that the suite does not need. Add `vcrpy` only for cassette-based tests, and specify Python versions only when compatibility requires a subset. Generate and commit the exact locks with `scripts/test-env lock <suite>`.
 
 ## 5. Write tests
 
@@ -136,7 +121,7 @@ Use the **releasenote** skill.
 
 ## Verification
 
-Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest`, `riot`, or `scripts/ddtest` directly.
+Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest` or `scripts/ddtest` directly.
 
 ## Recent PRs as Examples
 
@@ -166,9 +151,8 @@ Every new integration must complete ALL applicable items:
 - [ ] `_llmobs_set_tags()` implemented with all required LLMObs fields (LLM only)
 
 ### Test Environment
-- [ ] `riotfile.py` -- `Venv()` entry with pinned + latest package versions
-- [ ] Suitespec entry -- component + suite in correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
-- [ ] Compile and prune test requirements if needed -- follow `docs/contributing-testing.rst` and existing repo workflow
+- [ ] Suitespec entry -- component and dependency matrix in the correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
+- [ ] `.uv` locks generated and committed with `scripts/test-env lock <suite>`
 
 ### Tests
 - [ ] `tests/contrib/{name}/test_{name}_patch.py` -- patch/unpatch cycle tests

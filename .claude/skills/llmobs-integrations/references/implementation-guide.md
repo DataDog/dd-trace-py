@@ -202,5 +202,5 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans (see anthropic for pattern)
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
-- [ ] `riotfile.py` — test dependencies match the suite style; include `vcrpy` only when cassette replay is used
+- [ ] `tests/llmobs/suitespec.yml` — dependency matrix matches the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index

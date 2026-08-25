@@ -81,7 +81,8 @@ The valid traces of our C files, are like that:
 Have you been blessed by a Segmentation Fault? Have you got an error like...?
 
 ```sh
-scripts/run-tests --venv <python-3.11-environment-hash>
+scripts/test-env list contrib::flask --python 3.11
+scripts/run-tests --venv <environment-hash-from-the-list>
 ....
 tests/contrib/flask/test_blueprint.py .......                                                                                                                                                                                    [  9%]
 tests/contrib/flask/test_errorhandler.py .....                                                                                                                                                                                   [ 15%]

@@ -40,7 +40,7 @@ the PR description, not here.
 
 ## Write the note
 
-Generate the skeleton: `riot run reno new <slug>` (slug: lowercase, hyphenated, e.g.
+Generate the skeleton: `scripts/run-tests --venv "$(scripts/test-env list reno)" -- new <slug>` (slug: lowercase, hyphenated, e.g.
 `fix-aioredis-catch-canceled-error`). Edit the generated YAML, keeping only the section(s)
 that apply — one Reno fragment per change.
 

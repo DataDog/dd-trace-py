@@ -100,7 +100,7 @@ the test-agent proxy. Anthropic and Bedrock are useful references:
 define `vcr.VCR(...)` fixtures with cassette directory, request matching, and
 auth-header filtering.
 
-Use this pattern when the SDK can call the provider normally and vcrpy can record/replay the HTTP layer. Add `vcrpy` to `riotfile.py` only for suites that need it, and follow nearby integrations for `latest` vs pinned versions.
+Use this pattern when the SDK can call the provider normally and vcrpy can record/replay the HTTP layer. Add `vcrpy` to the suite's dependency matrix only when needed, and follow nearby integrations for version constraints.
 
 ### Mocked Provider/Client Objects
 
@@ -235,7 +235,7 @@ suites:
 
 ## Running Tests
 
-Use the **run-tests** skill (`scripts/run-tests`). Never invoke `pytest`, `riot`, or `scripts/ddtest` directly.
+Use the **run-tests** skill (`scripts/run-tests`). Never invoke `pytest` or `scripts/ddtest` directly.
 
 ## Test Categories
 

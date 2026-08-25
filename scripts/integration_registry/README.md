@@ -78,7 +78,7 @@ The registry is automatically updated through two main mechanisms:
   
   ***Registry Update Example (Correct Workflow)***:
   - Add support for new `integration_a`, including patch files and tests
-  - Run the new `integration_a` suite. The test process collects patched modules through the [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py), allowing names such as `rediscluster` to map to packages such as `redis-py-cluster`.
+  - Run the full `integration_a` test suite. Integration and dependency names do not always match, such as `rediscluster` and `redis-py-cluster`. During the test run, the [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py) records the integration name and patched module. It then uses `importlib.metadata` to map the module to its package so the registry can update the correct dependency.
   - **OUTCOME**: After running our new test suite for `integration_a`, the new integration along with its dependencies are automatically added to `registry.yaml`. Existing integrations amd dependencies are also updated.
 
   **FURTHER-NOTE: [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py#158) relies on the use of `_datadog_patch` to collect patched modules. Please ensure this attribute is set on the patched module within the integration's patch function. Here is an example for the `aiohttp` integration [`aiohttp patch.py`](../../../ddtrace/contrib/internal/aiohttp/patch.py#139)**

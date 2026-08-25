@@ -362,4 +362,5 @@ scripts/lint fmt -- .
 
 - **run-tests skill**: For validating that changes don't break tests
 - **pyproject.toml** `[dependency-groups]`: Source of truth for all lint tool versions
-- **riotfile.py**: Defines test venvs and combinations
+- **suitespec files and `.uv/`**: Define current test environments and exact dependency locks
+- **riotfile.py**: Retained legacy configuration validated by `scripts/lint riot`

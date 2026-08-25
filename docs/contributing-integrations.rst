@@ -121,8 +121,7 @@ Many of the tests are based on "snapshots": saved copies of actual traces sent t
 
 1. Update the library and test code to generate new traces.
 2. Delete the snapshot file corresponding to your test at ``tests/snapshots/<snapshot_file>`` (if applicable).
-3. Use `docker compose up -d testagent` to start the APM test agent, and then re-run the test with
-   ``scripts/run-tests`` so the agent URL is configured automatically.
+3. Re-run the test with ``scripts/run-tests`` so the APM test agent and its URL are configured automatically.
 
 Once the run finishes, the snapshot file will have been regenerated.
 
@@ -243,4 +242,6 @@ The following is the check list for ensuring you have all of the components to h
 - The dependency matrix and GitLab CI configuration for your tests in ``tests/contrib/suitespec.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
-- A release note for your addition generated with ``scripts/ddtest reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.
+- A release note for your addition generated with
+  ``scripts/run-tests --venv "$(scripts/test-env list reno)" -- new YOUR_TITLE_SLUG``, which will add
+  ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.

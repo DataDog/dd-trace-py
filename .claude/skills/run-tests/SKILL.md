@@ -95,7 +95,7 @@ When you modify:
 - Example: `internal` suite with 1 venv as a sanity check
 - Or run small existing test suites to verify harness changes
 
-### Step 4: Execute Selected Environments
+### Step 4: Execute Selected Venvs
 
 Run the selected environment hashes. The runner creates the uv environment, installs dd-trace-py, installs its exact lock, and manages required services:
 
@@ -146,7 +146,7 @@ When you encounter test failures, follow this systematic approach:
 
 ## Venv Selection Strategy in Detail
 
-### Understanding Environment Hashes
+### Understanding Venv Hashes
 
 From `scripts/run-tests --list`, you'll see output like:
 
