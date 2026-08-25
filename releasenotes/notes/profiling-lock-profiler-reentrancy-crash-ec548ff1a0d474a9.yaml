@@ -1,0 +1,3 @@
+fixes:
+  - |
+    profiling: A rare crash that could occur when using gRPC with the Lock Profiler has been fixed.
