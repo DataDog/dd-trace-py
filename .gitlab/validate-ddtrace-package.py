@@ -6,7 +6,8 @@ Validates that all expected wheels and sdist are present with correct versions.
 Uses the packaging library to properly parse and validate filenames.
 
 Expected artifacts:
-  - 60 wheels: 7 Python versions × 8 base platforms + 4 versions × win_arm64
+  - 54 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64,
+    plus cp315 on manylinux only
   - 1 sdist: source distribution
 
 Usage:
@@ -43,16 +44,30 @@ BASE_PLATFORMS = [
 ]
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
+# cp315 does not build everywhere yet: macOS and Windows cp315 jobs are not wired
+# up, and musllinux cp315 is allow_failure in package.yml. So only manylinux cp315
+# is required; musllinux cp315 is tolerated whether or not it lands.
+REQUIRED_PLATFORMS = {"cp315": [p for p in BASE_PLATFORMS if "manylinux" in p]}
+OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "musllinux" in p}
+
+
+def required_platforms(py_tag: str, platforms: list[str]) -> list[str]:
+    """Restrict platforms for Python versions that are not built everywhere."""
+    allowed = REQUIRED_PLATFORMS.get(py_tag)
+    if allowed is None:
+        return platforms
+    return [p for p in platforms if p in allowed]
+
 
 def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str, str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
         if args.mode == "serverless":
-            for platform in SERVERLESS_PLATFORMS:
+            for platform in required_platforms(py_tag, SERVERLESS_PLATFORMS):
                 expected.add((version, py_tag, platform, "_serverless"))
         else:
-            for platform in BASE_PLATFORMS:
+            for platform in required_platforms(py_tag, BASE_PLATFORMS):
                 expected.add((version, py_tag, platform, ""))
             # Add win_arm64 for Python 3.11+
             if py_tag in WIN_ARM64_PYTHON_TAGS:
@@ -219,6 +234,8 @@ def main(args: argparse.Namespace) -> None:
     print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp315)")
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
+    for py_tag, platforms in sorted(REQUIRED_PLATFORMS.items()):
+        print(f"  - {py_tag} restricted to {len(platforms)} platform(s)")
     print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
@@ -249,7 +266,7 @@ def main(args: argparse.Namespace) -> None:
     unexpected_non_version = [
         (v, p, pl, fl)
         for v, p, pl, fl in unexpected_wheels
-        if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches
+        if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches and (p, pl) not in OPTIONAL_WHEELS
     ]
 
     if unexpected_non_version:
