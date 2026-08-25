@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes W3C ``tracestate`` extraction for Datadog entries that contain extra
+    semicolon separators, preserving sampling priority and origin propagation when the
+    rest of the trace context is valid.

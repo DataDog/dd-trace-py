@@ -1479,6 +1479,48 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
             None,
         ),
         (
+            "dd=s:2;o:rum;",
+            (2, {}, "rum", None),
+            None,
+            None,
+        ),
+        (
+            "dd=s:2;o:rum; \t",
+            (2, {}, "rum", None),
+            None,
+            None,
+        ),
+        (
+            "dd=s:2;o:rum;  ,congo=t61rcWkgMzE",
+            (2, {}, "rum", None),
+            None,
+            None,
+        ),
+        (
+            "dd=;s:2;o:rum",
+            (2, {}, "rum", None),
+            None,
+            None,
+        ),
+        (
+            "dd=s:2;;o:rum",
+            (2, {}, "rum", None),
+            None,
+            None,
+        ),
+        (
+            "dd=s:0;t.dm:934086a686-4;  t.x:y",
+            None,
+            None,
+            ValueError,
+        ),
+        (
+            "dd=s:0; t.dm:934086a686-4",
+            None,
+            None,
+            ValueError,
+        ),
+        (
             "dd=invalid,congo=123",
             None,
             ["received invalid dd header value in tracestate: 'dd=invalid,congo=123'"],
@@ -1531,6 +1573,13 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         "tracestate_with_unknown_t._values",
         "tracestate_with_no_dd_list_member",
         "tracestate_no_origin",
+        "tracestate_trailing_empty_dd_submember",
+        "tracestate_trailing_empty_dd_submember_ows",
+        "tracestate_trailing_empty_dd_submember_before_next_member",
+        "tracestate_leading_empty_dd_submember",
+        "tracestate_interior_empty_dd_submember",
+        "tracestate_invalid_interior_ows_dd_submember",
+        "tracestate_invalid_interior_ows_after_first_dd_submember",
         "tracestate_invalid_dd_list_member",
         "tracestate_invalid_tracestate_char_outside_ascii_range_20-70",
         "tracestate_tilda_replaced_with_equals",
@@ -1549,6 +1598,44 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
             if caplog.text or expected_logging:
                 for expected_log in expected_logging:
                     assert expected_log in caplog.text
+
+
+@pytest.mark.parametrize(
+    "tracestate",
+    [
+        "foo=1,dd=s:2;o:some;",
+        "foo=1,dd=s:2;o:some; \t",
+        "dd=s:2;o:some;  ,x=y",
+        "foo=1,dd=;s:2;o:some",
+        "foo=1,dd=s:2;;o:some",
+    ],
+)
+def test_tracecontext_get_context_allows_empty_dd_tracestate_submembers(tracestate):
+    ctx = _TraceContext._get_context(TRACE_ID, 67667974448284343, 1, tracestate, {})
+
+    assert ctx.sampling_priority == 2
+    assert ctx.dd_origin == "some"
+
+
+@pytest.mark.parametrize(
+    "tracestate",
+    [
+        "foo=1,dd=s:0;t.dm:934086a686-4;  t.x:y",
+        "foo=1,dd=s:0; t.dm:934086a686-4",
+    ],
+)
+def test_tracecontext_get_context_skips_dd_tracestate_with_interior_ows(tracestate):
+    ctx = _TraceContext._get_context(
+        TRACE_ID,
+        67667974448284343,
+        1,
+        tracestate,
+        {},
+    )
+
+    assert ctx.sampling_priority == 1
+    assert ctx.dd_origin is None
+    assert "_dd.p.dm" not in ctx._meta
 
 
 @pytest.mark.parametrize(

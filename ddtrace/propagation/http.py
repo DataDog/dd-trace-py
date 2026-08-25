@@ -700,6 +700,31 @@ class _TraceContext:
         return tag_val.replace("~", "=")
 
     @staticmethod
+    def _get_datadog_tracestate_value(list_mem: str) -> dict[str, str]:
+        dd = {}
+        has_invalid_item = False
+        for item in list_mem.split(";"):
+            item_stripped = item.strip()
+            if not item_stripped:
+                continue
+            if item_stripped != item:
+                raise ValueError("Invalid whitespace in dd tracestate member")
+            if ":" not in item:
+                has_invalid_item = True
+                continue
+
+            key, value = item.split(":", 1)
+            if not key:
+                has_invalid_item = True
+                continue
+            dd[key] = value
+
+        if has_invalid_item and not dd:
+            raise ValueError("Invalid dd tracestate member")
+
+        return dd
+
+    @staticmethod
     def _get_traceparent_values(tp: str) -> tuple[int, int, Literal[0, 1]]:
         """If there is no traceparent, or if the traceparent value is invalid raise a ValueError.
         Otherwise we extract the trace-id, span-id, and sampling priority from the
@@ -753,9 +778,8 @@ class _TraceContext:
         for list_mem in ts_l:
             if list_mem.startswith("dd="):
                 # cut out dd= before turning into dict
-                list_mem = list_mem[3:]
-                # since tags can have a value with a :, we need to only split on the first instance of :
-                dd = dict(item.split(":", 1) for item in list_mem.split(";"))
+                # since tags can have a value with a :, split only on the first instance of :
+                dd = _TraceContext._get_datadog_tracestate_value(list_mem[3:])
 
         # parse out values
         if dd:
