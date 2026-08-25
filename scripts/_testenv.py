@@ -30,6 +30,7 @@ class PreparedEnvironment:
     requirements: Path
     install_project: bool
     project_hash: str | None
+    project_artifact: Path | None
 
 
 def _content_hash(contents: bytes) -> str:
@@ -52,15 +53,22 @@ def _atomic_write(path: Path, contents: str) -> None:
     temporary_path.replace(path)
 
 
-def _editable_requirements(root: Path, lockfile: Path, contents: str, package_hash: str) -> Path:
-    relative = _CACHE_ROOT / ".requirements" / f"{lockfile.stem}-{package_hash}.txt"
+def _project_requirements(
+    root: Path,
+    lockfile: Path,
+    contents: str,
+    package_hash: str,
+    project_hash: str,
+    project_requirement: str,
+) -> Path:
+    relative = _CACHE_ROOT / ".requirements" / f"{lockfile.stem}-{package_hash}-{project_hash}.txt"
     path = root / relative
     filtered = "".join(
         line for line in contents.splitlines(keepends=True) if line.partition("==")[0].strip().casefold() != "ddtrace"
     )
     if filtered and not filtered.endswith("\n"):
         filtered += "\n"
-    _atomic_write(path, f"{filtered}-e .\n")
+    _atomic_write(path, f"{filtered}{project_requirement}\n")
     return relative
 
 
@@ -70,6 +78,7 @@ def prepare_environment(
     environment_hash: str,
     lockfile: Path,
     install_project: bool,
+    project_artifact: Path | None = None,
 ) -> PreparedEnvironment:
     lock_path = lockfile if lockfile.is_absolute() else root / lockfile
     if not lock_path.is_file():
@@ -78,14 +87,29 @@ def prepare_environment(
     contents = lock_path.read_text()
     package_hash = _content_hash(contents.encode())
     project_hash = None
+    project_requirement = None
+    artifact_path = None
     if install_project:
-        project_file = root / "pyproject.toml"
-        if not project_file.is_file():
-            raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
-        project_hash = _content_hash(project_file.read_bytes())
+        if project_artifact is not None:
+            artifact_path = project_artifact if project_artifact.is_absolute() else root / project_artifact
+            if not artifact_path.is_file():
+                raise UvTestEnvironmentError(f"project artifact does not exist: {artifact_path}")
+            artifact_path = artifact_path.resolve()
+            artifact_stat = artifact_path.stat()
+            artifact_identity = f"{artifact_path.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
+            project_hash = _content_hash(artifact_identity.encode())
+            project_requirement = str(artifact_path)
+        else:
+            project_file = root / "pyproject.toml"
+            if not project_file.is_file():
+                raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
+            project_hash = _content_hash(project_file.read_bytes())
+            project_requirement = "-e ."
+    elif project_artifact is not None:
+        raise UvTestEnvironmentError("a project artifact requires install_project")
     path = _CACHE_ROOT / f"{environment_hash}-{package_hash}"
     requirements = (
-        _editable_requirements(root, lock_path, contents, package_hash)
+        _project_requirements(root, lock_path, contents, package_hash, project_hash, project_requirement)
         if install_project
         else lock_path.relative_to(root)
     )
@@ -94,6 +118,7 @@ def prepare_environment(
         requirements=requirements,
         install_project=install_project,
         project_hash=project_hash,
+        project_artifact=artifact_path,
     )
 
 
@@ -101,7 +126,6 @@ def environment_commands(
     prepared: PreparedEnvironment,
     *,
     python: str,
-    standard_editable: bool,
     exclude_newer: str | None = None,
 ) -> tuple[list[str], ...]:
     venv_python = prepared.path / "bin/python"
@@ -119,7 +143,7 @@ def environment_commands(
         "--strict",
         "--no-progress",
     ]
-    if prepared.install_project and not standard_editable:
+    if prepared.install_project and prepared.project_artifact is None:
         synchronize.extend(["--config-settings-package", "ddtrace:editable_mode=compat"])
     return (
         [
@@ -160,13 +184,19 @@ def _environment_structure_exists(venv: Path) -> bool:
     return (venv / "pyvenv.cfg").is_file() and (python.exists() or python.is_symlink())
 
 
-def _state_identity(prepared: PreparedEnvironment, python: str, standard_editable: bool) -> dict[str, object]:
+def _state_identity(prepared: PreparedEnvironment, python: str) -> dict[str, object]:
+    if prepared.project_artifact is not None:
+        editable_mode = "prebuilt-editable"
+    elif prepared.install_project:
+        editable_mode = "compat"
+    else:
+        editable_mode = "none"
     return {
         "state_version": _STATE_VERSION,
         "project_hash": prepared.project_hash,
         "python": python,
         "install_project": prepared.install_project,
-        "editable_mode": "none" if not prepared.install_project else "standard" if standard_editable else "compat",
+        "editable_mode": editable_mode,
     }
 
 
@@ -175,7 +205,6 @@ def environment_is_current(
     prepared: PreparedEnvironment,
     *,
     python: str,
-    standard_editable: bool,
 ) -> bool:
     venv = root / prepared.path
     if not _environment_structure_exists(venv):
@@ -185,7 +214,7 @@ def environment_is_current(
         state = json.loads((venv / _STATE_FILE).read_text())
     except (OSError, json.JSONDecodeError):
         return False
-    identity = _state_identity(prepared, python, standard_editable)
+    identity = _state_identity(prepared, python)
     if not isinstance(state, dict) or any(state.get(key) != value for key, value in identity.items()):
         return False
 
@@ -200,7 +229,6 @@ def _mark_environment_current(
     prepared: PreparedEnvironment,
     *,
     python: str,
-    standard_editable: bool,
 ) -> None:
     venv = root / prepared.path
     if not _environment_structure_exists(venv):
@@ -209,7 +237,7 @@ def _mark_environment_current(
     if distributions is None:
         raise UvTestEnvironmentError(f"uv created an invalid environment: {prepared.path}")
 
-    state = _state_identity(prepared, python, standard_editable)
+    state = _state_identity(prepared, python)
     state["distributions"] = [list(distribution) for distribution in distributions]
     _atomic_write(venv / _STATE_FILE, json.dumps(state, sort_keys=True) + "\n")
 
@@ -232,7 +260,6 @@ def ensure_environment(
     prepared: PreparedEnvironment,
     *,
     python: str,
-    standard_editable: bool,
     reuse_current: bool,
     run: Callable[[list[str]], None],
 ) -> bool:
@@ -242,7 +269,6 @@ def ensure_environment(
             root,
             prepared,
             python=python,
-            standard_editable=standard_editable,
         ):
             return False
 
@@ -250,7 +276,6 @@ def ensure_environment(
         for command in environment_commands(
             prepared,
             python=python,
-            standard_editable=standard_editable,
         ):
             run(command)
 
@@ -260,6 +285,5 @@ def ensure_environment(
             root,
             prepared,
             python=python,
-            standard_editable=standard_editable,
         )
         return True

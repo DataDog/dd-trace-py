@@ -42,6 +42,15 @@ build_base_venvs:
     smoke_hash=$(scripts/test-env list smoke_test --python "$PYTHON_VERSION")
     rm -rf ".cache/uv-test-environments/${{smoke_hash}}-"*
     scripts/run-tests --venv "$smoke_hash"
+    # Preserve source-tree imports while building editable metadata only once per Python.
+    wheel_dir="$(pwd)/.cache/ddtrace-test-wheels/$PYTHON_VERSION"
+    mkdir -p "$wheel_dir"
+    find "$wheel_dir" -maxdepth 1 -type f -name 'ddtrace-*.whl' -delete
+    uv run --isolated --no-project --python "python$PYTHON_VERSION" --no-python-downloads \
+      --with setuptools --with cython --with 'cmake>=3.24.2,<3.28' --with 'setuptools-rust<2' \
+      --with "patchelf>=0.17.0.0; sys_platform == 'linux'" \
+      python -c 'import sys; from setuptools.build_meta import build_editable; build_editable(sys.argv[1], {{"editable_mode": "compat"}})' \
+      "$wheel_dir"
     sccache --show-stats || true
   artifacts:
     name: native_$PYTHON_VERSION
@@ -52,3 +61,4 @@ build_base_venvs:
       - ddtrace/appsec/_ddwaf/libddwaf/.version
       - src/native/target*/include/
       - .download_cache/_cmake_deps/absl_install_*/
+      - .cache/ddtrace-test-wheels/

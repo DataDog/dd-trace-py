@@ -58,7 +58,6 @@ def _ensure(root: Path, prepared, run, reuse_current: bool = True):
         root,
         prepared,
         python=PYTHON,
-        standard_editable=False,
         reuse_current=reuse_current,
         run=run,
     )
@@ -67,11 +66,11 @@ def _ensure(root: Path, prepared, run, reuse_current: bool = True):
 def test_missing_and_incomplete_environments_are_not_current(tmp_path):
     prepared = _prepared(tmp_path)
 
-    assert not environment_is_current(tmp_path, prepared, python=PYTHON, standard_editable=False)
+    assert not environment_is_current(tmp_path, prepared, python=PYTHON)
     venv = tmp_path / prepared.path
     venv.mkdir(parents=True)
     (venv / "pyvenv.cfg").touch()
-    assert not environment_is_current(tmp_path, prepared, python=PYTHON, standard_editable=False)
+    assert not environment_is_current(tmp_path, prepared, python=PYTHON)
 
 
 def test_lock_change_makes_environment_stale(tmp_path):
@@ -80,7 +79,7 @@ def test_lock_change_makes_environment_stale(tmp_path):
     changed = _prepared(tmp_path, contents="alpha==2.0\n")
 
     assert changed.path != prepared.path
-    assert not environment_is_current(tmp_path, changed, python=PYTHON, standard_editable=False)
+    assert not environment_is_current(tmp_path, changed, python=PYTHON)
 
 
 def test_current_environment_is_reused(tmp_path):
@@ -111,7 +110,7 @@ def test_installed_package_drift_makes_environment_stale(tmp_path):
     metadata.parent.mkdir()
     metadata.write_text("Name: beta\nVersion: 1.0\n")
 
-    assert not environment_is_current(tmp_path, prepared, python=PYTHON, standard_editable=False)
+    assert not environment_is_current(tmp_path, prepared, python=PYTHON)
 
 
 def test_failed_build_is_not_marked_current(tmp_path):
@@ -122,7 +121,7 @@ def test_failed_build_is_not_marked_current(tmp_path):
 
     with pytest.raises(UvTestEnvironmentError, match="install failed"):
         _ensure(tmp_path, prepared, fail)
-    assert not environment_is_current(tmp_path, prepared, python=PYTHON, standard_editable=False)
+    assert not environment_is_current(tmp_path, prepared, python=PYTHON)
 
 
 def test_same_environment_builds_once_under_concurrency(tmp_path):
@@ -184,7 +183,6 @@ def test_environment_commands_use_exact_synchronization(tmp_path):
     commands = environment_commands(
         prepared,
         python=PYTHON,
-        standard_editable=False,
         exclude_newer="2026-01-01T00:00:00Z",
     )
     requirements = (tmp_path / prepared.requirements).read_text()
@@ -194,3 +192,39 @@ def test_environment_commands_use_exact_synchronization(tmp_path):
     assert commands[1][-2:] == ["--config-settings-package", "ddtrace:editable_mode=compat"]
     assert "ddtrace==2.20.1" not in requirements
     assert "-e ." in requirements
+
+
+def test_environment_commands_install_prebuilt_editable_artifact(tmp_path):
+    lockfile = tmp_path / "lock.txt"
+    lockfile.write_text("ddtrace==2.20.1\nalpha==1.0\n")
+    wheel = tmp_path / "ddtrace-4.15.0-0.editable-cp311-cp311-linux_x86_64.whl"
+    wheel.touch()
+    prepared = prepare_environment(
+        tmp_path,
+        environment_hash="example",
+        lockfile=lockfile.relative_to(tmp_path),
+        install_project=True,
+        project_artifact=wheel.relative_to(tmp_path),
+    )
+
+    commands = environment_commands(prepared, python=PYTHON)
+    requirements = (tmp_path / prepared.requirements).read_text()
+    assert commands[1][0:3] == ["uv", "pip", "install"]
+    assert "--config-settings-package" not in commands[1]
+    assert "ddtrace==2.20.1" not in requirements
+    assert "-e ." not in requirements
+    assert str(wheel) in requirements
+
+
+def test_project_artifact_must_exist(tmp_path):
+    lockfile = tmp_path / "lock.txt"
+    lockfile.write_text("alpha==1.0\n")
+
+    with pytest.raises(UvTestEnvironmentError, match="project artifact does not exist"):
+        prepare_environment(
+            tmp_path,
+            environment_hash="example",
+            lockfile=lockfile.relative_to(tmp_path),
+            install_project=True,
+            project_artifact=Path("missing.whl"),
+        )

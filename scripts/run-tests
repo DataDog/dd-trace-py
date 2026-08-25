@@ -71,6 +71,7 @@ TEST_CONTAINER_PATH = (
     "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 )
 SHELL_OPERATORS = frozenset({"&&", "||", ";", "|"})
+DDTRACE_TEST_WHEEL_ROOT = Path(".cache/ddtrace-test-wheels")
 
 
 class TestRunner:
@@ -389,12 +390,27 @@ class TestRunner:
 
         return self.select_environments_for_suites(selected_suites)
 
-    def _prepare_uv_environment(self, environment: TestEnvironment) -> PreparedEnvironment:
+    def _prebuilt_ddtrace_wheel(self, python: str) -> Path:
+        wheel_directory = self.root / DDTRACE_TEST_WHEEL_ROOT / python
+        wheels = tuple(wheel_directory.glob("ddtrace-*.whl"))
+        if len(wheels) != 1:
+            raise UvTestEnvironmentError(
+                f"expected one prebuilt ddtrace wheel for Python {python} in {wheel_directory}, found {len(wheels)}"
+            )
+        return wheels[0].relative_to(self.root)
+
+    def _prepare_uv_environment(
+        self,
+        environment: TestEnvironment,
+        *,
+        project_artifact: Path | None = None,
+    ) -> PreparedEnvironment:
         return prepare_environment(
             self.root,
             environment_hash=environment.hash,
             lockfile=environment.lockfile,
             install_project=bool(get_suites()[environment.suite].get("install_project", True)),
+            project_artifact=project_artifact,
         )
 
     def _uv_execution_path(self, prepared: PreparedEnvironment) -> Path:
@@ -461,26 +477,25 @@ class TestRunner:
         prepared_environments: dict[TestEnvironment, PreparedEnvironment] = {}
 
         if skip_ddtrace_install:
-            print("\n⚡ Reusing current ddtrace installations when available (-s)")
+            print("\n⚡ Reusing prebuilt or current ddtrace installations (-s)")
 
         for environment in environments:
             try:
-                prepared = self._prepare_uv_environment(environment)
-                if (
-                    self.in_ci
-                    and prepared.install_project
-                    and environment.suite != "smoke_test"
-                    and not skip_ddtrace_install
-                ):
-                    raise UvTestEnvironmentError(
-                        "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
-                    )
-                prepared_environments[environment] = prepared
+                install_project = bool(get_suites()[environment.suite].get("install_project", True))
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
+                project_artifact = None
+                uses_ci_base = self.in_ci and install_project and environment.suite != "smoke_test"
+                if uses_ci_base and not skip_ddtrace_install:
+                    raise UvTestEnvironmentError(
+                        "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
+                    )
+                if uses_ci_base and skip_ddtrace_install:
+                    project_artifact = self._prebuilt_ddtrace_wheel(environment.python)
+                prepared = self._prepare_uv_environment(environment, project_artifact=project_artifact)
+                prepared_environments[environment] = prepared
                 command_env = self._uv_command_environment(prepared, build_env)
-                standard_editable = build_env.get("_DD_TEST_USE_STANDARD_EDITABLE", "").lower() == "true"
             except UvTestEnvironmentError as error:
                 print(f"❌ {error}")
                 return False
@@ -490,7 +505,6 @@ class TestRunner:
                 for command in environment_commands(
                     prepared,
                     python=environment.python,
-                    standard_editable=standard_editable,
                 ):
                     wrapped = self._ddtest_command(command, command_env)
                     print(f"[DRY RUN] Would execute: {' '.join(wrapped)}")
@@ -507,7 +521,6 @@ class TestRunner:
                     self.root,
                     prepared,
                     python=environment.python,
-                    standard_editable=standard_editable,
                     reuse_current=skip_ddtrace_install or not prepared.install_project,
                     run=run_build,
                 )
