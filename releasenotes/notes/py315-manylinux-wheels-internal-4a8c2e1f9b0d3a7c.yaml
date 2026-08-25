@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    packaging: Widen ``requires-python`` to ``<3.16`` and pin ``bytecode>=0.18.1`` for
+    Python 3.15 to support internal cp315 manylinux2014 wheel builds. The PyPI
+    ``Programming Language :: Python :: 3.15`` classifier remains deferred until the
+    library is PyPI-ready.
