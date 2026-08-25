@@ -12,6 +12,7 @@ from tests.utils import override_global_config
 
 @pytest.fixture
 def mistralai():
+    # TODO: Investigate if this leakage comes from a real issue in the integration
     # Ensure a clean slate before each test. Snapshot tests do not reset the
     # global tracer between runs, so a previous test (typically an async
     # streaming case whose async generator was not finalized until later) can
