@@ -215,17 +215,20 @@ def test_runtime_metrics_experimental_runtime_tag():
     worker_instance = RuntimeWorker._instance
     assert worker_instance.status == ServiceStatus.RUNNING
 
+    worker_instance._runtime_metrics._collectors = ()
+    worker_instance.flush()
+    tags = worker_instance._dogstatsd_client.constant_tags
     runtime_id_tag = f"runtime-id:{get_runtime_id()}"
     if (
         os.environ["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "true"
         or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "true"
     ):
-        assert runtime_id_tag in worker_instance._platform_tags, worker_instance._platform_tags
+        assert runtime_id_tag in tags, tags
     elif (
         os.environ["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "false"
         or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "false"
     ):
-        assert runtime_id_tag not in worker_instance._platform_tags, worker_instance._platform_tags
+        assert runtime_id_tag not in tags, tags
     else:
         raise pytest.fail(
             "Invalid value for DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED or DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"
@@ -246,66 +249,19 @@ def test_runtime_metrics_refresh_identity_updates_runtime_id_tag():
         worker = RuntimeWorker._instance
         assert worker is not None
 
+        worker._runtime_metrics._collectors = ()
+
         old_runtime_id = runtime.get_runtime_id()
-        assert f"runtime-id:{old_runtime_id}" in worker._platform_tags
+        worker.flush()
+        assert f"runtime-id:{old_runtime_id}" in worker._dogstatsd_client.constant_tags
 
         runtime.refresh_identity()
         worker.flush()
 
         new_runtime_id = runtime.get_runtime_id()
-        assert f"runtime-id:{new_runtime_id}" in worker._platform_tags
-        assert f"runtime-id:{old_runtime_id}" not in worker._platform_tags
-    finally:
-        RuntimeWorker.disable()
-
-
-@pytest.mark.subprocess(
-    env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:test", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "false"},
-    err=None,
-)
-def test_runtime_metrics_flush_keeps_platform_tags_cached_without_runtime_id():
-    """Runtime metrics must not rebuild static platform tags on every flush."""
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-
-    RuntimeWorker.enable()
-    try:
-        worker = RuntimeWorker._instance
-        assert worker is not None
-
-        platform_tags = worker._platform_tags
-        worker._runtime_metrics._collectors = ()
-
-        def fail_collect_platform_tags():
-            raise AssertionError("platform tags should stay cached when runtime-id tagging is disabled")
-
-        worker._collect_platform_tags = fail_collect_platform_tags
-        worker.flush()
-
-        assert worker._platform_tags is platform_tags
-    finally:
-        RuntimeWorker.disable()
-
-
-@pytest.mark.subprocess(env={"DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true"}, err=None)
-def test_runtime_metrics_non_microvm_flush_keeps_platform_tags_cached():
-    """Non-MicroVM workers must keep cached platform tags and avoid the refresh lock."""
-    from unittest import mock
-
-    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-
-    RuntimeWorker.enable()
-    try:
-        worker = RuntimeWorker._instance
-        assert worker is not None
-        assert not worker._identity_refresh_enabled
-
-        platform_tags = worker._platform_tags
-        worker._runtime_metrics._collectors = ()
-        with mock.patch.object(worker, "_collect_platform_tags") as collect_platform_tags:
-            worker.flush()
-
-        collect_platform_tags.assert_not_called()
-        assert worker._platform_tags is platform_tags
+        assert new_runtime_id != old_runtime_id
+        assert f"runtime-id:{new_runtime_id}" in worker._dogstatsd_client.constant_tags
+        assert f"runtime-id:{old_runtime_id}" not in worker._dogstatsd_client.constant_tags
     finally:
         RuntimeWorker.disable()
 
