@@ -42,8 +42,12 @@ def _resolve_source_file(_path: str) -> Optional[Path]:
     if path.is_file():
         return path.resolve()
 
-    for relpath in (path.relative_to(_) for _ in reversed(path.parents)):
-        if (resolved_path := _resolve(relpath)) is not None:
+    # Stripping successive leading components is just successive suffixes of the
+    # parts, and avoids building a path object per ancestor. The anchor is never a
+    # candidate, which is why an absolute path starts one component in.
+    parts = path.parts
+    for start in range(1 if path.anchor else 0, len(parts)):
+        if (resolved_path := _resolve(Path(*parts[start:]))) is not None:
             return resolved_path
 
     return None

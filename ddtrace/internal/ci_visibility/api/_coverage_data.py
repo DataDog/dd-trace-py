@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import TypedDict  # noqa:F401
 
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.paths import relative_path
 
 
 class CoverageFilePayload(TypedDict):
@@ -33,13 +34,10 @@ class TestVisibilityCoverageData:
         """Generate a Test Visibility coverage payload"""
         coverage_data = []
         for file_path, covered_lines in self._coverage_data.items():
-            try:
-                # Report relative path unless the file path is not relative to root_dir
-                # Paths are assumed to be absolute based on having been converted at instantiation / add time.
-                relative_path = file_path.relative_to(root_dir)
-            except ValueError:
-                relative_path = file_path
-            path_str = f"/{str(relative_path)}"
+            # Report relative path unless the file path is not relative to root_dir
+            # Paths are assumed to be absolute based on having been converted at instantiation / add time.
+            relative = relative_path(file_path, root_dir)
+            path_str = f"/{relative if relative is not None else file_path}"
             file_payload: CoverageFilePayload = {"filename": path_str, "bitmap": covered_lines.to_bytes()}
             coverage_data.append(file_payload)
         return coverage_data

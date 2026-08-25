@@ -37,6 +37,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.paths import relative_path
 from ddtrace.internal.utils.time import Time
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -268,12 +269,11 @@ class TestVisibilityItemBase(abc.ABC):
         if self._source_file_info is not None:
             if self._source_file_info.path:
                 # Set source file path to be relative to the root directory
-                try:
-                    relative_path = self._source_file_info.path.relative_to(self._session_settings.workspace_path)
-                except ValueError:
+                relative = relative_path(self._source_file_info.path, self._session_settings.workspace_path)
+                if relative is None:
                     log.debug("Source file path is not within the root directory, replacing with absolute path")
-                    relative_path = self._source_file_info.path
-                self.set_tag(test.SOURCE_FILE, str(relative_path))
+                    relative = str(self._source_file_info.path)
+                self.set_tag(test.SOURCE_FILE, relative)
             if self._source_file_info.start_line is not None:
                 self.set_tag(test.SOURCE_START, self._source_file_info.start_line)
             if self._source_file_info.end_line is not None:

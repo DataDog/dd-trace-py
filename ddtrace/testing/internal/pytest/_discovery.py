@@ -8,6 +8,7 @@ import typing as t
 import pytest
 
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.paths import relative_parts
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_DISCOVERY_ENABLED
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_DISCOVERY_FILE
 from ddtrace.testing.internal.git import get_workspace_path
@@ -57,10 +58,10 @@ def _is_item_skipped(item: pytest.Item) -> bool:
 def _get_suite_source_file(item: pytest.Item, workspace_path: t.Optional[Path]) -> str:
     item_path = Path(item.path if hasattr(item, "path") else getattr(item, "fspath", "")).absolute()
     if workspace_path is not None:
-        try:
-            return item_path.relative_to(workspace_path).as_posix()
-        except ValueError:
-            pass
+        relative = relative_parts(item_path, workspace_path)
+        if relative is not None:
+            # as_posix() of a relative path is its components joined by "/".
+            return "/".join(relative) if relative else "."
     return str(item_path)
 
 

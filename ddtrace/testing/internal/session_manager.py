@@ -18,6 +18,8 @@ except ImportError:  # pragma: no cover — Windows / restricted environments
     _FCNTL_AVAILABLE = False
 
 from ddtrace.internal.settings import env
+from ddtrace.internal.utils.paths import relative_parts
+from ddtrace.internal.utils.paths import relative_path
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.cached_file_provider import CachedFileDataProvider
 from ddtrace.testing.internal.cached_file_provider import TestOptDataProvider
@@ -449,9 +451,8 @@ class SessionManager:
             log.debug("Could not get source file for test %s", test)
             return
 
-        try:
-            repo_relative_path = str(Path(source_file).relative_to(self.workspace_path))
-        except ValueError:
+        repo_relative_path = relative_path(Path(source_file), self.workspace_path)
+        if repo_relative_path is None:
             log.debug("Could not get repo relative path for %r", source_file)
             repo_relative_path = source_file
 
@@ -819,15 +820,15 @@ class SessionManager:
         if self.itr_skipping_level != ITRSkippingLevel.SUITE:
             return False
         base = root_path or self.workspace_path
-        try:
-            relative = collection_path.relative_to(base)
-        except ValueError:
+        relative = relative_parts(collection_path, base)
+        if relative is None:
             return False
         # Mirror the module/suite decomposition used by item_to_test_ref / nodeid_to_names:
         # everything up to the last path component becomes the dot-separated module name,
         # and the filename itself is the suite name.
-        module_name = ".".join(relative.parent.parts) if relative.parent.parts else ""
-        suite_ref = SuiteRef(ModuleRef(module_name), relative.name)
+        module_name = ".".join(relative[:-1])
+        # No components means collection_path is base itself, whose name is "".
+        suite_ref = SuiteRef(ModuleRef(module_name), relative[-1] if relative else "")
         if suite_ref not in self.skippable_items:
             return False
         # Do not skip suites that contain attempt-to-fix tests — those must run regardless of ITR.

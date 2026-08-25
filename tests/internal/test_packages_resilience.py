@@ -23,9 +23,9 @@ import pytest
 # in Python 3.10; on 3.9 the strict-future regression we exercise here
 # cannot be reproduced via that hook, so the tests below are skipped.
 try:
-    import importlib.metadata._adapters as _meta_adapters  # type: ignore[import-not-found]
+    import importlib.metadata._adapters as _meta_adapters  # type: ignore[import-not-found, unused-ignore]
 except ImportError:  # Python 3.9
-    _meta_adapters = None  # type: ignore[assignment]
+    _meta_adapters = None  # type: ignore[assignment, unused-ignore]
 
 
 @pytest.fixture
@@ -41,6 +41,11 @@ def reset_packages_caches():
             inner = getattr(fn, "__wrapped__", None) or (fn.__closure__[0].cell_contents if fn.__closure__ else None)
             if inner is not None and hasattr(inner, "__callonce_result__"):
                 del inner.__callonce_result__
+        # Filesystem-backed caches: these tests build fixture trees under
+        # tmp_path, so a stale directory listing would leak between tests.
+        _p._shipped_distributions.cache_clear()
+        _p._is_regular_package.cache_clear()
+        _p.filename_to_package.cache_clear()
         _p._BAD_DISTS_WARNED.clear()
 
     _clear()
@@ -195,14 +200,14 @@ def test_filename_to_package_resolves_namespace_on_non_site_packages_install_roo
     mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
     monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
     monkeypatch.setattr(_p, "resolve_sys_path", lambda: [vendor])
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
 
     pkg = _p.filename_to_package(vendor / "google" / "cloud" / "storage" / "blob.py")
 
     assert pkg is not None and pkg.name == "google-cloud-storage"
 
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
 
 
@@ -379,12 +384,96 @@ def test_filename_to_package_does_not_attribute_editable_source_root_to_dependen
     mapping = {"google/cloud/storage": _p.Distribution(name="google-cloud-storage", version="1.0")}
     monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
     monkeypatch.setattr(_p, "resolve_sys_path", lambda: [repo])
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
 
     pkg = _p.filename_to_package(repo / "google" / "cloud" / "storage" / "app.py")
 
     assert pkg is None
 
-    _p._is_install_root.cache_clear()
+    _p._shipped_distributions.cache_clear()
     _p.filename_to_package.cache_clear()
+
+
+def test_filename_to_package_on_a_sys_path_root_itself(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A path that *is* a sys.path entry must resolve to None, not raise.
+
+    Such a path is relative to the root by zero components, so the root-module
+    lookup has no first component to inspect. _effective_root used to index
+    parts[0] unguarded, raising IndexError -- which filename_to_package does not
+    catch (it only handles ValueError/OSError), so it escaped to the caller.
+    """
+    from ddtrace.internal import packages as _p
+
+    root = tmp_path / "root"
+    root.mkdir()
+
+    mapping = {"something": _p.Distribution(name="something", version="1.0")}
+    monkeypatch.setattr(_p, "_package_for_root_module_mapping", lambda: mapping)
+    monkeypatch.setattr(_p, "resolve_sys_path", lambda: [root])
+    _p.filename_to_package.cache_clear()
+
+    assert _p.filename_to_package(root) is None
+
+    _p.filename_to_package.cache_clear()
+
+
+def test_shipped_distributions_lists_each_directory_once(
+    tmp_path: Path,
+    reset_packages_caches,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Both install-root probes share one cached directory listing.
+
+    _is_install_root and _root_ships_distribution used to walk the same
+    directory independently and uncached, on every probe -- and an install root
+    is routinely a site-packages tree with thousands of entries.
+    """
+    from ddtrace.internal import packages as _p
+
+    vendor = tmp_path / "vendor"
+    vendor.mkdir()
+    _write_dist_info(vendor, "google-cloud-storage", "1.0")
+
+    listed: list[Path] = []
+    real_iterdir = Path.iterdir
+
+    def counting_iterdir(self):
+        listed.append(self)
+        return real_iterdir(self)
+
+    monkeypatch.setattr(Path, "iterdir", counting_iterdir)
+
+    assert _p._is_install_root(vendor) is True
+    assert _p._root_ships_distribution(vendor, "google-cloud-storage") is True
+    assert _p._root_ships_distribution(vendor, "some-other-dist") is False
+    assert _p._is_install_root(vendor) is True
+
+    assert listed.count(vendor) == 1
+
+
+def test_effective_root_reuses_the_package_probe_across_files(
+    tmp_path: Path,
+    reset_packages_caches,
+) -> None:
+    """The __init__.py probe is keyed on the package, not the source file.
+
+    It depends only on (parent, top-level name), so keying it on the caller's
+    full relative path would spend an entry per file and never hit.
+    """
+    from ddtrace.internal import packages as _p
+
+    site = tmp_path / "site-packages"
+    (site / "pkg").mkdir(parents=True)
+    (site / "pkg" / "__init__.py").write_text("")
+
+    assert _p._effective_root(("pkg", "a.py"), site) == "pkg"
+    assert _p._effective_root(("pkg", "sub", "b.py"), site) == "pkg"
+    assert _p._effective_root(("pkg", "sub", "c.py"), site) == "pkg"
+
+    info = _p._is_regular_package.cache_info()
+    assert (info.misses, info.hits) == (1, 2)
