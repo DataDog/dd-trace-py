@@ -16,6 +16,9 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -214,8 +217,8 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-if sys.version_info >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
+    pass
 elif sys.version_info >= (3, 13):
     CONTEXT_HEAD.parse(
         r"""
@@ -762,6 +765,8 @@ class _UniversalWrappingContext(BaseWrappingContext):
             return t.cast(_UniversalWrappingContext, _registry[f].uwc)
 
     def wrap(self) -> None:
+        if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
+            raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
         f = t.cast(FunctionType, self.__wrapped__)
 
         with _registry_lock:
