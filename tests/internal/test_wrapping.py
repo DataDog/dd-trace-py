@@ -866,7 +866,11 @@ def test_wrapping_context_exc_on_exit():
 
 
 def test_wrapping_context_exc_on_enter():
-    """A raising __enter__ must abort the call before the wrapped body runs."""
+    """A raising __enter__ must not prevent the wrapped body from running.
+
+    A single misbehaving context must not take down the wrapped call itself, nor any other
+    context registered on the same function, so the exception is logged and swallowed.
+    """
 
     ran = False
 
@@ -883,11 +887,12 @@ def test_wrapping_context_exc_on_enter():
     wc = BrokenEnterWrappingContext(foo)
     wc.wrap()
 
-    with pytest.raises(RuntimeError):
-        foo()
+    assert foo() == 42
 
-    assert not ran, "the wrapped function body must not run when __enter__ raises"
+    assert ran
     assert wc.entered
+    assert not wc.exited
+    assert wc.return_value is NOTSET
 
 
 def test_wrapping_context_exc_on_return():
