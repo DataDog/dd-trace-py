@@ -30,8 +30,11 @@ variables:
   - "cp313-cp313"
   - "cp314-cp314"
 
-.MANYLINUX2014_PYPA_AMD64: &MANYLINUX2014_PYPA_AMD64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2026.05.13-1"
-.MANYLINUX2014_PYPA_AARCH64: &MANYLINUX2014_PYPA_AARCH64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_aarch64:2026.05.13-1"
+# 2026.05.13-1 (dd mirror) still ships cp315 as 3.15.0b1 and the native wheel build
+# SIGSEGVs. 2026.08.24-1 has 3.15.0rc1+. Pull from quay until DataDog/images mirrors
+# 2026.08.24-1 (see https://github.com/DataDog/images/blob/master/mirror.yaml).
+.MANYLINUX2014_PYPA_AMD64: &MANYLINUX2014_PYPA_AMD64 "quay.io/pypa/manylinux2014_x86_64:2026.08.24-1"
+.MANYLINUX2014_PYPA_AARCH64: &MANYLINUX2014_PYPA_AARCH64 "quay.io/pypa/manylinux2014_aarch64:2026.08.24-1"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
   - "v113741357-d2b8243-manylinux2014_aarch64"
@@ -138,11 +141,17 @@ variables:
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
         IMAGE_TAG: "v126532182-233089d-musllinux_1_2_aarch64"
+  # musllinux cp315 still allow_failure: prof-correctness needs manylinux2014 wheels;
+  # musllinux cp315 is best-effort until #17849 wrapping lands.
+  rules:
+    - if: $PYTHON_TAG == "cp315-cp315" && $IMAGE_TAG =~ /musllinux/
+      allow_failure: true
+    - when: on_success
   script: *build_linux_script
 
 # cp315 manylinux2014: derived dd-trace-py manylinux images (d2b8243 / May 2026) ship
-# stale cp315 (3.15.0b1) and the wheel build fails. Use the upstream pypa 2026.05.13-1
-# mirror directly until manylinux2014 derived images are rebuilt (musllinux 233089d).
+# stale cp315 (3.15.0b1) and the native wheel build SIGSEGVs. Use a fresh upstream pypa
+# image until manylinux2014 derived images are rebuilt (musllinux 233089d is fine).
 "build linux cp315 manylinux":
   extends: .build_base
   image: ${PYPA_MANYLINUX_IMAGE}
