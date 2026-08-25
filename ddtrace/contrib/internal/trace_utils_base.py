@@ -199,14 +199,13 @@ OTHER_HTTP_METHOD = "_OTHER"
 _DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
 
 
-def _otel_number_typed(value: int) -> Union[int, str]:
-    """Represent an integer-typed OTel attribute for an OTLP exporter."""
-    return value
+def _otel_number(value: int) -> Union[int, str]:
+    """Represent an integer-typed OTel attribute for the exporter this process uses.
 
-
-def _otel_number_text(value: int) -> Union[int, str]:
-    """Represent an integer-typed OTel attribute for the MsgPack meta map, which is all strings."""
-    return str(value)
+    The RFC requires server.port and http.response.status_code as integers over OTLP and
+    strings in the MsgPack meta map, and a span carries one value both encoders read.
+    """
+    return value if _is_otlp_traces_exporter_enabled(otel_config.exporter) else str(value)
 
 
 @cached()
@@ -296,10 +295,9 @@ def _set_query_string_tag(span: Span, query: str) -> None:
     subscriber writes the tag itself. This keeps that side-write on the same attribute name
     (and the same obfuscation) as the query strings set_http_meta writes.
     """
-    span._set_attribute(http.QUERY_STRING, query)
-
-
-def _set_query_string_tag_otel(span: Span, query: str) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.QUERY_STRING, query)
+        return
     obfuscated = _obfuscated_query(query)
     if obfuscated:
         span._set_attribute(http.OTEL_URL_QUERY, obfuscated)
@@ -369,21 +367,23 @@ def _set_url_tags_otel_client(
 
 
 def _set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
-    """Tag the request URL of a server span.
+    """Tag the request URL of a server span in whichever semantics mode is active.
 
-    A handful of server integrations tag the URL outside of set_http_meta (Django's request
-    handler, AppSec's blocked-response paths), so they need a name that is bound to the
-    active semantics the same way set_http_meta is.
+    set_http_meta is swapped wholesale at import, but a handful of server integrations tag
+    the URL outside of it (Django's request handler, AppSec's blocked-response paths), so
+    they go through this dispatcher instead.
     """
-    _set_url_tag(integration_config, span, url, query)
+    if config._otel_trace_semantics_enabled:
+        _set_url_tags_otel_server(integration_config, span, url, query)
+    else:
+        _set_url_tag(integration_config, span, url, query)
 
 
 def _set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
     """Tag an HTTP status code outside of set_http_meta, without touching span.error."""
-    span._set_attribute(http.STATUS_CODE, str(status_code))
-
-
-def _set_status_code_tag_otel(span: Span, status_code: Union[int, str]) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.STATUS_CODE, str(status_code))
+        return
     try:
         int_status_code = int(status_code)
     except (TypeError, ValueError):
@@ -394,19 +394,21 @@ def _set_status_code_tag_otel(span: Span, status_code: Union[int, str]) -> None:
 
 def _set_method_tag(span: Span, method: str) -> None:
     """Tag an HTTP request method outside of set_http_meta."""
-    span._set_attribute(http.METHOD, method)
-
-
-def _set_method_tag_otel(span: Span, method: str) -> None:
+    if not config._otel_trace_semantics_enabled:
+        span._set_attribute(http.METHOD, method)
+        return
     normalized_method, original_method = _normalize_http_method(method)
     span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
     if original_method is not None:
         span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
 
 
-# The attribute a server span's request path can be recovered from. url.path holds the path
-# on its own, which is all the consumers of this name need.
-SERVER_URL_TAG = http.URL
+def server_url_tag() -> str:
+    """The attribute a server span's request path can be recovered from.
+
+    url.path holds the path on its own, which is all the consumers of this name need.
+    """
+    return http.OTEL_URL_PATH if config._otel_trace_semantics_enabled else http.URL
 
 
 def _http_block_metadata(
@@ -421,23 +423,16 @@ def _http_block_metadata(
     verbatim, so they have to be spelled and shaped here rather than at the write site.
     """
     metadata: dict[str, Any] = {}
-    metadata[http.STATUS_CODE] = str(status_code)
-    if method is not None:
-        metadata[http.METHOD] = method
-    if query:
-        metadata[http.QUERY_STRING] = query
-    if user_agent:
-        metadata[http.USER_AGENT] = user_agent
-    return metadata
+    if not config._otel_trace_semantics_enabled:
+        metadata[http.STATUS_CODE] = str(status_code)
+        if method is not None:
+            metadata[http.METHOD] = method
+        if query:
+            metadata[http.QUERY_STRING] = query
+        if user_agent:
+            metadata[http.USER_AGENT] = user_agent
+        return metadata
 
-
-def _http_block_metadata_otel(
-    method: Optional[str],
-    status_code: Union[int, str],
-    query: Optional[str] = None,
-    user_agent: Optional[str] = None,
-) -> dict[str, Any]:
-    metadata: dict[str, Any] = {}
     metadata[http.OTEL_RESPONSE_STATUS_CODE] = _otel_number(int(status_code))
     if method is not None:
         normalized_method, original_method = _normalize_http_method(method)
@@ -453,21 +448,6 @@ def _http_block_metadata_otel(
     return metadata
 
 
-# The attribute an HTTP request's user agent is reported under.
-USER_AGENT_TAG = http.USER_AGENT
-
-
-# The semantics mode is resolved once, here, by binding each name to one implementation.
-# Nothing below branches per span, and no module-level copy of the setting is kept for other
-# code to read: this block is the only place the choice is made.
-if config._otel_trace_semantics_enabled:
-    _otel_number = _otel_number_typed if _is_otlp_traces_exporter_enabled(otel_config.exporter) else _otel_number_text
-    _set_query_string_tag = _set_query_string_tag_otel  # type: ignore[assignment]
-    _set_url_tags_server = _set_url_tags_otel_server  # type: ignore[assignment]
-    _set_status_code_tag = _set_status_code_tag_otel  # type: ignore[assignment]
-    _set_method_tag = _set_method_tag_otel  # type: ignore[assignment]
-    _http_block_metadata = _http_block_metadata_otel  # type: ignore[assignment]
-    SERVER_URL_TAG = http.OTEL_URL_PATH
-    USER_AGENT_TAG = http.OTEL_USER_AGENT_ORIGINAL
-else:
-    _otel_number = _otel_number_text  # type: ignore[assignment]
+def user_agent_tag() -> str:
+    """The attribute an HTTP request's user agent is reported under."""
+    return http.OTEL_USER_AGENT_ORIGINAL if config._otel_trace_semantics_enabled else http.USER_AGENT

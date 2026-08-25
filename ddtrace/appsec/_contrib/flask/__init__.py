@@ -19,12 +19,12 @@ from ddtrace.appsec._asm_request_context import set_block_request_callable
 from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_TAG
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _set_method_tag
 from ddtrace.contrib.internal.trace_utils_base import _set_query_string_tag
 from ddtrace.contrib.internal.trace_utils_base import _set_status_code_tag
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_server
+from ddtrace.contrib.internal.trace_utils_base import user_agent_tag
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
 from ddtrace.internal.constants import RESPONSE_HEADERS
@@ -138,7 +138,7 @@ def _on_flask_blocked_request(span: Span) -> None:
             _set_method_tag(span, request.method)
         user_agent = _get_request_header_user_agent(request.headers)
         if user_agent:
-            span._set_attribute(USER_AGENT_TAG, user_agent)
+            span._set_attribute(user_agent_tag(), user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
 
@@ -258,7 +258,7 @@ def _wsgi_make_block_content(
             _set_method_tag(req_span, method)
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
         if user_agent:
-            req_span._set_attribute(USER_AGENT_TAG, user_agent)
+            req_span._set_attribute(user_agent_tag(), user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
