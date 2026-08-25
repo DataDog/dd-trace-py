@@ -36,14 +36,6 @@ variables:
 .MANYLINUX2014_PYPA_AMD64: &MANYLINUX2014_PYPA_AMD64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2026.05.13-1"
 .MANYLINUX2014_PYPA_AARCH64: &MANYLINUX2014_PYPA_AARCH64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_aarch64:2026.05.13-1"
 
-.AARCH64_IMAGES: &AARCH64_IMAGES
-  - "v113741357-d2b8243-manylinux2014_aarch64"
-  - "v126532182-233089d-musllinux_1_2_aarch64"
-
-.X86_64_IMAGES: &X86_64_IMAGES
-  - "v113741238-d2b8243-manylinux2014_x86_64"
-  - "v126532274-233089d-musllinux_1_2_x86_64"
-
 .build_linux_script: &build_linux_script
   - manylinux-interpreters ensure "${PYTHON_TAG}"
   - |
