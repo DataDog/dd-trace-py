@@ -23,8 +23,8 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = logging.getLogger(__name__)

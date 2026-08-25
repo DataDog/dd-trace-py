@@ -21,6 +21,7 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
@@ -52,7 +53,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
-from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.settings._config import config
@@ -60,11 +60,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -807,8 +807,12 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
-            return self._span_aggregator.writer.intake_url
+        writer = self._span_aggregator.writer
+        if isinstance(writer, AgentWriterInterface):
+            # An agentless writer points at the trace intake, which is not an agent..
+            if getattr(writer, "agentless", False):
+                return None
+            return writer.intake_url
 
         return None
 

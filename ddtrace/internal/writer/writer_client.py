@@ -1,6 +1,5 @@
 from .._encoding import BufferedEncoder
 from ..encoding import MSGPACK_ENCODERS
-from ..encoding import AgentlessTraceJSONEncoder
 
 
 class WriterClientBase(object):
@@ -36,17 +35,6 @@ class AgentWriterClientV4(WriterClientBase):
                 max_size=buffer_size,
                 max_item_size=max_payload_size,
             )
-        )
-
-
-class AgentlessWriterClient(WriterClientBase):
-    """Client for the agentless span intake (api/v2/spans)."""
-
-    ENDPOINT = "api/v2/spans"
-
-    def __init__(self, buffer_size: int, max_payload_size: int) -> None:
-        super(AgentlessWriterClient, self).__init__(
-            AgentlessTraceJSONEncoder(max_size=buffer_size, max_item_size=max_payload_size)
         )
 
 

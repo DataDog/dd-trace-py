@@ -30,10 +30,10 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Span
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
