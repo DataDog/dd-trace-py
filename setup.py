@@ -130,10 +130,39 @@ VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
-# pyo3 0.28 supports Python 3.15 natively; keep this as a safety net when the
-# lockfile is resolved without --locked and an older pyo3-build-config slips in.
-if sys.version_info >= (3, 15):
-    os.environ.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
+
+# region agent log
+# Debug instrumentation (hypothesis A): confirm no abi3/limited-API forcing on 3.15.
+# pyo3-build-config's is_abi3() returns true from PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+# alone, which defines Py_LIMITED_API and compiles out pyo3-ffi's `context` module.
+def _dd_debug_log_pyo3_abi3_state() -> None:
+    import json
+    import time
+
+    payload = {
+        "sessionId": "1e7b4c",
+        "runId": "post-fix",
+        "hypothesisId": "A",
+        "location": "setup.py:133",
+        "message": "pyo3 abi3/limited-API env state before cargo build",
+        "data": {
+            "python_version": "%d.%d" % (sys.version_info.major, sys.version_info.minor),
+            "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": os.getenv("PYO3_USE_ABI3_FORWARD_COMPATIBILITY"),
+            "abi3_forced": os.getenv("PYO3_USE_ABI3_FORWARD_COMPATIBILITY") == "1",
+        },
+        "timestamp": int(time.time() * 1000),
+    }
+    line = json.dumps(payload)
+    print("DD_DEBUG_1e7b4c " + line, flush=True)
+    try:
+        with open("/Users/vlad.scherbich/.cursor/debug-logs/debug-1e7b4c.log", "a") as fh:
+            fh.write(line + "\n")
+    except OSError:
+        pass
+
+
+_dd_debug_log_pyo3_abi3_state()
+# endregion
 
 
 def _env_truthy(name: str, default: str = "0") -> bool:
