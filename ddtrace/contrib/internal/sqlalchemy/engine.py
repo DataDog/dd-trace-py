@@ -17,8 +17,8 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 
 def trace_engine(engine, tracer=None, service=None):
