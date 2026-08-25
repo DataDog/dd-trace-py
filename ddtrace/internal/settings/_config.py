@@ -38,9 +38,9 @@ from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint

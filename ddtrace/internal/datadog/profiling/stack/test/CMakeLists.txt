@@ -102,6 +102,9 @@ configure_stack_internal_test(test_sample_lifecycle)
 dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
 configure_stack_internal_test(test_sampling_cycle_state)
 
+dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
+configure_stack_internal_test(test_task_traversal)
+
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
