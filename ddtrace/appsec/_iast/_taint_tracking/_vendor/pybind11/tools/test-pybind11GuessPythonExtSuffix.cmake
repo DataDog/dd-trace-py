@@ -1,26 +1,25 @@
 cmake_minimum_required(VERSION 3.15...4.2)
 
-# Tests for pybind11_guess_python_module_extension
-# Run using `cmake -P tools/test-pybind11GuessPythonExtSuffix.cmake`
+# Tests for pybind11_guess_python_module_extension Run using `cmake -P tools/test-pybind11GuessPythonExtSuffix.cmake`
 
 include("${CMAKE_CURRENT_LIST_DIR}/pybind11GuessPythonExtSuffix.cmake")
 
 macro(expect_streq actual expected)
-  if(NOT "${actual}" STREQUAL "${expected}")
-    message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: '${expected}'")
-  endif()
+    if(NOT "${actual}" STREQUAL "${expected}")
+        message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: '${expected}'")
+    endif()
 endmacro()
 
 macro(expect_false actual)
-  if("${actual}")
-    message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: false")
-  endif()
+    if("${actual}")
+        message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: false")
+    endif()
 endmacro()
 
 macro(expect_true actual)
-  if(NOT "${actual}")
-    message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: true")
-  endif()
+    if(NOT "${actual}")
+        message(SEND_ERROR "Fail\n *** actual:   '${actual}'\n *** expected: true")
+    endif()
 endmacro()
 
 # Windows

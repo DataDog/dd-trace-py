@@ -36,6 +36,9 @@ def request_vcr():
         # Ignore requests to the agent and crewai telemetry endpoint
         ignore_localhost=True,
         ignore_hosts=["testagent", "telemetry.crewai.com"],
+        # Ignore EVP proxy requests (e.g. ITR coverage reporting) so VCR does not
+        # try to record them when the agent is on a non-localhost host in CI.
+        before_record=lambda req: None if "evp_proxy" in req.path else req,
     )
 
 
