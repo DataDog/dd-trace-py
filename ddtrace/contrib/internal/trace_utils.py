@@ -25,7 +25,6 @@ from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib.internal.trace_utils_base import _OTEL_SEMANTICS
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -741,10 +740,9 @@ def _set_http_meta_otel(
         span._set_attribute(http.OTEL_ROUTE, route)
 
 
-if _OTEL_SEMANTICS:
-    # Swapped in once here rather than branching per span inside set_http_meta. Patching
-    # config._otel_trace_semantics_enabled at runtime therefore has no effect: tests need the
-    # environment variable set in a subprocess.
+if config._otel_trace_semantics_enabled:
+    # Bound here for the same reason the helpers in trace_utils_base are: the choice is made
+    # once, so nothing branches per span. Tests set the environment variable in a subprocess.
     set_http_meta = _set_http_meta_otel  # type: ignore[assignment]
 
 

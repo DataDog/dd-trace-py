@@ -42,10 +42,8 @@ DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 
-# DD_TRACE_OTEL_SEMANTICS_ENABLED renames the client IP attributes that set_http_meta writes,
-# so AI Guard has to write and read the same names the HTTP integrations do. The emitted
-# ai_guard.* copies keep their Datadog spelling because intake's anomaly detection keys off
-# those names, only the attribute the value is read from moves.
+# The emitted ai_guard.* copies keep their Datadog spelling because intake's anomaly
+# detection keys off those names; only the attribute the value is read from moves.
 if config._otel_trace_semantics_enabled:
     _CLIENT_IP_TAG = http.OTEL_CLIENT_ADDRESS
     _PEER_IP_TAG = net.NETWORK_PEER_ADDRESS

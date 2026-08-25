@@ -12,7 +12,7 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
-from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
+from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_USER
 from ddtrace._trace.processor.otel_span_naming import otel_http_resource
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -242,15 +242,14 @@ def _set_resolver_tags(pin, span, request):
     finally:
         # Only update the resource name if it was not explicitly set
         # by anyone during the request lifetime
-        otel_resource = span._get_ctx_item(RESOURCE_SET_BY_OTEL)
+        otel_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
         if span.resource == REQUEST_DEFAULT_RESOURCE or (otel_resource is not None and span.resource == otel_resource):
             span.resource = resource
             if config._otel_trace_semantics_enabled:
-                span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
         else:
-            # Record the ownership so later processors can honor it too. OtelSpanNamingProcessor
-            # otherwise recomputes the name from the span's attributes and would undo the
-            # user's choice under DD_TRACE_OTEL_SEMANTICS_ENABLED.
+            # OtelSpanNamingProcessor otherwise recomputes the name from the span's
+            # attributes and would undo the user's choice.
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
 
 

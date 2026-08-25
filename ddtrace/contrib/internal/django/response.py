@@ -11,7 +11,7 @@ from django.http import HttpResponse
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
+from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
@@ -117,7 +117,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         activate_distributed_headers=True,
     ) as ctx:
         if otel_resource is not None:
-            span_from_context(ctx)._set_ctx_item(RESOURCE_SET_BY_OTEL, otel_resource)
+            span_from_context(ctx)._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, otel_resource)
         core.dispatch(
             "django.traced_get_response.pre",
             (

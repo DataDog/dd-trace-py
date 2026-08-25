@@ -4,7 +4,7 @@ from typing import Optional
 from typing import cast
 
 from ddtrace import config
-from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
+from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
@@ -42,7 +42,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
             span = span_from_context(ctx)
             span.resource = event.request_method.upper()
             _set_method_tag(span, event.request_method)
-            span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+            span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
         if _http_propagation_suppressed.get():
             return

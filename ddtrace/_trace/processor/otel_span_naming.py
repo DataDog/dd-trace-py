@@ -29,8 +29,9 @@ _DJANGO_REQUEST_DEFAULT_RESOURCE = "__django_request"
 
 # Set by the integrations that let a user own the resource name, so that ownership survives here.
 RESOURCE_SET_BY_USER = "_dd.resource_set_by_user"
-# The exact value last generated here, so an integration can tell it from a user replacement.
-RESOURCE_SET_BY_OTEL = "_dd.resource_set_by_otel"
+# The resource an integration last wrote, so this processor can tell its own value apart from a
+# user replacement. The value is whatever the integration composed, not necessarily an OTel name.
+INSTRUMENTATION_HTTP_RESOURCE = "_dd.instrumentation_http_resource"
 
 
 def otel_http_resource(method: str, target: Optional[str]) -> str:
@@ -68,7 +69,7 @@ class OtelSpanNamingProcessor(SpanProcessor):
         if span._get_ctx_item(RESOURCE_SET_BY_USER):
             return
 
-        generated_resource = span._get_ctx_item(RESOURCE_SET_BY_OTEL)
+        generated_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
         if (
             span.name == _DJANGO_REQUEST_SPAN_NAME
             and span.resource != _DJANGO_REQUEST_DEFAULT_RESOURCE
@@ -105,7 +106,7 @@ class OtelSpanNamingProcessor(SpanProcessor):
             # Wins for the same reason Span.update_name wins over instrumentation in an OTel SDK.
             return
 
-        generated_resource = span._get_ctx_item(RESOURCE_SET_BY_OTEL)
+        generated_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
         if span.resource and span.resource != span.name and span.resource != generated_resource:
             # Shape is deliberately irrelevant: "GET /custom" is a valid explicit user name.
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
@@ -113,7 +114,7 @@ class OtelSpanNamingProcessor(SpanProcessor):
 
         resource = otel_http_resource(method, self._target(span))
         span.resource = resource
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, resource)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
 
     def _target(self, span: Span) -> Optional[str]:
         target_tag = _TARGET_TAG.get(span.get_tag(SPAN_KIND) or "")

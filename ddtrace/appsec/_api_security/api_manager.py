@@ -124,9 +124,8 @@ class APIManager(Service):
 
         route = env.waf_addresses.get(SPAN_DATA_NAMES.REQUEST_ROUTE)
         if route is None and env.blocked is None and not is_404:
-            # http.endpoint has no OTel equivalent, so it is retained under
-            # DD_TRACE_OTEL_SEMANTICS_ENABLED and stays the primary source here. Only the
-            # URL fallback moves, to url.path.
+            # http.endpoint has no OTel equivalent, so it stays the primary source in both
+            # modes. Only the URL fallback moves, to url.path.
             endpoint = env.entry_span.get_tag(http.ENDPOINT)
             if endpoint is None:
                 url = path_source_tag_value(env.entry_span)

@@ -700,11 +700,13 @@ class Config(object):
             if asbool(env.get("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", default=False)):
                 log.warning(
                     "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED is set to true, but "
-                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Using false instead."
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Peer service defaults stay disabled."
                 )
-            telemetry_writer.add_configuration("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", "v0", "calculated")
-            telemetry_writer.add_configuration("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, "calculated")
-            telemetry_writer.add_configuration("OTEL_TRACES_EXPORTER", "otlp", "calculated")
+            if env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0") != "v0":
+                log.warning(
+                    "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA is set to a version other than v0, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Schema v0 is used instead."
+                )
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()

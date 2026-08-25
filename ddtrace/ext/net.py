@@ -11,8 +11,7 @@ TARGET_NAME = "network.destination.name"
 SERVER_ADDRESS = "server.address"
 SERVER_PORT = "server.port"
 
-# OpenTelemetry equivalent of network.client.ip, emitted when
-# DD_TRACE_OTEL_SEMANTICS_ENABLED is true.
+# OpenTelemetry equivalent of network.client.ip.
 NETWORK_PEER_ADDRESS = "network.peer.address"
 
 PEER_HOSTNAME = "peer.hostname"

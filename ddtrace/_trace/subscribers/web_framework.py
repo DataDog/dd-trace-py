@@ -2,7 +2,7 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
-from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
+from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
@@ -36,7 +36,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             # Event resources are supplied by automatic instrumentation. Recording the
             # baseline lets early sampling normalize placeholders such as "404" while
             # still detecting a user hook that replaces the value before sampling.
-            span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+            span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
     @classmethod
     def on_ended(
@@ -55,11 +55,11 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         if event.resource:
             span.resource = event.resource
             if config._otel_trace_semantics_enabled:
-                span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
         elif event.set_resource and status_code is not None:
             span.resource = f"{method} {status_code}"
             if config._otel_trace_semantics_enabled:
-                span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
         try:
             trace_utils.set_http_meta(

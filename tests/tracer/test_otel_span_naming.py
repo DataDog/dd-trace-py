@@ -1,6 +1,6 @@
 import pytest
 
-from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_OTEL
+from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_USER
 from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
 from ddtrace.constants import SPAN_KIND
@@ -11,7 +11,7 @@ from ddtrace.trace import Span
 
 def _finish(span_type=SpanTypes.WEB, resource="composed by the integration", **tags):
     span = Span("django.request", resource=resource, span_type=span_type)
-    span._set_ctx_item(RESOURCE_SET_BY_OTEL, resource)
+    span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
     processor = OtelSpanNamingProcessor()
     processor.on_span_start(span)
     for key, value in tags.items():
@@ -149,7 +149,7 @@ class TestOtelSpanNaming:
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
         span._set_attribute(http.OTEL_ROUTE, "/make_distant_call")
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
         OtelSpanNamingProcessor().before_sampling(span)
 
@@ -160,7 +160,7 @@ class TestOtelSpanNaming:
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "_OTHER")
         span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, "PROPFIND")
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
         OtelSpanNamingProcessor().before_sampling(span)
 
@@ -170,12 +170,12 @@ class TestOtelSpanNaming:
         span = Span("django.request", resource="__django_request", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
         OtelSpanNamingProcessor().before_sampling(span)
 
         assert span.resource == "GET"
-        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) == "GET"
+        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) == "GET"
         assert span._get_ctx_item(RESOURCE_SET_BY_USER) is None
 
         span._set_attribute(http.OTEL_ROUTE, "/users/<int:id>")
@@ -190,7 +190,7 @@ class TestOtelSpanNaming:
         OtelSpanNamingProcessor().before_sampling(span)
 
         assert span.resource == "my own name"
-        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) is None
+        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) is None
 
     def test_before_sampling_preserves_generic_explicit_user_resource(self):
         span = Span("wsgi.request", resource="checkout-flow", span_type=SpanTypes.WEB)
@@ -208,7 +208,7 @@ class TestOtelSpanNaming:
         span = Span("wsgi.request", resource="GET /users/1", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
         processor = OtelSpanNamingProcessor()
         processor.before_sampling(span)
@@ -240,14 +240,14 @@ class TestOtelSpanNaming:
         span = Span("wsgi.request", resource="GET /users/1", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
 
         processor = OtelSpanNamingProcessor()
         processor.before_sampling(span)
         assert span.resource == "GET"
 
         span.resource = "GET /users/<id>"
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, span.resource)
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
         span._set_attribute(http.OTEL_ROUTE, "/users/<id>")
         processor.on_span_finish(span)
 
@@ -264,27 +264,27 @@ class TestOtelSpanNaming:
 
         assert span.resource == "GET /checkout"
         assert span.get_tag(http.OTEL_REQUEST_METHOD) is None
-        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) is None
+        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) is None
 
     def test_before_sampling_normalizes_framework_placeholder_resource(self):
         span = Span("pyramid.request", resource="404", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, "404")
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "404")
 
         OtelSpanNamingProcessor().before_sampling(span)
 
         assert span.resource == "GET"
-        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) == "GET"
+        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) == "GET"
 
     def test_finish_normalizes_late_framework_placeholder_resource(self):
         span = Span("aiohttp.request", resource="aiohttp.request", span_type=SpanTypes.WEB)
         span._set_attribute(SPAN_KIND, "server")
         span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, "aiohttp.request")
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "aiohttp.request")
 
         span.resource = "404"
-        span._set_ctx_item(RESOURCE_SET_BY_OTEL, "404")
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "404")
         OtelSpanNamingProcessor().on_span_finish(span)
 
         assert span.resource == "GET"
@@ -299,7 +299,7 @@ class TestOtelSpanNaming:
         processor.on_span_finish(span)
 
         assert span.resource == "GET checkout-flow"
-        assert span._get_ctx_item(RESOURCE_SET_BY_OTEL) is None
+        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) is None
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
