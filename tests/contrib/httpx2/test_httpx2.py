@@ -53,7 +53,7 @@ def test_patching():
 
 
 @pytest.mark.skipif(not hasattr(httpx2, "alias_httpx"), reason="httpx2.alias_httpx requires httpx2>=2.9.0")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(ddtrace_run=True)
 @pytest.mark.snapshot()
 def test_alias_httpx():
     import httpx2
@@ -61,10 +61,6 @@ def test_alias_httpx():
     httpx2.alias_httpx()
 
     import httpx
-
-    from ddtrace import patch_all
-
-    patch_all()
 
     response = httpx.get("http://localhost:8001/status/200")
     assert response.status_code == 200
