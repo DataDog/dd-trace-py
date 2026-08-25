@@ -894,7 +894,7 @@ class SessionManager:
             log.warning("Test Impact Analysis is ENABLED by environment variable")
             self.settings.itr_enabled = True
 
-            if not ITR_PREVENT_TEST_SKIPPING:
+            if not ITR_PREVENT_TEST_SKIPPING and not ITR_FORCE_ENABLE_COVERAGE:
                 if not self.settings.skipping_enabled:
                     log.warning(
                         "TIA test skipping was NOT enabled by the backend but DD_CIVISIBILITY_ITR_ENABLED is set; "
