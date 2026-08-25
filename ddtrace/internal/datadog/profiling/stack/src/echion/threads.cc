@@ -29,7 +29,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(echion, tstate, wall_time_us);
+        (void)unwind_tasks(echion, tstate, wall_time_us, gc_frame);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
@@ -129,7 +129,7 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us, PyObject* gc_frame)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
     const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
@@ -235,7 +235,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         FrameStack task_stack;
-        task->unwind(echion, task_stack, using_uvloop);
+        task->unwind(echion, task_stack, using_uvloop, gc_frame);
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
@@ -834,6 +834,17 @@ stack_has_gc_frame(const FrameStack& stack)
     }
     return false;
 }
+
+bool
+none_on_cpu(const std::vector<std::unique_ptr<StackInfo>>& stack_infos)
+{
+    for (const auto& stack_info : stack_infos) {
+        if (stack_info->on_cpu) {
+            return false;
+        }
+    }
+    return true;
+}
 } // namespace
 
 // When a thread renders tasks/greenlets but none of them was on CPU, any GC marker on the
@@ -841,11 +852,29 @@ stack_has_gc_frame(const FrameStack& stack)
 // running GC). If GC was in fact active, this happened on the thread's actual executing stack
 // (e.g. an event loop callback or a gevent Hub), which is python_stack. That stack is otherwise
 // never rendered when tasks/greenlets exist, so the collection would vanish from the profile.
-// Emit python_stack as an extra task-less sample to keep the GC frame visible.
+// An extra task-less sample carrying python_stack keeps the GC frame visible.
+bool
+ThreadInfo::gc_needs_taskless_sample() const
+{
+    if (!stack_has_gc_frame(python_stack)) {
+        return false;
+    }
+
+    if (!current_tasks.empty()) {
+        return none_on_cpu(current_tasks);
+    }
+
+    if (!current_greenlets.empty()) {
+        return none_on_cpu(current_greenlets);
+    }
+
+    return false;
+}
+
 void
 ThreadInfo::render_gc_stack_if_no_on_cpu_task(EchionSampler& echion)
 {
-    if (!stack_has_gc_frame(python_stack)) {
+    if (!gc_needs_taskless_sample()) {
         return;
     }
 
@@ -866,9 +895,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
     // 2. Greenlets stacks (if any)
     // 3. The normal thread stack (if no asyncio tasks or greenlets)
     if (!current_tasks.empty()) {
-        bool any_on_cpu = false;
         for (auto& task_stack_info : current_tasks) {
-            any_on_cpu = any_on_cpu || task_stack_info->on_cpu;
             task_stack_info->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
                   task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
@@ -878,13 +905,9 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
-        if (!any_on_cpu) {
-            render_gc_stack_if_no_on_cpu_task(echion);
-        }
+        render_gc_stack_if_no_on_cpu_task(echion);
     } else if (!current_greenlets.empty()) {
-        bool any_on_cpu = false;
         for (auto& greenlet_stack : current_greenlets) {
-            any_on_cpu = any_on_cpu || greenlet_stack->on_cpu;
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
                 renderer.render_task_begin(
                   task_name, greenlet_stack->on_cpu, greenlet_stack->task_id, greenlet_stack->walltime_ns);
@@ -895,9 +918,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
-        if (!any_on_cpu) {
-            render_gc_stack_if_no_on_cpu_task(echion);
-        }
+        render_gc_stack_if_no_on_cpu_task(echion);
     } else {
         python_stack.render(echion);
         renderer.render_stack_end();
@@ -926,9 +947,14 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         return ErrorKind::CpuTimeError;
     }
 
-    renderer.render_cpu_time(cpu_time - previous_cpu_time);
-
     this->unwind(echion, tstate, delta, gc_frame);
+
+    // The thread CPU time lands on the sample that render_thread_begin created, which
+    // render_task_begin reuses for the first task or greenlet. When a task-less GC sample is
+    // needed, every task is suspended, so that first task must not claim the CPU time the
+    // collection burned. Withhold it here; render_gc_only_stack_begin pushes it instead.
+    renderer.render_cpu_time(cpu_time - previous_cpu_time, !gc_needs_taskless_sample());
+
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();

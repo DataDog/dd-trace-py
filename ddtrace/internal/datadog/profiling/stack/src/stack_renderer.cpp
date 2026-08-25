@@ -150,6 +150,9 @@ StackRenderer::render_gc_only_stack_begin()
     sample->push_threadinfo(
       static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
     sample->push_walltime(thread_state.wall_time_ns, 1);
+    // ThreadInfo::sample kept the thread CPU time off the suspended tasks for exactly this case,
+    // so this sample is its sole owner and cannot double-count it.
+    sample->push_cputime(thread_state.cpu_time_ns, 1);
     sample->push_monotonic_ns(thread_state.now_time_ns);
 
     const auto active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
@@ -297,7 +300,7 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
 }
 
 void
-StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
+StackRenderer::render_cpu_time(microsecond_t cpu_time_us, bool attribute_to_current_sample)
 {
     if (sample == nullptr) {
         std::cerr << "Received a CPU time without sample storage.  Some profiling data has been lost." << std::endl;
@@ -307,7 +310,9 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
     // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
     // to the task level, but for now just keep it because this is how the v1 sampler works
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
-    sample->push_cputime(thread_state.cpu_time_ns, 1);
+    if (attribute_to_current_sample) {
+        sample->push_cputime(thread_state.cpu_time_ns, 1);
+    }
 }
 
 void

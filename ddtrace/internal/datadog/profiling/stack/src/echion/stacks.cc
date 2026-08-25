@@ -14,6 +14,13 @@ FrameStack::render(EchionSampler& echion)
     for (auto it = this->begin(); it != this->end(); ++it) {
         auto& frame = *it;
 
+        // The collection runs underneath everything the frame is doing, including a native call
+        // such as gc.collect that is still in progress. Locations are leaf-to-root, so the GC
+        // frame must be pushed first to render as the innermost callee.
+        if (frame.is_in_gc) {
+            renderer.render_gc_frame();
+        }
+
         // Inject native frame BEFORE its Python caller.
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
         // frame.lasti in _Py_CODEUNIT units. Convert to bytes for the registry lookup.
@@ -24,10 +31,6 @@ FrameStack::render(EchionSampler& echion)
                 const auto& entry = maybe_entry->get();
                 renderer.render_native_frame(entry.name, entry.module);
             }
-        }
-
-        if (frame.is_in_gc) {
-            renderer.render_gc_frame();
         }
 
         renderer.render_frame(frame);

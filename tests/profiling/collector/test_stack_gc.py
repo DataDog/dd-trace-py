@@ -157,7 +157,14 @@ def test_gc_frame_precedes_triggering_frame_and_is_limited_to_collecting_thread(
         gc_index = next(i for i, location in enumerate(locations) if location.function_name == "Garbage collection")
         assert locations[gc_index].filename == "<runtime>"
         assert locations[gc_index].line_no == 0
-        assert locations[gc_index + 1].function_name.endswith("slow_cyclic_collection")
+
+        # Locations are leaf-to-root: the collection runs underneath the gc.collect call that
+        # started it, so the native frame (Python 3.12+) never renders below the GC frame.
+        assert all(location.function_name != "gc.collect" for location in locations[:gc_index])
+        callers = [location.function_name for location in locations[gc_index + 1 :]]
+        if callers and callers[0] == "gc.collect":
+            callers = callers[1:]
+        assert callers and callers[0].endswith("slow_cyclic_collection")
 
         raw_gc_location = pprof_utils.get_location_with_id(profile, sample.location_id[gc_index])
         assert raw_gc_location.address == 0
@@ -283,6 +290,108 @@ def test_gc_frame_is_limited_to_on_cpu_asyncio_task() -> None:
         task_name = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
         assert task_name is not None
         assert profile.string_table[task_name.str] == "collecting-task"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_STACK_GC_ENABLED": "true",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_MAX_THREADS": "0",
+    }
+)
+def test_gc_frame_survives_collection_started_by_a_coroutine() -> None:
+    import asyncio
+    import os
+    import pathlib
+    import tempfile
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.gc_utils import gc_samples
+    from tests.profiling.collector.gc_utils import slow_cyclic_collection_coroutine
+
+    test_name = "test_gc_frame_survives_coroutine_collection"
+    pprof_prefix = str(pathlib.Path(tempfile.mkdtemp()) / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(env="test", service=test_name, version="1.0", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    # The collection starts in the coroutine's own frame, which is both the on-CPU frame and a
+    # Task frame. The Task frame replaces its thread-stack counterpart, so it has to carry the
+    # GC marker itself.
+    async def workload() -> None:
+        collecting = asyncio.create_task(slow_cyclic_collection_coroutine(), name="collecting-task")
+        await collecting
+
+    with stack.StackCollector():
+        asyncio.run(workload())
+
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    samples = gc_samples(profile, pprof_utils)
+    assert samples
+    for sample in samples:
+        task_name = pprof_utils.get_label_with_key(profile.string_table, sample, "task name")
+        assert task_name is not None
+        assert profile.string_table[task_name.str] == "collecting-task"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_STACK_GC_ENABLED": "true",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_MAX_THREADS": "0",
+    }
+)
+def test_taskless_gc_sample_owns_the_thread_cpu_time() -> None:
+    import asyncio
+    import os
+    import pathlib
+    import tempfile
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.gc_utils import busy_cyclic_collection
+    from tests.profiling.collector.gc_utils import gc_samples
+
+    test_name = "test_taskless_gc_sample_owns_cpu_time"
+    pprof_prefix = str(pathlib.Path(tempfile.mkdtemp()) / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(env="test", service=test_name, version="1.0", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    async def suspended_task(stop: asyncio.Event) -> None:
+        await stop.wait()
+
+    # The collection runs in an event-loop callback while every task is suspended, so it gets a
+    # task-less sample. That sample must carry the CPU time the collection burned.
+    async def workload() -> None:
+        stop = asyncio.Event()
+        suspended = asyncio.create_task(suspended_task(stop), name="suspended-task")
+        await asyncio.sleep(0)
+        asyncio.get_running_loop().call_soon(busy_cyclic_collection)
+        await asyncio.sleep(1.5)
+        stop.set()
+        await suspended
+
+    with stack.StackCollector():
+        asyncio.run(workload())
+
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    cpu_samples = gc_samples(profile, pprof_utils, value_type="cpu-time")
+    taskless = [
+        sample
+        for sample in cpu_samples
+        if pprof_utils.get_label_with_key(profile.string_table, sample, "task name") is None
+    ]
+    assert taskless
 
 
 @pytest.mark.skipif(sys.platform == "win32" or sys.version_info >= (3, 15), reason="fallback callback fork test")

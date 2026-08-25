@@ -124,8 +124,12 @@ class ThreadInfo
 
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
+    [[nodiscard]] bool gc_needs_taskless_sample() const;
     void render_gc_stack_if_no_on_cpu_task(EchionSampler&);
-    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
+    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&,
+                                            PyThreadState*,
+                                            microsecond_t wall_time_us,
+                                            PyObject* gc_frame);
     void unwind_greenlets(EchionSampler&,
                           PyThreadState*,
                           unsigned long,
