@@ -54,7 +54,7 @@ scripts/run-tests --list <edited-files>
 This outputs JSON showing:
 - Available test suites that match your changed files
 - All venvs (Python versions + package combinations) available for each suite
-- Their descriptive IDs, Python versions, and package versions
+- Their hashes, Python versions, and package versions
 
 ### Step 3: Intelligently Select Venvs
 
@@ -96,10 +96,10 @@ When you modify:
 
 ### Step 4: Execute Selected Environments
 
-Run the selected descriptive environment IDs. The runner creates the uv environment, installs dd-trace-py, installs its exact lock, and manages required services:
+Run the selected environment hashes. The runner creates the uv environment, installs dd-trace-py, installs its exact lock, and manages required services:
 
 ```bash
-scripts/run-tests --venv <environment-id-1> --venv <environment-id-2>
+scripts/run-tests --venv <environment-hash-1> --venv <environment-hash-2>
 ```
 
 This will:
@@ -121,7 +121,7 @@ This will:
 
 For re-running specific tests:
 ```bash
-scripts/run-tests --venv <environment-id> -- -vv -k test_name
+scripts/run-tests --venv <environment-hash> -- -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -136,7 +136,7 @@ When you encounter test failures, follow this systematic approach:
 
 ## Venv Selection Strategy in Detail
 
-### Understanding Environment IDs
+### Understanding Environment Hashes
 
 From `scripts/run-tests --list`, you'll see output like:
 
@@ -147,13 +147,13 @@ From `scripts/run-tests --list`, you'll see output like:
       "name": "tracer",
       "venvs": [
         {
-          "id": "tracer-py39",
-          "python_version": "3.8",
+          "hash": "0123456789ab",
+          "python_version": "3.9",
           "packages": "..."
         },
         {
-          "id": "tracer-py314",
-          "python_version": "3.11",
+          "hash": "abcdef012345",
+          "python_version": "3.14",
           "packages": "..."
         }
       ]
@@ -187,10 +187,10 @@ From `scripts/run-tests --list`, you'll see output like:
 
 ### Using `--venv` Directly
 
-When you have a specific environment ID, run it directly without specifying file paths:
+When you have a specific environment hash, run it directly without specifying file paths:
 
 ```bash
-scripts/run-tests --suite contrib::flask --venv flask-py313-flask-latest
+scripts/run-tests --venv <environment-hash>
 ```
 
 The `--venv` flag automatically searches **all available venvs** across all suites, so it works regardless of what files you have locally changed. This is useful when:
@@ -210,8 +210,8 @@ scripts/run-tests --list ddtrace/contrib/internal/flask/patch.py
 
 # Select output (latest Python):
 # Suite: contrib::flask
-# Environment: flask-py313-flask-latest, Python 3.13, Flask latest
-scripts/run-tests --suite contrib::flask --venv flask-py313-flask-latest
+# Select a Python 3.13 hash for contrib::flask from the JSON output.
+scripts/run-tests --venv <environment-hash>
 ```
 
 ### Example 2: Fixing a Core Tracing Issue
@@ -226,7 +226,7 @@ scripts/run-tests --list ddtrace/_trace/tracer.py
 # - tracer: latest Python (e.g., abc123)
 # - internal: latest Python (e.g., def456)
 
-scripts/run-tests --venv tracer-py314 --venv internal-py314
+scripts/run-tests --venv <tracer-hash> --venv <internal-hash>
 ```
 
 ### Example 3: Fixing a Test-Specific Bug
@@ -237,7 +237,7 @@ scripts/run-tests --venv tracer-py314 --venv internal-py314
 scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
-scripts/run-tests --suite contrib::flask --venv flask-py311-flask-latest -- -vv tests/contrib/flask/test_views.py
+scripts/run-tests --venv <environment-hash> -- -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
@@ -245,7 +245,7 @@ scripts/run-tests --suite contrib::flask --venv flask-py311-flask-latest -- -vv 
 After the first run shows a test failing, narrow the pytest selection:
 
 ```bash
-scripts/run-tests --suite contrib::flask --venv flask-py311-flask-latest -- -vv -k test_view_called_twice
+scripts/run-tests --venv <environment-hash> -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -353,14 +353,14 @@ You can limit CPU and memory resources to simulate resource-constrained CI envir
 **Usage:**
 ```bash
 # Run tests with resource constraints
-DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <environment-id>
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <environment-hash>
 
 # Run specific test file with heavy constraints
 DD_TEST_CPUS=0.25 DD_TEST_MEMORY=1g scripts/run-tests tests/path/to/test.py
 
 # Multiple runs to catch intermittent failures
 for i in {1..10}; do
-  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <environment-id> -- --randomly-seed=$RANDOM
+  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <environment-hash> -- --randomly-seed=$RANDOM
 done
 ```
 

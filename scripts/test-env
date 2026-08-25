@@ -15,22 +15,25 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 import concurrent.futures
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
+from typing import TYPE_CHECKING
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts._testenv import cooldown_cutoff  # noqa: E402
-from tests.suitespec import LOCK_PLATFORM  # noqa: E402
-from tests.suitespec import LOCK_ROOT  # noqa: E402
-from tests.suitespec import TestEnvironment  # noqa: E402
-from tests.suitespec import expand_declared_matrices  # noqa: E402
-from tests.suitespec import get_matrix_defaults  # noqa: E402
-from tests.suitespec import get_suites  # noqa: E402
-from tests.suitespec import lockfile_path  # noqa: E402
+
+
+if TYPE_CHECKING:
+    from tests.suitespec import TestEnvironment
+
+
+LOCK_ROOT = Path(".uv")
+_SLUG_PART = re.compile(r"[^a-z0-9]+")
 
 
 class LockError(RuntimeError):
@@ -56,11 +59,36 @@ def _resolve_suites(matrices: Mapping[str, tuple[TestEnvironment, ...]], request
     return tuple(dict.fromkeys(resolved))
 
 
-def select_environments(requested: Sequence[str] = ()) -> tuple[tuple[TestEnvironment, ...], tuple[str, ...]]:
+def select_environments(requested: Sequence[str] = ()) -> tuple[TestEnvironment, ...]:
+    from tests.suitespec import expand_declared_matrices
+    from tests.suitespec import get_matrix_defaults
+    from tests.suitespec import get_suites
+
     matrices = expand_declared_matrices(get_suites(), get_matrix_defaults(), nightly=False)
     selected_suites = _resolve_suites(matrices, requested)
-    environments = tuple(environment for suite in selected_suites for environment in matrices[suite])
-    return environments, selected_suites
+    return tuple(environment for suite in selected_suites for environment in matrices[suite])
+
+
+def list_hashes(name: str, python_version: str | None = None) -> tuple[str, ...]:
+    query = _SLUG_PART.sub("-", name.lower()).strip("-")
+    requested_python = f"py{python_version.replace('.', '')}" if python_version else None
+    environments = []
+    for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt"):
+        try:
+            suite, python, environment_hash = path.stem.rsplit("--", 2)
+        except ValueError:
+            continue
+        if not python.startswith("py") or not python[2:].isdigit():
+            continue
+        if len(environment_hash) != 12 or any(character not in "0123456789abcdef" for character in environment_hash):
+            continue
+        if requested_python is None or python == requested_python:
+            environments.append((suite, python, environment_hash))
+    exact = [environment for environment in environments if environment[0] == query]
+    matches = exact or [environment for environment in environments if environment[0].endswith(f"-{query}")]
+    if not matches:
+        raise LockError(f"no uv environments found for suite: {name}")
+    return tuple(environment_hash for _suite, _python, environment_hash in sorted(matches))
 
 
 def compile_environment(
@@ -69,10 +97,12 @@ def compile_environment(
     exclude_newer: str,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> str:
-    if not environment.direct_dependencies:
-        raise LockError(f"environment has no dependencies: {environment.id}")
+    from tests.suitespec import LOCK_PLATFORM
 
-    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.id}-") as temporary:
+    if not environment.direct_dependencies:
+        raise LockError(f"environment has no dependencies: {environment.hash}")
+
+    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.hash}-") as temporary:
         temporary_path = Path(temporary)
         requirements = temporary_path / "requirements.in"
         output = temporary_path / "requirements.txt"
@@ -101,7 +131,7 @@ def compile_environment(
         except subprocess.CalledProcessError as error:
             details = (error.stderr or error.stdout or "").strip()
             suffix = f"\n{details}" if details else ""
-            raise LockError(f"failed to lock {environment.suite}/{environment.id}{suffix}") from error
+            raise LockError(f"failed to lock {environment.suite}/{environment.hash}{suffix}") from error
         return output.read_text()
 
 
@@ -113,10 +143,10 @@ def _write_lock(path: Path, content: str) -> None:
     temporary_path.replace(path)
 
 
-def _prune_locks(expected: set[Path], selected_suites: Sequence[str]) -> tuple[Path, ...]:
+def _prune_locks(expected: set[Path], environments: Sequence[TestEnvironment]) -> tuple[Path, ...]:
     pruned = []
-    for suite in selected_suites:
-        prefix = lockfile_path(suite, "").stem
+    prefixes = {f"{environment.lockfile.name.partition('--')[0]}--" for environment in environments}
+    for prefix in prefixes:
         for path in sorted((PROJECT_ROOT / LOCK_ROOT).glob(f"{prefix}*.txt")):
             relative = path.relative_to(PROJECT_ROOT)
             if relative not in expected:
@@ -131,7 +161,7 @@ def generate_locks(
     jobs: int = 4,
     run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
-    environments, selected_suites = select_environments(requested)
+    environments = select_environments(requested)
     if not environments:
         raise LockError("no concrete test environments selected")
 
@@ -156,11 +186,11 @@ def generate_locks(
     for environment in environments:
         _write_lock(PROJECT_ROOT / environment.lockfile, compiled[environment])
         written.append(environment.lockfile)
-    return tuple(written), _prune_locks(set(written), selected_suites)
+    return tuple(written), _prune_locks(set(written), environments)
 
 
 def check_locks() -> int:
-    environments, _ = select_environments()
+    environments = select_environments()
     expected = [environment.lockfile for environment in environments]
     if len(expected) != len(set(expected)):
         raise LockError("multiple test environments map to the same uv lock")
@@ -182,8 +212,9 @@ def check_locks() -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Manage concrete uv locks for test environments.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    list_parser = subparsers.add_parser("list", help="List concrete environment IDs for selected suites.")
-    list_parser.add_argument("suites", nargs="+", help="Full or unambiguous short suite names.")
+    list_parser = subparsers.add_parser("list", help="List environment hashes for a suite.")
+    list_parser.add_argument("suite", help="Full or short suite name.")
+    list_parser.add_argument("--python", help="Only list hashes for this Python version.")
     subparsers.add_parser("check", help="Check that declared environments and committed uv locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
     lock_parser.add_argument("suites", nargs="*", help="Full or unambiguous short suite names; defaults to all.")
@@ -195,10 +226,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             count = check_locks()
             print(f"Validated {count} concrete uv locks.")
             return 0
-        environments, _ = select_environments(args.suites)
         if args.command == "list":
-            for environment in environments:
-                print(environment.id)
+            for environment_hash in list_hashes(args.suite, args.python):
+                print(environment_hash)
             return 0
         written, pruned = generate_locks(args.suites, jobs=args.jobs)
     except LockError as error:

@@ -14,13 +14,12 @@ from scripts._testenv import prepare_environment
 PYTHON = "3.11"
 
 
-def _prepared(tmp_path: Path, contents: str = "alpha==1.0\n", environment_id: str = "example-py311"):
-    lockfile = tmp_path / f"{environment_id}.txt"
+def _prepared(tmp_path: Path, contents: str = "alpha==1.0\n", environment_hash: str = "example"):
+    lockfile = tmp_path / f"{environment_hash}.txt"
     lockfile.write_text(contents)
     return prepare_environment(
         tmp_path,
-        suite="internal",
-        environment_id=environment_id,
+        environment_hash=environment_hash,
         lockfile=lockfile.relative_to(tmp_path),
         install_project=False,
     )
@@ -129,8 +128,8 @@ def test_same_environment_builds_once_under_concurrency(tmp_path):
 
 
 def test_different_environments_do_not_share_a_build_lock(tmp_path):
-    first = _prepared(tmp_path, environment_id="first-py311")
-    second = _prepared(tmp_path, environment_id="second-py311")
+    first = _prepared(tmp_path, environment_hash="first")
+    second = _prepared(tmp_path, environment_hash="second")
     barrier = threading.Barrier(2)
 
     def ensure(prepared):
@@ -152,8 +151,7 @@ def test_environment_commands_use_exact_synchronization(tmp_path):
     (tmp_path / "pyproject.toml").write_text("[project]\nname = 'example'\nversion = '1.0'\n")
     prepared = prepare_environment(
         tmp_path,
-        suite="internal",
-        environment_id="example-py311",
+        environment_hash="example",
         lockfile=lockfile.relative_to(tmp_path),
         install_project=True,
     )

@@ -18,7 +18,6 @@ Note: This runs entire test suites, not individual test files.
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
 import fnmatch
 import hashlib
 import json
@@ -366,7 +365,7 @@ class TestRunner:
             print("=" * 80)
 
             def format_environment(environment):
-                return f"{environment.id}  {environment.integration_name}/{environment.variant_name}"
+                return f"{environment.hash}  {environment.integration_name}/{environment.variant_name}"
 
             selected = self._interactive_select(environments, "environments", format_environment)
 
@@ -374,7 +373,7 @@ class TestRunner:
                 selected_environments.extend(selected)
                 print(f"   Selected {len(selected)} environment(s) for suite '{suite_name}':")
                 for environment in selected:
-                    print(f"     • {environment.id}: {environment.variant_name}")
+                    print(f"     • {environment.hash}: {environment.variant_name}")
 
         return selected_environments
 
@@ -393,8 +392,7 @@ class TestRunner:
     def _prepare_uv_environment(self, environment: TestEnvironment) -> PreparedEnvironment:
         return prepare_environment(
             self.root,
-            suite=environment.suite,
-            environment_id=environment.id,
+            environment_hash=environment.hash,
             lockfile=environment.lockfile,
             install_project=bool(get_suites()[environment.suite].get("install_project", True)),
         )
@@ -434,7 +432,7 @@ class TestRunner:
                 expanded.append(argument)
 
         if not expanded:
-            raise ValueError(f"empty uv test command for {environment.id}")
+            raise ValueError(f"empty uv test command for {environment.hash}")
 
         environment_bin = self._uv_execution_path(prepared) / "bin"
         if any(argument in SHELL_OPERATORS for argument in expanded):
@@ -474,7 +472,7 @@ class TestRunner:
                 print(f"❌ {error}")
                 return False
 
-            print(f"\n🔨 Preparing uv environment {environment.id} (Python {environment.python})")
+            print(f"\n🔨 Preparing uv environment {environment.hash} (Python {environment.python})")
             if dry_run:
                 for command in environment_commands(
                     prepared,
@@ -489,7 +487,7 @@ class TestRunner:
                 wrapped = self._ddtest_command(command, command_env)
                 result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
                 if result.returncode != 0:
-                    raise UvTestEnvironmentError(f"build failed for {environment.id} (exit code {result.returncode})")
+                    raise UvTestEnvironmentError(f"build failed for {environment.hash} (exit code {result.returncode})")
 
             try:
                 rebuilt = ensure_environment(
@@ -519,12 +517,12 @@ class TestRunner:
                     print(f"[DRY RUN] Would execute: {' '.join(command)}")
                     continue
 
-                print(f"\n▶️  Executing with uv ({environment.id}): {' '.join(command)}")
+                print(f"\n▶️  Executing with uv ({environment.hash}): {' '.join(command)}")
                 result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
                 if result.returncode != 0:
-                    print(f"❌ {environment.id} failed with exit code {result.returncode}")
+                    print(f"❌ {environment.hash} failed with exit code {result.returncode}")
                     return False
-                print(f"✅ {environment.id} completed successfully")
+                print(f"✅ {environment.hash} completed successfully")
         return True
 
     def run_tests(
@@ -541,7 +539,7 @@ class TestRunner:
         environments_by_suite: dict[str, list[TestEnvironment]] = {}
         for environment in selected_environments:
             suite_environments = environments_by_suite.setdefault(environment.suite, [])
-            if not any(item.id == environment.id for item in suite_environments):
+            if not any(item.hash == environment.hash for item in suite_environments):
                 suite_environments.append(environment)
 
         total_environments = sum(len(environments) for environments in environments_by_suite.values())
@@ -632,7 +630,7 @@ class TestRunner:
             for number, environment in enumerate(environments):
                 venvs_data.append(
                     {
-                        "id": environment.id,
+                        "hash": environment.hash,
                         "number": number,
                         "python_version": environment.python,
                         "packages": ", ".join(environment.direct_dependencies),
@@ -652,79 +650,36 @@ class TestRunner:
         output = {"suites": suites_data}
         print(json.dumps(output, indent=2))
 
-    def select_environments_by_id(
-        self, matching_suites: dict[str, dict], environment_ids: list[str]
-    ) -> list[TestEnvironment]:
-        """Select concrete environments by ID from matching suites."""
-        selected_environments = []
-        environment_ids_set = set(environment_ids)
-
-        for suite_name, suite_config in matching_suites.items():
-            pattern = suite_config.get("pattern", suite_name)
-            environments = self.get_test_environments(pattern, suite_name=suite_name, suite_config=suite_config)
-
-            for environment in environments:
-                if environment.id in environment_ids_set:
-                    selected_environments.append(environment)
-
-        return selected_environments
-
-    def get_environments_by_id_direct(
+    def get_environments_by_hash_direct(
         self,
         suites: dict[str, dict],
-        environment_ids: list[str],
-        suite_name: str | None = None,
+        environment_hashes: list[str],
     ) -> list[TestEnvironment]:
-        """Resolve specific environment IDs, deduplicated consistently with CI.
+        """Resolve specific environment hashes, preserving the requested order."""
+        unique_hashes = tuple(dict.fromkeys(environment_hashes))
+        if len(unique_hashes) < len(environment_hashes):
+            print(f"ℹ️  Deduplicated {len(environment_hashes)} hash(es) to {len(unique_hashes)} unique hash(es)")
+        print(f"📌 Using {len(unique_hashes)} unique environment hash(es): {', '.join(unique_hashes)}")
 
-        Deduplicates IDs to avoid running the same environment multiple times when a
-        caller repeats an ID.
+        requested = set(unique_hashes)
+        matches = {}
+        for suite_name, suite_config in suites.items():
+            pattern = suite_config.get("pattern", suite_name)
+            for environment in self.get_test_environments(
+                pattern,
+                suite_name=suite_name,
+                suite_config=suite_config,
+            ):
+                if environment.hash not in requested:
+                    continue
+                if environment.hash in matches:
+                    raise ValueError(f"environment hash collision: {environment.hash}")
+                matches[environment.hash] = environment
 
-        Environment IDs are descriptive and come from the declarative matrix.
-        """
-        # Deduplicate IDs while preserving order.
-        seen = set()
-        unique_ids = []
-        for environment_id in environment_ids:
-            if environment_id not in seen:
-                seen.add(environment_id)
-                unique_ids.append(environment_id)
-
-        if len(unique_ids) < len(environment_ids):
-            print(f"ℹ️  Deduplicated {len(environment_ids)} ID(s) to {len(unique_ids)} unique ID(s)")
-
-        print(f"📌 Using {len(unique_ids)} unique environment ID(s): {', '.join(unique_ids)}")
-
-        if suite_name is not None:
-            if suite_name not in suites:
-                raise ValueError(f"unknown suite: {suite_name}")
-            candidates = {suite_name: suites[suite_name]}
-        else:
-            candidates = suites
-
-        selected_environments = []
-        for environment_id in unique_ids:
-            matches = []
-            for candidate_name, candidate_config in candidates.items():
-                pattern = candidate_config.get("pattern", candidate_name)
-                environments = self.get_test_environments(
-                    pattern,
-                    suite_name=candidate_name,
-                    suite_config=candidate_config,
-                )
-                matching_environment = next((item for item in environments if item.id == environment_id), None)
-                if matching_environment is not None:
-                    matches.append(replace(matching_environment, suite=candidate_name))
-
-            if not matches:
-                qualifier = f" in suite {suite_name}" if suite_name is not None else ""
-                raise ValueError(f"unknown environment {environment_id}{qualifier}")
-            if len(matches) > 1:
-                choices = ", ".join(environment.suite for environment in matches)
-                raise ValueError(f"ambiguous environment {environment_id}; use --suite with one of: {choices}")
-            selected_environments.append(matches[0])
-
-        return selected_environments
+        missing = [environment_hash for environment_hash in unique_hashes if environment_hash not in matches]
+        if missing:
+            raise ValueError(f"unknown environment hash: {', '.join(missing)}")
+        return [matches[environment_hash] for environment_hash in unique_hashes]
 
 
 def main():
@@ -770,11 +725,10 @@ Examples:
         "--venv",
         action="append",
         help=(
-            "Run specific environments by ID without interactive prompts. "
-            "Can be used multiple times (e.g., --venv id1 --venv id2)"
+            "Run specific environments by hash without interactive prompts. "
+            "Can be used multiple times (e.g., --venv hash1 --venv hash2)"
         ),
     )
-    parser.add_argument("--suite", help="Suite containing the environments selected with --venv.")
 
     # Parse args before the separator and forward everything after it to the test command.
     if "--" in sys.argv:
@@ -794,7 +748,7 @@ Examples:
         print("🎯 Using directly specified venvs (skipping file/suite analysis)")
         all_suites = get_suites()
         try:
-            environments_with_suite = runner.get_environments_by_id_direct(all_suites, args.venv, args.suite)
+            environments_with_suite = runner.get_environments_by_hash_direct(all_suites, args.venv)
         except ValueError as error:
             print(f"❌ {error}")
             return 1

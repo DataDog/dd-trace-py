@@ -29,16 +29,16 @@ include:
   script:
     - |
       shard_variable="TEST_ENVIRONMENTS_${CI_NODE_INDEX:-1}"
-      read -ra environment_ids <<< "${!shard_variable:-}"
-      if [[ ${#environment_ids[@]} -eq 0 ]]; then
+      read -ra environment_hashes <<< "${!shard_variable:-}"
+      if [[ ${#environment_hashes[@]} -eq 0 ]]; then
         echo "No uv environments found for ${TEST_SUITE}"
         exit 1
       fi
-      for environment_id in "${environment_ids[@]}"
+      for environment_hash in "${environment_hashes[@]}"
       do
-        echo "Running uv environment: ${environment_id}"
-        export _CI_DD_TAGS="test.configuration.environment_id:${environment_id}"
-        scripts/run-tests --suite "${TEST_SUITE}" --venv "${environment_id}" -- --ddtrace
+        echo "Running uv environment: ${environment_hash}"
+        export _CI_DD_TAGS="test.configuration.environment_id:${environment_hash}"
+        scripts/run-tests --venv "${environment_hash}" -- --ddtrace
       done
       ./scripts/check-diff ".uv/" \
         "Changes detected in uv locks. Run scripts/test-env lock and commit the result."

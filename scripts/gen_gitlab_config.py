@@ -74,7 +74,7 @@ class JobSpec:
     suite: t.Optional[str] = None
 
     python_versions: t.Optional[set[str]] = None
-    environment_ids: t.Optional[tuple[str, ...]] = None
+    environment_hashes: t.Optional[tuple[str, ...]] = None
 
     def __str__(self) -> str:
         lines = []
@@ -134,7 +134,7 @@ class JobSpec:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             lines.append(
                 f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
-                "--with-requirements .uv/wait--wait-py39-*.txt --no-progress "
+                "--with-requirements .uv/wait--py39--*.txt --no-progress "
                 f"python tests/wait-for-services.py {' '.join(wait_for)}"
             )
 
@@ -146,10 +146,10 @@ class JobSpec:
         lines.append("  variables:")
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
-        if self.environment_ids:
+        if self.environment_hashes:
             shard_count = self.parallelism or 1
             for index in range(shard_count):
-                shard = " ".join(self.environment_ids[index::shard_count])
+                shard = " ".join(self.environment_hashes[index::shard_count])
                 lines.append(f'    TEST_ENVIRONMENTS_{index + 1}: "{shard}"')
 
         if self.only:
@@ -174,12 +174,12 @@ class JobSpec:
 
 @dataclass
 class SuiteVenvInfo:
-    environment_ids: tuple[str, ...]
+    environment_hashes: tuple[str, ...]
     python_versions: set[str]
 
     @property
     def venv_count(self) -> int:
-        return len(self.environment_ids)
+        return len(self.environment_hashes)
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -220,7 +220,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     for suite, environments in environments_by_suite.items():
         if environments:
             result[suite] = SuiteVenvInfo(
-                environment_ids=tuple(environment.id for environment in environments),
+                environment_hashes=tuple(environment.hash for environment in environments),
                 python_versions={
                     environment.python for environment in environments if re.match(r"^3\.\d+$", environment.python)
                 },
@@ -541,15 +541,17 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
             suite_config.pop("matrix", None)
+            suite_config.pop("integration", None)
+            suite_config.pop("install_project", None)
             suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
-            environment_ids = suite_venv_info[suite].environment_ids if suite in suite_venv_info else None
+            environment_hashes = suite_venv_info[suite].environment_hashes if suite in suite_venv_info else None
             jobspec = JobSpec(
                 clean_name,
                 stage=stage,
                 python_versions=py_versions,
-                environment_ids=environment_ids,
+                environment_hashes=environment_hashes,
                 **suite_config,
             )
             if jobspec.skip:
@@ -603,7 +605,7 @@ def gen_build_docs() -> None:
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
             print("      find ddtrace -type f -name '*.so*' -exec touch {} +", file=f)
-            print("      scripts/run-tests --suite build_docs --venv build-docs-py310", file=f)
+            print('      scripts/run-tests --venv "$(scripts/test-env list build_docs)"', file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)

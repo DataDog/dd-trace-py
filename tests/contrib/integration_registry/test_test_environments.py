@@ -1,4 +1,5 @@
 from pathlib import Path
+import re
 
 import pytest
 
@@ -46,10 +47,11 @@ def test_expands_only_variants_and_python():
         }
     )
 
-    assert [environment.id for environment in environments] == [
-        "example-py39-legacy",
-        *[f"example-py{python.replace('.', '')}-latest" for python in DEFAULT_PYTHON],
+    assert [(environment.variant_name, environment.python) for environment in environments] == [
+        ("legacy", "3.9"),
+        *[("latest", python) for python in DEFAULT_PYTHON],
     ]
+    assert all(re.fullmatch(r"[0-9a-f]{12}", environment.hash) for environment in environments)
     legacy = environments[0]
     assert legacy.integration_name == "requests"
     assert legacy.direct_dependencies == (
@@ -90,5 +92,12 @@ def test_declared_environments_map_one_to_one_to_committed_linux_locks():
     ]
 
     assert LOCK_PLATFORM == "linux"
-    assert len(environments) == len({(environment.suite, environment.id) for environment in environments})
+    assert len(environments) == len({environment.hash for environment in environments})
+    assert all(
+        re.fullmatch(
+            rf"[a-z0-9-]+--py{environment.python.replace('.', '')}--{environment.hash}\.txt",
+            environment.lockfile.name,
+        )
+        for environment in environments
+    )
     assert {environment.lockfile for environment in environments} == set(Path(".uv").glob("*.txt"))

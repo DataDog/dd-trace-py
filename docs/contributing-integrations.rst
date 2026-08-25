@@ -181,7 +181,7 @@ are not yet any expected spans stored for it, so we need to create some.
 .. code-block:: bash
 
    $ scripts/test-env list contrib::<test_suite_name>
-   $ scripts/run-tests --suite contrib::<test_suite_name> --venv <environment-id>
+   $ scripts/run-tests --venv <environment-hash>
 
 10. Check ``git status`` and observe that some new files have been created under ``tests/snapshots/``.
     These files contain JSON representations of the spans created by the instrumentation that ran

@@ -30,5 +30,5 @@ tests.
 1. List the available environments with `scripts/test-env list ci_visibility`.
 1. Make sure the `testagent` is running (refer to contributor docs again)
 1. Run the selected environment:
-   1. All tests: `scripts/run-tests --suite ci_visibility --venv <environment-id> -- -k FakeApiRunnersSnapshotTestCase`
-   1. Individual test: `scripts/run-tests --suite ci_visibility --venv <environment-id> -- -k test_manual_api_fake_runner_mix_fail_itr_test_level`
+   1. All tests: `scripts/run-tests --venv <environment-hash> -- -k FakeApiRunnersSnapshotTestCase`
+   1. Individual test: `scripts/run-tests --venv <environment-hash> -- -k test_manual_api_fake_runner_mix_fail_itr_test_level`

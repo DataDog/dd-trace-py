@@ -130,7 +130,7 @@ If you run a test and encounter this error ``ModuleNotFoundError: No module name
 The selected uv environment may be stale or its lock may not include the package.
 Remove its directory under ``.cache/uv-test-environments`` and run it again:
 
-``scripts/run-tests --suite <suite> --venv <environment-id>``
+``scripts/run-tests --venv <environment-hash>``
 
 If the dependency declaration changed, regenerate that suite with ``scripts/test-env lock <suite>``.
 

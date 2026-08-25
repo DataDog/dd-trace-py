@@ -111,5 +111,6 @@ def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_confi
     info = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": suite})
 
     assert info["contrib::requests"].venv_count == 2
-    assert info["contrib::requests"].environment_ids == ("requests-py311", "requests-py312")
+    assert len(set(info["contrib::requests"].environment_hashes)) == 2
+    assert all(len(environment_hash) == 12 for environment_hash in info["contrib::requests"].environment_hashes)
     assert info["contrib::requests"].python_versions == {"3.11", "3.12"}

@@ -82,12 +82,12 @@ The ``scripts/run-tests`` script handles this automatically:
 Run a concrete environment directly
 -----------------------------------
 
-List a suite's environments, then select one by its descriptive ID:
+List a suite's environment hashes, then select one directly:
 
 .. code-block:: bash
 
-    $ scripts/test-env list contrib::django
-    $ scripts/run-tests --suite contrib::django --venv django-py312-django-latest -- -k test_name
+    $ scripts/test-env list contrib::django --python 3.12
+    $ scripts/run-tests --venv <environment-hash> -- -k test_name
 
 Why are my tests failing with 404 errors?
 -----------------------------------------
@@ -100,7 +100,7 @@ To fix this:
     # outside of the testrunner shell
     $ docker compose up -d testagent
 
-    $ scripts/run-tests --suite <suite> --venv <environment-id>
+    $ scripts/run-tests --venv <environment-hash>
 
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
@@ -147,7 +147,7 @@ project metadata, or installed package set is stale:
 
 .. code-block:: bash
 
-    $ scripts/run-tests --suite <suite> --venv <environment-id> -- -vv -k test_name
+    $ scripts/run-tests --venv <environment-hash> -- -vv -k test_name
 
 CI builds the native ddtrace extensions once per Python version and passes those artifacts to each test job.
 Each suite still uses its own uv environment and exact editable installation so its locked dependencies and package
@@ -318,7 +318,7 @@ Before updating your branch, record its current merge-base with main. After the 
 to ``riotfile.py`` and ``.riot/requirements``. Translate each changed Riot child into the matching named variant, then copy the
 new Riot requirements content to that environment's ``.uv`` lock path. Keep unrelated suites and locks unchanged.
 
-Use ``scripts/test-env list <suite>`` to confirm the expanded environment and target lock. Do not restore migrated Riot
+Use ``scripts/test-env list <suite>`` to confirm the environment hashes. Do not restore migrated Riot
 environments or resolve the whole suite again. If the upstream change has no compiled Riot requirements, regenerate only that
 suite with ``scripts/test-env lock <suite>`` and call out the resolution change in the pull request.
 

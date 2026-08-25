@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache
 import hashlib
+import json
 from pathlib import Path
 import re
 from typing import Any
@@ -120,14 +121,20 @@ def _slug(value: str) -> str:
     return _SLUG_PART.sub("-", value.lower()).strip("-")
 
 
-def lockfile_path(suite: str, environment_id: str) -> Path:
+def lockfile_path(suite: str, python: str, environment_hash: str) -> Path:
     """Return the repository-relative lock path for one concrete environment."""
-    return LOCK_ROOT / f"{_slug(suite)}--{environment_id}.txt"
+    return LOCK_ROOT / f"{_slug(suite)}--py{python.replace('.', '')}--{environment_hash}.txt"
 
 
-def _lock_input_hash(python: str, dependencies: tuple[str, ...]) -> str:
-    inputs = (python, LOCK_PLATFORM, *sorted(dependencies, key=str.casefold))
-    return hashlib.sha256("\0".join(inputs).encode()).hexdigest()[:12]
+def _environment_hash(suite: str, variant_name: str, python: str, dependencies: tuple[str, ...]) -> str:
+    identity = {
+        "suite": suite,
+        "variant": variant_name,
+        "python": python,
+        "dependencies": sorted(dependencies, key=str.casefold),
+    }
+    encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+    return hashlib.sha256(encoded).hexdigest()[:12]
 
 
 @dataclass(frozen=True)
@@ -146,14 +153,17 @@ class TestRun:
 class TestEnvironment:
     """A concrete test dependency environment."""
 
-    id: str
+    hash: str
     suite: str
     variant_name: str
     integration_name: str
     python: str
     direct_dependencies: tuple[str, ...]
     runs: tuple[TestRun, ...]
-    lockfile: Path
+
+    @property
+    def lockfile(self) -> Path:
+        return lockfile_path(self.suite, self.python, self.hash)
 
 
 class MatrixError(ValueError):
@@ -245,13 +255,6 @@ def _suite_identity(suite: str) -> str:
     return suite.split("::", 1)[-1]
 
 
-def _environment_id(suite: str, variant_name: str, python: str) -> str:
-    parts = [_slug(_suite_identity(suite)), f"py{python.replace('.', '')}"]
-    if variant_name != "default":
-        parts.append(_slug(variant_name))
-    return "-".join(part for part in parts if part)
-
-
 def _build_environment(
     suite: str,
     suite_config: Mapping[str, Any],
@@ -262,18 +265,15 @@ def _build_environment(
     spec = _merge_specs(base_spec, variant)
     variant_name = str(variant.get("name", "default"))
     integration_name = str(spec.get("integration", suite_config.get("integration", _suite_identity(suite))))
-    environment_id = _environment_id(suite, variant_name, python)
     dependencies = spec["dependencies"]
-    lock_hash = _lock_input_hash(python, dependencies)
     return TestEnvironment(
-        id=environment_id,
+        hash=_environment_hash(suite, variant_name, python, dependencies),
         suite=suite,
         variant_name=variant_name,
         integration_name=integration_name,
         python=python,
         direct_dependencies=dependencies,
         runs=_runs(spec),
-        lockfile=lockfile_path(suite, f"{environment_id}-{lock_hash}"),
     )
 
 
@@ -338,7 +338,7 @@ def expand_suite_matrix(
 
     environments = []
     names = set()
-    environment_ids = set()
+    environment_hashes = set()
     for variant in variants:
         _validate_fields(variant, _VARIANT_FIELDS, f"variant for {suite}")
         name = str(variant.get("name", ""))
@@ -357,9 +357,9 @@ def expand_suite_matrix(
         )
         for python in python_versions:
             environment = _build_environment(suite, suite_config, base_spec, variant, python)
-            if environment.id in environment_ids:
-                raise MatrixError(f"semantic environment ID collision: {environment.id}")
-            environment_ids.add(environment.id)
+            if environment.hash in environment_hashes:
+                raise MatrixError(f"environment hash collision: {environment.hash}")
+            environment_hashes.add(environment.hash)
             environments.append(environment)
 
     return tuple(environments)

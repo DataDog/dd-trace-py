@@ -67,8 +67,7 @@ def _editable_requirements(root: Path, lockfile: Path, contents: str, package_ha
 def prepare_environment(
     root: Path,
     *,
-    suite: str,
-    environment_id: str,
+    environment_hash: str,
     lockfile: Path,
     install_project: bool,
 ) -> PreparedEnvironment:
@@ -84,8 +83,7 @@ def prepare_environment(
         if not project_file.is_file():
             raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
         project_hash = _content_hash(project_file.read_bytes())
-    suite_path = (part.replace(":", "-") for part in suite.split("::"))
-    path = _CACHE_ROOT.joinpath(*suite_path, f"{environment_id}-{package_hash}")
+    path = _CACHE_ROOT / f"{environment_hash}-{package_hash}"
     requirements = (
         _editable_requirements(root, lock_path, contents, package_hash)
         if install_project
