@@ -14,7 +14,6 @@ from ddtrace.contrib.internal.mistralai._utils import MistralAIAsyncStreamHandle
 from ddtrace.contrib.internal.mistralai._utils import MistralAIStreamHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.internal.utils.wrappers import iswrapped
 from ddtrace.llmobs._integrations import MistralAIIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.mistralai_utils import extract_provider
@@ -217,28 +216,17 @@ def patch() -> None:
     wrap("mistralai.client.embeddings", "Embeddings.create_async", async_traced_embed_generate)
 
 
-def _safe_unwrap(obj: Any, attr: str) -> None:
-    # Only unwrap attributes that we actually wrapped. A previous run that
-    # crashed partway through patch()/unpatch() can leave the integration in a
-    # half-patched state; raising on an already-unwrapped attribute here would
-    # abort unpatch() early and leave the remaining methods wrapped, which then
-    # gets double-wrapped on the next patch() and produces duplicate spans.
-    if iswrapped(obj, attr):
-        unwrap(obj, attr)
-
-
 def unpatch() -> None:
     if not getattr(client, "_datadog_patch", False):
         return
 
     client._datadog_patch = False
 
-    _safe_unwrap(client.chat.Chat, "complete")
-    _safe_unwrap(client.chat.Chat, "complete_async")
-    _safe_unwrap(client.chat.Chat, "stream")
-    _safe_unwrap(client.chat.Chat, "stream_async")
-    _safe_unwrap(client.embeddings.Embeddings, "create")
-    _safe_unwrap(client.embeddings.Embeddings, "create_async")
+    unwrap(client.chat.Chat, "complete")
+    unwrap(client.chat.Chat, "complete_async")
+    unwrap(client.chat.Chat, "stream")
+    unwrap(client.chat.Chat, "stream_async")
+    unwrap(client.embeddings.Embeddings, "create")
+    unwrap(client.embeddings.Embeddings, "create_async")
 
-    if hasattr(client, "_datadog_integration"):
-        delattr(client, "_datadog_integration")
+    delattr(client, "_datadog_integration")
