@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Adds ``DD_TRACE_FILTERING_RULES``, which fully drops trace chunks matching a rule
+    before they are considered for stats computation or sent to the Datadog Agent. It uses the
+    same JSON syntax as ``DD_TRACE_SAMPLING_RULES``, but with ``filter_rate`` in place of
+    ``sample_rate``: the probability that a matching trace chunk is dropped.

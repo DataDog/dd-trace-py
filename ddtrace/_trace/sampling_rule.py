@@ -126,7 +126,7 @@ class SamplingRule(object):
 
         return True
 
-    def sample(self, span):
+    def sample(self, span: Span) -> bool:
         """
         Return if this rule chooses to sample the span
 

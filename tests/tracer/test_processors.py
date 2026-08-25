@@ -4,8 +4,10 @@ import mock
 import pytest
 
 import ddtrace
+from ddtrace._trace.filter_rule import FilterRule
 from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
+from ddtrace._trace.processor import TraceFilteringProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
@@ -168,6 +170,72 @@ def test_aggregator_does_not_record_tp_drop_when_nothing_dropped():
 
     assert _dropped_points(mock_add) == []
     assert aggr.writer.pop() == [span]
+
+
+def test_filtering_processor_drops_matching_trace():
+    """A matching filter_rate=1.0 rule drops the whole trace chunk, before it reaches the writer."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.filtering_processor = TraceFilteringProcessor([FilterRule(filter_rate=1.0, service="noisy-service")])
+
+    span = Span("span", service="noisy-service", on_finish=[aggr.on_span_finish])
+    with mock.patch.object(MetricRecorder, "add", autospec=True) as mock_add:
+        aggr.on_span_start(span)
+        span.finish()
+
+    assert aggr.writer.pop() == []
+    assert _dropped_points(mock_add) == [1]
+
+
+def test_filtering_processor_passes_through_non_matching_trace():
+    """A rule that doesn't match the span leaves the trace chunk untouched."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.filtering_processor = TraceFilteringProcessor([FilterRule(filter_rate=1.0, service="other-service")])
+
+    span = Span("span", service="noisy-service", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    span.finish()
+
+    assert aggr.writer.pop() == [span]
+
+
+def test_filtering_processor_filter_rate_0_never_drops():
+    """A matching rule with filter_rate=0.0 never drops."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.filtering_processor = TraceFilteringProcessor([FilterRule(filter_rate=0.0, service="noisy-service")])
+
+    span = Span("span", service="noisy-service", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    span.finish()
+
+    assert aggr.writer.pop() == [span]
+
+
+def test_filtering_processor_runs_before_sampling_processor():
+    """Filtering must run before sampling so a dropped chunk never consumes rate-limiter budget."""
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = DummyWriter()
+    aggr.filtering_processor = TraceFilteringProcessor([FilterRule(filter_rate=1.0)])
+
+    with mock.patch.object(TraceSamplingProcessor, "process_trace") as mock_sample:
+        span = Span("span", on_finish=[aggr.on_span_finish])
+        aggr.on_span_start(span)
+        span.finish()
+
+    mock_sample.assert_not_called()
+    assert aggr.writer.pop() == []
+
+
+def test_filtering_processor_reads_config():
+    """SpanAggregator builds its filtering_processor from DD_TRACE_FILTERING_RULES."""
+    with override_global_config(dict(_trace_filtering_rules='[{"filter_rate":0.5,"service":"xyz"}]')):
+        aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+
+    assert len(aggr.filtering_processor.filtering_rules) == 1
+    assert aggr.filtering_processor.filtering_rules[0].filter_rate == 0.5
+    assert aggr.filtering_processor.filtering_rules[0].service.pattern == "xyz"
 
 
 def test_aggregator_reset_default_args():

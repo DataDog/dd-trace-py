@@ -379,6 +379,11 @@ def _default_config() -> dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_SAMPLER",
             modifier=str,
         ),
+        "_trace_filtering_rules": _ConfigItem(
+            default=lambda: "",
+            envs=["DD_TRACE_FILTERING_RULES"],
+            modifier=str,
+        ),
         "_logs_injection": _ConfigItem(
             default=True,
             envs=["DD_LOGS_INJECTION"],

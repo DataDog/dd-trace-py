@@ -1226,6 +1226,19 @@ Sampling
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
 
+   DD_TRACE_FILTERING_RULES:
+     type: JSON array
+
+     description: |
+         A JSON array of objects using the same matching syntax as ``DD_TRACE_SAMPLING_RULES``, but with a "filter_rate" field instead of "sample_rate". "filter_rate" is the probability, between 0.0 and 1.0, that a trace matching the rule is fully dropped: not sent to the Agent, and not included in trace metrics.
+
+         **Example:** ``DD_TRACE_FILTERING_RULES='[{"filter_rate":0.3,"service":"noisy-service","resource":"/health"}]'``
+
+         **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.
+
+     version_added:
+       v4.15.0: added
+
 Feature Flagging
 ----------------
 

@@ -5,6 +5,8 @@ import logging
 from threading import RLock
 from typing import Optional
 
+from ddtrace._trace.filter_rule import FilterRule
+from ddtrace._trace.filter_rule import parse_filtering_rules
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
@@ -22,6 +24,7 @@ from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SpanSamplingRule
+from ddtrace.internal.sampling import _get_highest_precedence_rule_matching
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
@@ -112,6 +115,25 @@ class SpanProcessor(metaclass=abc.ABCMeta):
             SpanProcessor.__processors__.remove(self)
         except ValueError:
             log.warning("Span processor %r not registered", self)
+
+
+class TraceFilteringProcessor(TraceProcessor):
+    """Drops trace chunks matching a DD_TRACE_FILTERING_RULES rule whose deterministic draw says to
+    drop them. This runs before sampling, stats computation, and serialization ever see the chunk.
+    """
+
+    def __init__(self, filtering_rules: list[FilterRule]):
+        super().__init__()
+        self.filtering_rules = filtering_rules
+
+    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
+        if not trace or not self.filtering_rules:
+            return trace
+        chunk_root = trace[0]
+        matched_rule = _get_highest_precedence_rule_matching(chunk_root._local_root, self.filtering_rules)
+        if matched_rule is not None and matched_rule.should_drop(chunk_root._local_root):
+            return None
+        return trace
 
 
 class TraceSamplingProcessor(TraceProcessor):
@@ -337,6 +359,7 @@ class SpanAggregator(SpanProcessor):
         self.partial_flush_enabled = partial_flush_enabled
         self.partial_flush_min_spans = partial_flush_min_spans
         # Initialize trace processors
+        self.filtering_processor = TraceFilteringProcessor(parse_filtering_rules(config._trace_filtering_rules))
         self.sampling_processor = TraceSamplingProcessor(
             config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
         )
@@ -360,6 +383,7 @@ class SpanAggregator(SpanProcessor):
             f"{self.partial_flush_enabled}, "
             f"{self.partial_flush_min_spans}, "
             f"{self.service_name_processor},"
+            f"{self.filtering_processor},"
             f"{self.sampling_processor},"
             f"{self.tags_processor},"
             f"{self.dd_processors}, "
@@ -420,6 +444,7 @@ class SpanAggregator(SpanProcessor):
         # perf: Process spans outside of the span aggregator lock
         spans = finished
         for tp in chain(
+            [self.filtering_processor],
             self.dd_processors,
             self.user_processors,
             [

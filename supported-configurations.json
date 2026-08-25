@@ -4231,6 +4231,13 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_FILTERING_RULES": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_TRACE_FLASK_CACHE_ENABLED": [
       {
         "implementation": "A",
