@@ -49,7 +49,6 @@ def patch_common_modules() -> None:
     patch_stripe_for_appsec()
     patch_subprocess_for_appsec()
 
-    core.on("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
     log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
 
@@ -66,8 +65,6 @@ def unpatch_common_modules():
     try_unwrap("urllib.request", "OpenerDirector.open")
     try_unwrap("http.client", "HTTPConnection.request")
     try_unwrap("http.client", "HTTPConnection.getresponse")
-    core.reset_listeners("asm.block.dbapi.execute", execute_4C9BAC8E228EB347)
-
     unpatch_filesystem_for_appsec()
     unpatch_stripe_for_appsec()
     unpatch_subprocess_for_appsec()
@@ -318,50 +315,3 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
         elif valid_url:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
     return original_request_callable(*args, **kwargs)
-
-
-_DB_DIALECTS = {
-    "mariadb": "mariadb",
-    "mysql": "mysql",
-    "postgres": "postgresql",
-    "pymysql": "mysql",
-    "pyodbc": "odbc",
-    "sql": "sql",
-    "sqlite": "sqlite",
-    "vertica": "vertica",
-}
-
-
-def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
-    """
-    listener for dbapi execute and executemany function
-    parameters are ignored as they are properly handled by the dbapi without risk of injections
-    """
-
-    if get_rasp_capability("sqli"):
-        try:
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import in_asm_context
-        except ImportError:
-            # execute is used during module initialization
-            # and shouldn't be changed at that time
-            # DEV: Do not report here for efficiency reasons
-            # _report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SQLI, True)
-            return
-
-        if instrument_self and query and isinstance(query, str):
-            db_type = _DB_DIALECTS.get(
-                getattr(instrument_self, "_self_config", {}).get("_dbapi_span_name_prefix", ""), ""
-            )
-            if in_asm_context():
-                res = call_waf_callback(
-                    {EXPLOIT_PREVENTION.ADDRESS.SQLI: query, EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: db_type},
-                    crop_trace="execute_4C9BAC8E228EB347",
-                    rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
-                )
-                if res and _must_block(res.actions):
-                    raise BlockingException(
-                        get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SQLI, query
-                    )
-            else:
-                report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SQLI, False)

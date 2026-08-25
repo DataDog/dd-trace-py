@@ -192,6 +192,21 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_agentless_endpoint(
+        mut slf: PyRefMut<'_, Self>,
+        url: &'_ str, // full intake url
+        api_key: &'_ str,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_agentless_endpoint(url, api_key);
+        Ok(slf.into())
+    }
+
+    fn set_agentless_timeout(mut slf: PyRefMut<'_, Self>, timeout_ms: u64) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?
+            .set_agentless_timeout(Duration::from_millis(timeout_ms));
+        Ok(slf.into())
+    }
+
     fn set_otlp_endpoint(mut slf: PyRefMut<'_, Self>, url: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_otlp_endpoint(url);
         Ok(slf.into())
