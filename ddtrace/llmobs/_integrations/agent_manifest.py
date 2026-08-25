@@ -180,7 +180,8 @@ def build_manual_agent_manifest(agent: Any) -> AgentManifest:
     manifest: AgentManifest = {}
     for name, section in (
         ("labels", _manual_labels),
-        ("model", _manual_model),
+        ("model", _manual_model_name),
+        ("model_settings", _manual_model_settings),
         ("tools", _manual_tools),
     ):
         try:
@@ -214,12 +215,21 @@ def _manual_labels(agent: dict[str, Any]) -> AgentManifest:
     return fields
 
 
-def _manual_model(agent: dict[str, Any]) -> AgentManifest:
-    """The model and the inference params the caller set, filtered by ALLOWED_MODEL_SETTINGS_KEYS."""
+def _manual_model_name(agent: dict[str, Any]) -> AgentManifest:
+    """The model identifier the caller set."""
     fields: AgentManifest = {}
     model = agent.get("model")
     if isinstance(model, str):
         fields["model"] = model
+    return fields
+
+
+def _manual_model_settings(agent: dict[str, Any]) -> AgentManifest:
+    """Inference params filtered by ALLOWED_MODEL_SETTINGS_KEYS.
+
+    Separate from _manual_model_name so a malformed settings dict does not discard a valid model.
+    """
+    fields: AgentManifest = {}
     settings = agent.get("model_settings")
     if isinstance(settings, dict):
         allowed: dict[str, Any] = {}
@@ -254,7 +264,9 @@ def _manual_tools(agent: dict[str, Any]) -> AgentManifest:
                 "parameters": _manual_tool_parameters(tool.get("parameters")),
             }
         )
-    fields["tools"] = wire_value(tools)
+    wired = wire_value(tools)
+    if wired is not None:
+        fields["tools"] = wired
     return fields
 
 
@@ -274,5 +286,8 @@ def _manual_tool_parameters(parameters: Any) -> dict[str, Any]:
             # Omitted rather than false, matching the auto path.
             if spec.get("required") is True:
                 entry["required"] = True
-        coerced[str(param)] = entry
+        # AIDEV-NOTE: str-only per _manual_labels — drop non-string names rather than coercing, since
+        # str(param) on a custom object invokes __repr__ which can contain secrets.
+        if isinstance(param, str):
+            coerced[param] = entry
     return coerced

@@ -1470,3 +1470,56 @@ class TestManualAgentManifest:
         manifest = build_manual_agent_manifest({"name": "travel_desk", "model_settings": ExplodingSettings(a=1)})
 
         assert manifest == {"framework": MANUAL_FRAMEWORK_NAME, "name": "travel_desk"}
+
+    def test_malformed_model_settings_does_not_drop_valid_model(self):
+        """model and model_settings are independent sections; a bad settings dict must not discard
+        a valid model string that was already validated before the settings loop ran.
+        """
+
+        class ExplodingSettings(dict):
+            def items(self):
+                raise RuntimeError("boom")
+
+        manifest = build_manual_agent_manifest({"model": "gpt-4o", "model_settings": ExplodingSettings(a=1)})
+
+        assert manifest["model"] == "gpt-4o", "valid model must survive a malformed model_settings"
+        assert "model_settings" not in manifest
+
+    def test_non_string_tool_parameter_names_are_dropped(self):
+        """Non-string parameter names are dropped rather than coerced via str(), which would invoke
+        __repr__ and can serialize secrets embedded in a custom object's string representation.
+        """
+
+        class CredentialKey:
+            def __repr__(self):
+                return "api_key=sk-secret"
+
+            def __str__(self):
+                return "api_key=sk-secret"
+
+        manifest = build_manual_agent_manifest(
+            {
+                "tools": [
+                    {
+                        "name": "book",
+                        "parameters": {
+                            "city": {"type": "string"},
+                            CredentialKey(): {"type": "string"},
+                            42: {"type": "string"},
+                        },
+                    }
+                ]
+            }
+        )
+
+        assert manifest["tools"] == [{"name": "book", "parameters": {"city": {"type": "string"}}}]
+        assert "sk-secret" not in safe_json(manifest)
+
+    def test_tools_key_absent_when_all_entries_are_invalid(self):
+        """When every tool entry fails validation the tools key must be absent, not null."""
+        manifest = build_manual_agent_manifest(
+            {"name": "a", "tools": [{"description": "no name"}, "not_a_dict", {"name": ""}]}
+        )
+
+        assert "tools" not in manifest
+        assert manifest["name"] == "a", "other fields must survive"

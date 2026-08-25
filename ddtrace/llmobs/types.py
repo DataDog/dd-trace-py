@@ -64,15 +64,19 @@ class AgentInstructionResolver(TypedDict, total=False):
     type: str
 
 
-class AgentTool(TypedDict, total=False):
+class _AgentToolRequired(TypedDict):
+    name: str
+
+
+class AgentTool(_AgentToolRequired, total=False):
     """One tool an agent declares it can call.
 
+    name is required; tools without one are silently dropped by the manifest builder.
     parameters maps a name to ``{"type": ..., "required": True}``. An optional parameter omits
     ``required`` rather than reporting it false, which is the shape the framework integrations
     already emit, so a hand-declared tool renders the same as an auto-instrumented one.
     """
 
-    name: str
     description: str
     parameters: dict[str, Any]
 

@@ -2153,18 +2153,53 @@ def test_agent_without_declared_configuration_reports_no_manifest(llmobs):
     assert get_llmobs_tags(span)["agent_version"] == "v3"
 
 
-def test_declared_agent_is_read_when_the_span_finishes(llmobs):
-    """Stashed unbuilt and read at finish, so a later edit wins. version is read at annotate time,
-    so the two can disagree.
+def test_declared_agent_version_is_read_at_annotate_time(llmobs):
+    """version is read eagerly at annotate() time, so mutations to the dict afterwards do not
+    affect the tag. Manifest fields are built at finalization from the SDK-owned stash.
     """
     declared = {"version": "v1", "name": "before"}
     with llmobs.agent(name="test_agent") as span:
         llmobs.annotate(span=span, agent=declared)
-        declared["name"] = "after"
         declared["version"] = "v2"
 
-    assert _agent_manifest(span)["name"] == "after"
+    assert _agent_manifest(span)["name"] == "before"
     assert get_llmobs_tags(span)["agent_version"] == "v1"
+
+
+def test_repeated_annotate_calls_compose_rather_than_overwrite(llmobs):
+    """Successive annotate(agent=...) calls on the same span accumulate fields.
+    A later call adds or overrides individual keys but does not discard earlier ones.
+    """
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"instructions": "Be brief."})
+        llmobs.annotate(span=span, agent={"model": "gpt-4o"})
+
+    manifest = _agent_manifest(span)
+    assert manifest["instructions"] == "Be brief."
+    assert manifest["model"] == "gpt-4o"
+
+
+def test_nested_annotation_contexts_compose_agent_manifest(llmobs):
+    """An outer annotation_context declaring one field and an inner one declaring another
+    must both appear in the final manifest.
+    """
+    with llmobs.annotation_context(agent={"instructions": "Be brief."}):
+        with llmobs.annotation_context(agent={"model": "gpt-4o"}):
+            with llmobs.agent(name="test_agent") as span:
+                pass
+
+    manifest = _agent_manifest(span)
+    assert manifest["instructions"] == "Be brief."
+    assert manifest["model"] == "gpt-4o"
+
+
+def test_later_annotate_call_wins_for_overlapping_key(llmobs):
+    """When the same key appears in two successive annotate() calls, the later value wins."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"model": "gpt-4o-mini"})
+        llmobs.annotate(span=span, agent={"model": "gpt-4o"})
+
+    assert _agent_manifest(span)["model"] == "gpt-4o"
 
 
 def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):

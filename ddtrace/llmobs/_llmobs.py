@@ -728,6 +728,8 @@ class LLMObs(Service):
                     # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
                     # non-mapping would otherwise raise AttributeError, which the handler around
                     # this path does not catch.
+                    # `existing` is a local working copy in the fallback path — writes to it do not
+                    # propagate to llmobs_data. _annotate_llmobs_span_data is the authoritative write.
                     existing = (llmobs_data.get(LLMOBS_STRUCT.META) or {}).get(LLMOBS_STRUCT.METADATA)
                     if not isinstance(existing, dict):
                         existing = {}
@@ -739,7 +741,8 @@ class LLMObs(Service):
                         existing[LLMOBS_STRUCT.METADATA_DD] = existing_dd
                     existing_manifest = existing_dd.get(LLMOBS_STRUCT.AGENT_MANIFEST)
                     # Merged, not replaced: an integration may have already reported this agent and
-                    # the caller is annotating a few fields on top.
+                    # the caller is annotating a few fields on top. Caller fields win for every key
+                    # except framework, which names whoever built the bulk of the document.
                     merged: dict[str, Any] = dict(existing_manifest) if isinstance(existing_manifest, dict) else {}
                     declared_fields = dict(agent_manifest)
                     if merged:
@@ -3069,9 +3072,16 @@ class LLMObs(Service):
                     # Stashed rather than tagged: the span kind is not resolved yet.
                     span._set_ctx_item(AGENT_ANNOTATION, agent_version)
                 if isinstance(agent, dict) and not MANUAL_MANIFEST_KEYS.isdisjoint(agent):
-                    # Stashed unbuilt: only agent spans need a manifest, and the kind is not known
-                    # yet. The key check keeps a version-only agent from being retained at all.
-                    span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, agent)
+                    # Accumulated into an SDK-owned dict so repeated annotate() calls or nested
+                    # annotation_context blocks compose rather than overwrite. The key check keeps a
+                    # version-only agent from being retained at all.
+                    stashed = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+                    if stashed is None:
+                        stashed = {}
+                        span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, stashed)
+                    for key in MANUAL_MANIFEST_KEYS:
+                        if key in agent:
+                            stashed[key] = agent[key]
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
