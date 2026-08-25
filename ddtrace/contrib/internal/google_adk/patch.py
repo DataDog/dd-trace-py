@@ -1,3 +1,4 @@
+import inspect
 import sys
 from typing import Any
 from typing import Union
@@ -89,36 +90,62 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
     integration: GoogleAdkIntegration = adk._datadog_integration
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
-        logger.warning("Unable to trace google adk live tool call, could not extract agent from tool context.")
-        return wrapped(*args, **kwargs)
+        logger.warning("Unable to trace google adk tool call, could not extract agent from tool context.")
+        return await wrapped(*args, **kwargs)
 
     provider_name, model_name = extract_provider_and_model_name(
         instance=getattr(agent, "model", {}), model_name_attr="model"
     )
-    instance = instance or args[0]
+    # The streaming call path invokes this function with keyword arguments only, so the tool cannot
+    # be read from a fixed positional index.
+    instance = instance or get_argument_value(args, kwargs, 0, "tool")
 
-    with integration.trace(
+    span = integration.trace(
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
         kind="tool",
         submit_to_llmobs=True,
-    ) as span:
-        result = None
-        try:
-            result = await wrapped(*args, **kwargs)
-            return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="tool",
-            )
+    )
+
+    try:
+        result = await wrapped(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="tool")
+        span.finish()
+        raise
+
+    if inspect.isasyncgen(result):
+        # google-adk >= 2.7.0 routes streaming tools through this function, which then returns an
+        # async generator. Keep the span open so the streamed items are tagged instead of the
+        # generator object.
+        return _traced_tool_stream(result, span, integration, args, kwargs)
+
+    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
+    span.finish()
+    return result
+
+
+async def _traced_tool_stream(agen, span, integration, args, kwargs):
+    # Live streams are long-lived, so cap what is retained for tagging.
+    chunks = []
+    dropped = 0
+    try:
+        async for item in agen:
+            if len(chunks) < MAX_STREAMED_TOOL_CHUNKS:
+                chunks.append(item)
+            else:
+                dropped += 1
+            yield item
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        if dropped:
+            chunks.append("... %d further streamed items omitted" % dropped)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
+        span.finish()
 
 
 async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
@@ -144,15 +171,22 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
         kind="tool",
         submit_to_llmobs=True,
     ) as span:
-        result = None
+        result = []
+        dropped = 0
         try:
             agen = wrapped(*args, **kwargs)
             async for item in agen:
+                if len(result) < MAX_STREAMED_TOOL_CHUNKS:
+                    result.append(item)
+                else:
+                    dropped += 1
                 yield item
         except Exception:
             span.set_exc_info(*sys.exc_info())
             raise
         finally:
+            if dropped:
+                result.append("... %d further streamed items omitted" % dropped)
             integration.llmobs_set_tags(
                 span,
                 args=args,
@@ -202,6 +236,13 @@ def extract_agent_from_tool_context(args: Any, kwargs: Any) -> Union[str, None]:
     return agent
 
 
+MAX_STREAMED_TOOL_CHUNKS = 100
+
+TOOL_DISPATCH_FUNCTIONS = [
+    ("__call_tool_async", _traced_functions_call_tool_async),
+    ("__call_tool_live", _traced_functions_call_tool_live),  # removed in google-adk 2.7.0
+]
+
 CODE_EXECUTOR_CLASSES = [
     "BuiltInCodeExecutor",  # make an external llm tool call to use the llms built in code executor
     "VertexAiCodeExecutor",
@@ -224,9 +265,11 @@ def patch():
     wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async)
     wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async)
 
-    # Tool execution (central dispatch)
-    wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
-    wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
+    # Tool execution (central dispatch). google-adk >= 2.7.0 removed `__call_tool_live` and routes
+    # live tool execution through `__call_tool_async`, so only wrap what the installed version has.
+    for tool_dispatch_fn, traced_fn in TOOL_DISPATCH_FUNCTIONS:
+        if check_module_path(adk, f"flows.llm_flows.functions.{tool_dispatch_fn}"):
+            wrap("google.adk", f"flows.llm_flows.functions.{tool_dispatch_fn}", traced_fn)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
@@ -247,8 +290,9 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
 
-    unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
-    unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
+    for tool_dispatch_fn, _ in TOOL_DISPATCH_FUNCTIONS:
+        if check_module_path(adk, f"flows.llm_flows.functions.{tool_dispatch_fn}"):
+            unwrap(adk.flows.llm_flows.functions, tool_dispatch_fn)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:

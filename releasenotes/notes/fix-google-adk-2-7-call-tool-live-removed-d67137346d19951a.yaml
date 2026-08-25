@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    google-adk: Fixes an ``AttributeError`` raised on startup with ``google-adk>=2.7.0``, which removed the
+    internal ``__call_tool_live`` function that the integration patched unconditionally. Applications
+    enabling LLM Observability failed to start entirely. The tool dispatch functions are now only patched
+    when present in the installed version.
+  - |
+    google-adk: Fixes an ``IndexError`` raised when tracing streaming tool calls on ``google-adk>=2.7.0``,
+    where live tool execution is routed through ``__call_tool_async`` using keyword arguments only.
+  - |
+    google-adk: Fixes streaming tool spans recording the underlying async generator object instead of the
+    streamed output. Streamed items are now captured as the tool span output, up to a fixed limit.

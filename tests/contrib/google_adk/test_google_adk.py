@@ -2,10 +2,14 @@ from typing import Any
 
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
 from google.adk.code_executors.unsafe_local_code_executor import UnsafeLocalCodeExecutor
+from google.adk.tools.function_tool import FunctionTool
 import pytest
 
 from ddtrace.contrib.internal.google_adk.patch import _traced_functions_call_tool_live
+from tests.contrib.google_adk.conftest import call_tool_async
 from tests.contrib.google_adk.conftest import create_test_message
+from tests.contrib.google_adk.conftest import stream_values
+from tests.contrib.google_adk.conftest import streaming_via_call_tool_async
 
 
 @pytest.mark.asyncio
@@ -271,3 +275,19 @@ async def test_call_tool_live_fallback_does_not_double_invoke_wrapped() -> None:
 
     assert yielded == ["a", "b", "c"]
     assert call_count == 1, f"wrapped should be invoked exactly once, was invoked {call_count} times"
+
+
+@streaming_via_call_tool_async
+@pytest.mark.asyncio
+async def test_streaming_tool_called_with_keyword_arguments(adk, test_spans, streaming_tool_context):
+    """The streaming dispatch path passes every argument by keyword, including `tool`."""
+    tool = FunctionTool(func=stream_values)
+
+    result = await call_tool_async(adk)(tool=tool, args={"count": 3}, tool_context=streaming_tool_context)
+
+    assert [item async for item in result] == [{"value": 0}, {"value": 1}, {"value": 2}]
+
+    spans = [s for t in test_spans.pop_traces() for s in t]
+    tool_spans = [s for s in spans if "__call_tool_async" in s.resource]
+    assert len(tool_spans) == 1
+    assert tool_spans[0].duration is not None, "the tool span should stay open until the stream is exhausted"

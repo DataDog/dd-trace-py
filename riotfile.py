@@ -3254,7 +3254,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "pytest-xdist": latest,
-                "google-adk": ["~=1.0.0", latest],
+                "google-adk": ["==1.0.0", latest],
                 "vcrpy": latest,
                 "deprecated": latest,
             },

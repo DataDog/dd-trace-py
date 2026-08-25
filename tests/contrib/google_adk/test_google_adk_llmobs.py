@@ -1,12 +1,18 @@
 from unittest import mock
 
+from google.adk.tools.function_tool import FunctionTool
 import pytest
 
+from ddtrace.contrib.internal.google_adk.patch import MAX_STREAMED_TOOL_CHUNKS
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
+from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from tests.contrib.google_adk.conftest import call_tool_async
 from tests.contrib.google_adk.conftest import create_test_message
+from tests.contrib.google_adk.conftest import stream_values
+from tests.contrib.google_adk.conftest import streaming_via_call_tool_async
 from tests.llmobs._utils import assert_llmobs_span_data
 
 
@@ -286,3 +292,27 @@ class TestLLMObsGoogleADK:
                 "app_name": "TestADKApp",
             },
         )
+
+    @streaming_via_call_tool_async
+    @pytest.mark.asyncio
+    async def test_streaming_tool_output_is_tagged(self, adk, streaming_tool_context):
+        """The streamed items are tagged as the tool output, not the async generator object.
+
+        google-adk 2.7.0+ returns an async generator from `__call_tool_async` for streaming tools.
+        Asserted against `llmobs_set_tags` rather than the span metastruct because `test_spans`
+        requires a DummyWriter, which is unavailable once LLMObs is enabled.
+        """
+        tool = FunctionTool(func=stream_values)
+        count = MAX_STREAMED_TOOL_CHUNKS + 5
+
+        with mock.patch.object(GoogleAdkIntegration, "llmobs_set_tags", autospec=True) as llmobs_set_tags:
+            result = await call_tool_async(adk)(tool=tool, args={"count": count}, tool_context=streaming_tool_context)
+            assert len([item async for item in result]) == count, "every item must still reach the caller"
+
+        tagged = next(
+            call.kwargs["response"] for call in llmobs_set_tags.call_args_list if call.kwargs.get("operation") == "tool"
+        )
+        assert tagged[:3] == [{"value": 0}, {"value": 1}, {"value": 2}]
+        # the retained chunks plus a single marker noting how many were omitted
+        assert len(tagged) == MAX_STREAMED_TOOL_CHUNKS + 1
+        assert tagged[-1] == "... 5 further streamed items omitted"
