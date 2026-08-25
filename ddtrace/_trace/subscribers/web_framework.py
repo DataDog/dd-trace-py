@@ -2,7 +2,7 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
-from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags

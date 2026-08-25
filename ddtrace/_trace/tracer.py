@@ -22,7 +22,6 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
-from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
@@ -123,12 +122,6 @@ def _default_span_processors_factory(
     if config._trace_resource_renaming_enabled:
         span_processors.append(ResourceRenamingProcessor())
 
-    # After ResourceRenamingProcessor, which only sets http.endpoint and never the name, so the
-    # order does not matter today. Keeping the OTel naming last makes it the single writer of
-    # the name under the flag if that ever changes.
-    if config._otel_trace_semantics_enabled:
-        span_processors.append(OtelSpanNamingProcessor())
-
     span_processors.append(profiling_span_processor)
 
     return span_processors
@@ -185,10 +178,6 @@ class Tracer(object):
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
         self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
-        self._otel_span_naming_processor = next(
-            (processor for processor in self._span_processors if isinstance(processor, OtelSpanNamingProcessor)),
-            None,
-        )
         self._span_aggregator = SpanAggregator(
             partial_flush_enabled=config._partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
@@ -248,12 +237,6 @@ class Tracer(object):
         self.shutdown(timeout=self.SHUTDOWN_TIMEOUT)
 
     def sample(self, span):
-        # Propagation can force a sampling decision before the local root finishes. Make the OTel
-        # HTTP resource visible to resource-based rules at that point; the finish processor runs
-        # again later to incorporate a route that may have resolved in the meantime.
-        local_root = span._local_root
-        if self._otel_span_naming_processor is not None and local_root.context.sampling_priority is None:
-            self._otel_span_naming_processor.before_sampling(local_root)
         self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
@@ -462,10 +445,6 @@ class Tracer(object):
         )
         self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
-        )
-        self._otel_span_naming_processor = next(
-            (processor for processor in self._span_processors if isinstance(processor, OtelSpanNamingProcessor)),
-            None,
         )
 
     def start_span(

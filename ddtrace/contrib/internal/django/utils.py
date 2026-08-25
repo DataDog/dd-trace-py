@@ -12,9 +12,9 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
-from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
-from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_USER
-from ddtrace._trace.processor.otel_span_naming import otel_http_resource
+from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import RESOURCE_SET_BY_USER
+from ddtrace._trace.otel_http_naming import otel_http_resource
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -248,8 +248,8 @@ def _set_resolver_tags(pin, span, request):
             if config._otel_trace_semantics_enabled:
                 span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
         else:
-            # OtelSpanNamingProcessor otherwise recomputes the name from the span's
-            # attributes and would undo the user's choice.
+            # set_http_meta otherwise renames the span from its attributes and would undo
+            # the user's choice.
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
 
 

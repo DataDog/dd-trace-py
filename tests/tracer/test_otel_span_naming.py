@@ -1,325 +1,150 @@
+from unittest import mock
+
 import pytest
 
-from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
-from ddtrace._trace.processor.otel_span_naming import RESOURCE_SET_BY_USER
-from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
+from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import RESOURCE_SET_BY_USER
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-from ddtrace.trace import Span
+from ddtrace.internal.settings._config import config
+from ddtrace.internal.settings.integration import IntegrationConfig
+from ddtrace.trace import tracer
 
 
-def _finish(span_type=SpanTypes.WEB, resource="composed by the integration", **tags):
-    span = Span("django.request", resource=resource, span_type=span_type)
-    span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
-    processor = OtelSpanNamingProcessor()
-    processor.on_span_start(span)
-    for key, value in tags.items():
-        span._set_attribute(key, value)
-    processor.on_span_finish(span)
-    return span.resource
+_INTEGRATION_RESOURCE = "composed by the integration"
+
+
+def _integration_config():
+    return IntegrationConfig(config, "test")
+
+
+def _name(
+    method=None,
+    route=None,
+    kind="server",
+    span_type=SpanTypes.WEB,
+    resource=_INTEGRATION_RESOURCE,
+    name="django.request",
+    span_hook=None,
+    **tags,
+):
+    """Name a span the way an integration does, and return the resulting resource.
+
+    set_http_meta is the only writer of the OTel name, so the tests drive it rather than a
+    processor: the span leaves the integration already named.
+    """
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        with tracer.start_span(name, span_type=span_type, activate=False) as span:
+            if resource is not None:
+                span.resource = resource
+                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
+            if kind is not None:
+                span._set_attribute(SPAN_KIND, kind)
+            for key, value in tags.items():
+                span._set_attribute(key, value)
+            if span_hook is not None:
+                span_hook(span)
+            trace_utils._set_http_meta_otel(span, _integration_config(), method=method, route=route)
+            return span.resource
 
 
 class TestOtelSpanNaming:
     def test_server_with_route(self):
-        assert (
-            _finish(
-                **{SPAN_KIND: "server", http.OTEL_REQUEST_METHOD: "GET", http.OTEL_ROUTE: "/users/<int:id>"},
-            )
-            == "GET /users/<int:id>"
-        )
+        assert _name(method="GET", route="/users/<int:id>") == "GET /users/<int:id>"
 
     def test_server_without_route_is_bare_method(self):
-        """The target is appended only when the span published one, never invented."""
-        assert _finish(**{SPAN_KIND: "server", http.OTEL_REQUEST_METHOD: "GET"}) == "GET"
+        """The target is appended only when the integration resolved one, never invented."""
+        assert _name(method="GET") == "GET"
 
     def test_server_without_route_ignores_the_uri_path(self):
         """The MUST NOT is unreachable rather than merely forbidden.
 
-        url.path is on the span, and the algorithm never reads it, so a name derived this way
-        cannot fall back to it however the integration composed its own resource.
+        The name is composed from the method and route the caller passes, so it cannot fall
+        back to the URI path however the integration composed its own resource.
         """
-        assert (
-            _finish(
-                **{
-                    SPAN_KIND: "server",
-                    http.OTEL_REQUEST_METHOD: "GET",
-                    http.OTEL_URL_PATH: "/no/such/route",
-                },
-            )
-            == "GET"
-        )
+        assert _name(method="GET", resource="GET /users/12345") == "GET"
 
-    @pytest.mark.parametrize("route", [None, "/users"])
+    @pytest.mark.parametrize("route", [None, "/ping"])
     def test_unaccepted_method_substitutes_only_the_method_token(self, route):
-        """HTTP replaces _OTHER in the name, and a resolved route still appends after it."""
-        tags = {SPAN_KIND: "server", http.OTEL_REQUEST_METHOD: "_OTHER"}
-        if route:
-            tags[http.OTEL_ROUTE] = route
-        assert _finish(**tags) == ("HTTP /users" if route else "HTTP")
+        expected = "HTTP /ping" if route else "HTTP"
+        assert _name(method="FROBNICATE", route=route) == expected
 
     def test_raw_method_never_leaks_into_the_name(self):
-        """The name comes from the attribute, so an unnormalized verb cannot reach it.
-
-        Asserted on the whole name rather than as a substring negative, which would also pass
-        for a name that is wrong in some other way.
-        """
-        assert (
-            _finish(
-                resource="PROPFIND /some/path",
-                **{
-                    SPAN_KIND: "server",
-                    http.OTEL_REQUEST_METHOD: "_OTHER",
-                    http.OTEL_REQUEST_METHOD_ORIGINAL: "PROPFIND",
-                    http.OTEL_ROUTE: "/some/<path>",
-                },
-            )
-            == "HTTP /some/<path>"
-        )
+        """A lowercase method normalizes, and the name uses the normalized token."""
+        assert _name(method="get") == "GET"
 
     def test_user_set_resource_is_preserved(self):
-        """An integration that lets the user own the name says so, and that ownership wins."""
-        span = Span("django.request", resource="my own name", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_attribute(http.OTEL_ROUTE, "/users")
-        span._set_ctx_item(RESOURCE_SET_BY_USER, True)
-        OtelSpanNamingProcessor().on_span_finish(span)
-        assert span.resource == "my own name"
+        """Wins for the same reason Span.update_name wins over instrumentation in an OTel SDK."""
+
+        def claim(span):
+            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
+
+        assert _name(method="GET", route="/users", span_hook=claim) == _INTEGRATION_RESOURCE
+
+    def test_resource_replaced_by_user_code_is_detected_and_kept(self):
+        """A resource matching neither the span name nor the marker is user code's."""
+        assert _name(method="GET", route="/users", resource=None, span_hook=_set_custom) == "my custom name"
 
     def test_websocket_handshake_is_left_alone(self):
-        """ASGI reports "websocket" as the method, which is not one, so it normalizes to _OTHER.
-
-        Renaming those would collapse every websocket endpoint in an app onto a single name.
-        """
-        assert (
-            _finish(
-                resource="websocket /ws/chat",
-                **{
-                    SPAN_KIND: "server",
-                    http.OTEL_REQUEST_METHOD: "_OTHER",
-                    http.OTEL_REQUEST_METHOD_ORIGINAL: "websocket",
-                },
-            )
-            == "websocket /ws/chat"
-        )
+        """Renaming these would collapse every websocket endpoint onto one name."""
+        assert _name(method="websocket") == _INTEGRATION_RESOURCE
 
     def test_client_is_bare_method_without_url_template(self):
-        """No integration emits url.template today, so every client span is the method."""
-        assert (
-            _finish(
-                span_type=SpanTypes.HTTP,
-                **{SPAN_KIND: "client", http.OTEL_REQUEST_METHOD: "GET", http.OTEL_URL_FULL: "http://host/a/b"},
-            )
-            == "GET"
-        )
-
-    def test_client_appends_url_template_when_present(self):
-        assert (
-            _finish(
-                span_type=SpanTypes.HTTP,
-                **{SPAN_KIND: "client", http.OTEL_REQUEST_METHOD: "GET", "url.template": "/users/{id}"},
-            )
-            == "GET /users/{id}"
-        )
+        """No integration emits url.template, so client spans are the bare method."""
+        assert _name(method="GET", kind="client", span_type=SpanTypes.HTTP) == "GET"
 
     def test_client_does_not_take_http_route_as_its_target(self):
-        """http.route is the server target. Reading it on a client span would be the wrong key."""
-        assert (
-            _finish(
-                span_type=SpanTypes.HTTP,
-                **{SPAN_KIND: "client", http.OTEL_REQUEST_METHOD: "GET", http.OTEL_ROUTE: "/users"},
-            )
-            == "GET"
-        )
+        """http.route is a server concept; a client span must not borrow it."""
+        assert _name(method="GET", route="/users/<int:id>", kind="client", span_type=SpanTypes.HTTP) == "GET"
 
-    def test_span_without_the_otel_method_is_left_alone(self):
-        """A cache or template span can carry SpanTypes.HTTP; renaming those would be nonsense."""
-        assert _finish(span_type=SpanTypes.HTTP, resource="GET myprefix") == "GET myprefix"
-
-    def test_non_http_span_is_left_alone(self):
-        assert _finish(span_type=SpanTypes.SQL, resource="SELECT 1", **{http.OTEL_REQUEST_METHOD: "GET"}) == "SELECT 1"
+    def test_span_without_a_method_is_left_alone(self):
+        """Plenty of spans reach set_http_meta with no method; a bare method would be nonsense."""
+        assert _name(method=None) == _INTEGRATION_RESOURCE
 
     def test_span_with_no_kind_gets_the_bare_method(self):
-        """No kind means no target key applies, so nothing is appended rather than guessed."""
-        assert _finish(resource="GET /whatever", **{http.OTEL_REQUEST_METHOD: "GET"}) == "GET"
+        assert _name(method="GET", kind=None) == "GET"
 
-    def test_before_sampling_preserves_an_existing_otel_name(self):
-        span = Span("flask.request", resource="GET /make_distant_call", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_attribute(http.OTEL_ROUTE, "/make_distant_call")
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+    def test_a_later_call_refines_the_name_with_a_route(self):
+        """starlette resolves its route in a second set_http_meta call, and the later name wins."""
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+                span.resource = _INTEGRATION_RESOURCE
+                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, _INTEGRATION_RESOURCE)
+                span._set_attribute(SPAN_KIND, "server")
+                ic = _integration_config()
+                trace_utils._set_http_meta_otel(span, ic, method="GET")
+                assert span.resource == "GET"
+                trace_utils._set_http_meta_otel(span, ic, method="GET", route="/users/<int:id>")
+                assert span.resource == "GET /users/<int:id>"
 
-        OtelSpanNamingProcessor().before_sampling(span)
+    def test_a_user_resource_set_between_calls_stops_the_rename(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+                span.resource = _INTEGRATION_RESOURCE
+                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, _INTEGRATION_RESOURCE)
+                span._set_attribute(SPAN_KIND, "server")
+                ic = _integration_config()
+                trace_utils._set_http_meta_otel(span, ic, method="GET")
+                span.resource = "my custom name"
+                trace_utils._set_http_meta_otel(span, ic, method="GET", route="/users")
+                assert span.resource == "my custom name"
+                assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
 
-        assert span.resource == "GET /make_distant_call"
-
-    def test_before_sampling_normalizes_an_unknown_method(self):
-        span = Span("flask.request", resource="PROPFIND 405", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "_OTHER")
-        span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, "PROPFIND")
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
-
-        OtelSpanNamingProcessor().before_sampling(span)
-
-        assert span.resource == "HTTP"
-
-    def test_before_sampling_replaces_django_sentinel_with_method_only_resource(self):
-        span = Span("django.request", resource="__django_request", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
-
-        OtelSpanNamingProcessor().before_sampling(span)
-
-        assert span.resource == "GET"
-        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) == "GET"
-        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is None
-
-        span._set_attribute(http.OTEL_ROUTE, "/users/<int:id>")
-        OtelSpanNamingProcessor().on_span_finish(span)
-        assert span.resource == "GET /users/<int:id>"
-
-    def test_before_sampling_preserves_django_explicit_user_resource(self):
-        span = Span("django.request", resource="my own name", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-
-        OtelSpanNamingProcessor().before_sampling(span)
-
-        assert span.resource == "my own name"
-        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) is None
-
-    def test_before_sampling_preserves_generic_explicit_user_resource(self):
-        span = Span("wsgi.request", resource="checkout-flow", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-
-        processor = OtelSpanNamingProcessor()
-        processor.before_sampling(span)
-        processor.on_span_finish(span)
-
-        assert span.resource == "checkout-flow"
-        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
-
-    def test_finish_preserves_custom_resource_set_after_sampling(self):
-        span = Span("wsgi.request", resource="GET /users/1", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
-
-        processor = OtelSpanNamingProcessor()
-        processor.before_sampling(span)
-        assert span.resource == "GET"
-
-        span.resource = "checkout-flow"
-        span._set_attribute(http.OTEL_ROUTE, "/users/<id>")
-        processor.on_span_finish(span)
-
-        assert span.resource == "checkout-flow"
-        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
-
-    def test_finish_preserves_custom_resource_without_early_sampling(self):
-        span = Span("wsgi.request", resource="wsgi.request", span_type=SpanTypes.WEB)
-        processor = OtelSpanNamingProcessor()
-        processor.on_span_start(span)
-
-        span.resource = "checkout-flow"
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_attribute(http.OTEL_ROUTE, "/users/<id>")
-
-        processor.on_span_finish(span)
-
-        assert span.resource == "checkout-flow"
-        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
-
-    def test_finish_normalizes_instrumentation_route_set_after_sampling(self):
-        span = Span("wsgi.request", resource="GET /users/1", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
-
-        processor = OtelSpanNamingProcessor()
-        processor.before_sampling(span)
-        assert span.resource == "GET"
-
-        span.resource = "GET /users/<id>"
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
-        span._set_attribute(http.OTEL_ROUTE, "/users/<id>")
-        processor.on_span_finish(span)
-
-        assert span.resource == "GET /users/<id>"
-        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is None
-
-    def test_before_sampling_does_not_infer_http_metadata_from_manual_resource(self):
-        span = Span("manual.request", resource="GET /checkout", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-
-        processor = OtelSpanNamingProcessor()
-        processor.before_sampling(span)
-        processor.on_span_finish(span)
-
-        assert span.resource == "GET /checkout"
-        assert span.get_tag(http.OTEL_REQUEST_METHOD) is None
-        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) is None
-
-    def test_before_sampling_normalizes_framework_placeholder_resource(self):
-        span = Span("pyramid.request", resource="404", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "404")
-
-        OtelSpanNamingProcessor().before_sampling(span)
-
-        assert span.resource == "GET"
-        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) == "GET"
-
-    def test_finish_normalizes_late_framework_placeholder_resource(self):
-        span = Span("aiohttp.request", resource="aiohttp.request", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-        span._set_attribute(http.OTEL_REQUEST_METHOD, "GET")
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "aiohttp.request")
-
-        span.resource = "404"
-        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "404")
-        OtelSpanNamingProcessor().on_span_finish(span)
-
-        assert span.resource == "GET"
-        assert span._get_ctx_item(RESOURCE_SET_BY_USER) is None
-
-    def test_before_sampling_does_not_infer_method_from_custom_resource(self):
-        span = Span("wsgi.request", resource="GET checkout-flow", span_type=SpanTypes.WEB)
-        span._set_attribute(SPAN_KIND, "server")
-
-        processor = OtelSpanNamingProcessor()
-        processor.before_sampling(span)
-        processor.on_span_finish(span)
-
-        assert span.resource == "GET checkout-flow"
-        assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) is None
+    def test_the_method_attribute_is_still_written(self):
+        """Naming is additive: the attributes the conventions require are unaffected."""
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+                span._set_attribute(SPAN_KIND, "server")
+                trace_utils._set_http_meta_otel(span, _integration_config(), method="get", route="/x")
+                assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
+                assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "get"
+                assert span.get_tag(http.OTEL_ROUTE) == "/x"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
-def test_processor_is_installed_when_the_flag_is_on():
-    from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
-    from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
-    from ddtrace.trace import tracer
-
-    assert any(isinstance(p, OtelSpanNamingProcessor) for p in tracer._span_processors)
-    # http.endpoint belongs to resource renaming, which this flag must not switch on.
-    assert not any(isinstance(p, ResourceRenamingProcessor) for p in tracer._span_processors)
-
-
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})
-def test_processor_is_absent_when_the_flag_is_off():
-    """The flag is read once at startup, so the wiring is the whole opt-in."""
-    from ddtrace._trace.processor.otel_span_naming import OtelSpanNamingProcessor
-    from ddtrace.trace import tracer
-
-    assert not any(isinstance(p, OtelSpanNamingProcessor) for p in tracer._span_processors)
+def _set_custom(span):
+    span.resource = "my custom name"
 
 
 @pytest.mark.subprocess(

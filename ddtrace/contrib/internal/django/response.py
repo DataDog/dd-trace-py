@@ -10,8 +10,8 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.pin import Pin
-from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope

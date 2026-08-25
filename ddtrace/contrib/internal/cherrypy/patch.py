@@ -8,7 +8,7 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
-from ddtrace._trace.processor.otel_span_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE

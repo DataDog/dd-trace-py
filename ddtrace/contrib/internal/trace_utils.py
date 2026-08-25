@@ -20,6 +20,7 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
@@ -738,6 +739,12 @@ def _set_http_meta_otel(
     if route is not None:
         # http.route is spelled the same in both conventions
         span._set_attribute(http.OTEL_ROUTE, route)
+
+    if method is not None:
+        # Named here rather than recomputed on span finish, so the span leaves the integration
+        # with its OTel name. Server spans take http.route as the target; nothing emits
+        # url.template yet, so client spans are the bare method.
+        set_otel_http_resource(span, normalized_method, original_method, None if is_client else route)
 
 
 if config._otel_trace_semantics_enabled:
