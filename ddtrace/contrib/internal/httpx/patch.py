@@ -29,6 +29,7 @@ config._add(
     },
 )
 
+
 def _supported_versions() -> dict[str, str]:
     return {"httpx": ">=0.25"}
 
@@ -39,6 +40,7 @@ _patcher = HttpxPatcher(
     request_event_name=HttpClientEvents.HTTPX_REQUEST.value,
     send_event_name=HttpClientEvents.HTTPX_SEND_REQUEST.value,
 )
+
 
 def patch() -> None:
     _patcher.patch()
