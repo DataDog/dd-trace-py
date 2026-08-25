@@ -23,11 +23,6 @@ from ._constants import ATTR_DATADOG_INTEGRATION
 from ._constants import ATTR_DATADOG_PATCH
 from ._constants import ATTR_MODEL_NAME
 from ._constants import MIN_VERSION
-from ._constants import PROCESSOR_CLASS_NEW
-from ._constants import PROCESSOR_CLASS_OLD
-from ._constants import PROCESSOR_METHOD
-from ._constants import PROCESSOR_MODULE_NEW
-from ._constants import PROCESSOR_MODULE_OLD
 from .extractors import extract_latency_metrics
 from .extractors import extract_request_data
 from .extractors import get_model_name
@@ -41,36 +36,24 @@ logger = get_logger(__name__)
 config._add("vllm", {})
 
 
-def _resolve_processor_target() -> "tuple[str, str]":
-    """Resolve the (module, Class.process_inputs) wrap target, preferring the new
-    module/class location and falling back to the legacy one.
-    """
-    import importlib
+def _uses_input_processor() -> bool:
+    from packaging.version import InvalidVersion
+    from packaging.version import parse as parse_version
 
-    for module_name, cls_name in (
-        (PROCESSOR_MODULE_NEW, PROCESSOR_CLASS_NEW),
-        (PROCESSOR_MODULE_OLD, PROCESSOR_CLASS_OLD),
-    ):
-        try:
-            module = importlib.import_module(module_name)
-        except ModuleNotFoundError as e:
-            # Skip only if this candidate module itself is missing; a broken
-            # import inside it should propagate, not fall through silently.
-            if e.name and (module_name == e.name or module_name.startswith(e.name + ".")):
-                continue
-            raise
-        if hasattr(module, cls_name):
-            return module_name, f"{cls_name}.{PROCESSOR_METHOD}"
+    version_str = getattr(vllm, "__version__", "0.0.0")
+    try:
+        base_version = parse_version(version_str).base_version
+        uses_new = parse_version(base_version) >= parse_version("0.14.0")
+    except InvalidVersion:
+        base_version = version_str
+        uses_new = False
 
     logger.debug(
-        "vLLM processor class not found at %s.%s or %s.%s for vLLM %s.",
-        PROCESSOR_MODULE_NEW,
-        PROCESSOR_CLASS_NEW,
-        PROCESSOR_MODULE_OLD,
-        PROCESSOR_CLASS_OLD,
-        getattr(vllm, "__version__", "unknown"),
+        "vLLM %s: using %s.process_inputs.",
+        base_version,
+        "vllm.v1.engine.input_processor.InputProcessor" if uses_new else "vllm.v1.engine.processor.Processor",
     )
-    return PROCESSOR_MODULE_OLD, f"{PROCESSOR_CLASS_OLD}.{PROCESSOR_METHOD}"
+    return uses_new
 
 
 def traced_engine_init(func, instance, args, kwargs):
@@ -232,11 +215,19 @@ def patch():
     integration = VLLMIntegration(integration_config=config.vllm)
     setattr(vllm, ATTR_DATADOG_INTEGRATION, integration)
 
-    processor_module, processor_target = _resolve_processor_target()
-
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
-    wrap(processor_module, processor_target, traced_processor_process_inputs)
+    try:
+        if _uses_input_processor():
+            wrap(
+                "vllm.v1.engine.input_processor",
+                "InputProcessor.process_inputs",
+                traced_processor_process_inputs,
+            )
+        else:
+            wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
+    except (ModuleNotFoundError, AttributeError) as e:
+        logger.warning("Failed to patch vLLM's input processor: %s", e)
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
@@ -250,15 +241,15 @@ def unpatch():
 
     setattr(vllm, ATTR_DATADOG_PATCH, False)
 
-    import importlib
-
-    processor_module, processor_target = _resolve_processor_target()
-    processor_class_name, processor_method = processor_target.split(".")
-    processor_cls = getattr(importlib.import_module(processor_module), processor_class_name)
-
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
-    unwrap(processor_cls, processor_method)
+    try:
+        if _uses_input_processor():
+            unwrap(vllm.v1.engine.input_processor.InputProcessor, "process_inputs")
+        else:
+            unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
+    except (ModuleNotFoundError, AttributeError):
+        pass
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
 
     delattr(vllm, ATTR_DATADOG_INTEGRATION)
