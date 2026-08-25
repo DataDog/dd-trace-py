@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where ``runtime.python.*`` metrics emitted by a forked worker
+    carried the parent process's ``runtime-id`` when runtime metrics were enabled before the
+    fork (gunicorn/uWSGI preload, or single-step instrumentation). Every worker reported on a
+    single series, so ``runtime.python.mem.rss`` for the whole application read as the size of
+    the parent process alone. The ``runtime-id`` tag is now resolved on each flush, so each
+    process reports its own series.

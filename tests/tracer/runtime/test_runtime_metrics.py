@@ -82,16 +82,23 @@ def test_runtime_tags_empty():
     assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version"])
 
 
-@pytest.mark.subprocess()
-def test_runtime_platformv2_tags():
-    from ddtrace.internal.runtime.runtime_metrics import PlatformTagsV2
+@pytest.mark.subprocess(env={"DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true"})
+def test_runtime_worker_flush_emits_current_runtime_id():
+    from unittest import mock
 
-    tags = list(PlatformTagsV2())
-    assert len(tags) == 5
+    from ddtrace.internal.runtime import get_runtime_id
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
-    tags = dict(tags)
-    # Ensure runtime-id is present along with all the v1 tags
-    assert set(tags.keys()) == set(["lang", "lang_interpreter", "lang_version", "tracer_version", "runtime-id"])
+    with mock.patch("socket.socket") as sock:
+        sock.return_value.getsockopt.return_value = 0
+        worker = RuntimeWorker()
+        worker.flush()
+
+        sent = [c.args[0].decode("utf-8") for c in worker._dogstatsd_client.socket.send.mock_calls]
+        gauges = [line for packet in sent for line in packet.split("\n") if line]
+        assert gauges, "expected at least one metric line to be sent"
+        for gauge in gauges:
+            assert "runtime-id:" + get_runtime_id() in gauge, gauge
 
 
 @pytest.mark.subprocess(env={"DD_SERVICE": "my-service", "DD_ENV": "test-env", "DD_VERSION": "1.2.3"})
@@ -302,3 +309,12 @@ def test_fork():
 
     _, _, exitcode, _ = call_program("python", os.path.join(os.path.dirname(__file__), "fork_disable.py"))
     assert exitcode == 0
+
+
+def test_fork_runtime_id_tag():
+    env = os.environ.copy()
+    env["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] = "true"
+    _, stderr, exitcode, _ = call_program(
+        "python", os.path.join(os.path.dirname(__file__), "fork_runtime_id.py"), env=env
+    )
+    assert exitcode == 0, stderr
