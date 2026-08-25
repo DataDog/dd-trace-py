@@ -654,6 +654,25 @@ class _Mic:
         return b"".join(self.blocks[self.onset_index :])
 
 
+def _agent_pcm(ms):
+    """``ms`` of agent audio as PCM16 mono @ 24 kHz (48 bytes per ms)."""
+    return b"\x02\x00" * (24 * ms)
+
+
+def _truncate(state, response_id, audio_end_ms):
+    """The client reporting how far the listener actually got into that response's audio before
+    cutting it off - what a barge-in-capable client sends when the user interrupts.
+    """
+    state.on_client_event(
+        {
+            "type": "conversation.item.truncate",
+            "item_id": "audio_" + response_id,
+            "content_index": 0,
+            "audio_end_ms": audio_end_ms,
+        }
+    )
+
+
 def _respond(state, mic, response_id, agent_audio_ms, playback_ms=None, transcript="ok"):
     """Commit the pending input and drive a full response: 100 ms of model latency, then the agent's
     audio streamed down fast and played out over ``agent_audio_ms``. The mic keeps streaming
@@ -668,12 +687,13 @@ def _respond(state, mic, response_id, agent_audio_ms, playback_ms=None, transcri
     )
     state.on_server_event(_ns(type="response.created", response=_ns(id=response_id)))
     mic.stream(100)  # model latency; the buffer has reopened, so this audio is the next turn's
-    # 48 bytes per ms of PCM16 @ 24 kHz; the model streams the clip down faster than it plays.
+    # The model streams the whole clip down faster than it plays - one delta here.
     state.on_server_event(
         _ns(
             type="response.output_audio.delta",
             response_id=response_id,
-            delta=_b64(b"\x02\x00" * (24 * agent_audio_ms)),
+            item_id="audio_" + response_id,
+            delta=_b64(_agent_pcm(agent_audio_ms)),
         )
     )
     state.on_server_event(
@@ -686,6 +706,16 @@ def _respond(state, mic, response_id, agent_audio_ms, playback_ms=None, transcri
 def _windows(integration):
     """The (start, end) wall-clock window of every workflow span emitted, by name, in order."""
     return [(w["name"], w["span"].start_ns, w["span"].finish_ns) for w in integration.workflows]
+
+
+def _assert_ns(actual, expected, tolerance_ns=1_000):
+    """Compare two ns timestamps loosely.
+
+    Span starts are set as integer ns, but ends go through ``Span.finish(finish_time=<epoch
+    seconds>)`` - and a float64 can only resolve ~256 ns at unix-epoch magnitudes. That rounding is
+    immaterial next to audio timings measured in milliseconds, so don't assert on it.
+    """
+    assert abs(actual - expected) <= tolerance_ns, "{} != {} (within {} ns)".format(actual, expected, tolerance_ns)
 
 
 def test_realtime_state_user_speech_anchored_on_vad_onset(monkeypatch):
@@ -713,7 +743,7 @@ def test_realtime_state_user_speech_anchored_on_vad_onset(monkeypatch):
     user = {w["name"]: w for w in integration.workflows}["user speech"]
     assert user["span"].start_ns == onset, "user speech must start at the VAD onset"
     assert user["span"].start_ns > listening_start, "not at the first append (the listening window)"
-    assert user["span"].finish_ns == speech_end  # the commit
+    _assert_ns(user["span"].finish_ns, speech_end)  # the commit
     # Only the audio from the onset on is kept, so the clip matches the reported window.
     assert integration.responses[0]["input_messages"][0]["audio_parts"] == [
         {"mime_type": "audio/wav", "content": _wav_b64(spoken)}
@@ -762,6 +792,9 @@ def test_realtime_state_consecutive_turns_do_not_overlap(monkeypatch):
 def test_realtime_state_barge_in_windows_still_overlap(monkeypatch):
     """When the user genuinely talks over the agent, the windows overlap - the fix reflects real
     speech timing rather than forcing turns apart.
+
+    This is a client that never truncates: it plays out every byte it received, so the listener did
+    hear the agent over their own speech and the reported overlap is the true one.
     """
     clock = _Clock()
     monkeypatch.setattr(_realtime.time, "time_ns", clock)
@@ -782,6 +815,99 @@ def test_realtime_state_barge_in_windows_still_overlap(monkeypatch):
     agent1 = [w for w in windows if w[0] == "agent speech"][0]
     user2 = [w for w in windows if w[0] == "user speech"][1]
     assert user2[1] < agent1[2], "a barge-in must still show the user speaking over the agent"
+
+
+def test_realtime_state_truncation_caps_agent_speech_to_what_was_heard(monkeypatch):
+    """A barge-in truncation caps the agent segment - window and stored audio - at what was played.
+
+    The truncation lands after ``response.done`` (the model streams faster than it plays), so it can
+    only apply to a turn we are still holding. Holding is enabled by having seen this client truncate
+    before, which is why the first interruption of a connection is still reported untruncated.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+
+    # Turn 1: the user cuts the agent off 200 ms into a 500 ms answer, and the client says so - but
+    # the turn was already submitted at response.done, so this one can't be capped.
+    mic.stream(200)
+    mic.speech_started()
+    mic.stream(300)
+    _respond(state, mic, "r1", agent_audio_ms=500, playback_ms=200)
+    assert len(integration.responses) == 1, "an unheld turn is submitted at response.done"
+    mic.speech_started()
+    _truncate(state, "r1", audio_end_ms=200)
+    agent1 = [w for w in _windows(integration) if w[0] == "agent speech"][0]
+    _assert_ns(agent1[2] - agent1[1], 500 * 1_000_000)  # too late to cap the first interruption
+
+    # Turn 2: now that the client is known to truncate, the finished turn is held while its audio
+    # plays, so the same interruption lands in time.
+    mic.stream(300)
+    _respond(state, mic, "r2", agent_audio_ms=400, playback_ms=150)
+    assert len(integration.responses) == 1, "turn 2 is held while its audio is still playing"
+    agent_start = clock.now - 150 * 1_000_000
+    mic.speech_started()
+    _truncate(state, "r2", audio_end_ms=150)
+
+    assert len(integration.responses) == 2, "the truncation ends the wait and submits the turn"
+    agent2 = [w for w in _windows(integration) if w[0] == "agent speech"][1]
+    assert agent2[1] == agent_start, "the window still starts at the first audio (TTFA is unchanged)"
+    _assert_ns(agent2[2], agent_start + 150 * 1_000_000)  # ...and now ends where playback stopped
+    # The stored audio stops where playback did, so the clip is what the listener heard.
+    assert integration.responses[1]["output_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": _wav_b64(_agent_pcm(150))}
+    ]
+
+
+def test_realtime_state_held_turn_submitted_when_playback_ends(monkeypatch):
+    """A held turn that is never interrupted is still submitted once its audio finishes playing,
+    without waiting for the next turn or for close - and with its audio intact.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+    # A truncation for a turn we no longer hold - what the first barge-in of a connection looks like.
+    # It marks the client as one that cuts playback short.
+    _truncate(state, "gone", audio_end_ms=0)
+
+    mic.stream(200)
+    mic.speech_started()
+    mic.stream(300)
+    _respond(state, mic, "r1", agent_audio_ms=500, playback_ms=0)
+    assert integration.responses == [], "held until the agent's audio has played out"
+    assert len(state._playing) == 1
+
+    mic.stream(600)  # the audio plays out; the mic keeps streaming, and one of those events flushes
+    assert len(integration.responses) == 1
+    assert state._playing == []
+    agent = [w for w in _windows(integration) if w[0] == "agent speech"][0]
+    _assert_ns(agent[2] - agent[1], 500 * 1_000_000)
+    assert integration.responses[0]["output_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": _wav_b64(_agent_pcm(500))}
+    ]
+
+
+def test_realtime_state_no_hold_for_clients_that_never_truncate(monkeypatch):
+    """A client that never truncates hears every byte we captured, so its turns are submitted at
+    response.done as before - it pays none of the holding cost.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+
+    mic.stream(200)
+    mic.speech_started()
+    mic.stream(300)
+    _respond(state, mic, "r1", agent_audio_ms=500, playback_ms=0)
+
+    assert len(integration.responses) == 1, "submitted at response.done, not held"
+    assert state._playing == []
 
 
 def test_realtime_state_user_speech_falls_back_to_first_append_without_vad(monkeypatch):

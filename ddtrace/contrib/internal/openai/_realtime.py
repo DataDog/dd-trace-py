@@ -21,6 +21,14 @@ across turns, which keeps each trace one turn small (no accumulation toward the 
 budget) and renders cleanly. (If the caller wraps the connection in their own LLMObs context, the
 turn roots naturally nest under it.)
 
+Barge-in cuts the agent off mid-sentence, and over a WebSocket the client owns playback, so audio we
+already received may never be heard. When the client reports how far it got
+(conversation.item.truncate), the agent segment is capped there so both the stored audio and the
+window derived from it cover what was heard. That report arrives after response.done, so on
+connections whose client has been seen to truncate, a finished turn is held while its audio is still
+playing rather than submitted immediately (see _park_for_playback); clients that never truncate are
+unaffected.
+
 A turn span is finalized on response.done - except that the user's input transcription
 (conversation.item.input_audio_transcription.completed) is asynchronous and frequently arrives after
 response.done, so when the transcript isn't ready yet we hold the span open and finalize it once the
@@ -41,6 +49,7 @@ Known limitations (deferred by design):
   normal use.
 """
 
+import base64
 import importlib
 import os
 import time
@@ -184,6 +193,42 @@ class _AudioAccumulator:
         # the chunks themselves.
         self.total_decoded_bytes = max(0, self.total_decoded_bytes - decoded_bytes)
 
+    def cap_to(self, decoded_bytes: int) -> None:
+        """Shrink this segment to its first ``decoded_bytes``, dropping whole trailing chunks.
+
+        The mirror of ``trim_leading``, for audio that was delivered but never heard: when the
+        listener cuts the agent off, everything past that point is generated-but-unplayed. Absolute
+        and shrink-only, so a truncation and its server acknowledgement apply once between them.
+        """
+        if decoded_bytes >= self.total_decoded_bytes:
+            return
+        if decoded_bytes <= 0:
+            # Nothing was heard at all; the segment is empty rather than zero-length-but-present.
+            self.clear()
+            return
+        kept = 0
+        chunks: list[str] = []
+        sizes: list[int] = []
+        for chunk, size in zip(self.chunks, self._chunk_bytes):
+            if kept + size <= decoded_bytes:
+                chunks.append(chunk)
+                sizes.append(size)
+                kept += size
+                continue
+            # The cut lands inside this chunk. Unlike ``trim_leading`` - where whole-chunk granularity
+            # only costs a little extra lead-in - stopping short here would drop heard audio, and a
+            # response delivered as one big delta would lose all of it, so split the chunk exactly.
+            partial, partial_size = _slice_b64(chunk, decoded_bytes - kept)
+            if partial_size:
+                chunks.append(partial)
+                sizes.append(partial_size)
+                kept += partial_size
+            break
+        self.chunks = chunks
+        self._chunk_bytes = sizes
+        self._bytes = kept
+        self.total_decoded_bytes = decoded_bytes
+
     def clear(self) -> None:
         self.chunks = []
         self._chunk_bytes = []
@@ -243,6 +288,12 @@ class _ResponseTurn:
         # Wall-clock (unix ns) when response.done arrived; the llm span ends here (generation
         # complete), not when the agent finishes speaking.
         self.response_done_ns: Optional[int] = None
+        # Byte offset into ``audio`` at which each output item's audio begins, so a truncation (which
+        # is reported per item) maps onto this turn's segment.
+        self.audio_item_starts: dict[str, int] = {}
+        # Wall-clock (unix ns) the agent's audio would finish playing; set while the turn is held open
+        # waiting for playback to end (see ``_park_for_playback``).
+        self.playback_end_ns: Optional[int] = None
         # Function/MCP calls the model made this turn (+ inline MCP results).
         self.tool_calls: list[ToolCall] = []
         self.tool_results: list[ToolResult] = []
@@ -279,14 +330,23 @@ class _RealtimeState:
         self._tool_call_names: dict[str, str] = {}
         # Turns whose response is done but whose input transcription hasn't arrived yet.
         self._awaiting: list[Any] = []
+        # Finished turns held open while their audio is still playing, so a barge-in truncation can
+        # still cap them (see ``_park_for_playback``), and whether this connection's client has ever
+        # truncated - which is what makes holding worth its cost.
+        self._playing: list[Any] = []
+        self._client_truncates = False
         self._closed = False
 
     # -- event entry points -------------------------------------------------
 
     def on_client_event(self, event: Any) -> None:
         try:
+            self._flush_playing()
             event_type = _event_type(event)
-            if event_type == "session.update":
+            if event_type == "conversation.item.truncate":
+                # Client -> server: "the listener only got this far into that item."
+                self._on_truncate(_get_attr(event, "item_id", None), _get_attr(event, "audio_end_ms", None))
+            elif event_type == "session.update":
                 self._update_session_config(_get_attr(event, "session", None))
             elif event_type == "input_audio_buffer.append":
                 audio = _get_attr(event, "audio", None)
@@ -302,9 +362,15 @@ class _RealtimeState:
 
     def on_server_event(self, event: Any) -> None:
         try:
+            self._flush_playing()
             event_type = _event_type(event)
             if event_type in ("session.created", "session.updated"):
                 self._update_session_config(_get_attr(event, "session", None))
+                return
+            if event_type == "conversation.item.truncated":
+                # The server's acknowledgement of a client truncation; ``cap_to`` is absolute, so
+                # handling both it and the client event applies the cap once.
+                self._on_truncate(_get_attr(event, "item_id", None), _get_attr(event, "audio_end_ms", None))
                 return
             if event_type == "input_audio_buffer.speech_started":
                 self._on_speech_started(_get_attr(event, "audio_start_ms", None))
@@ -366,6 +432,10 @@ class _RealtimeState:
         if normalized == "response.audio.delta":
             delta = _get_attr(event, "delta", None)
             if delta:
+                item_id = _get_attr(event, "item_id", None)
+                if item_id is not None:
+                    # Remember where this item's audio starts in the turn's segment, before appending.
+                    turn.audio_item_starts.setdefault(str(item_id), turn.audio.total_decoded_bytes)
                 turn.audio.append(delta)
         elif normalized == "response.audio_transcript.delta":
             turn.transcript += str(_get_attr(event, "delta", "") or "")
@@ -458,14 +528,93 @@ class _RealtimeState:
             projected = max(projected, earliest)
         return min(projected, observed_ns)
 
+    # -- barge-in (agent playback cut short) --------------------------------
+
+    def _open_turns(self) -> list[Any]:
+        """Every turn we could still amend: in flight, awaiting a transcript, or awaiting playback."""
+        return list(self._responses.values()) + self._awaiting + self._playing
+
+    def _on_truncate(self, item_id: Any, audio_end_ms: Any) -> None:
+        """Cap an assistant audio segment at what the listener actually heard.
+
+        Over a WebSocket the client owns playback, and the model streams audio faster than it plays,
+        so on a barge-in the client stops its speaker and reports how far it got
+        (``conversation.item.truncate``'s ``audio_end_ms``). Audio delivered past that point was never
+        heard. Without this the stored agent audio - and the agent-speech window derived from it -
+        covers the whole generated response and runs past the interruption into the next user turn.
+
+        Seeing a truncation also marks this connection's client as one that cuts playback short, which
+        is what makes holding its turns open worthwhile (see ``_park_for_playback``).
+        """
+        self._client_truncates = True
+        item = str(item_id) if item_id is not None else None
+        end_ms = _as_float(audio_end_ms)
+        bytes_per_second = _bytes_per_second(self._output_audio_mime, self._output_audio_rate)
+        if item is None or end_ms is None or not bytes_per_second:
+            return
+        for turn in self._open_turns():
+            item_start = turn.audio_item_starts.get(item)
+            if item_start is None:
+                continue
+            cap = item_start + int(end_ms / 1000 * bytes_per_second)
+            turn.audio.cap_to(cap - cap % 2)  # keep PCM16 samples whole; a byte is nothing for G.711
+            if turn in self._playing:
+                # Playback ended when the listener cut it off, so stop waiting on it.
+                self._playing.remove(turn)
+                self._finalize_turn(turn, force=True)
+            return
+
+    def _park_for_playback(self, turn: _ResponseTurn) -> bool:
+        """Hold a finished turn while its audio is still playing, so a late truncation can still cap
+        it. Returns whether the turn was parked.
+
+        ``response.done`` normally lands mid-playback (generation outruns playback), and a barge-in
+        truncation arrives after that - too late for a turn we already submitted, and the audio bytes
+        ride on the llm span. Holding costs submission latency and a wider window to lose the turn if
+        the process dies, so we only hold on connections whose client has actually truncated before: a
+        client either implements barge-in or it doesn't, so one observed truncation predicts the rest.
+        Clients that never truncate hear every byte we captured and finalize at ``response.done``
+        exactly as before, paying nothing. The cost of that trade is that the first interruption on a
+        connection is still reported untruncated.
+        """
+        if not self._client_truncates or turn.audio.start_ns is None:
+            return False
+        playback_ns = _segment_duration_ns(
+            turn.audio.total_decoded_bytes, self._output_audio_mime, self._output_audio_rate
+        )
+        if playback_ns is None:
+            return False
+        end_ns = turn.audio.start_ns + playback_ns
+        if end_ns <= time.time_ns():
+            return False
+        turn.playback_end_ns = end_ns
+        self._playing.append(turn)
+        return True
+
+    def _flush_playing(self, force: bool = False) -> None:
+        """Finalize held turns whose audio has finished playing (or all of them, when forced).
+
+        Event-driven rather than timed: a realtime connection is chatty - a streaming client appends
+        microphone audio continuously - so this runs often enough to submit a turn shortly after its
+        playback ends, and the next turn and connection close both force it so a turn can't leak.
+        """
+        if not self._playing:
+            return
+        now = time.time_ns()
+        for turn in [t for t in self._playing if force or t.playback_end_ns is None or t.playback_end_ns <= now]:
+            self._playing.remove(turn)
+            self._finalize_turn(turn, force=True)
+
     # -- span lifecycle -----------------------------------------------------
 
     def _start_response(self, response_id: Optional[str]) -> None:
         if response_id is None:
             return
         # A new turn starting means a prior turn's input transcription is almost certainly not coming
-        # anymore, so flush anything still waiting so its span doesn't hang.
+        # anymore, and that any held playback is over (or was cut off without a truncation reaching
+        # us), so flush both rather than let a span hang.
         self._flush_awaiting()
+        self._flush_playing(force=True)
         turn = _ResponseTurn(self._pending_input)
         self._pending_input = _InputTurn()
         turn.model = self._model
@@ -531,28 +680,35 @@ class _RealtimeState:
 
     def _flush_awaiting(self) -> None:
         for turn in self._awaiting:
-            self._finalize_turn(turn)
+            self._finalize_turn(turn, force=True)
         self._awaiting = []
 
     def finish_session(self) -> None:
         if self._closed:
             return
         self._closed = True
-        # Finalize anything still open: turns awaiting a transcription, plus in-flight turns that
-        # never saw ``response.done`` (closed mid-turn). Whatever partial data we have is submitted.
+        # Finalize anything still open: turns awaiting a transcription or playback, plus in-flight
+        # turns that never saw ``response.done`` (closed mid-turn). Whatever partial data we have is
+        # submitted.
         self._flush_awaiting()
+        self._flush_playing(force=True)
         for turn in list(self._responses.values()):
             if not turn.input.transcript and turn.input.item_id is not None:
                 turn.input.transcript = self._input_transcripts.get(turn.input.item_id, "")
-            self._finalize_turn(turn)
+            self._finalize_turn(turn, force=True)
         self._responses.clear()
         self._input_transcripts.clear()
         self._tool_call_names.clear()
 
     # -- tagging helpers ----------------------------------------------------
 
-    def _finalize_turn(self, turn: _ResponseTurn) -> None:
+    def _finalize_turn(self, turn: _ResponseTurn, force: bool = False) -> None:
         if turn.span is None and turn.root_span is None:
+            return
+        # The turn's data is complete, but on a barge-in-capable client the agent's audio may still be
+        # playing and a truncation may yet cut it short - hold the turn rather than submit audio the
+        # listener might never hear. ``force`` is for the paths that must not wait (close, next turn).
+        if not force and self._park_for_playback(turn):
             return
         # Drop the cached transcript for this turn's input item so the map can't grow across a long
         # session (every finalize path goes through here).
@@ -933,6 +1089,19 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
 def _decoded_b64_len(b64: str) -> int:
     """Decoded byte count of a base64 string (~3/4 of its length), without decoding it."""
     return (len(b64) * 3) // 4
+
+
+def _slice_b64(b64: str, decoded_bytes: int) -> tuple[str, int]:
+    """Re-encode the first ``decoded_bytes`` of a base64 chunk, with the size actually taken.
+
+    Base64 can only be sliced directly on 3-byte boundaries, so cutting at an arbitrary offset means
+    decoding and re-encoding. Only runs when a truncation lands inside a chunk.
+    """
+    try:
+        raw = base64.b64decode(b64)[:decoded_bytes]
+    except (ValueError, TypeError):
+        return "", 0
+    return base64.b64encode(raw).decode("utf-8"), len(raw)
 
 
 def _as_float(value: Any) -> Optional[float]:

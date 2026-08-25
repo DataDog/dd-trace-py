@@ -7,7 +7,9 @@ features:
     onset, so it covers when the user was actually speaking rather than the whole time the input
     buffer was open), the ``llm`` span for the model's work (started at the
     end of user speech and finished at ``response.done``, carrying the transcripts, audio, and token
-    usage), a ``workflow`` "agent speech" span for the agent's playback window, and any tool spans
+    usage), a ``workflow`` "agent speech" span for the agent's playback window (capped at what the
+    listener actually heard when the client reports a barge-in via ``conversation.item.truncate``),
+    and any tool spans
     nested under the ``llm`` span. Splitting the phases keeps the ``llm`` span's duration a true
     measure of model latency rather than including the time the human spent speaking, and makes
     time-to-first-agent-audio recoverable from the span boundaries.
