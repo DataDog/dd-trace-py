@@ -19,22 +19,22 @@ ThreadInfo::reset_cycle_state() noexcept
 }
 
 void
-ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us, PyObject* gc_frame)
+ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
 {
     // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
     reset_cycle_state();
 
-    unwind_python_stack(echion, tstate, python_stack, gc_frame);
+    unwind_python_stack(echion, tstate, python_stack);
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
         // We cast it to void to ignore failures.
-        (void)unwind_tasks(echion, tstate, wall_time_us, gc_frame);
+        (void)unwind_tasks(echion, tstate, wall_time_us);
     } else {
         // We make the assumption that gevent and asyncio are not mixed
         // together to keep the logic here simple. We can always revisit this
         // should there be a substantial demand for it.
-        unwind_greenlets(echion, tstate, native_id, wall_time_us, gc_frame);
+        unwind_greenlets(echion, tstate, native_id, wall_time_us);
     }
 }
 
@@ -129,7 +129,7 @@ ThreadInfo::find_upper_python_stack_size(EchionSampler& echion) const
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us, PyObject* gc_frame)
+ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
 {
     // The size of the "pure Python" stack (before asyncio Frames).
     const size_t upper_python_stack_size = find_upper_python_stack_size(echion);
@@ -235,7 +235,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
     std::unordered_map<PyObject*, FrameStack> task_coro_stacks;
     for (auto& task : all_tasks) {
         FrameStack task_stack;
-        task->unwind(echion, task_stack, using_uvloop, gc_frame);
+        task->unwind(echion, task_stack, using_uvloop);
         task_coro_stacks.emplace(task->origin, std::move(task_stack));
     }
 
@@ -648,8 +648,7 @@ void
 ThreadInfo::unwind_greenlets(EchionSampler& echion,
                              PyThreadState* tstate,
                              unsigned long cur_native_id,
-                             microsecond_t wall_time_us,
-                             PyObject* gc_frame)
+                             microsecond_t wall_time_us)
 {
     std::vector<GreenletSnapshot> snapshots;
 
@@ -785,12 +784,16 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
         ++snap_idx;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
-        temp.unwind(echion, snap.frame, tstate, stack, on_cpu ? gc_frame : nullptr);
+        {
+            auto gc_frame = echion.use_gc_frame(on_cpu ? echion.current_gc_frame() : nullptr);
+            temp.unwind(echion, snap.frame, tstate, stack);
+        }
 
         for (auto& [parent_name, parent_frame] : snap.parent_chain) {
             GreenletInfo parent_temp(0, parent_frame, parent_name);
             // No GC marker: only the running greenlet can hold the on-CPU frame.
-            parent_temp.unwind(echion, parent_frame, tstate, stack, nullptr);
+            auto gc_frame = echion.use_gc_frame(nullptr);
+            parent_temp.unwind(echion, parent_frame, tstate, stack);
         }
 
         current_greenlets.push_back(std::move(stack_info));
@@ -927,7 +930,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
 // ----------------------------------------------------------------------------
 Result<void>
-ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta, PyObject* gc_frame)
+ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t delta)
 {
     auto& renderer = echion.renderer();
 
@@ -947,7 +950,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         return ErrorKind::CpuTimeError;
     }
 
-    this->unwind(echion, tstate, delta, gc_frame);
+    this->unwind(echion, tstate, delta);
 
     // The thread CPU time lands on the sample that render_thread_begin created, which
     // render_task_begin reuses for the first task or greenlet. When a task-less GC sample is

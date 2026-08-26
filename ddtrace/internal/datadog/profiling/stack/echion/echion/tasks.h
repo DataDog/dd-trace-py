@@ -146,7 +146,7 @@ class TaskInfo
     {
     }
 
-    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop, PyObject* gc_frame);
+    size_t unwind(EchionSampler& echion, FrameStack&, bool using_uvloop);
 };
 
 // Checks whether a Frame is the uvloop.run coroutine wrapper.

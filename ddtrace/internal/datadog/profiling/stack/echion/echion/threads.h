@@ -61,8 +61,8 @@ class ThreadInfo
 
     [[nodiscard]] Result<void> update_cpu_time();
 
-    [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t, PyObject* gc_frame);
-    void unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us, PyObject* gc_frame);
+    [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
+    void unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
 
     // Number of frames in python_stack from the asyncio boundary frame (inclusive) up to the root,
     // that is to say the asyncio machinery plus the synchronous entry point. Returns the size of the
@@ -126,15 +126,8 @@ class ThreadInfo
     void render_unwound_stacks(EchionSampler&);
     [[nodiscard]] bool gc_needs_taskless_sample() const;
     void render_gc_stack_if_no_on_cpu_task(EchionSampler&);
-    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&,
-                                            PyThreadState*,
-                                            microsecond_t wall_time_us,
-                                            PyObject* gc_frame);
-    void unwind_greenlets(EchionSampler&,
-                          PyThreadState*,
-                          unsigned long,
-                          microsecond_t wall_time_us,
-                          PyObject* gc_frame);
+    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
+    void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long, microsecond_t wall_time_us);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
 #if PY_VERSION_HEX >= 0x030e0000
     [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(EchionSampler& echion,

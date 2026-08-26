@@ -267,7 +267,8 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
             PyObject* gc_frame = gc_tracking_enabled_ ? GCFrameTracker::get().capture(interp.interp) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
-                auto success = thread.sample(*echion, tstate, wall_time_us, gc_frame);
+                auto gc_frame_scope = echion->use_gc_frame(gc_frame);
+                auto success = thread.sample(*echion, tstate, wall_time_us);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
                 }
@@ -346,8 +347,8 @@ Sampler::capture_samples(const microsecond_t wall_time_us)
                     continue;
                 }
             }
-            auto success = it->second->sample(
-              *echion, &thread_candidates[i].tstate, effective_wall_time_us, thread_candidates[i].gc_frame);
+            auto gc_frame_scope = echion->use_gc_frame(thread_candidates[i].gc_frame);
+            auto success = it->second->sample(*echion, &thread_candidates[i].tstate, effective_wall_time_us);
             if (success) {
                 Sample::profile_borrow().stats().increment_sample_count();
             }

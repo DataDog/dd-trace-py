@@ -37,7 +37,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 
     // Only flexes the "unwind thread stack" path, greenlets
     // and asyncio aren't used here
-    thread.unwind(echion_sampler, &tstate, 0, nullptr);
+    thread.unwind(echion_sampler, &tstate, 0);
 
     g_data = nullptr;
     g_size = 0;

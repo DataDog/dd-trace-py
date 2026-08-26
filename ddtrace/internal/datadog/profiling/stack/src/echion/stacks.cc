@@ -47,8 +47,7 @@ unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
              FrameStack& stack,
              std::unordered_set<PyObject*>& seen_frames,
-             size_t max_depth,
-             PyObject* gc_frame)
+             size_t max_depth)
 {
     seen_frames.clear();
     size_t count = 0;
@@ -59,7 +58,7 @@ unwind_frame(EchionSampler& echion,
             break;
 
         seen_frames.insert(current_frame_addr);
-        bool is_in_gc = gc_frame != nullptr && current_frame_addr == gc_frame;
+        bool is_in_gc = current_frame_addr == echion.current_gc_frame();
 
 #if PY_VERSION_HEX >= 0x030b0000
         auto maybe_frame = Frame::read(echion,
@@ -94,14 +93,14 @@ unwind_frame(EchionSampler& echion,
 // Convenience variant that owns its own scratch set and delegates to the
 // primary overload above. For callers without a reusable scratch set to share.
 size_t
-unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth, PyObject* gc_frame)
+unwind_frame(EchionSampler& echion, PyObject* frame_addr, FrameStack& stack, size_t max_depth)
 {
     std::unordered_set<PyObject*> local_seen_frames;
-    return unwind_frame(echion, frame_addr, stack, local_seen_frames, max_depth, gc_frame);
+    return unwind_frame(echion, frame_addr, stack, local_seen_frames, max_depth);
 }
 
 void
-unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, PyObject* gc_frame)
+unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack)
 {
     stack.clear();
 #if PY_VERSION_HEX >= 0x030b0000
@@ -127,5 +126,5 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames, gc_frame);
+    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames);
 }
