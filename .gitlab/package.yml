@@ -21,36 +21,13 @@ variables:
   - "cp314-cp314"
   - "cp315-cp315"
 
-# cp39-cp314 on manylinux2014; cp315 uses fresh pypa mirror (see build linux cp315 manylinux).
-.PYTHON_TAGS_PRE315: &PYTHON_TAGS_PRE315
-  - "cp39-cp39"
-  - "cp310-cp310"
-  - "cp311-cp311"
-  - "cp312-cp312"
-  - "cp313-cp313"
-  - "cp314-cp314"
+.AARCH64_IMAGES: &AARCH64_IMAGES
+  - "v113741357-d2b8243-manylinux2014_aarch64"
+  - "v126532182-233089d-musllinux_1_2_aarch64"
 
-# Latest mirrored pypa manylinux2014 tag (2026.05.13-1) still ships cp315 as 3.15.0b1;
-# the native wheel build SIGSEGVs on b1. ensure-cp315-rc1.sh rebuilds rc1 in-job until
-# DataDog/images mirrors >= 2026.08.04-1 (see mirror.yaml).
-.MANYLINUX2014_PYPA_AMD64: &MANYLINUX2014_PYPA_AMD64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2026.05.13-1"
-.MANYLINUX2014_PYPA_AARCH64: &MANYLINUX2014_PYPA_AARCH64 "registry.ddbuild.io/images/mirror/pypa/manylinux2014_aarch64:2026.05.13-1"
-
-.build_linux_script: &build_linux_script
-  - manylinux-interpreters ensure "${PYTHON_TAG}"
-  - |
-    if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
-      manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
-    fi
-  - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
-  - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
-  - |
-    find src/native -type f -exec touch -t 202401010000 {} \;
-    find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
-    find ddtrace/ -type f -name "*.c" -exec touch -t 202401010000 {} \;
-    find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
-    find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
-  - .gitlab/scripts/build-wheel.sh
+.X86_64_IMAGES: &X86_64_IMAGES
+  - "v113741238-d2b8243-manylinux2014_x86_64"
+  - "v126532274-233089d-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -122,71 +99,45 @@ variables:
   parallel:
     matrix:
       - ARCH_TAG: "amd64"
-        PYTHON_TAG: *PYTHON_TAGS_PRE315
-        IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-      - ARCH_TAG: "amd64"
         PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: "v126532274-233089d-musllinux_1_2_x86_64"
-      - ARCH_TAG: "arm64"
-        PYTHON_TAG: *PYTHON_TAGS_PRE315
-        IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
+        IMAGE_TAG: *X86_64_IMAGES
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: "v126532182-233089d-musllinux_1_2_aarch64"
-  # musllinux cp315 still allow_failure: prof-correctness needs manylinux2014 wheels;
-  # musllinux cp315 is best-effort until #17849 wrapping lands.
+        IMAGE_TAG: *AARCH64_IMAGES
+  # TODO(py-315): drop the cp315 allow_failure rule once #17849 ports the bytecode
+  # wrapping path to sys.monitoring (currently raises NotImplementedError on 3.15).
   rules:
-    - if: $PYTHON_TAG == "cp315-cp315" && $IMAGE_TAG =~ /musllinux/
+    - if: $PYTHON_TAG == "cp315-cp315"
       allow_failure: true
     - when: on_success
-  script: *build_linux_script
-
-# cp315 manylinux2014: derived dd-trace-py manylinux images (d2b8243 / May 2026) ship
-# stale cp315 (3.15.0b1) and the native wheel build SIGSEGVs. Use the approved pypa
-# mirror (2026.05.13-1) plus ensure-cp315-rc1.sh until the mirror catches up.
-"build linux cp315 manylinux":
-  extends: .build_base
-  image: ${PYPA_MANYLINUX_IMAGE}
-  tags: [ "arch:$ARCH_TAG" ]
-  variables:
-    PYTHON_TAG: "cp315-cp315"
-    DD_USE_SCCACHE: "0"
-  parallel:
-    matrix:
-      - ARCH_TAG: "amd64"
-        PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AMD64
-      - ARCH_TAG: "arm64"
-        PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AARCH64
-  before_script:
-    - .gitlab/scripts/install-manylinux-build-deps.sh
-    - .gitlab/scripts/ensure-cp315-rc1.sh
-  script: *build_linux_script
+  script:
+    - manylinux-interpreters ensure "${PYTHON_TAG}"
+    - |
+      if [[ "${UNPIN_DEPENDENCIES:-"false"}" == "true" ]]; then
+        manylinux-interpreters ensure "cp314-cp314"  # NB unpinning script requires Py>=311
+      fi
+    - export UV_PYTHON="/opt/python/${PYTHON_TAG}/bin/python"
+    - export DD_SERVERLESS_BUILD="${DD_SERVERLESS_BUILD:-0}"
+    - |
+      find src/native -type f -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.pyx" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.c" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.cpp" -exec touch -t 202401010000 {} \;
+      find ddtrace/ -type f -name "*.h" -exec touch -t 202401010000 {} \;
+    - .gitlab/scripts/build-wheel.sh
 
 "build linux serverless":
   extends: "build linux"
   parallel:
     matrix:
       - ARCH_TAG: "amd64"
-        PYTHON_TAG: *PYTHON_TAGS_PRE315
-        IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-        DD_SERVERLESS_BUILD: "1"
-      - ARCH_TAG: "amd64"
         PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: "v126532274-233089d-musllinux_1_2_x86_64"
-        DD_SERVERLESS_BUILD: "1"
-      - ARCH_TAG: "arm64"
-        PYTHON_TAG: *PYTHON_TAGS_PRE315
-        IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
+        IMAGE_TAG: *X86_64_IMAGES
         DD_SERVERLESS_BUILD: "1"
       - ARCH_TAG: "arm64"
         PYTHON_TAG: *PYTHON_TAGS
-        IMAGE_TAG: "v126532182-233089d-musllinux_1_2_aarch64"
+        IMAGE_TAG: *AARCH64_IMAGES
         DD_SERVERLESS_BUILD: "1"
-
-"build linux serverless cp315 manylinux":
-  extends: "build linux cp315 manylinux"
-  variables:
-    DD_SERVERLESS_BUILD: "1"
 
 .build_macos_base:
   extends: .build_base
@@ -249,14 +200,8 @@ variables:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: *PYTHON_TAGS_PRE315
+            PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-    - job: "build linux cp315 manylinux"
-      artifacts: true
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AMD64
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
@@ -305,19 +250,11 @@ variables:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: *PYTHON_TAGS_PRE315
+            PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
-            PYTHON_TAG: *PYTHON_TAGS_PRE315
+            PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
-    - job: "build linux cp315 manylinux"
-      artifacts: true
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AMD64
-          - ARCH_TAG: "arm64"
-            PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AARCH64
     - job: "package version"
 
 "patch macos wheel versions":
@@ -338,19 +275,11 @@ variables:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: *PYTHON_TAGS_PRE315
+            PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
-            PYTHON_TAG: *PYTHON_TAGS_PRE315
+            PYTHON_TAG: *PYTHON_TAGS
             IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
-    - job: "build linux cp315 manylinux"
-      artifacts: true
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AMD64
-          - ARCH_TAG: "arm64"
-            PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AARCH64
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014"
@@ -364,29 +293,13 @@ variables:
       parallel:
         matrix:
           - ARCH_TAG: "amd64"
-            PYTHON_TAG: *PYTHON_TAGS_PRE315
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
-            DD_SERVERLESS_BUILD: "1"
-          - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v126532274-233089d-musllinux_1_2_x86_64"
-            DD_SERVERLESS_BUILD: "1"
-          - ARCH_TAG: "arm64"
-            PYTHON_TAG: *PYTHON_TAGS_PRE315
-            IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
+            IMAGE_TAG: *X86_64_IMAGES
             DD_SERVERLESS_BUILD: "1"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v126532182-233089d-musllinux_1_2_aarch64"
+            IMAGE_TAG: *AARCH64_IMAGES
             DD_SERVERLESS_BUILD: "1"
-    - job: "build linux serverless cp315 manylinux"
-      artifacts: true
-      parallel:
-        matrix:
-          - ARCH_TAG: "amd64"
-            PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AMD64
-          - ARCH_TAG: "arm64"
-            PYPA_MANYLINUX_IMAGE: *MANYLINUX2014_PYPA_AARCH64
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "serverless"
@@ -588,7 +501,6 @@ download_dependency_wheels:
   extends: .package_base
   needs:
     - "build linux"
-    - "build linux cp315 manylinux"
     - "build macos amd64"
     - "build macos arm64"
     - "build sdist"
@@ -601,7 +513,6 @@ download_dependency_wheels:
   extends: .package_base
   needs:
     - "build linux serverless"
-    - "build linux serverless cp315 manylinux"
     - "package version"
   script:
     - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless

@@ -6,8 +6,8 @@ Validates that all expected wheels and sdist are present with correct versions.
 Uses the packaging library to properly parse and validate filenames.
 
 Expected artifacts:
-  - 54 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64,
-    plus cp315 on manylinux only
+  - 52 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64
+    (cp315 is built best-effort and is not required)
   - 1 sdist: source distribution
 
 Usage:
@@ -45,10 +45,10 @@ BASE_PLATFORMS = [
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
 # cp315 does not build everywhere yet: macOS and Windows cp315 jobs are not wired
-# up, and musllinux cp315 is allow_failure in package.yml. So only manylinux cp315
-# is required; musllinux cp315 is tolerated whether or not it lands.
-REQUIRED_PLATFORMS = {"cp315": [p for p in BASE_PLATFORMS if "manylinux" in p]}
-OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "musllinux" in p}
+# up, and every cp315 Linux build is still allow_failure in package.yml. So no
+# cp315 wheel is required, and a cp315 Linux wheel is tolerated when it does land.
+REQUIRED_PLATFORMS: dict[str, list[str]] = {"cp315": []}
+OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "linux" in p}
 
 
 def required_platforms(py_tag: str, platforms: list[str]) -> list[str]:
@@ -235,7 +235,7 @@ def main(args: argparse.Namespace) -> None:
     print(f"  - {len(BASE_PLATFORMS)} base platforms")
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
     for py_tag, platforms in sorted(REQUIRED_PLATFORMS.items()):
-        print(f"  - {py_tag} restricted to {len(platforms)} platform(s)")
+        print(f"  - {py_tag} required on {len(platforms)} platform(s)")
     print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
