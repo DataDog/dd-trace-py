@@ -20,7 +20,10 @@
 #   eval "$(python scripts/ddtest-riot.py venv-env 4f70b3c)"  -> activate venv
 #   ddtest plan  -p python -f pytest --tests-location tests/internal \
 #                 --min-parallelism 1 --max-parallelism 1
-#   ddtest run   -p python -f pytest --ci-node 0 --ci-node-workers ncpu
+#   ddtest run   -p python -f pytest --ci-node 0 --ci-node-workers 4
+#   (4 workers, not ncpu: the testrunner image runs on many-core k8s pods
+#   where ncpu spawns ~47 workers and corrupts pytest-cov's sqlite DB;
+#   matching PYTEST_XDIST_AUTO_NUM_WORKERS=4 from testrunner.yml)
 #
 # The pilot does NOT run `riot generate`: it reuses the venv built by
 # build_base_venvs (which already compiled the native extensions), so it
@@ -106,4 +109,4 @@ ddtest-internal-pilot:
         --platform python \
         --framework pytest \
         --ci-node 0 \
-        --ci-node-workers ncpu
+        --ci-node-workers 4
