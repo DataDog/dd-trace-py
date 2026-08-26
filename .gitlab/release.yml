@@ -16,7 +16,23 @@
   script:
     - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
     - uvx --with="twine>=5.0,<7" twine check --strict pywheels/*
-    - uvx --with="twine>=5.0,<7" twine upload --repository ${PYPI_REPOSITORY} pywheels/ddtrace-*
+    # DEV(py-315): cp315 wheels are built for internal S3 and the private prerelease index,
+    # and are withheld from PyPI while Python 3.15 is unsupported. Drop this filter once
+    # 3.15 is a supported target. Everything else, sdist included, is still uploaded.
+    - |
+      set -eu
+      set --
+      for dist in pywheels/ddtrace-*; do
+        case "${dist}" in *cp315*) continue ;; esac
+        if [ -f "${dist}" ]; then set -- "$@" "${dist}"; fi
+      done
+      if [ "$#" -eq 0 ]; then
+        echo "[ERROR] no PyPI-eligible distributions found in pywheels/ -- refusing to upload" >&2
+        exit 1
+      fi
+      printf 'Uploading %s distribution(s) to %s:\n' "$#" "${PYPI_REPOSITORY}"
+      printf '  %s\n' "$@"
+      uvx --with="twine>=5.0,<7" twine upload --repository "${PYPI_REPOSITORY}" "$@"
   artifacts:
     paths:
       - pywheels/*.whl
