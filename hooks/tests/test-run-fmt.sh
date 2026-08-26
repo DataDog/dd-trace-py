@@ -126,10 +126,10 @@ output=$(run_hook)
 check "no staged files: lint not called"      "! [ -s '$LINT_CALLS' ]"
 check "no staged files: skip message printed" "printf '%s' '$output' | grep -q 'skipped'"
 
-# Partial staging: ruff may format the working tree but must not commit an unformatted index
-cat > "$TMPDIR_TEST/git" << 'EOF'
+# Partial staging: fail before ruff so the working tree is not mutated
+cat > "$TMPDIR_TEST/git" << EOF
 #!/usr/bin/env sh
-case "$*" in
+case "\$*" in
     "diff --staged --name-only HEAD --diff-filter=ACMR")
         printf '%s\n' foo.py ;;
     "diff --name-only")
@@ -137,17 +137,20 @@ case "$*" in
     "diff --name-only --diff-filter=ACMR")
         printf '%s\n' foo.py ;;
     add\ *)
-        echo "$*" >> "$GIT_ADD_CALLS" ;;
+        echo "\$*" >> "$GIT_ADD_CALLS" ;;
     *)
-        exec "$(command -v git)" "$@" ;;
+        exec "$(command -v git)" "\$@" ;;
 esac
 EOF
 chmod +x "$TMPDIR_TEST/git"
 : > "$LINT_CALLS"
+: > "$GIT_ADD_CALLS"
 partial_out=$(run_hook 2>&1) || partial_rc=$?
 partial_rc="${partial_rc:-0}"
 check "partial staging: hook fails" "[ '${partial_rc}' -ne 0 ]"
 check "partial staging: mentions partially staged" "printf '%s' '$partial_out' | grep -qi 'partially staged'"
+check "partial staging: ruff not run" "! [ -s '$LINT_CALLS' ]"
+check "partial staging: git add not called" "! [ -s '$GIT_ADD_CALLS' ]"
 
 # ── summary ──────────────────────────────────────────────────────────────────
 

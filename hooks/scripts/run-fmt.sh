@@ -10,7 +10,18 @@ if [ -n "$staged_files" ]; then
     # ruff runs on .py and .pyi files only — ruff does not support Cython syntax in .pyx files
     # (see https://github.com/astral-sh/ruff/issues/10250)
     staged_ruff=$(echo "$staged_files" | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
+    # Partial staging: we skip re-add of dirty files, so ruff would format the
+    # working tree and leave the index unformatted. Fail before running ruff so
+    # we do not mutate unstaged hunks on this path.
     if [ -n "$(printf '%s' "$staged_ruff" | tr -d ' \t\n')" ]; then
+        for f in $staged_ruff; do
+            if echo "$unstaged_before" | grep -qFx "$f"; then
+                printf '\nFormat/lint error: %s is partially staged.\n' "$f" >&2
+                printf 'The hook will not format a partially staged file (index would stay unformatted).\n' >&2
+                printf 'Fix: git add %s   (or unstage, run scripts/lint fmt, then re-stage)\n\n' "$f" >&2
+                exit 1
+            fi
+        done
         "$LINT_CMD" ruff format --no-cache $staged_ruff || exit $?
         "$LINT_CMD" ruff check --fix --show-fixes --no-cache $staged_ruff || exit $?
     fi
@@ -21,17 +32,8 @@ if [ -n "$staged_files" ]; then
         echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
     done
 
-    # Partial staging: ruff formats the working tree but we skip re-add above, so the
-    # index can still commit unformatted content. Block that explicitly.
+    # Verify staged .py/.pyi content is formatted after ruff + re-add
     if [ -n "$(printf '%s' "$staged_ruff" | tr -d ' \t\n')" ]; then
-        for f in $staged_ruff; do
-            if echo "$unstaged_before" | grep -qFx "$f"; then
-                printf '\nFormat/lint error: %s is partially staged.\n' "$f" >&2
-                printf 'ruff formatted the working tree, but the staged index was not updated.\n' >&2
-                printf 'Fix: git add %s   (or unstage, run scripts/lint fmt, then re-stage)\n\n' "$f" >&2
-                exit 1
-            fi
-        done
         staged_ruff_now=$(git diff --staged --name-only HEAD --diff-filter=ACMR | tr ' ' '\n' | grep -E '\.(py|pyi)$' | grep -v '^$' | tr '\n' ' ')
         if [ -n "$(printf '%s' "$staged_ruff_now" | tr -d ' \t\n')" ]; then
             ruff_staged_output=$("$LINT_CMD" ruff format --check --no-cache $staged_ruff_now 2>&1)
