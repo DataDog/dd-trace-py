@@ -426,6 +426,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/algoliasearch
       dependencies: [urllib3~=1.26.15, pytest-randomly, algoliasearch~=2.6]
+      variants: [{name: default}]
   aredis:
     parallelism: 1
     paths:
@@ -444,6 +445,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/aredis
       dependencies: [pytest-asyncio==0.21.1, aredis, pytest-randomly]
       python: ['3.9']
+      variants: [{name: default}]
   asgi:
     venvs_per_job: 1
     paths:
@@ -511,6 +513,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/asynctest/
       dependencies: ['pytest>=6.0,<7.0', pytest-randomly, asynctest==0.13.0]
       python: ['3.9']
+      variants: [{name: default}]
   avro:
     parallelism: 1
     paths:
@@ -524,6 +527,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/avro
       dependencies: [avro, pytest-randomly]
+      variants: [{name: default}]
   aws_lambda:
     parallelism: 2
     paths:
@@ -942,6 +946,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/ddtrace_api
       dependencies: [ddtrace-api==0.0.1, requests]
+      variants: [{name: default}]
   django:
     parallelism: 6
     env:
@@ -1725,6 +1730,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/httplib
       dependencies: [pytest-randomly]
+      variants: [{name: default}]
   httpx:
     parallelism: 3
     paths:
@@ -1775,6 +1781,7 @@ suites:
       dependencies: [pip==26.2.1, ruamel.yaml==0.18.6, pytest-randomly, pytest-asyncio==0.23.7,
         PyYAML, jsonschema]
       python: ['3.13']
+      variants: [{name: default}]
   jinja2:
     parallelism: 2
     paths:
@@ -2105,6 +2112,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/protobuf
       dependencies: [protobuf, pytest-randomly]
+      variants: [{name: default}]
   psycopg:
     paths:
       - '@bootstrap'
@@ -2625,6 +2633,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/sourcecode
       dependencies: [setuptools, pytest-randomly]
+      variants: [{name: default}]
   sqlalchemy:
     parallelism: 1
     paths:
@@ -2804,6 +2813,7 @@ suites:
     matrix:
       command: pytest -vvvv {cmdargs} --no-cov tests/contrib/subprocess
       dependencies: [pytest-randomly]
+      variants: [{name: default}]
   logging:
     parallelism: 1
     paths:
@@ -2817,6 +2827,7 @@ suites:
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/logging
       dependencies: [pytest-randomly, pytest-xdist]
+      variants: [{name: default}]
   tornado:
     parallelism: 1
     paths:
@@ -2965,3 +2976,4 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/valkey
       dependencies: [valkey, pytest-randomly, pytest-asyncio==0.23.7]
+      variants: [{name: default}]

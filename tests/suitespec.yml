@@ -1,29 +1,4 @@
 ---
-matrix_defaults:
-  dependencies:
-    - mock
-    - pytest
-    - pytest-mock
-    - coverage
-    - pytest-cov
-    - opentracing
-    - hypothesis<6.45.1
-  env:
-    _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER: '1'
-    DD_TESTING_RAISE: '1'
-    DD_REMOTE_CONFIGURATION_ENABLED: 'false'
-    DD_INJECTION_ENABLED: '1'
-    DD_INJECT_FORCE: '1'
-    DD_PATCH_MODULES: 'unittest:false'
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    CARGO_BUILD_JOBS: '12'
-    DD_TRACE_COMPUTE_STATS: 'false'
-    DD_CODE_ORIGIN_FOR_SPANS_ENABLED: 'false'
-    DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS: '2000'
-    _DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED: '1'
-  nightly_env:
-    DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: '1'
-  python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
 components:
   $harness:
     - docker/*
@@ -202,6 +177,7 @@ suites:
       env:
         DD_TRACE_ENABLED: 'false'
       python: ['3.10']
+      variants: [{name: default}]
   smoke_test:
     type: helper
     paths:
@@ -209,6 +185,7 @@ suites:
       - tests/smoke_test.py
     matrix:
       command: python tests/smoke_test.py {cmdargs}
+      variants: [{name: default}]
   crashtracker:
     venvs_per_job: 6
     paths:
@@ -243,6 +220,7 @@ suites:
       env:
         DD_CIVISIBILITY_FLAKY_RETRY_ENABLED: '0'
       python: ['3.10']
+      variants: [{name: default}]
   ddtracerun:
     parallelism: 3
     paths:
@@ -256,6 +234,7 @@ suites:
     matrix:
       command: pytest {cmdargs} --no-cov tests/commands/test_runner.py
       dependencies: [redis, gevent, pytest-randomly]
+      variants: [{name: default}]
   detect_global_locks:
     venvs_per_job: 1
     paths:
@@ -278,6 +257,7 @@ suites:
         DD_PROFILING_LOCK_ENABLED: '0'
         DD_REMOTE_CONFIGURATION_ENABLED: '1'
         DD_RUNTIME_METRICS_ENABLED: '1'
+      variants: [{name: default}]
   integration_agent:
     parallelism: 2
     paths:
@@ -329,6 +309,7 @@ suites:
       dependencies: [pip==26.2.1, ruamel.yaml==0.18.6, pytest-randomly, pytest-asyncio==0.23.7,
         PyYAML, jsonschema]
       python: ['3.13']
+      variants: [{name: default}]
   internal:
     retry: 2
     venvs_per_job: 2
@@ -417,6 +398,7 @@ suites:
         - "pip==26.0.1; python_version < '3.10'"
         - "pip==26.2.1; python_version >= '3.10'"
         - pytest-randomly
+      variants: [{name: default}]
   runtime:
     paths:
       - '@bootstrap'
@@ -428,6 +410,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/runtime/
       dependencies: [msgpack, pytest-randomly]
+      variants: [{name: default}]
   openfeature:
     parallelism: 1
     paths:
@@ -551,6 +534,7 @@ suites:
         AGENT_VERSION: testagent
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.9']
+      variants: [{name: default}]
   vendor:
     parallelism: 1
     paths:

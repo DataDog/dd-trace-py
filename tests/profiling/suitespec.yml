@@ -92,6 +92,7 @@ suites:
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      variants: [{name: default}]
   profile-memalloc:
     env:
       DD_TRACE_AGENT_URL: ''
@@ -134,3 +135,4 @@ suites:
             PYTHONMALLOC: malloc_debug
         - env:
             PYTHONMALLOC: pymalloc_debug
+      variants: [{name: default}]

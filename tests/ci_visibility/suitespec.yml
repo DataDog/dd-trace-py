@@ -38,6 +38,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      variants: [{name: default}]
   ci_visibility:snapshot:
     parallelism: 4
     paths:
@@ -60,6 +61,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      variants: [{name: default}]
   dd_coverage:
     parallelism: 6
     paths:
@@ -71,6 +73,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest --no-cov {cmdargs} tests/coverage -s
+      variants: [{name: default}]
   pytest:
     venvs_per_job: 2
     paths:
@@ -174,6 +177,7 @@ suites:
     matrix:
       command: pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py
       dependencies: [msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
+      variants: [{name: default}]
   pytest_bdd:
     venvs_per_job: 3
     paths:
@@ -221,6 +225,7 @@ suites:
     matrix:
       command: pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py
       dependencies: [flaky, pytest-randomly]
+      variants: [{name: default}]
     integration: pytest
   testing:
     retry: 2
@@ -317,3 +322,4 @@ suites:
         DD_AGENT_PORT: '9126'
         DD_PATCH_MODULES: unittest:true
         DD_UNITTEST_SERVICE: dd-trace-py
+      variants: [{name: default}]

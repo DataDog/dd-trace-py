@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
-from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import cache
 import hashlib
@@ -21,21 +19,40 @@ LOCK_PLATFORM = "linux"
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
 _SLUG_PART = re.compile(r"[^a-z0-9]+")
-_MATRIX_FIELDS = {
-    "command",
-    "dependencies",
-    "env",
-    "python",
-    "runs",
-    "variants",
+
+DEFAULT_DEPENDENCIES = (
+    "mock",
+    "pytest",
+    "pytest-mock",
+    "coverage",
+    "pytest-cov",
+    "opentracing",
+    "hypothesis<6.45.1",
+)
+DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14")
+DEFAULT_ENVIRONMENT = {
+    "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
+    "DD_TESTING_RAISE": "1",
+    "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+    "DD_INJECTION_ENABLED": "1",
+    "DD_INJECT_FORCE": "1",
+    "DD_PATCH_MODULES": "unittest:false",
+    "CMAKE_BUILD_PARALLEL_LEVEL": "12",
+    "CARGO_BUILD_JOBS": "12",
+    "DD_TRACE_COMPUTE_STATS": "false",
+    "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "false",
+    "DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS": "2000",
+    "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
-_VARIANT_FIELDS = _MATRIX_FIELDS - {"variants"} | {"integration", "name"}
-_DEFAULT_FIELDS = {"dependencies", "env", "nightly_env", "python"}
-_RUN_FIELDS = {"command", "env"}
+NIGHTLY_ENVIRONMENT = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
+
+
+class MatrixError(ValueError):
+    """Raised when a test matrix declaration is invalid."""
 
 
 def _collect_suitespecs() -> dict:
-    suitespec = {"components": {}, "suites": {}, "matrix_defaults": {}}
+    suitespec = {"components": {}, "suites": {}}
 
     specfiles = []
     for root, ns_prefix in SEARCH_ROOTS:
@@ -45,17 +62,16 @@ def _collect_suitespecs() -> dict:
     for s, root, ns_prefix in specfiles:
         path_parts = s.relative_to(root).parts[:-1]
         namespace = "::".join(path_parts) if path_parts else ns_prefix or None
-        with YAML() as yaml:
+        with YAML(typ="safe") as yaml:
             data = yaml.load(s)
-            suites = data.get("suites", {})
-            if namespace is not None:
-                for name, spec in list(suites.items()):
-                    if "pattern" not in spec:
-                        spec["pattern"] = name
-                    suites[f"{namespace}::{name}"] = spec
-                    del suites[name]
-            for k, v in suitespec.items():
-                v.update(data.get(k, {}))
+        suitespec["components"].update(data["components"])
+
+        for name, value in data["suites"].items():
+            spec = value.copy()
+            full_name = f"{namespace}::{name}" if namespace is not None else name
+            if namespace is not None and "pattern" not in spec:
+                spec["pattern"] = name
+            suitespec["suites"][full_name] = spec
 
     return suitespec
 
@@ -105,17 +121,6 @@ def get_suites() -> dict[str, dict]:
     return SUITESPEC["suites"]
 
 
-def _environment_hash(suite: str, variant_name: str, python: str, dependencies: tuple[str, ...]) -> str:
-    identity = {
-        "suite": suite,
-        "variant": variant_name,
-        "python": python,
-        "dependencies": sorted(dependencies, key=str.casefold),
-    }
-    encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
-    return hashlib.sha256(encoded).hexdigest()[:12]
-
-
 @dataclass(frozen=True)
 class TestRun:
     """One command and environment executed in a test environment."""
@@ -132,7 +137,6 @@ class TestRun:
 class TestEnvironment:
     """A concrete test dependency environment."""
 
-    hash: str
     suite: str
     variant_name: str
     integration_name: str
@@ -145,29 +149,16 @@ class TestEnvironment:
         suite = _SLUG_PART.sub("-", self.suite.lower()).strip("-")
         return LOCK_ROOT / f"{suite}--py{self.python.replace('.', '')}--{self.hash}.txt"
 
-
-class MatrixError(ValueError):
-    """Raised when a test matrix declaration is invalid."""
-
-
-def _string_tuple(value: object, field: str) -> tuple[str, ...]:
-    if value is None:
-        return ()
-    if (
-        isinstance(value, Sequence)
-        and not isinstance(value, (str, bytes))
-        and all(isinstance(item, str) for item in value)
-    ):
-        return tuple(value)
-    raise MatrixError(f"{field} must be a list")
-
-
-def _mapping(value: object, field: str) -> Mapping[str, Any]:
-    if value is None:
-        return {}
-    if isinstance(value, Mapping):
-        return value
-    raise MatrixError(f"{field} must be a mapping")
+    @property
+    def hash(self) -> str:
+        identity = {
+            "suite": self.suite,
+            "variant": self.variant_name,
+            "python": self.python,
+            "dependencies": sorted(self.direct_dependencies, key=str.casefold),
+        }
+        encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+        return hashlib.sha256(encoded).hexdigest()[:12]
 
 
 def _requirement_key(requirement: str) -> str:
@@ -187,24 +178,23 @@ def _merge_dependencies(*groups: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(merged)
 
 
-def _runs(command: str, base_environment: dict[str, str], run_specs: object) -> tuple[TestRun, ...]:
+def _runs(
+    command: str | None, base_environment: dict[str, str], run_specs: list[dict[str, Any]] | None
+) -> tuple[TestRun, ...]:
     if run_specs is None:
-        if not command:
-            raise MatrixError("each matrix environment needs a command")
+        if not isinstance(command, str):
+            raise MatrixError("each matrix environment needs a command or runs")
         return (TestRun(command=command, env=tuple(sorted(base_environment.items()))),)
-    if isinstance(run_specs, (str, bytes)) or not isinstance(run_specs, Sequence):
-        raise MatrixError("runs must be a list")
     if not run_specs:
         raise MatrixError("runs must not be empty")
 
     runs = []
-    for run_spec in run_specs:
-        run = _mapping(run_spec, "run")
-        _validate_fields(run, _RUN_FIELDS, "run")
+    for run in run_specs:
         run_environment = base_environment.copy()
-        run_environment.update({str(key): str(value) for key, value in _mapping(run.get("env"), "run env").items()})
-        run_command = str(run.get("command", command))
-        if not run_command:
+        if "env" in run:
+            run_environment.update(run["env"])
+        run_command = run.get("command", command)
+        if not isinstance(run_command, str):
             raise MatrixError("each matrix run needs a command")
         runs.append(TestRun(command=run_command, env=tuple(sorted(run_environment.items()))))
     return tuple(runs)
@@ -212,86 +202,54 @@ def _runs(command: str, base_environment: dict[str, str], run_specs: object) -> 
 
 def _variant_settings(
     suite: str,
-    suite_config: Mapping[str, Any],
-    defaults: Mapping[str, Any],
-    matrix: Mapping[str, Any],
-    variant: Mapping[str, Any],
+    suite_config: dict[str, Any],
+    matrix: dict[str, Any],
+    variant: dict[str, Any],
     nightly: bool,
 ) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(
-        *(_string_tuple(spec.get("dependencies"), "dependencies") for spec in (defaults, matrix, variant))
+        DEFAULT_DEPENDENCIES,
+        tuple(matrix["dependencies"]) if "dependencies" in matrix else (),
+        tuple(variant["dependencies"]) if "dependencies" in variant else (),
     )
-    environment: dict[str, str] = {}
-    for spec in (defaults, matrix):
-        environment.update({str(key): str(value) for key, value in _mapping(spec.get("env"), "env").items()})
+    environment = DEFAULT_ENVIRONMENT.copy()
+    if "env" in matrix:
+        environment.update(matrix["env"])
     if nightly:
-        environment.update(
-            {str(key): str(value) for key, value in _mapping(defaults.get("nightly_env"), "nightly_env").items()}
-        )
-    environment.update({str(key): str(value) for key, value in _mapping(variant.get("env"), "env").items()})
+        environment.update(NIGHTLY_ENVIRONMENT)
+    if "env" in variant:
+        environment.update(variant["env"])
 
-    command = str(variant.get("command", matrix.get("command", "")))
+    command = variant.get("command", matrix.get("command"))
     run_specs = variant.get("runs", matrix.get("runs"))
-    integration = str(variant.get("integration", suite_config.get("integration", suite.split("::", 1)[-1])))
+    integration = variant.get("integration", suite_config.get("integration", suite.split("::", 1)[-1]))
     return dependencies, integration, _runs(command, environment, run_specs)
-
-
-def _validate_fields(spec: Mapping[str, Any], allowed: set[str], context: str) -> None:
-    unknown = set(spec) - allowed
-    if unknown:
-        raise MatrixError(f"unknown fields in {context}: {', '.join(sorted(unknown))}")
-
-
-def _python_versions(value: object, defaults: tuple[str, ...], context: str) -> tuple[str, ...]:
-    versions = _string_tuple(value, "python")
-    if not versions:
-        raise MatrixError(f"{context} does not declare any Python versions")
-    if len(set(versions)) != len(versions):
-        raise MatrixError(f"duplicate Python versions in {context}")
-    unsupported = set(versions) - set(defaults) if defaults else set()
-    if unsupported:
-        raise MatrixError(f"unsupported Python versions in {context}: {', '.join(sorted(unsupported))}")
-    return versions
 
 
 def _expand_suite_matrix(
     suite: str,
-    suite_config: Mapping[str, Any],
-    defaults: Mapping[str, Any],
+    suite_config: dict[str, Any],
     *,
     nightly: bool,
 ) -> tuple[TestEnvironment, ...]:
     """Expand one compact suite matrix into concrete test environments."""
-    matrix = _mapping(suite_config.get("matrix"), f"matrix for {suite}")
-    if not matrix:
-        return ()
-    _validate_fields(matrix, _MATRIX_FIELDS, f"matrix for {suite}")
-    _validate_fields(defaults, _DEFAULT_FIELDS, "matrix defaults")
-    default_python = _python_versions(defaults.get("python"), (), "matrix defaults")
-    raw_variants = matrix.get("variants")
-    if raw_variants is None:
-        variants: tuple[Mapping[str, Any], ...] = ({"name": "default"},)
-    else:
-        if isinstance(raw_variants, (str, bytes)) or not isinstance(raw_variants, Sequence):
-            raise MatrixError(f"variants for {suite} must be a list")
-        if not raw_variants:
-            raise MatrixError(f"variants for {suite} must not be empty")
-        if "python" in matrix:
-            raise MatrixError(f"matrix-level python cannot be combined with variants for {suite}")
-        variants = tuple(_mapping(variant, f"variant for {suite}") for variant in raw_variants)
+    matrix = suite_config["matrix"]
+    variants = matrix["variants"]
+    if not variants:
+        raise MatrixError(f"variants for {suite} must not be empty")
 
     environments = []
     for variant in variants:
-        _validate_fields(variant, _VARIANT_FIELDS, f"variant for {suite}")
-        name = str(variant.get("name", ""))
-        if not name:
+        name = variant.get("name")
+        if not isinstance(name, str) or not name.strip():
             raise MatrixError(f"every variant for {suite} needs a name")
-        python_value = variant.get("python", matrix.get("python", default_python))
-        python_versions = _python_versions(python_value, default_python, f"variant {name} for {suite}")
+        python_value = variant.get("python", matrix.get("python", DEFAULT_PYTHON_VERSIONS))
+        python_versions = tuple(python_value)
+        if not python_versions:
+            raise MatrixError(f"variant {name} for {suite} needs a Python version")
         dependencies, integration, runs = _variant_settings(
             suite,
             suite_config,
-            defaults,
             matrix,
             variant,
             nightly,
@@ -299,7 +257,6 @@ def _expand_suite_matrix(
         for python in python_versions:
             environments.append(
                 TestEnvironment(
-                    hash=_environment_hash(suite, name, python, dependencies),
                     suite=suite,
                     variant_name=name,
                     integration_name=integration,
@@ -315,9 +272,8 @@ def _expand_suite_matrix(
 @cache
 def get_test_environments(*, nightly: bool) -> dict[str, tuple[TestEnvironment, ...]]:
     """Return every concrete test environment declared by suitespec."""
-    defaults = SUITESPEC.get("matrix_defaults", {})
     return {
-        suite: _expand_suite_matrix(suite, config, defaults, nightly=nightly)
+        suite: _expand_suite_matrix(suite, config, nightly=nightly)
         for suite, config in get_suites().items()
-        if config.get("matrix")
+        if "matrix" in config
     }

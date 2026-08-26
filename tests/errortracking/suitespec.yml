@@ -16,3 +16,4 @@ suites:
       command: pytest {cmdargs} tests/errortracking/
       dependencies: [flask, pip==26.2.1]
       python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+      variants: [{name: default}]

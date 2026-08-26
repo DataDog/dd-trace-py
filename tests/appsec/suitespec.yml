@@ -34,6 +34,7 @@ suites:
       dependencies: [requests, docker]
       env:
         DD_CIVISIBILITY_ITR_ENABLED: '0'
+      variants: [{name: default}]
   appsec_iast_default:
     venvs_per_job: 1
     paths:
@@ -102,6 +103,7 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_TRUNCATION_MAX_VALUE_LENGTH: '10000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
+      variants: [{name: default}]
   appsec_iast_native:
     venvs_per_job: 1
     paths:
@@ -122,6 +124,7 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_VULNERABILITIES_PER_REQUEST: '100000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
+      variants: [{name: default}]
   iast_aggregated_leak_testing:
     venvs_per_job: 1
     paths:
@@ -134,6 +137,7 @@ suites:
         DD_IAST_ENABLED: 'true'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.,scripts.iast.
       python: ['3.10', '3.11', '3.12']
+      variants: [{name: default}]
   appsec_iast_packages:
     venvs_per_job: 1
     paths:
@@ -151,6 +155,7 @@ suites:
         PYTHONDONTWRITEBYTECODE: '1'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec
       python: ['3.11', '3.12', '3.13', '3.14']
+      variants: [{name: default}]
   iast_tdd_propagation:
     venvs_per_job: 1
     paths:
@@ -181,6 +186,7 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_VULNERABILITIES_PER_REQUEST: '100000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec
+      variants: [{name: default}]
   appsec_integrations_pygoat:
     parallelism: 3
     paths:
@@ -208,6 +214,7 @@ suites:
         PYTHONUNBUFFERED: '1'
         _DD_IAST_DEBUG: 'false'
       python: ['3.10', '3.11', '3.12']
+      variants: [{name: default}]
   appsec_integrations_packages:
     env:
       TEST_POSTGRES_HOST: postgres
@@ -247,6 +254,7 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_VULNERABILITIES_PER_REQUEST: '100000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
+      variants: [{name: default}]
   appsec_integrations_stripe:
     paths:
       - '@bootstrap'
@@ -583,6 +591,7 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.10', '3.13']
+      variants: [{name: default}]
   appsec_threats_fastapi_no_iast:
     venvs_per_job: 1
     paths:
@@ -688,6 +697,7 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.10', '3.13']
+      variants: [{name: default}]
   appsec_threats_flask_no_iast:
     venvs_per_job: 1
     paths:
@@ -789,6 +799,7 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.11', '3.13']
+      variants: [{name: default}]
   appsec_threats_tornado_no_iast:
     venvs_per_job: 1
     paths:
@@ -884,6 +895,7 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.10', '3.14']
+      variants: [{name: default}]
   urllib:
     paths:
       - '@bootstrap'
@@ -933,3 +945,4 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/appsec/sca/
       dependencies: [jsonschema]
+      variants: [{name: default}]

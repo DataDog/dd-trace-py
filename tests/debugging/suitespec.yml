@@ -18,3 +18,4 @@ suites:
       command: pytest {cmdargs} tests/debugging/
       dependencies: [msgpack, httpretty, typing-extensions, pytest-asyncio, pytest-benchmark,
         pytest-memray, numpy]
+      variants: [{name: default}]

@@ -20,6 +20,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/aiguard/api/
       dependencies: [requests]
+      variants: [{name: default}]
   ai_guard_langchain:
     paths:
       - '@bootstrap'
@@ -107,6 +108,7 @@ suites:
       command: pytest {cmdargs} tests/aiguard/strands_hooks/
       dependencies: [strands-agents>=1.29.0]
       python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+      variants: [{name: default}]
   ai_guard_litellm_guardrail:
     paths:
       - '@bootstrap'

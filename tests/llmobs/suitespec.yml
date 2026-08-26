@@ -119,6 +119,7 @@ suites:
     matrix:
       command: pytest {cmdargs} tests/contrib/google_genai
       dependencies: [pytest-asyncio, google-genai]
+      variants: [{name: default}]
   vertexai:
     parallelism: 2
     paths:
@@ -135,6 +136,7 @@ suites:
       command: pytest {cmdargs} tests/contrib/vertexai
       dependencies: [pytest-asyncio, vertexai, google-ai-generativelanguage, google-cloud-aiplatform]
       python: ['3.9', '3.10', '3.11', '3.12']
+      variants: [{name: default}]
   llama_index:
     paths:
       - '@bootstrap'
@@ -509,3 +511,4 @@ suites:
       command: pytest {cmdargs} tests/contrib/vllm
       dependencies: [pytest-asyncio==0.21.1, pytest-randomly, torch, vllm>=0.10.2]
       python: ['3.10', '3.11', '3.12', '3.13']
+      variants: [{name: default}]
