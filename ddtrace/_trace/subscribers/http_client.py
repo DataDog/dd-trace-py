@@ -4,6 +4,7 @@ from typing import Optional
 from typing import cast
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
@@ -44,6 +45,11 @@ class HttpClientTracingSubscriber(TracingSubscriber):
             set_method_tag(span, event.request_method)
             # Through the shared helper so an unaccepted method reads HTTP here as well as at
             # export; naming it PROPFIND now would show sampling a resource the span never ships.
+            # The resource on the span at this point came from the integration through the
+            # event, so instrumentation owns it. Recording that first stops the rename below
+            # from mistaking an integration-supplied value such as "GET /actual/path" for a
+            # user's choice and shipping the URI path as the span name.
+            span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
             normalized_method, original_method = normalize_http_method(event.request_method)
             set_otel_http_resource(span, normalized_method, original_method)
 

@@ -39,6 +39,11 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             # request finishes, and a rule must not match the integration's Datadog resource.
             # The route is unknown this early, so this is the method alone; set_http_meta
             # appends the route once the framework resolves it.
+            # The resource on the span at this point came from the integration through the
+            # event, so instrumentation owns it. Recording that first stops the rename below
+            # from mistaking an integration-supplied value such as "GET /actual/path" for a
+            # user's choice and shipping the URI path as the span name.
+            span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
             normalized_method, original_method = normalize_http_method(event.request_method)
             set_otel_http_resource(span, normalized_method, original_method)
 

@@ -10,6 +10,7 @@ from starlette.middleware import Middleware
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
@@ -150,7 +151,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
 
     path, is_route = route_match
     method = scope.get("method")
-    span.resource = "{} {}".format(method, path) if method else path
+    set_instrumentation_resource(span, "{} {}".format(method, path) if method else path)
     if is_route:
         span._set_attribute(http.ROUTE, path)
 
@@ -309,9 +310,9 @@ def traced_handler(wrapped, instance, args, kwargs):
             path = "".join(resource_paths[index:])
 
             if scope.get("method"):
-                span.resource = "{} {}".format(scope["method"], path)
+                set_instrumentation_resource(span, "{} {}".format(scope["method"], path))
             else:
-                span.resource = path
+                set_instrumentation_resource(span, path)
             # route should only be in the root span
             if index == 0:
                 span._set_attribute(http.ROUTE, path)
