@@ -93,7 +93,6 @@ suites:
     retry: 2
     snapshot: true
   appsec_integrations_pygoat:
-    ddtest: true
     parallelism: 3
     paths:
       - '@bootstrap'

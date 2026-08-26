@@ -114,13 +114,6 @@ include:
       # the base venv; the per-hash deps are installed lazily by prepare.
       python scripts/ddtest-riot.py prepare "${RIOT_HASH}"
       eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
-      # Derive DD_SERVICE from the suite path (tests/internal -> tests.internal)
-      # so the ddtrace pytest plugin reports the same service as the legacy
-      # `riot run` path. `python -m pytest` (ddtest) sets sys.argv[0] to
-      # pytest's __init__.py, which detect_service picks up as a test path,
-      # producing service='pytest' instead of the module name. Setting
-      # DD_SERVICE explicitly ensures snapshot tests see the right service.
-      export DD_SERVICE=$(echo "${DDTEST_SUITE_PATH}" | tr '/' '.')
       python -c "import ddtrace, pytest, envier"
 
 .ddtest_base_snapshot:

@@ -394,7 +394,6 @@ suites:
       - tests/contrib/avro/*
     snapshot: true
   aws_lambda:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -508,7 +507,6 @@ suites:
       - azurite
       - azurecosmosemulator
   azure_functions:eventhubs:
-    ddtest: true
     parallelism: 4
     paths:
       - '@bootstrap'
