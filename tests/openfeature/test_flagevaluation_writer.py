@@ -463,7 +463,9 @@ class TestPeriodicFlush:
         mock_get_conn = mock.Mock()
         local_conn = mock.Mock()
         local_conn.getresponse.side_effect = ConnectionResetError("ambiguous")
-        mock_get_conn.return_value = local_conn
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
         selector = _route_selector(source=AGENTLESS, api_key="secret")
         writer = FlagEvaluationWriter(
             interval=10.0,
@@ -476,6 +478,15 @@ class TestPeriodicFlush:
 
         mock_get_conn.assert_called_once_with("http://agent:8126", timeout=2.0)
         assert selector.select().direct is True
+
+        writer.enqueue(_make_event(flag_key="future-batch"))
+        writer.periodic()
+
+        assert mock_get_conn.call_args_list[-1] == mock.call(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )
+        assert direct_conn.request.call_args[0][1] == "/api/v2/flagevaluation"
 
     def test_two_evals_same_dims_aggregate_count_2(self, writer):
         t0 = int(time.time() * 1000)

@@ -5,6 +5,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.openfeature._evp_transport import DIRECT_RETRY_STATUSES
+from ddtrace.internal.openfeature._evp_transport import AmbiguousLocalEVPDeliveryError
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
 from ddtrace.internal.settings.openfeature import AGENTLESS
@@ -185,9 +186,10 @@ def test_ambiguous_failure_does_not_replay_current_batch_but_switches_future(err
         calls.append(active_route)
         raise error
 
-    with pytest.raises(type(error)):
+    with pytest.raises(AmbiguousLocalEVPDeliveryError) as caught:
         selector.send(route, send_once)
 
+    assert caught.value.__cause__ is error
     assert calls == [route]
     assert selector.select() is route.fallback
 

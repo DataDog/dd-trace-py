@@ -208,14 +208,13 @@ class TestExposureWriter:
 
     def test_agentless_ambiguous_local_failure_never_replays_current_batch_direct(self, sample_exposure_event):
         mock_get_connection = mock.Mock()
-        local_connections = [mock.Mock() for _ in range(3)]
-        for connection in local_connections:
-            connection.getresponse.side_effect = BrokenPipeError("ambiguous")
+        local_conn = mock.Mock()
+        local_conn.getresponse.side_effect = BrokenPipeError("ambiguous")
         direct_conn = mock.Mock()
         direct_resp = mock.Mock(status=202)
         direct_resp.read.return_value = b"OK"
         direct_conn.getresponse.return_value = direct_resp
-        mock_get_connection.side_effect = [*local_connections, direct_conn]
+        mock_get_connection.side_effect = [local_conn, direct_conn]
         selector = _route_selector(source=AGENTLESS, api_key="secret")
         writer = ExposureWriter(
             interval=0.001,
@@ -226,7 +225,7 @@ class TestExposureWriter:
 
         writer.periodic()
 
-        assert mock_get_connection.call_args_list == [mock.call("http://agent:8126", timeout=2.0)] * 3
+        assert mock_get_connection.call_args_list == [mock.call("http://agent:8126", timeout=2.0)]
         writer.enqueue(sample_exposure_event)
         writer.periodic()
         assert mock_get_connection.call_args_list[-1] == mock.call(

@@ -15,6 +15,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._evp_transport import AmbiguousLocalEVPDeliveryError
 from ddtrace.internal.openfeature._evp_transport import EVPRoute
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
@@ -135,7 +136,7 @@ class ExposureWriter(PeriodicService):
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
             initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, Response),
+            until=lambda result: isinstance(result, (Response, AmbiguousLocalEVPDeliveryError)),
         )(self._send_payload)
 
         logger.debug(

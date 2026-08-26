@@ -42,6 +42,10 @@ DIRECT_RETRY_STATUSES = frozenset((403, 404, 405))
 _T = TypeVar("_T")
 
 
+class AmbiguousLocalEVPDeliveryError(Exception):
+    """A local delivery failure that may have happened after the batch was accepted."""
+
+
 @dataclass(frozen=True)
 class EVPRoute:
     """One immutable route snapshot used for the lifetime of an encoded batch."""
@@ -166,7 +170,7 @@ class FeatureFlagEVPRouteSelector:
 
     def send(self, route: EVPRoute, send_once: Callable[[EVPRoute], _T]) -> _T:
         """Send once, replaying through direct intake only after a definitive local rejection."""
-        # AIDEV-NOTE: The caller snapshots ``route`` for the whole batch retry loop. On an
+        # AIDEV-NOTE: The caller snapshots route for the whole batch retry loop. On an
         # ambiguous failure we switch only future batches to direct intake, avoiding a
         # cross-route replay that could duplicate an event already accepted by the Agent.
         try:
@@ -177,9 +181,11 @@ class FeatureFlagEVPRouteSelector:
                 self._activate_direct(route, fallback)
                 return send_once(fallback)
             if fallback is not None and _is_ambiguous_io_failure(error):
-                # The receiver may have accepted this batch. Only later route snapshots
-                # may use direct intake; the caller can keep same-route retry semantics.
+                # The receiver may have accepted this batch. Mark this failure as terminal
+                # for callers with same-batch retries; only later route snapshots may use
+                # direct intake.
                 self._activate_direct(route, fallback)
+                raise AmbiguousLocalEVPDeliveryError("local EVP delivery outcome is unknown") from error
             raise
 
         status = getattr(response, "status", None)
