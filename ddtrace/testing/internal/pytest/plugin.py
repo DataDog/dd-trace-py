@@ -1603,6 +1603,17 @@ def pytest_load_initial_conftests(
     if _corrected_service and _corrected_service != session_manager.service:
         session_manager.service = _corrected_service
         session_manager.session.set_service(_corrected_service)
+        # Also fix BaseServiceProcessor._global_service, which was set
+        # from config.service at import time (before this fix).
+        # The _dd.base_service meta tag is derived from _global_service.
+        import ddtrace.tracer as _tracer
+
+        for _proc in getattr(_tracer._span_aggregator, "_dd_processors", []):
+            if hasattr(_proc, "_global_service"):
+                from ddtrace.internal.schema import schematize_service_name
+
+                _proc._global_service = schematize_service_name(_corrected_service.lower())
+                break
 
     # When running with xdist, let the workers reuse what this controller fetched instead of querying the backend.
     _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))
