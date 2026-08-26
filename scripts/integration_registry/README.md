@@ -56,7 +56,7 @@ Each integration entry in the `integrations` list adheres to the schema defined 
 The registry is automatically updated through two main mechanisms:
 
 1. **Test Suite Execution**:
-   * Running an integration test suite automatically updates its version information when needed
+   * Running an integration test suite automatically updates its version information in the registry when needed
    * This happens through the [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py) which tracks patched dependencies and their tested versions during test execution
 
 2. **Manual Update Script**:
@@ -89,7 +89,7 @@ When adding a new integration:
 
 1. Create the integration directory and implementation in `ddtrace/contrib/internal/`
     - Ensure the patched module has `_datadog_patch=True`. The integration registry test code uses this attribute to determine which dependencies are patched, and that within the `patch()` function, the integration uses `getattr(module, '_datadog_patch') is True`.
-2. Add tests and a corresponding matrix in [`tests/contrib/suitespec.yml`](../../../tests/contrib/suitespec.yml)
+2. Add tests and a corresponding test environment definition
 3. Run the test suite - this will automatically:
    * Add the integration to the registry
    * Record its dependency information
@@ -126,7 +126,7 @@ If you need to debug or manually run the integration registry update process, th
 
 1.  Navigate to the [code section containing the local run logic](tests/contrib/integration_registry/registry_update_helpers/integration_update_orchestrator.py#L175-L183).
 2.  Uncomment the Python code block as indicated and comment out the the lines previous that run the updater in a subprocess.
-3. Ensure `filelock` and `pyyaml` are present in the suite's dependency matrix.
+3. Ensure the required dependencies (`filelock`, `pyyaml`) are installed in the test environment you are running. Add them temporarily to the relevant environment definition.
 4.  Execute the test suite, and place a breakpoint in your choice of code for the `IntegrationRegistryUpdater`.
 
 ## Related Files

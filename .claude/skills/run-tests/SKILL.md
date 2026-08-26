@@ -30,10 +30,9 @@ Use this skill when you have:
 
 1. **Always use the run-tests skill** when testing code changes - it's optimized for intelligent suite discovery
 2. **Never run pytest directly** - use `scripts/run-tests`
-3. **Use `-s` only for reruns** - first establish a current ddtrace installation, then reuse it
-4. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
-5. **Inspect with `--list` first** - see matching environments before executing
-6. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
+3. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
+4. **Use `--list` first** - see matching environments before executing
+5. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
 
 ## How This Skill Works
 
@@ -85,11 +84,11 @@ When you modify files like:
 #### For Test-Only Changes
 When you modify `tests/` files (but not test infrastructure):
 - Run only the specific test files/functions modified
-- Pass pytest arguments after one separator, for example `-- -k test_name`
+- Pass test-command arguments after one separator, for example `-- -k test_name`
 
 #### For Test Infrastructure Changes
 When you modify:
-- `tests/conftest.py`, suitespec files, `scripts/run-tests`, or `.uv` locks
+- `tests/conftest.py`, suite or environment definitions, dependency locks, or `scripts/run-tests`
 
 **Strategy:** Run a quick smoke test suite
 - Example: `internal` suite with 1 venv as a sanity check
@@ -97,20 +96,28 @@ When you modify:
 
 ### Step 4: Execute Selected Venvs
 
-Run the selected environment hashes. The runner creates the uv environment, installs dd-trace-py, installs its exact lock, and manages required services:
+I'll run the selected venvs. On the **first invocation in a session**, always run without `-s` to ensure the venv has dd-trace-py properly installed:
 
 ```bash
-scripts/run-tests --venv <environment-hash-1> --venv <environment-hash-2>
+scripts/run-tests --venv <hash1> --venv <hash2>
 ```
 
-After a successful first run, reuse the verified ddtrace installation for faster iteration:
+On **subsequent runs**, pass `-s` before the test-command separator to reuse the current ddtrace installation:
 
 ```bash
-scripts/run-tests -s --venv <environment-hash-1> --venv <environment-hash-2>
+scripts/run-tests -s --venv <hash1> --venv <hash2>
 ```
 
-Use `-s` before the `--` separator. A `-s` after the separator is pytest's output-capture option. Omit the runner flag
-after native-code or project-metadata changes, or after updating the branch from main.
+**When to use `-s` (skip base install) on subsequent runs:**
+- Only Python files were modified (no native code changes)
+- Iterating on test fixes within the same session
+- Re-running tests after small code tweaks
+
+**When to omit `-s` even on subsequent runs (force rebuild):**
+- After merging or rebasing from main (dependencies or native code may have changed)
+- C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
+- `setup.py`, `pyproject.toml`, or `setup.cfg` were modified
+- Test environment definitions or dependency locks were modified
 
 This will:
 - Start required Docker services (redis, postgres, etc.)
@@ -129,9 +136,9 @@ This will:
 - Offer to run specific failing tests with more verbosity
 - Help iterate on fixes and re-run
 
-For re-running specific tests:
+For re-running specific tests (use `-s` since the venv is already built):
 ```bash
-scripts/run-tests -s --venv <environment-hash> -- -vv -k test_name
+scripts/run-tests -s --venv <hash> -- -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -157,13 +164,13 @@ From `scripts/run-tests --list`, you'll see output like:
       "name": "tracer",
       "venvs": [
         {
-          "hash": "0123456789ab",
-          "python_version": "3.9",
+          "hash": "abc123",
+          "python_version": "3.8",
           "packages": "..."
         },
         {
-          "hash": "abcdef012345",
-          "python_version": "3.14",
+          "hash": "def456",
+          "python_version": "3.11",
           "packages": "..."
         }
       ]
@@ -176,7 +183,7 @@ From `scripts/run-tests --list`, you'll see output like:
 
 1. **Latest Python version is your default choice**
    - Unless your change specifically targets an older Python version
-   - Example: if fixing Python 3.9 compatibility, also test 3.9
+   - Example: if fixing Python 3.8 compatibility, also test 3.8
 
 2. **One venv per suite is usually enough for iteration**
    - Only run multiple venvs per suite if:
@@ -197,13 +204,10 @@ From `scripts/run-tests --list`, you'll see output like:
 
 ### Using `--venv` Directly
 
-When you have a specific environment hash, run it directly without specifying file paths:
+When you have a specific venv hash you want to run, you can use it directly without specifying file paths:
 
 ```bash
-scripts/run-tests --venv <environment-hash>
-
-# Subsequent run while iterating on Python code
-scripts/run-tests -s --venv <environment-hash>
+scripts/run-tests --venv e06abee
 ```
 
 The `--venv` flag automatically searches **all available venvs** across all suites, so it works regardless of what files you have locally changed. This is useful when:
@@ -223,8 +227,13 @@ scripts/run-tests --list ddtrace/contrib/internal/flask/patch.py
 
 # Select output (latest Python):
 # Suite: contrib::flask
-# Select a Python 3.13 hash for contrib::flask from the JSON output.
-scripts/run-tests --venv <environment-hash>
+# Venv: hash=e06abee, Python 3.13, flask
+
+# First run: no -s to ensure venv is properly set up
+scripts/run-tests --venv e06abee
+
+# Subsequent runs: use -s since only Python files changed
+scripts/run-tests -s --venv e06abee
 ```
 
 ### Example 2: Fixing a Core Tracing Issue
@@ -239,7 +248,11 @@ scripts/run-tests --list ddtrace/_trace/tracer.py
 # - tracer: latest Python (e.g., abc123)
 # - internal: latest Python (e.g., def456)
 
-scripts/run-tests --venv <tracer-hash> --venv <internal-hash>
+# First run: no -s
+scripts/run-tests --venv abc123 --venv def456
+
+# Subsequent runs: use -s since only Python files changed
+scripts/run-tests -s --venv abc123 --venv def456
 ```
 
 ### Example 3: Fixing a Test-Specific Bug
@@ -250,15 +263,19 @@ scripts/run-tests --venv <tracer-hash> --venv <internal-hash>
 scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
-scripts/run-tests --venv <environment-hash> -- -vv tests/contrib/flask/test_views.py
+# First run: no -s
+scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
+
+# Subsequent runs: use -s to skip rebuild
+scripts/run-tests -s --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
 
-After the first run shows a test failing, narrow the pytest selection:
+After the first run shows a test failing, use `-s` to iterate quickly:
 
 ```bash
-scripts/run-tests -s --venv <environment-hash> -- -vv -k test_view_called_twice
+scripts/run-tests -s --venv flask_py311 -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -266,7 +283,7 @@ scripts/run-tests -s --venv <environment-hash> -- -vv -k test_view_called_twice
 
 ### DO ✅
 
-- **Use `-s` for current environments**: Skip reinstalling ddtrace during ordinary Python-only iteration
+- **Use `-s` on subsequent runs**: Reuse the current ddtrace installation when only Python files changed
 - **Start small**: Run 1 venv first, expand only if needed
 - **Be specific**: Use pytest `-k` filter when re-running failures
 - **Check git**: Verify you're testing the right files with `git status`
@@ -275,7 +292,8 @@ scripts/run-tests -s --venv <environment-hash> -- -vv -k test_view_called_twice
 
 ### DON'T ❌
 
-- **Use `-s` after native or metadata changes**: Refresh the editable installation first
+- **Use `-s` after merging from main**: Native code or dependencies may have changed, requiring a rebuild
+- **Use `-s` when C/Cython/CMake files changed**: Native extensions must be recompiled
 - **Run all venvs initially**: That's what CI is for
 - **Skip the minimal set guidance**: It's designed to save you time
 - **Ignore service requirements**: Some suites need Docker services up
@@ -292,7 +310,7 @@ scripts/run-tests -s --venv <environment-hash> -- -vv -k test_view_called_twice
   - Where to put tests in the repository
   - Prerequisites (Docker, uv)
   - Complete `scripts/run-tests` usage examples
-  - uv environment and lock management details
+  - Test environment and dependency-lock details
   - Running specific test files and functions
   - Test debugging strategies
 
@@ -336,10 +354,9 @@ docker compose down
 
 The `scripts/run-tests` system:
 - Maps source files to test suites using patterns in `tests/suitespec.yml`
-- Expands suitespec matrices into uv environments with committed locks
+- Runs isolated Python/package combinations selected by suite
 - Each venv is a self-contained environment
 - Docker services are managed per suite lifecycle
-- `-s` explicitly enables reuse of a verified ddtrace installation
 - Pass test-command arguments after one `--` separator.
 
 ### Supported Suite Types
@@ -369,14 +386,14 @@ You can limit CPU and memory resources to simulate resource-constrained CI envir
 **Usage:**
 ```bash
 # Run tests with resource constraints
-DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <environment-hash>
+DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash>
 
 # Run specific test file with heavy constraints
 DD_TEST_CPUS=0.25 DD_TEST_MEMORY=1g scripts/run-tests tests/path/to/test.py
 
 # Multiple runs to catch intermittent failures
 for i in {1..10}; do
-  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <environment-hash> -- --randomly-seed=$RANDOM
+  DD_TEST_CPUS=0.5 DD_TEST_MEMORY=1g scripts/run-tests --venv <hash> -- --randomly-seed=$RANDOM
 done
 ```
 

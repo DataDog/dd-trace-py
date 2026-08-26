@@ -27,7 +27,7 @@ tests.
 
 #### As tests
 
-1. List the available environments with `scripts/test-env list ci_visibility`.
+1. List the environments with `scripts/run-tests --list tests/ci_visibility/api`.
 1. Run the selected environment; the test runner starts `testagent` when needed:
    1. All tests: `scripts/run-tests --venv <environment-hash> -- -k FakeApiRunnersSnapshotTestCase`
    1. Individual test: `scripts/run-tests --venv <environment-hash> -- -k test_manual_api_fake_runner_mix_fail_itr_test_level`

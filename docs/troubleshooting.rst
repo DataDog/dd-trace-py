@@ -127,12 +127,12 @@ ModuleNotFoundError when running tests
 =======================================
 If you run a test and encounter this error ``ModuleNotFoundError: No module named '<package name>'``
 
-The selected uv environment may be stale or its lock may not include the package.
-Remove its directory under ``.cache/uv-test-environments`` and run it again:
+Run the affected environment again without ``-s`` so its dependencies and ddtrace installation are refreshed:
 
 ``scripts/run-tests --venv <environment-hash>``
 
-If the dependency declaration changed, regenerate that suite with ``scripts/test-env lock <suite>``.
+If the environment definition changed, regenerate and commit the dependency locks as described in
+:ref:`testing_guidelines`.
 
 
 Still having issues?

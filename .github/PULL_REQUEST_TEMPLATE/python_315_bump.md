@@ -15,13 +15,13 @@ This PR enables the **`<integration>`** integration on Python 3.15.
 <!-- One-paragraph summary of the upstream blocker and what changed.
      Example: "Bumps `tiktoken` to 0.x.y, which adds Python 3.15 wheels
      (https://github.com/openai/tiktoken/releases/tag/x.y). Lifts the
-     Python 3.13 cap in the `<integration>` suitespec matrix." -->
+     Python 3.13 cap on the `<integration>` test environment." -->
 
 ## Checklist
 
-- [ ] Bumped the upstream pin in suitespec to a version that supports Python 3.15
-- [ ] Added Python 3.15 to the affected matrix cases where supported
-- [ ] Ran `scripts/test-env lock <suite>` and committed the regenerated `.uv/*.txt` locks
+- [ ] Bumped the upstream pin in the test environment definition to a version that supports Python 3.15
+- [ ] Enabled Python 3.15 for the affected test environments
+- [ ] Ran `scripts/compile-and-prune-test-requirements` and committed the regenerated dependency locks
 - [ ] Ran the suite locally on 3.15 via `scripts/run-tests <suite>` (paste a link or summary of the result)
 - [ ] Updated `supported_versions.json` if integration min/max versions changed
 - [ ] Release note added under `releasenotes/notes/`, **or** PR labeled `changelog/no-changelog` (test/CI-only changes)

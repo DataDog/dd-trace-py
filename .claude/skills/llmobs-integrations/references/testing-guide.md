@@ -100,7 +100,7 @@ the test-agent proxy. Anthropic and Bedrock are useful references:
 define `vcr.VCR(...)` fixtures with cassette directory, request matching, and
 auth-header filtering.
 
-Use this pattern when the SDK can call the provider normally and vcrpy can record/replay the HTTP layer. Add `vcrpy` to the suite's dependency matrix only when needed, and follow nearby integrations for version constraints.
+Use this pattern when the SDK can call the provider normally and vcrpy can record/replay the HTTP layer. Add `vcrpy` only to suites that need it, and follow nearby integrations for version constraints.
 
 ### Mocked Provider/Client Objects
 

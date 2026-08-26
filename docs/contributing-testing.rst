@@ -56,7 +56,7 @@ The ``scripts/run-tests`` script handles this automatically:
 **Manual approach with ddtest**
 
 This repo includes a Docker container definition that provides a pre-built test environment.
-You can access it and run lint checks with:
+You can access it and run repository tools with commands such as:
 
 .. code-block:: bash
 
@@ -69,35 +69,28 @@ How do I run only the tests I care about?
 
 **Easy way: Use scripts/run-tests**
 
-The ``scripts/run-tests`` script handles this automatically:
+Pass test-command arguments after ``--``:
 
 .. code-block:: bash
 
-    # Add pytest arguments for test selection
     $ scripts/run-tests tests/contrib/django/ -- -k test_specific_function
-
-    # Run specific test functions
     $ scripts/run-tests tests/contrib/flask/ -- -k "test_request or test_response"
 
-Run a concrete environment directly
------------------------------------
-
-List a suite's environment hashes, then select one directly:
+List the matching environments before selecting one by hash. The runner starts any services declared by the suite:
 
 .. code-block:: bash
 
-    $ scripts/test-env list contrib::django --python 3.12
-    $ scripts/run-tests --venv <environment-hash> -- -k test_name
+    $ scripts/run-tests --list tests/contrib/django/
+    $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-The first run installs ddtrace and the suite's exact dependencies. For faster reruns, pass ``-s`` or
-``--skip-ddtrace-install`` before the pytest separator to reuse that verified ddtrace installation:
+After a successful first run, pass ``-s`` before ``--`` to reuse the current ddtrace installation. Omit it after
+changing native code or project metadata, or after updating from main.
 
 .. code-block:: bash
 
-    $ scripts/run-tests -s --venv <environment-hash> -- -k test_name
+    $ scripts/run-tests -s --venv <environment-hash> -- -k test_specific_function
 
-An ``-s`` after ``--`` is passed to pytest and disables output capture. Omit the runner's ``-s`` after changing native
-code or project metadata, or after updating from main, so the editable installation is refreshed.
+An ``-s`` after ``--`` belongs to the test command and disables output capture.
 
 Why are my tests failing with 404 errors?
 -----------------------------------------
@@ -107,10 +100,7 @@ To fix this:
 
 .. code-block:: bash
 
-    # outside of the testrunner shell
-    $ docker compose up -d testagent
-
-    $ scripts/run-tests --venv <environment-hash>
+    $ scripts/run-tests <test-path>
 
 Why are my Docker tests failing with permission errors on Linux?
 -----------------------------------------------------------------
@@ -152,26 +142,23 @@ If you encounter build failures, CMake errors, or stale native extension issues 
 - **Using scripts/ddtest:** The project is mounted from the host, so run ``scripts/clean`` on the host first.
   The container sees the cleaned project on the next run.
 
-Then run the environment again without ``-s`` to refresh the editable ddtrace installation:
+Then run the environment without ``-s`` so that the ddtrace installation is refreshed:
 
 .. code-block:: bash
 
     $ scripts/run-tests --venv <environment-hash> -- -vv -k test_name
 
-CI builds the native ddtrace extensions once per Python version. Each test job uses those artifacts in its isolated uv
-environment, and passes ``-s`` explicitly to permit reuse of a current installation.
+Once the build succeeds, you can use ``-s`` again for faster subsequent runs.
 
 Why is my CI run failing with a message about requirements files?
 -----------------------------------------------------------------
 
-``.uv`` contains one compiled requirements file for every environment declared in suitespec. If a matrix's
-dependencies change, regenerate only the affected suite:
+Test environments use committed dependency locks. After changing an environment's dependency definition, regenerate
+the locks and commit both changes:
 
 .. code-block:: bash
 
-  $ scripts/test-env lock <suite>
-
-Commit the resulting ``.uv`` changes with the suitespec change.
+  $ scripts/ddtest scripts/compile-and-prune-test-requirements
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -210,42 +197,14 @@ The library includes automated SLO checks that monitor performance thresholds fo
 How do I add a new test suite?
 ------------------------------
 
-Add the suite and its dependency matrix to the appropriate ``suitespec.yml`` file:
+Add a suite definition and dependency environments alongside a similar suite, then regenerate the dependency locks.
+See ``tests/README.md`` for the CI suite schema and use ``scripts/run-tests`` for local validation.
 
-.. code-block:: yaml
+How do I update a test environment to use the latest version of a package?
+----------------------------------------------------------------------------
 
-    yaaredis:
-      paths:
-        - '@contrib'
-        - '@redis'
-        - tests/contrib/yaaredis/*
-      services:
-        - redis
-      snapshot: true
-      matrix:
-        command: pytest {cmdargs} tests/contrib/yaaredis
-        dependencies: [pytest-asyncio==0.21.1]
-        variants:
-          - name: yaaredis-2
-            dependencies: ['yaaredis~=2.0.0']
-          - name: yaaredis-latest
-            dependencies: [yaaredis]
-
-Generate its locks with ``scripts/test-env lock yaaredis``. See ``tests/README.md`` for suite-selection details.
-
-See ``tests/README.md`` for more detail on adding new CI jobs.
-
-How do I update a suite to the latest version of a package?
------------------------------------------------------------
-
-A matrix dependency without a version constraint represents the latest compatible release when its lock is generated. Refresh
-only that suite:
-
-.. code-block:: bash
-
-    $ scripts/test-env lock <suite>
-
-Commit the changed ``.uv`` locks. The generator applies the repository's package waiting-period policy.
+Update the dependency constraint in the environment definition, run
+``scripts/ddtest scripts/compile-and-prune-test-requirements``, and commit the resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------

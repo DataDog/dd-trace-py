@@ -101,7 +101,7 @@ See `docs/troubleshooting.rst`. Covers common issues including:
 - Installation failures and missing native extensions
 - Traces not appearing in the Datadog app
 - Connection errors sending to the agent
-- Build failures and `ModuleNotFoundError` in uv test environments
+- Build failures and `ModuleNotFoundError` in test environments
 
 ## Skills
 
@@ -119,7 +119,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
 | `run-benchmarks` | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact. |
 | `debug-build-times` | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow. |
-| `apm-integrations` | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, testing with uv, VCR cassettes, and anti-patterns. Use when touching any integration. |
+| `apm-integrations` | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration. |
 | `llmobs-integrations` | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
 
 ## Domain Guides
@@ -134,6 +134,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
 | Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
 | Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md` | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
+| Benchmarking CI (microbenchmarks, SLO gates, flaky benchmarks) | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` | `.gitlab/benchmarks/`, `benchmarks/suitespec.yml` |
 | Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
 | Linting | `.cursor/rules/linting.mdc` | — |
 | Testing | `.cursor/rules/testing.mdc` | — |

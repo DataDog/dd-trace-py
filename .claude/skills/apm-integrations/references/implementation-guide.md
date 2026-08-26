@@ -70,33 +70,17 @@ See the **llmobs-integrations** skill for the full LLM-specific implementation g
 
 ## 4. Add test environment
 
+Add dependency environments alongside a similar integration. Cover the oldest supported and latest compatible
+dependency versions, use only supported Python versions, and include helper packages such as `vcrpy` only when the
+suite needs them. Regenerate the committed dependency locks after changing an environment definition.
+
+### suitespec.yml
+
 Add **component** and **suite** entries to the correct suitespec file:
 - LLM/AI integrations: `tests/llmobs/suitespec.yml`
 - Standard integrations: `tests/contrib/suitespec.yml`
 
-Follow a similar integration in the same file. Put shared settings on the matrix and define the oldest and latest supported dependency versions as named variants:
-
-```yaml
-components:
-  {name}:
-    - ddtrace/contrib/internal/{name}/*
-
-suites:
-  {name}:
-    paths:
-      - '@{name}'
-      - tests/contrib/{name}/*
-    matrix:
-      command: pytest {cmdargs} tests/contrib/{name}
-      dependencies: [pytest-asyncio]
-      variants:
-        - name: {name}-1
-          dependencies: ['{package}~=1.0']
-        - name: {name}-latest
-          dependencies: ['{package}']
-```
-
-Omit dependencies that the suite does not need. Add `vcrpy` only for cassette-based tests, and specify Python versions only when compatibility requires a subset. Generate and commit the exact locks with `scripts/test-env lock <suite>`.
+Look at a similar integration's entry in the same suitespec file and follow the same pattern for both the `components:` and `suites:` sections.
 
 ## 5. Write tests
 
@@ -151,8 +135,9 @@ Every new integration must complete ALL applicable items:
 - [ ] `_llmobs_set_tags()` implemented with all required LLMObs fields (LLM only)
 
 ### Test Environment
-- [ ] Suitespec entry -- component and dependency matrix in the correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
-- [ ] `.uv` locks generated and committed with `scripts/test-env lock <suite>`
+- [ ] Test environments cover pinned + latest package versions
+- [ ] Suitespec entry -- component + suite in correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
+- [ ] Compile and prune test requirements if needed -- follow `docs/contributing-testing.rst` and existing repo workflow
 
 ### Tests
 - [ ] `tests/contrib/{name}/test_{name}_patch.py` -- patch/unpatch cycle tests
