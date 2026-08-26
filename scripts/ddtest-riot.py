@@ -377,7 +377,12 @@ def cmd_prepare(args):
     inst = _instance_by_identifier(args.hash)
     env = os.environ.copy()
     env.update(dict(inst.env))
+    # Surface prepare progress/failures in the CI log. riot logs but some
+    # skips are silent; print markers so it's visible, and let exceptions
+    # propagate (nonzero exit).
+    print(f"Preparing riot venv {inst.short_hash} ({inst.name or 'unnamed'})", flush=True)
     inst.prepare(env, skip_deps=True)
+    print(f"Prepared riot venv {inst.short_hash}", flush=True)
 
 
 def main(argv=None):

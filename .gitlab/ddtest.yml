@@ -80,18 +80,18 @@ ddtest-internal-pilot:
       #    skip_deps=True skips the ddtrace reinstall already in the base)
       #    so the per-hash deps are present before ddtest runs.
       python scripts/ddtest-riot.py prepare "${RIOT_HASH}"
-
-      # 3. Activate the riot venv for this hash. The build_base_venvs
-      #    artifact already restored .riot/venv_py310 with ddtrace compiled;
-      #    the bridge reads the riotfile and emits KEY=value lines (VIRTUAL_ENV,
-      #    PATH with the venv bin first, PYTHONPATH site-packages, the venv's
-      #    env vars, riot's RIOT_* vars, and DDTEST_SUITE_PATH). We eval them so
-      #    `python` resolves to the venv interpreter and ddtrace/pytest are
-      #    importable.
+      # Activate the riot venv for this hash and verify the per-hash
+      # deps installed by prepare are importable. build_base_venvs
+      # restored .riot/venv_py310 with ddtrace compiled; the bridge reads
+      # the riotfile and emits KEY=value lines (VIRTUAL_ENV, PATH with the
+      # venv bin first, PYTHONPATH site-packages, the venv's env vars,
+      # riot's RIOT_* vars, and DDTEST_SUITE_PATH). We eval them so `python`
+      # resolves to the venv interpreter. Failing here (instead of inside
+      # ddtest) makes a missing dep obvious.
       eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
-      python -c "import ddtrace, pytest"
+      python -c "import ddtrace, pytest, envier"
 
-      # 4. Plan: discover tests/internal files and write .testoptimization/.
+      # 3. Plan: discover tests/internal files and write .testoptimization/.
       #    Single CI node for this pilot (see file header).
       ./bin/ddtest plan \
         --platform python \
@@ -100,7 +100,7 @@ ddtest-internal-pilot:
         --min-parallelism 1 \
         --max-parallelism 1
 
-      # 5. Run: execute this node's files in the activated venv. ncpu fans out
+      # 4. Run: execute this node's files in the activated venv. ncpu fans out
       #    with xdist inside the job.
       ./bin/ddtest run \
         --platform python \
