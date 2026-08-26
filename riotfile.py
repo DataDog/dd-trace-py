@@ -644,7 +644,7 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
-            command="pytest -v -n auto --dist=worksteal {cmdargs} ${DDTEST_SUITE_PATH}/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
