@@ -17,7 +17,9 @@ The `_datadog_patch` flag on the module prevents double-patching. Always check
 Many existing integrations use `Pin().onto(module)` and `Pin.get_from(instance)`.
 Pin is DEPRECATED -- do NOT use it in new integrations. It remains in existing
 integrations (redis, kafka, grpc, graphql, psycopg, flask, celery, etc.) but
-new code should use `context_with_event` or `context_with_data` instead.
+new span-producing code should use `context_with_event` or `context_with_data`
+instead. Specialized no-span runtime integrations may publish a raw core event
+to an established listener when they do not own the consuming product.
 
 ## The contrib/internal/ Split
 
@@ -26,7 +28,7 @@ The public API is `patch()`, `unpatch()`, and `get_version()` from `__init__.py`
 Each `__init__.py` contains RST docstrings for documentation generation --
 read `ddtrace/contrib/internal/anthropic/__init__.py` for an example.
 
-## Three Standard Patterns
+## Four Integration Patterns
 
 **`context_with_event()` + `TracingEvent`** (NEW — preferred for new integrations):
 Typed event-driven pattern using `core.context_with_event()` with `TracingEvent`
@@ -45,6 +47,15 @@ a `Pin` to the library module/instance, wrapper functions call
 `Pin.get_from(instance)` to get the tracer, then use `tracer.trace()` to create
 spans directly. Still used by redis, kafka, grpc, graphql, requests, celery, etc.
 
+**Raw core event** (specialized no-span integrations only): A runtime wrapper
+uses `core.dispatch()` to publish lifecycle state to an established listener
+without creating spans. The producer must remain decoupled from the consuming
+product, use a shared internal event constant when multiple modules publish the
+event, guard hot wrappers with `core.has_listeners()`, and preserve symmetric
+patch/unpatch behavior. AnyIO and asyncio context-switch publication are the
+reference implementations. New span-producing integrations must use
+`TracingEvent` instead.
+
 ## LLM Integration Pattern
 
 See the `llmobs-integrations` skill for LLM/AI integration architecture. This
@@ -60,6 +71,6 @@ workflow; LLMObs lifecycle and extraction details belong in that skill.
 | `ddtrace/_trace/trace_handlers.py` | Span creation for context_with_data integrations |
 | `ddtrace/_trace/events.py` | TracingEvent base class (NEW events API) |
 | `ddtrace/_trace/subscribers/_base.py` | TracingSubscriber base (NEW events API) |
-| `ddtrace/internal/core/__init__.py` | Core API (context_with_data, context_with_event) |
+| `ddtrace/internal/core/__init__.py` | Core API (context_with_data, context_with_event, dispatch) |
 | `ddtrace/internal/core/events.py` | Event + event_field() primitives |
 | `riotfile.py` | Test environment matrix |

@@ -1,6 +1,8 @@
 import asyncio
 import os
+import threading
 
+import anyio
 import httpx
 import pytest
 import sqlalchemy
@@ -11,10 +13,14 @@ from starlette.routing import Route
 from starlette.testclient import TestClient
 
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.internal.anyio.patch import patch as anyio_patch
+from ddtrace.contrib.internal.anyio.patch import unpatch as anyio_unpatch
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
+from ddtrace.internal import core
+from ddtrace.internal.context_watcher import is_context_watcher_registered
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -128,6 +134,49 @@ def test_200(client, tracer, test_spans):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("component") == "starlette"
     assert request_span.get_tag("span.kind") == "server"
+
+
+@pytest.mark.skipif(
+    starlette_version < (0, 15, 0), reason="Starlette < 0.15 uses asyncio.run_in_executor instead of AnyIO"
+)
+@pytest.mark.skipif(
+    is_context_watcher_registered(),
+    reason="the native context watcher is active",
+)
+def test_sync_endpoint_context_switch_events(tracer, test_spans):
+    switches = []
+    worker = {}
+
+    def record_context_switch():
+        switches.append((threading.get_ident(), tracer.context_provider.active()))
+
+    def sync_endpoint(request):
+        worker["ident"] = threading.get_ident()
+        worker["context"] = tracer.context_provider.active()
+        return PlainTextResponse("Success")
+
+    anyio_was_patched = getattr(anyio, "_datadog_patch", False)
+    core.on("python.context.switch", record_context_switch)
+    anyio_patch()
+    try:
+        app = Starlette(routes=[Route("/", endpoint=sync_endpoint)])
+        with TestClient(app) as client:
+            response = client.get("/")
+    finally:
+        core.reset_listeners("python.context.switch", record_context_switch)
+        if not anyio_was_patched:
+            anyio_unpatch()
+
+    assert response.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert worker["context"].trace_id == request_span.trace_id
+    assert worker["context"].span_id == request_span.span_id
+    worker_contexts = [
+        None if context is None else (context.trace_id, context.span_id)
+        for ident, context in switches
+        if ident == worker["ident"]
+    ]
+    assert worker_contexts == [(request_span.trace_id, request_span.span_id), None]
 
 
 def test_200_query_string(client, tracer, test_spans):

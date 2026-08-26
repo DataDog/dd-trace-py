@@ -67,6 +67,13 @@ anthropic
 .. automodule:: ddtrace.contrib.internal.anthropic
 
 
+.. _anyio:
+
+anyio
+^^^^^
+.. automodule:: ddtrace.contrib.internal.anyio
+
+
 .. _asyncio:
 
 asyncio

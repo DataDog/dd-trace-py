@@ -8,6 +8,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal.constants import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal.settings._config import config
 
 
@@ -43,6 +44,8 @@ if sys.platform == "linux":
                 detach_otel_thread_context()
 
         def _sync_active_otel_thread_context() -> None:
+            # active() is the provider contract and also discards finished
+            # spans before their context is published to native thread-local storage.
             _sync_otel_thread_context(tracer.context_provider.active())
 
         def _on_context_provider_activate(provider: BaseContextProvider, ctx: Optional[Union[Context, Span]]) -> None:
@@ -50,7 +53,7 @@ if sys.platform == "linux":
                 _sync_otel_thread_context(ctx)
 
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
-        core.on("python.context.switch", _sync_active_otel_thread_context)
+        core.on(PYTHON_CONTEXT_SWITCH_EVENT, _sync_active_otel_thread_context)
 
         if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
             from ddtrace.internal.native._native import register_context_watcher

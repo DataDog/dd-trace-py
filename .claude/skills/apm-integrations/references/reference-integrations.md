@@ -1,6 +1,6 @@
 # Reference Integrations
 
-Canonical dd-trace-py integrations organized by the 13 integration categories.
+Canonical dd-trace-py integrations organized by integration category.
 **Read the canonical integration for your category before writing code.**
 
 All patch modules live in `ddtrace/contrib/internal/{name}/`.
@@ -22,6 +22,7 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | object-store | `botocore/patch.py` (S3) | -- | S3 via botocore service-specific handlers |
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
+| runtime-context | `anyio/patch.py` | `asyncio/patch.py` | Specialized no-span integrations that publish context-switch state through a shared raw core event |
 
 ## LLM / Generative AI Detail
 

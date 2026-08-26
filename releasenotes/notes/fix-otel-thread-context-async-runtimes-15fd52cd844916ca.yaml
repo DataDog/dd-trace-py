@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fixes incorrect trace and span correlation for host-profiler samples when code runs
+    on asyncio or uvloop event loops or AnyIO worker threads.
