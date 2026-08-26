@@ -2973,8 +2973,7 @@ venv = Venv(
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
-            env={
-                "DDTEST_SUITE_PATH": "tests/opentelemetry","DD_TRACE_OTEL_ENABLED": "true"},
+            env={"DDTEST_SUITE_PATH": "tests/opentelemetry", "DD_TRACE_OTEL_ENABLED": "true"},
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
