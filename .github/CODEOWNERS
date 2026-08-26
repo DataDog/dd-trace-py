@@ -108,7 +108,6 @@ ddtrace/version.py                  @DataDog/python-guild  @DataDog/apm-core-pyt
 tests/commands/                     @DataDog/python-guild  @DataDog/apm-core-python
 tests/contrib/django/django1_app/urls.py @DataDog/python-guild
 tests/contrib/flask/app.py         @DataDog/python-guild
-tests/contrib/integration_registry/test_test_environments.py @DataDog/python-guild
 tests/contrib/suitespec.yml         @DataDog/python-guild
 tests/smoke_test.py                 @DataDog/python-guild
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
