@@ -25,7 +25,7 @@ config._add(
 
 
 def get_version() -> str:
-    # `logging.__version__` still exists as the reported integration version, but on
+    # logging.__version__ still exists as the reported integration version, but on
     # Python 3.15+ accessing it emits a DeprecationWarning (scheduled for removal in 3.20).
     # Suppress that warning so it does not leak to stderr (see
     # test_module_watchdog_namespace_import_no_warnings) while still returning the value.
@@ -95,8 +95,8 @@ def _w_StrFormatStyle_format(func, instance, args, kwargs):
 
 def patch():
     """
-    Patch `logging` module in the Python Standard Library for injection of
-    tracer information by wrapping the base factory method `Logger.makeRecord`
+    Patch the logging module in the Python Standard Library for injection of
+    tracer information by wrapping the base factory method Logger.makeRecord
     """
     if getattr(logging, "_datadog_patch", False):
         return
