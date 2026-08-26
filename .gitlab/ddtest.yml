@@ -16,7 +16,7 @@
 # Flow (single job, auto-run):
 #   needs build_base_venvs (PYTHON_VERSION=3.10)  -> restores .riot/venv_py310
 #   download ddtest binary
-#   riot -P -v run -s <hash> -- true            -> prepare per-hash deps (envier, ...)
+#   riot prepare (via bridge)                       -> install per-hash deps (envier, ...)
 #   eval "$(python scripts/ddtest-riot.py venv-env 4f70b3c)"  -> activate venv
 #   ddtest plan  -p python -f pytest --tests-location tests/internal \
 #                 --min-parallelism 1 --max-parallelism 1
@@ -24,11 +24,11 @@
 #
 # The pilot does NOT run `riot generate`: it reuses the venv built by
 # build_base_venvs (which already compiled the native extensions), so it
-# needs only default runner resources. It DOES run `riot run -s <hash> --
-# true` to prepare the per-hash deps venv (install envier, pytest, ... into
-# the prefix), because build_base_venvs only installs ddtrace into the base
-# venv — the per-hash deps are installed lazily by `riot run` via
-# VenvInstance.prepare, exactly as the legacy `riot run -s <hash> -- --ddtrace`
+# needs only default runner resources. It calls the bridge's `prepare`
+# subcommand (riot's VenvInstance.prepare via the library API) to install
+# the per-hash deps into the prefix, because build_base_venvs only
+# installs ddtrace into the base venv — the per-hash deps are installed
+# lazily by prepare, exactly as the legacy `riot run -s <hash> -- --ddtrace`
 # job does before pytest.
 #
 # The pilot runs automatically on every child pipeline (push) so it can be
@@ -75,12 +75,11 @@ ddtest-internal-pilot:
       # 2. Prepare the per-hash riot venv. build_base_venvs only installs
       #    ddtrace into the base venv (venv_py310); the per-hash deps
       #    (envier, pytest, ...) are installed into the prefix
-      #    (venv_py310_<ident>) by `riot run` via VenvInstance.prepare.
-      #    Run a no-op riot command with -s (skip the ddtrace reinstall,
-      #    already in the base) so prepare installs the per-hash deps.
-      #    This mirrors what the legacy `riot run -s <hash> -- --ddtrace` job
-      #    does before pytest.
-      riot -P -v run -s --pass-env "${RIOT_HASH}" -- true
+      #    (venv_py310_<ident>) by riot's VenvInstance.prepare.
+      #    Call prepare directly via the bridge (riot as a library,
+      #    skip_deps=True skips the ddtrace reinstall already in the base)
+      #    so the per-hash deps are present before ddtest runs.
+      python scripts/ddtest-riot.py prepare "${RIOT_HASH}"
 
       # 3. Activate the riot venv for this hash. The build_base_venvs
       #    artifact already restored .riot/venv_py310 with ddtrace compiled;

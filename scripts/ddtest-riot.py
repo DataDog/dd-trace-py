@@ -48,10 +48,20 @@ Subcommands
     intended to be consumed verbatim by ddtest as the env for
     ``python -m pytest <files>``.
 
+``prepare <hash>``
+    Install the per-hash deps (envier, pytest, ...) into the prefix venv
+    by calling riot's ``VenvInstance.prepare(env, skip_deps=True)`` directly
+    (the same library API ``riot run`` calls internally).
+    ``skip_deps=True`` skips the ddtrace dev-package reinstall (already in
+    the base venv from build_base_venvs). This replaces the dummy
+    ``riot run -s <hash> -- true`` hack: same effect (prepare only, no
+    command), but via the library API.
+
 Examples
 --------
     scripts/ddtest-riot hashes internal
     scripts/ddtest-riot venv-env 4f70b3c
+    scripts/ddtest-riot prepare 4f70b3c
 """
 
 import os
@@ -353,6 +363,23 @@ def cmd_venv_env(args):
     _print_env(env)
 
 
+def cmd_prepare(args):
+    """Prepare a venv: install per-hash deps into the prefix.
+
+    Calls riot's ``VenvInstance.prepare(env, skip_deps=True)`` directly — the
+    same library API ``riot run`` calls internally. ``skip_deps=True`` skips
+    the ddtrace dev-package reinstall (already in the base venv from
+    build_base_venvs) but installs the per-hash deps (envier, pytest, ...)
+    into the prefix venv. This replaces the dummy ``riot run -s <hash> --
+    true`` hack: same effect (prepare only, no command), but via the library
+    API instead of a no-op shell command.
+    """
+    inst = _instance_by_identifier(args.hash)
+    env = os.environ.copy()
+    env.update(dict(inst.env))
+    inst.prepare(env, skip_deps=True)
+
+
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     if not argv or argv[0] in ("-h", "--help"):
@@ -381,7 +408,17 @@ def main(argv=None):
         cmd_venv_env(parser.parse_args(rest))
         return 0
 
-    sys.exit(f"unknown command '{command}'. Use 'hashes' or 'venv-env'.")
+    if command == "prepare":
+        if not rest:
+            sys.exit("usage: ddtest-riot prepare <hash>")
+        import argparse
+
+        parser = argparse.ArgumentParser(prog="ddtest-riot prepare")
+        parser.add_argument("hash")
+        cmd_prepare(parser.parse_args(rest))
+        return 0
+
+    sys.exit(f"unknown command '{command}'. Use 'hashes', 'venv-env', or 'prepare'.")
 
 
 if __name__ == "__main__":
