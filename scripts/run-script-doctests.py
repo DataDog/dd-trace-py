@@ -17,6 +17,7 @@ import sys
 
 
 _FILES = [
+    "scripts/ddtest-riot.py",
     "scripts/get-target-milestone.py",
     "scripts/needs_testrun.py",
     "scripts/resolve_previous_version.py",

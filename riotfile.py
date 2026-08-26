@@ -630,10 +630,17 @@ venv = Venv(
         Venv(
             name="internal",
             env={
+                # DDTEST_SUITE_PATH is the single source of truth for this suite's
+                # test location. The command references it via ${DDTEST_SUITE_PATH} so
+                # the path stays data (queryable by the ddtest bridge) rather than a
+                # literal baked into the pytest invocation. Local `riot run` works
+                # unchanged whether or not ddtest is installed; ddtest reads this env
+                # var via scripts/ddtest-riot to plan/run individual files.
+                "DDTEST_SUITE_PATH": "tests/internal",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
-            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} ${DDTEST_SUITE_PATH}/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
