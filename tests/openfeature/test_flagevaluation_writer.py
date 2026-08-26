@@ -457,7 +457,6 @@ class TestPeriodicFlush:
         _, direct_endpoint, _, direct_headers = direct_conn.request.call_args[0]
         assert direct_endpoint == "/api/v2/flagevaluation"
         assert direct_headers["DD-API-KEY"] == "secret"
-        assert direct_headers["DD-API-KEY-FINGERPRINT"] == ("rijn_amLaG4Pd6h6t9VtJna81k744P1DYxGHzIJ6ECO3OOMj")
         assert "X-Datadog-EVP-Subdomain" not in direct_headers
 
     def test_agentless_ambiguous_failure_does_not_replay_current_batch(self):

@@ -4,7 +4,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.internal.openfeature._agentless import api_key_fingerprint
 from ddtrace.internal.openfeature._evp_transport import DIRECT_RETRY_STATUSES
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
@@ -34,19 +33,6 @@ def _selector(source: str = AGENTLESS, endpoints: tuple[str, ...] = (), api_key:
     return selector, calls
 
 
-@pytest.mark.parametrize(
-    ("api_key", "expected"),
-    [
-        ("", "rijn_RZwTDmWjELXeEmMEb0eIIegKayGGUPNsuJweEPhlXi5"),
-        ("padding-171", "rijn_053ybBRXypQt9AC6UIlqH1YCFYSV1rQl8HCDIcBZs3D"),
-        ("!@#$%^𐍈한€हИ£", "rijn_eFLHeyLxwaiNs2hY16pjkjNjVSHWRgf2rlveKc8YA1K"),
-    ],
-)
-def test_api_key_fingerprint_matches_clifford_v1(api_key, expected):
-    assert api_key_fingerprint(api_key) == expected
-    assert len(api_key_fingerprint(api_key)) == 48
-
-
 def test_local_route_prefers_v4_and_never_carries_direct_credentials():
     selector, info_calls = _selector(endpoints=("/evp_proxy/v2/", "/evp_proxy/v4/"))
 
@@ -57,10 +43,7 @@ def test_local_route_prefers_v4_and_never_carries_direct_credentials():
     assert route.headers == {"X-Datadog-EVP-Subdomain": "event-platform-intake"}
     assert route.fallback is not None
     assert route.fallback.intake == "https://event-platform-intake.datadoghq.com"
-    assert route.fallback.headers == {
-        "DD-API-KEY": "secret",
-        "DD-API-KEY-FINGERPRINT": "rijn_amLaG4Pd6h6t9VtJna81k744P1DYxGHzIJ6ECO3OOMj",
-    }
+    assert route.fallback.headers == {"DD-API-KEY": "secret"}
     assert selector.select() is route
     assert info_calls == ["http://agent:8126"]
 

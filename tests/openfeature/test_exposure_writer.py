@@ -179,7 +179,6 @@ class TestExposureWriter:
         _, endpoint, _, headers = mock_conn.request.call_args[0]
         assert endpoint == "/api/v2/exposures"
         assert headers["DD-API-KEY"] == "secret"
-        assert headers["DD-API-KEY-FINGERPRINT"] == "rijn_amLaG4Pd6h6t9VtJna81k744P1DYxGHzIJ6ECO3OOMj"
         assert "X-Datadog-EVP-Subdomain" not in headers
 
     def test_agentless_definitive_local_rejection_replays_direct(self, sample_exposure_event):

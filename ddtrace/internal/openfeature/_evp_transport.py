@@ -25,7 +25,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError
-from ddtrace.internal.openfeature._agentless import api_key_fingerprint
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.env import dd_environ
 from ddtrace.internal.settings.openfeature import AGENTLESS
@@ -224,10 +223,7 @@ class FeatureFlagEVPRouteSelector:
         return EVPRoute(
             intake=DIRECT_INTAKE_PREFIX + self._site.strip().lower(),
             base_path="",
-            headers={
-                "DD-API-KEY": self._api_key,
-                "DD-API-KEY-FINGERPRINT": api_key_fingerprint(self._api_key),
-            },
+            headers={"DD-API-KEY": self._api_key},
             direct=True,
         )
 

@@ -25,7 +25,6 @@ from urllib.parse import urlunsplit
 
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.openfeature._agentless import api_key_fingerprint
 from ddtrace.internal.openfeature._agentless import decode_response_body
 from ddtrace.internal.openfeature._agentless import parse_ufc_configuration
 from ddtrace.internal.periodic import PeriodicService
@@ -268,7 +267,6 @@ class AgentlessConfigurationSource(PeriodicService):
         }
         if self._api_key:
             headers["DD-API-KEY"] = self._api_key
-            headers["DD-API-KEY-FINGERPRINT"] = api_key_fingerprint(self._api_key)
         if self._etag:
             headers["If-None-Match"] = self._etag
         return headers
