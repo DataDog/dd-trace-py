@@ -1,7 +1,0 @@
----
-other:
-  - |
-    internal: Widens the ``requires-python`` package metadata to ``>=3.9,<3.16``, so ``pip`` no longer
-    refuses to install ddtrace on Python 3.15 with an unsupported-version error. Python 3.15 is not a
-    supported runtime yet, and installing there may fail to build or to work correctly; use Python 3.14
-    or earlier.
