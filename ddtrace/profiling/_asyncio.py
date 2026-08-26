@@ -125,10 +125,9 @@ def _(asyncio: ModuleType) -> None:
             )
             assert children is not None  # nosec: assert is used for typing
 
-            # TODO(py-315): current_task() raises RuntimeError on Python 3.15+ when there
-            # is no running event loop (e.g. asyncio.gather() called outside an async
-            # context to build a coroutine for later scheduling). In that case there is
-            # no parent task to link from, so we skip link_tasks entirely.
+            # current_task() uses get_running_loop() and raises RuntimeError when
+            # there is no running event loop (e.g. asyncio.gather() called outside
+            # an async context). There is then no parent task to link from.
             try:
                 parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
             except RuntimeError:
@@ -148,9 +147,8 @@ def _(asyncio: ModuleType) -> None:
                 "set[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs")
             )
 
-            # TODO(py-315): same guard as the _GatheringFuture wrapper above — _wait may
-            # also be invoked outside a running loop. Skip link_tasks when current_task()
-            # raises.
+            # Same guard as the _GatheringFuture wrapper: _wait may run outside a
+            # running loop. Skip link_tasks when current_task() raises.
             try:
                 parent: typing.Optional[aio.Task[typing.Any]] = typing.cast(
                     "aio.Task[typing.Any]", globals()["current_task"]()
