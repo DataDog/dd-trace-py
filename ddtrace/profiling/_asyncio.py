@@ -68,13 +68,13 @@ def link_existing_loop_to_current_thread() -> None:
     _call_init_asyncio(asyncio)
 
 
-# TODO(py-315): sys.monitoring (Python 3.15+) is used for task-creation tracking
-# on create_task / TaskGroup.create_task, where PY_RETURN gives us the new Task
-# object directly. All other asyncio hooks use simple attribute replacement —
-# sys.monitoring CALL/PY_START callbacks don't expose the callee's arguments, so
-# there is no advantage over plain monkey-patching for those sites.
-# TODO(py-315): Evaluate rolling sys.monitoring path out to 3.12–3.14 as a Q3
-# follow-up once there's proper CI coverage for those versions.
+# On Python 3.15, wrapping is unavailable, so task-creation tracking uses
+# sys.monitoring PY_RETURN (API since 3.12, PEP 669), which yields the new Task
+# object directly. The version gate is wrapping-unavailability, not API novelty.
+# Other asyncio hooks use attribute replacement — CALL/PY_START callbacks don't
+# expose the callee's arguments, so they have no advantage over monkey-patching.
+# TODO(py-315): Evaluate rolling this path out to 3.12–3.14 once #19601's
+# multiplexer (3.12+) is the shared owner and CI covers those versions.
 _monitoring_tool_id: typing.Optional[int] = None
 # Maps id(code) -> handler(return_value) for PY_RETURN dispatch
 _py_return_handlers: dict[int, typing.Callable[[object], None]] = {}
@@ -87,10 +87,11 @@ def _py_return_dispatch(code: CodeType, instruction_offset: int, return_value: o
 
 
 def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
-    """Register a sys.monitoring PY_RETURN hook for *func* on Python 3.15+.
+    """Register a sys.monitoring PY_RETURN hook for *func*.
 
-    Returns True if the hook was installed, False if sys.monitoring is not used
-    (Python < 3.15) and the caller should fall back to monkey-patching.
+    Used on Python 3.15+ because wrapping is unavailable there, not because
+    sys.monitoring is new (it exists since 3.12). Returns True if the hook was
+    installed, False if the caller should fall back to monkey-patching.
     """
     global _monitoring_tool_id
 
@@ -189,10 +190,9 @@ def _(asyncio: ModuleType) -> None:
             **kwargs: typing.Any,
         ) -> None:
             _original_gf_init(self, children, *args, **kwargs)
-            # TODO(py-315): current_task() raises RuntimeError on Python 3.15+ when there
-            # is no running event loop (e.g. asyncio.gather() called outside an async
-            # context to build a coroutine for later scheduling). In that case there is
-            # no parent task to link from, so we skip link_tasks entirely.
+            # current_task() uses get_running_loop() and raises RuntimeError when
+            # there is no running event loop (e.g. asyncio.gather() called outside
+            # an async context). There is then no parent task to link from.
             try:
                 parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
             except RuntimeError:
@@ -210,9 +210,8 @@ def _(asyncio: ModuleType) -> None:
         def _patched_wait(*args: typing.Any, **kwargs: typing.Any) -> typing.Any:
             # fs is the first positional or the 'fs' keyword argument
             fs: typing.Iterable[aio.Future[typing.Any]] = args[0] if args else kwargs.get("fs", ())
-            # TODO(py-315): same guard as the _GatheringFuture wrapper above — _wait may
-            # also be invoked outside a running loop. Skip link_tasks when current_task()
-            # raises.
+            # Same guard as the _GatheringFuture wrapper: _wait may run outside a
+            # running loop. Skip link_tasks when current_task() raises.
             try:
                 parent: typing.Optional[aio.Task[typing.Any]] = typing.cast(
                     "aio.Task[typing.Any]", globals()["current_task"]()
@@ -293,7 +292,8 @@ def _(asyncio: ModuleType) -> None:
                             stack.link_tasks(parent, task)
 
                     if not _register_return_hook(taskgroup_class.create_task, _on_taskgroup_create_task_return):
-                        # Fallback for Python < 3.15: simple monkey-patch
+                        # Fallback when the 3.15+ monitoring path is not used (wrapping
+                        # still available below 3.15): simple monkey-patch
                         _original_tg_create_task: typing.Callable[..., aio.Task[typing.Any]] = (
                             taskgroup_class.create_task
                         )
@@ -329,7 +329,8 @@ def _(asyncio: ModuleType) -> None:
                 stack.weak_link_tasks(parent, task)
 
         if not _register_return_hook(_original_create_task, _on_create_task_return):
-            # Fallback for Python < 3.15: simple monkey-patch
+            # Fallback when the 3.15+ monitoring path is not used (wrapping
+            # still available below 3.15): simple monkey-patch
             def _patched_create_task(*args: typing.Any, **kwargs: typing.Any) -> "aio.Task[typing.Any]":
                 task: "aio.Task[typing.Any]" = _original_create_task(*args, **kwargs)
                 try:
