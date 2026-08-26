@@ -213,6 +213,7 @@ suites:
       - '@contrib'
       - scripts/integration_registry/*
   internal:
+    ddtest: true
     retry: 2
     venvs_per_job: 2
     paths:

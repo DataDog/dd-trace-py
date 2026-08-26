@@ -11,7 +11,6 @@ variables:
 include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
-  - local: ".gitlab/ddtest.yml"  # ddtest pilot (child pipeline, so it can needs: build_base_venvs)
 
 
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
@@ -85,5 +84,91 @@ include:
     - !reference [.test_base_riot_gpu, before_script]
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+
+# ---------------------------------------------------------------------------
+# ddtest job templates. Used by gen_gitlab_config.py for suites with
+# `ddtest: true` in suitespec. ddtest owns plan/run + file splitting; riot
+# knowledge stays in scripts/ddtest-riot.py (the bridge). See
+# docs/ddtest-dogfooding.md for the full design.
+#
+# before_script and script share the same shell session in GitLab, so the
+# venv activation (`eval ...`) done in before_script is in effect for the
+# ddtest command in script.
+# ---------------------------------------------------------------------------
+.ddtest_base:
+  extends: .testrunner
+  services:
+    - !reference [.services, ddagent]
+  before_script:
+    - !reference [.testrunner, before_script]
+    - unset DD_SERVICE
+    - unset DD_ENV
+    - unset DD_TAGS
+    - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+    - |
+      mkdir -p bin
+      curl -fsSL "https://github.com/DataDog/ddtest/releases/${DDTEST_VERSION:-latest}/download/ddtest-linux-amd64" -o bin/ddtest
+      chmod +x bin/ddtest
+      # Prepare the per-hash riot venv (install envier, pytest, ... into the
+      # prefix) and activate it. build_base_venvs only installs ddtrace into
+      # the base venv; the per-hash deps are installed lazily by prepare.
+      python scripts/ddtest-riot.py prepare "${RIOT_HASH}"
+      eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
+      python -c "import ddtrace, pytest, envier"
+
+.ddtest_base_snapshot:
+  extends: .ddtest_base
+  services:
+    - !reference [.ddtest_base, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.ddtest_base, before_script]
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+
+# Plan: discover the venv's suite files and write .testoptimization/.
+# No snapshot variant — plan only collects (glob + Datadog API) and sends
+# no traces, so the testagent is never needed at plan time.
+# --tests-location is a raw glob (ddtest does not combine it with python_files),
+# so it must include the file-glob part. dd-trace-py uses python_files = test*\.py.
+.ddtest_plan:
+  extends: .ddtest_base
+  script:
+    - |
+      ./bin/ddtest plan \
+        --platform python \
+        --framework pytest \
+        --tests-location "${DDTEST_SUITE_PATH}/**/test*.py" \
+        --min-parallelism "${DDTEST_NODES}" \
+        --max-parallelism "${DDTEST_NODES}"
+  artifacts:
+    when: always
+    paths:
+      - .testoptimization/
+    expire_in: 1 week
+
+# Run: execute this CI node's files in the activated venv.
+# 4 workers (not ncpu): the testrunner image runs on many-core k8s pods
+# where ncpu spawns too many workers and corrupts pytest-cov's sqlite DB;
+# matching PYTEST_XDIST_AUTO_NUM_WORKERS=4 from testrunner.yml.
+.ddtest_run:
+  extends: .ddtest_base
+  script:
+    - |
+      ./bin/ddtest run \
+        --platform python \
+        --framework pytest \
+        --ci-node "${CI_NODE_INDEX}" \
+        --ci-node-workers 4
+
+.ddtest_run_snapshot:
+  extends: .ddtest_base_snapshot
+  script:
+    - |
+      ./bin/ddtest run \
+        --platform python \
+        --framework pytest \
+        --ci-node "${CI_NODE_INDEX}" \
+        --ci-node-workers 4
 
 # Required jobs will appear here

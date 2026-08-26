@@ -177,6 +177,11 @@ class JobSpec:
 class SuiteVenvInfo:
     venv_count: int
     python_versions: set[str]
+    # Per-venv (short_hash, python_hint) pairs, sorted by hash. Used by the
+    # ddtest emission to fan out one plan/run job per venv via a parallel
+    # matrix. python_hint is the riot interpreter hint (e.g. "3.10") used to
+    # match the build_base_venvs artifact for that venv.
+    venvs: t.Optional[list[tuple[str, str]]] = None
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -213,6 +218,9 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
 
     venv_hashes: dict[str, set] = {s: set() for s in compiled}
     python_versions: dict[str, set] = {s: set() for s in compiled}
+    # hash -> python hint, per suite (deduplicated). Preserved as an ordered
+    # list of (hash, hint) for the ddtest parallel matrix.
+    venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
 
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
@@ -221,6 +229,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
         for suite, regex in compiled.items():
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
                 venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
+                venv_hash_hint[suite][inst.short_hash] = hint  # type: ignore[attr-defined]
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
                     python_versions[suite].add(hint)
@@ -228,9 +237,11 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     result: dict[str, SuiteVenvInfo] = {}
     for suite in compiled:
         if venv_hashes[suite]:
+            venvs = sorted(venv_hash_hint[suite].items())
             result[suite] = SuiteVenvInfo(
                 venv_count=len(venv_hashes[suite]),
                 python_versions=python_versions[suite],
+                venvs=venvs,
             )
         else:
             LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
@@ -454,6 +465,192 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
     MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
 
+def _ddtest_base(snapshot: bool, gpu: bool) -> str:
+    """Return the hidden base template a ddtest suite's before_script references."""
+    base = ".ddtest_base"
+    if gpu:
+        base += "_gpu"
+    if snapshot:
+        base += "_snapshot"
+    return base
+
+
+def _ddtest_plan_template(gpu: bool) -> str:
+    """Plan template. Plan only collects (glob + Datadog API); it sends
+    no traces, so it never needs the testagent and has no snapshot
+    variant — snapshot suites and non-snapshot suites plan the same way.
+    """
+    tpl = ".ddtest_plan"
+    if gpu:
+        tpl += "_gpu"
+    return tpl
+
+
+def _ddtest_run_template(snapshot: bool, gpu: bool) -> str:
+    tpl = ".ddtest_run"
+    if gpu:
+        tpl += "_gpu"
+    if snapshot:
+        tpl += "_snapshot"
+    return tpl
+
+
+def _ddtest_k(config: dict) -> int:
+    """Per-venv CI node count K for a ddtest suite.
+
+    Reuses the suite's existing suitespec parallelism knob: the static
+    `parallelism` value if set, else `venvs_per_job`, else 1. K is passed to
+    ddtest as --min-parallelism K --max-parallelism K so plan selects exactly K
+    CI nodes per venv. K=1 (the common case for parallelism:1 / sparse suites)
+    runs all of a venv's files in one node with xdist inside.
+    """
+    k = config.get("parallelism")
+    if k is None:
+        k = config.get("venvs_per_job")
+    if k is None or k < 1:
+        k = 1
+    return int(k)
+
+
+def _emit_ddtest_jobs(
+    f,
+    suite: str,
+    stage: str,
+    clean_name: str,
+    config: dict,
+    venvs: list[tuple[str, str]],
+    k: int,
+) -> None:
+    """Emit ddtest-plan and ddtest-run jobs for one suite.
+
+    One plan job per venv (parallel matrix over RIOT_HASH/PYTHON_VERSION), and
+    K run jobs per venv (parallel matrix over RIOT_HASH/PYTHON_VERSION/
+    CI_NODE_INDEX). Run jobs download their matching plan job's
+    `.testoptimization/` artifact via matrix-matched `needs` (same pattern as
+    build_base_venvs), so per-hash plans never collide.
+    """
+    snapshot = config.get("snapshot", False)
+    gpu = config.get("gpu", False)
+    services = list(dict.fromkeys(config.get("services") or []))
+    env = dict(config.get("env") or {})
+    retry = config.get("retry")
+    timeout = config.get("timeout")
+    allow_failure = config.get("allow_failure", False)
+    base = _ddtest_base(snapshot, gpu)
+    plan_base = _ddtest_base(False, gpu)  # plan never needs the testagent
+    plan_tpl = _ddtest_plan_template(gpu)
+    run_tpl = _ddtest_run_template(snapshot, gpu)
+    job_prefix = f"{stage}/{clean_name.replace('::', '/')}"
+    plan_name = f"{job_prefix}::ddtest-plan"
+    run_name = f"{job_prefix}::ddtest-run"
+    suite_name = config.get("pattern") or clean_name
+    wait_for = list(services)
+    if snapshot:
+        wait_for.append("testagent")
+
+    def emit_services(plan: bool) -> None:
+        if not services:
+            return
+        print("  services:", file=f)
+        svc_base = plan_base if plan else base
+        _svc = [f"!reference [.services, {s}]" for s in services]
+        if snapshot and not plan:
+            _svc.insert(0, f"!reference [{svc_base}, services]")
+        for s in _svc:
+            print(f"    - {s}", file=f)
+
+    def emit_before_script(plan: bool) -> None:
+        print("  before_script:", file=f)
+        ref_base = plan_base if plan else base
+        print(f"    - !reference [{ref_base}, before_script]", file=f)
+        print("    - pip cache info", file=f)
+        print(f'    - export NIGHTLY_BUILD="{_get_bool_env("NIGHTLY_BUILD")}"', file=f)
+        # Plan only collects; it sends no traces, so it never waits for the
+        # testagent even for snapshot suites.
+        if wait_for and not plan:
+            print(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}", file=f)
+
+    def emit_variables(extra: dict[str, str] | None = None) -> None:
+        print("  variables:", file=f)
+        print(f"    SUITE_NAME: {suite_name}", file=f)
+        for key, value in env.items():
+            print(f"    {key}: {value}", file=f)
+        if extra:
+            for key, value in extra.items():
+                print(f"    {key}: {value}", file=f)
+
+    def emit_needs_build_base_venvs() -> None:
+        print("    - job: build_base_venvs", file=f)
+        print("      artifacts: true", file=f)
+        print("      parallel:", file=f)
+        print("        matrix:", file=f)
+        # Dedup PYTHON_VERSIONs: several hashes share a Python version, but
+        # build_base_venvs only needs to be downloaded once per version.
+        seen_py: set[str] = set()
+        for _h, py in venvs:
+            if py in seen_py:
+                continue
+            seen_py.add(py)
+            print(f'          - PYTHON_VERSION: "{py}"', file=f)
+
+    # ---- plan job: one instance per venv ----
+    print(f"{plan_name}:", file=f)
+    print(f"  extends: {plan_tpl}", file=f)
+    print(f"  stage: {stage}", file=f)
+    print("  needs:", file=f)
+    print("    - prechecks", file=f)
+    emit_needs_build_base_venvs()
+    emit_services(plan=True)
+    emit_before_script(plan=True)
+    emit_variables({"DDTEST_NODES": str(k)})
+    print("  parallel:", file=f)
+    print("    matrix:", file=f)
+    for h, py in venvs:
+        print(f'      - RIOT_HASH: "{h}"', file=f)
+        print(f'        PYTHON_VERSION: "{py}"', file=f)
+    if retry is not None:
+        print(f"  retry: {retry}", file=f)
+    if timeout is not None:
+        print(f"  timeout: {timeout}", file=f)
+    if allow_failure:
+        print("  allow_failure: true", file=f)
+    # artifacts (.testoptimization/) are declared on the .ddtest_plan template.
+
+    # ---- run job: K instances per venv ----
+    print(f"{run_name}:", file=f)
+    print(f"  extends: {run_tpl}", file=f)
+    print(f"  stage: {stage}", file=f)
+    print("  needs:", file=f)
+    print("    - prechecks", file=f)
+    emit_needs_build_base_venvs()
+    # Match the plan job instance for the same RIOT_HASH (matrix-matched needs,
+    # same pattern used for build_base_venvs). Each run instance downloads
+    # only its own venv's .testoptimization/ artifact.
+    print("    - job: " + plan_name, file=f)
+    print("      artifacts: true", file=f)
+    print("      parallel:", file=f)
+    print("        matrix:", file=f)
+    for h, py in venvs:
+        print(f'          - RIOT_HASH: "{h}"', file=f)
+        print(f'            PYTHON_VERSION: "{py}"', file=f)
+    emit_services(plan=False)
+    emit_before_script(plan=False)
+    emit_variables()
+    print("  parallel:", file=f)
+    print("    matrix:", file=f)
+    for h, py in venvs:
+        for node in range(k):
+            print(f'      - RIOT_HASH: "{h}"', file=f)
+            print(f'        PYTHON_VERSION: "{py}"', file=f)
+            print(f"        CI_NODE_INDEX: {node}", file=f)
+    if retry is not None:
+        print(f"  retry: {retry}", file=f)
+    if timeout is not None:
+        print(f"  timeout: {timeout}", file=f)
+    if allow_failure:
+        print("  allow_failure: true", file=f)
+
+
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
 
@@ -544,6 +741,18 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             clean_name = suite_config.pop("_clean_name", suite)
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
+
+            # ddtest suites: emit plan/run jobs instead of the legacy riot job.
+            if suite_config.get("ddtest"):
+                venvs = suite_venv_info[suite].venvs if suite in suite_venv_info else []
+                if not venvs:
+                    LOGGER.warning("Suite %s opted into ddtest but has no riot venvs; skipping", suite)
+                    continue
+                k = _ddtest_k(suite_config)
+                LOGGER.info("Suite %s: ddtest (venvs=%d, nodes/venv=%d)", suite, len(venvs), k)
+                _emit_ddtest_jobs(f, suite, stage, clean_name, suite_config, venvs, k)
+                continue
+
             jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)

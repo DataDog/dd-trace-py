@@ -169,9 +169,11 @@ not run on deselected suites/venvs.
    pytest-in-venv end-to-end. (An earlier version built its own venv inline
    in the parent pipeline and OOMKilled; the fix is to live in the child
    pipeline and reuse `build_base_venvs`.)
-2. **gen_gitlab_config.py integration:** add `ddtest: true` to `internal`
-   in suitespec, emit ddtest-plan/run jobs via the generator. Pilot job
-   removed; `internal` runs through the generated path.
+2. **gen_gitlab_config.py integration (this change):** `internal` sets
+   `ddtest: true` in suitespec, emit ddtest-plan/run jobs via the
+   generator. Pilot job removed (together with its `tests.yml` include,
+   in the same commit — the missing-include lesson); `internal` runs
+   through the generated path.
 3. **Per-suite flip:** as each suite's ddtest path is validated, set
    `ddtest: true` on it. Legacy riot jobs for a suite are gone the moment
    it opts into ddtest.
