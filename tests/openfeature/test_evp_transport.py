@@ -1,4 +1,5 @@
 import socket
+import typing
 from unittest import mock
 
 import pytest
@@ -16,7 +17,7 @@ class _Response:
         self.status = status
 
 
-def _selector(source: str = AGENTLESS, endpoints: tuple[str, ...] = (), api_key: str | None = "secret"):
+def _selector(source: str = AGENTLESS, endpoints: tuple[str, ...] = (), api_key: typing.Optional[str] = "secret"):
     calls = []
 
     def info_provider(url: str):
