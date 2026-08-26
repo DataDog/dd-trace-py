@@ -291,6 +291,10 @@ def django_server(
     The server is started when entering the context and stopped when exiting.
     """
     manage_py = "tests/appsec/integrations/django_tests/django_app/manage.py"
+    server_env = dict(env or {})
+    # This server does not use gevent. Module cleanup can prevent Django from
+    # discovering management commands when ddtrace is installed from a wheel.
+    server_env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
     cmd = [
         python_cmd,
         "-m",
@@ -310,7 +314,7 @@ def django_server(
         tracer_enabled=tracer_enabled,
         token=token,
         port=port,
-        env=env,
+        env=server_env,
         assert_debug=assert_debug,
         manual_propagation_debug=manual_propagation_debug,
     )

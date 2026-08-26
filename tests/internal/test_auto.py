@@ -111,6 +111,22 @@ def test_foo():
         assert "1 passed" in result.stdout
 
 
+@pytest.mark.xfail(
+    reason="FIXME: gevent module cleanup breaks pkgutil discovery after a clean Python startup",
+    strict=True,
+)
+@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="true", DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
+def test_gevent_cleanup_preserves_pkgutil_discovery():
+    import ddtrace.auto  # noqa: F401, I001
+    from pathlib import Path
+    import pkgutil
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as directory:
+        Path(directory, "visible_module.py").touch()
+        assert [module.name for module in pkgutil.iter_modules([directory])] == ["visible_module"]
+
+
 @pytest.mark.subprocess(env=dict(DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
 def test_dataclasses_not_unloaded():
     import ddtrace  # noqa
