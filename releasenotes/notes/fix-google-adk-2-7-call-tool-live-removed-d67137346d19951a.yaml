@@ -1,8 +1,8 @@
 ---
 fixes:
   - |
-    google-adk: Fixes an issue where applications with LLM Observability enabled failed to start
-    when google-adk 2.7.0 or later was installed. Tool calls, including streaming tool calls, are
-    now traced correctly on these versions.
+    google-adk: Fixes an ``AttributeError`` on ``google-adk >= 2.7.0`` caused by the removal of
+    ``__call_tool_live``. Applications with LLM Observability enabled failed to start.
   - |
-    google-adk: Fixes an issue where spans for streaming tool calls recorded no output.
+    google-adk: Fixes an issue on ``google-adk < 2.7.0`` where streaming tool call spans
+    recorded no output.

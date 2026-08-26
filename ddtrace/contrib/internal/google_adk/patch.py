@@ -108,23 +108,29 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
         submit_to_llmobs=True,
     )
 
+    result = None
+    stream_handed_off = False
+    exc_info = None
+
     try:
         result = await wrapped(*args, **kwargs)
+        if inspect.isasyncgen(result):
+            # google-adk >= 2.7.0 returns an async generator for streaming tools. Keep the span
+            # open so the streamed items are tagged instead of the generator object.
+            stream = _traced_tool_stream(result, span, integration, args, kwargs)
+            stream_handed_off = True
+            return stream
+        return result
     except Exception:
-        span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="tool")
-        span.finish()
+        exc_info = sys.exc_info()
         raise
-
-    if inspect.isasyncgen(result):
-        # google-adk >= 2.7.0 routes streaming tools through this function, which then returns an
-        # async generator. Keep the span open so the streamed items are tagged instead of the
-        # generator object.
-        return _traced_tool_stream(result, span, integration, args, kwargs)
-
-    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
-    span.finish()
-    return result
+    finally:
+        # streamed spans are finished separately by _traced_tool_stream; cancellation finishes here
+        if not stream_handed_off:
+            if exc_info is not None:
+                span.set_exc_info(*exc_info)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
+            span.finish()
 
 
 async def _traced_tool_stream(agen, span, integration, args, kwargs):
@@ -177,8 +183,13 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
         submit_to_llmobs=True,
     )
 
-    async for item in _traced_tool_stream(agen, span, integration, args, kwargs):
-        yield item
+    stream = _traced_tool_stream(agen, span, integration, args, kwargs)
+    try:
+        async for item in stream:
+            yield item
+    finally:
+        # a consumer that abandons this generator does not close the one it delegates to
+        await stream.aclose()
 
 
 def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
