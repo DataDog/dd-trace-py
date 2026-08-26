@@ -31,8 +31,10 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.15",
 ]
 dependencies = [
+    "bytecode>=0.19.0,<1; python_version>='3.15.0'",
     "bytecode>=0.17.0,<1; python_version>='3.14.0'",
     "bytecode>=0.16.0,<1; python_version>='3.13.0'",
     "bytecode>=0.15.1,<1; python_version~='3.12.0'",
