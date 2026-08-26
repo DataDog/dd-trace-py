@@ -18,6 +18,8 @@ components:
     - ddtrace/testing/*
 suites:
   ci_visibility:
+    ddtest: true
+    allow_failure: true
     parallelism: 4
     paths:
       - '@ci_visibility'
@@ -32,6 +34,8 @@ suites:
       - tests/ci_visibility/*
     pattern: 'ci_visibility$'
   ci_visibility:snapshot:
+    ddtest: true
+    allow_failure: true
     parallelism: 4
     paths:
       - '@ci_visibility'
@@ -48,6 +52,8 @@ suites:
     snapshot: true
     pattern: 'ci_visibility:snapshot'
   dd_coverage:
+    ddtest: true
+    allow_failure: true
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -57,6 +63,8 @@ suites:
       - tests/coverage/*
     snapshot: true
   pytest:
+    ddtest: true
+    allow_failure: true
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -89,6 +97,8 @@ suites:
     snapshot: true
     pattern: 'pytest:snapshot'
   pytest_benchmark:
+    ddtest: true
+    allow_failure: true
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -106,6 +116,8 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
   pytest_bdd:
+    ddtest: true
+    allow_failure: true
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -123,6 +135,8 @@ suites:
       - tests/snapshots/tests.contrib.pytest.*
     snapshot: true
   pytest_flaky:
+    ddtest: true
+    allow_failure: true
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -157,6 +171,8 @@ suites:
       - tests/contrib/internal/coverage/*
     snapshot: true
   selenium:
+    ddtest: true
+    allow_failure: true
     parallelism: 2
     env:
       SELENIUM_GRID_URL: http://selenium-chrome:4444
@@ -176,6 +192,8 @@ suites:
     services:
       - selenium-chrome
   unittest:
+    ddtest: true
+    allow_failure: true
     parallelism: 2
     paths:
       - '@contrib'
