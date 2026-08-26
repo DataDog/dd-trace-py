@@ -18,6 +18,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 12. **No stray prints** — Check for and remove unexpected `print()` calls.
 13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 14. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
+15. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
 
 ## Docstrings and Comments
 
@@ -133,6 +134,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
 | Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
 | Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md` | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
+| Benchmarking CI (microbenchmarks, SLO gates, flaky benchmarks) | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` | `.gitlab/benchmarks/`, `benchmarks/suitespec.yml` |
 | Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
 | Linting | `.cursor/rules/linting.mdc` | — |
 | Testing | `.cursor/rules/testing.mdc` | — |

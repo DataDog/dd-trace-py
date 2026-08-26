@@ -7,6 +7,7 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
+from ddtrace.llmobs._integrations.utils import _inline_image_budget
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
@@ -490,6 +491,72 @@ class TestLLMObsOpenaiV1:
             metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    def test_chat_completion_inline_image_captured(self, openai, openai_llmobs, test_spans):
+        """An inline base64 image reaches the span as an image_part, leaving only the text content."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What’s in this image?"},
+                            {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAECAw=="}},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What’s in this image?",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAECAw=="}],
+                }
+            ],
+            output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+            metadata={},
+            metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    def test_chat_completion_oversize_inline_image_preserves_text_and_response(self, openai, openai_llmobs, test_spans):
+        """Regression: an oversize inline image degrades to a marker rather than costing the whole
+        span input+output, so the message text and the model response both survive.
+        """
+        oversize_data_url = "data:image/png;base64," + "A" * (_inline_image_budget() + 4)
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What’s in this image?"},
+                            {"type": "image_url", "image_url": {"url": oversize_data_url}},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_event = _get_llmobs_data_metastruct(spans[0])
+        assert span_event["meta"]["input"]["messages"] == [
+            {"role": "user", "content": "What’s in this image?\n[image omitted: too large]"}
+        ]
+        assert span_event["meta"]["output"]["messages"] == [
+            {"role": "assistant", "content": resp.choices[0].message.content}
+        ]
 
     def test_chat_completion_multimodal_lazy_iterator(self, openai, openai_llmobs, test_spans):
         """Test that iterable message content is materialized to a list before the SDK
@@ -1971,6 +2038,41 @@ MUL: "*"
             },
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_response_inline_image_captured_end_to_end(self, openai, openai_llmobs, test_spans):
+        """The Responses API path that previously dumped the whole data URL into message text.
+
+        Covered end to end (kwargs -> span tags -> metastruct) rather than by a direct call to the
+        parser, since that leak reached customers through this full path.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model="gpt-4.1",
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "What is in this image?"},
+                            {"type": "input_image", "image_url": "data:image/png;base64,AAECAw=="},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        messages = _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["messages"]
+        assert messages == [
+            {
+                "role": "user",
+                "content": "What is in this image?",
+                "image_parts": [{"mime_type": "image/png", "content": "AAECAw=="}],
+            }
+        ]
+        assert resp.output  # the cassette response still flows through untouched
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
