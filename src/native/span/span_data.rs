@@ -599,22 +599,14 @@ impl SpanData {
         if let Some(ctx) = &self._context {
             return Ok(ctx.bind(py).clone());
         }
-        let trace_id_obj = self.get_trace_id(py);
-        let span_id_obj = self
-            .span_id
-            .into_pyobject(py)
-            .expect("u64 into_pyobject")
-            .into_any();
-        let new_ctx: Bound<'py, crate::context::Context> =
-            if let Some(parent) = &self._parent_context {
-                parent.find(py).copy(py, trace_id_obj, span_id_obj);
-            } else {
-                crate::context::Context {
-                    trace_id: trace_id_obj,
-                    span_id: span_id_obj,
-                    is_remote: false,
-                };
-            };
+        let trace_id = self.trace_id;
+        let span_id = self.span_id as u128;
+        let new_ctx = if let Some(parent) = &self._parent_context {
+            crate::context::Context::copy_native(parent.bind(py), Some(trace_id), Some(span_id))?
+        } else {
+            crate::context::Context::new_root(py, trace_id, span_id)?
+        }
+        .into_bound(py);
         self._context = Some(new_ctx.clone().unbind());
         Ok(new_ctx)
     }
