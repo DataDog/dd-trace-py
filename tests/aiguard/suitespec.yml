@@ -19,7 +19,6 @@ suites:
     venvs_per_job: 1
   ai_guard_langchain:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -34,7 +33,6 @@ suites:
     venvs_per_job: 2
   ai_guard_openai:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -48,7 +46,6 @@ suites:
     venvs_per_job: 2
   ai_guard_anthropic:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -73,7 +70,6 @@ suites:
     venvs_per_job: 1
   ai_guard_litellm_guardrail:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'

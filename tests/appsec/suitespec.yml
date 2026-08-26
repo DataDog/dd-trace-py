@@ -19,7 +19,6 @@ components:
 suites:
   appsec:
     ddtest: true
-    allow_failure: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -45,7 +44,6 @@ suites:
     timeout: 30m
   appsec_iast_memcheck:
     ddtest: true
-    allow_failure: true
     env:
       CI_DEBUG_TRACE: 'true'
     parallelism: 6
@@ -96,7 +94,6 @@ suites:
     snapshot: true
   appsec_integrations_pygoat:
     ddtest: true
-    allow_failure: true
     parallelism: 3
     paths:
       - '@bootstrap'

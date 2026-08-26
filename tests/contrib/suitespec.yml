@@ -225,7 +225,6 @@ components:
 suites:
   aiobotocore:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -241,7 +240,6 @@ suites:
     venvs_per_job: 2
   aiohttp:
     ddtest: true
-    allow_failure: true
     pattern: ^aiohttp$
     venvs_per_job: 3
     paths:
@@ -257,7 +255,6 @@ suites:
     snapshot: true
   aiohttp_jinja2:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 6
     paths:
       - '@bootstrap'
@@ -274,7 +271,6 @@ suites:
     snapshot: true
   aiomysql:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -291,7 +287,6 @@ suites:
     snapshot: true
   aiokafka:
     ddtest: true
-    allow_failure: true
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
@@ -310,7 +305,6 @@ suites:
     snapshot: true
   aiopg:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -327,7 +321,6 @@ suites:
     venvs_per_job: 2
   algoliasearch:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -367,7 +360,6 @@ suites:
     snapshot: true
   asyncpg:
     ddtest: true
-    allow_failure: true
     retry: 2
     parallelism: 2
     paths:
@@ -403,7 +395,6 @@ suites:
     snapshot: true
   aws_lambda:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -416,7 +407,6 @@ suites:
     snapshot: true
   aws_durable_execution_sdk_python:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -429,7 +419,6 @@ suites:
     snapshot: true
   azure_cosmos:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 4
     paths:
       - '@bootstrap'
@@ -445,7 +434,6 @@ suites:
       - azurecosmosemulator
   azure_eventhubs:
     ddtest: true
-    allow_failure: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -473,7 +461,6 @@ suites:
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'      
   azure_durable_functions:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -491,7 +478,6 @@ suites:
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
   azure_functions:
     ddtest: true
-    allow_failure: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -523,7 +509,6 @@ suites:
       - azurecosmosemulator
   azure_functions:eventhubs:
     ddtest: true
-    allow_failure: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -541,7 +526,6 @@ suites:
       - azureeventhubsemulator
   azure_functions:servicebus:
     ddtest: true
-    allow_failure: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -560,7 +544,6 @@ suites:
       - azureservicebusemulator
   azure_servicebus:
     ddtest: true
-    allow_failure: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -576,7 +559,6 @@ suites:
       - azureservicebusemulator
   botocore:
     ddtest: true
-    allow_failure: true
     retry: 2
     parallelism: 11
     paths:
@@ -625,7 +607,6 @@ suites:
     venvs_per_job: 1
   cherrypy:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -667,7 +648,6 @@ suites:
     snapshot: true
   django:
     ddtest: true
-    allow_failure: true
     parallelism: 6
     env:
       TEST_MEMCACHED_HOST: memcached
@@ -697,7 +677,6 @@ suites:
     snapshot: true
   django_hosts:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -713,7 +692,6 @@ suites:
     snapshot: true
   django:djangorestframework:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     env:
       TEST_MEMCACHED_HOST: memcached
@@ -734,7 +712,6 @@ suites:
     snapshot: true
   dogpile_cache:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -783,7 +760,6 @@ suites:
     snapshot: true
   opensearch:
     ddtest: true
-    allow_failure: true
     pattern: elasticsearch:opensearch
     env:
       TEST_OPENSEARCH_HOST: opensearch
@@ -802,7 +778,6 @@ suites:
     snapshot: true
   falcon:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -814,7 +789,6 @@ suites:
     venvs_per_job: 2
   fastapi:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -855,7 +829,6 @@ suites:
     snapshot: true
   gevent:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -867,7 +840,6 @@ suites:
     venvs_per_job: 2
   google_cloud_pubsub:
     ddtest: true
-    allow_failure: true
     env:
       TEST_PUBSUB_HOST: pubsub
       TEST_PUBSUB_PORT: '8085'
@@ -908,7 +880,6 @@ suites:
     snapshot: true
   grpc:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -922,7 +893,6 @@ suites:
     venvs_per_job: 3
   gunicorn:
     ddtest: true
-    allow_failure: true
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -947,7 +917,6 @@ suites:
     venvs_per_job: 1
   httpx:
     ddtest: true
-    allow_failure: true
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -962,7 +931,6 @@ suites:
     snapshot: true
   httpx2:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -988,7 +956,6 @@ suites:
     parallelism: 1
   jinja2:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1000,7 +967,6 @@ suites:
     snapshot: true
   kafka:
     ddtest: true
-    allow_failure: true
     retry: 2
     env:
       TEST_KAFKA_HOST: kafka
@@ -1061,7 +1027,6 @@ suites:
     snapshot: true
   mariadb:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1077,7 +1042,6 @@ suites:
     venvs_per_job: 2
   mlflow:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -1116,7 +1080,6 @@ suites:
       - mysql
   opentelemetry:
     ddtest: true
-    allow_failure: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -1139,7 +1102,6 @@ suites:
     snapshot: true
   psycopg:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1170,7 +1132,6 @@ suites:
     snapshot: true
   pymemcache:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1184,7 +1145,6 @@ suites:
     snapshot: true
   pymongo:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1213,7 +1173,6 @@ suites:
     snapshot: true
   pynamodb:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1258,7 +1217,6 @@ suites:
     snapshot: true
   ray:
     ddtest: true
-    allow_failure: true
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -1273,7 +1231,6 @@ suites:
     snapshot: true
   ray_serve:
     ddtest: true
-    allow_failure: true
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -1288,7 +1245,6 @@ suites:
     snapshot: true
   redis:
     ddtest: true
-    allow_failure: true
     parallelism: 5
     paths:
       - '@bootstrap'
@@ -1344,7 +1300,6 @@ suites:
     snapshot: true
   sanic:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1358,7 +1313,6 @@ suites:
     venvs_per_job: 2
   snowflake:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1396,7 +1350,6 @@ suites:
     snapshot: true
   starlette:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1410,7 +1363,6 @@ suites:
     venvs_per_job: 2
   stdlib:
     ddtest: true
-    allow_failure: true
     retry: 2
     parallelism: 2
     paths:
@@ -1443,7 +1395,6 @@ suites:
     snapshot: true
   subprocess:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'

@@ -153,7 +153,6 @@ components:
 suites:
   crashtracker:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 6
     paths:
       - '@crashtracker'
@@ -169,7 +168,6 @@ suites:
     snapshot: false
   ddtracerun:
     ddtest: true
-    allow_failure: true
     parallelism: 3
     paths:
       - '@contrib'
@@ -190,7 +188,6 @@ suites:
       - 'scripts/global-lock-detection.py'
   integration_agent:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@tracing'
@@ -203,7 +200,6 @@ suites:
     pattern: integration-latest*
   integration_testagent:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -239,7 +235,6 @@ suites:
     snapshot: true
   wrapping:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 6
     paths:
       - '@core'
@@ -249,7 +244,6 @@ suites:
       - tests/wrapping/*
   lib_injection:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'

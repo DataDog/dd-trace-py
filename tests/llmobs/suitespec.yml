@@ -37,7 +37,6 @@ components:
 suites:
   anthropic:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -52,7 +51,6 @@ suites:
     snapshot: true
   claude_agent_sdk:
     ddtest: true
-    allow_failure: true
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -66,7 +64,6 @@ suites:
     snapshot: true
   google_adk:
     ddtest: true
-    allow_failure: true
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -91,7 +88,6 @@ suites:
     snapshot: true
   vertexai:
     ddtest: true
-    allow_failure: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -116,7 +112,6 @@ suites:
     snapshot: true
   langchain:
     ddtest: true
-    allow_failure: true
     retry: 2
     parallelism: 6
     paths:
@@ -161,7 +156,6 @@ suites:
     venvs_per_job: 1
   mcp:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -202,7 +196,6 @@ suites:
     snapshot: true
   langgraph:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -216,7 +209,6 @@ suites:
     venvs_per_job: 4
   crewai:
     ddtest: true
-    allow_failure: true
     retry: 2
     parallelism: 3
     paths:
@@ -232,7 +224,6 @@ suites:
     snapshot: true
   openai_agents:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -246,7 +237,6 @@ suites:
     venvs_per_job: 2
   pydantic_ai:
     ddtest: true
-    allow_failure: true
     paths:
       - '@bootstrap'
       - '@core'
