@@ -15,11 +15,15 @@ the design discussion: no coupling between ddtest and riot.
 
 ## Principles
 
-1. **ddtest is single-venv.** Each riot venv is one `ddtest plan` + N
-   `ddtest run --ci-node` invocations. There is no cross-venv plan; a suite
-   with M venvs gets M plans. This keeps ddtest generic and lets each
-   venv's runtime tags (Python version) line up with its own skippables
-   query when ITR is on.
+1. **ddtest is single-venv and never compiles ddtrace.**
+   Each riot venv is one `ddtest plan` + N `ddtest run --ci-node`
+   invocations. ddtest jobs live in the **child pipeline** and `needs:
+   build_base_venvs`, so they restore the prebuilt venv (ddtrace already
+   compiled by `build_base_venvs`) — they never run `riot generate` and
+   never recompile native extensions. (An earlier pilot built its own venv
+   inline in the parent pipeline and OOMKilled recompiling ddtrace; the
+   lesson is that ddtest jobs must reuse `build_base_venvs`, which only
+   exists in the child pipeline.)
 2. **Riot knowledge stays in the bridge.** `scripts/ddtest-riot.py`
    enumerates venvs (`hashes`) and activates them (`venv-env`). ddtest
    shells out to it; ddtest never imports or knows about riot.
@@ -157,16 +161,20 @@ not run on deselected suites/venvs.
 
 ## Rollout
 
-1. **Pilot (landed):** standalone `ddtest-internal-pilot` job, manual,
-   `allow_failure: true`, not in gen_gitlab_config.py. Proves the bridge
-   + ddtest plan/run + pytest-in-venv end-to-end.
+1. **Pilot (landed, corrected):** `ddtest-internal-pilot` job in the
+   **child pipeline** (included from `.gitlab/tests.yml`, not the parent
+   `.gitlab-ci.yml`), so it `needs: build_base_venvs` and reuses the
+   prebuilt venv — no `riot generate`, no native compile. Auto-runs on push,
+   `allow_failure: true`. Proves the bridge + ddtest plan/run +
+   pytest-in-venv end-to-end. (An earlier version built its own venv inline
+   in the parent pipeline and OOMKilled; the fix is to live in the child
+   pipeline and reuse `build_base_venvs`.)
 2. **gen_gitlab_config.py integration:** add `ddtest: true` to `internal`
    in suitespec, emit ddtest-plan/run jobs via the generator. Pilot job
-   removed; `internal` runs through the generated path. Still
-   `allow_failure: true` initially.
+   removed; `internal` runs through the generated path.
 3. **Per-suite flip:** as each suite's ddtest path is validated, set
-   `ddtest: true` on it and drop `allow_failure`. Legacy riot jobs for a
-   suite can be removed once its ddtest path is the source of truth.
+   `ddtest: true` on it. Legacy riot jobs for a suite are gone the moment
+   it opts into ddtest.
 4. **Default:** eventually `ddtest: true` becomes the default and the
    legacy riot emission is removed.
 
