@@ -20,6 +20,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
@@ -45,6 +46,8 @@ from ddtrace.internal.openfeature._flagevaluation_writer import _build_payloads_
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
+from ddtrace.internal.settings.openfeature import AGENTLESS
+from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
@@ -101,10 +104,20 @@ def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> No
             raise AssertionError(f"unexpected metric {name} tags={tags}: {call}")
 
 
+def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key=None):
+    return FeatureFlagEVPRouteSelector(
+        configuration_source=source,
+        agent_url="http://agent:8126",
+        api_key=api_key,
+        site="datadoghq.com",
+        info_provider=lambda _: {"endpoints": endpoints},
+    )
+
+
 @pytest.fixture
 def writer():
     """Create a FlagEvaluationWriter that is NOT started (no background thread)."""
-    return FlagEvaluationWriter(interval=10.0)
+    return FlagEvaluationWriter(interval=10.0, route_selector=_route_selector())
 
 
 # ---------------------------------------------------------------------------
@@ -422,6 +435,48 @@ class TestPeriodicFlush:
         assert endpoint == FLAGEVALUATIONS_ENDPOINT
         assert headers[EVP_SUBDOMAIN_HEADER_NAME] == EVP_SUBDOMAIN_VALUE
         assert "Content-Type" in headers
+
+    def test_agentless_definitive_rejection_replays_direct_with_authentication(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.return_value = mock.Mock(status=405)
+        direct_conn = mock.Mock()
+        direct_conn.getresponse.return_value = mock.Mock(status=202)
+        mock_get_conn.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        assert local_conn.request.call_args[0][1] == "/evp_proxy/v2/api/v2/flagevaluation"
+        _, direct_endpoint, _, direct_headers = direct_conn.request.call_args[0]
+        assert direct_endpoint == "/api/v2/flagevaluation"
+        assert direct_headers["DD-API-KEY"] == "secret"
+        assert direct_headers["DD-API-KEY-FINGERPRINT"] == ("rijn_amLaG4Pd6h6t9VtJna81k744P1DYxGHzIJ6ECO3OOMj")
+        assert "X-Datadog-EVP-Subdomain" not in direct_headers
+
+    def test_agentless_ambiguous_failure_does_not_replay_current_batch(self):
+        mock_get_conn = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.side_effect = ConnectionResetError("ambiguous")
+        mock_get_conn.return_value = local_conn
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_called_once_with("http://agent:8126", timeout=2.0)
+        assert selector.select().direct is True
 
     def test_two_evals_same_dims_aggregate_count_2(self, writer):
         t0 = int(time.time() * 1000)

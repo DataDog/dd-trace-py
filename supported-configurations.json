@@ -3095,6 +3095,13 @@
         ]
       }
     ],
+    "DD_PROXY_HTTPS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_PSYCOPG_SERVICE": [
       {
         "implementation": "A",

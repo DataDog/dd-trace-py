@@ -216,10 +216,14 @@ def test_api_key_header_present_and_absent(harness):
     with_key = harness([_FakeResponse(304)], api_key="secret")
     with_key.periodic()
     assert with_key._requests[0]["headers"]["DD-API-KEY"] == "secret"
+    assert with_key._requests[0]["headers"]["DD-API-KEY-FINGERPRINT"] == (
+        "rijn_amLaG4Pd6h6t9VtJna81k744P1DYxGHzIJ6ECO3OOMj"
+    )
 
     without_key = harness([_FakeResponse(304)], api_key=None)
     without_key.periodic()
     assert "DD-API-KEY" not in without_key._requests[0]["headers"]
+    assert "DD-API-KEY-FINGERPRINT" not in without_key._requests[0]["headers"]
 
 
 def test_client_library_headers_and_gzip_accept(harness):
