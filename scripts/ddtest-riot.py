@@ -57,6 +57,7 @@ Examples
 import os
 from pathlib import Path
 import re
+import shlex
 import sys
 
 
@@ -321,13 +322,16 @@ def _venv_env_lines(inst):
 
 
 def _print_env(env):
-    # Sort for stable output / easier diffing; ddtest parses "KEY=value" lines
-    # by splitting on the first "=", so values may contain "=" or ":".
+    # Emit KEY=value lines, shell-quoting the value so the output is safe to
+    # `eval` in bash. Riot's RIOT_VENV_FULL_PKGS / _CI_DD_TAGS / SSH_* etc.
+    # contain spaces, '<', '~', ':' which break an unquoted eval (e.g.
+    # 'hypothesis<6.45.1' is read as a redirection). ddtest parses lines by
+    # splitting on the first '=', so a single-quoted value round-trips.
     for key in sorted(env):
         value = env[key]
         if value is None:
             continue
-        sys.stdout.write(f"{key}={value}\n")
+        sys.stdout.write(f"{key}={shlex.quote(value)}\n")
 
 
 def cmd_hashes(args):
