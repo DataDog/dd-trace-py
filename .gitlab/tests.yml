@@ -113,8 +113,11 @@ include:
       # prefix) and activate it. build_base_venvs only installs ddtrace into
       # the base venv; the per-hash deps are installed lazily by prepare.
       python scripts/ddtest-riot.py prepare "${RIOT_HASH}"
-      eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
-      python -c "import ddtrace, pytest, envier"
+      # Activate the venv in a subshell so the exported PYTHONPATH
+      # does NOT contaminate the before_script environment
+      # (which riot run -s wait inherits). The ddtest plan/run
+      # scripts re-activate below.
+      eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")" && python -c "import ddtrace, pytest, envier"
 
 .ddtest_base_snapshot:
   extends: .ddtest_base
@@ -135,6 +138,7 @@ include:
   extends: .ddtest_base
   script:
     - |
+      eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
       ./bin/ddtest plan \
         --platform python \
         --framework pytest \
@@ -155,6 +159,7 @@ include:
   extends: .ddtest_base
   script:
     - |
+      eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
       ./bin/ddtest run \
         --platform python \
         --framework pytest \
@@ -165,6 +170,7 @@ include:
   extends: .ddtest_base_snapshot
   script:
     - |
+      eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
       ./bin/ddtest run \
         --platform python \
         --framework pytest \

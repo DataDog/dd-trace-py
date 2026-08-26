@@ -1452,7 +1452,10 @@ venv = Venv(
         ),
         Venv(
             name="mako",
-            command="pytest {cmdargs} tests/contrib/mako",
+            env={
+                "DDTEST_SUITE_PATH": "tests/contrib/mako",
+            },
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pys=select_pys(),
             pkgs={
                 "mako": ["~=1.0.0", latest],
@@ -1703,7 +1706,10 @@ venv = Venv(
         Venv(
             name="structlog",
             pys=select_pys(),
-            command="pytest {cmdargs} tests/contrib/structlog",
+            env={
+                "DDTEST_SUITE_PATH": "tests/contrib/structlog",
+            },
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 "structlog": ["~=20.2.0", latest],
                 "pytest-randomly": latest,
@@ -2380,7 +2386,10 @@ venv = Venv(
         ),
         Venv(
             name="graphql",
-            command="pytest {cmdargs} tests/contrib/graphql",
+            env={
+                "DDTEST_SUITE_PATH": "tests/contrib/graphql",
+            },
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -2466,7 +2475,10 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3",
+            env={
+                "DDTEST_SUITE_PATH": "tests/contrib/urllib3",
+            },
+            command="pytest -n auto --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -3423,9 +3435,10 @@ venv = Venv(
         Venv(
             name="mistralai",
             env={
+                "DDTEST_SUITE_PATH": "tests/contrib/mistralai",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
-            command="pytest {cmdargs} tests/contrib/mistralai",
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
@@ -3521,10 +3534,11 @@ venv = Venv(
         Venv(
             name="logbook",
             env={
+                "DDTEST_SUITE_PATH": "tests/contrib/logbook",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             pys=select_pys(),
-            command="pytest {cmdargs} tests/contrib/logbook",
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 "logbook": ["~=1.0.0", latest],
                 "pytest-randomly": latest,
@@ -3533,10 +3547,11 @@ venv = Venv(
         Venv(
             name="loguru",
             env={
+                "DDTEST_SUITE_PATH": "tests/contrib/loguru",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             pys=select_pys(),
-            command="pytest {cmdargs} tests/contrib/loguru",
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 "loguru": ["~=0.4.0", latest],
                 "pytest-randomly": latest,
@@ -3545,9 +3560,10 @@ venv = Venv(
         Venv(
             name="molten",
             env={
+                "DDTEST_SUITE_PATH": "tests/contrib/molten",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
-            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten",
+            command="pytest -n 8 --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pys=select_pys(),
             pkgs={
                 "cattrs": ["<23.1.1"],
@@ -4560,7 +4576,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest ${{DDTEST_SUITE_PATH}} {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
@@ -4569,6 +4585,7 @@ venv = Venv(
                 "httpx": "<0.28.0",
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
