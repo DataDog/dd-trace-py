@@ -224,7 +224,6 @@ components:
     - ddtrace/contrib/internal/wsgi/*
 suites:
   aiobotocore:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -239,7 +238,6 @@ suites:
     snapshot: true
     venvs_per_job: 2
   aiohttp:
-    ddtest: true
     pattern: ^aiohttp$
     venvs_per_job: 3
     paths:
@@ -254,7 +252,6 @@ suites:
       - httpbin
     snapshot: true
   aiohttp_jinja2:
-    ddtest: true
     venvs_per_job: 6
     paths:
       - '@bootstrap'
@@ -270,7 +267,6 @@ suites:
       - httpbin
     snapshot: true
   aiomysql:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -286,7 +282,6 @@ suites:
       - mysql
     snapshot: true
   aiokafka:
-    ddtest: true
     env:
       TEST_KAFKA_HOST: kafka
       TEST_KAFKA_PORT: '29092'
@@ -304,7 +299,6 @@ suites:
       - kafka
     snapshot: true
   aiopg:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -320,7 +314,6 @@ suites:
       - postgres
     venvs_per_job: 2
   algoliasearch:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -359,7 +352,6 @@ suites:
     pattern: asgi$
     snapshot: true
   asyncpg:
-    ddtest: true
     retry: 2
     parallelism: 2
     paths:
@@ -405,7 +397,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
   aws_durable_execution_sdk_python:
-    ddtest: true
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -417,7 +408,6 @@ suites:
       - tests/snapshots/tests.{suite}.*
     snapshot: true
   azure_cosmos:
-    ddtest: true
     venvs_per_job: 4
     paths:
       - '@bootstrap'
@@ -432,7 +422,6 @@ suites:
       - azurite
       - azurecosmosemulator
   azure_eventhubs:
-    ddtest: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -459,7 +448,6 @@ suites:
       KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
       KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'      
   azure_durable_functions:
-    ddtest: true
     venvs_per_job: 3
     paths:
       - '@bootstrap'
@@ -476,7 +464,6 @@ suites:
   # (the one that runs from scripts/ddtest on Mac OS)
   # they can be run on OSX bare metal after `brew tap azure/functions && brew install azure-functions-core-tools@4`
   azure_functions:
-    ddtest: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -523,7 +510,6 @@ suites:
       - azurite
       - azureeventhubsemulator
   azure_functions:servicebus:
-    ddtest: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -541,7 +527,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   azure_servicebus:
-    ddtest: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -556,6 +541,7 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   botocore:
+    ddtest_nodes: 2
     ddtest: true
     retry: 2
     parallelism: 11
@@ -604,7 +590,6 @@ suites:
     snapshot: true
     venvs_per_job: 1
   cherrypy:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -645,7 +630,6 @@ suites:
       - tests/contrib/ddtrace_api/*
     snapshot: true
   django:
-    ddtest: true
     parallelism: 6
     env:
       TEST_MEMCACHED_HOST: memcached
@@ -674,7 +658,6 @@ suites:
       - redis
     snapshot: true
   django_hosts:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -689,7 +672,6 @@ suites:
     pattern: django:django_hosts
     snapshot: true
   django:djangorestframework:
-    ddtest: true
     parallelism: 2
     env:
       TEST_MEMCACHED_HOST: memcached
@@ -709,7 +691,6 @@ suites:
       - redis
     snapshot: true
   dogpile_cache:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -757,7 +738,6 @@ suites:
       - elasticsearch
     snapshot: true
   opensearch:
-    ddtest: true
     pattern: elasticsearch:opensearch
     env:
       TEST_OPENSEARCH_HOST: opensearch
@@ -775,7 +755,6 @@ suites:
       - opensearch
     snapshot: true
   falcon:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -786,7 +765,6 @@ suites:
     snapshot: true
     venvs_per_job: 2
   fastapi:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -826,7 +804,6 @@ suites:
       - redis
     snapshot: true
   gevent:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -837,7 +814,6 @@ suites:
     snapshot: false
     venvs_per_job: 2
   google_cloud_pubsub:
-    ddtest: true
     env:
       TEST_PUBSUB_HOST: pubsub
       TEST_PUBSUB_PORT: '8085'
@@ -865,6 +841,8 @@ suites:
       - tests/snapshots/tests.contrib.graphene*
     snapshot: true
   graphql:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -877,7 +855,6 @@ suites:
     pattern: graphql$
     snapshot: true
   grpc:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -890,7 +867,6 @@ suites:
     snapshot: true
     venvs_per_job: 3
   gunicorn:
-    ddtest: true
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -914,7 +890,6 @@ suites:
     snapshot: true
     venvs_per_job: 1
   httpx:
-    ddtest: true
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -928,7 +903,6 @@ suites:
       - httpbin
     snapshot: true
   httpx2:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -953,7 +927,6 @@ suites:
     snapshot: false
     parallelism: 1
   jinja2:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -964,7 +937,6 @@ suites:
       - tests/contrib/jinja2/*
     snapshot: true
   kafka:
-    ddtest: true
     retry: 2
     env:
       TEST_KAFKA_HOST: kafka
@@ -996,6 +968,8 @@ suites:
       - rabbitmq
     snapshot: true
   logbook:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 1
     paths:
       - '@core'
@@ -1005,6 +979,8 @@ suites:
       - tests/contrib/logbook/*
     snapshot: true
   loguru:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 1
     paths:
       - '@core'
@@ -1014,6 +990,8 @@ suites:
       - tests/contrib/loguru/*
     snapshot: true
   mako:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1024,7 +1002,6 @@ suites:
       - tests/contrib/mako/*
     snapshot: true
   mariadb:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1039,7 +1016,6 @@ suites:
     snapshot: true
     venvs_per_job: 2
   mlflow:
-    ddtest: true
     venvs_per_job: 2
     paths:
       - '@bootstrap'
@@ -1051,6 +1027,8 @@ suites:
       - tests/snapshots/tests.contrib.mlflow.*
     snapshot: true
   molten:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1077,6 +1055,7 @@ suites:
     services:
       - mysql
   opentelemetry:
+    ddtest_nodes: 2
     ddtest: true
     parallelism: 4
     paths:
@@ -1099,7 +1078,6 @@ suites:
       - tests/contrib/protobuf/*
     snapshot: true
   psycopg:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1129,7 +1107,6 @@ suites:
       - memcached
     snapshot: true
   pymemcache:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1142,7 +1119,6 @@ suites:
       - memcached
     snapshot: true
   pymongo:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1170,7 +1146,6 @@ suites:
       - mysql
     snapshot: true
   pynamodb:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1214,7 +1189,6 @@ suites:
       - tests/snapshots/tests.contrib.pyramid.*
     snapshot: true
   ray:
-    ddtest: true
     parallelism: 3
     paths:
       - '@bootstrap'
@@ -1228,7 +1202,6 @@ suites:
     pattern: ^ray$
     snapshot: true
   ray_serve:
-    ddtest: true
     parallelism: 6
     paths:
       - '@bootstrap'
@@ -1242,7 +1215,6 @@ suites:
     pattern: ^ray_serve$
     snapshot: true
   redis:
-    ddtest: true
     parallelism: 5
     paths:
       - '@bootstrap'
@@ -1297,7 +1269,6 @@ suites:
       - redis
     snapshot: true
   sanic:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1310,7 +1281,6 @@ suites:
     snapshot: true
     venvs_per_job: 2
   snowflake:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1347,7 +1317,6 @@ suites:
       - mysql
     snapshot: true
   starlette:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'
@@ -1360,7 +1329,6 @@ suites:
     snapshot: true
     venvs_per_job: 2
   stdlib:
-    ddtest: true
     retry: 2
     parallelism: 2
     paths:
@@ -1383,6 +1351,8 @@ suites:
     pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
     snapshot: true
   structlog:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 1
     paths:
       - '@core'
@@ -1392,7 +1362,6 @@ suites:
       - tests/contrib/structlog/*
     snapshot: true
   subprocess:
-    ddtest: true
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1424,6 +1393,8 @@ suites:
       - tests/contrib/tornado/*
     snapshot: true
   urllib3:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 1
     env:
       TEST_HTTPBIN_HOST: httpbin

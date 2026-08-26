@@ -152,7 +152,6 @@ components:
     - ddtrace/vendor/*
 suites:
   crashtracker:
-    ddtest: true
     venvs_per_job: 6
     paths:
       - '@crashtracker'
@@ -167,7 +166,6 @@ suites:
     pattern: meta-testing
     snapshot: false
   ddtracerun:
-    ddtest: true
     parallelism: 3
     paths:
       - '@contrib'
@@ -187,6 +185,7 @@ suites:
       - 'src/native/*'
       - 'scripts/global-lock-detection.py'
   integration_agent:
+    ddtest_nodes: 2
     ddtest: true
     parallelism: 2
     paths:
@@ -199,6 +198,7 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
   integration_testagent:
+    ddtest_nodes: 2
     ddtest: true
     venvs_per_job: 3
     paths:
@@ -235,7 +235,6 @@ suites:
       - tests/snapshots/tests.internal.*
     snapshot: true
   wrapping:
-    ddtest: true
     venvs_per_job: 6
     paths:
       - '@core'
@@ -244,7 +243,6 @@ suites:
       - ddtrace/_trace/tracer.py
       - tests/wrapping/*
   lib_injection:
-    ddtest: true
     paths:
       - '@bootstrap'
       - '@core'

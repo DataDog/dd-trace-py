@@ -18,7 +18,6 @@ components:
     - ddtrace/appsec/sca/*
 suites:
   appsec:
-    ddtest: true
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -43,7 +42,6 @@ suites:
     snapshot: true
     timeout: 30m
   appsec_iast_memcheck:
-    ddtest: true
     env:
       CI_DEBUG_TRACE: 'true'
     parallelism: 6
@@ -264,6 +262,8 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
   appsec_threats_fastapi_iast:
+    ddtest: true
+    ddtest_nodes: 2
     venvs_per_job: 1
     paths:
       - '@bootstrap'
