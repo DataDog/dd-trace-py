@@ -167,14 +167,7 @@ def detect_service(args: list[str]) -> Optional[str]:
     try:
         # Check both the included command args as well as the executable being run
         possible_commands = [*args, sys.executable]
-        executable_args = {0}
-        # sys.argv[0] is the interpreter or module runner (e.g. 'python -m pytest'
-        # sets it to the module's __init__.py). It is never a user-provided test
-        # file. When it's a __init__.py, it would be incorrectly treated as a
-        # package path by deduce_package_name, producing 'pytest' as the service.
-        # Skip it — a __init__.py is a package marker, never a test file.
-        if args and os.path.basename(args[0]) == "__init__.py":
-            executable_args.add(0)
+        executable_args = set()
 
         # list of detectors to try in order
         detectors = {}
