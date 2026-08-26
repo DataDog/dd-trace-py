@@ -353,7 +353,7 @@ def _print_env(env):
         value = env[key]
         if value is None:
             continue
-        sys.stdout.write(f"{key}={shlex.quote(value)}\n")
+        sys.stdout.write(f"export {key}={shlex.quote(value)}\n")
 
 
 def cmd_hashes(args):
