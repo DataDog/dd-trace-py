@@ -1,6 +1,14 @@
 [build-system]
 requires = [
-    "cython",
+    # Cython 3.3.0 is the first release to publish compiled cp315 wheels, and it
+    # builds them against 3.15.0rc1+. Our manylinux2014 images still ship 3.15.0b1,
+    # where CPython moved PyThreadState members (python/cpython#151614), so the
+    # 3.3.0 cp315 wheel segfaults the moment setup.py imports Cython.Build.
+    # <3.3 has no compiled cp315 wheel, so 3.15 resolves the pure-Python
+    # cython-*-py3-none-any.whl instead, which has no ABI to mismatch.
+    # Drop this once the image mirror ships a cp315 interpreter >= 3.15.0rc1.
+    "cython<3.3; python_version >= '3.15'",
+    "cython; python_version < '3.15'",
     "cmake>=3.24.2,<3.28",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
