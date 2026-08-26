@@ -3,8 +3,8 @@ import pytest
 
 from ddtrace import config
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib.internal.httpx.common import _set_response
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
-from ddtrace.contrib.internal.httpx.patch import _set_response
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
 from ddtrace.internal.compat import is_wrapted

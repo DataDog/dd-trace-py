@@ -10,7 +10,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 
 from .common import HttpxPatcher
-from .common import _set_response  # noqa: F401
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
