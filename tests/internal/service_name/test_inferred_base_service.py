@@ -103,12 +103,6 @@ def mock_file_system():
         ("pytest tests/contrib/aiohttp", "tests.contrib.aiohttp"),
         ("pytest --ddtrace tests/contrib/aiohttp", "tests.contrib.aiohttp"),
         ("pytest --no-cov tests/contrib/aiohttp", "tests.contrib.aiohttp"),
-        # python -m pytest: sys.argv[0] is the pytest module's __file__ path,
-        # not a user-provided test file. detect_service must skip it
-        # and derive the service from the actual test file path instead.
-        # See https://github.com/DataDog/dd-trace-py/issues/19868
-        ("/path/to/pytest/__init__.py tests/contrib/aiohttp/app/web.py", "tests.contrib.aiohttp.app"),
-        ("/path/to/pytest/__init__.py tests/contrib/aiohttp", "tests.contrib.aiohttp"),
     ],
 )
 def test_python_detector_service_name_should_exist_file_exists(cmd, expected, mock_file_system):

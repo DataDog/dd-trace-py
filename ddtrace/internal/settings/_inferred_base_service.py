@@ -167,13 +167,7 @@ def detect_service(args: list[str]) -> Optional[str]:
     try:
         # Check both the included command args as well as the executable being run
         possible_commands = [*args, sys.executable]
-        # sys.argv[0] is the interpreter or script/module path, never a
-        # user-provided test file argument. When running via `python -m
-        # <module>`, sys.argv[0] is the module's __file__ path (e.g.
-        # /path/to/pytest/__init__.py), which deduce_package_name would
-        # incorrectly treat as a package path and return "pytest" as the
-        # service name. Always skip it.
-        executable_args = {0}
+        executable_args = set()
 
         # list of detectors to try in order
         detectors = {}
