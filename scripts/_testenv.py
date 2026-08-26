@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import tempfile
 from typing import Iterator
+from typing import Literal
 
 
 # Two days matches the cross-language supply-chain cooldown used by test locks.
@@ -18,6 +19,7 @@ COOLDOWN_DAYS = 2
 _CACHE_ROOT = Path(".cache/uv-test-environments")
 _STATE_FILE = ".ddtrace-test-environment.json"
 _STATE_VERSION = 1
+EditableMode = Literal["none", "compat", "prebuilt-editable"]
 
 
 class UvTestEnvironmentError(RuntimeError):
@@ -28,9 +30,8 @@ class UvTestEnvironmentError(RuntimeError):
 class PreparedEnvironment:
     path: Path
     requirements: Path
-    install_project: bool
     project_hash: str | None
-    project_artifact: Path | None
+    editable_mode: EditableMode
 
 
 def _content_hash(contents: bytes) -> str:
@@ -88,7 +89,7 @@ def prepare_environment(
     package_hash = _content_hash(contents.encode())
     project_hash = None
     project_requirement = None
-    artifact_path = None
+    editable_mode: EditableMode = "none"
     if install_project:
         if project_artifact is not None:
             artifact_path = project_artifact if project_artifact.is_absolute() else root / project_artifact
@@ -99,12 +100,14 @@ def prepare_environment(
             artifact_identity = f"{artifact_path.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
             project_hash = _content_hash(artifact_identity.encode())
             project_requirement = str(artifact_path)
+            editable_mode = "prebuilt-editable"
         else:
             project_file = root / "pyproject.toml"
             if not project_file.is_file():
                 raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
             project_hash = _content_hash(project_file.read_bytes())
             project_requirement = "-e ."
+            editable_mode = "compat"
     elif project_artifact is not None:
         raise UvTestEnvironmentError("a project artifact requires install_project")
     path = _CACHE_ROOT / f"{environment_hash}-{package_hash}"
@@ -116,9 +119,8 @@ def prepare_environment(
     return PreparedEnvironment(
         path=path,
         requirements=requirements,
-        install_project=install_project,
         project_hash=project_hash,
-        project_artifact=artifact_path,
+        editable_mode=editable_mode,
     )
 
 
@@ -143,7 +145,7 @@ def environment_commands(
         "--strict",
         "--no-progress",
     ]
-    if prepared.install_project and prepared.project_artifact is None:
+    if prepared.editable_mode == "compat":
         synchronize.extend(["--config-settings-package", "ddtrace:editable_mode=compat"])
     return (
         [
@@ -185,18 +187,11 @@ def _environment_structure_exists(venv: Path) -> bool:
 
 
 def _state_identity(prepared: PreparedEnvironment, python: str) -> dict[str, object]:
-    if prepared.project_artifact is not None:
-        editable_mode = "prebuilt-editable"
-    elif prepared.install_project:
-        editable_mode = "compat"
-    else:
-        editable_mode = "none"
     return {
         "state_version": _STATE_VERSION,
         "project_hash": prepared.project_hash,
         "python": python,
-        "install_project": prepared.install_project,
-        "editable_mode": editable_mode,
+        "editable_mode": prepared.editable_mode,
     }
 
 

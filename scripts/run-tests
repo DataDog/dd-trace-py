@@ -77,9 +77,6 @@ DDTRACE_TEST_WHEEL_ROOT = Path(".cache/ddtrace-test-wheels")
 class TestRunner:
     def __init__(self):
         self.root = ROOT
-        self.changed_files: set[str] = set()
-        self.matching_suites: dict[str, dict] = {}
-        self.required_services: set[str] = set()
         self.podman_compat = os.environ.get(PODMAN_COMPAT_ENV_VAR, "0") == "1"
         self.in_ci = os.environ.get("GITLAB_CI", "").lower() == "true"
         self._environment_cache: dict[str, tuple[TestEnvironment, ...]] = {}
@@ -399,20 +396,6 @@ class TestRunner:
             )
         return wheels[0].relative_to(self.root)
 
-    def _prepare_uv_environment(
-        self,
-        environment: TestEnvironment,
-        *,
-        project_artifact: Path | None = None,
-    ) -> PreparedEnvironment:
-        return prepare_environment(
-            self.root,
-            environment_hash=environment.hash,
-            lockfile=environment.lockfile,
-            install_project=bool(get_suites()[environment.suite].get("install_project", True)),
-            project_artifact=project_artifact,
-        )
-
     def _uv_execution_path(self, prepared: PreparedEnvironment) -> Path:
         return self.root / prepared.path if self.in_ci else prepared.path
 
@@ -470,6 +453,7 @@ class TestRunner:
         environments: list[TestEnvironment],
         forwarded_env: dict[str, str],
         test_args: list[str],
+        install_project: bool,
         skip_ddtrace_install: bool,
         dry_run: bool,
     ) -> bool:
@@ -481,7 +465,6 @@ class TestRunner:
 
         for environment in environments:
             try:
-                install_project = bool(get_suites()[environment.suite].get("install_project", True))
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
@@ -493,7 +476,13 @@ class TestRunner:
                     )
                 if uses_ci_base and skip_ddtrace_install:
                     project_artifact = self._prebuilt_ddtrace_wheel(environment.python)
-                prepared = self._prepare_uv_environment(environment, project_artifact=project_artifact)
+                prepared = prepare_environment(
+                    self.root,
+                    environment_hash=environment.hash,
+                    lockfile=environment.lockfile,
+                    install_project=install_project,
+                    project_artifact=project_artifact,
+                )
                 prepared_environments[environment] = prepared
                 command_env = self._uv_command_environment(prepared, build_env)
             except UvTestEnvironmentError as error:
@@ -521,7 +510,7 @@ class TestRunner:
                     self.root,
                     prepared,
                     python=environment.python,
-                    reuse_current=skip_ddtrace_install or not prepared.install_project,
+                    reuse_current=skip_ddtrace_install or prepared.editable_mode == "none",
                     run=run_build,
                 )
             except UvTestEnvironmentError as error:
@@ -529,7 +518,7 @@ class TestRunner:
                 return False
             if rebuilt:
                 print("   ✅ uv environment synchronized successfully")
-            elif skip_ddtrace_install and prepared.install_project:
+            elif skip_ddtrace_install and prepared.editable_mode != "none":
                 print("   ✅ Reusing current uv environment; ddtrace install skipped")
             else:
                 print("   ✅ Reusing current uv environment")
@@ -636,6 +625,7 @@ class TestRunner:
                 environments,
                 forwarded_env,
                 test_args or [],
+                bool(suite_config.get("install_project", True)),
                 skip_ddtrace_install,
                 dry_run,
             )
