@@ -13,7 +13,6 @@ import ddtrace
 import re
 import os
 import sys
-import time
 
 children = []
 for i in range(10):
@@ -22,13 +21,11 @@ for i in range(10):
         # Child process
         service_name = f"extra_service_{i}"
         ddtrace.config._add_extra_service(service_name)
-        # Ensure the child has time to save the service
-        for _ in range(30):
-            time.sleep(0.1)
-            if service_name in set(ddtrace.config._extra_services_queue.peekall()):
-                break
-        else:
-            sys.stderr.write(f"extra service name '{service_name}' not emitted by child\\n")
+        # _extra_services_sent records the name only if the queue write succeeded, so this
+        # confirms the child's own write without observing the queue: the parent's remote
+        # config poller drains it with snatchall(), which is a destructive read.
+        if service_name not in ddtrace.config._extra_services_sent:
+            sys.stderr.write(f"extra service name '{service_name}' not written by child\\n")
             os._exit(1)
         os._exit(0)
     else:
