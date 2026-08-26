@@ -16,6 +16,7 @@
 # Flow (single job, auto-run):
 #   needs build_base_venvs (PYTHON_VERSION=3.10)  -> restores .riot/venv_py310
 #   download ddtest binary
+#   riot -P -v run -s <hash> -- true            -> prepare per-hash deps (envier, ...)
 #   eval "$(python scripts/ddtest-riot.py venv-env 4f70b3c)"  -> activate venv
 #   ddtest plan  -p python -f pytest --tests-location tests/internal \
 #                 --min-parallelism 1 --max-parallelism 1
@@ -23,10 +24,12 @@
 #
 # The pilot does NOT run `riot generate`: it reuses the venv built by
 # build_base_venvs (which already compiled the native extensions), so it
-# needs only default runner resources. `--min-parallelism 1
-# --max-parallelism 1` makes plan select a single CI node, so this one job
-# runs all of tests/internal in the venv with xdist inside (the
-# --ci-node-workers ncpu fan-out).
+# needs only default runner resources. It DOES run `riot run -s <hash> --
+# true` to prepare the per-hash deps venv (install envier, pytest, ... into
+# the prefix), because build_base_venvs only installs ddtrace into the base
+# venv — the per-hash deps are installed lazily by `riot run` via
+# VenvInstance.prepare, exactly as the legacy `riot run -s <hash> -- --ddtrace`
+# job does before pytest.
 #
 # The pilot runs automatically on every child pipeline (push) so it can be
 # observed without merging. `allow_failure: true` keeps a pilot failure
@@ -69,7 +72,17 @@ ddtest-internal-pilot:
       curl -fsSL "https://github.com/DataDog/ddtest/releases/${DDTEST_VERSION}/download/ddtest-linux-amd64" -o bin/ddtest
       chmod +x bin/ddtest
 
-      # 2. Activate the riot venv for this hash. The build_base_venvs
+      # 2. Prepare the per-hash riot venv. build_base_venvs only installs
+      #    ddtrace into the base venv (venv_py310); the per-hash deps
+      #    (envier, pytest, ...) are installed into the prefix
+      #    (venv_py310_<ident>) by `riot run` via VenvInstance.prepare.
+      #    Run a no-op riot command with -s (skip the ddtrace reinstall,
+      #    already in the base) so prepare installs the per-hash deps.
+      #    This mirrors what the legacy `riot run -s <hash> -- --ddtrace` job
+      #    does before pytest.
+      riot -P -v run -s --pass-env "${RIOT_HASH}" -- true
+
+      # 3. Activate the riot venv for this hash. The build_base_venvs
       #    artifact already restored .riot/venv_py310 with ddtrace compiled;
       #    the bridge reads the riotfile and emits KEY=value lines (VIRTUAL_ENV,
       #    PATH with the venv bin first, PYTHONPATH site-packages, the venv's
@@ -79,7 +92,7 @@ ddtest-internal-pilot:
       eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
       python -c "import ddtrace, pytest"
 
-      # 3. Plan: discover tests/internal files and write .testoptimization/.
+      # 4. Plan: discover tests/internal files and write .testoptimization/.
       #    Single CI node for this pilot (see file header).
       ./bin/ddtest plan \
         --platform python \
@@ -88,7 +101,7 @@ ddtest-internal-pilot:
         --min-parallelism 1 \
         --max-parallelism 1
 
-      # 4. Run: execute this node's files in the activated venv. ncpu fans out
+      # 5. Run: execute this node's files in the activated venv. ncpu fans out
       #    with xdist inside the job.
       ./bin/ddtest run \
         --platform python \
