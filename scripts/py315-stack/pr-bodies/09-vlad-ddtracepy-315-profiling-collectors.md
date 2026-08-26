@@ -1,12 +1,10 @@
-**prev:** [#19250](https://github.com/DataDog/dd-trace-py/pull/19250) | **next:** [#19249](https://github.com/DataDog/dd-trace-py/pull/19249)
+**prev:** [#19269](https://github.com/DataDog/dd-trace-py/pull/19269) | **next:** [#19272](https://github.com/DataDog/dd-trace-py/pull/19272)
 
 ## Summary
 
-Collector updates for 3.15.
-
+Python collector updates for 3.15 and riotfile/CI matrix wiring. Lifts remaining `setup.py` native-build skips to `< (3, 16)` so 3.15 wheels compile the ABI from #19269.
 
 ## Test plan
 
-- [ ] CI green on this branch
+- [ ] Native extensions compile on 3.15
 - [ ] Stack merges cleanly into the next PR's base branch
-

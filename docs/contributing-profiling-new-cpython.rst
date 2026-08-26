@@ -13,12 +13,15 @@ Reference implementations:
 
 * `PR #15546`__ (feat(profiling): support Python 3.14) — Echion frame/task/asyncio changes,
   ``setup.py`` un-gating, profiling defaults, Riot venv splits, tests, and a release note.
-* `PR #17294`__ (feat(profiling): support Python 3.15) — native ABI fixes for renumbered
-  ``PyFrameState`` and removed ``FRAME_OWNED_BY_CSTACK``; Python-side ``_asyncio.py`` hardening
-  with tiered ``hasattr`` guards; new compile-time layout contract tests.
+* `PR #19269`__ (native ABI) + `PR #19270`__ (collectors/CI) + `PR #19272`__
+  (asyncio) — Echion ``PyFrameState`` / ``FRAME_OWNED_BY_CSTACK``; ``setup.py``
+  native-build un-gating; ``_asyncio.py`` uses ``sys.monitoring`` on 3.15 because
+  wrapping is unavailable (the API itself exists since 3.12).
 
 __ https://github.com/DataDog/dd-trace-py/pull/15546
-__ https://github.com/DataDog/dd-trace-py/pull/17294
+__ https://github.com/DataDog/dd-trace-py/pull/19269
+__ https://github.com/DataDog/dd-trace-py/pull/19270
+__ https://github.com/DataDog/dd-trace-py/pull/19272
 
 Current status
 --------------
@@ -37,16 +40,17 @@ Current status
      - Merged (`PR #15546`__)
      - Echion frame/task/asyncio, ``setup.py`` un-gating, Riot venv splits, tests done.
    * - 3.15
-     - `PR #17294`__
+     - In review (`PR #19269`__ → `PR #19254`__)
      - Echion: ``FRAME_OWNED_BY_CSTACK`` removed; ``PyFrameState`` renumbered;
        ``FRAME_SUSPENDED_YIELD_FROM_LOCKED`` added for free-threaded builds.
-       ``_asyncio.py``: tiered ``hasattr`` guards for private asyncio APIs
-       (``_GatheringFuture``, ``_wait``, ``_scheduled_tasks``).
+       ``_asyncio.py``: ``sys.monitoring`` PY_RETURN path gated at 3.15 because
+       wrapping is unavailable, not because the API is new (PEP 669, 3.12).
        New compile-time layout contract tests (``test_cpython_layout_contracts.cpp``).
        Use ``0x030f0000`` guards.
 
 __ https://github.com/DataDog/dd-trace-py/pull/15546
-__ https://github.com/DataDog/dd-trace-py/pull/17294
+__ https://github.com/DataDog/dd-trace-py/pull/19269
+__ https://github.com/DataDog/dd-trace-py/pull/19254
 
 Version hex quick reference
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
