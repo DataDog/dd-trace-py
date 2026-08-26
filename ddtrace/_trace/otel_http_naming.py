@@ -1,6 +1,7 @@
 from typing import Optional
 
 from ddtrace._trace.span import Span
+from ddtrace.internal.settings._config import config
 
 
 # An ASGI websocket handshake reports method "websocket", which normalizes to _OTHER. Renaming
@@ -56,3 +57,15 @@ def set_otel_http_resource(
     resource = otel_http_resource(normalized_method, target)
     span.resource = resource
     span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
+
+
+def set_instrumentation_resource(span: Span, resource: str) -> None:
+    """Set a resource an integration composed, recording that instrumentation owns it.
+
+    Integrations that write span.resource mid-request are otherwise indistinguishable from user
+    code doing the same, and the later OTel naming would back off and leave the Datadog value
+    on the span.
+    """
+    span.resource = resource
+    if config._otel_trace_semantics_enabled:
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)

@@ -7,6 +7,7 @@ from typing import Optional
 from urllib import parse
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
@@ -592,7 +593,7 @@ class TraceMiddleware:
             cookies = _parse_response_cookies(response_headers)
             status_code = message["status"]
             if self.integration_config.obfuscate_404_resource and status_code == 404:
-                span.resource = " ".join((method, "404"))
+                set_instrumentation_resource(span, " ".join((method, "404")))
 
             trace_utils.set_http_meta(
                 span,
