@@ -1,3 +1,4 @@
+import asyncio
 import concurrent.futures
 from contextvars import Context
 import ctypes
@@ -10,6 +11,8 @@ import pytest
 from ddtrace._trace.context import Context as DDContext
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
+from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.internal import core
 from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
 
@@ -195,6 +198,27 @@ def test_python_context_switch_syncs_active_context(tracer: Tracer):
     core.dispatch("python.context.switch")
 
     assert _published_context() == (context.trace_id, context.span_id, 1, 0)
+
+
+def test_asyncio_to_thread_clears_stale_thread_context(tracer: Tracer):
+    """Do not expose native TLS left on a reused worker to an untraced to_thread call."""
+    ambient_worker = tracer.start_span("ambient-worker")
+    try:
+        patch_futures()
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=1,
+            initializer=tracer.context_provider.activate,
+            initargs=(ambient_worker,),
+        ) as executor:
+
+            async def exercise():
+                asyncio.get_running_loop().set_default_executor(executor)
+                assert await asyncio.to_thread(_published_span_id) is None
+
+            asyncio.run(exercise())
+    finally:
+        unpatch_futures()
+        ambient_worker.finish()
 
 
 def test_span_context_is_reactivated_after_fork(tracer: Tracer):
