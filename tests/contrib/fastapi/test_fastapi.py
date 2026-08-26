@@ -483,6 +483,10 @@ def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
     app = FastAPI()
     app.include_router(v1, prefix="/v1")
 
+    sub_app = FastAPI()
+    sub_app.include_router(items, prefix="/items")
+    app.mount("/v2", sub_app)
+
     with TestClient(app) as client:
         r = client.get("/v1/items")
         assert r.status_code == 200
@@ -495,6 +499,18 @@ def test_nested_include_router_resource_names(fastapi_tracer, test_spans):
         request_span = test_spans.pop_traces()[0][0]
         assert request_span.resource == "GET /v1/items/{item_id}"
         assert request_span.get_tag("http.route") == "/v1/items/{item_id}"
+
+        r = client.get("/v2/items")
+        assert r.status_code == 200
+        request_span = test_spans.pop_traces()[0][0]
+        assert request_span.resource == "GET /v2/items"
+        assert request_span.get_tag("http.route") == "/v2/items"
+
+        r = client.get("/v2/items/42")
+        assert r.status_code == 200
+        request_span = test_spans.pop_traces()[0][0]
+        assert request_span.resource == "GET /v2/items/{item_id}"
+        assert request_span.get_tag("http.route") == "/v2/items/{item_id}"
 
 
 def test_distributed_tracing(client, tracer, test_spans):
