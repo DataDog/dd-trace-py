@@ -179,7 +179,7 @@ class DataDogProvider(AbstractProvider):
         # EVP flagevaluation writer + hook — gated by DD_FLAGGING_EVALUATION_COUNTS_ENABLED
         # (default on). Gates ONLY the EVP path; the OTel path above is always registered
         # when the provider is enabled (preserves the existing OTel non-regression).
-        # AIDEV-NOTE: the killswitch is read through the ddtrace config system
+        # the killswitch is read through the ddtrace config system
         # (OpenFeatureConfig.flagging_evaluation_counts_enabled, registered in
         # supported-configurations.json) rather than raw os.environ. It comes from the
         # fresh instance_config built at the top of __init__, so the value reflects the
@@ -298,7 +298,7 @@ class DataDogProvider(AbstractProvider):
             self._status = ProviderStatus.READY
             return  # SDK will dispatch PROVIDER_READY
 
-        # AIDEV-NOTE: the wait above must stay bounded. A blocked initialize() blocks
+        # the wait above must stay bounded. A blocked initialize() blocks
         # set_provider() in openfeature-sdk 0.8.x and set_provider_and_wait() in 0.10+.
         # The 10s default stays inside gunicorn's 30s worker timeout. Raising the
         # OpenFeature error is also required: the SDK converts it to PROVIDER_ERROR for
@@ -448,7 +448,7 @@ class DataDogProvider(AbstractProvider):
           flag is not found in the configuration
         - Returns error with error_code and error_message on other errors
         """
-        # AIDEV-NOTE: Stamp eval-time at provider entry so every OpenFeature exit path
+        # Stamp eval-time at provider entry so every OpenFeature exit path
         # can feed the EVP flagevaluation hook first_evaluation/last_evaluation from
         # evaluation time, not the later hook/flush time.
         flag_metadata: dict[str, typing.Any] = {EVAL_TIMESTAMP_METADATA_KEY: int(time.time() * 1000)}

@@ -531,7 +531,7 @@ class Config(object):
 
         self._inferred_base_service = detect_service(sys.argv)
 
-        # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
+        # Mirrors ddtrace.internal.schema's span-service-name-schema resolution
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")

@@ -51,7 +51,7 @@ logger = ddlogger.get_logger(__name__)
 _RESPONSE_TEXT_BLOCK_TYPES = ("input_text", "output_text")
 # Refusal-style blocks carry their content under a ``refusal`` key.
 _RESPONSE_REFUSAL_BLOCK_TYPES = ("refusal", "output_refusal")
-# AIDEV-NOTE: Item types that must never reach the AI Guard evaluator.
+# Item types that must never reach the AI Guard evaluator.
 # - ``reasoning``: internal chain-of-thought emitted by reasoning-capable
 #   models; evaluating it would gate on the model's private deliberation
 #   rather than the user-visible conversation, and could leak CoT into AI
@@ -160,7 +160,7 @@ def _render_prompt_variable_value(value: Any) -> Optional[str]:
         if text is not None:
             return text
 
-        # AIDEV-NOTE: Prompt-template variables are user-controlled input.
+        # Prompt-template variables are user-controlled input.
         # Render unknown mappings recursively so object-valued text cannot
         # bypass AI Guard, but redact OpenAI file/image locator fields instead
         # of raw ``str(mapping)`` to avoid leaking signed URLs or opaque ids.
@@ -301,7 +301,7 @@ def _convert_openai_response_input(instructions: Any, input_: Any, prompt: Any =
       - Unknown / forward-incompatible types are silently dropped (the
         converter fails open so SDK calls don't break on new payload shapes).
 
-    AIDEV-NOTE: fail-open security tradeoff. Per-item exceptions are
+    fail-open security tradeoff. Per-item exceptions are
     swallowed (``logger.debug`` only) and items with unrecognised shape are
     dropped. If the entire ``input`` list is unconvertible — or yields only
     a ``system`` message from ``instructions`` — the before-hook returns

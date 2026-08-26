@@ -443,7 +443,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # AIDEV-NOTE: This hook runs in every process, so an xdist session uploads one report per process, each
+        # This hook runs in every process, so an xdist session uploads one report per process, each
         # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
         # for a session, so the partial uploads add up to full coverage.
         #
@@ -1625,7 +1625,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if is_discovery_mode_enabled():
         # Register hook specs so item_to_test_ref can call the custom name hooks during
         # discovery, giving the same module/suite/name resolution as a real test run.
-        # AIDEV-NOTE: BddTestOptPlugin is not registered here, so pytest-bdd tests will
+        # BddTestOptPlugin is not registered here, so pytest-bdd tests will
         # fall back to nodeid-based names rather than feature-file names during discovery.
         # TODO: register BddTestOptPlugin in discovery mode to support pytest-bdd.
         import ddtrace.testing.internal.pytest._discovery as _ddtrace_discovery
