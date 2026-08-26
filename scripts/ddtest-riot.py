@@ -231,7 +231,19 @@ def _inst_version_str(inst):
 
 
 def _inst_base_venv(inst):
-    return base_venv(inst.py._hint, _inst_abiflags(inst))
+    """Return the base venv path for ``inst``.
+
+    Prefers riot's own ``inst.py.venv_path`` (the real path, e.g.
+    ``venv_py31020`` for Python 3.10.20 in CI) so the bridge points at the
+    same venv riot uses. Falls back to the hint-based ``base_venv()``
+    (e.g. ``venv_py310``) only when the interpreter is not probeable
+    (local dev without that Python on PATH), since ``venv_path`` shells out
+    to the interpreter to get the full version.
+    """
+    try:
+        return os.path.abspath(inst.py.venv_path)
+    except FileNotFoundError:
+        return base_venv(inst.py._hint, _inst_abiflags(inst))
 
 
 def _inst_pythonpath(inst):
