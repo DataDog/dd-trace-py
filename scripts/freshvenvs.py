@@ -35,7 +35,7 @@ from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: I001,E402
 
 from tests.suitespec import TestEnvironment  # noqa: I001,E402
 from tests.suitespec import get_test_environments  # noqa: I001,E402
-from scripts._testenv import COOLDOWN_DAYS  # noqa: I001,E402
+from scripts.check_lockfile_cooldown import COOLDOWN_DAYS  # noqa: I001,E402
 
 CONTRIB_ROOT = pathlib.Path("ddtrace/contrib/internal")
 

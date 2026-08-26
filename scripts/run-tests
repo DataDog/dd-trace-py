@@ -18,14 +18,20 @@ Note: This runs entire test suites, not individual test files.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
+from dataclasses import dataclass
+import fcntl
 import fnmatch
 import hashlib
+from importlib import metadata as importlib_metadata
 import json
 import os
 from pathlib import Path
 import shlex
 import subprocess
 import sys
+import tempfile
+from typing import Iterator
 
 
 # Add the project root to import the test configuration.
@@ -46,11 +52,7 @@ def _ensure_compose_project_name():
 
 _ensure_compose_project_name()
 
-from scripts._testenv import PreparedEnvironment  # noqa: E402
-from scripts._testenv import UvTestEnvironmentError  # noqa: E402
-from scripts._testenv import ensure_environment  # noqa: E402
-from scripts._testenv import environment_commands  # noqa: E402
-from scripts._testenv import prepare_environment  # noqa: E402
+from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
 from tests.suitespec import TestEnvironment  # noqa: E402
 from tests.suitespec import TestRun  # noqa: E402
 from tests.suitespec import expand_suite_matrix  # noqa: E402
@@ -72,6 +74,29 @@ TEST_CONTAINER_PATH = (
 )
 SHELL_OPERATORS = frozenset({"&&", "||", ";", "|"})
 DDTRACE_TEST_WHEEL_ROOT = Path(".cache/ddtrace-test-wheels")
+UV_ENVIRONMENT_ROOT = Path(".cache/uv-test-environments")
+UV_ENVIRONMENT_STATE = ".ddtrace-test-environment.json"
+UV_ENVIRONMENT_STATE_VERSION = 1
+
+
+class UvTestEnvironmentError(RuntimeError):
+    """Raised when a uv test environment cannot be prepared."""
+
+
+@dataclass(frozen=True)
+class PreparedEnvironment:
+    path: Path
+    requirements: Path
+    project_hash: str
+    editable_mode: str
+
+
+def _atomic_write(path: Path, contents: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
+        temporary.write(contents)
+        temporary_path = Path(temporary.name)
+    temporary_path.replace(path)
 
 
 class TestRunner:
@@ -387,6 +412,169 @@ class TestRunner:
 
         return self.select_environments_for_suites(selected_suites)
 
+    def _prepare_uv_environment(
+        self, environment: TestEnvironment, project_artifact: Path | None
+    ) -> PreparedEnvironment:
+        lockfile = self.root / environment.lockfile
+        if not lockfile.is_file():
+            raise UvTestEnvironmentError(f"uv lockfile does not exist: {environment.lockfile}")
+
+        contents = lockfile.read_text()
+        package_hash = hashlib.sha256(contents.encode()).hexdigest()[:12]
+        if project_artifact is None:
+            project_file = self.root / "pyproject.toml"
+            if not project_file.is_file():
+                raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
+            project_hash = hashlib.sha256(project_file.read_bytes()).hexdigest()[:12]
+            project_requirement = "-e ."
+            editable_mode = "compat"
+        else:
+            artifact = self.root / project_artifact
+            if not artifact.is_file():
+                raise UvTestEnvironmentError(f"project artifact does not exist: {artifact}")
+            artifact = artifact.resolve()
+            artifact_stat = artifact.stat()
+            identity = f"{artifact.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
+            project_hash = hashlib.sha256(identity.encode()).hexdigest()[:12]
+            project_requirement = str(artifact)
+            editable_mode = "prebuilt-editable"
+
+        requirements = UV_ENVIRONMENT_ROOT / ".requirements" / (f"{lockfile.stem}-{package_hash}-{project_hash}.txt")
+        filtered = "".join(
+            line
+            for line in contents.splitlines(keepends=True)
+            if line.partition("==")[0].strip().casefold() != "ddtrace"
+        )
+        if filtered and not filtered.endswith("\n"):
+            filtered += "\n"
+        _atomic_write(self.root / requirements, f"{filtered}{project_requirement}\n")
+        return PreparedEnvironment(
+            path=UV_ENVIRONMENT_ROOT / f"{environment.hash}-{package_hash}",
+            requirements=requirements,
+            project_hash=project_hash,
+            editable_mode=editable_mode,
+        )
+
+    def _installed_distributions(self, prepared: PreparedEnvironment) -> tuple[tuple[str, str], ...] | None:
+        site_packages = list((self.root / prepared.path).glob("lib/python*/site-packages"))
+        if len(site_packages) != 1:
+            return None
+
+        distributions = []
+        for metadata_path in site_packages[0].glob("*.dist-info/METADATA"):
+            try:
+                distribution = importlib_metadata.Distribution.at(metadata_path.parent)
+                name = distribution.metadata.get("Name")
+                version = distribution.version
+                if not name or not version:
+                    return None
+                distributions.append((name.casefold(), version))
+            except (KeyError, OSError):
+                return None
+        return tuple(sorted(distributions))
+
+    def _environment_is_current(self, prepared: PreparedEnvironment, python: str) -> bool:
+        venv = self.root / prepared.path
+        venv_python = venv / "bin/python"
+        if not (venv / "pyvenv.cfg").is_file() or not (venv_python.exists() or venv_python.is_symlink()):
+            return False
+        try:
+            state = json.loads((venv / UV_ENVIRONMENT_STATE).read_text())
+        except (OSError, json.JSONDecodeError):
+            return False
+        expected = {
+            "state_version": UV_ENVIRONMENT_STATE_VERSION,
+            "project_hash": prepared.project_hash,
+            "python": python,
+            "editable_mode": prepared.editable_mode,
+        }
+        if not isinstance(state, dict) or any(state.get(key) != value for key, value in expected.items()):
+            return False
+        distributions = self._installed_distributions(prepared)
+        return distributions is not None and state.get("distributions") == [list(item) for item in distributions]
+
+    def _mark_environment_current(self, prepared: PreparedEnvironment, python: str) -> None:
+        venv = self.root / prepared.path
+        venv_python = venv / "bin/python"
+        if not (venv / "pyvenv.cfg").is_file() or not (venv_python.exists() or venv_python.is_symlink()):
+            raise UvTestEnvironmentError(f"uv created an incomplete environment: {prepared.path}")
+        distributions = self._installed_distributions(prepared)
+        if distributions is None:
+            raise UvTestEnvironmentError(f"uv created an invalid environment: {prepared.path}")
+        state = {
+            "state_version": UV_ENVIRONMENT_STATE_VERSION,
+            "project_hash": prepared.project_hash,
+            "python": python,
+            "editable_mode": prepared.editable_mode,
+            "distributions": [list(item) for item in distributions],
+        }
+        _atomic_write(self.root / prepared.path / UV_ENVIRONMENT_STATE, json.dumps(state, sort_keys=True) + "\n")
+
+    @contextmanager
+    def _environment_lock(self, prepared: PreparedEnvironment) -> Iterator[None]:
+        venv = self.root / prepared.path
+        lock_path = venv.with_name(f".{venv.name}.lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+    def _sync_uv_environment(
+        self,
+        environment: TestEnvironment,
+        prepared: PreparedEnvironment,
+        command_env: dict[str, str],
+        reuse_current: bool,
+    ) -> bool:
+        with self._environment_lock(prepared):
+            if reuse_current and self._environment_is_current(prepared, environment.python):
+                return False
+
+            (self.root / prepared.path / UV_ENVIRONMENT_STATE).unlink(missing_ok=True)
+            venv_python = prepared.path / "bin/python"
+            install = [
+                "uv",
+                "pip",
+                "install",
+                "--exact",
+                "--python",
+                str(venv_python),
+                "--requirements",
+                str(prepared.requirements),
+                "--exclude-newer",
+                cooldown_cutoff(),
+                "--strict",
+                "--no-progress",
+            ]
+            if prepared.editable_mode == "compat":
+                install.extend(["--config-settings-package", "ddtrace:editable_mode=compat"])
+            commands = (
+                [
+                    "uv",
+                    "venv",
+                    "--clear",
+                    "--relocatable",
+                    "--python",
+                    environment.python,
+                    "--no-python-downloads",
+                    str(prepared.path),
+                ],
+                install,
+            )
+            for command in commands:
+                wrapped = self._ddtest_command(command, command_env)
+                result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
+                if result.returncode != 0:
+                    raise UvTestEnvironmentError(f"build failed for {environment.hash} (exit code {result.returncode})")
+
+            # AIDEV-NOTE: Record current state only after exact sync and environment inspection.
+            # This marker is the guard against reusing partial or failed builds.
+            self._mark_environment_current(prepared, environment.python)
+            return True
+
     def _prebuilt_ddtrace_wheel(self, python: str) -> Path:
         wheel_directory = self.root / DDTRACE_TEST_WHEEL_ROOT / python
         wheels = tuple(wheel_directory.glob("ddtrace-*.whl"))
@@ -454,7 +642,6 @@ class TestRunner:
         forwarded_env: dict[str, str],
         test_args: list[str],
         skip_ddtrace_install: bool,
-        dry_run: bool,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
         prepared_environments: dict[TestEnvironment, PreparedEnvironment] = {}
@@ -467,20 +654,15 @@ class TestRunner:
                 build_env = dict(forwarded_env)
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
-                project_artifact = None
-                uses_ci_base = self.in_ci and environment.suite != "smoke_test"
-                if uses_ci_base and not skip_ddtrace_install:
-                    raise UvTestEnvironmentError(
-                        "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
-                    )
-                if uses_ci_base and skip_ddtrace_install:
+                if self.in_ci and environment.suite != "smoke_test":
+                    if not skip_ddtrace_install:
+                        raise UvTestEnvironmentError(
+                            "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
+                        )
                     project_artifact = self._prebuilt_ddtrace_wheel(environment.python)
-                prepared = prepare_environment(
-                    self.root,
-                    environment_hash=environment.hash,
-                    lockfile=environment.lockfile,
-                    project_artifact=project_artifact,
-                )
+                else:
+                    project_artifact = None
+                prepared = self._prepare_uv_environment(environment, project_artifact)
                 prepared_environments[environment] = prepared
                 command_env = self._uv_command_environment(prepared, build_env)
             except UvTestEnvironmentError as error:
@@ -488,28 +670,12 @@ class TestRunner:
                 return False
 
             print(f"\n🔨 Preparing uv environment {environment.hash} (Python {environment.python})")
-            if dry_run:
-                for command in environment_commands(
-                    prepared,
-                    python=environment.python,
-                ):
-                    wrapped = self._ddtest_command(command, command_env)
-                    print(f"[DRY RUN] Would execute: {' '.join(wrapped)}")
-                continue
-
-            def run_build(command: list[str]) -> None:
-                wrapped = self._ddtest_command(command, command_env)
-                result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
-                if result.returncode != 0:
-                    raise UvTestEnvironmentError(f"build failed for {environment.hash} (exit code {result.returncode})")
-
             try:
-                rebuilt = ensure_environment(
-                    self.root,
+                rebuilt = self._sync_uv_environment(
+                    environment,
                     prepared,
-                    python=environment.python,
+                    command_env,
                     reuse_current=skip_ddtrace_install,
-                    run=run_build,
                 )
             except UvTestEnvironmentError as error:
                 print(f"❌ {error}")
@@ -529,9 +695,6 @@ class TestRunner:
                 except ValueError as error:
                     print(f"❌ {error}")
                     return False
-                if dry_run:
-                    print(f"[DRY RUN] Would execute: {' '.join(command)}")
-                    continue
 
                 print(f"\n▶️  Executing with uv ({environment.hash}): {' '.join(command)}")
                 result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
@@ -546,7 +709,6 @@ class TestRunner:
         selected_environments: list[TestEnvironment],
         test_args: list[str] | None = None,
         skip_ddtrace_install: bool = False,
-        dry_run: bool = False,
     ) -> bool:
         """Execute the selected environments with per-suite service management."""
         if not selected_environments:
@@ -624,7 +786,6 @@ class TestRunner:
                 forwarded_env,
                 test_args or [],
                 skip_ddtrace_install,
-                dry_run,
             )
 
             # Stop services for this suite
@@ -720,9 +881,6 @@ Examples:
   # Run tests for changes since main branch
   scripts/run-tests --git-base=main
 
-  # Show what would be run without executing
-  scripts/run-tests --dry-run
-
   # Reuse a current ddtrace installation for faster reruns
   scripts/run-tests -s --venv <hash>
 
@@ -736,8 +894,6 @@ Examples:
     parser.add_argument(
         "--git-base", default="HEAD", help="Git ref to compare against for changes (default: HEAD for local changes)"
     )
-
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be run without executing")
 
     parser.add_argument(
         "-s",
@@ -790,7 +946,6 @@ Examples:
             environments_with_suite,
             test_args=test_args,
             skip_ddtrace_install=args.skip_ddtrace_install,
-            dry_run=args.dry_run,
         )
         return 0 if success else 1
 
@@ -844,7 +999,6 @@ Examples:
         selected_environments,
         test_args=test_args,
         skip_ddtrace_install=args.skip_ddtrace_install,
-        dry_run=args.dry_run,
     )
 
     return 0 if success else 1

@@ -129,7 +129,6 @@ docs/                               @DataDog/python-guild
 
 # Core / Language Platform
 tests/internal                      @DataDog/apm-core-python
-tests/internal/test_testenv.py      @DataDog/python-guild
 tests/lib-injection                 @DataDog/apm-core-python
 
 # Test Visibility and related

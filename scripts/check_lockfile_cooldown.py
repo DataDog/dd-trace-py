@@ -32,7 +32,17 @@ import urllib.request
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from scripts._testenv import COOLDOWN_DAYS  # noqa: E402
+
+# Two days matches the cross-language supply-chain cooldown used by test locks.
+COOLDOWN_DAYS = 2
+
+
+def cooldown_cutoff(now: Optional[dt.datetime] = None) -> str:
+    current = now or dt.datetime.now(dt.timezone.utc)
+    if current.tzinfo is None:
+        raise ValueError("cooldown timestamp must be timezone-aware")
+    cutoff = current.astimezone(dt.timezone.utc) - dt.timedelta(days=COOLDOWN_DAYS)
+    return cutoff.replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 # Matches the name==version form in requirements-style locks. Anchored to the

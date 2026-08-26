@@ -31,7 +31,7 @@ components:
     - docker-compose.podman.yml
     - docker-compose.yml
     - scripts/ddtest
-    - scripts/_testenv.py
+    - scripts/run-tests
     - scripts/test-env
     - pyproject.toml
     - tests/conftest.py

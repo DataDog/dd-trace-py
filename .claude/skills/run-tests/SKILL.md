@@ -32,7 +32,7 @@ Use this skill when you have:
 2. **Never run pytest directly** - use `scripts/run-tests`
 3. **Use `-s` only for reruns** - first establish a current ddtrace installation, then reuse it
 4. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
-5. **Use `--dry-run` first** - see what would run before executing
+5. **Inspect with `--list` first** - see matching environments before executing
 6. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
 
 ## How This Skill Works
