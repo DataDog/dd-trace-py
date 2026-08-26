@@ -19,7 +19,7 @@ COOLDOWN_DAYS = 2
 _CACHE_ROOT = Path(".cache/uv-test-environments")
 _STATE_FILE = ".ddtrace-test-environment.json"
 _STATE_VERSION = 1
-EditableMode = Literal["none", "compat", "prebuilt-editable"]
+EditableMode = Literal["compat", "prebuilt-editable"]
 
 
 class UvTestEnvironmentError(RuntimeError):
@@ -30,7 +30,7 @@ class UvTestEnvironmentError(RuntimeError):
 class PreparedEnvironment:
     path: Path
     requirements: Path
-    project_hash: str | None
+    project_hash: str
     editable_mode: EditableMode
 
 
@@ -78,7 +78,6 @@ def prepare_environment(
     *,
     environment_hash: str,
     lockfile: Path,
-    install_project: bool,
     project_artifact: Path | None = None,
 ) -> PreparedEnvironment:
     lock_path = lockfile if lockfile.is_absolute() else root / lockfile
@@ -87,35 +86,25 @@ def prepare_environment(
 
     contents = lock_path.read_text()
     package_hash = _content_hash(contents.encode())
-    project_hash = None
-    project_requirement = None
-    editable_mode: EditableMode = "none"
-    if install_project:
-        if project_artifact is not None:
-            artifact_path = project_artifact if project_artifact.is_absolute() else root / project_artifact
-            if not artifact_path.is_file():
-                raise UvTestEnvironmentError(f"project artifact does not exist: {artifact_path}")
-            artifact_path = artifact_path.resolve()
-            artifact_stat = artifact_path.stat()
-            artifact_identity = f"{artifact_path.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
-            project_hash = _content_hash(artifact_identity.encode())
-            project_requirement = str(artifact_path)
-            editable_mode = "prebuilt-editable"
-        else:
-            project_file = root / "pyproject.toml"
-            if not project_file.is_file():
-                raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
-            project_hash = _content_hash(project_file.read_bytes())
-            project_requirement = "-e ."
-            editable_mode = "compat"
-    elif project_artifact is not None:
-        raise UvTestEnvironmentError("a project artifact requires install_project")
+    if project_artifact is not None:
+        artifact_path = project_artifact if project_artifact.is_absolute() else root / project_artifact
+        if not artifact_path.is_file():
+            raise UvTestEnvironmentError(f"project artifact does not exist: {artifact_path}")
+        artifact_path = artifact_path.resolve()
+        artifact_stat = artifact_path.stat()
+        artifact_identity = f"{artifact_path.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
+        project_hash = _content_hash(artifact_identity.encode())
+        project_requirement = str(artifact_path)
+        editable_mode: EditableMode = "prebuilt-editable"
+    else:
+        project_file = root / "pyproject.toml"
+        if not project_file.is_file():
+            raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
+        project_hash = _content_hash(project_file.read_bytes())
+        project_requirement = "-e ."
+        editable_mode = "compat"
     path = _CACHE_ROOT / f"{environment_hash}-{package_hash}"
-    requirements = (
-        _project_requirements(root, lock_path, contents, package_hash, project_hash, project_requirement)
-        if install_project
-        else lock_path.relative_to(root)
-    )
+    requirements = _project_requirements(root, lock_path, contents, package_hash, project_hash, project_requirement)
     return PreparedEnvironment(
         path=path,
         requirements=requirements,

@@ -453,7 +453,6 @@ class TestRunner:
         environments: list[TestEnvironment],
         forwarded_env: dict[str, str],
         test_args: list[str],
-        install_project: bool,
         skip_ddtrace_install: bool,
         dry_run: bool,
     ) -> bool:
@@ -469,7 +468,7 @@ class TestRunner:
                 if environment.runs:
                     build_env.update(environment.runs[0].environment)
                 project_artifact = None
-                uses_ci_base = self.in_ci and install_project and environment.suite != "smoke_test"
+                uses_ci_base = self.in_ci and environment.suite != "smoke_test"
                 if uses_ci_base and not skip_ddtrace_install:
                     raise UvTestEnvironmentError(
                         "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
@@ -480,7 +479,6 @@ class TestRunner:
                     self.root,
                     environment_hash=environment.hash,
                     lockfile=environment.lockfile,
-                    install_project=install_project,
                     project_artifact=project_artifact,
                 )
                 prepared_environments[environment] = prepared
@@ -510,7 +508,7 @@ class TestRunner:
                     self.root,
                     prepared,
                     python=environment.python,
-                    reuse_current=skip_ddtrace_install or prepared.editable_mode == "none",
+                    reuse_current=skip_ddtrace_install,
                     run=run_build,
                 )
             except UvTestEnvironmentError as error:
@@ -518,7 +516,7 @@ class TestRunner:
                 return False
             if rebuilt:
                 print("   ✅ uv environment synchronized successfully")
-            elif skip_ddtrace_install and prepared.editable_mode != "none":
+            elif skip_ddtrace_install:
                 print("   ✅ Reusing current uv environment; ddtrace install skipped")
             else:
                 print("   ✅ Reusing current uv environment")
@@ -625,7 +623,6 @@ class TestRunner:
                 environments,
                 forwarded_env,
                 test_args or [],
-                bool(suite_config.get("install_project", True)),
                 skip_ddtrace_install,
                 dry_run,
             )

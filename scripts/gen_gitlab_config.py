@@ -542,7 +542,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             clean_name = suite_config.pop("_clean_name", suite)
             suite_config.pop("matrix", None)
             suite_config.pop("integration", None)
-            suite_config.pop("install_project", None)
             suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None

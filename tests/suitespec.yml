@@ -209,16 +209,6 @@ suites:
       - tests/smoke_test.py
     matrix:
       command: python tests/smoke_test.py {cmdargs}
-  reno:
-    type: helper
-    install_project: false
-    paths:
-      - releasenotes/*
-      - docs/releasenotes.rst
-    matrix:
-      command: reno {cmdargs}
-      dependencies: [reno, PyYAML>=6.0.1]
-      python: ['3.14']
   crashtracker:
     venvs_per_job: 6
     paths:

@@ -18,17 +18,14 @@ def _prepared(
     tmp_path: Path,
     contents: str = "alpha==1.0\n",
     environment_hash: str = "example",
-    install_project: bool = False,
 ):
     lockfile = tmp_path / f"{environment_hash}.txt"
     lockfile.write_text(contents)
-    if install_project:
-        (tmp_path / "pyproject.toml").write_text("[project]\nname = 'example'\nversion = '1.0'\n")
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'example'\nversion = '1.0'\n")
     return prepare_environment(
         tmp_path,
         environment_hash=environment_hash,
         lockfile=lockfile.relative_to(tmp_path),
-        install_project=install_project,
     )
 
 
@@ -92,8 +89,8 @@ def test_current_environment_is_reused(tmp_path):
     assert len(calls) == 2
 
 
-def test_project_environment_is_rebuilt_unless_reuse_is_explicit(tmp_path):
-    prepared = _prepared(tmp_path, install_project=True)
+def test_environment_is_rebuilt_unless_reuse_is_explicit(tmp_path):
+    prepared = _prepared(tmp_path)
     calls = []
     run = _build(tmp_path, prepared, calls)
 
@@ -177,7 +174,6 @@ def test_environment_commands_use_exact_synchronization(tmp_path):
         tmp_path,
         environment_hash="example",
         lockfile=lockfile.relative_to(tmp_path),
-        install_project=True,
     )
 
     commands = environment_commands(
@@ -203,7 +199,6 @@ def test_environment_commands_install_prebuilt_editable_artifact(tmp_path):
         tmp_path,
         environment_hash="example",
         lockfile=lockfile.relative_to(tmp_path),
-        install_project=True,
         project_artifact=wheel.relative_to(tmp_path),
     )
 
@@ -225,6 +220,5 @@ def test_project_artifact_must_exist(tmp_path):
             tmp_path,
             environment_hash="example",
             lockfile=lockfile.relative_to(tmp_path),
-            install_project=True,
             project_artifact=Path("missing.whl"),
         )
