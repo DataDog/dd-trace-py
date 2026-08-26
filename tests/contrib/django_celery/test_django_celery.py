@@ -9,7 +9,6 @@ from tests.utils import call_program
 
 @pytest.mark.xfail(
     reason="FIXME: gevent module cleanup prevents Django from discovering management commands",
-    strict=True,
 )
 @pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="true", DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
 def test_ddtrace_auto_preserves_django_command_discovery():

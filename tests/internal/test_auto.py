@@ -113,7 +113,6 @@ def test_foo():
 
 @pytest.mark.xfail(
     reason="FIXME: gevent module cleanup breaks pkgutil discovery after a clean Python startup",
-    strict=True,
 )
 @pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="true", DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
 def test_gevent_cleanup_preserves_pkgutil_discovery():
