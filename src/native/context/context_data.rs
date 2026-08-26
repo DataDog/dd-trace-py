@@ -481,13 +481,13 @@ impl Context {
     /// propagation tag (e.g. "-3"). Never overwrites an existing value; callers check for
     /// that themselves. Returns the tag value that was set.
     fn _set_sampling_decision_maker(
-        &mut self,
-        py: Python<'_>,
+        slf: &Bound<'_, Self>,
         sampling_mechanism: i64,
     ) -> PyResult<String> {
+        let py = slf.py();
         let value = format!("-{}", sampling_mechanism);
-        self.get_meta(py)
-            .set_item(SAMPLING_DECISION_TRACE_TAG_KEY, &value)?;
+        let meta = slf.borrow_mut().get_meta(py);
+        meta.set_item(SAMPLING_DECISION_TRACE_TAG_KEY, &value)?;
         Ok(value)
     }
 
