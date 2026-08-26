@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    openfeature: Adds a privacy-preserving API key fingerprint header to managed
+    agentless Feature Flag configuration requests.
