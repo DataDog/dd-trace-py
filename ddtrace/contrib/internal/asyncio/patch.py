@@ -26,12 +26,8 @@ def patch():
     if getattr(asyncio, "_datadog_patch", False):
         return
     Pin().onto(asyncio)
-    try:
-        _context_switch.install()
-        wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
-    except BaseException:
-        _context_switch.uninstall()
-        raise
+    _context_switch.install()
+    wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
     asyncio._datadog_patch = True
 
 
