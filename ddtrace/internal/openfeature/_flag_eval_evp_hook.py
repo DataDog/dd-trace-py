@@ -94,7 +94,9 @@ class FlagEvalEVPHook(Hook):
 
             # Targeting key and attributes from the evaluation context.
             eval_ctx = hook_context.evaluation_context
-            targeting_key = eval_ctx.targeting_key or ""
+            # Preserve None versus an explicit empty string. The writer omits
+            # missing or malformed keys but serializes an empty evaluated key.
+            targeting_key = eval_ctx.targeting_key
             # Consent-off contexts never enter the queue. With consent, enqueue()
             # snapshots synchronously and never retains this borrowed mapping.
             attrs: typing.Mapping[str, typing.Any] = (

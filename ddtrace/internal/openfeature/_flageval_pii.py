@@ -1,10 +1,10 @@
 """Cross-SDK PII fingerprint for the flagevaluation EVP track.
 
-Hashing runs once per aggregation bucket at flush cadence, off the evaluation
-hot path.
+Hashing runs during background aggregation, off the evaluation hot path.
 """
 
 import hashlib
+import typing
 
 
 # Literal prefix on every hashed targeting key; part of the wire contract.
@@ -28,22 +28,33 @@ def targeting_key_digest(raw: str) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
-def hash_targeting_key(raw: str) -> str:
-    """
-    Produce the prefixed cross-SDK fingerprint for the flagevaluation track.
+def normalize_targeting_key(raw: typing.Any) -> typing.Optional[str]:
+    """Return a strict UTF-8 targeting key, or None when it must be omitted.
 
-    Wraps targeting_key_digest with the TARGETING_KEY_HASH_PREFIX and with
+    An explicit empty string is valid and must stay distinct from a missing,
+    non-string, or malformed value.
+    """
+    if not isinstance(raw, str):
+        return None
+    try:
+        raw.encode("utf-8", errors="strict")
+    except UnicodeEncodeError:
+        return None
+    return raw
+
+
+def hash_targeting_key(raw: typing.Any) -> typing.Optional[str]:
+    """Produce the protected cross-SDK targeting-key representation.
+
+    Wraps targeting_key_digest with the TARGETING_KEY_HASH_PREFIX and strict
     input guards. The two share one digest body so the flagevaluation wire
     value and the span-enrichment tag value can never drift apart.
 
-    Returns "" for empty, non-string, or non-UTF-8-encodable input. Omitting
-    an invalid targeting key is privacy-safe and prevents one malformed value
-    from aborting the entire writer flush.
+    An explicit empty string remains empty. Missing, non-string, and malformed
+    values return None so the serializer omits the field without dropping the
+    event.
     """
-    if not isinstance(raw, str) or not raw:
-        return ""
-    try:
-        digest = targeting_key_digest(raw)
-    except UnicodeEncodeError:
-        return ""
-    return TARGETING_KEY_HASH_PREFIX + digest
+    normalized = normalize_targeting_key(raw)
+    if normalized is None or normalized == "":
+        return normalized
+    return TARGETING_KEY_HASH_PREFIX + targeting_key_digest(normalized)

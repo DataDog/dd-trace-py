@@ -44,6 +44,7 @@ from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_pii import hash_targeting_key
+from ddtrace.internal.openfeature._flageval_pii import normalize_targeting_key
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.telemetry import telemetry_writer
@@ -137,9 +138,9 @@ EVAL_TIMESTAMP_METADATA_KEY = "dd.eval.timestamp_ms"
 
 # Flag metadata key where the provider stamps the environment consent value.
 # The evaluator snapshots observeFullEvaluationData from the UFC it evaluated
-# against, so nothing downstream reads live config. Unprefixed snake_case
-# because it is the cross-SDK contract key.
-METADATA_OBSERVE_FULL_EVALUATION_DATA = "observe_full_evaluation_data"
+# against, so nothing downstream reads live config. The __dd_ prefix is part of
+# the cross-SDK contract.
+METADATA_OBSERVE_FULL_EVALUATION_DATA = "__dd_observe_full_evaluation_data"
 
 # Type-tag bytes for the canonical context key encoding (mirrors Go's ctxTag* constants).
 _TAG_STR = b"s"
@@ -618,7 +619,7 @@ class _Entry:
         self,
         eval_time_ms: int,
         runtime_default: bool,
-        targeting_key: str,
+        targeting_key: typing.Optional[str],
         context_attrs: typing.Mapping[str, typing.Any],
         error_message: str,
         observe_full_evaluation_data: bool = False,
@@ -628,7 +629,7 @@ class _Entry:
         self.last_evaluation: int = eval_time_ms
         self.runtime_default: bool = runtime_default
         # Full-tier only:
-        self.targeting_key: str = targeting_key
+        self.targeting_key: typing.Optional[str] = targeting_key
         self.context_attrs: dict[str, typing.Any] = dict(context_attrs)
         self.error_message: str = error_message
         # Serialization branches on this value. Degraded-tier entries always
@@ -650,7 +651,7 @@ class _EvalEvent(typing.NamedTuple):
     flag_key: str
     variant: str  # "" when absent (= runtime_default)
     allocation_key: str
-    targeting_key: str
+    targeting_key: typing.Optional[str]
     attrs: typing.Mapping[str, typing.Any]  # immutable, flattened context snapshot once queued
     runtime_default: bool
     error_message: str
@@ -1017,19 +1018,15 @@ class FlagEvaluationWriter(PeriodicService):
             ev = _base_event(flag_key, entry, flush_time_ms)
             if entry.runtime_default:
                 ev["runtime_default_used"] = True
-            # Consent-on emits raw targeting_key + context; consent-off emits the
-            # hashed key and omits context entirely (absent, not null, not {}).
-            # Consent is read from the bucket snapshot -- never from live config.
-            if entry.observe_full_evaluation_data:
-                if entry.targeting_key:
-                    ev["targeting_key"] = entry.targeting_key
-                if entry.context_attrs:
-                    ev["context"] = {"evaluation": entry.context_attrs}
-            else:
-                hashed = hash_targeting_key(entry.targeting_key)
-                if hashed:
-                    ev["targeting_key"] = hashed
-                # No context field under any circumstances when consent is off.
+            # _aggregate stores the exact serialized targeting-key identity:
+            # raw in full-data mode, hashed in protected mode, empty when the
+            # evaluated key was explicitly empty, and None when it was missing
+            # or malformed. Consent is read from the bucket snapshot -- never
+            # from live config.
+            if entry.targeting_key is not None:
+                ev["targeting_key"] = entry.targeting_key
+            if entry.observe_full_evaluation_data and entry.context_attrs:
+                ev["context"] = {"evaluation": entry.context_attrs}
             if variant:
                 ev["variant"] = {"key": variant}
             if allocation_key:
@@ -1149,9 +1146,13 @@ class FlagEvaluationWriter(PeriodicService):
           discarded data would burn per-flag cardinality on the privacy-protected
           path specifically (see concern:consent-off-bucket-keying).
         """
-        # Normalize at the aggregation boundary so malformed, unhashable values
-        # cannot abort queue draining or leak through the consent-on path.
-        targeting_key = event.targeting_key if isinstance(event.targeting_key, str) else ""
+        # Normalize to the exact wire identity before keying. This keeps bucket
+        # identity aligned with serialization, including the distinction between
+        # an explicit empty key ("") and an omitted malformed or missing key
+        # (None). Protected buckets use the hash rather than raw PII.
+        targeting_key = normalize_targeting_key(event.targeting_key)
+        if not event.observe_full_evaluation_data:
+            targeting_key = hash_targeting_key(targeting_key)
 
         # Enforce the consent-off invariant: no context on the wire means no context
         # in the key or entry.

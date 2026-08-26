@@ -47,7 +47,7 @@ def _make_details(flag_key, variant, allocation_key):
         reason=Reason.TARGETING_MATCH,
         flag_metadata={
             "allocation_key": allocation_key,
-            "observe_full_evaluation_data": True,
+            "__dd_observe_full_evaluation_data": True,
         },
     )
 

@@ -7,6 +7,7 @@ across languages. This file pins that contract for dd-trace-py.
 
 import json
 import time
+import typing
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -38,6 +39,7 @@ from ddtrace.internal.openfeature._provider import DataDogProvider
 # (tests/ffe/test_flag_eval_evp.py, once the manifest is flipped).
 PII_CANONICAL_TARGETING_KEY = "jane.doe@datadoghq.com"
 PII_CANONICAL_HASHED = "sha256_b4698f9b6d186781fa8dc59e533578fa2d8379a46b1cf6db85cda6aa9c99e51b"
+CONSENT_METADATA_KEY = "__dd_observe_full_evaluation_data"
 
 
 class TestHashTargetingKey:
@@ -48,20 +50,21 @@ class TestHashTargetingKey:
     def test_prefix_length_and_charset(self):
         """71 chars total, sha256_ prefix, 64 lowercase-hex digest."""
         got = hash_targeting_key(PII_CANONICAL_TARGETING_KEY)
+        assert got is not None
         assert len(got) == 71
         assert got.startswith(TARGETING_KEY_HASH_PREFIX)
         hex_suffix = got[len(TARGETING_KEY_HASH_PREFIX) :]
         assert len(hex_suffix) == 64
         assert all(c in "0123456789abcdef" for c in hex_suffix)
 
-    def test_empty_input_stays_empty(self):
-        """Absent targeting_key stays absent -- must NOT fabricate a shared pseudo-subject."""
+    def test_empty_input_stays_empty(self) -> None:
+        """An explicit empty targeting key remains present and empty."""
         assert hash_targeting_key("") == ""
 
-    @pytest.mark.parametrize("invalid", ["\ud800", []])
-    def test_invalid_input_stays_empty(self, invalid):
-        """Malformed values are omitted instead of aborting a writer flush."""
-        assert hash_targeting_key(invalid) == ""
+    @pytest.mark.parametrize("invalid", [None, "\ud800", []])
+    def test_invalid_input_is_omitted(self, invalid: typing.Any) -> None:
+        """Missing and malformed values are omitted without aborting a flush."""
+        assert hash_targeting_key(invalid) is None
 
     def test_does_not_normalize(self):
         """Every variant must produce a DIFFERENT digest from the canonical one.
@@ -201,9 +204,11 @@ class TestUFCObserveFullEvaluationDataParsing:
             _set_ffe_config(None)
 
     def test_nested_under_environment_is_not_read(self):
-        """FFL-2784 placement-drift regression guard: parser reading it from
-        `environment` would report True here, hash forever in prod. The field
-        lives at the UFC ROOT.
+        """FFL-2964 placement-drift regression guard.
+
+        A parser that reads the field from environment would report True here
+        and hash forever in production. The approved RFC keeps it at the UFC
+        root.
         """
         try:
             snap = self._snapshot_for(self._minimal_ufc(environment_extra={"observeFullEvaluationData": True}))
@@ -257,26 +262,29 @@ class TestProviderStampsConsent:
         monkeypatch.setenv("DD_FLAGGING_EVALUATION_COUNTS_ENABLED", "true")
         return DataDogProvider()
 
+    def test_metadata_key_matches_contract_literal(self) -> None:
+        assert METADATA_OBSERVE_FULL_EVALUATION_DATA == CONSENT_METADATA_KEY
+
     def test_success_path_stamps_consent_true(self, monkeypatch):
         process_ffe_configuration(self._config_with_consent(True))
         provider = self._provider(monkeypatch)
 
         details = provider.resolve_boolean_details("test-bool", False)
-        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+        assert details.flag_metadata[CONSENT_METADATA_KEY] is True
 
     def test_success_path_stamps_consent_false(self, monkeypatch):
         process_ffe_configuration(self._config_with_consent(False))
         provider = self._provider(monkeypatch)
 
         details = provider.resolve_boolean_details("test-bool", False)
-        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is False
+        assert details.flag_metadata[CONSENT_METADATA_KEY] is False
 
     def test_flag_not_found_still_stamps_consent(self, monkeypatch):
         process_ffe_configuration(self._config_with_consent(True))
         provider = self._provider(monkeypatch)
 
         details = provider.resolve_boolean_details("no-such-flag", False)
-        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is True
+        assert details.flag_metadata[CONSENT_METADATA_KEY] is True
 
     def test_no_configuration_fails_closed(self, monkeypatch):
         """PROVIDER_NOT_READY: no environment behind the evaluation, so no consent
@@ -286,7 +294,7 @@ class TestProviderStampsConsent:
         provider = self._provider(monkeypatch)
 
         details = provider.resolve_boolean_details("anything", False)
-        assert details.flag_metadata[METADATA_OBSERVE_FULL_EVALUATION_DATA] is False
+        assert details.flag_metadata[CONSENT_METADATA_KEY] is False
 
 
 class TestAggregatorConsent:
@@ -296,7 +304,12 @@ class TestAggregatorConsent:
     def writer(self):
         return FlagEvaluationWriter(interval=10.0)
 
-    def _event(self, observe_full_evaluation_data: bool, attrs=None, targeting_key: str = "user-1"):
+    def _event(
+        self,
+        observe_full_evaluation_data: bool,
+        attrs: typing.Optional[dict] = None,
+        targeting_key: typing.Any = "user-1",
+    ) -> _EvalEvent:
         return _EvalEvent(
             flag_key="f",
             variant="on",
@@ -331,6 +344,18 @@ class TestAggregatorConsent:
         writer._aggregate(self._event(observe_full_evaluation_data=False))
         writer._aggregate(self._event(observe_full_evaluation_data=True))
         assert len(writer._full) == 2
+
+    def test_protected_bucket_identity_matches_serialized_targeting_key(self, writer: FlagEvaluationWriter) -> None:
+        for targeting_key in (None, "\ud800", []):
+            writer._aggregate(self._event(observe_full_evaluation_data=False, targeting_key=targeting_key))
+        writer._aggregate(self._event(observe_full_evaluation_data=False, targeting_key=""))
+        writer._aggregate(self._event(observe_full_evaluation_data=False, targeting_key=PII_CANONICAL_TARGETING_KEY))
+
+        assert len(writer._full) == 3
+        by_targeting_key = {entry.targeting_key: entry for entry in writer._full.values()}
+        assert by_targeting_key[None].count == 3
+        assert by_targeting_key[""].count == 1
+        assert by_targeting_key[PII_CANONICAL_HASHED].count == 1
 
 
 class TestFlushSerialization:
@@ -403,6 +428,29 @@ class TestFlushSerialization:
         assert event["targeting_key"] == PII_CANONICAL_TARGETING_KEY
         assert "context" in event
         assert event["context"]["evaluation"]["plan"] == "enterprise"
+
+    @pytest.mark.parametrize("consent", [False, True], ids=["protected", "full_data"])
+    def test_explicit_empty_targeting_key_is_preserved(self, writer: FlagEvaluationWriter, consent: bool) -> None:
+        writer._aggregate(self._pii_event(observe_full_evaluation_data=consent)._replace(targeting_key=""))
+        payload_bytes = self._flush_capture(writer)
+
+        event = json.loads(payload_bytes)["flagEvaluations"][0]
+        assert "targeting_key" in event
+        assert event["targeting_key"] == ""
+
+    @pytest.mark.parametrize("consent", [False, True], ids=["protected", "full_data"])
+    @pytest.mark.parametrize("invalid", [None, "\ud800", []], ids=["missing", "malformed_utf8", "wrong_type"])
+    def test_missing_or_malformed_targeting_key_is_omitted(
+        self,
+        writer: FlagEvaluationWriter,
+        consent: bool,
+        invalid: typing.Any,
+    ) -> None:
+        writer._aggregate(self._pii_event(observe_full_evaluation_data=consent)._replace(targeting_key=invalid))
+        payload_bytes = self._flush_capture(writer)
+
+        event = json.loads(payload_bytes)["flagEvaluations"][0]
+        assert "targeting_key" not in event
 
     @pytest.mark.parametrize("consent", [False, True], ids=["consent_off", "consent_on"])
     def test_error_message_pii_respects_consent(self, writer: FlagEvaluationWriter, consent: bool) -> None:

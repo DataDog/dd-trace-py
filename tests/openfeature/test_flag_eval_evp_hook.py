@@ -25,9 +25,12 @@ import pytest
 from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
 
 
+CONSENT_METADATA_KEY = "__dd_observe_full_evaluation_data"
+
+
 def _make_hook_context(
     flag_key: str = "my-flag",
-    targeting_key: str = "user-1",
+    targeting_key: typing.Optional[str] = "user-1",
     attrs: dict = None,
 ) -> HookContext:
     ctx = EvaluationContext(targeting_key=targeting_key, attributes=attrs if attrs is not None else {})
@@ -153,6 +156,19 @@ class TestFlagEvalEVPHook:
         event = writer.enqueue.call_args[0][0]
         assert event.targeting_key == "user-99"
 
+    @pytest.mark.parametrize("targeting_key", [None, ""], ids=["missing", "empty"])
+    def test_finally_after_preserves_targeting_key_presence(
+        self,
+        hook: typing.Any,
+        writer: typing.Any,
+        targeting_key: typing.Optional[str],
+    ) -> None:
+        hc = _make_hook_context(targeting_key=targeting_key)
+        hook.finally_after(hc, _make_details(), {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.targeting_key == targeting_key
+
     def test_finally_after_borrows_attrs_for_synchronous_writer_snapshot(self, hook, writer):
         attrs = {"tier": "premium", "region": "us-west"}
         hc = _make_hook_context(attrs=attrs)
@@ -169,7 +185,8 @@ class TestFlagEvalEVPHook:
 
         attrs = FalseMapping(tier="premium")
         hc = _make_hook_context(attrs=attrs)
-        hook.finally_after(hc, _make_details(), {})
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: True})
+        hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
 
@@ -423,14 +440,18 @@ class TestKillswitchGating:
 
 
 class TestFlagEvalEVPHookReadsConsent:
-    """The hook reads observe_full_evaluation_data off details.flag_metadata,
-    fails closed on missing or malformed values, and skips attribute capture
+    """The hook reads the cross-SDK consent key from details.flag_metadata.
+
+    It fails closed on missing or malformed values and skips attribute capture
     when consent is off.
     """
 
+    def test_metadata_key_matches_contract_literal(self) -> None:
+        assert METADATA_OBSERVE_FULL_EVALUATION_DATA == CONSENT_METADATA_KEY
+
     def test_consent_true_captured_from_metadata(self, hook, writer):
         hc = _make_hook_context(attrs={"plan": "enterprise"})
-        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: True})
+        details = _make_details(flag_metadata={CONSENT_METADATA_KEY: True})
         hook.finally_after(hc, details, {})
 
         event = writer.enqueue.call_args[0][0]
@@ -452,6 +473,15 @@ class TestFlagEvalEVPHookReadsConsent:
     def test_missing_metadata_fails_closed(self, hook, writer):
         hc = _make_hook_context(attrs={"plan": "enterprise"})
         details = _make_details(flag_metadata={})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False
+        assert event.attrs == {}
+
+    def test_unprefixed_metadata_key_is_not_a_compatibility_alias(self, hook, writer) -> None:
+        hc = _make_hook_context(attrs={"plan": "enterprise"})
+        details = _make_details(flag_metadata={"observe_full_evaluation_data": True})
         hook.finally_after(hc, details, {})
 
         event = writer.enqueue.call_args[0][0]
