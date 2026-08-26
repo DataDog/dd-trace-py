@@ -257,6 +257,7 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         if PYTHON_VERSION_INFO < (3, 11):
             self._name_index: dict[str, list[_FunctionCodePair]] = defaultdict(list)
         self._cached: dict[int, list[FullyNamedFunction]] = {}
+        self._function_header_index: list[tuple[int, int, _FunctionCodePair]] = []
 
         # Create the line to function mapping
         if hasattr(module, "__dd_code__"):
@@ -272,8 +273,7 @@ class FunctionDiscovery(defaultdict[Any, Any]):
                 else:
                     self._name_index[code.co_name].append(fcp)
 
-                for lineno in linenos(code):
-                    self[lineno].append(fcp)
+                self._index_code(fcp)
         else:
             self._fullname_index = _collect_functions(module)
             # If the module was already loaded we don't have its code object
@@ -290,9 +290,21 @@ class FunctionDiscovery(defaultdict[Any, Any]):
                 ):
                     # We only map line numbers for functions that actually belong to
                     # the module.
-                    for lineno in linenos(cast(FunctionType, code)):
-                        self[lineno].append(_FunctionCodePair(function=cast(FunctionType, function)))
+                    self._index_code(_FunctionCodePair(function=cast(FunctionType, function)), cast(CodeType, code))
                 seen_functions.add(function)
+
+    def _index_code(self, pair: _FunctionCodePair, code: Optional[CodeType] = None) -> None:
+        code = pair.code if code is None else code
+        assert code is not None  # nosec
+        executable_lines = linenos(code)
+        for lineno in executable_lines:
+            self[lineno].append(pair)
+
+        # A function's first line is its declaration, or its first decorator.
+        # AIDEV-NOTE: Keep this as an interval rather than indexing every line so
+        # multiline signatures cannot cause memory usage to grow with source size.
+        first_executable_line = min(executable_lines, default=code.co_firstlineno)
+        self._function_header_index.append((code.co_firstlineno, first_executable_line, pair))
 
     def at_line(self, line: int) -> list[FullyNamedFunction]:
         """Get the functions at the given line.
@@ -305,16 +317,23 @@ class FunctionDiscovery(defaultdict[Any, Any]):
         if line in self._cached:
             return self._cached[line]
 
-        if line in self:
+        pairs = list(self[line]) if line in self else []
+        pairs.extend(
+            pair
+            for start, first_executable_line, pair in self._function_header_index
+            if start <= line < first_executable_line or start == first_executable_line == line
+        )
+        if pairs:
             functions = []
-            for fcp in self[line]:
+            for fcp in pairs:
                 try:
                     functions.append(fcp.resolve())
                 except ValueError:
                     pass
 
             if not functions:
-                del self[line]
+                if line in self:
+                    del self[line]
             else:
                 self._cached[line] = functions
 

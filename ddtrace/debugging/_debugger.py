@@ -370,13 +370,14 @@ class Debugger(Service):
 
         # Group probes by function so that we decompile each function once and
         # bulk-inject the probes.
-        probes_for_function: dict[FullyNamedContextWrappedFunction, list[Probe]] = defaultdict(list)
+        probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
+        discovery = FunctionDiscovery.from_module(module)
         for probe in self._probe_registry.get_pending(str(origin(module))):
             if not isinstance(probe, LineLocationMixin):
                 continue
             line = probe.line
             assert line is not None  # nosec
-            functions = FunctionDiscovery.from_module(module).at_line(line)
+            functions = discovery.at_line(line)
             if not functions:
                 module_origin = str(origin(module))
                 if linecache.getline(module_origin, line):
@@ -394,12 +395,12 @@ class Debugger(Service):
                 log.error(message, extra={"send_to_telemetry": False})
                 self._probe_registry.set_error(probe, "NoFunctionsAtLine", message)
                 continue
-            for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
-                probes_for_function[function].append(cast(LineProbe, probe))
+            for target_function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
+                probes_for_function[target_function].append(cast(LineProbe, probe))
 
-        for function, probes in probes_for_function.items():
+        for target_function, probes in probes_for_function.items():
             failed = self._function_store.inject_hooks(
-                function, [(self._dd_debugger_hook, cast(LineProbe, probe).line, probe) for probe in probes]
+                target_function, [(self._dd_debugger_hook, probe.line, probe) for probe in probes]
             )
 
             for probe in probes:
@@ -416,7 +417,7 @@ class Debugger(Service):
                 os.getpid(),
                 os.getppid(),
                 [probe.probe_id for probe in probes if probe.probe_id not in failed],
-                function,
+                target_function,
             )
 
     def _inject_probes(self, probes: list[LineProbe]) -> None:
@@ -467,19 +468,18 @@ class Debugger(Service):
             if module is not None:
                 # The module is still loaded, so we can try to eject the hooks
                 probes_for_function: dict[FullyNamedContextWrappedFunction, list[LineProbe]] = defaultdict(list)
+                discovery = FunctionDiscovery.from_module(module)
                 for probe in probes:
                     if not isinstance(probe, LineLocationMixin):
                         continue  # type: ignore[unreachable]
-                    line = probe.line
-                    assert line is not None, probe  # nosec
-                    functions = FunctionDiscovery.from_module(module).at_line(line)
+                    functions = discovery.at_line(probe.line)
                     for function in (cast(FullyNamedContextWrappedFunction, _) for _ in functions):
                         probes_for_function[function].append(probe)
 
                 for function, ps in probes_for_function.items():
                     failed = self._function_store.eject_hooks(
                         cast(FunctionType, function),
-                        [(self._dd_debugger_hook, probe.line, probe) for probe in ps if probe.line is not None],
+                        [(self._dd_debugger_hook, probe.line, probe) for probe in ps],
                     )
                     for probe in ps:
                         if probe.probe_id in failed:
