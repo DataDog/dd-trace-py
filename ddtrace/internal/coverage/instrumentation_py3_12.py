@@ -405,7 +405,7 @@ def _extract_lines_and_imports(
     injection needs richer bytecode objects, but conservative import metadata and line extraction can be decoded from
     CPython wordcode directly with much lower overhead.
 
-    AIDEV-NOTE: This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
+    This raw scanner handles CPython 3.12+ bytecode details that are easy to lose when editing:
     CACHE entries must not enter the argument history; 3.14+ LOAD_SMALL_INT stores the integer directly instead of
     indexing co_consts; dis.findlinestarts() owns the version-specific line table decoding; and 3.15+ PEP 810
     bit-packs IMPORT_NAME's co_names index behind lazy-import flag bits.
@@ -493,7 +493,7 @@ def _extract_lines_and_imports(
                 else:
                     import_names[line] = (current_import_package or package, (import_from_name,))
 
-            # AIDEV-NOTE: Decode argument value and shift history after opcode handling. IMPORT_NAME reads
+            # Decode argument value and shift history after opcode handling. IMPORT_NAME reads
             # prev_prev_value before this block because the import sequence is level, fromlist, IMPORT_NAME.
             if opcode == LOAD_CONST:
                 decoded = code.co_consts[current_arg]

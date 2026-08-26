@@ -35,7 +35,7 @@ class ApplicationContextTest : public ::testing::Test
   protected:
     void SetUp() override
     {
-        // AIDEV-NOTE: Global interpreter is managed by tests/pyenv_env.cpp
+        // Global interpreter is managed by tests/pyenv_env.cpp
         taint_engine_context = std::make_unique<TaintEngineContext>();
         taint_engine_context->clear_all_request_context_slots();
     }

@@ -8,7 +8,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.utils.cache import cached
 
 
-# AIDEV-NOTE: Use stdlib logging here. Importing ddtrace.internal.logger creates circular imports
+# Use stdlib logging here. Importing ddtrace.internal.logger creates circular imports
 # because this utility is shared by both the legacy CI Visibility and Testing plugin dependency trees.
 log = logging.getLogger(__name__)
 

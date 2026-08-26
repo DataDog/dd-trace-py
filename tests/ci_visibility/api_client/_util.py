@@ -158,7 +158,7 @@ class TestTestVisibilityAPIClientBase:
 
     @pytest.fixture(scope="function", autouse=True)
     def _ci_visibility_isolation(self):
-        # AIDEV-NOTE: Suspend/resume outer CIVisibility instance so that running
+        # Suspend/resume outer CIVisibility instance so that running
         # these tests with --ddtrace in the outer pytest session does not leak the
         # outer singleton into test bodies, and test bodies cannot corrupt the outer
         # session.  _suspend() removes the outer instance without stopping it;

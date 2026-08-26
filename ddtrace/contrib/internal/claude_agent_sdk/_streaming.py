@@ -419,7 +419,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
         """Buffer the chunk, deduping by message_id so one model turn maps to one llm span.
 
-        AIDEV-NOTE: The SDK may split one model turn (e.g. a text block plus a tool_use
+        The SDK may split one model turn (e.g. a text block plus a tool_use
         block) into several AssistantMessage chunks that each repeat the same message-level
         usage. Buffering and merging chunks of one message into a single llm span (flushed on
         turn change / UserMessage / ResultMessage) keeps token counts from being
