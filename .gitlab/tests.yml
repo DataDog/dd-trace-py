@@ -145,10 +145,13 @@ include:
         --tests-location "${DDTEST_SUITE_PATH}/**/test*.py" \
         --min-parallelism "${DDTEST_NODES}" \
         --max-parallelism "${DDTEST_NODES}"
+      # Partition the plan artifact by RIOT_HASH so run jobs with
+      # different hashes don't overwrite each other's .testoptimization/.
+      mv .testoptimization ".testoptimization-${RIOT_HASH}"
   artifacts:
     when: always
     paths:
-      - .testoptimization/
+      - .testoptimization-${RIOT_HASH}/
     expire_in: 1 week
 
 # Run: execute this CI node's files in the activated venv.
@@ -160,6 +163,9 @@ include:
   script:
     - |
       eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
+      # Restore this venv's plan artifact (partitioned by RIOT_HASH in the plan job).
+      rm -rf .testoptimization
+      mv ".testoptimization-${RIOT_HASH}" .testoptimization
       ./bin/ddtest run \
         --platform python \
         --framework pytest \
@@ -171,6 +177,8 @@ include:
   script:
     - |
       eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
+      rm -rf .testoptimization
+      mv ".testoptimization-${RIOT_HASH}" .testoptimization
       ./bin/ddtest run \
         --platform python \
         --framework pytest \

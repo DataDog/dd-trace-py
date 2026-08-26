@@ -555,6 +555,32 @@ def _emit_ddtest_jobs(
     if snapshot:
         wait_for.append("testagent")
 
+    # Extract pytest flags from the riot command to carry into PYTEST_ADDOPTS.
+    # The riot command has flags like 'pytest -vv --no-cov --ignore-glob=... {cmdargs} ...'
+    # ddtest runs 'python -m pytest <files>' and doesn't see these flags.
+    # We extract everything between 'pytest'/'python -m pytest' and '{cmdargs}' and pass it via PYTEST_ADDOPTS.
+    pytest_addopts = ""
+    import riotfile as _riotfile  # noqa: E402
+
+    for inst in _riotfile.venv.instances():  # type: ignore[attr-defined]
+        if not inst.name:
+            continue
+        suite_regex = re.compile(config.get("pattern", clean_name))
+        if inst.matches_pattern(suite_regex) and inst.command:
+            cmd = inst.command
+            if "{cmdargs}" in cmd:
+                before_cmdargs = cmd.split("{cmdargs}")[0].strip()
+                for prefix in ("python -m pytest", "pytest"):
+                    if before_cmdargs.startswith(prefix):
+                        flags = before_cmdargs[len(prefix) :].strip()
+                        # Exclude the path (which is now ${{DDTEST_SUITE_PATH}})
+                        flags = flags.replace("${{DDTEST_SUITE_PATH}}", "").strip()
+                        flags = flags.replace("tests/", "").strip()  # any remaining literal path
+                        if flags:
+                            pytest_addopts = flags
+                        break
+            break
+
     def emit_services(plan: bool) -> None:
         if not services:
             return
@@ -609,7 +635,7 @@ def _emit_ddtest_jobs(
     emit_needs_build_base_venvs()
     emit_services(plan=True)
     emit_before_script(plan=True)
-    emit_variables({"DDTEST_NODES": str(k)})
+    emit_variables({"DDTEST_NODES": str(k), "PYTEST_ADDOPTS": pytest_addopts})
     print("  parallel:", file=f)
     print("    matrix:", file=f)
     for h, py in venvs:
@@ -642,7 +668,7 @@ def _emit_ddtest_jobs(
         print(f'            PYTHON_VERSION: "{py}"', file=f)
     emit_services(plan=False)
     emit_before_script(plan=False)
-    emit_variables()
+    emit_variables({"PYTEST_ADDOPTS": pytest_addopts} if pytest_addopts else None)
     print("  parallel:", file=f)
     print("    matrix:", file=f)
     for h, py in venvs:
