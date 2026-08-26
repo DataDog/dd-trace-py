@@ -3,9 +3,7 @@ fixes:
   - |
     google_adk: Fixes an issue where patching the integration raises ``AttributeError`` with
     ``google-adk`` 2.7.0 and later, which removed the ``__call_tool_live`` function the
-    integration wrapped. Applications calling ``LLMObs.enable()`` or
-    ``ddtrace.patch(raise_errors=True, google_adk=True)`` failed at startup, and under
-    ``ddtrace-run`` the Google ADK integration was disabled instead.
+    integration wrapped.
   - |
     google_adk: Fixes an issue where calls to streaming tools raise ``IndexError`` with
     ``google-adk`` 2.7.0 and later, which sends those calls through the same dispatcher as
