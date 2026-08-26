@@ -1,0 +1,110 @@
+# Standalone ddtest pilot for the `internal` suite.
+#
+# This file is included directly into .gitlab-ci.yml (see the `include:` block
+# in .gitlab-ci.yml). It is an opt-in, manually-triggered pilot that runs
+# one `internal` riot venv through ddtest end-to-end, so we can dogfood
+# ddtest's plan/run + file splitting in real CI without touching the
+# generated-config pipeline (gen_gitlab_config.py) and without any changes
+# to ddtest itself.
+#
+# Option 1 (chosen): ddtest stays unchanged; riot knowledge stays in the
+# bridge (scripts/ddtest-riot.py).
+#
+# This pilot is intentionally self-contained: it builds its own riot venv
+# (via `riot generate`) instead of depending on the child-pipeline
+# `build_base_venvs` job, so it can live in the parent pipeline without any
+# gen_gitlab_config.py wiring. It runs ONE riot venv (Python 3.10) to prove
+# the flow; fanning out across all 12 `internal` hashes and multiple CI nodes
+# per venv is a follow-up once this is green.
+#
+# Flow (single job, manual):
+#   riot -P -v generate --python=3.10        -> builds .riot/venv_py310
+#   download ddtest binary
+#   eval "$(python scripts/ddtest-riot.py venv-env 4f70b3c)"  -> activate venv
+#   ddtest plan  -p python -f pytest --tests-location tests/internal \
+#                 --min-parallelism 1 --max-parallelism 1
+#   ddtest run   -p python -f pytest --ci-node 0 --ci-node-workers ncpu
+#
+# `--min-parallelism 1 --max-parallelism 1` makes plan select a single CI
+# node, so this one job runs all of tests/internal in the venv with xdist
+# inside (the --ci-node-workers ncpu fan-out). That is the smallest possible
+# end-to-end dogfood: it exercises the bridge, ddtest plan, ddtest run, and
+# pytest-in-venv, in real CI.
+#
+# The per-venv CI node count is fixed at 1 for this pilot. A follow-up that
+# fans out across multiple CI nodes per venv would take K from the suite's
+# suitespec parallelism (the `internal` suite uses `venvs_per_job`, which
+# gen_gitlab_config.py scales into a job count) and pass it as
+# `--min-parallelism K --max-parallelism K`.
+#
+# The pilot is gated with `when: manual` so it never runs on ordinary
+# pipelines; trigger it from the GitLab UI. `allow_failure: true` keeps it
+# from blocking merges while it matures.
+
+ddtest-internal-pilot:
+  extends: .testrunner
+  stage: tests
+  services:
+    - !reference [.services, ddagent]
+  needs: []
+  before_script:
+    - !reference [.testrunner, before_script]
+    - unset DD_SERVICE
+    - unset DD_ENV
+    - unset DD_TAGS
+    - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+  variables:
+    # The riot short hash for the `internal` venv on Python 3.10. Regenerate
+    # with `python scripts/ddtest-riot.py hashes internal` if the riotfile
+    # package spec changes.
+    RIOT_HASH: "4f70b3c"
+    DDTEST_VERSION: "latest"
+    PYTHON_VERSION: "3.10"
+    # Match build_base_venvs' native build settings so the venv is usable.
+    CMAKE_BUILD_PARALLEL_LEVEL: "12"
+    DD_PROFILING_NATIVE_TESTS: "1"
+    DD_USE_SCCACHE: "1"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: manual
+      allow_failure: true
+  script:
+    - |
+      set -e
+      # 1. Build the riot base venv for Python 3.10 (editable ddtrace install
+      #    + native extensions). This is what build_base_venvs does in the
+      #    child pipeline; doing it inline keeps the pilot standalone.
+      riot -P -v generate --python="${PYTHON_VERSION}"
+
+      # 2. Download the ddtest binary.
+      mkdir -p bin
+      curl -fsSL "https://github.com/DataDog/ddtest/releases/${DDTEST_VERSION}/download/ddtest-linux-amd64" -o bin/ddtest
+      chmod +x bin/ddtest
+
+      # 3. Activate the riot venv for this hash. The bridge reads the
+      #    riotfile and emits KEY=value lines (VIRTUAL_ENV, PATH with the
+      #    venv bin first, PYTHONPATH site-packages, the venv's env vars,
+      #    riot's RIOT_* vars, and DDTEST_SUITE_PATH). We eval them so
+      #    `python` resolves to the venv interpreter and ddtrace/pytest are
+      #    importable.
+      eval "$(python scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
+      python -c "import ddtrace, pytest"
+
+      # 4. Plan: discover tests/internal files and write .testoptimization/.
+      #    Single CI node for this pilot (see file header).
+      ./bin/ddtest plan \
+        --platform python \
+        --framework pytest \
+        --tests-location "tests/internal" \
+        --min-parallelism 1 \
+        --max-parallelism 1
+
+      # 5. Run: execute this node's files in the activated venv. ncpu fans out
+      #    with xdist inside the job.
+      ./bin/ddtest run \
+        --platform python \
+        --framework pytest \
+        --ci-node 0 \
+        --ci-node-workers ncpu
