@@ -359,7 +359,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pys=select_pys(min_version="3.9"),
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
                 Venv(
@@ -368,11 +368,15 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
-                    pkgs={"fastapi": "~=0.114.2", "mcp": "==1.20.0"},
+                    # mcp 1.21.2 is the first release that stops importing pydantic internals that
+                    # pydantic 2.14 removed; 1.24+ rejects the SSE tests' Host header.
+                    pkgs={"fastapi": "~=0.114.2", "mcp": "==1.21.2"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
-                    pkgs={"fastapi": latest, "pydantic": "~=2.12.1", "mcp": "==1.20.0"},
+                    # pydantic 2.12 is the first release with cp314 wheels and 2.12.x has none for
+                    # cp315, so this pin stays open across the 2.x line.
+                    pkgs={"fastapi": latest, "pydantic": "~=2.12", "mcp": "==1.21.2"},
                 ),
             ],
         ),
@@ -3762,7 +3766,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "torch": latest,
-                "vllm": ">=0.10.2",
+                "vllm": ["~=0.10.2", latest],
             },
             pys=select_pys(min_version="3.10", max_version="3.13"),
         ),
