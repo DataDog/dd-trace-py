@@ -1,10 +1,8 @@
 ---
 features:
   - |
-    build: the native profiling components (the ``profiling`` feature of the
-    Rust extension, ``libdd_wrapper`` and the ``memalloc``/``ddup``/``stack``
-    extensions) can be skipped at build time by setting
-    ``DD_BUILD_PROFILING_NATIVE=0``.  Building them requires installing the
+    build: the native profiling components can be skipped at build time by setting
+    ``DD_BUILD_PROFILING_NATIVE=0``. #19740
     ``dedup_headers`` tool over the network, which fully offline (e.g. Linux
     distribution) builds cannot do.  The profiler then reports itself as
     unavailable at runtime; the default behaviour is unchanged.
