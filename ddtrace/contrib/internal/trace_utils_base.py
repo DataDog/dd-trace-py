@@ -11,6 +11,7 @@ from ddtrace.ext import net
 from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
@@ -194,10 +195,6 @@ _KNOWN_HTTP_METHODS = frozenset(
 )
 OTHER_HTTP_METHOD = "_OTHER"
 
-# server.port is required whenever server.address is set, so a URL that omits the port falls
-# back to the port the scheme implies.
-_DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}
-
 
 def _otel_number(value: int) -> Union[int, str]:
     """Represent an integer-typed OTel attribute for the exporter this process uses.
@@ -209,7 +206,7 @@ def _otel_number(value: int) -> Union[int, str]:
 
 
 @cached()
-def _normalize_http_method(method: str) -> tuple[str, Optional[str]]:
+def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
     """Split a raw HTTP method into (http.request.method, http.request.method_original).
 
     The second element is None when it would duplicate the first, which is the only case
@@ -266,7 +263,7 @@ def _split_netloc(netloc: str, scheme: str) -> tuple[Optional[str], Optional[int
             port = None
 
     if port is None:
-        port = _DEFAULT_SCHEME_PORTS.get(scheme)
+        port = DEFAULT_SCHEME_PORTS.get(scheme)
 
     return host or None, port
 
@@ -288,7 +285,7 @@ def _obfuscated_query(query: Optional[str]) -> Optional[Union[str, bytes]]:
     return redact_query_string(query, pattern)
 
 
-def _set_query_string_tag(span: Span, query: str) -> None:
+def set_query_string_tag(span: Span, query: str) -> None:
     """Tag a query string an integration opted into outside of integration_config.
 
     aiohttp supports a per-app trace_query_string that set_http_meta cannot see, so the
@@ -366,7 +363,7 @@ def _set_url_tags_otel_client(
             span._set_attribute(net.SERVER_PORT, _otel_number(port))
 
 
-def _set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
+def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
     """Tag the request URL of a server span in whichever semantics mode is active.
 
     set_http_meta is swapped wholesale at import, but a handful of server integrations tag
@@ -379,7 +376,7 @@ def _set_url_tags_server(integration_config: IntegrationConfig, span: Span, url:
         _set_url_tag(integration_config, span, url, query)
 
 
-def _set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
+def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
     """Tag an HTTP status code outside of set_http_meta, without touching span.error."""
     if not config._otel_trace_semantics_enabled:
         span._set_attribute(http.STATUS_CODE, str(status_code))
@@ -392,12 +389,12 @@ def _set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
     span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, _otel_number(int_status_code))
 
 
-def _set_method_tag(span: Span, method: str) -> None:
+def set_method_tag(span: Span, method: str) -> None:
     """Tag an HTTP request method outside of set_http_meta."""
     if not config._otel_trace_semantics_enabled:
         span._set_attribute(http.METHOD, method)
         return
-    normalized_method, original_method = _normalize_http_method(method)
+    normalized_method, original_method = normalize_http_method(method)
     span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
     if original_method is not None:
         span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
@@ -411,7 +408,7 @@ def server_url_tag() -> str:
     return http.OTEL_URL_PATH if config._otel_trace_semantics_enabled else http.URL
 
 
-def _http_block_metadata(
+def http_block_metadata(
     method: Optional[str],
     status_code: Union[int, str],
     query: Optional[str] = None,
@@ -435,7 +432,7 @@ def _http_block_metadata(
 
     metadata[http.OTEL_RESPONSE_STATUS_CODE] = _otel_number(int(status_code))
     if method is not None:
-        normalized_method, original_method = _normalize_http_method(method)
+        normalized_method, original_method = normalize_http_method(method)
         metadata[http.OTEL_REQUEST_METHOD] = normalized_method
         if original_method is not None:
             metadata[http.OTEL_REQUEST_METHOD_ORIGINAL] = original_method

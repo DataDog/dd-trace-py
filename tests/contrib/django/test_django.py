@@ -24,7 +24,6 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
-from ddtrace.contrib.internal.django import utils as django_utils
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.utils import get_request_uri
@@ -44,15 +43,48 @@ from tests.utils import override_global_config
 from tests.utils import override_http_config
 
 
-@pytest.mark.parametrize(("method", "resource"), (("GET", "GET /checkout/{id}"), ("PROPFIND", "HTTP /checkout/{id}")))
-def test_early_otel_route_and_resource(monkeypatch, method, resource):
-    resolver = mock.Mock()
-    resolver.resolve.return_value = types.SimpleNamespace(route="/checkout/{id}")
-    request = types.SimpleNamespace(method=method, path_info="/checkout/42", urlconf=None)
-    monkeypatch.setattr(config, "_otel_trace_semantics_enabled", True)
-    monkeypatch.setattr(django_utils, "get_resolver", lambda _: resolver)
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_names_the_request_span_from_the_route():
+    """A real request names the root span {method} {http.route}, not the URI path."""
+    from django.test import Client
 
-    assert django_utils._early_otel_route_and_resource(request) == ("/checkout/{id}", resource)
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        assert Client().get("/fn-view/").status_code == 200
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "GET"
+        assert root.get_tag("http.route") == "^fn-view/$"
+        assert root.resource == "GET ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_substitutes_an_unaccepted_method_in_the_span_name():
+    """_OTHER is reported in http.request.method, but the span name uses HTTP."""
+    from django.test import Client
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        Client().generic("PROPFIND", "/fn-view/")
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "_OTHER"
+        assert root.get_tag("http.request.method_original") == "PROPFIND"
+        assert root.resource == "HTTP ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})
+def test_default_semantics_keep_the_datadog_request_span_name():
+    """Flag off, the resource and attribute names are unchanged."""
+    from django.test import Client
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        assert Client().get("/fn-view/").status_code == 200
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.method") == "GET"
+        assert root.get_tag("http.request.method") is None
 
 
 @pytest.fixture(autouse=True)

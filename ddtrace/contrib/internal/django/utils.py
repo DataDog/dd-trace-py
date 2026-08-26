@@ -19,7 +19,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
 from ddtrace.contrib.internal.django.compat import user_is_authenticated
-from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
+from ddtrace.contrib.internal.trace_utils_base import normalize_http_method
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
 from ddtrace.internal import compat
@@ -268,7 +268,7 @@ def _early_otel_route_and_resource(request: Any) -> tuple[Optional[str], Optiona
     if not route:
         return None, None
 
-    normalized_method, _ = _normalize_http_method(request.method)
+    normalized_method, _ = normalize_http_method(request.method)
     return route, otel_http_resource(normalized_method, route)
 
 

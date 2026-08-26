@@ -152,13 +152,13 @@ class TestNamedBeforeSampling:
     """
 
     def test_server_span_is_named_at_start_not_left_as_the_integration_resource(self):
-        from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
+        from ddtrace.contrib.internal.trace_utils_base import normalize_http_method
 
         with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
             with tracer.start_span("aiohttp.request", span_type=SpanTypes.WEB, activate=False) as span:
                 span.resource = "aiohttp.request"
                 span._set_attribute(SPAN_KIND, "server")
-                normalized, original = _normalize_http_method("GET")
+                normalized, original = normalize_http_method("GET")
                 set_otel_http_resource(span, normalized, original)
                 assert span.resource == "GET", "sampling would otherwise see the Datadog resource"
                 trace_utils._set_http_meta_otel(span, _integration_config(), method="GET", route="/users/{id}")
@@ -166,12 +166,12 @@ class TestNamedBeforeSampling:
 
     def test_unaccepted_client_method_is_normalized_at_start(self):
         """Sampling must not see PROPFIND when the span ships as HTTP."""
-        from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
+        from ddtrace.contrib.internal.trace_utils_base import normalize_http_method
 
         with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
             with tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
                 span._set_attribute(SPAN_KIND, "client")
-                normalized, original = _normalize_http_method("PROPFIND")
+                normalized, original = normalize_http_method("PROPFIND")
                 set_otel_http_resource(span, normalized, original)
                 at_sampling = span.resource
                 trace_utils._set_http_meta_otel(span, _integration_config(), method="PROPFIND")

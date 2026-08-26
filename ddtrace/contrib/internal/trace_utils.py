@@ -29,13 +29,13 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
-from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
 from ddtrace.contrib.internal.trace_utils_base import _otel_number
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_otel_client
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_otel_server
 from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_headers
+from ddtrace.contrib.internal.trace_utils_base import normalize_http_method
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -657,7 +657,7 @@ def _set_http_meta_otel(
     is_client = _is_http_client_span(span)
 
     if method is not None:
-        normalized_method, original_method = _normalize_http_method(method)
+        normalized_method, original_method = normalize_http_method(method)
         span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
         if original_method is not None:
             span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)

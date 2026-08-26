@@ -20,7 +20,7 @@ from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
-from ddtrace.contrib.internal.trace_utils_base import _http_block_metadata
+from ddtrace.contrib.internal.trace_utils_base import http_block_metadata
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -58,10 +58,10 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
         # The dispatch below applies these to the request span as-is, so they are already
         # spelled and shaped for whichever semantics mode is active. Built from the method and
         # status alone first, so a failure in the calls below still leaves those on the span.
-        metadata = _http_block_metadata(request.method, 403)
+        metadata = http_block_metadata(request.method, 403)
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        metadata = _http_block_metadata(
+        metadata = http_block_metadata(
             request.method,
             403,
             query=query if config_django.trace_query_string else None,

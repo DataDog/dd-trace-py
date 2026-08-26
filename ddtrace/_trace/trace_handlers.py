@@ -48,7 +48,7 @@ from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_ARGS
 from ddtrace.contrib.internal.ray.constants import RAY_DEPLOYMENT_KWARGS
 from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_server
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
@@ -725,7 +725,7 @@ def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         span_from_context(ctx)._set_attribute(tk, tv)
-    _set_url_tags_server(django_config, span_from_context(ctx), url, query)
+    set_url_tags_server(django_config, span_from_context(ctx), url, query)
 
 
 def _on_django_after_request_headers_post(

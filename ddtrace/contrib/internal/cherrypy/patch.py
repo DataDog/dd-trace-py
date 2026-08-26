@@ -14,7 +14,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.contrib.internal.trace_utils_base import _set_method_tag
+from ddtrace.contrib.internal.trace_utils_base import set_method_tag
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
@@ -92,7 +92,7 @@ class TraceTool(cherrypy.Tool):
                 config.cherrypy,
             )
             if config._otel_trace_semantics_enabled:
-                _set_method_tag(req_span, cherrypy.request.method)
+                set_method_tag(req_span, cherrypy.request.method)
                 req_span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, req_span.resource)
 
             ctx.set_item("req_span", req_span)

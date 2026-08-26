@@ -20,10 +20,10 @@ from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
-from ddtrace.contrib.internal.trace_utils_base import _set_method_tag
-from ddtrace.contrib.internal.trace_utils_base import _set_query_string_tag
-from ddtrace.contrib.internal.trace_utils_base import _set_status_code_tag
-from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_server
+from ddtrace.contrib.internal.trace_utils_base import set_method_tag
+from ddtrace.contrib.internal.trace_utils_base import set_query_string_tag
+from ddtrace.contrib.internal.trace_utils_base import set_status_code_tag
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
 from ddtrace.contrib.internal.trace_utils_base import user_agent_tag
 from ddtrace.internal import core
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -125,17 +125,17 @@ def _on_request_span_modifier(
 
 
 def _on_flask_blocked_request(span: Span) -> None:
-    _set_status_code_tag(span, 403)
+    set_status_code_tag(span, 403)
     request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
         query_string = getattr(request, "query_string", None)
         if base_url and query_string:
-            _set_url_tags_server(core.find_item("flask_config"), span, base_url, query_string)
+            set_url_tags_server(core.find_item("flask_config"), span, base_url, query_string)
         if query_string and core.find_item("flask_config").trace_query_string:
-            _set_query_string_tag(span, query_string)
+            set_query_string_tag(span, query_string)
         if request.method is not None:
-            _set_method_tag(span, request.method)
+            set_method_tag(span, request.method)
         user_agent = _get_request_header_user_agent(request.headers)
         if user_agent:
             span._set_attribute(user_agent_tag(), user_agent)
@@ -247,15 +247,15 @@ def _wsgi_make_block_content(
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
         if ctype is not None:
             req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
-        _set_status_code_tag(req_span, status)
+        set_status_code_tag(req_span, status)
         url = construct_url(environ)
         query_string = environ.get("QUERY_STRING")
-        _set_url_tags_server(middleware._config, req_span, url, query_string)
+        set_url_tags_server(middleware._config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
-            _set_query_string_tag(req_span, query_string)
+            set_query_string_tag(req_span, query_string)
         method = environ.get("REQUEST_METHOD")
         if method:
-            _set_method_tag(req_span, method)
+            set_method_tag(req_span, method)
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
         if user_agent:
             req_span._set_attribute(user_agent_tag(), user_agent)
