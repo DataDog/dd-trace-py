@@ -935,7 +935,7 @@ integrations:
   tested_versions_by_dependency:
     rq:
       min: 1.8.1
-      max: 2.0.0
+      max: 2.11.0
 
 - integration_name: sanic
   is_external_package: true
