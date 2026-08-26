@@ -10,10 +10,10 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
 from collections.abc import Mapping
 from collections.abc import Sequence
 import concurrent.futures
+from contextlib import redirect_stdout
 from pathlib import Path
 import re
 import subprocess
@@ -26,6 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
+from scripts.check_lockfile_cooldown import main as check_lockfile_cooldown  # noqa: E402
 
 
 if TYPE_CHECKING:
@@ -60,11 +61,9 @@ def _resolve_suites(matrices: Mapping[str, tuple[TestEnvironment, ...]], request
 
 
 def select_environments(requested: Sequence[str] = ()) -> tuple[TestEnvironment, ...]:
-    from tests.suitespec import expand_declared_matrices
-    from tests.suitespec import get_matrix_defaults
-    from tests.suitespec import get_suites
+    from tests.suitespec import get_test_environments
 
-    matrices = expand_declared_matrices(get_suites(), get_matrix_defaults(), nightly=False)
+    matrices = get_test_environments(nightly=False)
     selected_suites = _resolve_suites(matrices, requested)
     return tuple(environment for suite in selected_suites for environment in matrices[suite])
 
@@ -95,7 +94,6 @@ def compile_environment(
     environment: TestEnvironment,
     *,
     exclude_newer: str,
-    run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> str:
     from tests.suitespec import LOCK_PLATFORM
 
@@ -127,7 +125,7 @@ def compile_environment(
             str(requirements),
         ]
         try:
-            run(command, cwd=PROJECT_ROOT, check=True, text=True, capture_output=True)
+            subprocess.run(command, cwd=PROJECT_ROOT, check=True, text=True, capture_output=True)
         except subprocess.CalledProcessError as error:
             details = (error.stderr or error.stdout or "").strip()
             suffix = f"\n{details}" if details else ""
@@ -159,7 +157,6 @@ def generate_locks(
     requested: Sequence[str] = (),
     *,
     jobs: int = 4,
-    run: Callable[..., subprocess.CompletedProcess[str]] = subprocess.run,
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
     environments = select_environments(requested)
     if not environments:
@@ -170,7 +167,7 @@ def generate_locks(
     errors = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
         futures = {
-            executor.submit(compile_environment, environment, exclude_newer=cutoff, run=run): environment
+            executor.submit(compile_environment, environment, exclude_newer=cutoff): environment
             for environment in environments
         }
         for future in concurrent.futures.as_completed(futures):
@@ -187,6 +184,49 @@ def generate_locks(
         _write_lock(PROJECT_ROOT / environment.lockfile, compiled[environment])
         written.append(environment.lockfile)
     return tuple(written), _prune_locks(set(written), environments)
+
+
+def refresh_locks(requested: str | None = None, *, jobs: int = 4) -> tuple[str, tuple[Path, ...], tuple[Path, ...]]:
+    from tests.suitespec import get_test_environments
+
+    matrices = get_test_environments(nightly=False)
+    candidates: tuple[str, ...]
+    if requested:
+        candidates = (requested,)
+    else:
+        try:
+            result = subprocess.run(
+                [str(PROJECT_ROOT / "scripts" / "freshvenvs.py"), "output"],
+                cwd=PROJECT_ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.stdout or "").strip()
+            raise LockError(f"failed to find outdated test environments: {details}") from error
+        candidates = tuple(result.stdout.split())
+
+    if not candidates:
+        print("No outdated test environments found.", file=sys.stderr)
+        return "", (), ()
+
+    print(f"Outdated test environments: {' '.join(candidates)}", file=sys.stderr)
+    for candidate in candidates:
+        try:
+            suite = _resolve_suites(matrices, (candidate,))[0]
+        except LockError:
+            print(f"No test environments found for {candidate}", file=sys.stderr)
+            continue
+
+        written, pruned = generate_locks((suite,), jobs=jobs)
+        with redirect_stdout(sys.stderr):
+            cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
+        if cooldown_status:
+            raise LockError(f"cooldown validation failed for {candidate}")
+        return candidate, written, pruned
+
+    return "", (), ()
 
 
 def check_locks() -> int:
@@ -219,6 +259,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
     lock_parser.add_argument("suites", nargs="*", help="Full or unambiguous short suite names; defaults to all.")
     lock_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
+    refresh_parser = subparsers.add_parser("refresh", help="Refresh one explicit or outdated test environment.")
+    refresh_parser.add_argument("suite", nargs="?", help="Full or unambiguous short suite name.")
+    refresh_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
     args = parser.parse_args(argv)
 
     try:
@@ -229,6 +272,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "list":
             for environment_hash in list_hashes(args.suite, args.python):
                 print(environment_hash)
+            return 0
+        if args.command == "refresh":
+            suite, written, pruned = refresh_locks(args.suite, jobs=args.jobs)
+            if suite:
+                print(
+                    f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s).",
+                    file=sys.stderr,
+                )
+                print(suite)
             return 0
         written, pruned = generate_locks(args.suites, jobs=args.jobs)
     except LockError as error:

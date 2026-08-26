@@ -202,22 +202,13 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    from tests.suitespec import expand_suite_matrix
-    from tests.suitespec import get_matrix_defaults
+    from tests.suitespec import get_test_environments
 
-    defaults = get_matrix_defaults()
-    environments_by_suite = {
-        suite: expand_suite_matrix(
-            suite,
-            config,
-            defaults,
-            nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true",
-        )
-        for suite, config in suite_configs.items()
-    }
+    all_environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
 
     result: dict[str, SuiteVenvInfo] = {}
-    for suite, environments in environments_by_suite.items():
+    for suite in suite_configs:
+        environments = all_environments.get(suite, ())
         if environments:
             result[suite] = SuiteVenvInfo(
                 environment_hashes=tuple(environment.hash for environment in environments),

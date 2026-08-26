@@ -87,7 +87,7 @@ jobs:
       - name: Regenerate test locks
         env:
           TARGET_PACKAGE: ${{ inputs.integration_name }}
-        run: scripts/regenerate-test-locks-latest.sh "$TARGET_PACKAGE"
+        run: scripts/test-env refresh "$TARGET_PACKAGE" >/dev/null
 
       - name: Run integration registry update
         run: python scripts/integration_registry/update_and_format_registry.py

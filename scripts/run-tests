@@ -55,10 +55,9 @@ _ensure_compose_project_name()
 from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
 from tests.suitespec import TestEnvironment  # noqa: E402
 from tests.suitespec import TestRun  # noqa: E402
-from tests.suitespec import expand_suite_matrix  # noqa: E402
-from tests.suitespec import get_matrix_defaults  # noqa: E402
 from tests.suitespec import get_patterns  # noqa: E402
 from tests.suitespec import get_suites  # noqa: E402
+from tests.suitespec import get_test_environments  # noqa: E402
 
 
 # Constants
@@ -104,7 +103,14 @@ class TestRunner:
         self.root = ROOT
         self.podman_compat = os.environ.get(PODMAN_COMPAT_ENV_VAR, "0") == "1"
         self.in_ci = os.environ.get("GITLAB_CI", "").lower() == "true"
-        self._environment_cache: dict[str, tuple[TestEnvironment, ...]] = {}
+        self.suites = get_suites()
+        self.environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
+        self.environments_by_hash: dict[str, TestEnvironment] = {}
+        for environments in self.environments.values():
+            for environment in environments:
+                if environment.hash in self.environments_by_hash:
+                    raise ValueError(f"environment hash collision: {environment.hash}")
+                self.environments_by_hash[environment.hash] = environment
 
     def _compose_command(self, *args: str) -> list[str]:
         """Return the Compose command for the selected container backend."""
@@ -118,7 +124,7 @@ class TestRunner:
 
     def _run_git_command(self, cmd: list[str]) -> set[str]:
         """Helper to run a git command and return set of file paths."""
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root, check=True)
         return set(result.stdout.strip().split()) if result.stdout.strip() else set()
 
     def get_git_changed_files(self, base_ref: str = "HEAD") -> set[str]:
@@ -141,9 +147,8 @@ class TestRunner:
             print("Warning: Failed to get git changes, using all suites")
             return set()
 
-    def find_matching_suites(self, files: set[str]) -> dict[str, dict]:
+    def find_matching_suites(self, files: set[str]) -> dict[str, list[str]]:
         """Find test suites that match the given files."""
-        suites = get_suites()
         matching = {}
 
         # Expand directory paths to include glob patterns
@@ -158,64 +163,13 @@ class TestRunner:
                 expanded_files.add(f"{base}/*")
                 expanded_files.add(f"{base}/**/*")
 
-        for suite_name, suite_config in suites.items():
-            try:
-                patterns = get_patterns(suite_name)
-                if not patterns:
-                    continue
-
-                # Check if any changed files match the suite patterns
-                matches = []
-                for pattern in patterns:
-                    matches.extend(fnmatch.filter(expanded_files, pattern))
-
-                if matches:
-                    matching[suite_name] = suite_config.copy()
-                    matching[suite_name]["matched_files"] = matches
-
-            except Exception as e:
-                print(f"Warning: Error processing suite {suite_name}: {e}")
+        for suite_name in self.suites:
+            patterns = get_patterns(suite_name)
+            matches = sorted({match for pattern in patterns for match in fnmatch.filter(expanded_files, pattern)})
+            if matches:
+                matching[suite_name] = matches
 
         return matching
-
-    def extract_required_services(self, suites: dict[str, dict]) -> set[str]:
-        """Extract all required services from selected suites."""
-        services = set()
-        needs_testagent = False
-
-        for suite_config in suites.values():
-            suite_services = suite_config.get("services", [])
-            services.update(suite_services)
-
-            # Check if any suite needs testagent (has snapshot: true)
-            if suite_config.get("snapshot", False):
-                needs_testagent = True
-
-        # Add testagent if any suite needs snapshots
-        if needs_testagent:
-            services.add("testagent")
-
-        return services
-
-    def get_test_environments(
-        self, pattern: str, suite_name: str = "", suite_config: dict | None = None
-    ) -> list[TestEnvironment]:
-        """Get concrete test environments for a suite pattern."""
-        try:
-            if suite_name not in self._environment_cache:
-                config = dict(suite_config or {})
-                config["pattern"] = pattern
-                self._environment_cache[suite_name] = expand_suite_matrix(
-                    suite_name,
-                    config,
-                    get_matrix_defaults(),
-                    nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true",
-                )
-            return list(self._environment_cache[suite_name])
-
-        except Exception as e:
-            print(f"Warning: Failed to get test environments for pattern '{pattern}': {e}")
-            return []
 
     def start_services(self, services: set[str]) -> bool:
         """Start required Docker services.
@@ -343,8 +297,6 @@ class TestRunner:
                     return []
                 elif selection == "all":
                     return items
-                elif selection == "latest" and item_type == "venvs":
-                    return [items[-1]]  # Last item is usually latest version
 
                 indices = self._parse_selection(selection, len(items))
                 if indices:
@@ -356,7 +308,7 @@ class TestRunner:
             except (ValueError, IndexError):
                 print("❌ Invalid selection. Please use format like '1,3', 'all', or 'none'")
 
-    def select_suites(self, matching_suites: dict[str, dict]) -> dict[str, dict]:
+    def select_suites(self, matching_suites: dict[str, list[str]]) -> dict[str, list[str]]:
         """Let the user select which test suites to run."""
         if not matching_suites:
             print("❌ No test suites found in matching suites")
@@ -371,14 +323,15 @@ class TestRunner:
             return {name: matching_suites[name] for name in selected}
         return {}
 
-    def select_environments_for_suites(self, selected_suites: dict[str, dict]) -> list[TestEnvironment]:
+    def select_environments_for_suites(self, selected_suites: dict[str, list[str]]) -> list[TestEnvironment]:
         """Let the user select concrete environments for each suite."""
         selected_environments = []
 
-        for suite_name, suite_config in selected_suites.items():
+        for suite_name in selected_suites:
+            suite_config = self.suites[suite_name]
             pattern = suite_config.get("pattern", suite_name)
             print(f"\n🔍 Getting available environments for suite '{suite_name}' (pattern: '{pattern}')...")
-            environments = self.get_test_environments(pattern, suite_name=suite_name, suite_config=suite_config)
+            environments = list(self.environments.get(suite_name, ()))
 
             if not environments:
                 print(f"   ⚠️  No environments found for suite '{suite_name}'")
@@ -400,7 +353,7 @@ class TestRunner:
 
         return selected_environments
 
-    def interactive_environment_selection(self, matching_suites: dict[str, dict]) -> list[TestEnvironment]:
+    def interactive_environment_selection(self, matching_suites: dict[str, list[str]]) -> list[TestEnvironment]:
         """Provide interactive test environment selection."""
         if not matching_suites:
             print("❌ No matching test suites found for the changed files.")
@@ -644,7 +597,6 @@ class TestRunner:
         skip_ddtrace_install: bool,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
-        prepared_environments: dict[TestEnvironment, PreparedEnvironment] = {}
 
         if skip_ddtrace_install:
             print("\n⚡ Reusing prebuilt or current ddtrace installations (-s)")
@@ -663,7 +615,6 @@ class TestRunner:
                 else:
                     project_artifact = None
                 prepared = self._prepare_uv_environment(environment, project_artifact)
-                prepared_environments[environment] = prepared
                 command_env = self._uv_command_environment(prepared, build_env)
             except UvTestEnvironmentError as error:
                 print(f"❌ {error}")
@@ -687,8 +638,6 @@ class TestRunner:
             else:
                 print("   ✅ Reusing current uv environment")
 
-        for environment in environments:
-            prepared = prepared_environments[environment]
             for run in environment.runs:
                 try:
                     command = self._uv_test_command(environment, prepared, run, pytest_args, forwarded_env)
@@ -736,7 +685,7 @@ class TestRunner:
             print(f"🎯 Suite: {suite_name}")
             print(f"{'=' * 80}")
 
-            suite_config = get_suites()[suite_name]
+            suite_config = self.suites[suite_name]
             suite_services = set(suite_config.get("services", ()))
             needs_testagent = bool(suite_config.get("snapshot", False))
             if needs_testagent:
@@ -802,16 +751,13 @@ class TestRunner:
         print("\n🎉 All selected suites completed successfully!")
         return True
 
-    def output_suites_json(self, matching_suites: dict[str, dict]) -> None:
+    def output_suites_json(self, matching_suites: dict[str, list[str]]) -> None:
         """Output matching suites and venvs as JSON for AI agent consumption."""
         suites_data = []
 
-        for suite_name, suite_config in matching_suites.items():
-            pattern = suite_config.get("pattern", suite_name)
-            environments = self.get_test_environments(pattern, suite_name=suite_name, suite_config=suite_config)
-
+        for suite_name, matched_files in matching_suites.items():
             venvs_data = []
-            for number, environment in enumerate(environments):
+            for number, environment in enumerate(self.environments.get(suite_name, ())):
                 venvs_data.append(
                     {
                         "hash": environment.hash,
@@ -825,7 +771,7 @@ class TestRunner:
             suites_data.append(
                 {
                     "name": suite_name,
-                    "matched_files": suite_config.get("matched_files", []),
+                    "matched_files": matched_files,
                     "venvs": venvs_data,
                 }
             )
@@ -836,7 +782,6 @@ class TestRunner:
 
     def get_environments_by_hash_direct(
         self,
-        suites: dict[str, dict],
         environment_hashes: list[str],
     ) -> list[TestEnvironment]:
         """Resolve specific environment hashes, preserving the requested order."""
@@ -845,25 +790,12 @@ class TestRunner:
             print(f"ℹ️  Deduplicated {len(environment_hashes)} hash(es) to {len(unique_hashes)} unique hash(es)")
         print(f"📌 Using {len(unique_hashes)} unique environment hash(es): {', '.join(unique_hashes)}")
 
-        requested = set(unique_hashes)
-        matches = {}
-        for suite_name, suite_config in suites.items():
-            pattern = suite_config.get("pattern", suite_name)
-            for environment in self.get_test_environments(
-                pattern,
-                suite_name=suite_name,
-                suite_config=suite_config,
-            ):
-                if environment.hash not in requested:
-                    continue
-                if environment.hash in matches:
-                    raise ValueError(f"environment hash collision: {environment.hash}")
-                matches[environment.hash] = environment
-
-        missing = [environment_hash for environment_hash in unique_hashes if environment_hash not in matches]
+        missing = [
+            environment_hash for environment_hash in unique_hashes if environment_hash not in self.environments_by_hash
+        ]
         if missing:
             raise ValueError(f"unknown environment hash: {', '.join(missing)}")
-        return [matches[environment_hash] for environment_hash in unique_hashes]
+        return [self.environments_by_hash[environment_hash] for environment_hash in unique_hashes]
 
 
 def main():
@@ -935,9 +867,8 @@ Examples:
     # Special handling for --venv: skip all file discovery but still need suite info for services
     if args.venv:
         print("🎯 Using directly specified venvs (skipping file/suite analysis)")
-        all_suites = get_suites()
         try:
-            environments_with_suite = runner.get_environments_by_hash_direct(all_suites, args.venv)
+            environments_with_suite = runner.get_environments_by_hash_direct(args.venv)
         except ValueError as error:
             print(f"❌ {error}")
             return 1
@@ -973,19 +904,14 @@ Examples:
                 print(f"    ... and {len(files) - 5} more", file=status_out)
 
     # Find matching suites
+    matching_suites: dict[str, list[str]]
     if args.all_suites:
-        # Get all suites
-        matching_suites = get_suites()
-        # Add empty matched_files for consistency
-        for suite_config in matching_suites.values():
-            suite_config["matched_files"] = []
+        matching_suites = {suite: [] for suite in runner.suites}
     else:
         matching_suites = runner.find_matching_suites(files)
         if not matching_suites:
             print("ℹ️  No matching test suites for the changed files. Showing all available suites.", file=status_out)
-            matching_suites = get_suites()
-            for suite_config in matching_suites.values():
-                suite_config["matched_files"] = []
+            matching_suites = {suite: [] for suite in runner.suites}
 
     # Handle --list flag (output JSON for AI agents)
     if args.list:

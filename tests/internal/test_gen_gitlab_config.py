@@ -91,26 +91,3 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert 'if [[ "false" == "true" ]]' in config
     assert "$(curl" not in config
     assert "$DD_API_KEY" not in config
-
-
-def test_collect_all_suite_venv_info_expands_declarative_matrix(gen_gitlab_config_mod, monkeypatch):
-    from tests import suitespec
-
-    monkeypatch.setattr(
-        suitespec,
-        "get_matrix_defaults",
-        lambda: {"python": ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]},
-    )
-    suite = {
-        "matrix": {
-            "command": "pytest tests/contrib/requests",
-            "dependencies": ["pytest"],
-            "python": ["3.11", "3.12"],
-        },
-    }
-    info = gen_gitlab_config_mod.collect_all_suite_venv_info({"contrib::requests": suite})
-
-    assert info["contrib::requests"].venv_count == 2
-    assert len(set(info["contrib::requests"].environment_hashes)) == 2
-    assert all(len(environment_hash) == 12 for environment_hash in info["contrib::requests"].environment_hashes)
-    assert info["contrib::requests"].python_versions == {"3.11", "3.12"}
