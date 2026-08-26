@@ -20,6 +20,7 @@ from urllib.parse import urlunsplit
 # custom base URLs that only supply an origin.
 DEFAULT_AGENTLESS_PATH = "/api/v2/feature-flagging/config/rules-based/server"
 
+
 def build_agentless_endpoint(site: str, env: Optional[str] = None, base_url: Optional[str] = None) -> str:
     """Build the agentless UFC endpoint URL.
 
