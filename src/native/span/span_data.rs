@@ -607,9 +607,13 @@ impl SpanData {
             .into_any();
         let new_ctx: Bound<'py, crate::context::Context> =
             if let Some(parent) = &self._parent_context {
-                parent.find(py).copy(trace_id: trace_id_obj, span_id: span_id_obj);
+                parent.find(py).copy(py, trace_id_obj, span_id_obj);
             } else {
-                <crate::context::Context>(trace_id: trace_id_obj, span_id: span_id_obj, is_remote: false);
+                crate::context::Context {
+                    trace_id: trace_id_obj,
+                    span_id: span_id_obj,
+                    is_remote: false,
+                };
             };
         self._context = Some(new_ctx.clone().unbind());
         Ok(new_ctx)
