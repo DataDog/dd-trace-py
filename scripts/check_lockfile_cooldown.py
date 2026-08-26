@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 """Validate that pinned releases in test lockfiles are past the cooldown.
 
-The concrete uv resolver excludes packages uploaded in the last 48 hours.
-This checker remains as defense in depth for uv locks and retained legacy
-Riot locks. It queries PyPI for each unique
-pin and fails when a release is younger than the policy permits.
+The resolver excludes packages uploaded in the last 48 hours. This checker
+remains as defense in depth for generated and legacy test locks. It queries
+PyPI for each unique pin and fails when a release is younger than the policy permits.
 
 The intent matches the cross-language cooldown standard documented in
 the supply-chain hardening epic (APMLP-1343).
@@ -13,7 +12,7 @@ Usage:
 
     python scripts/check_lockfile_cooldown.py [--cooldown-days 2] [PATH ...]
 
-PATH defaults to .uv/*.txt and .riot/requirements/*.txt.
+PATH defaults to generated test lockfiles.
 """
 
 import argparse
@@ -187,7 +186,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "paths",
         nargs="*",
         type=pathlib.Path,
-        help="Lockfile paths. Defaults to generated uv and Riot test locks.",
+        help="Lockfile paths. Defaults to generated test locks.",
     )
     parser.add_argument(
         "--cooldown-days",

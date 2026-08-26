@@ -64,21 +64,7 @@ suites:
       - tests/profiling/*
     services:
       - redis
-    matrix:
-      command: pytest {cmdargs} tests/profiling
-      dependencies: [pytest-randomly]
-      variants:
-        - name: protobuf-4
-          python: ['3.9', '3.10']
-          dependencies: ['protobuf~=4.0']
-        - name: protobuf-latest
-          dependencies: [protobuf]
 ```
-
-Variants and Python versions are the only fields that expand a matrix. Omitting
-`python` uses the repository's complete supported range. Dependencies,
-environment variables, commands, and runs configure a variant without creating
-additional environments.
 
 Components do not need to be declared within the same `suitespec.yml` file. They
 can be declared in any file within the `/tests` sub-tree. The CI configuration

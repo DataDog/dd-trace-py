@@ -2,7 +2,7 @@
 name: debug-build-times
 description: >
   Diagnose and fix slow base venv build times caused by unnecessary recompilation of
-  native extensions (CMake, Cython, Rust) across uv environment builds. Use when CI base
+  native extensions (CMake, Cython, Rust) across test environment builds. Use when CI base
   venv builds are slow, when ext_cache isn't saving time, or when investigating warm
   build regressions.
 allowed-tools:
