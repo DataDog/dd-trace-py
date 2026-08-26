@@ -1,14 +1,6 @@
 id: no-rst-double-backticks
 snapshots:
   ? |
-    class C:
-        """Wrap ``Logger.makeRecord``."""
-  : labels:
-    - source: '"""Wrap ``Logger.makeRecord``."""'
-      style: primary
-      start: 13
-      end: 46
-  ? |
     def get_version() -> str:
         # ``logging.__version__`` deprecated
         return ""
@@ -17,12 +9,3 @@ snapshots:
       style: primary
       start: 30
       end: 66
-  ? |
-    def patch():
-        """Patch ``logging`` module."""
-        pass
-  : labels:
-    - source: '"""Patch ``logging`` module."""'
-      style: primary
-      start: 17
-      end: 48

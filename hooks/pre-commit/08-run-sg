@@ -4,7 +4,55 @@ staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '
 if [ -n "$staged_files" ]; then
     file_count=$(echo "$staged_files" | wc -w | tr -d ' ')
     echo "Running ast-grep on $file_count staged Python file(s)..."
-    "$LINT_CMD" ast-grep scan --error=no-rst-double-backticks -- $staged_files
+    "$LINT_CMD" ast-grep scan -- $staged_files || exit $?
+    # no-rst-double-backticks is warning in YAML so full-repo CI stays green.
+    # Fail the commit only when a match sits on a newly staged line.
+    "$LINT_CMD" ast-grep scan --filter no-rst-double-backticks --json=compact -- $staged_files \
+        | python3 -c "$(cat <<'PY'
+import json, re, subprocess, sys
+
+raw = sys.stdin.read().strip()
+matches = json.loads(raw) if raw else []
+if not matches:
+    raise SystemExit(0)
+
+added = {}
+
+
+def added_lines(path):
+    if path in added:
+        return added[path]
+    out = subprocess.check_output(["git", "diff", "--staged", "-U0", "--", path], text=True)
+    lines = set()
+    for m in re.finditer(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", out, re.M):
+        start = int(m.group(1))
+        count = int(m.group(2) or "1")
+        if count:
+            lines.update(range(start, start + count))
+    added[path] = lines
+    return lines
+
+
+new = []
+for match in matches:
+    start = match["range"]["start"]["line"] + 1
+    end = match["range"]["end"]["line"] + 1
+    if added_lines(match["file"]).intersection(range(start, end + 1)):
+        new.append(match)
+
+if not new:
+    raise SystemExit(0)
+
+for match in new:
+    line = match["range"]["start"]["line"] + 1
+    print(f"error[{match['ruleId']}]: {match['message']}")
+    print(f"  {match['file']}:{line}")
+    print(f"  {match['lines']}")
+    print()
+print(f"Error: {len(new)} new no-rst-double-backticks violation(s) on staged lines.")
+raise SystemExit(1)
+PY
+)"
 else
     echo 'Run ast-grep skipped: No Python files were found in `git diff --staged`'
 fi

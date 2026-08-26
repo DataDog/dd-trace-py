@@ -1,5 +1,5 @@
 id: no-rst-double-backticks
-message: Use single backticks (`name`) in Python comments and docstrings, not rST-style double backticks (``name``)
+message: Use single backticks (`name`) in comments, not rST-style double backticks (``name``)
 severity: warning
 language: Python
 files:
@@ -9,18 +9,14 @@ ignores:
   - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
   - "**/*.pyi"
 rule:
-  any:
-    - kind: comment
-      regex: "``"
-    - kind: string
-      regex: "``"
+  kind: comment
+  regex: "``"
 
 note: |
-  dd-trace-py uses plain-text / Google-style docstrings, not Sphinx rST. Double
-  backticks are for .rst docs only.
+  Comments are never Sphinx-rendered. Use a single backtick or the bare name.
 
   Bad:  # ``logging.__version__``
   Good: # `logging.__version__`
 
-  Bad:  """Patch ``logging`` module."""
-  Good: """Patch `logging` module."""
+  Rendered docstrings (public API and automodule targets) stay rST and may
+  use double backticks. See AGENTS.md "Docstrings and Comments".

@@ -9,16 +9,17 @@ valid:
         """Patch `logging` module via `Logger.makeRecord`."""
         pass
   - |
+    def enable(flush_interval: float = 1.0) -> None:
+        """Flush every ``flush_interval`` seconds."""
+        pass
+  - |
+    """The ``aiohttp`` integration traces requests."""
+  - |
     x = "not a docstring with `single` backticks"
+  - |
+    x = "string with ``double`` backticks is not a comment"
 invalid:
   - |
     def get_version() -> str:
         # ``logging.__version__`` deprecated
         return ""
-  - |
-    def patch():
-        """Patch ``logging`` module."""
-        pass
-  - |
-    class C:
-        """Wrap ``Logger.makeRecord``."""
