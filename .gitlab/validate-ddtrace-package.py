@@ -6,8 +6,8 @@ Validates that all expected wheels and sdist are present with correct versions.
 Uses the packaging library to properly parse and validate filenames.
 
 Expected artifacts:
-  - 54 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64,
-    plus cp315 on manylinux only
+  - 52 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64
+    (cp315 is built best-effort and is not required)
   - 1 sdist: source distribution
 
 Usage:
@@ -44,12 +44,15 @@ BASE_PLATFORMS = [
 ]
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
-# cp315 does not build everywhere yet: the macOS and Windows matrices stop at 3.14.
-# On Linux we only require cp315 on manylinux for now, since that is the platform
-# cp315 coverage is being brought up on first; a musllinux cp315 wheel is accepted
-# when it lands but is not required.
-REQUIRED_PLATFORMS = {"cp315": [p for p in BASE_PLATFORMS if "manylinux" in p]}
-OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "musllinux" in p}
+# cp315 is best-effort: no cp315 wheel is required, and a cp315 Linux wheel is
+# tolerated when one does land. The macOS and Windows matrices stop at 3.14, and
+# every cp315 leg of "build linux" is allow_failure in package.yml, so requiring a
+# cp315 wheel here would turn a build that the pipeline is explicitly allowed to
+# lose into a hard failure of "ddtrace package" -- which has no allow_failure and
+# gates the release stage. 4.14.0 shipped cp315 musllinux but no cp315 manylinux,
+# and would have been blocked by such a requirement.
+REQUIRED_PLATFORMS: dict[str, list[str]] = {"cp315": []}
+OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "linux" in p}
 
 
 def required_platforms(py_tag: str, platforms: list[str]) -> list[str]:
@@ -239,7 +242,7 @@ def main(args: argparse.Namespace) -> None:
     )
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
     for py_tag, platforms in sorted(REQUIRED_PLATFORMS.items()):
-        print(f"  - {py_tag} restricted to {len(platforms)} platform(s)")
+        print(f"  - {py_tag} required on {len(platforms)} platform(s)")
     print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
