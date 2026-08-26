@@ -11,6 +11,7 @@ variables:
 include:
   - local: ".gitlab/services.yml"
   - local: ".gitlab/testrunner.yml"
+  - local: ".gitlab/ddtest.yml"  # ddtest pilot (child pipeline, so it can needs: build_base_venvs)
 
 
 # Do not define a `needs:` in order to depend on the whole `precheck` stage
