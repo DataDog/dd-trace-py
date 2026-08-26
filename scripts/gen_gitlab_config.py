@@ -498,15 +498,22 @@ def _ddtest_run_template(snapshot: bool, gpu: bool) -> str:
 def _ddtest_k(config: dict) -> int:
     """Per-venv CI node count K for a ddtest suite.
 
-    Reuses the suite's existing suitespec parallelism knob: the static
-    `parallelism` value if set, else `venvs_per_job`, else 1. K is passed to
-    ddtest as --min-parallelism K --max-parallelism K so plan selects exactly K
-    CI nodes per venv. K=1 (the common case for parallelism:1 / sparse suites)
-    runs all of a venv's files in one node with xdist inside.
+    K controls file splitting WITHIN a venv (a different axis from the
+    legacy parallelism/venvs_per_job, which controlled venv PACKING — how
+    many venvs per CI job). ddtest already fans out one job per venv via the
+    parallel matrix; K further splits each venv's files across K CI
+    nodes.
+
+    K=1 (default): each venv runs all its files in one job (closest to
+    legacy semantics, where each job ran all files for its venv). K=2:
+    each venv's files split into 2 groups → 2x jobs per venv.
+
+    A suite can override K with a `ddtest_nodes` suitespec key. If not
+    set, K defaults to 1 (no file splitting). The legacy `parallelism`/
+    `venvs_per_job` knobs are NOT used for K — they controlled venv packing,
+    a different axis.
     """
-    k = config.get("parallelism")
-    if k is None:
-        k = config.get("venvs_per_job")
+    k = config.get("ddtest_nodes")
     if k is None or k < 1:
         k = 1
     return int(k)

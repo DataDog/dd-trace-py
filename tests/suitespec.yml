@@ -218,6 +218,7 @@ suites:
       - scripts/integration_registry/*
   internal:
     ddtest: true
+    ddtest_nodes: 2
     retry: 2
     venvs_per_job: 2
     paths:
