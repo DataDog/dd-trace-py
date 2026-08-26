@@ -142,64 +142,23 @@ def test_iast_untrusted_serialization_yaml(server, iast_test_token):
     assert vulnerability["hash"]
 
 
+# DD_APM_TRACING_ENABLED cannot be set through "env": appsec_application_server writes the
+# apm_tracing_enabled argument into the child environment afterwards and overwrites it. Pass it
+# as a server argument instead; it reaches the config dict as a keyword argument.
 @pytest.mark.parametrize(
     "server, config",
     (
         (
             gunicorn_django_server,
-            {
-                "workers": "3",
-                "use_threads": False,
-                "use_gevent": False,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
+            {"workers": "3", "use_threads": False, "use_gevent": False},
         ),
         (
             gunicorn_django_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": False,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
+            {"workers": "3", "use_threads": True, "use_gevent": False},
         ),
         (
             gunicorn_django_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_django_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                    "_DD_IAST_PROPAGATION_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_django_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
+            {"workers": "3", "use_threads": True, "use_gevent": True},
         ),
         (
             gunicorn_django_server,
@@ -210,7 +169,24 @@ def test_iast_untrusted_serialization_yaml(server, iast_test_token):
                 "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
             },
         ),
-        (django_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
+        (
+            gunicorn_django_server,
+            {"workers": "1", "use_threads": True, "use_gevent": True},
+        ),
+        (
+            # As config3, but with APM tracing off, which is what the whole file used to ask for
+            # through the (ignored) env key. Mirrors the flask test's apm_tracing_enabled
+            # parametrization.
+            gunicorn_django_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "apm_tracing_enabled": "false",
+                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
+            },
+        ),
+        (django_server, {}),
     ),
 )
 def test_iast_vulnerable_request_downstream_django(server, config, iast_test_token):
@@ -220,15 +196,9 @@ def test_iast_vulnerable_request_downstream_django(server, config, iast_test_tok
     vulnerability and then calls a downstream endpoint to echo headers. Asserts that headers are
     properly propagated and that an IAST WEAK_HASH vulnerability is reported.
     """
-    env = {
-        "DD_APM_TRACING_ENABLED": "false",
-        "DD_TRACE_URLLIB3_ENABLED": "true",
-    }
-    # Merge base env with parametrized env overrides
-    cfg_env = dict(config.get("env", {}))
-    cfg_env.update(env)
+    # Base env, overridden by the parametrized config.
     config = dict(config)
-    config["env"] = cfg_env
+    config["env"] = {"DD_TRACE_URLLIB3_ENABLED": "true", **config.get("env", {})}
     with server(use_ddtrace_cmd=True, iast_enabled="true", token=iast_test_token, port=8050, **config) as context:
         _, django_client, pid = context
 

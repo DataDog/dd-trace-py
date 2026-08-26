@@ -183,12 +183,19 @@ if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
         ...
 
 if sys.platform == "linux":
-    def update_otel_thread_context(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
+    def update_otel_thread_context_from_span(span: SpanData, local_root: Optional[SpanData], trace_flags: int) -> None:
         """
         Update the OTel thread context from the active span and its local root span.
         :param span: The active span.
         :param local_root: The root span of the local trace chunk.
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
+        """
+        ...
+    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
+        """Update the OTel thread context from an active trace Context.
+
+        Invalid Context identifiers detach the current thread context. The local root span ID is
+        published as zero because a Context does not retain local root span identity.
         """
         ...
     def detach_otel_thread_context() -> None:
@@ -746,6 +753,25 @@ class TraceExporterBuilder:
         Enable health metrics in the TraceExporter
         """
         ...
+    def set_agentless_endpoint(self, url: str, api_key: str) -> TraceExporterBuilder:
+        """
+        Send spans straight to the Datadog trace intake instead of to an agent.
+
+        Payloads are always JSON in this mode, so the output format is ignored. Mutually
+        exclusive with :meth:`set_url` and :meth:`set_otlp_endpoint`; ``build`` rejects the
+        combination.
+        :param url: Full intake URL including the path
+            (e.g. "https://public-trace-http-intake.logs.datadoghq.com/v1/input").
+        :param api_key: API key sent as the ``dd-api-key`` header.
+        """
+        ...
+    def set_agentless_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Request timeout for the agentless intake transport (default 15s).
+
+        Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
+        """
+        ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
         Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
@@ -1198,6 +1224,18 @@ def is_sequence(obj: Any) -> bool: ...
 def seed() -> None: ...
 def rand64bits() -> int: ...
 def generate_128bit_trace_id() -> int: ...
+def process_metrics() -> tuple[int, int, int, int, int, int]:
+    """Return process metrics for the calling process, sampled fresh (no cached PID/handle).
+
+    :return: A tuple of (cpu_time_sys_ns, cpu_time_user_ns, ctx_switches_voluntary,
+        ctx_switches_involuntary, num_threads, rss_bytes). The ctx-switch fields are
+        negative when unavailable on the current platform.
+    """
+    ...
+
+def total_memory_bytes() -> int:
+    """Return total physical RAM plus swap, in bytes."""
+    ...
 
 class config:
     """Native config module for tracer configuration managed in Rust."""
