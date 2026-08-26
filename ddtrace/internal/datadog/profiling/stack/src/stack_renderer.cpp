@@ -132,44 +132,6 @@ StackRenderer::render_task_begin(std::string_view task_name,
 }
 
 void
-StackRenderer::render_gc_only_stack_begin()
-{
-    static bool failed = false;
-    if (failed) {
-        return;
-    }
-
-    // The thread's initial sample was consumed by the first task/greenlet, so start a fresh one.
-    sample.reset(SampleManager::start_sample());
-    if (sample == nullptr) {
-        std::cerr << "Failed to create a sample.  Stack v2 sampler will be disabled." << std::endl;
-        failed = true;
-        return;
-    }
-
-    sample->push_threadinfo(
-      static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
-    sample->push_walltime(thread_state.wall_time_ns, 1);
-    // ThreadInfo::sample kept the thread CPU time off the suspended tasks for exactly this case,
-    // so this sample is its sole owner and cannot double-count it.
-    sample->push_cputime(thread_state.cpu_time_ns, 1);
-    sample->push_monotonic_ns(thread_state.now_time_ns);
-
-    const auto active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_state.id);
-    if (active_span) {
-        sample->push_span_id(active_span->span_id);
-        sample->push_local_root_span_id(active_span->local_root_span_id);
-        sample->push_trace_type(std::string_view(active_span->span_type));
-    }
-
-    const auto origin_task = OriginTaskLinks::get_instance().get_origin_task(thread_state.id);
-    if (origin_task) {
-        sample->push_origin_task_id(origin_task->task_id);
-        sample->push_origin_task_name(std::string_view(origin_task->task_name));
-    }
-}
-
-void
 StackRenderer::render_frame(Frame& frame)
 {
     if (sample == nullptr) {
@@ -300,7 +262,7 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
 }
 
 void
-StackRenderer::render_cpu_time(microsecond_t cpu_time_us, bool attribute_to_current_sample)
+StackRenderer::render_cpu_time(microsecond_t cpu_time_us)
 {
     if (sample == nullptr) {
         std::cerr << "Received a CPU time without sample storage.  Some profiling data has been lost." << std::endl;
@@ -310,9 +272,7 @@ StackRenderer::render_cpu_time(microsecond_t cpu_time_us, bool attribute_to_curr
     // TODO - it's absolutely false that thread-level CPU time is task time.  This needs to be normalized
     // to the task level, but for now just keep it because this is how the v1 sampler works
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
-    if (attribute_to_current_sample) {
-        sample->push_cputime(thread_state.cpu_time_ns, 1);
-    }
+    sample->push_cputime(thread_state.cpu_time_ns, 1);
 }
 
 void

@@ -346,7 +346,60 @@ def test_gc_frame_survives_collection_started_by_a_coroutine() -> None:
         "_DD_PROFILING_STACK_MAX_THREADS": "0",
     }
 )
-def test_taskless_gc_sample_owns_the_thread_cpu_time() -> None:
+def test_gc_frame_is_dropped_from_linked_parent_task() -> None:
+    import asyncio
+    import os
+    import pathlib
+    import tempfile
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.gc_utils import gc_samples
+    from tests.profiling.collector.gc_utils import slow_cyclic_collection_coroutine
+
+    test_name = "test_gc_frame_is_dropped_from_linked_parent_task"
+    pprof_prefix = str(pathlib.Path(tempfile.mkdtemp()) / test_name)
+    output_filename = pprof_prefix + "." + str(os.getpid())
+
+    ddup.config(env="test", service=test_name, version="1.0", output_filename=pprof_prefix)
+    ddup.start()
+    ddup.upload()
+
+    async def suspended_task(stop: asyncio.Event) -> None:
+        await stop.wait()
+
+    async def workload() -> None:
+        stop = asyncio.Event()
+        children = [
+            asyncio.create_task(suspended_task(stop), name="suspended-child-1"),
+            asyncio.create_task(suspended_task(stop), name="suspended-child-2"),
+        ]
+        gathered = asyncio.gather(*children)
+        await slow_cyclic_collection_coroutine()
+        stop.set()
+        await gathered
+
+    with stack.StackCollector():
+        asyncio.run(workload())
+
+    ddup.upload()
+    profile = pprof_utils.parse_newest_profile(output_filename)
+    for sample in gc_samples(profile, pprof_utils):
+        function_names = [
+            pprof_utils.get_location_from_id(profile, location_id).function_name for location_id in sample.location_id
+        ]
+        assert not any(name.endswith("slow_cyclic_collection_coroutine") for name in function_names)
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_PROFILING_STACK_GC_ENABLED": "true",
+        "_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_ENABLED": "0",
+        "_DD_PROFILING_STACK_MAX_THREADS": "0",
+    }
+)
+def test_gc_frame_is_dropped_when_no_leaf_task_is_on_cpu() -> None:
     import asyncio
     import os
     import pathlib
@@ -358,7 +411,7 @@ def test_taskless_gc_sample_owns_the_thread_cpu_time() -> None:
     from tests.profiling.collector.gc_utils import busy_cyclic_collection
     from tests.profiling.collector.gc_utils import gc_samples
 
-    test_name = "test_taskless_gc_sample_owns_cpu_time"
+    test_name = "test_gc_frame_is_dropped_without_on_cpu_leaf"
     pprof_prefix = str(pathlib.Path(tempfile.mkdtemp()) / test_name)
     output_filename = pprof_prefix + "." + str(os.getpid())
 
@@ -369,8 +422,8 @@ def test_taskless_gc_sample_owns_the_thread_cpu_time() -> None:
     async def suspended_task(stop: asyncio.Event) -> None:
         await stop.wait()
 
-    # The collection runs in an event-loop callback while every task is suspended, so it gets a
-    # task-less sample. That sample must carry the CPU time the collection burned.
+    # The collection runs in an event-loop callback while every leaf task is suspended.
+    # It must not be attached to a suspended task or emitted as a taskless sample.
     async def workload() -> None:
         stop = asyncio.Event()
         suspended = asyncio.create_task(suspended_task(stop), name="suspended-task")
@@ -385,13 +438,11 @@ def test_taskless_gc_sample_owns_the_thread_cpu_time() -> None:
 
     ddup.upload()
     profile = pprof_utils.parse_newest_profile(output_filename)
-    cpu_samples = gc_samples(profile, pprof_utils, value_type="cpu-time")
-    taskless = [
-        sample
-        for sample in cpu_samples
-        if pprof_utils.get_label_with_key(profile.string_table, sample, "task name") is None
-    ]
-    assert taskless
+    for sample in gc_samples(profile, pprof_utils):
+        function_names = [
+            pprof_utils.get_location_from_id(profile, location_id).function_name for location_id in sample.location_id
+        ]
+        assert not any(name.endswith("busy_cyclic_collection") for name in function_names)
 
 
 @pytest.mark.skipif(sys.platform == "win32" or sys.version_info >= (3, 15), reason="fallback callback fork test")

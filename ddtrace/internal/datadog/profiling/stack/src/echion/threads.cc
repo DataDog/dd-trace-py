@@ -349,7 +349,13 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             }
             if (task_stack != nullptr) {
                 for (size_t i = 0; i < task_frames_to_push; i++) {
-                    stack.push_back((*task_stack)[i]);
+                    auto task_frame = (*task_stack)[i];
+                    // Only the emitted leaf task can own the GC marker. Linked parent stacks are
+                    // context for that leaf and must not make suspended leaves look like GC ran in them.
+                    if (task_chain_depth != 1 || !stack_info->on_cpu) {
+                        task_frame.is_in_gc = false;
+                    }
+                    stack.push_back(task_frame);
                 }
             }
 
@@ -826,68 +832,6 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
 }
 
 // ----------------------------------------------------------------------------
-namespace {
-bool
-stack_has_gc_frame(const FrameStack& stack)
-{
-    for (const auto& frame : stack) {
-        if (frame.is_in_gc) {
-            return true;
-        }
-    }
-    return false;
-}
-
-bool
-none_on_cpu(const std::vector<std::unique_ptr<StackInfo>>& stack_infos)
-{
-    for (const auto& stack_info : stack_infos) {
-        if (stack_info->on_cpu) {
-            return false;
-        }
-    }
-    return true;
-}
-} // namespace
-
-// When a thread renders tasks/greenlets but none of them was on CPU, any GC marker on the
-// thread's real stack was cleared from every task/greenlet stack (a suspended coroutine is not
-// running GC). If GC was in fact active, this happened on the thread's actual executing stack
-// (e.g. an event loop callback or a gevent Hub), which is python_stack. That stack is otherwise
-// never rendered when tasks/greenlets exist, so the collection would vanish from the profile.
-// An extra task-less sample carrying python_stack keeps the GC frame visible.
-bool
-ThreadInfo::gc_needs_taskless_sample() const
-{
-    if (!stack_has_gc_frame(python_stack)) {
-        return false;
-    }
-
-    if (!current_tasks.empty()) {
-        return none_on_cpu(current_tasks);
-    }
-
-    if (!current_greenlets.empty()) {
-        return none_on_cpu(current_greenlets);
-    }
-
-    return false;
-}
-
-void
-ThreadInfo::render_gc_stack_if_no_on_cpu_task(EchionSampler& echion)
-{
-    if (!gc_needs_taskless_sample()) {
-        return;
-    }
-
-    auto& renderer = echion.renderer();
-    renderer.render_gc_only_stack_begin();
-    python_stack.render(echion);
-    renderer.render_stack_end();
-}
-
-// ----------------------------------------------------------------------------
 void
 ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 {
@@ -908,7 +852,6 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
-        render_gc_stack_if_no_on_cpu_task(echion);
     } else if (!current_greenlets.empty()) {
         for (auto& greenlet_stack : current_greenlets) {
             greenlet_stack->task_name.visit_string([&](std::string_view task_name) {
@@ -921,7 +864,6 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
 
             renderer.render_stack_end();
         }
-        render_gc_stack_if_no_on_cpu_task(echion);
     } else {
         python_stack.render(echion);
         renderer.render_stack_end();
@@ -952,11 +894,7 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     this->unwind(echion, tstate, delta);
 
-    // The thread CPU time lands on the sample that render_thread_begin created, which
-    // render_task_begin reuses for the first task or greenlet. When a task-less GC sample is
-    // needed, every task is suspended, so that first task must not claim the CPU time the
-    // collection burned. Withhold it here; render_gc_only_stack_begin pushes it instead.
-    renderer.render_cpu_time(cpu_time - previous_cpu_time, !gc_needs_taskless_sample());
+    renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
     this->render_unwound_stacks(echion);
 

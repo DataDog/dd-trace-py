@@ -93,11 +93,8 @@ class StackRenderer
                            uint64_t task_id,
                            std::optional<int64_t> walltime_ns_override = std::nullopt);
     void render_frame(Frame& frame);
-    void render_gc_only_stack_begin();
     void render_gc_frame();
-    // Records the thread CPU time. attribute_to_current_sample = false only records it, leaving it
-    // for render_gc_only_stack_begin to push onto the task-less GC sample.
-    void render_cpu_time(microsecond_t cpu_time_us, bool attribute_to_current_sample = true);
+    void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
     void render_stack_end();
 
