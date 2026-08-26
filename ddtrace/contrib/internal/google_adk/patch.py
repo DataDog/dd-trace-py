@@ -19,6 +19,8 @@ logger = get_logger(__name__)
 
 config._add("google_adk", {})
 
+MAX_STREAMED_TOOL_CHUNKS = 100
+
 
 def _supported_versions() -> dict[str, str]:
     return {"google.adk": ">=1.0.0"}
@@ -144,7 +146,11 @@ async def _traced_tool_stream(agen, span, integration, args, kwargs):
     finally:
         # A consumer that stops early closes this generator, but the one it wraps would otherwise
         # wait for async generator finalization. google-adk closes the stream itself, so mirror it.
-        await agen.aclose()
+        # A failure to close must not mask the streamed exception or strand the span.
+        try:
+            await agen.aclose()
+        except Exception:
+            logger.debug("Error closing google adk tool stream.", exc_info=True)
         if dropped:
             chunks.append("... %d further streamed items omitted" % dropped)
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
@@ -167,39 +173,21 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
         instance=getattr(agent, "model", {}), model_name_attr="model"
     )
 
-    with integration.trace(
+    # Build the stream before starting the span: an activated span that never finishes would
+    # reparent everything after it.
+    agen = wrapped(*args, **kwargs)
+
+    # _traced_tool_stream owns the span from here: it tags the streamed items and finishes.
+    span = integration.trace(
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
         kind="tool",
         submit_to_llmobs=True,
-    ) as span:
-        result = []
-        dropped = 0
-        agen = None
-        try:
-            agen = wrapped(*args, **kwargs)
-            async for item in agen:
-                if len(result) < MAX_STREAMED_TOOL_CHUNKS:
-                    result.append(item)
-                else:
-                    dropped += 1
-                yield item
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            if agen is not None:
-                await agen.aclose()
-            if dropped:
-                result.append("... %d further streamed items omitted" % dropped)
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="tool",
-            )
+    )
+
+    async for item in _traced_tool_stream(agen, span, integration, args, kwargs):
+        yield item
 
 
 def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
@@ -241,8 +229,6 @@ def extract_agent_from_tool_context(args: Any, kwargs: Any) -> Union[str, None]:
         agent = tool_context._invocation_context.agent
     return agent
 
-
-MAX_STREAMED_TOOL_CHUNKS = 100
 
 TOOL_DISPATCH_FUNCTIONS = [
     ("__call_tool_async", _traced_functions_call_tool_async),
