@@ -23,6 +23,8 @@ import sys
 
 from packaging.utils import parse_sdist_filename
 from packaging.utils import parse_wheel_filename
+from packaging.version import InvalidVersion
+from packaging.version import Version
 
 
 # Configuration
@@ -146,9 +148,18 @@ def identify_version_mismatches(
 def main(args: argparse.Namespace) -> None:
     wheels_dir = args.wheels_dir
 
-    package_version: str | None = os.environ.get("PACKAGE_VERSION")
-    if not package_version:
+    raw_package_version: str | None = os.environ.get("PACKAGE_VERSION")
+    if not raw_package_version:
         print("[ERROR] PACKAGE_VERSION not set. Ensure 'package version' job ran.")
+        sys.exit(1)
+
+    # Filenames carry the PEP 440 canonical form of the version, so a local segment such as
+    # +memory-leak-fix reaches us as +memory.leak.fix. Compare against that form, not the raw
+    # pyproject.toml string.
+    try:
+        package_version: str = str(Version(raw_package_version))
+    except InvalidVersion as exc:
+        print(f"[ERROR] PACKAGE_VERSION is not a valid PEP 440 version: {raw_package_version} ({exc})")
         sys.exit(1)
 
     wheels_path = Path(wheels_dir)
@@ -159,7 +170,7 @@ def main(args: argparse.Namespace) -> None:
     print("=" * 70)
     print("DDTrace Package Validation")
     print("=" * 70)
-    print(f"Package version (from pyproject.toml): {package_version}")
+    print(f"Package version (from pyproject.toml): {raw_package_version}")
     print(f"Validating packages in: {wheels_dir}")
     print()
 
@@ -168,7 +179,9 @@ def main(args: argparse.Namespace) -> None:
 
     # Phase 1: Environment Check
     print("[Phase 1] Environment Check")
-    print(f"✓ PACKAGE_VERSION is set: {package_version}")
+    print(f"✓ PACKAGE_VERSION is set: {raw_package_version}")
+    if package_version != raw_package_version:
+        print(f"✓ Canonical form used for comparisons: {package_version}")
     print()
 
     # Phase 2: SDist Validation
