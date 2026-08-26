@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    dramatiq: Enables tests with Python 3.14.
