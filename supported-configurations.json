@@ -2043,6 +2043,30 @@
         ]
       }
     ],
+    "DD_HTTPX2_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_HTTPX2_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_HTTPX2_SERVICE_NAME"
+        ]
+      }
+    ],
+    "DD_HTTPX2_SPLIT_BY_DOMAIN": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_HTTPX_DISTRIBUTED_TRACING": [
       {
         "implementation": "A",
@@ -4344,6 +4368,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_HTTPX2_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_HTTPX_ENABLED": [

@@ -16,8 +16,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
