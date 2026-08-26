@@ -39,6 +39,7 @@ config._add("vllm", {})
 def _supported_versions() -> dict[str, str]:
     return {"vllm": ">=0.10.2"}
 
+
 def _uses_input_processor() -> bool:
     from packaging.version import InvalidVersion
     from packaging.version import parse as parse_version
