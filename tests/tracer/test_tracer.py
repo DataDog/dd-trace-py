@@ -1436,20 +1436,16 @@ class TestPartialFlush(TracerTestCase):
 
 
 def test_child_span_shares_trace_level_state(tracer):
-    """A child span's context shares the root's _meta/_metrics/_baggage/lock, so
+    """A child span's context shares the root's _meta/_metrics/_baggage, so
     sampling/baggage/origin set anywhere in the trace is consistent, while each span
     keeps its own trace_id/span_id.
     """
     with tracer.trace("root") as root:
-        with tracer.trace("child") as child:
+        with tracer.trace("child"):
             with tracer.trace("grandchild") as grandchild:
                 # each span's context carries its own ids
                 assert grandchild.context.trace_id == root.context.trace_id
                 assert grandchild.context.span_id == grandchild.span_id
-
-                # the shared lock serializes trace-level writes across the trace
-                assert child.context._lock is root.context._lock
-                assert grandchild.context._lock is root.context._lock
 
                 # a mutation via a descendant is visible on the root, proving the
                 # shared _metrics (sampling), _baggage (baggage) and _meta (origin)

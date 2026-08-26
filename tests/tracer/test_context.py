@@ -134,7 +134,7 @@ def test_copy_populates_every_getstate_slot(tracer):
 
     A child span builds its context lazily via ``Context.copy()`` (ddtrace/_trace/context.py),
     which assigns each slot by hand — ``trace_id``, ``span_id``, ``_meta``, ``_metrics``,
-    ``_baggage``, ``_lock``, ``_is_remote``, ``_reactivate``, ``_span_links`` — instead of
+    ``_baggage``, ``_is_remote``, ``_reactivate``, ``_span_links`` — instead of
     going through ``__init__``. A dropped assignment there would only surface later as an
     AttributeError when the context is serialized. Pin both halves: the copied context must
     pickle/round-trip equal, and every slot ``__getstate__`` reads must be set.
@@ -147,8 +147,8 @@ def test_copy_populates_every_getstate_slot(tracer):
     # pickle.dumps calls __getstate__, which reads every slot copy() is responsible for.
     assert pickle.loads(pickle.dumps(child_ctx)) == child_ctx
 
-    # Explicit tripwire: every slot __getstate__ reads is present (mirrors copy()'s slot list,
-    # minus the unpicklable _lock). A missing slot would raise AttributeError on access.
+    # Explicit tripwire: every slot __getstate__ reads is present (mirrors copy()'s slot list).
+    # A missing slot would raise AttributeError on access.
     for slot in ("trace_id", "span_id", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote", "_reactivate"):
         assert hasattr(child_ctx, slot), f"copy() must set slot {slot!r}"
     # __getstate__ itself must not raise (reads all of the above at once).
