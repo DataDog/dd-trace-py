@@ -8,6 +8,7 @@ tested in isolation.
 """
 
 import gzip
+import hashlib
 import json
 from typing import Any
 from typing import Optional
@@ -19,6 +20,19 @@ from urllib.parse import urlunsplit
 # Canonical rules-based server path appended to the managed CDN host and to
 # custom base URLs that only supply an origin.
 DEFAULT_AGENTLESS_PATH = "/api/v2/feature-flagging/config/rules-based/server"
+
+BASE62_ALPHABET = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+SHA256_BASE62_LENGTH = 43
+
+
+def api_key_fingerprint(api_key: str) -> str:
+    """Return the stable, non-secret identifier used for agentless authentication."""
+    value = int.from_bytes(hashlib.sha256(api_key.encode("utf-8")).digest(), "big")
+    encoded = ""
+    while value:
+        value, remainder = divmod(value, 62)
+        encoded = BASE62_ALPHABET[remainder] + encoded
+    return "rijn_" + encoded.rjust(SHA256_BASE62_LENGTH, "0")
 
 
 def build_agentless_endpoint(site: str, env: Optional[str] = None, base_url: Optional[str] = None) -> str:
