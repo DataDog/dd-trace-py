@@ -44,9 +44,10 @@ BASE_PLATFORMS = [
 ]
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
-# cp315 does not build everywhere yet: macOS and Windows cp315 jobs are not wired
-# up, and musllinux cp315 is allow_failure in package.yml. So only manylinux cp315
-# is required; musllinux cp315 is tolerated whether or not it lands.
+# cp315 does not build everywhere yet: the macOS and Windows matrices stop at 3.14.
+# On Linux we only require cp315 on manylinux for now, since that is the platform
+# cp315 coverage is being brought up on first; a musllinux cp315 wheel is accepted
+# when it lands but is not required.
 REQUIRED_PLATFORMS = {"cp315": [p for p in BASE_PLATFORMS if "manylinux" in p]}
 OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "musllinux" in p}
 
@@ -230,9 +231,12 @@ def main(args: argparse.Namespace) -> None:
     # Phase 4: Build Expected Set
     print("[Phase 4] Building Expected Set")
     expected_set = build_expected_set(package_version, args)
+    unrestricted_tags = [t for t in PYTHON_TAGS if t not in REQUIRED_PLATFORMS]
     print(f"Expected {len(expected_set)} wheels:")
-    print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp315)")
-    print(f"  - {len(BASE_PLATFORMS)} base platforms")
+    print(
+        f"  - {len(unrestricted_tags)} Python versions ({unrestricted_tags[0]}-{unrestricted_tags[-1]})"
+        f" on {len(BASE_PLATFORMS)} base platforms"
+    )
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
     for py_tag, platforms in sorted(REQUIRED_PLATFORMS.items()):
         print(f"  - {py_tag} restricted to {len(platforms)} platform(s)")

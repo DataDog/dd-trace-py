@@ -43,6 +43,9 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+    # Unlike the rows below, this floor is not the release that added support for its Python
+    # version: bytecode only added 3.15 support in 0.19.0, which a fresh resolve picks anyway.
+    # 0.18.1 is just a conservative lower bound that keeps 3.15 off the older 0.17.x line.
     "bytecode>=0.18.1,<1; python_version>='3.15'",
     "bytecode>=0.17.0,<1; python_version>='3.14' and python_version<'3.15'",
     "bytecode>=0.16.0,<1; python_version>='3.13' and python_version<'3.15'",
