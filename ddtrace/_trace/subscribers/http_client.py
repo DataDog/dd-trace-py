@@ -4,11 +4,12 @@ from typing import Optional
 from typing import cast
 
 from ddtrace import config
-from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
 from ddtrace.contrib.internal.trace_utils_base import _set_method_tag
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -40,9 +41,11 @@ class HttpClientTracingSubscriber(TracingSubscriber):
 
         if config._otel_trace_semantics_enabled and event.request_method:
             span = span_from_context(ctx)
-            span.resource = event.request_method.upper()
             _set_method_tag(span, event.request_method)
-            span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+            # Through the shared helper so an unaccepted method reads HTTP here as well as at
+            # export; naming it PROPFIND now would show sampling a resource the span never ships.
+            normalized_method, original_method = _normalize_http_method(event.request_method)
+            set_otel_http_resource(span, normalized_method, original_method)
 
         if _http_propagation_suppressed.get():
             return

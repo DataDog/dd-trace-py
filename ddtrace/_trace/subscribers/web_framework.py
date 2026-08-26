@@ -3,11 +3,13 @@ from typing import Optional
 
 from ddtrace import config
 from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal import trace_utils
+from ddtrace.contrib.internal.trace_utils_base import _normalize_http_method
 from ddtrace.contrib.internal.trace_utils_base import _set_method_tag
 from ddtrace.contrib.internal.trace_utils_base import _set_query_string_tag
 from ddtrace.internal import core
@@ -33,10 +35,12 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         if config._otel_trace_semantics_enabled and event.request_method:
             span = span_from_context(ctx)
             _set_method_tag(span, event.request_method)
-            # Event resources are supplied by automatic instrumentation. Recording the
-            # baseline lets early sampling normalize placeholders such as "404" while
-            # still detecting a user hook that replaces the value before sampling.
-            span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+            # Named here, not just tagged: propagation can force a sampling decision before the
+            # request finishes, and a rule must not match the integration's Datadog resource.
+            # The route is unknown this early, so this is the method alone; set_http_meta
+            # appends the route once the framework resolves it.
+            normalized_method, original_method = _normalize_http_method(event.request_method)
+            set_otel_http_resource(span, normalized_method, original_method)
 
     @classmethod
     def on_ended(
