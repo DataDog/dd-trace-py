@@ -129,9 +129,6 @@ class Span(SpanData):
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
 
-    # `context`/`_context` (lazy build of this span's trace Context, cached on
-    # first read) are implemented natively on `SpanData` and inherited here.
-
     def _context_for_child(self) -> Context:
         """Return the context a child span should inherit trace-level state from.
 

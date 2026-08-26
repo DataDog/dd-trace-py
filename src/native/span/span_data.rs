@@ -607,19 +607,9 @@ impl SpanData {
             .into_any();
         let new_ctx: Bound<'py, crate::context::Context> =
             if let Some(parent) = &self._parent_context {
-                let copied = parent
-                    .bind(py)
-                    .call_method1("copy", (trace_id_obj, span_id_obj))?;
-                copied.cast_into::<crate::context::Context>()?
+                parent.find(py).copy(trace_id: trace_id_obj, span_id: span_id_obj);
             } else {
-                let context_type = py.get_type::<crate::context::Context>();
-                let kwargs = PyDict::new(py);
-                kwargs.set_item("trace_id", trace_id_obj)?;
-                kwargs.set_item("span_id", span_id_obj)?;
-                kwargs.set_item("is_remote", false)?;
-                context_type
-                    .call((), Some(&kwargs))?
-                    .cast_into::<crate::context::Context>()?
+                <crate::context::Context>(trace_id: trace_id_obj, span_id: span_id_obj, is_remote: false);
             };
         self._context = Some(new_ctx.clone().unbind());
         Ok(new_ctx)
