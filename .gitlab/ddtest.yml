@@ -37,9 +37,10 @@
 # gen_gitlab_config.py scales into a job count) and pass it as
 # `--min-parallelism K --max-parallelism K`.
 #
-# The pilot is gated with `when: manual` so it never runs on ordinary
-# pipelines; trigger it from the GitLab UI. `allow_failure: true` keeps it
-# from blocking merges while it matures.
+# The pilot runs automatically on every pipeline (push) so it can be observed
+# without merging. `allow_failure: true` keeps a pilot failure from
+# blocking merges while the ddtest path is being validated; drop it
+# once green.
 
 ddtest-internal-pilot:
   extends: .testrunner
@@ -66,10 +67,8 @@ ddtest-internal-pilot:
     DD_USE_SCCACHE: "1"
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: manual
       allow_failure: true
-    - when: manual
-      allow_failure: true
+    - allow_failure: true
   script:
     - |
       set -e
