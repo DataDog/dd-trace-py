@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
@@ -13,7 +14,6 @@ from ddtrace.llmobs._utils import attach_prompt
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
-from ddtrace.vendor.debtcollector import deprecate
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,7 @@ class ManagedPrompt:
 
     def __getattribute__(self, name: str) -> Any:
         if name == "label":
-            deprecate(  # type: ignore[no-untyped-call]
+            deprecate(
                 prefix="The 'label' property of ManagedPrompt is deprecated",
                 category=DDTraceDeprecationWarning,
             )

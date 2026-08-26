@@ -18,6 +18,7 @@ stats = ["dep:libdd-ddsketch"]
 
 [dependencies]
 anyhow = { version = "1.0" }
+base64 = "0.22"
 # `bytes 1.10+` is required for `Bytes::from_owner` (used in http_client to
 # wrap PyBackedBytes zero-copy across the GIL release).
 bytes = "1.10"
