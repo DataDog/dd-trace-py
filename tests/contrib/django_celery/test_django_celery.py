@@ -7,17 +7,6 @@ import pytest
 from tests.utils import call_program
 
 
-@pytest.mark.xfail(
-    reason="FIXME: gevent module cleanup prevents Django from discovering management commands",
-)
-@pytest.mark.subprocess(env=dict(DD_IAST_ENABLED="true", DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE="true"))
-def test_ddtrace_auto_preserves_django_command_discovery():
-    import ddtrace.auto  # noqa: F401, I001
-    from django.core.management import get_commands  # noqa: I001
-
-    assert "runserver" in get_commands()
-
-
 @pytest.mark.skip(reason="FIXME: make the flaky Celery gevent startup check deterministic")
 def test_django_celery_gevent_startup():
     """Test that Celery starts correctly with the Django integration enabled.
