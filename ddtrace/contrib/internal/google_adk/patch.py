@@ -19,8 +19,6 @@ logger = get_logger(__name__)
 
 config._add("google_adk", {})
 
-MAX_STREAMED_TOOL_CHUNKS = 100
-
 
 def _supported_versions() -> dict[str, str]:
     return {"google.adk": ">=1.0.0"}
@@ -130,15 +128,10 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
 
 
 async def _traced_tool_stream(agen, span, integration, args, kwargs):
-    # Live streams are long-lived, so cap what is retained for tagging.
     chunks = []
-    dropped = 0
     try:
         async for item in agen:
-            if len(chunks) < MAX_STREAMED_TOOL_CHUNKS:
-                chunks.append(item)
-            else:
-                dropped += 1
+            chunks.append(item)
             yield item
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -151,8 +144,6 @@ async def _traced_tool_stream(agen, span, integration, args, kwargs):
             await agen.aclose()
         except Exception:
             logger.debug("Error closing google adk tool stream.", exc_info=True)
-        if dropped:
-            chunks.append("... %d further streamed items omitted" % dropped)
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
         span.finish()
 
