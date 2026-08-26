@@ -1,4 +1,4 @@
-"""Publish python.context.switch on asyncio Context boundaries the native watcher cannot see.
+"""Publish python.context.switch on asyncio Context boundaries when native context watching is unavailable.
 
 Publishes right after entering a Context and again after it is restored, at the two
 places asyncio can hand control to a different Context:
@@ -8,7 +8,7 @@ places asyncio can hand control to a different Context:
 * Eager task construction: the coroutine is instrumented to publish if its first step
   runs inline, before the task constructor returns.
 
-Thread offloads are handled by the default-on futures integration. This fallback only
+Thread offloads are handled by the default-on futures integration. This integration only
 covers the event loops built into asyncio.
 """
 
@@ -19,6 +19,7 @@ from typing import Callable
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal._context_watcher import context_switches_require_fallback
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
@@ -27,13 +28,16 @@ from ddtrace.internal.wrapping import wrap
 
 _installed = False
 _original_task = asyncio.Task
-_eager_task_factory_code = getattr(getattr(asyncio, "eager_task_factory", None), "__code__", None)
+if PYTHON_VERSION_INFO >= (3, 12):
+    _eager_task_factory_code = asyncio.eager_task_factory.__code__  # type: ignore[attr-defined]  # Added in 3.12.
+else:
+    _eager_task_factory_code = None
 _create_task_coroutine_ids: set[int] = set()
 _task_replaced = False
 
 
 class _ContextSwitchTaskMeta(type):
-    def __instancecheck__(cls, instance: Any) -> bool:
+    def __instancecheck__(cls, instance: object) -> bool:
         if cls is _ContextSwitchTask:
             return isinstance(instance, _original_task)
         return super().__instancecheck__(instance)
@@ -69,7 +73,7 @@ class _ContextSwitchTaskMeta(type):
 
 
 class _ContextSwitchTask(asyncio.Task[Any], metaclass=_ContextSwitchTaskMeta):  # type: ignore[misc]
-    """Intercept direct eager Task construction while the Python fallback is active."""
+    """Intercept direct Task construction"""
 
 
 def install() -> None:
@@ -81,15 +85,11 @@ def install() -> None:
 
     wrap(asyncio.Handle._run, _wrapped_run_handle)  # type: ignore[arg-type]
     _installed = True
-    try:
-        if _eager_task_factory_code is not None:
-            wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)  # type: ignore[arg-type]
-            if asyncio.Task is _original_task:
-                setattr(asyncio, "Task", _ContextSwitchTask)
-                _task_replaced = True
-    except BaseException:
-        uninstall()
-        raise
+    if _eager_task_factory_code is not None:
+        wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)  # type: ignore[arg-type]
+        if asyncio.Task is _original_task:
+            setattr(asyncio, "Task", _ContextSwitchTask)
+            _task_replaced = True
 
 
 def uninstall() -> None:
@@ -113,16 +113,14 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
     original_callback = handle._callback
 
     def _callback_with_entry_dispatch(*cb_args: Any, **cb_kwargs: Any) -> Any:
-        # Dispatching inside the callback reuses the Context.run performed by
-        # Handle._run instead of entering the captured Context a second time.
-        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
         try:
+            # Dispatching inside the callback reuses the Context.run performed by
+            # Handle._run instead of entering the captured Context a second time.
+            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
             return original_callback(*cb_args, **cb_kwargs)
-        except BaseException:
-            # Restore the application callback before asyncio formats its failure.
+        finally:
             if handle._callback is _callback_with_entry_dispatch:
                 handle._callback = original_callback
-            raise
 
     handle._callback = _callback_with_entry_dispatch
     try:
