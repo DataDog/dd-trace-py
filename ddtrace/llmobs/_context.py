@@ -2,10 +2,10 @@ import contextvars
 from typing import Optional
 from typing import Union
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.native._native import Context
 
 
 ContextTypeValue = Optional[Union[Context, Span]]
