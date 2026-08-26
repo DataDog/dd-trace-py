@@ -115,7 +115,7 @@ ENV PYTHON_CONFIGURE_OPTS=--enable-shared
 ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 
 # Install Rust toolchain
-# AIDEV-TODO: Pin to a specific rustup-init version with SHA256 verification.
+# TODO: Pin to a specific rustup-init version with SHA256 verification.
 # See https://static.rust-lang.org/rustup/ for versioned releases and checksums.
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- --default-toolchain stable -y

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from typing import Any
 
 
-# AIDEV-NOTE: Lazy re-exports (PEP 562). Importing an internal submodule (e.g.
+# Lazy re-exports (PEP 562). Importing an internal submodule (e.g.
 # ddtrace.aiguard._constants from ddtrace.internal.settings.aiguard, which is
 # loaded during product discovery on every ddtrace-run) must NOT drag in the
 # client stack. Eager imports here would load ddtrace.aiguard._api_client (and

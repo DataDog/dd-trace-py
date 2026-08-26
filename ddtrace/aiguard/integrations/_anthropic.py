@@ -72,7 +72,7 @@ def _wrap_abort_error(cause: AIGuardAbortError) -> AIGuardAbortError:
     """
     exception_class: type[AIGuardAbortError] = AIGuardAbortError
     try:
-        # AIDEV-NOTE: import lazily -- ``_anthropic_errors`` pulls in the optional
+        # import lazily -- ``_anthropic_errors`` pulls in the optional
         # Anthropic SDK at import time. Python's import lock guarantees all
         # concurrent cold imports observe the same class object.
         from ddtrace.aiguard.integrations._anthropic_errors import AnthropicAIGuardAbortError
@@ -264,7 +264,7 @@ def _format_server_tool_result_block(block: Any) -> Message:
     return msg
 
 
-# AIDEV-NOTE: Anthropic block types intentionally NOT mapped to AI Guard
+# Anthropic block types intentionally NOT mapped to AI Guard
 # content; unknown types are logged at debug-level. ``document`` is NOT
 # dropped (APMSP-3286): it carries model-visible content, see
 # _format_document_block.
@@ -621,7 +621,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         return None
 
     system = kwargs.get("system")
-    # AIDEV-NOTE: Top-level ``system`` may be an Iterable[TextBlockParam].
+    # Top-level ``system`` may be an Iterable[TextBlockParam].
     # Materialise generators before conversion and write them back, otherwise
     # AI Guard consumes the iterator and the SDK later serializes an exhausted
     # prompt.
@@ -637,7 +637,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
         logger.debug("AI Guard anthropic before-hook skipped: no convertible messages")
         return None
 
-    # AIDEV-NOTE: Anthropic supports final assistant turns as response prefill
+    # Anthropic supports final assistant turns as response prefill
     # input; unlike OpenAI, those are still pre-model request content and must
     # be evaluated before calling the SDK.
     last_role = ai_guard_messages[-1].get("role")
