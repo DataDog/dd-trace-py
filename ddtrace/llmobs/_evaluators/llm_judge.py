@@ -11,12 +11,31 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.llmobs._constants import EVALUATED_EXPERIMENT_ID_TAG
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
 from ddtrace.llmobs._experiment import _validate_evaluator_name
+from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import JSONType
+
+
+log = get_logger(__name__)
+
+
+def _best_effort(fn: Any, *args: Any, **kwargs: Any) -> Any:
+    """Run an observability-only call, swallowing and logging any failure.
+
+    Used for judge-trace annotation/export so an instrumentation problem can never fail the
+    evaluation the judge was asked to produce.
+    """
+    try:
+        return fn(*args, **kwargs)
+    except Exception:
+        log.debug("LLMJudge: judge-trace instrumentation call %r failed", getattr(fn, "__name__", fn), exc_info=True)
+        return None
 
 
 class LLMClient(Protocol):
@@ -526,6 +545,7 @@ class LLMJudge(BaseEvaluator):
         client: Optional[LLMClient] = None,
         name: Optional[str] = None,
         client_options: Optional[dict[str, Any]] = None,
+        emit_judge_trace: Optional[bool] = None,
     ):
         """Initialize an LLMJudge evaluator.
 
@@ -560,6 +580,14 @@ class LLMJudge(BaseEvaluator):
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
+            emit_judge_trace: When True, each ``evaluate()`` call opens a judge span via
+                ``LLMObs.evaluation()`` and runs the judge inference inside it, so the judge's
+                latency, tokens, and errors are observable under the evaluated application's
+                service. The returned ``EvaluatorResult`` carries a ``judge_span`` reference,
+                which the experiments SDK folds into the emitted metric's metadata so the score
+                can deep-link back to the judge span.
+                Opt-in, so existing evaluators are unaffected. Requires LLMObs to be enabled;
+                a no-op otherwise.
             client_options: Provider-specific configuration options. Common keys are
                 listed below; any additional keys are forwarded directly to the
                 underlying client constructor (e.g., ``OpenAI()``, ``anthropic.Anthropic()``,
@@ -664,6 +692,7 @@ class LLMJudge(BaseEvaluator):
         self._model_params = model_params
         self._provider = provider
         self._model = model
+        self._emit_judge_trace = bool(emit_judge_trace)
 
         if client:
             self._client = client
@@ -699,8 +728,78 @@ class LLMJudge(BaseEvaluator):
             else:
                 json_schema = self._structured_output.to_json_schema()
 
-        response = self._client(self._provider, messages, json_schema, self._model, self._model_params)
+        if self._emit_judge_trace:
+            return self._evaluate_traced(context, messages, json_schema, self._model)
+        return self._evaluate_untraced(messages, json_schema, self._model)
 
+    def _evaluate_traced(
+        self,
+        context: EvaluatorContext,
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
+        model: str,
+    ) -> Union[EvaluatorResult, str, Any]:
+        """Run the judge inference inside a judge span and attach it to the result.
+
+        The judge trace is emitted under the evaluated application's service and linked to the
+        evaluated span, so the judge's own latency/tokens/errors are observable. The judge span
+        reference is attached to the returned ``EvaluatorResult`` so the experiments SDK can fold
+        ``judge_trace_id``/``judge_span_id`` into the emitted metric's metadata.
+
+        Tracing is best-effort: if ``LLMObs.evaluation()`` cannot be opened (LLMObs disabled, or a
+        scope with no evaluated span to anchor to), the judge still runs untraced rather than
+        failing the evaluation.
+        """
+        from ddtrace.llmobs import LLMObs
+
+        # Nothing to anchor a judge trace to, so run untraced rather than raise.
+        if not LLMObs.enabled or not (context.span_id and context.trace_id):
+            log.debug("LLMJudge: LLMObs disabled or no evaluated span on the context; running judge untraced")
+            return self._evaluate_untraced(messages, json_schema, model)
+
+        try:
+            judge_cm = LLMObs.evaluation(
+                name=self.name,
+                evaluated_span=ExportedLLMObsSpan(span_id=context.span_id, trace_id=context.trace_id),
+                evaluated_ml_app=context.evaluated_ml_app,
+                # The experiments SDK already records evaluator failures on the metric itself.
+                emit_error_metric=False,
+            )
+        except Exception:
+            log.debug("LLMJudge: failed to open judge trace, running judge untraced", exc_info=True)
+            return self._evaluate_untraced(messages, json_schema, model)
+
+        # Annotation and export are observability extras: a failure there must never fail the
+        # evaluation. The judge call itself is deliberately NOT guarded, so provider errors keep
+        # propagating to the experiments SDK (which records them on the metric).
+        judge_ref = None
+        with judge_cm as judge_span:
+            # Lets the UI resolve the back-link to a span in the experiments index.
+            if context.evaluated_experiment_id:
+                _best_effort(
+                    LLMObs.annotate,
+                    judge_span,
+                    tags={EVALUATED_EXPERIMENT_ID_TAG: context.evaluated_experiment_id},
+                )
+            _best_effort(LLMObs.annotate, judge_span, input_data=messages)
+            response = self._client(self._provider, messages, json_schema, model, self._model_params)
+            _best_effort(LLMObs.annotate, judge_span, output_data=response)
+            judge_ref = _best_effort(LLMObs.export_span, judge_span)
+
+        if not self._structured_output:
+            return response
+        result = self._parse_response(response)
+        if isinstance(result, EvaluatorResult) and judge_ref is not None:
+            result.judge_span = judge_ref
+        return result
+
+    def _evaluate_untraced(
+        self,
+        messages: list[dict[str, str]],
+        json_schema: Optional[dict[str, Any]],
+        model: str,
+    ) -> Union[EvaluatorResult, str, Any]:
+        response = self._client(self._provider, messages, json_schema, model, self._model_params)
         if self._structured_output:
             return self._parse_response(response)
         return response

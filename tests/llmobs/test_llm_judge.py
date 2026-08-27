@@ -5,6 +5,13 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.llmobs._constants import EVAL_NAME_TAG
+from ddtrace.llmobs._constants import EVAL_SOURCE_TYPE_TAG
+from ddtrace.llmobs._constants import EVALUATED_EXPERIMENT_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_ML_APP_TAG
+from ddtrace.llmobs._constants import EVALUATED_SPAN_ID_TAG
+from ddtrace.llmobs._constants import EVALUATED_TRACE_ID_TAG
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._evaluators.llm_judge import BooleanStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import CategoricalStructuredOutput
 from ddtrace.llmobs._evaluators.llm_judge import LLMJudge
@@ -14,6 +21,11 @@ from ddtrace.llmobs._evaluators.llm_judge import _create_bedrock_client
 from ddtrace.llmobs._evaluators.llm_judge import _create_vertexai_client
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_ml_app
+from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.llmobs._utils import get_llmobs_tags
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from tests.llmobs._utils import get_azure_openai_vcr
 from tests.llmobs._utils import get_bedrock_vcr
 from tests.llmobs._utils import get_vertexai_vcr
@@ -966,3 +978,173 @@ class TestClientOptionsPassthrough:
                 credentials=mock_creds,
                 api_transport="rest",
             )
+
+
+def _score_judge(client, *, emit_judge_trace, name="relevance"):
+    return LLMJudge(
+        client=client,
+        model="test-model",
+        name=name,
+        user_prompt="Rate: {{output_data}}",
+        structured_output=ScoreStructuredOutput("quality", min_score=1, max_score=10, min_threshold=7),
+        emit_judge_trace=emit_judge_trace,
+    )
+
+
+def _ok_client(provider, messages, json_schema, model, model_params):
+    return json.dumps({"score_eval": 8})
+
+
+def _anchored_context(llmobs):
+    """An EvaluatorContext anchored to a real evaluated span, as the experiments SDK builds it."""
+    with llmobs._experiment(name="task", experiment_id="exp-1", run_id="run-1") as span:
+        ref = llmobs.export_span(span)
+    return EvaluatorContext(
+        input_data={"q": "hi"},
+        output_data="hello",
+        span_id=ref["span_id"],
+        trace_id=ref["trace_id"],
+        evaluated_ml_app="my-app",
+        evaluated_experiment_id="exp-1",
+    )
+
+
+class TestLLMJudgeJudgeTrace:
+    """`emit_judge_trace=True` runs the judge inside an LLMObs.evaluation() judge trace."""
+
+    @staticmethod
+    def _capturing_client(seen):
+        """A judge client that records the judge span active during inference."""
+
+        def client(provider, messages, json_schema, model, model_params):
+            from ddtrace.llmobs import LLMObs
+
+            seen["span"] = LLMObs._instance._current_span()
+            return json.dumps({"score_eval": 8})
+
+        return client
+
+    def test_judge_trace_disabled_by_default(self, llmobs):
+        result = _score_judge(_ok_client, emit_judge_trace=False).evaluate(_anchored_context(llmobs))
+        assert result.value == 8
+        assert result.judge_span is None
+
+    def test_judge_trace_attaches_judge_span_to_result(self, llmobs):
+        result = _score_judge(_ok_client, emit_judge_trace=True).evaluate(_anchored_context(llmobs))
+        assert result.value == 8
+        assert isinstance(result.judge_span, dict)
+        assert isinstance(result.judge_span["span_id"], str)
+        assert isinstance(result.judge_span["trace_id"], str)
+
+    def test_judge_span_carries_eval_contract(self, llmobs):
+        """The judge span must satisfy the canonical judge-span contract the UI queries on."""
+        seen = {}
+        _score_judge(self._capturing_client(seen), emit_judge_trace=True).evaluate(_anchored_context(llmobs))
+
+        judge = seen["span"]
+        assert judge is not None
+        assert judge.name == "custom_evaluator.relevance"
+        # The judge trace is reported under the evaluated application, and EVALUATED_ML_APP_TAG (not
+        # the service or a source tag) is what marks it as a judge span.
+        assert get_llmobs_ml_app(judge) == "my-app"
+        tags = get_llmobs_tags(judge)
+        assert tags["source"] != "datadog-evaluations"
+        assert tags[EVAL_NAME_TAG] == "relevance"
+        assert tags[EVAL_SOURCE_TYPE_TAG] == "external"
+        assert tags[EVALUATED_ML_APP_TAG] == "my-app"
+
+    def test_judge_span_links_back_to_evaluated_span(self, llmobs):
+        seen = {}
+        ctx = _anchored_context(llmobs)
+        _score_judge(self._capturing_client(seen), emit_judge_trace=True).evaluate(ctx)
+
+        tags = get_llmobs_tags(seen["span"])
+        assert tags[EVALUATED_SPAN_ID_TAG] == ctx.span_id
+        assert tags[EVALUATED_TRACE_ID_TAG] == ctx.trace_id
+
+    def test_judge_span_carries_evaluated_experiment_id(self, llmobs):
+        # The judge records the evaluated span's experiment id as a scope hint for the UI back-link.
+        # That this does NOT flip the judge into the experiments scope is guarded by
+        # test_judge_runs_outside_experiment_scope (same anchored context, asserts SCOPE is None).
+        seen = {}
+        ctx = _anchored_context(llmobs)
+        _score_judge(self._capturing_client(seen), emit_judge_trace=True).evaluate(ctx)
+        assert get_llmobs_tags(seen["span"])[EVALUATED_EXPERIMENT_ID_TAG] == ctx.evaluated_experiment_id
+
+    def test_no_evaluated_experiment_id_no_tag(self, llmobs):
+        # Non-experiment evaluators (no experiment id on the context) must not carry the tag.
+        seen = {}
+        ctx = EvaluatorContext(input_data={}, output_data="hi", span_id="1", trace_id="2")
+        _score_judge(self._capturing_client(seen), emit_judge_trace=True).evaluate(ctx)
+        assert EVALUATED_EXPERIMENT_ID_TAG not in get_llmobs_tags(seen["span"])
+
+    def test_judge_runs_outside_experiment_scope(self, llmobs):
+        """Evaluators run after the experiment span closes, so the judge trace must be a
+        standalone root trace rather than inheriting the experiment scope.
+        """
+        seen = {}
+        _score_judge(self._capturing_client(seen), emit_judge_trace=True).evaluate(_anchored_context(llmobs))
+
+        judge_data = _get_llmobs_data_metastruct(seen["span"])
+        assert judge_data[LLMOBS_STRUCT.PARENT_ID] == "undefined"
+        assert judge_data.get(LLMOBS_STRUCT.DD, {}).get(LLMOBS_STRUCT.SCOPE) is None
+
+    def test_nested_judge_spans_join_the_judge_trace(self, llmobs):
+        """Auto-instrumented judge LLM calls must land in the judge trace, not the evaluated app's.
+
+        The judge trace now shares the evaluated application's service, so ml_app no longer
+        distinguishes the two — assert on the trace the nested span actually joined.
+        """
+        seen = {}
+
+        def client(provider, messages, json_schema, model, model_params):
+            seen["judge"] = llmobs._instance._current_span()
+            with llmobs.llm(name="grade", model_name="m", model_provider="p") as llm_span:
+                seen["nested"] = llm_span
+            return json.dumps({"score_eval": 8})
+
+        _score_judge(client, emit_judge_trace=True).evaluate(_anchored_context(llmobs))
+
+        assert get_llmobs_trace_id(seen["nested"]) == get_llmobs_trace_id(seen["judge"])
+        assert get_llmobs_parent_id(seen["nested"]) == str(seen["judge"].span_id)
+        assert get_llmobs_ml_app(seen["nested"]) == "my-app"
+
+    def test_provider_errors_still_propagate(self, llmobs):
+        """A judge failure must reach the experiments SDK, not be swallowed by tracing."""
+
+        def boom(provider, messages, json_schema, model, model_params):
+            raise RuntimeError("provider exploded")
+
+        with pytest.raises(RuntimeError, match="provider exploded"):
+            _score_judge(boom, emit_judge_trace=True).evaluate(_anchored_context(llmobs))
+
+    def test_unanchored_context_runs_untraced(self, llmobs):
+        """With no evaluated span there is nothing to link to, so the judge runs without a trace."""
+        result = _score_judge(_ok_client, emit_judge_trace=True).evaluate(
+            EvaluatorContext(input_data={}, output_data="x")
+        )
+        assert result.value == 8
+        assert result.judge_span is None
+
+    def test_llmobs_disabled_still_evaluates(self):
+        """Judge tracing is opt-in observability: it must never break evaluation when disabled."""
+        result = _score_judge(_ok_client, emit_judge_trace=True).evaluate(
+            EvaluatorContext(input_data={}, output_data="x", span_id="1", trace_id="2")
+        )
+        assert result.value == 8
+        assert result.judge_span is None
+
+    def test_annotation_failure_does_not_fail_evaluation(self, llmobs):
+        """Instrumentation problems must degrade to an untagged trace, never fail the eval."""
+        with mock.patch.object(llmobs, "annotate", side_effect=RuntimeError("annotate blew up")):
+            result = _score_judge(_ok_client, emit_judge_trace=True).evaluate(_anchored_context(llmobs))
+        assert result.value == 8
+
+    def test_export_failure_yields_no_judge_span(self, llmobs):
+        # Build the context first, so the patched export_span only affects the judge's own export
+        # (inside evaluate), not the context setup which also calls export_span.
+        context = _anchored_context(llmobs)
+        with mock.patch.object(llmobs, "export_span", side_effect=RuntimeError("export blew up")):
+            result = _score_judge(_ok_client, emit_judge_trace=True).evaluate(context)
+        assert result.value == 8
+        assert result.judge_span is None

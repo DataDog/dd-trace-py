@@ -10,6 +10,7 @@ from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import EvaluatorContext
 from ddtrace.llmobs._experiment import EvaluatorResult
+from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import SummaryEvaluatorContext
@@ -605,3 +606,79 @@ class TestRemoteEvaluator:
                 evaluator.evaluate(ctx)
 
         assert "Internal server error" in str(exc_info.value)
+
+
+class TestEvaluatorResultJudgeSpan:
+    """`EvaluatorResult(judge_span=...)` is the experiment-path counterpart of
+    `LLMObs.submit_evaluation(judge_span=...)`: experiment metrics go to a different intake
+    (`/experiments/{id}/events`) that `submit_evaluation` never reaches, so the judge ids have
+    to ride the metric's metadata instead.
+    """
+
+    def test_defaults_to_none(self):
+        assert EvaluatorResult(value=1).judge_span is None
+
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            {"span_id": "s"},  # missing trace_id
+            {"trace_id": "t"},  # missing span_id
+            {"span_id": 1, "trace_id": "t"},  # non-string ids
+            {"span_id": "s", "trace_id": None},
+            "not-a-dict",
+            123,
+        ],
+    )
+    def test_rejects_malformed_judge_span(self, bad):
+        with pytest.raises(TypeError, match="judge_span"):
+            EvaluatorResult(value=1, judge_span=bad)
+
+    def test_folds_judge_ids_into_metric_metadata(self):
+        result = EvaluatorResult(value=8, judge_span={"span_id": "sid", "trace_id": "tid"})
+        value, extras = Experiment._extract_single_evaluator_result(result)
+        assert value == 8
+        assert extras["metadata"] == {"judge_trace_id": "tid", "judge_span_id": "sid"}
+
+    def test_preserves_user_metadata_alongside_judge_ids(self):
+        result = EvaluatorResult(
+            value=8,
+            metadata={"confidence": 0.9},
+            judge_span={"span_id": "sid", "trace_id": "tid"},
+        )
+        _, extras = Experiment._extract_single_evaluator_result(result)
+        assert extras["metadata"] == {
+            "confidence": 0.9,
+            "judge_trace_id": "tid",
+            "judge_span_id": "sid",
+        }
+
+    def test_no_judge_span_leaves_metadata_untouched(self):
+        result = EvaluatorResult(value=8, metadata={"confidence": 0.9})
+        _, extras = Experiment._extract_single_evaluator_result(result)
+        assert extras["metadata"] == {"confidence": 0.9}
+
+    def test_no_judge_span_and_no_metadata_adds_no_metadata_key(self):
+        _, extras = Experiment._extract_single_evaluator_result(EvaluatorResult(value=8))
+        assert "metadata" not in extras
+
+    def test_result_without_judge_span_attribute_is_tolerated(self):
+        """ddeval vendors its own result types for older ddtrace pins; a duck-typed result
+        lacking `judge_span` must not raise.
+        """
+
+        class Vendored(EvaluatorResult):
+            def __init__(self):
+                super().__init__(value=3)
+                del self.judge_span
+
+        _, extras = Experiment._extract_single_evaluator_result(Vendored())
+        assert "metadata" not in extras
+
+
+class TestEvaluatorContextEvaluatedMlApp:
+    def test_defaults_to_none(self):
+        assert EvaluatorContext(input_data={}, output_data="o").evaluated_ml_app is None
+
+    def test_carries_evaluated_ml_app(self):
+        ctx = EvaluatorContext(input_data={}, output_data="o", evaluated_ml_app="my-app")
+        assert ctx.evaluated_ml_app == "my-app"
