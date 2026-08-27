@@ -69,7 +69,10 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         num_fields = max(0, self.num_context_fields)
         cycle_count = max(num_flags, num_users)
 
-        attrs = {"attr_{}".format(i): "value_{}".format(i) for i in range(num_fields)}
+        if mode == "hook_enqueue_adversarial":
+            attrs = {"discarded": ["x" * 257 for _ in range(num_fields)]}
+        else:
+            attrs = {"attr_{}".format(i): "value_{}".format(i) for i in range(num_fields)}
         flag_keys = ["flag-{}".format(i) for i in range(num_flags)]
         targeting_keys = ["user-{}".format(i) for i in range(num_users)]
         hook_contexts = [
@@ -92,7 +95,7 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
         writer = FlagEvaluationWriter(interval=3600.0)
         hook = FlagEvalEVPHook(writer)
 
-        if mode == "hook_enqueue":
+        if mode in ("hook_enqueue", "hook_enqueue_adversarial"):
             # Preserve Queue.put_nowait locking and notification overhead without
             # periodically draining and aggregating events in this isolated mode.
             writer._queue = _DiscardingQueue(maxsize=writer._queue.maxsize)
@@ -108,14 +111,15 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
             from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
             from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
 
-            bounded_attrs = flatten_and_prune_context(attrs)
+            bounded_attrs, truncation_reasons = flatten_and_prune_context(attrs)
+            assert not truncation_reasons
             events = [
                 _EvalEvent(
                     flag_key=flag_keys[i % num_flags],
                     variant="variant-{}".format(i % 4),
                     allocation_key="alloc-{}".format(i % num_flags),
                     targeting_key=targeting_keys[i % num_users],
-                    attrs=dict(bounded_attrs),
+                    attrs=bounded_attrs,
                     runtime_default=False,
                     error_message="",
                     eval_time_ms=1_760_000_000_000 + i,

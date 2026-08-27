@@ -5,47 +5,71 @@ Tests validate the two-tier aggregation spec:
 - canonical_context_key: sorted, type-tagged, length-delimited (NOT a hash)
 - Two-tier aggregation (full → degraded → drop-counted)
 - Caps GLOBAL_CAP=131072 / PER_FLAG_CAP=10000 / DEGRADED_CAP=32768
-- 256-field / 256-char context pruning
+- Bounded immutable pre-queue context snapshotting and truncation telemetry
 - runtime_default_used from absent/None variant
 - Non-blocking enqueue with drop-and-count on queue.Full
 - EVP POST to /evp_proxy/v2/api/v2/flagevaluation with correct headers
 """
 
+from collections.abc import Mapping
+from collections.abc import Sequence
 from datetime import datetime
 from datetime import timezone
-from decimal import Decimal
 import json
+import os
+import queue
+import select
+import threading
 import time
+import typing
 from unittest import mock
 
 import pytest
 
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_CYCLE
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_KEY_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VALUE_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VISITED_NODES
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_SNAPSHOT_ERROR
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_PER_FLAG_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.openfeature._flagevaluation_writer import EVP_SUBDOMAIN_VALUE
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DEGRADED_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_DROPPED_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_CARDINALITY_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_CLOSED
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_DEGRADED_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_PAYLOAD_LIMIT
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_QUEUE_OVERFLOW
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_SPLITS_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAGEVALUATIONS_ENDPOINT
 from ddtrace.internal.openfeature._flagevaluation_writer import GLOBAL_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_CONTEXT_FIELDS
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_FIELD_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_KEY_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_LIST_ELEMENTS
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_SNAPSHOT_DEPTH
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_STRUCTURE_PROPERTIES
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_VALUE_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_VISITED_NODES
 from ddtrace.internal.openfeature._flagevaluation_writer import PER_FLAG_CAP
-from ddtrace.internal.openfeature._flagevaluation_writer import QUEUE_SIZE
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._flagevaluation_writer import _build_payloads_with_stats
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
+from ddtrace.internal.openfeature._flagevaluation_writer import _flatten_sequence
 from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import PeriodicThread
 
 
 TELEMETRY_COUNT_PATCH = "ddtrace.internal.openfeature._flagevaluation_writer.telemetry_writer.add_count_metric"
@@ -73,7 +97,7 @@ def _make_event(
         variant=variant,
         allocation_key=allocation_key,
         targeting_key=targeting_key,
-        attrs=attrs or {},
+        attrs=attrs if attrs is not None else {},
         runtime_default=runtime_default,
         error_message=error_message,
         eval_time_ms=eval_time_ms,
@@ -145,9 +169,9 @@ class TestCanonicalContextKey:
 
     def test_datetime_vs_string_distinct_keys(self):
         timestamp = datetime(2026, 6, 23, 12, 0, tzinfo=timezone.utc)
-        k_datetime = canonical_context_key({"x": timestamp})
-        k_string = canonical_context_key({"x": timestamp.isoformat()})
-        assert k_datetime != k_string
+        datetime_snapshot, _ = flatten_and_prune_context({"x": timestamp})
+        string_snapshot, _ = flatten_and_prune_context({"x": timestamp.isoformat()})
+        assert canonical_context_key(datetime_snapshot) != canonical_context_key(string_snapshot)
 
     def test_value_with_equals_or_newline_no_boundary_confusion(self):
         r"""'=' and '\n' in values must not fake a field boundary (length-prefix protocol)."""
@@ -176,62 +200,411 @@ class TestCanonicalContextKey:
 
 
 class TestFlattenAndPruneContext:
-    def test_empty_returns_empty(self):
-        assert flatten_and_prune_context({}) == {}
+    def test_empty_returns_immutable_empty_snapshot(self):
+        snapshot, reasons = flatten_and_prune_context({})
+        assert snapshot == {}
+        assert reasons == frozenset()
+        with pytest.raises(TypeError):
+            snapshot["new"] = "value"
 
-    def test_flat_attrs_passthrough(self):
-        attrs = {"a": "1", "b": 2}
-        result = flatten_and_prune_context(attrs)
-        assert result == attrs
+    def test_in_bounds_without_lists_preserves_existing_flattened_values(self):
+        timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
+        attrs = {
+            "a": "1",
+            "b": 2,
+            "enabled": True,
+            "missing": None,
+            "user": {"id": "u1", "seen_at": timestamp},
+        }
 
-    def test_nested_attrs_flattened(self):
-        attrs = {"user": {"id": "u1", "tier": "free"}}
-        result = flatten_and_prune_context(attrs)
-        assert "user.id" in result
-        assert "user.tier" in result
-        assert result["user.id"] == "u1"
+        snapshot, reasons = flatten_and_prune_context(attrs)
 
-    def test_nested_sequences_are_flattened_with_bracket_indexes(self):
+        assert dict(snapshot) == {
+            "a": "1",
+            "b": 2,
+            "enabled": True,
+            "missing": None,
+            "user.id": "u1",
+            "user.seen_at": timestamp.isoformat(),
+        }
+        assert reasons == frozenset()
+
+    def test_current_list_notation_is_explicitly_bracket_indexes(self):
         attrs = {"cohorts": ["beta", {"name": "ga"}], "user": {"roles": ["admin"]}}
-        result = flatten_and_prune_context(attrs)
-        assert result["cohorts[0]"] == "beta"
-        assert result["cohorts[1].name"] == "ga"
-        assert result["user.roles[0]"] == "admin"
+        snapshot, reasons = flatten_and_prune_context(attrs)
 
-    def test_cycles_do_not_recurse_forever(self):
-        attrs = {}
-        attrs["self"] = attrs
-        result = flatten_and_prune_context(attrs)
-        assert result == {}
+        assert dict(snapshot) == {
+            "cohorts[0]": "beta",
+            "cohorts[1].name": "ga",
+            "user.roles[0]": "admin",
+        }
+        assert "cohorts.0" not in snapshot
+        assert reasons == frozenset()
+
+    def test_cycle_is_reported_but_shared_subtree_is_not_a_cycle(self):
+        shared = {"name": "kept"}
+        cyclic = {"name": "also-kept"}
+        cyclic["self"] = cyclic
+        attrs = {"left": shared, "right": shared, "cyclic": cyclic}
+
+        snapshot, reasons = flatten_and_prune_context(attrs)
+
+        assert dict(snapshot) == {
+            "left.name": "kept",
+            "right.name": "kept",
+            "cyclic.name": "also-kept",
+        }
+        assert reasons == frozenset((CONTEXT_TRUNCATION_CYCLE,))
 
     def test_dedicated_targeting_key_aliases_are_not_context_attrs(self):
         attrs = {"targetingKey": "user-1", "targeting_key": "user-1", "tier": "premium"}
-        result = flatten_and_prune_context(attrs)
-        assert result == {"tier": "premium"}
+        snapshot, reasons = flatten_and_prune_context(attrs)
+        assert snapshot == {"tier": "premium"}
+        assert reasons == frozenset()
 
-    def test_prune_beyond_256_fields(self):
-        attrs = {str(i): str(i) for i in range(300)}
-        result = flatten_and_prune_context(attrs)
-        assert len(result) <= MAX_CONTEXT_FIELDS
+    def test_context_field_cap_keeps_first_fields_in_insertion_order(self):
+        attrs = {f"field-{i:03d}": i for i in reversed(range(MAX_CONTEXT_FIELDS + 1))}
 
-    def test_prune_skips_oversized_string_values(self):
-        long_val = "x" * (MAX_FIELD_LENGTH + 1)
-        attrs = {"short": "ok", "long": long_val}
-        result = flatten_and_prune_context(attrs)
-        assert "short" in result
-        assert "long" not in result
+        snapshot, reasons = flatten_and_prune_context(attrs)
 
-    def test_prune_deterministic_sorted_order(self):
-        """Pruned result must be reproducible across repeated calls."""
-        attrs = {str(i): str(i) for i in range(300)}
-        r1 = flatten_and_prune_context(attrs)
-        r2 = flatten_and_prune_context(attrs)
-        assert r1 == r2
+        expected = [f"field-{i:03d}" for i in reversed(range(1, MAX_CONTEXT_FIELDS + 1))]
+        assert list(snapshot) == expected
+        assert "field-000" not in snapshot
+        assert CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS in reasons
 
-    def test_context_with_256_fields_not_pruned(self):
-        attrs = {str(i): str(i) for i in range(256)}
-        result = flatten_and_prune_context(attrs)
-        assert len(result) == 256
+    def test_context_field_cap_stops_without_walking_complete_mapping(self):
+        class BoundedIterationDict(dict):
+            def __iter__(self) -> typing.Iterator[str]:
+                for index, key in enumerate(super().__iter__()):
+                    if index > MAX_CONTEXT_FIELDS:
+                        raise AssertionError("walked beyond bounded retained subset")
+                    yield key
+
+        attrs = BoundedIterationDict((f"field-{i}", i) for i in range(10_000))
+        snapshot, reasons = flatten_and_prune_context(attrs)
+
+        assert len(snapshot) == MAX_CONTEXT_FIELDS
+        assert CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS in reasons
+
+    @pytest.mark.parametrize("failing_probe", [False, True])
+    def test_context_field_cap_is_terminal_across_recursive_unwind(self, failing_probe):
+        class NestedMapping(Mapping):
+            def __init__(self) -> None:
+                self.iterated: list[str] = []
+
+            def __getitem__(self, key: str) -> str:
+                return "nested-value"
+
+            def __iter__(self) -> typing.Iterator[str]:
+                self.iterated.append("kept")
+                yield "kept"
+                if failing_probe:
+                    raise RuntimeError("first post-cap probe")
+                self.iterated.append("extra")
+                yield "extra"
+
+            def __len__(self) -> int:
+                raise AssertionError("len must not be called")
+
+        class RootMapping(Mapping):
+            def __init__(self, nested: NestedMapping) -> None:
+                self.nested = nested
+                self.iterated: list[str] = []
+
+            def __getitem__(self, key: str) -> typing.Any:
+                return self.nested if key == "nested" else "value"
+
+            def __iter__(self) -> typing.Iterator[str]:
+                for index in range(MAX_CONTEXT_FIELDS - 1):
+                    key = f"field-{index}"
+                    self.iterated.append(key)
+                    yield key
+                self.iterated.append("nested")
+                yield "nested"
+                self.iterated.append("root-extra")
+                yield "root-extra"
+
+            def __len__(self) -> int:
+                raise AssertionError("len must not be called")
+
+        nested = NestedMapping()
+        root = RootMapping(nested)
+        snapshot, reasons = flatten_and_prune_context(root)
+
+        assert len(snapshot) == MAX_CONTEXT_FIELDS
+        assert snapshot["nested.kept"] == "nested-value"
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS,))
+        assert root.iterated[-1] == "nested"
+        assert nested.iterated == (["kept"] if failing_probe else ["kept", "extra"])
+
+    def test_key_length_cap(self):
+        snapshot, reasons = flatten_and_prune_context({"kept": "yes", "k" * (MAX_KEY_LENGTH + 1): "no"})
+        assert snapshot == {"kept": "yes"}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_KEY_LENGTH,))
+
+    def test_nested_key_length_is_checked_before_concatenation(self):
+        prefix = "p" * MAX_KEY_LENGTH
+        snapshot, reasons = flatten_and_prune_context({prefix: {"oversized-child": "no"}})
+        assert snapshot == {}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_KEY_LENGTH,))
+
+    def test_sequence_key_length_is_checked_before_concatenation(self):
+        class FormatGuard(str):
+            def __format__(self, format_spec: str) -> str:
+                raise AssertionError("overlong sequence prefix must not be formatted")
+
+        output: dict[str, typing.Any] = {}
+        reasons: set[str] = set()
+        _flatten_sequence(
+            FormatGuard("p" * MAX_KEY_LENGTH),
+            ["no"],
+            output,
+            set(),
+            1,
+            reasons,
+            [MAX_VISITED_NODES],
+        )
+
+        assert output == {}
+        assert reasons == {CONTEXT_TRUNCATION_MAX_KEY_LENGTH}
+
+    def test_value_length_cap(self):
+        snapshot, reasons = flatten_and_prune_context({"kept": "yes", "long": "v" * (MAX_VALUE_LENGTH + 1)})
+        assert snapshot == {"kept": "yes"}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,))
+
+    def test_list_element_cap_bounds_inspected_discarded_values(self):
+        discarded = "v" * (MAX_VALUE_LENGTH + 1)
+        snapshot, reasons = flatten_and_prune_context({"values": [discarded] * (MAX_LIST_ELEMENTS + 1)})
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS in reasons
+
+    def test_structure_property_cap_bounds_inspected_discarded_values(self):
+        discarded = "v" * (MAX_VALUE_LENGTH + 1)
+        nested = {f"key-{i}": discarded for i in range(MAX_STRUCTURE_PROPERTIES + 1)}
+        snapshot, reasons = flatten_and_prune_context({"root": nested})
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES in reasons
+
+    def test_snapshot_depth_cap_retains_scalars_at_depth_four(self):
+        attrs = {"root": {"one": {"two": {"three": {"four": "kept", "too_deep": {"leaf": "no"}}}}}}
+
+        snapshot, reasons = flatten_and_prune_context(attrs)
+
+        assert snapshot == {"root.one.two.three.four": "kept"}
+        assert CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH in reasons
+
+    def test_visited_node_budget_exhaustion(self):
+        level = {f"leaf-{i}": "v" * (MAX_VALUE_LENGTH + 1) for i in range(MAX_STRUCTURE_PROPERTIES)}
+        for depth in range(MAX_SNAPSHOT_DEPTH - 1):
+            level = {f"level-{depth}-{i}": level for i in range(MAX_STRUCTURE_PROPERTIES)}
+
+        snapshot, reasons = flatten_and_prune_context(level)
+
+        assert MAX_VISITED_NODES == MAX_CONTEXT_FIELDS * (MAX_SNAPSHOT_DEPTH + 1)
+        assert len(snapshot) < MAX_CONTEXT_FIELDS
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+
+    def test_exact_caps_do_not_report_truncation(self):
+        attrs = {str(i): "v" for i in range(MAX_CONTEXT_FIELDS)}
+        snapshot, reasons = flatten_and_prune_context(attrs)
+        assert len(snapshot) == MAX_CONTEXT_FIELDS
+        assert reasons == frozenset()
+
+    def test_cap_plus_one_reports_context_and_mapping_width(self):
+        attrs = {str(i): "v" for i in range(MAX_CONTEXT_FIELDS + 1)}
+        snapshot, reasons = flatten_and_prune_context(attrs)
+        assert len(snapshot) == MAX_CONTEXT_FIELDS
+        assert reasons == frozenset(
+            (CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS, CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES)
+        )
+
+    def test_list_exact_cap_and_cap_plus_one_boundaries(self):
+        exact_snapshot, exact_reasons = flatten_and_prune_context({"values": ["v"] * MAX_LIST_ELEMENTS})
+        truncated_snapshot, truncated_reasons = flatten_and_prune_context({"values": ["v"] * (MAX_LIST_ELEMENTS + 1)})
+        assert len(exact_snapshot) == len(truncated_snapshot) == MAX_LIST_ELEMENTS
+        assert exact_reasons == frozenset()
+        assert truncated_reasons == frozenset(
+            (CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS, CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS)
+        )
+
+    @pytest.mark.parametrize("discarded_key", ["targetingKey", "targeting_key"])
+    def test_root_targeting_key_aliases_consume_structure_width(self, discarded_key):
+        class DuplicateKeyMapping(Mapping):
+            def __getitem__(self, key):
+                return "ignored"
+
+            def __iter__(self):
+                for _ in range(MAX_STRUCTURE_PROPERTIES + 1):
+                    yield discarded_key
+
+            def __len__(self):
+                raise AssertionError("len must not be called")
+
+        snapshot, reasons = flatten_and_prune_context(DuplicateKeyMapping())
+        assert snapshot == {}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,))
+
+    def test_root_overlong_keys_consume_structure_width(self):
+        attrs = {f"{'k' * MAX_KEY_LENGTH}{index}": "ignored" for index in range(MAX_STRUCTURE_PROPERTIES + 1)}
+        snapshot, reasons = flatten_and_prune_context(attrs)
+        assert snapshot == {}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_KEY_LENGTH, CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES))
+
+    def test_targeting_key_alias_consumes_visited_budget_before_filtering(self):
+        attrs = {"targetingKey": "ignored", "kept": "not-inspected"}
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
+            snapshot, reasons = flatten_and_prune_context(attrs)
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+
+    def test_visited_budget_uses_only_one_exhaustion_lookahead(self):
+        class TrackingSequence(Sequence):
+            def __init__(self):
+                self.accessed = []
+
+            def __getitem__(self, index):
+                self.accessed.append(index)
+                return "not-inspected"
+
+            def __len__(self):
+                raise AssertionError("len must not be called")
+
+        values = TrackingSequence()
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
+            snapshot, reasons = flatten_and_prune_context({"values": values})
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+        assert values.accessed == [0]
+
+    def test_exact_visited_budget_does_not_report_truncation(self):
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
+            snapshot, reasons = flatten_and_prune_context({"kept": "yes"})
+        assert snapshot == {"kept": "yes"}
+        assert reasons == frozenset()
+
+    def test_visited_budget_allows_only_one_successful_unwind_lookahead(self):
+        class TrackingSequence(Sequence):
+            def __init__(self, values: list[typing.Any]) -> None:
+                self.values = values
+                self.accessed: list[int] = []
+
+            def __getitem__(self, index: int) -> typing.Any:
+                self.accessed.append(index)
+                if index >= len(self.values):
+                    raise IndexError(index)
+                return self.values[index]
+
+            def __len__(self) -> int:
+                raise AssertionError("len must not be called")
+
+        inner = TrackingSequence(["first-extra", "inner-extra"])
+        outer = TrackingSequence([inner, "outer-extra"])
+        attrs = {"values": outer, "root-extra": "not-inspected"}
+
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 2):
+            snapshot, reasons = flatten_and_prune_context(attrs)
+
+        assert snapshot == {}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_VISITED_NODES,))
+        assert outer.accessed == [0]
+        assert inner.accessed == [0]
+
+    def test_false_and_raising_len_mappings_are_iterated_without_truthiness_or_len(self):
+        class FalseMapping(Mapping):
+            def __getitem__(self, key):
+                if key == "kept":
+                    return "yes"
+                raise KeyError(key)
+
+            def __iter__(self):
+                yield "kept"
+
+            def __len__(self):
+                return 0
+
+        class RaisingLenMapping(FalseMapping):
+            def __len__(self):
+                raise AssertionError("len must not be called")
+
+        false_snapshot, false_reasons = flatten_and_prune_context(FalseMapping())
+        raising_snapshot, raising_reasons = flatten_and_prune_context(RaisingLenMapping())
+        assert false_snapshot == raising_snapshot == {"kept": "yes"}
+        assert false_reasons == raising_reasons == frozenset()
+
+    def test_mapping_failing_width_lookahead_preserves_prefix_and_stops(self):
+        class FailingLookaheadMapping(Mapping):
+            def __init__(self):
+                self.accessed = []
+
+            def __getitem__(self, key):
+                self.accessed.append(key)
+                return "v"
+
+            def __iter__(self):
+                for index in range(MAX_STRUCTURE_PROPERTIES):
+                    yield f"key-{index}"
+                raise RuntimeError("failing 257th property")
+
+            def __len__(self):
+                raise AssertionError("len must not be called")
+
+        attrs = FailingLookaheadMapping()
+        snapshot, reasons = flatten_and_prune_context(attrs)
+        assert len(snapshot) == MAX_STRUCTURE_PROPERTIES
+        assert reasons == frozenset(
+            (CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS, CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES)
+        )
+        assert attrs.accessed == [f"key-{index}" for index in range(MAX_STRUCTURE_PROPERTIES)]
+
+    def test_sequence_failing_width_lookahead_preserves_prefix_and_stops(self):
+        class FailingLookaheadSequence(Sequence):
+            def __init__(self):
+                self.accessed = []
+
+            def __getitem__(self, index):
+                self.accessed.append(index)
+                if index < MAX_LIST_ELEMENTS:
+                    return "v"
+                raise RuntimeError("failing 257th element")
+
+            def __len__(self):
+                raise AssertionError("len must not be called")
+
+        values = FailingLookaheadSequence()
+        snapshot, reasons = flatten_and_prune_context({"values": values})
+        assert len(snapshot) == MAX_LIST_ELEMENTS
+        assert CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS in reasons
+        assert values.accessed == list(range(MAX_LIST_ELEMENTS + 1))
+
+    def test_non_string_scalars_do_not_get_an_unapproved_length_cap(self, writer):
+        large_integer = 10 ** (MAX_VALUE_LENGTH + 1)
+        writer.enqueue(_make_event(attrs={"value": large_integer, "missing": None}))
+        assert writer._queue.get_nowait().attrs == {"value": large_integer, "missing": None}
+        assert writer._context_truncated == {}
+
+    @pytest.mark.parametrize("unsafe", [b"x" * (MAX_VALUE_LENGTH + 1), object()])
+    def test_unsupported_scalars_fail_closed(self, writer, unsafe):
+        writer.enqueue(_make_event(attrs={"kept": "discarded", "unsafe": unsafe}))
+        assert writer._queue.get_nowait().attrs == {}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
+
+    def test_string_value_limit_counts_characters(self):
+        exact_snapshot, exact_reasons = flatten_and_prune_context({"value": "😀" * MAX_VALUE_LENGTH})
+        truncated_snapshot, truncated_reasons = flatten_and_prune_context({"value": "😀" * (MAX_VALUE_LENGTH + 1)})
+        assert exact_snapshot == {"value": "😀" * MAX_VALUE_LENGTH}
+        assert exact_reasons == frozenset()
+        assert truncated_snapshot == {}
+        assert truncated_reasons == frozenset((CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,))
+
+    def test_datetime_subclass_isoformat_is_not_called(self, writer):
+        class UnsafeDatetime(datetime):
+            def isoformat(self, *args, **kwargs):
+                raise AssertionError("subclass conversion must not run")
+
+        writer.enqueue(_make_event(attrs={"value": UnsafeDatetime(2026, 1, 1)}))
+        assert writer._queue.get_nowait().attrs == {}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +635,16 @@ class TestAggregation:
         writer._aggregate(e_int)
         writer._aggregate(e_str)
         assert len(writer._full) == 2
+
+    def test_pre_queue_json_conversion_preserves_other_vs_string_bucket_distinction(self, writer):
+        timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
+        writer.enqueue(_make_event(attrs={"x": timestamp}))
+        writer.enqueue(_make_event(attrs={"x": timestamp.isoformat()}))
+
+        writer._drain_queue()
+
+        assert len(writer._full) == 2
+        assert {entry.context_attrs["x"] for entry in writer._full.values()} == {timestamp.isoformat()}
 
     def test_full_tier_overflow_routes_to_degraded(self, writer):
         """Overflow past globalCap routes to the degraded tier."""
@@ -324,14 +707,25 @@ class TestAggregation:
 
 
 class TestEnqueue:
-    def test_enqueue_non_blocking_on_full_queue(self, writer):
-        """When queue is full, enqueue must NOT block and must increment _dropped_queue."""
-        # Fill the queue.
-        for i in range(QUEUE_SIZE):
-            writer._queue.put_nowait(_make_event(flag_key=f"f{i}"))
+    def test_full_queue_precheck_skips_snapshot_and_counts_pre_queue_overflow(self, writer):
+        writer._queue = queue.Queue(maxsize=1)
+        writer._queue.put_nowait(_make_event(flag_key="queued"))
 
-        # This should not raise and should not block.
-        writer.enqueue(_make_event(flag_key="overflow"))
+        with mock.patch(
+            "ddtrace.internal.openfeature._flagevaluation_writer.flatten_and_prune_context"
+        ) as mock_snapshot:
+            writer.enqueue(_make_event(flag_key="overflow"))
+
+        mock_snapshot.assert_not_called()
+        assert writer._dropped_pre_queue == 1
+        assert writer._dropped_queue == 0
+
+    def test_put_nowait_race_counts_queue_overflow(self, writer):
+        with mock.patch.object(writer._queue, "full", return_value=False):
+            with mock.patch.object(writer._queue, "put_nowait", side_effect=queue.Full):
+                writer.enqueue(_make_event(flag_key="race"))
+
+        assert writer._dropped_pre_queue == 0
         assert writer._dropped_queue == 1
 
     def test_enqueue_succeeds_when_queue_has_capacity(self, writer):
@@ -347,12 +741,34 @@ class TestEnqueue:
         queued = writer._queue.get_nowait()
         assert len(queued.attrs) == MAX_CONTEXT_FIELDS
         assert "zzz-oversized" not in queued.attrs
+        with pytest.raises(TypeError):
+            queued.attrs["new"] = "value"
 
     def test_enqueue_flattens_nested_context_snapshot(self, writer):
         writer.enqueue(_make_event(attrs={"user": {"id": 123, "plan": "pro"}}))
 
         queued = writer._queue.get_nowait()
         assert queued.attrs == {"user.id": 123, "user.plan": "pro"}
+
+    def test_unsupported_leaf_does_not_call_str_and_fails_closed(self, writer):
+        class UnsafeLeaf:
+            def __str__(self) -> str:
+                raise AssertionError("arbitrary leaf conversion must not run")
+
+        writer.enqueue(_make_event(attrs={"kept": "would-be-dropped", "unsafe": UnsafeLeaf()}))
+
+        assert writer._queue.get_nowait().attrs == {}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
+
+    def test_snapshot_error_queues_empty_context_and_is_counted(self, writer):
+        attrs = mock.MagicMock()
+        attrs.__bool__.return_value = True
+        attrs.items.side_effect = RuntimeError("cannot iterate")
+
+        writer.enqueue(_make_event(attrs=attrs))
+
+        assert writer._queue.get_nowait().attrs == {}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
 
     def test_enqueue_after_shutdown_started_is_dropped_and_counted(self, writer):
         writer.on_shutdown()
@@ -486,33 +902,32 @@ class TestPeriodicFlush:
         assert ctx_eval["seen_at"] == timestamp.isoformat()
         assert ctx_eval["nested.created_at"] == timestamp.isoformat()
 
-    def test_openfeature_non_json_context_values_are_json_serialized(self, writer):
-        """Non-JSON-safe context values must not make payload encoding drop the batch."""
-
-        class CustomContextValue:
-            def __str__(self):
-                return "custom-value"
-
-        writer.enqueue(
-            _make_event(
-                attrs={
-                    "amount": Decimal("12.34"),
-                    "custom": CustomContextValue(),
-                    "list": [Decimal("1.5"), CustomContextValue()],
-                }
-            )
-        )
+    def test_unsupported_context_value_emits_row_with_empty_context(self, writer):
+        writer.enqueue(_make_event(attrs={"unsupported": object()}))
 
         with mock.patch.object(writer, "_send_payload") as mock_send:
             writer.periodic()
 
-        payload_bytes = mock_send.call_args[0][0]
-        decoded = json.loads(payload_bytes)
-        ctx_eval = decoded["flagEvaluations"][0]["context"]["evaluation"]
-        assert ctx_eval["amount"] == "12.34"
-        assert ctx_eval["custom"] == "custom-value"
-        assert ctx_eval["list[0]"] == "1.5"
-        assert ctx_eval["list[1]"] == "custom-value"
+        row = json.loads(mock_send.call_args[0][0])["flagEvaluations"][0]
+        assert "context" not in row
+
+    def test_unencodable_integer_context_does_not_abort_drain(self, writer):
+        writer.enqueue(_make_event(flag_key="huge-int", attrs={"value": 10**5000}))
+        writer.enqueue(_make_event(flag_key="following", attrs={"value": "kept"}))
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            with mock.patch.object(writer, "_send_payload") as mock_send:
+                writer.periodic()
+
+        rows = {row["flag"]["key"]: row for row in json.loads(mock_send.call_args[0][0])["flagEvaluations"]}
+        assert "context" not in rows["huge-int"]
+        assert rows["following"]["context"]["evaluation"] == {"value": "kept"}
+        _assert_count_metric(
+            mock_count,
+            FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
+            1,
+            CONTEXT_TRUNCATION_SNAPSHOT_ERROR,
+        )
 
     def test_degraded_event_has_no_context_or_targeting_key(self, writer):
         """Degraded-tier events must not include targeting_key or context fields."""
@@ -895,6 +1310,123 @@ class TestShutdownDrain:
         decoded = json.loads(sent[0][0])
         assert decoded["flagEvaluations"][0]["flag"]["key"] == "lifecycle-flag"
 
+    def test_final_drain_emits_accepted_truncation_counter(self, writer):
+        writer.enqueue(_make_event(attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}))
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            with mock.patch.object(writer, "_send_payload"):
+                writer.on_shutdown()
+        _assert_count_metric(
+            mock_count,
+            FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
+            1,
+            CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,
+        )
+
+    def test_shutdown_rejects_snapshot_that_finishes_after_final_drain(self, writer):
+        snapshot_started = threading.Event()
+        release_snapshot = threading.Event()
+
+        class BlockingMapping(Mapping):
+            def __getitem__(self, key):
+                return "value"
+
+            def __iter__(self):
+                snapshot_started.set()
+                assert release_snapshot.wait(2.0)
+                yield "key"
+
+            def __len__(self):
+                raise AssertionError("len must not be called")
+
+        enqueue_thread = threading.Thread(target=writer.enqueue, args=(_make_event(attrs=BlockingMapping()),))
+        enqueue_thread.start()
+        assert snapshot_started.wait(2.0)
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            writer.on_shutdown()
+            release_snapshot.set()
+            enqueue_thread.join(2.0)
+
+        assert not enqueue_thread.is_alive()
+        assert writer._queue.empty()
+        _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_CLOSED)
+
+    def test_shutdown_waits_for_dequeued_event_before_final_flush(self, writer):
+        aggregate_started = threading.Event()
+        release_aggregate = threading.Event()
+        shutdown_finished = threading.Event()
+        original_aggregate = writer._aggregate
+
+        def blocking_aggregate(event: _EvalEvent) -> None:
+            aggregate_started.set()
+            assert release_aggregate.wait(3.0)
+            original_aggregate(event)
+
+        worker = PeriodicThread(0.001, target=writer._drain_queue, name="ffl3060-test-drain")
+        writer._drain_worker = worker
+        sent = []
+        with mock.patch.object(writer, "_aggregate", side_effect=blocking_aggregate):
+            with mock.patch.object(
+                writer, "_send_payload", side_effect=lambda payload, count: sent.append((payload, count))
+            ):
+                worker.start()
+                writer.enqueue(_make_event(flag_key="already-dequeued"))
+                assert aggregate_started.wait(2.0)
+
+                shutdown_thread = threading.Thread(target=lambda: (writer.on_shutdown(), shutdown_finished.set()))
+                shutdown_thread.start()
+                try:
+                    assert not shutdown_finished.wait(1.1)
+                finally:
+                    release_aggregate.set()
+                shutdown_thread.join(3.0)
+
+        assert not shutdown_thread.is_alive()
+        assert len(sent) == 1
+        row = json.loads(sent[0][0])["flagEvaluations"][0]
+        assert row["flag"]["key"] == "already-dequeued"
+
+    @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
+    def test_fork_child_resets_inherited_queue_lock_and_events(self, writer):
+        writer.enqueue(_make_event(flag_key="parent-only"))
+        parent_queue = writer._queue
+        read_fd, write_fd = os.pipe()
+        child_pid = -1
+        parent_queue.mutex.acquire()
+        try:
+            child_pid = os.fork()
+            if child_pid == 0:
+                try:
+                    os.close(read_fd)
+                    writer.enqueue(_make_event(flag_key="child-only"))
+                    child_event = writer._queue.get_nowait()
+                    os.write(write_fd, f"{child_event.flag_key}:{writer._queue.qsize()}".encode())
+                finally:
+                    os._exit(0)
+        finally:
+            parent_queue.mutex.release()
+            os.close(write_fd)
+
+        try:
+            readable, _, _ = select.select([read_fd], [], [], 3.0)
+            assert readable, "fork child blocked on an inherited queue lock"
+            assert os.read(read_fd, 128) == b"child-only:0"
+            _, status = os.waitpid(child_pid, 0)
+            assert os.waitstatus_to_exitcode(status) == 0
+        finally:
+            os.close(read_fd)
+            if child_pid > 0:
+                try:
+                    waited, _ = os.waitpid(child_pid, os.WNOHANG)
+                except ChildProcessError:
+                    waited = child_pid
+                if waited == 0:
+                    os.kill(child_pid, 9)
+                    os.waitpid(child_pid, 0)
+
+        assert writer._queue is parent_queue
+        assert writer._queue.get_nowait().flag_key == "parent-only"
+
     def test_background_drain_accumulates_beyond_queue_size_before_flush(self):
         """A flush window can exceed the bounded queue size and naturally degrade."""
         sent = []
@@ -915,8 +1447,9 @@ class TestShutdownDrain:
                                     )
                                 )
                             assert _wait_until(lambda: w._queue.empty())
-                            with w._lock:
+                            with w._counter_lock:
                                 assert w._dropped_queue == 0
+                            with w._lock:
                                 assert w._degraded
                         finally:
                             w.stop()
@@ -939,25 +1472,153 @@ class TestShutdownDrain:
 
 
 class TestObservableDropCounters:
-    def test_queue_overflow_drop_count_is_logged_on_flush(self, writer):
-        """Queue-full drops increment _dropped_queue AND are surfaced (logged) on flush."""
-        # Fill the queue so the next enqueue drops.
-        for i in range(QUEUE_SIZE):
-            writer._queue.put_nowait(_make_event(flag_key=f"f{i}"))
-        writer.enqueue(_make_event(flag_key="dropped"))
-        assert writer._dropped_queue == 1
+    def test_pre_queue_counter_does_not_wait_for_aggregation_lock(self, writer):
+        writer._queue = queue.Queue(maxsize=1)
+        writer._queue.put_nowait(_make_event(flag_key="queued"))
+        finished = threading.Event()
 
-        # Drain everything (so maps are populated) and assert the drop count is emitted.
-        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.logger") as mock_logger:
-            with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
-                with mock.patch.object(writer, "_send_payload"):
-                    writer.periodic()
-            # A warning naming the queue-full drop count must have been emitted.
-            warnings = [c for c in mock_logger.warning.call_args_list if "queue full" in str(c).lower()]
-            assert warnings, "queue-full drop count must be logged (observable)"
-            _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_QUEUE_OVERFLOW)
-        # Counter resets after emission.
+        with writer._lock:
+            enqueue_thread = threading.Thread(
+                target=lambda: (writer.enqueue(_make_event(flag_key="dropped")), finished.set())
+            )
+            enqueue_thread.start()
+            assert finished.wait(2.0)
+
+        enqueue_thread.join(2.0)
+        assert writer._dropped_pre_queue == 1
+
+    def test_pre_queue_overflow_drop_count_is_emitted_and_reset(self, writer):
+        writer._queue = queue.Queue(maxsize=1)
+        writer._queue.put_nowait(_make_event(flag_key="queued"))
+        writer.enqueue(_make_event(flag_key="dropped"))
+        assert writer._dropped_pre_queue == 1
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            with mock.patch.object(writer, "_send_payload"):
+                writer.periodic()
+
+        _assert_count_metric(
+            mock_count,
+            FLAG_EVALUATION_DROPPED_METRIC,
+            1,
+            FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW,
+        )
+        _assert_no_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, FLAG_EVALUATION_REASON_QUEUE_OVERFLOW)
+        assert writer._dropped_pre_queue == 0
+
+    def test_send_site_queue_race_is_emitted_and_reset_without_aggregate_rows(self, writer):
+        with mock.patch.object(writer._queue, "full", return_value=False):
+            with mock.patch.object(writer._queue, "put_nowait", side_effect=queue.Full):
+                writer.enqueue(_make_event(flag_key="race"))
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            writer.periodic()
+
+        _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_QUEUE_OVERFLOW)
+        _assert_no_count_metric(
+            mock_count,
+            FLAG_EVALUATION_DROPPED_METRIC,
+            FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW,
+        )
         assert writer._dropped_queue == 0
+
+    def test_context_truncation_counts_once_per_event_per_reason_and_resets_without_rows(self, writer):
+        attrs = {
+            "long-value": "v" * (MAX_VALUE_LENGTH + 1),
+            "k" * (MAX_KEY_LENGTH + 1): "value",
+        }
+        writer.enqueue(_make_event(attrs=attrs))
+        writer.enqueue(_make_event(attrs=attrs))
+        writer._queue.get_nowait()
+        writer._queue.get_nowait()
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            writer.periodic()
+
+        _assert_count_metric(
+            mock_count,
+            FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
+            2,
+            CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,
+        )
+        _assert_count_metric(
+            mock_count,
+            FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
+            2,
+            CONTEXT_TRUNCATION_MAX_KEY_LENGTH,
+        )
+        assert writer._context_truncated == {}
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as next_flush_count:
+            writer.periodic()
+        _assert_no_count_metric(
+            next_flush_count,
+            FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
+            CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,
+        )
+
+    def test_all_context_truncation_reasons_are_emitted(self, writer):
+        writer.enqueue(_make_event(flag_key="fields", attrs={str(i): "v" for i in range(MAX_CONTEXT_FIELDS + 1)}))
+        writer.enqueue(_make_event(flag_key="key", attrs={"k" * (MAX_KEY_LENGTH + 1): "v"}))
+        writer.enqueue(_make_event(flag_key="value", attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}))
+        writer.enqueue(
+            _make_event(
+                flag_key="list",
+                attrs={"values": ["v" * (MAX_VALUE_LENGTH + 1)] * (MAX_LIST_ELEMENTS + 1)},
+            )
+        )
+        writer.enqueue(
+            _make_event(
+                flag_key="structure",
+                attrs={"nested": {str(i): "v" * (MAX_VALUE_LENGTH + 1) for i in range(MAX_STRUCTURE_PROPERTIES + 1)}},
+            )
+        )
+        writer.enqueue(_make_event(flag_key="depth", attrs={"a": {"b": {"c": {"d": {"e": {"f": "v"}}}}}}))
+        cyclic = {}
+        cyclic["self"] = cyclic
+        writer.enqueue(_make_event(flag_key="cycle", attrs=cyclic))
+        writer.enqueue(_make_event(flag_key="error", attrs={"unsupported": object()}))
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
+            writer.enqueue(_make_event(flag_key="visited", attrs={"nested": {"value": "v"}}))
+
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            with mock.patch.object(writer, "_send_payload"):
+                writer.periodic()
+
+        emitted_reasons = {
+            call.args[3][0][1]
+            for call in mock_count.call_args_list
+            if call.args[1] == FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC
+        }
+        assert emitted_reasons == {
+            CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS,
+            CONTEXT_TRUNCATION_MAX_KEY_LENGTH,
+            CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,
+            CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS,
+            CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,
+            CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH,
+            CONTEXT_TRUNCATION_MAX_VISITED_NODES,
+            CONTEXT_TRUNCATION_CYCLE,
+            CONTEXT_TRUNCATION_SNAPSHOT_ERROR,
+        }
+
+    def test_duplicate_truncation_reason_is_counted_once_per_event(self, writer):
+        writer.enqueue(
+            _make_event(
+                attrs={
+                    "first": "v" * (MAX_VALUE_LENGTH + 1),
+                    "second": "v" * (MAX_VALUE_LENGTH + 1),
+                }
+            )
+        )
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            writer.periodic()
+        _assert_count_metric(
+            mock_count,
+            FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
+            1,
+            CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,
+        )
 
     def test_degraded_overflow_drop_count_is_logged_on_flush(self, writer):
         """Degraded-cap overflow drops increment _dropped_degraded_overflow AND are logged."""
@@ -989,4 +1650,5 @@ class TestObservableDropCounters:
         full_counts = sum(e.count for e in writer._full.values())
         assert full_counts == 3  # 2 (a) + 1 (b)
         assert writer._dropped_degraded_overflow == 0
+        assert writer._dropped_pre_queue == 0
         assert writer._dropped_queue == 0

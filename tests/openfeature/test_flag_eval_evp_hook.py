@@ -28,7 +28,7 @@ def _make_hook_context(
     targeting_key: str = "user-1",
     attrs: dict = None,
 ) -> HookContext:
-    ctx = EvaluationContext(targeting_key=targeting_key, attributes=attrs or {})
+    ctx = EvaluationContext(targeting_key=targeting_key, attributes=attrs if attrs is not None else {})
     return HookContext(
         flag_key=flag_key,
         flag_type=FlagType.BOOLEAN,
@@ -51,7 +51,7 @@ def _make_details(
         value=value,
         variant=variant,
         reason=reason,
-        flag_metadata=flag_metadata or {},
+        flag_metadata=flag_metadata if flag_metadata is not None else {},
         error_message=error_message,
         error_code=error_code,
     )
@@ -151,15 +151,24 @@ class TestFlagEvalEVPHook:
         event = writer.enqueue.call_args[0][0]
         assert event.targeting_key == "user-99"
 
-    def test_finally_after_extracts_attrs_shallow_copy(self, hook, writer):
+    def test_finally_after_borrows_attrs_for_synchronous_writer_snapshot(self, hook, writer):
         attrs = {"tier": "premium", "region": "us-west"}
         hc = _make_hook_context(attrs=attrs)
         details = _make_details()
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
-        assert event.attrs == attrs
-        # Must be a copy, not the same object.
-        assert event.attrs is not attrs
+        assert event.attrs is attrs
+
+    def test_finally_after_does_not_use_attribute_mapping_truthiness(self, hook, writer):
+        class FalseMapping(dict):
+            def __bool__(self):
+                return False
+
+        attrs = FalseMapping(tier="premium")
+        hc = _make_hook_context(attrs=attrs)
+        hook.finally_after(hc, _make_details(), {})
+        event = writer.enqueue.call_args[0][0]
+        assert event.attrs is attrs
 
     def test_finally_after_extracts_allocation_key(self, hook, writer):
         hc = _make_hook_context()

@@ -5,13 +5,13 @@ Implements a two-tier aggregation design (full → degraded → drop-counted). U
 PeriodicService + get_connection() transport path as the exposure writer in writer.py.
 
 Key design properties:
-- Async, best-effort recording: the finally_after hook does cheap capture + non-blocking
-  enqueue. The writer bounds context before queueing; aggregate/flush work happens in the
-  background worker.
+- Async, best-effort recording: the finally_after hook invokes a bounded context snapshot
+  and non-blocking enqueue. Aggregate/flush work happens in the background worker.
 - Two-tier aggregation (full → degraded → drop-counted).
 - Canonical context key: sorted, type-tagged, length-delimited — NOT a hash, so distinct
   contexts always produce distinct keys with no collisions.
-- Context pruning: ≤256 fields, string values ≤256 chars.
+- Context snapshotting: one bounded pass with inline field, key, value, container-width,
+  depth, cycle, and visited-node caps.
 - Caps: GLOBAL_CAP=131_072 (full-tier), PER_FLAG_CAP=10_000 (per-flag full-tier),
   DEGRADED_CAP=32_768 (degraded-tier). Beyond the degraded cap: drop-and-count.
 - Eval-time from metadata key "dd.eval.timestamp_ms"; fallback to enqueue-time.
@@ -23,15 +23,17 @@ Key design properties:
 
 from collections.abc import Mapping
 from collections.abc import Sequence
+from datetime import datetime
 import http.client as httplib
 import json
 import queue
 import struct
-import threading
 import time
+from types import MappingProxyType
 import typing
 
 from ddtrace import config as ddconfig
+from ddtrace.internal import forksafe
 from ddtrace.internal.evp_proxy.constants import DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
@@ -54,10 +56,29 @@ EVP_SUBDOMAIN_VALUE = EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 FLAGEVALUATIONS_PAYLOAD_SIZE_LIMIT = DEFAULT_EVP_PAYLOAD_SIZE_LIMIT
 _JSON_SEPARATORS = (",", ":")
 
-# Context pruning limits — mirror worker.ts MAX_EVALUATION_CONTEXT_FIELDS / MAX_FIELD_LENGTH.
+# Cross-SDK context snapshot limits.
 MAX_CONTEXT_FIELDS = 256
-MAX_FIELD_LENGTH = 256
+MAX_KEY_LENGTH = 256
+MAX_VALUE_LENGTH = 256
+# Backward-compatible alias used by existing internal tests and benchmarks.
+MAX_FIELD_LENGTH = MAX_VALUE_LENGTH
+MAX_LIST_ELEMENTS = 256
+MAX_STRUCTURE_PROPERTIES = 256
+MAX_SNAPSHOT_DEPTH = 4
+MAX_VISITED_NODES = MAX_CONTEXT_FIELDS * (MAX_SNAPSHOT_DEPTH + 1)
 DEDICATED_TARGETING_KEY_CONTEXT_FIELDS = frozenset(("targetingKey", "targeting_key"))
+
+CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS = "max_context_fields"
+CONTEXT_TRUNCATION_MAX_KEY_LENGTH = "max_key_length"
+CONTEXT_TRUNCATION_MAX_VALUE_LENGTH = "max_value_length"
+CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS = "max_list_elements"
+CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES = "max_structure_properties"
+CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH = "max_snapshot_depth"
+CONTEXT_TRUNCATION_MAX_VISITED_NODES = "max_visited_nodes"
+CONTEXT_TRUNCATION_CYCLE = "cycle"
+CONTEXT_TRUNCATION_SNAPSHOT_ERROR = "snapshot_error"
+
+_EMPTY_CONTEXT: typing.Mapping[str, typing.Any] = MappingProxyType({})
 
 # Aggregation caps (sized for a >=2,500-flag scale target).
 EVAL_SCALE_TARGET_FLAGS = 2_500
@@ -92,10 +113,17 @@ _TAG_INT = b"i"
 _TAG_FLOAT = b"f"
 _TAG_OTHER = b"o"
 
+
+class _JSONSafeOtherString(str):
+    """Immutable JSON string retaining the prior canonical-key type distinction."""
+
+
 FLAG_EVALUATION_DROPPED_METRIC = "flagevaluation.rows.dropped"
 FLAG_EVALUATION_DEGRADED_METRIC = "flagevaluation.rows.degraded"
 FLAG_EVALUATION_SPLITS_METRIC = "flagevaluation.payload.splits"
+FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC = "flagevaluation.context.truncated"
 
+FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW = "pre_queue_overflow"
 FLAG_EVALUATION_REASON_QUEUE_OVERFLOW = "queue_overflow"
 FLAG_EVALUATION_REASON_CLOSED = "closed"
 FLAG_EVALUATION_REASON_DEGRADED_CAP = "degraded_cap"
@@ -134,27 +162,31 @@ def _length_delimited(data: bytes) -> bytes:
 
 
 def _encode_context_value(v: typing.Any) -> bytes:
-    """Encode a single context value with a type tag + length-delimited value."""
-    if isinstance(v, bool):
-        # bool must be checked before int because bool is a subclass of int in Python.
+    """Encode a validated context scalar with a type tag and bounded representation."""
+    if type(v) is bool:
         tag = _TAG_BOOL
         raw = b"true" if v else b"false"
-    elif isinstance(v, int):
+    elif type(v) is int:
         tag = _TAG_INT
-        raw = str(v).encode()
-    elif isinstance(v, float):
+        raw = str(v).encode("ascii")
+    elif type(v) is float:
         tag = _TAG_FLOAT
-        raw = repr(v).encode()
-    elif isinstance(v, str):
-        tag = _TAG_STR
-        raw = v.encode("utf-8", errors="replace")
-    else:
+        raw = float.__repr__(v).encode("ascii")
+    elif v is None:
         tag = _TAG_OTHER
-        raw = str(v).encode("utf-8", errors="replace")
+        raw = b"None"
+    elif type(v) is _JSONSafeOtherString:
+        tag = _TAG_OTHER
+        raw = str.encode(v, "utf-8", errors="replace")
+    elif type(v) is str:
+        tag = _TAG_STR
+        raw = str.encode(v, "utf-8", errors="replace")
+    else:
+        raise TypeError("context value was not validated")
     return tag + _length_delimited(raw)
 
 
-def canonical_context_key(attrs: dict[str, typing.Any]) -> str:
+def canonical_context_key(attrs: typing.Optional[typing.Mapping[str, typing.Any]]) -> str:
     """
     Build the EXACT, comparable canonical-context string key for a pruned context dict.
 
@@ -167,7 +199,7 @@ def canonical_context_key(attrs: dict[str, typing.Any]) -> str:
 
     Returns "" for empty/None attrs.
     """
-    if not attrs:
+    if attrs is None:
         return ""
     parts = []
     for k in sorted(attrs.keys()):
@@ -176,88 +208,266 @@ def canonical_context_key(attrs: dict[str, typing.Any]) -> str:
     return b"".join(parts).decode("latin-1")  # lossless binary → str for dict key
 
 
-def flatten_and_prune_context(attrs: dict[str, typing.Any]) -> dict[str, typing.Any]:
+def flatten_and_prune_context(
+    attrs: typing.Optional[typing.Mapping[str, typing.Any]],
+) -> tuple[typing.Mapping[str, typing.Any], frozenset[str]]:
+    """Create an immutable, flattened context snapshot in one bounded traversal.
+
+    Mapping insertion order determines which fields survive truncation. Every mapping
+    property and sequence element is charged before its key or value is inspected.
     """
-    Flatten nested dicts (dot-notation) and apply 256-field / 256-char prune.
+    if attrs is None:
+        return _EMPTY_CONTEXT, frozenset()
+    if not isinstance(attrs, Mapping):
+        raise TypeError("evaluation context attributes must be a mapping")
 
-    Returns a new dict with at most MAX_CONTEXT_FIELDS entries, skipping string values
-    that exceed MAX_FIELD_LENGTH. Keys are chosen deterministically (sorted order) so
-    identical contexts always produce identical pruned maps.
+    output: dict[str, typing.Any] = {}
+    reasons: set[str] = set()
+    budget = [MAX_VISITED_NODES]
+    _flatten_mapping("", attrs, output, {id(attrs)}, 0, reasons, budget, root=True)
+    return MappingProxyType(output), frozenset(reasons)
 
-    Returns {} when the input is empty or all values are pruned.
-    """
-    if not attrs:
-        return {}
 
-    flat: dict[str, typing.Any] = {}
-    _flatten_recursive("", attrs, flat, set())
-    if not flat:
-        return {}
+def _consume_budget(budget: list[int], reasons: set[str]) -> bool:
+    if budget[0] <= 0:
+        reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
+        return False
+    budget[0] -= 1
+    return True
 
-    # Fast path: no pruning needed.
-    needs_prune = len(flat) > MAX_CONTEXT_FIELDS
-    if not needs_prune:
-        for v in flat.values():
-            if isinstance(v, str) and len(v) > MAX_FIELD_LENGTH:
-                needs_prune = True
-                break
-    if not needs_prune:
-        return flat
 
-    # Deterministic prune: sort keys, keep first MAX_CONTEXT_FIELDS non-oversized values.
-    out: dict[str, typing.Any] = {}
-    count = 0
-    for k in sorted(flat.keys()):
-        if count >= MAX_CONTEXT_FIELDS:
-            break
-        v = flat[k]
-        if isinstance(v, str) and len(v) > MAX_FIELD_LENGTH:
+def _bounded_lookahead(
+    iterator: typing.Iterator[typing.Any],
+    output: dict[str, typing.Any],
+    reasons: set[str],
+    budget: list[int],
+    width_reason: str,
+    width_reached: bool,
+) -> None:
+    """Inspect at most one extra item to distinguish an exact cap from truncation."""
+    budget_exhausted = budget[0] == 0
+    field_limit_reached = len(output) >= MAX_CONTEXT_FIELDS
+    try:
+        next(iterator)
+    except StopIteration:
+        return
+    except Exception:
+        # A boundary lookahead must not erase the valid retained prefix. An
+        # exhaustion probe is terminal even when the iterator fails, otherwise
+        # every ancestor could invoke one more caller-owned iterator operation.
+        if budget_exhausted:
+            budget[0] = -1
+            reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
+            if field_limit_reached:
+                reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
+            if width_reached:
+                reasons.add(width_reason)
+            return
+        if field_limit_reached:
+            budget[0] = -2
+            reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
+            if width_reached:
+                reasons.add(width_reason)
+            return
+        if width_reached:
+            reasons.add(width_reason)
+            return
+        raise
+    if budget_exhausted:
+        # A successful exhaustion probe is terminal for the whole traversal.
+        # Ancestors must not each inspect another caller-owned node while unwinding.
+        budget[0] = -1
+        reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
+    elif field_limit_reached:
+        # The field cap is global, so one successful probe is sufficient. Mark
+        # the traversal terminal before unwinding through parent containers.
+        budget[0] = -2
+    else:
+        budget[0] -= 1
+    if width_reached:
+        reasons.add(width_reason)
+    if field_limit_reached:
+        reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
+
+
+def _flatten_mapping(
+    prefix: str,
+    value: Mapping[typing.Any, typing.Any],
+    output: dict[str, typing.Any],
+    seen: set[int],
+    depth: int,
+    reasons: set[str],
+    budget: list[int],
+    root: bool = False,
+) -> None:
+    iterator = iter(value)
+    index = 0
+    while True:
+        if budget[0] < 0:
+            return
+        width_reached = index >= MAX_STRUCTURE_PROPERTIES
+        if width_reached or len(output) >= MAX_CONTEXT_FIELDS:
+            _bounded_lookahead(
+                iterator,
+                output,
+                reasons,
+                budget,
+                CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,
+                width_reached,
+            )
+            return
+        if budget[0] == 0:
+            _bounded_lookahead(
+                iterator,
+                output,
+                reasons,
+                budget,
+                CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,
+                False,
+            )
+            return
+        try:
+            child_key = next(iterator)
+        except StopIteration:
+            return
+        if not _consume_budget(budget, reasons):
+            return
+        index += 1
+        if type(child_key) is not str:
+            raise TypeError("evaluation context keys must be exact strings")
+        if root and child_key in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
             continue
-        out[k] = v
-        count += 1
-    return out
+        separator_length = 0 if not prefix else 1
+        if len(child_key) > MAX_KEY_LENGTH - len(prefix) - separator_length:
+            reasons.add(CONTEXT_TRUNCATION_MAX_KEY_LENGTH)
+            continue
+        child_prefix = child_key if not prefix else f"{prefix}.{child_key}"
+        child_value = value[child_key]
+        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, budget)
 
 
-def _json_safe_context_value(value: typing.Any) -> typing.Any:
-    return json.loads(_json_dumps(value).decode("utf-8"))
-
-
-def _json_safe_context(attrs: dict[str, typing.Any]) -> dict[str, typing.Any]:
-    return {k: _json_safe_context_value(v) for k, v in attrs.items()}
-
-
-def _flatten_recursive(prefix: str, attrs: typing.Any, out: dict[str, typing.Any], seen: set[int]) -> None:
-    """Recursively flatten nested maps and sequences into dot/bracket notation keys."""
-    if isinstance(attrs, Mapping):
-        attrs_id = id(attrs)
-        if attrs_id in seen:
+def _flatten_sequence(
+    prefix: str,
+    value: Sequence[typing.Any],
+    output: dict[str, typing.Any],
+    seen: set[int],
+    depth: int,
+    reasons: set[str],
+    budget: list[int],
+) -> None:
+    iterator = iter(value)
+    index = 0
+    while True:
+        if budget[0] < 0:
             return
-        seen.add(attrs_id)
+        width_reached = index >= MAX_LIST_ELEMENTS
+        if width_reached or len(output) >= MAX_CONTEXT_FIELDS:
+            _bounded_lookahead(
+                iterator,
+                output,
+                reasons,
+                budget,
+                CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS,
+                width_reached,
+            )
+            return
+        if budget[0] == 0:
+            _bounded_lookahead(
+                iterator,
+                output,
+                reasons,
+                budget,
+                CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS,
+                False,
+            )
+            return
         try:
-            for k, v in attrs.items():
-                if not prefix and k in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
-                    continue
-                full_key = f"{prefix}.{k}" if prefix else str(k)
-                _flatten_recursive(full_key, v, out, seen)
+            child_value = next(iterator)
+        except StopIteration:
+            return
+        if not _consume_budget(budget, reasons):
+            return
+        # AIDEV-NOTE: Keep Python's existing tags[0] list notation. Changing it
+        # to tags.0 requires explicit backend-owner approval under FFL-3060.
+        suffix_length = len(str(index)) + 2
+        if suffix_length > MAX_KEY_LENGTH - len(prefix):
+            reasons.add(CONTEXT_TRUNCATION_MAX_KEY_LENGTH)
+            index += 1
+            continue
+        child_prefix = f"{prefix}[{index}]" if prefix else f"[{index}]"
+        index += 1
+        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, budget)
+
+
+def _validated_leaf(value: typing.Any) -> typing.Any:
+    """Return an immutable OpenFeature scalar without invoking caller conversion hooks."""
+    if value is None or type(value) in (bool, int, float):
+        # The cross-SDK contract applies MAX_VALUE_LENGTH to strings only. Numeric
+        # scalars and null retain their existing wire representation without a new cap.
+        return value
+    if type(value) is str:
+        if len(value) > MAX_VALUE_LENGTH:
+            raise ValueError(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
+        return value
+    if type(value) is datetime:
+        serialized = datetime.isoformat(value)
+        if len(serialized) > MAX_VALUE_LENGTH:
+            raise ValueError(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
+        return _JSONSafeOtherString(serialized)
+    raise TypeError("unsupported evaluation context scalar")
+
+
+def _flatten_bounded(
+    prefix: str,
+    value: typing.Any,
+    output: dict[str, typing.Any],
+    seen: set[int],
+    depth: int,
+    reasons: set[str],
+    budget: list[int],
+) -> None:
+    """Flatten one already-charged mapping property or sequence element."""
+    if isinstance(value, Mapping):
+        if depth >= MAX_SNAPSHOT_DEPTH:
+            reasons.add(CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH)
+            return
+        value_id = id(value)
+        if value_id in seen:
+            reasons.add(CONTEXT_TRUNCATION_CYCLE)
+            return
+        seen.add(value_id)
+        try:
+            _flatten_mapping(prefix, value, output, seen, depth + 1, reasons, budget)
         finally:
-            seen.remove(attrs_id)
+            seen.remove(value_id)
         return
 
-    if isinstance(attrs, Sequence) and not isinstance(attrs, (str, bytes, bytearray)):
-        attrs_id = id(attrs)
-        if attrs_id in seen:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        if depth >= MAX_SNAPSHOT_DEPTH:
+            reasons.add(CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH)
             return
-        seen.add(attrs_id)
+        value_id = id(value)
+        if value_id in seen:
+            reasons.add(CONTEXT_TRUNCATION_CYCLE)
+            return
+        seen.add(value_id)
         try:
-            for idx, value in enumerate(attrs):
-                full_key = f"{prefix}[{idx}]" if prefix else f"[{idx}]"
-                _flatten_recursive(full_key, value, out, seen)
+            _flatten_sequence(prefix, value, output, seen, depth + 1, reasons, budget)
         finally:
-            seen.remove(attrs_id)
+            seen.remove(value_id)
         return
 
-    if prefix:
-        out[prefix] = attrs
+    try:
+        output[prefix] = _validated_leaf(value)
+    except ValueError as exc:
+        if exc.args == (CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,):
+            reasons.add(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
+            return
+        raise
+
+
+def _json_safe_context(attrs: typing.Mapping[str, typing.Any]) -> dict[str, typing.Any]:
+    return dict(attrs)
 
 
 # ---------------------------------------------------------------------------
@@ -283,7 +493,7 @@ class _Entry:
         eval_time_ms: int,
         runtime_default: bool,
         targeting_key: str,
-        context_attrs: dict[str, typing.Any],
+        context_attrs: typing.Mapping[str, typing.Any],
         error_message: str,
     ) -> None:
         self.count: int = 1
@@ -292,7 +502,7 @@ class _Entry:
         self.runtime_default: bool = runtime_default
         # Full-tier only:
         self.targeting_key: str = targeting_key
-        self.context_attrs: dict[str, typing.Any] = context_attrs
+        self.context_attrs: dict[str, typing.Any] = dict(context_attrs)
         self.error_message: str = error_message
 
     def observe(self, eval_time_ms: int) -> None:
@@ -311,7 +521,7 @@ class _EvalEvent(typing.NamedTuple):
     variant: str  # "" when absent (= runtime_default)
     allocation_key: str
     targeting_key: str
-    attrs: dict[str, typing.Any]  # flattened and pruned context snapshot
+    attrs: typing.Mapping[str, typing.Any]  # immutable, flattened context snapshot once queued
     runtime_default: bool
     error_message: str
     eval_time_ms: int
@@ -338,6 +548,28 @@ class _PayloadBuildResult(typing.NamedTuple):
     payloads: list[tuple[bytes, int]]
     degraded_payload_limit: int = 0
     dropped_payload_limit: int = 0
+
+
+class _FlagEvaluationQueue(queue.Queue[_EvalEvent]):
+    """No-argument queue type used by ResetObject after a fork."""
+
+    def __init__(self) -> None:
+        super().__init__(maxsize=QUEUE_SIZE)
+
+
+class _WriterProcessState:
+    """Aggregation and counters that must start empty in a fork child."""
+
+    def __init__(self) -> None:
+        self.full: dict[tuple[typing.Any, ...], _Entry] = {}
+        self.degraded: dict[tuple[typing.Any, ...], _Entry] = {}
+        self.per_flag_count: dict[str, int] = {}
+        self.global_count = 0
+        self.dropped_pre_queue = 0
+        self.dropped_queue = 0
+        self.dropped_degraded_overflow = 0
+        self.context_truncated: dict[str, int] = {}
+        self.context_snapshot_error_logged = False
 
 
 # ---------------------------------------------------------------------------
@@ -371,23 +603,92 @@ class FlagEvaluationWriter(PeriodicService):
             EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_VALUE,
         }
 
-        # Async hand-off queue: non-blocking, bounded.
-        self._queue: "queue.Queue[_EvalEvent]" = queue.Queue(maxsize=QUEUE_SIZE)
+        # Queue, aggregation, and counters are process-local. ResetObject replaces
+        # them before PeriodicThread restarts in a fork child, so inherited locks,
+        # queued events, and aggregate rows cannot deadlock or be emitted twice.
+        self._queue = typing.cast("queue.Queue[_EvalEvent]", forksafe.ResetObject(_FlagEvaluationQueue))
+        self._process_state = typing.cast(_WriterProcessState, forksafe.ResetObject(_WriterProcessState))
 
-        # Aggregation maps (drained under _lock on each periodic() call). Keys are tuples of
-        # the enumerable dimensions plus (full tier) the canonical context string.
-        self._lock = threading.Lock()
-        self._full: dict[tuple[typing.Any, ...], _Entry] = {}
-        self._degraded: dict[tuple[typing.Any, ...], _Entry] = {}
-        self._per_flag_count: dict[str, int] = {}  # flag_key → full-tier bucket count
-        self._global_count: int = 0
-
-        # Observable drop counters.
-        self._dropped_queue: int = 0  # queue.Full drops (hook path)
-        self._dropped_degraded_overflow: int = 0  # degraded-cap overflow drops
+        # Aggregation is isolated from the short application-thread lifecycle/counter
+        # critical sections. All locks reset unlocked in a fork child.
+        self._lock = forksafe.Lock()
+        self._lifecycle_lock = forksafe.Lock()
+        self._counter_lock = forksafe.Lock()
 
         self._drain_worker: typing.Optional[PeriodicThread] = None
         self._accepting_events = True
+
+    @property
+    def _full(self) -> dict[tuple[typing.Any, ...], _Entry]:
+        return self._process_state.full
+
+    @_full.setter
+    def _full(self, value: dict[tuple[typing.Any, ...], _Entry]) -> None:
+        self._process_state.full = value
+
+    @property
+    def _degraded(self) -> dict[tuple[typing.Any, ...], _Entry]:
+        return self._process_state.degraded
+
+    @_degraded.setter
+    def _degraded(self, value: dict[tuple[typing.Any, ...], _Entry]) -> None:
+        self._process_state.degraded = value
+
+    @property
+    def _per_flag_count(self) -> dict[str, int]:
+        return self._process_state.per_flag_count
+
+    @_per_flag_count.setter
+    def _per_flag_count(self, value: dict[str, int]) -> None:
+        self._process_state.per_flag_count = value
+
+    @property
+    def _global_count(self) -> int:
+        return self._process_state.global_count
+
+    @_global_count.setter
+    def _global_count(self, value: int) -> None:
+        self._process_state.global_count = value
+
+    @property
+    def _dropped_pre_queue(self) -> int:
+        return self._process_state.dropped_pre_queue
+
+    @_dropped_pre_queue.setter
+    def _dropped_pre_queue(self, value: int) -> None:
+        self._process_state.dropped_pre_queue = value
+
+    @property
+    def _dropped_queue(self) -> int:
+        return self._process_state.dropped_queue
+
+    @_dropped_queue.setter
+    def _dropped_queue(self, value: int) -> None:
+        self._process_state.dropped_queue = value
+
+    @property
+    def _dropped_degraded_overflow(self) -> int:
+        return self._process_state.dropped_degraded_overflow
+
+    @_dropped_degraded_overflow.setter
+    def _dropped_degraded_overflow(self, value: int) -> None:
+        self._process_state.dropped_degraded_overflow = value
+
+    @property
+    def _context_truncated(self) -> dict[str, int]:
+        return self._process_state.context_truncated
+
+    @_context_truncated.setter
+    def _context_truncated(self, value: dict[str, int]) -> None:
+        self._process_state.context_truncated = value
+
+    @property
+    def _context_snapshot_error_logged(self) -> bool:
+        return self._process_state.context_snapshot_error_logged
+
+    @_context_snapshot_error_logged.setter
+    def _context_snapshot_error_logged(self, value: bool) -> None:
+        self._process_state.context_snapshot_error_logged = value
 
     # ------------------------------------------------------------------
     # Public API used by FlagEvalEVPHook
@@ -397,42 +698,75 @@ class FlagEvaluationWriter(PeriodicService):
         """
         Non-blocking enqueue from the finally_after hook thread.
 
-        Context is flattened/pruned before it enters the queue so queue length is not the
-        only memory bound. On queue.Full, increments _dropped_queue (observable) and
-        returns immediately — never blocks the evaluation hot path.
+        An O(1) full check avoids context work under backpressure. Otherwise context is
+        bounded, flattened, and made immutable before it enters the queue. A queue.Full
+        race at put_nowait is counted separately; this method never blocks.
         """
-        if not self._accepting_events:
-            _count_metric(FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_CLOSED)
-            logger.debug("FlagEvaluationWriter: dropped flag evaluation event after shutdown started")
+        closed = False
+        with self._lifecycle_lock:
+            if not self._accepting_events:
+                closed = True
+            elif self._queue.full():
+                with self._counter_lock:
+                    self._dropped_pre_queue += 1
+                return
+        if closed:
+            self._count_closed_drop()
             return
+
+        # Snapshot outside the lifecycle lock. Shutdown remains prompt even if a caller's
+        # bounded iterator is slow; the accepting state is rechecked before commit.
+        try:
+            bounded_attrs, truncation_reasons = flatten_and_prune_context(event.attrs)
+        except Exception:
+            bounded_attrs = _EMPTY_CONTEXT
+            truncation_reasons = frozenset((CONTEXT_TRUNCATION_SNAPSHOT_ERROR,))
+            with self._counter_lock:
+                should_log_snapshot_error = not self._context_snapshot_error_logged
+                self._context_snapshot_error_logged = True
+            if should_log_snapshot_error:
+                logger.debug("FlagEvaluationWriter: context snapshot error", exc_info=True)
 
         bounded_event = _EvalEvent(
             flag_key=event.flag_key,
             variant=event.variant,
             allocation_key=event.allocation_key,
             targeting_key=event.targeting_key,
-            attrs=flatten_and_prune_context(event.attrs) if event.attrs else {},
+            attrs=bounded_attrs,
             runtime_default=event.runtime_default,
             error_message=event.error_message,
             eval_time_ms=event.eval_time_ms,
         )
 
-        try:
-            self._queue.put_nowait(bounded_event)
-        except queue.Full:
-            with self._lock:
-                self._dropped_queue += 1
-            logger.debug(
-                "FlagEvaluationWriter: queue full — dropped flag evaluation event for %s",
-                bounded_event.flag_key,
-            )
+        closed = False
+        with self._lifecycle_lock:
+            if not self._accepting_events:
+                closed = True
+            else:
+                try:
+                    self._queue.put_nowait(bounded_event)
+                except queue.Full:
+                    with self._counter_lock:
+                        self._dropped_queue += 1
+                    logger.debug(
+                        "FlagEvaluationWriter: queue full race — dropped flag evaluation event for %s",
+                        bounded_event.flag_key,
+                    )
+                    return
+                if truncation_reasons:
+                    with self._counter_lock:
+                        for reason in truncation_reasons:
+                            self._context_truncated[reason] = self._context_truncated.get(reason, 0) + 1
+        if closed:
+            self._count_closed_drop()
 
     # ------------------------------------------------------------------
     # PeriodicService implementation
     # ------------------------------------------------------------------
 
     def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
-        self._accepting_events = True
+        with self._lifecycle_lock:
+            self._accepting_events = True
         self._drain_worker = PeriodicThread(
             DRAIN_INTERVAL,
             target=self._drain_queue,
@@ -447,7 +781,8 @@ class FlagEvaluationWriter(PeriodicService):
             raise
 
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
-        self._accepting_events = False
+        with self._lifecycle_lock:
+            self._accepting_events = False
         self._stop_drain_worker()
         super()._stop_service(*args, **kwargs)
 
@@ -461,44 +796,35 @@ class FlagEvaluationWriter(PeriodicService):
         # 1. Drain the queue into the aggregation maps.
         self._drain_queue()
 
-        # 2. Snapshot and reset under lock.
+        # 2. Atomically snapshot/reset aggregation and hook-path counters under their
+        # independent locks. Enqueue never contends on aggregation serialization.
         with self._lock:
-            dropped_queue = self._dropped_queue
             dropped_degraded = self._dropped_degraded_overflow
             full = self._full
             degraded = self._degraded
-            if not full and not degraded:
-                if dropped_queue:
-                    logger.warning(
-                        "FlagEvaluationWriter: queue full — dropped %d evaluation(s) under backpressure",
-                        dropped_queue,
-                    )
-                    _count_metric(
-                        FLAG_EVALUATION_DROPPED_METRIC,
-                        dropped_queue,
-                        FLAG_EVALUATION_REASON_QUEUE_OVERFLOW,
-                    )
-                    self._dropped_queue = 0
-                if dropped_degraded:
-                    logger.warning(
-                        "FlagEvaluationWriter: degraded cap full — dropped %d evaluation(s)",
-                        dropped_degraded,
-                    )
-                    _count_metric(
-                        FLAG_EVALUATION_DROPPED_METRIC,
-                        dropped_degraded,
-                        FLAG_EVALUATION_REASON_DEGRADED_CAP,
-                    )
-                    self._dropped_degraded_overflow = 0
-                return
-            # Reset maps.
             self._full = {}
             self._degraded = {}
             self._per_flag_count = {}
             self._global_count = 0
-            self._dropped_queue = 0
             self._dropped_degraded_overflow = 0
+        with self._counter_lock:
+            dropped_pre_queue = self._dropped_pre_queue
+            dropped_queue = self._dropped_queue
+            context_truncated = self._context_truncated
+            self._dropped_pre_queue = 0
+            self._dropped_queue = 0
+            self._context_truncated = {}
 
+        if dropped_pre_queue:
+            logger.warning(
+                "FlagEvaluationWriter: queue full before snapshot — dropped %d evaluation(s) under backpressure",
+                dropped_pre_queue,
+            )
+            _count_metric(
+                FLAG_EVALUATION_DROPPED_METRIC,
+                dropped_pre_queue,
+                FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW,
+            )
         if dropped_queue:
             logger.warning(
                 "FlagEvaluationWriter: queue full — dropped %d evaluation(s) under backpressure",
@@ -511,6 +837,11 @@ class FlagEvaluationWriter(PeriodicService):
                 dropped_degraded,
             )
             _count_metric(FLAG_EVALUATION_DROPPED_METRIC, dropped_degraded, FLAG_EVALUATION_REASON_DEGRADED_CAP)
+        for reason, count in context_truncated.items():
+            _count_metric(FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC, count, reason)
+
+        if not full and not degraded:
+            return
 
         # 3. Build payload.
         flush_time_ms = int(time.time() * 1000)
@@ -585,14 +916,19 @@ class FlagEvaluationWriter(PeriodicService):
             self._send_payload(payload, num_events)
 
     def on_shutdown(self) -> None:  # type: ignore[override]
-        """Final flush on service shutdown — drains the queue and flushes before exit."""
-        self._accepting_events = False
+        """Close intake under the enqueue commit lock, then perform the final drain."""
+        with self._lifecycle_lock:
+            self._accepting_events = False
         self._stop_drain_worker()
         self.periodic()
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _count_closed_drop(self) -> None:
+        _count_metric(FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_CLOSED)
+        logger.debug("FlagEvaluationWriter: dropped flag evaluation event after shutdown started")
 
     def _drain_queue(self) -> None:
         """Drain all pending events from the queue and aggregate them."""
@@ -609,7 +945,9 @@ class FlagEvaluationWriter(PeriodicService):
             return
         self._drain_worker = None
         worker.stop()
-        worker.join(timeout=1.0)
+        # The worker can already own a dequeued event. Wait until aggregation
+        # completes so the final periodic() call cannot snapshot before it.
+        worker.join()
 
     def _aggregate(self, event: _EvalEvent) -> None:
         """
@@ -617,12 +955,27 @@ class FlagEvaluationWriter(PeriodicService):
 
         Implements: full-tier → degraded-tier → drop-counted cascade.
         Canonical key computation happens here (off the hot path). Context was already
-        flattened and pruned before enqueue.
+        flattened, pruned, and made immutable before enqueue.
         """
-        context_attrs = event.attrs or {}
+        context_attrs = event.attrs if event.attrs is not None else _EMPTY_CONTEXT
 
-        # Build the full-tier key tuple.
-        ctx_key = canonical_context_key(context_attrs)
+        # Build the full-tier key tuple. A valid OpenFeature number can exceed
+        # Python's configured integer-to-decimal conversion limit. Keep numeric
+        # values uncapped, but isolate an unencodable context off the hook path so
+        # one dequeued event cannot abort the drain or final flush.
+        try:
+            ctx_key = canonical_context_key(context_attrs)
+        except (TypeError, ValueError, OverflowError):
+            context_attrs = _EMPTY_CONTEXT
+            ctx_key = ""
+            with self._counter_lock:
+                self._context_truncated[CONTEXT_TRUNCATION_SNAPSHOT_ERROR] = (
+                    self._context_truncated.get(CONTEXT_TRUNCATION_SNAPSHOT_ERROR, 0) + 1
+                )
+                should_log_snapshot_error = not self._context_snapshot_error_logged
+                self._context_snapshot_error_logged = True
+            if should_log_snapshot_error:
+                logger.debug("FlagEvaluationWriter: context canonicalization error", exc_info=True)
         full_key = (
             event.flag_key,
             event.variant,
