@@ -144,6 +144,8 @@ impl RemoteConfigClient {
         site=None,
         api_key=None,
         hostname=None,
+        config_root=None,
+        director_root=None,
     ))]
     fn new(
         runtime: PyRef<'_, SharedRuntimePy>,
@@ -162,6 +164,8 @@ impl RemoteConfigClient {
         site: Option<String>,
         api_key: Option<String>,
         hostname: Option<String>,
+        config_root: Option<String>,
+        director_root: Option<String>,
     ) -> PyResult<Self> {
         let rt = runtime.as_arc().clone();
 
@@ -181,10 +185,16 @@ impl RemoteConfigClient {
                 })?;
                 intake.timeout_ms = timeout_ms;
                 intake.test_token = test_token;
-                Some(
-                    AgentlessConfig::new(hostname.unwrap_or_default(), &intake)
-                        .map_err(|e| PyValueError::new_err(e.to_string()))?,
-                )
+                let mut agentless = AgentlessConfig::new(hostname.unwrap_or_default(), &intake)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?;
+                // Raw signed TUF root metadata, replacing the root embedded for this site.
+                if let Some(root) = config_root {
+                    agentless = agentless.with_config_root(root.into_bytes());
+                }
+                if let Some(root) = director_root {
+                    agentless = agentless.with_director_root(root.into_bytes());
+                }
+                Some(agentless)
             }
             None => None,
         };

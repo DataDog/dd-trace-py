@@ -59,6 +59,18 @@ class RemoteConfigClientConfig(DDConfig):
 config = RemoteConfigClientConfig()
 
 
+class RemoteConfigTufConfig(DDConfig):
+    """TUF trust roots for testing agentless Remote Configuration."""
+
+    __prefix__ = "dd.remote_configuration"
+
+    config_root = DDConfig.v(Optional[str], "config_root", default=None)
+    director_root = DDConfig.v(Optional[str], "director_root", default=None)
+
+
+tuf_config = RemoteConfigTufConfig()
+
+
 def _build_tags(tracer_version: str) -> list[tuple[str, str]]:
     """Assemble the tracer tags reported to the agent (git metadata, env, version, host)."""
     tags = ddtrace.config.tags.copy()
@@ -112,6 +124,8 @@ class RemoteConfigClient:
                     "site": ddtrace.config._dd_site,
                     "api_key": ddtrace.config._dd_api_key,
                     "hostname": get_hostname(),
+                    "config_root": tuf_config.config_root,
+                    "director_root": tuf_config.director_root,
                 }
                 if self.agentless
                 else {}

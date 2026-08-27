@@ -3311,6 +3311,20 @@
         ]
       }
     ],
+    "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_REMOTE_CONFIGURATION_ENABLED": [
       {
         "implementation": "A",
