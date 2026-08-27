@@ -1,9 +1,11 @@
-"""Python 3.15 import-time degrade: wrapping must load, wrap() still raises.
+"""Python 3.15 import-time degrade: wrapping modules must load.
 
-Until #17849 lands bytecode wrapping for 3.15, products that import wrapping
-(e.g. ModuleWatchdog) must not crash the process. wrap()/inject_hook still
-raise NotImplementedError when actually used.
+wrap() runs the existing trampoline plus the 3.15 generator/coroutine
+assemblies. Remaining NEXT_PY_VERSION gates (lazy wrapping) still degrade
+instead of crashing import. inject_hook is monitoring-based on 3.15.
 """
+
+from types import CoroutineType
 
 import pytest
 
@@ -20,18 +22,61 @@ def test_wrapping_modules_import():
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() degrade")
-def test_wrap_raises_not_implemented_on_315():
+@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() trampoline")
+def test_wrap_runs_on_315():
     from ddtrace.internal.wrapping import wrap
 
-    def f() -> None:
-        return None
+    seen: list[object] = []
 
     def wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
+        seen.append("sync")
         return wrapped(*args, **kwargs)
 
-    with pytest.raises(NotImplementedError, match="3.15"):
-        wrap(f, wrapper)
+    def f() -> int:
+        return 7
+
+    wrap(f, wrapper)
+    assert f() == 7
+    assert seen == ["sync"]
+
+    def gen_wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
+        for value in wrapped(*args, **kwargs):
+            yield value
+
+    def g():  # noqa: ANN202
+        yield 1
+        yield 2
+
+    wrap(g, gen_wrapper)
+    assert list(g()) == [1, 2]
+
+
+@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() coroutine")
+@pytest.mark.asyncio
+async def test_wrap_coroutine_on_315():
+    from ddtrace.internal.wrapping import wrap
+
+    seen: list[object] = []
+
+    def wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
+        result = wrapped(*args, **kwargs)
+        if isinstance(result, CoroutineType):
+
+            async def _await(coro):  # noqa: ANN001, ANN202
+                value = await coro
+                seen.append(value)
+                return value
+
+            return _await(result)
+        seen.append(result)
+        return result
+
+    async def c() -> int:
+        return 42
+
+    wrap(c, wrapper)
+    assert await c() == 42
+    assert seen == [42]
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} lazy module degrade")
@@ -66,9 +111,10 @@ def test_debugging_products_load_without_failure():
         assert product_name not in product_manager._failed
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} inject_hook degrade")
-def test_inject_hook_raises_not_implemented_on_315():
+@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} inject_hook")
+def test_inject_hook_does_not_raise_on_315():
     from ddtrace.internal.bytecode_injection import inject_hook
+    from ddtrace.internal.utils.inspection import linenos
 
     def f() -> None:
         return None
@@ -76,5 +122,4 @@ def test_inject_hook_raises_not_implemented_on_315():
     def hook(_arg: object) -> None:
         return None
 
-    with pytest.raises(NotImplementedError, match="3.15"):
-        inject_hook(f, hook, f.__code__.co_firstlineno, None)
+    inject_hook(f, hook, min(linenos(f)), None)
