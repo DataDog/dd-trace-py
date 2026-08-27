@@ -6,10 +6,8 @@ from functools import lru_cache
 import inspect
 from io import StringIO
 import logging
-import os
 from pathlib import Path
 import random
-import sys
 import traceback
 import typing as t
 
@@ -1588,35 +1586,6 @@ def pytest_load_initial_conftests(
         log.error("%s", e)
         yield
         return
-
-    # Fix: when running via `python -m pytest`, sys.argv[0] is pytest's
-    # __init__.py path, which detect_service incorrectly treats as a test
-    # file path, producing service='pytest'. When running via the `pytest`
-    # console script, sys.argv[0] is 'pytest' (skipped by detect_service), so
-    # the service is correctly inferred from the actual test file path.
-    # Re-derive the service from sys.argv with __init__.py filtered out,
-    # matching the console-script behavior.
-    import ddtrace.internal.settings._inferred_base_service as _ibs
-
-    _clean_argv = [
-        a for i, a in enumerate(sys.argv) if not (i == 0 and os.path.basename(a) in ("__init__.py", "__main__.py"))
-    ]
-    _corrected_service = _ibs.detect_service(_clean_argv)
-    if _corrected_service and _corrected_service != session_manager.service:
-        session_manager.service = _corrected_service
-        session_manager.session.set_service(_corrected_service)
-        # Also fix BaseServiceProcessor._global_service, which was set
-        # from config.service at import time (before this fix).
-        # The _dd.base_service meta tag is derived from _global_service.
-        import ddtrace as _ddtrace
-        from ddtrace.internal.schema import schematize_service_name
-
-        _aggregator = _ddtrace.tracer._span_aggregator
-        _processors: list[t.Any] = getattr(_aggregator, "_dd_processors", [])
-        for _proc in _processors:
-            if hasattr(_proc, "_global_service"):
-                setattr(_proc, "_global_service", schematize_service_name(_corrected_service.lower()))  # type: ignore[operator]
-                break
 
     # When running with xdist, let the workers reuse what this controller fetched instead of querying the backend.
     _stash_set(early_config, XDIST_MANIFEST_STASH_KEY, generate_xdist_manifest(session_manager, args))

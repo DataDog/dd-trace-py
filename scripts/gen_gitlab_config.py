@@ -639,7 +639,14 @@ def _emit_ddtest_jobs(
     emit_services(plan=True)
     emit_before_script(plan=True)
     riot_hashes = " ".join(h for h, _ in venvs)
-    emit_variables({"DDTEST_NODES": str(k), "PYTEST_ADDOPTS": pytest_addopts, "RIOT_HASHES": riot_hashes})
+    emit_variables(
+        {
+            "DDTEST_NODES": str(k),
+            "PYTEST_ADDOPTS": pytest_addopts,
+            "RIOT_HASHES": riot_hashes,
+            "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
+        }
+    )
     if retry is not None:
         print(f"  retry: {retry}", file=f)
     if timeout is not None:
@@ -662,7 +669,11 @@ def _emit_ddtest_jobs(
     print("      artifacts: true", file=f)
     emit_services(plan=False)
     emit_before_script(plan=False)
-    emit_variables({"PYTEST_ADDOPTS": pytest_addopts} if pytest_addopts else None)
+    emit_variables(
+        {"PYTEST_ADDOPTS": pytest_addopts, "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"}
+        if pytest_addopts
+        else {"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"}
+    )
     print("  parallel:", file=f)
     print("    matrix:", file=f)
     for h, py in venvs:
