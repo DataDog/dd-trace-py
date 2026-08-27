@@ -219,12 +219,12 @@ class AnnotationContext:
 
 
 class EvaluationContext:
-    """Context manager returned by LLMObs.evaluation(); yields the judge root span and finishes it.
+    """Context manager returned by LLMObs.evaluation(); yields the judge span and finishes it.
 
-    The judge is a detached trace root, so both the caller's LLMObs and APM contexts are swapped for it
-    only for the duration of the block. Activating in __enter__ rather than at evaluation() call time is
-    what keeps a handle that is never entered from stranding the caller on the judge — in the APM
-    provider too, where it would otherwise reparent later spans under an unfinished judge.
+    Both the caller's LLMObs and APM contexts are swapped for the judge only for the duration of the
+    block. Activating in __enter__ rather than at evaluation() call time is what keeps a handle that is
+    never entered from stranding the caller on the judge — in the APM provider too, where it would
+    otherwise reparent later spans under an unfinished judge.
 
     on_error runs after the judge span has recorded the exception. A failure inside it is swallowed so
     it cannot mask the user's exception, which is never suppressed.

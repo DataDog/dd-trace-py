@@ -2579,14 +2579,9 @@ class LLMObs(Service):
         agent_service: Optional[str] = None,
         agent_version: Optional[str] = None,
         _decorator: bool = False,
-        _detach: bool = False,
     ) -> Span:
         if name is None:
             name = operation_kind
-        if _detach:
-            # Detach from any active LLMObs trace so this span becomes a standalone LLMObs root
-            # (fresh llmobs_trace_id, parent_id=undefined):
-            self._llmobs_context_provider.activate(None)
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
 
         if not self.enabled:
@@ -2792,15 +2787,17 @@ class LLMObs(Service):
         emit_error_metric: bool = True,
     ) -> EvaluationContext:
         """
-        Open a judge trace for an external (SDK-run) evaluator.
+        Open a judge span for an external (SDK-run) evaluator.
 
-        Returns a standalone root span, pre-tagged with the evaluation contract. Instrument the judge
-        inside the block with the normal ``LLMObs.llm`` / ``tool`` / ``agent`` calls — they nest under
-        this span, so a single-call and a multi-step judge produce one judge trace either way. Link the
-        resulting score to it with ``submit_evaluation(judge_span=LLMObs.export_span(judge))``.
+        Returns a span pre-tagged with the evaluation contract. Instrument the judge inside the block
+        with the normal ``LLMObs.llm`` / ``tool`` / ``agent`` calls — they nest under this span, so a
+        single-call and a multi-step judge look the same. Link the resulting score to it with
+        ``submit_evaluation(judge_span=LLMObs.export_span(judge))``.
 
-        The judge trace is reported under the agent service of the application being judged, and is
-        identified by its ``evaluated_ml_app`` tag rather than by its agent service.
+        The judge span joins the trace that is active when it is opened, so an evaluator called inline
+        appears in the trace it judged; called with no active trace (a batch or offline evaluator), it
+        is its own root. Either way it is reported under the agent service of the application being
+        judged and identified by its ``evaluated_ml_app`` tag rather than by its agent service.
 
         :param str name: The evaluation name (e.g. "relevance"). Reused as the ``submit_evaluation``
                          ``label``, so it must be non-empty and must not contain a '.'.
@@ -2815,7 +2812,7 @@ class LLMObs(Service):
                                        evaluated span, so an evaluator crash surfaces without a
                                        ``try/except``. Set False to opt out.
 
-        :returns: A context manager yielding the judge root span, so
+        :returns: A context manager yielding the judge span, so
                   ``with LLMObs.evaluation(...) as judge:`` gives you the span.
         """
         # Resolved before the disabled check so the destination and the marker tag always agree.
@@ -2851,7 +2848,6 @@ class LLMObs(Service):
             "workflow",
             name="custom_evaluator.%s" % name,
             agent_service=evaluated_agent_service,
-            _detach=True,
         )
         cls.annotate(
             span=span,
@@ -2889,7 +2885,7 @@ class LLMObs(Service):
             on_error = _emit_error_metric
 
         # _start_span left the judge active in both providers; EvaluationContext re-activates it for the
-        # block, so a handle that is never entered doesn't strand the caller on a detached root.
+        # block, so a handle that is never entered doesn't leave the caller parented to the judge.
         cls._instance._llmobs_context_provider.activate(prev_active)
         cls._instance.tracer.context_provider.activate(prev_apm)
         return EvaluationContext(
