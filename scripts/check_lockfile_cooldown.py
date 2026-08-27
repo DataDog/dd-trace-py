@@ -1,15 +1,12 @@
 #!/usr/bin/env python3
-"""Validate that every pinned version in riot lockfiles is past the cooldown.
+"""Validate that every pinned version in uv test locks is past the cooldown.
 
 This is the defense-in-depth half of the TEST-CD (APMLP-1362) supply-chain
-hardening work. ``scripts/freshvenvs.py`` already prevents the daily
-"update riot lockfiles" workflow from *triggering* on a too-fresh direct
-package, but once a lockfile recompile runs, riot calls
-``python -m piptools compile`` which has no native ``--exclude-newer``
-equivalent and may therefore resolve transitive dependencies to versions
-that are younger than the cooldown.
+hardening work. ``scripts/freshvenvs.py`` already prevents the daily lock
+update workflow from *triggering* on a too-fresh direct package. The uv
+resolver also applies this cutoff while resolving transitive dependencies.
 
-This script walks one or more lockfiles (``.riot/requirements/*.txt`` by
+This script walks one or more lockfiles (``.uv/*.txt`` by
 default), extracts every ``name==version`` pin, queries PyPI for each
 version's upload time, and exits non-zero if any pin is younger than
 ``COOLDOWN_DAYS``. CI is expected to run it after
@@ -23,7 +20,7 @@ Usage::
 
     python scripts/check_lockfile_cooldown.py [--cooldown-days 2] [PATH ...]
 
-PATH defaults to all ``.riot/requirements/*.txt`` lockfiles in the repo.
+PATH defaults to all ``.uv/*.txt`` lockfiles in the repo.
 """
 
 import argparse
@@ -41,6 +38,15 @@ import urllib.request
 
 # Keep this in sync with scripts/freshvenvs.py::COOLDOWN_DAYS.
 COOLDOWN_DAYS = 2
+
+
+def cooldown_cutoff(now: Optional[dt.datetime] = None) -> str:
+    current = now or dt.datetime.now(dt.timezone.utc)
+    if current.tzinfo is None:
+        raise ValueError("cooldown timestamp must be timezone-aware")
+    cutoff = current.astimezone(dt.timezone.utc) - dt.timedelta(days=COOLDOWN_DAYS)
+    return cutoff.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
 
 # Matches the ``name==version`` form pip-tools emits. Anchored to the
 # start of the line, tolerant of trailing inline comments / hash
@@ -178,7 +184,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "paths",
         nargs="*",
         type=pathlib.Path,
-        help="Lockfile paths. Defaults to .riot/requirements/*.txt.",
+        help="Lockfile paths. Defaults to .uv/*.txt.",
     )
     parser.add_argument(
         "--cooldown-days",
@@ -197,7 +203,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.paths:
         paths = [p for p in args.paths if p.suffix == ".txt"]
     else:
-        paths = sorted(pathlib.Path(".riot/requirements").glob("*.txt"))
+        paths = sorted(pathlib.Path(".uv").glob("*.txt"))
 
     if not paths:
         print("No lockfiles to check.", file=sys.stderr)

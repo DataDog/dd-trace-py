@@ -29,7 +29,7 @@ LATEST = ""
 # Supply-chain hardening (TEST-CD, APMLP-1362): when deciding whether the
 # packages we test against are "outdated" with respect to PyPI, we ignore
 # any release that was published less than COOLDOWN_DAYS ago. This prevents
-# the daily "update riot lockfiles" workflow from pulling in a freshly
+# the daily test-lock update workflow from pulling in a freshly
 # published (and potentially compromised) version before the broader
 # community / security tooling has had a chance to flag it.
 #
@@ -80,19 +80,20 @@ def _get_contrib_modules() -> set[str]:
     return all_integration_names
 
 
-def _get_riot_envs_including_any(contrib_modules: set[str]) -> set[str]:
-    """Return the set of riot env hashes where each env uses at least one of the given modules"""
+def _get_riot_envs_including_any(contrib_modules: set[str]) -> set[pathlib.Path]:
+    """Return uv locks for Riot environments that use one of the given modules."""
     envs = set()
-    riot_requirements_dir = pathlib.Path(".riot/requirements")
-    for item in riot_requirements_dir.iterdir():
-        if item.suffix == ".txt":
-            lockfile_content = item.read_text()
-            for contrib_module in contrib_modules:
-                if contrib_module in lockfile_content or (
-                    _integration_to_dependency_mapping_contains(contrib_module, lockfile_content)
-                ):
-                    envs.add(item.stem)
-                    break
+    for item in pathlib.Path(".uv").glob("*.txt"):
+        riot_hash = item.stem.rsplit("--", 1)[-1]
+        if len(riot_hash) != 7:
+            continue
+        lockfile_content = item.read_text()
+        for contrib_module in contrib_modules:
+            if contrib_module in lockfile_content or (
+                _integration_to_dependency_mapping_contains(contrib_module, lockfile_content)
+            ):
+                envs.add(item)
+                break
     return envs
 
 
@@ -277,10 +278,11 @@ def _get_riot_hash_to_venv_name() -> dict[str, str]:
 
 
 def _get_package_versions_from(
-    env: str, contrib_modules: set[str], riot_hash_to_venv_name: dict[str, str]
+    lockfile: pathlib.Path, contrib_modules: set[str], riot_hash_to_venv_name: dict[str, str]
 ) -> list[tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
-    lockfile_content = pathlib.Path(f".riot/requirements/{env}.txt").read_text().splitlines()
+    lockfile_content = lockfile.read_text().splitlines()
+    env = lockfile.stem.rsplit("--", 1)[-1]
     lock_packages = []
     integration = None
     dependencies: set[str] = set()
@@ -349,7 +351,7 @@ def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
 
 def _get_all_used_versions(envs, contrib_modules, riot_hash_to_venv_name) -> dict:
     """
-    Returns dict(module, set(versions)) for a venv, as defined from riot lockfiles.
+    Returns dict(module, set(versions)) for a venv, as defined from uv locks.
     """
     all_used_versions = defaultdict(set)
     for env in envs:

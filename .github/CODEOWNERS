@@ -29,7 +29,6 @@ ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
-.riot/requirements/                 @DataDog/apm-python
 .uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python

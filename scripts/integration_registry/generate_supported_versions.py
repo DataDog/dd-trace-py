@@ -32,8 +32,8 @@ CONTRIB_INTERNAL_ROOT = PROJECT_ROOT / "ddtrace" / "contrib" / "internal"
 DDTRACE_MONKEY_PATH = PROJECT_ROOT / "ddtrace" / "_monkey.py"
 SUPPORTED_VERSIONS_PATH = PROJECT_ROOT / "supported_versions.json"
 
-REQUIREMENTS_DIR = PROJECT_ROOT / ".riot" / "requirements"
-# Allows to get the version of a depency in a riot requirement files when it is formatted
+LOCKS_DIR = PROJECT_ROOT / ".uv"
+# Allows the version of a dependency to be read from a generated lock when it is formatted
 # like anyio==4.9.0
 REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^;\s]+)")
 PYTHON_VERSION_RE = re.compile(r"^\d+\.\d+$")
@@ -100,7 +100,7 @@ PATCH_MODULES = get_patch_modules()
 
 
 def get_riot_hash_to_venvs() -> dict[str, RiotVenv]:
-    """Map each generated riot requirements hash to its riot venv metadata."""
+    """Map each Riot environment hash to its venv metadata."""
     riot_venvs = {}
     for instance in riotfile.venv.instances():
         if not instance.name:
@@ -133,8 +133,8 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
     tested_versions: dict[str, dict[str, set[TestedVersion]]] = defaultdict(lambda: defaultdict(set))
     riot_hash_to_venvs = get_riot_hash_to_venvs()
 
-    for requirements_path in sorted(REQUIREMENTS_DIR.glob("*.txt")):
-        riot_hash = requirements_path.stem
+    for requirements_path in sorted(LOCKS_DIR.glob("*.txt")):
+        riot_hash = requirements_path.stem.rsplit("--", 1)[-1]
         riot_venv = riot_hash_to_venvs.get(riot_hash, None)
 
         if not riot_venv:
@@ -280,7 +280,7 @@ def build_supported_versions_entries(tested_versions_per_integration: dict[str, 
 
 
 def main() -> None:
-    """Generate supported_versions.json from riot requirement lock files."""
+    """Generate supported_versions.json from uv test locks."""
     tested_versions_per_integration = collect_tested_versions()
     SUPPORTED_VERSIONS_PATH.write_text(
         json.dumps(build_supported_versions_entries(tested_versions_per_integration), indent=4) + "\n"

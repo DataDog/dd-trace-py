@@ -6,7 +6,7 @@ components:
     - docker-compose.podman.yml
     - docker-compose.yml
     - riotfile.py
-    - .riot/requirements/*
+    - .uv/*.txt
     - scripts/ddtest
     - pyproject.toml
     - tests/conftest.py

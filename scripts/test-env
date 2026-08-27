@@ -1,0 +1,360 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "pyyaml>=6,<7",
+#     "riot==0.22.0",
+# ]
+# ///
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Sequence
+import concurrent.futures
+from contextlib import redirect_stdout
+from dataclasses import dataclass
+from pathlib import Path
+import re
+import shlex
+import subprocess
+import sys
+import tempfile
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+import riotfile  # noqa: E402
+from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
+from scripts.check_lockfile_cooldown import main as check_lockfile_cooldown  # noqa: E402
+
+
+LOCK_ROOT = Path(".uv")
+LOCK_PLATFORM = "linux"
+_SLUG_PART = re.compile(r"[^a-z0-9]+")
+_CONCRETE_PYTHON = re.compile(r"\d+\.\d+")
+_RIOT_UV_LOCK = re.compile(r".+--py\d+--[0-9a-f]{7}\.txt$")
+
+
+class LockError(RuntimeError):
+    """Raised when concrete test-environment locks cannot be generated."""
+
+
+@dataclass(frozen=True)
+class RiotEnvironment:
+    """Resolver inputs for one unique Riot dependency environment."""
+
+    name: str
+    python: str
+    riot_hash: str
+    dependencies: tuple[str, ...]
+
+    @property
+    def lockfile(self) -> Path:
+        name = _slug(self.name)
+        python = self.python.replace(".", "")
+        return LOCK_ROOT / f"{name}--py{python}--{self.riot_hash}.txt"
+
+
+def _slug(value: str) -> str:
+    return _SLUG_PART.sub("-", value.lower()).strip("-")
+
+
+def _dependencies(instance: object) -> tuple[str, ...]:
+    full_package_string = str(getattr(instance, "full_pkg_str"))
+    return tuple(shlex.split(full_package_string))
+
+
+def _python_version(instance: object) -> str:
+    python = str(instance.py._hint)
+    if _CONCRETE_PYTHON.fullmatch(python):
+        return python
+
+    versions = set()
+    for path in (PROJECT_ROOT / LOCK_ROOT).glob(f"{_slug(str(instance.name))}--py*--*.txt"):
+        try:
+            _name, python_part, _environment_hash = path.stem.rsplit("--", 2)
+        except ValueError:
+            continue
+        digits = python_part.removeprefix("py")
+        if digits.isdigit() and len(digits) >= 2:
+            versions.add(f"{digits[0]}.{digits[1:]}")
+    if len(versions) == 1:
+        return versions.pop()
+    raise LockError(f"environment does not identify one concrete Python version: {instance.name}")
+
+
+def get_environments() -> tuple[RiotEnvironment, ...]:
+    environments: dict[str, RiotEnvironment] = {}
+    for instance in riotfile.venv.instances():  # type: ignore[attr-defined]
+        if not instance.name:
+            continue
+        riot_hash = str(instance.short_hash)
+        environment = RiotEnvironment(
+            name=str(instance.name),
+            python=_python_version(instance),
+            riot_hash=riot_hash,
+            dependencies=_dependencies(instance),
+        )
+        previous = environments.setdefault(environment.riot_hash, environment)
+        if previous != environment:
+            raise LockError(f"Riot hash maps to conflicting dependency environments: {environment.riot_hash}")
+
+    paths = [environment.lockfile for environment in environments.values()]
+    if len(paths) != len(set(paths)):
+        raise LockError("multiple Riot environments map to the same uv lock")
+    return tuple(sorted(environments.values(), key=lambda environment: environment.lockfile))
+
+
+def select_environments(requested: Sequence[str] = ()) -> tuple[RiotEnvironment, ...]:
+    environments = get_environments()
+    if not requested:
+        return environments
+
+    selected = []
+    for name in requested:
+        slug = _slug(name)
+        matches = [
+            environment for environment in environments if environment.name == name or _slug(environment.name) == slug
+        ]
+        if not matches:
+            raise LockError(f"Riot has no test environment named: {name}")
+        selected.extend(matches)
+    return tuple(dict.fromkeys(selected))
+
+
+def compile_environment(environment: RiotEnvironment, *, exclude_newer: str) -> str:
+    if not environment.dependencies:
+        raise LockError(f"environment has no dependencies: {environment.riot_hash}")
+
+    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.riot_hash}-") as temporary:
+        temporary_path = Path(temporary)
+        requirements = temporary_path / "requirements.in"
+        output = temporary_path / "requirements.txt"
+        requirements.write_text("\n".join(sorted(environment.dependencies, key=str.casefold)) + "\n")
+        # Riot resolves with an installed interpreter; use a late patch so uv evaluates the same minor-version markers.
+        resolution_python = f"{environment.python}.99"
+        command = [
+            "uv",
+            "pip",
+            "compile",
+            "--python-version",
+            resolution_python,
+            "--python-platform",
+            LOCK_PLATFORM,
+            "--exclude-newer",
+            exclude_newer,
+            "--no-annotate",
+            "--no-header",
+            "--no-strip-extras",
+            "--no-progress",
+            "--no-python-downloads",
+            "--no-sources",
+            "--output-file",
+            str(output),
+            str(requirements),
+        ]
+        try:
+            subprocess.run(command, cwd=PROJECT_ROOT, check=True, text=True, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.stdout or "").strip()
+            suffix = f"\n{details}" if details else ""
+            raise LockError(f"failed to lock {environment.name}/{environment.riot_hash}{suffix}") from error
+        return output.read_text()
+
+
+def _write_lock(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
+        temporary.write(content)
+        temporary_path = Path(temporary.name)
+    temporary_path.replace(path)
+
+
+def _prune_locks(
+    expected: set[Path], selected: Sequence[RiotEnvironment], *, all_environments: bool
+) -> tuple[Path, ...]:
+    if all_environments:
+        candidates = {path for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt") if _RIOT_UV_LOCK.fullmatch(path.name)}
+    else:
+        names = {_slug(environment.name) for environment in selected}
+        candidates = {path for name in names for path in (PROJECT_ROOT / LOCK_ROOT).glob(f"{name}--py*--*.txt")}
+
+    pruned = []
+    for path in sorted(candidates):
+        relative = path.relative_to(PROJECT_ROOT)
+        if relative not in expected:
+            path.unlink()
+            pruned.append(relative)
+    return tuple(pruned)
+
+
+def generate_locks(
+    requested: Sequence[str] = (),
+    *,
+    jobs: int = 4,
+    rebuild: bool = False,
+) -> tuple[tuple[Path, ...], tuple[Path, ...], tuple[Path, ...]]:
+    environments = select_environments(requested)
+    if not environments:
+        raise LockError("no concrete test environments selected")
+
+    expected = {environment.lockfile for environment in environments}
+    pending = [
+        environment for environment in environments if rebuild or not (PROJECT_ROOT / environment.lockfile).is_file()
+    ]
+    compiled: dict[RiotEnvironment, str] = {}
+    errors = []
+    cutoff = cooldown_cutoff()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
+        futures = {
+            executor.submit(compile_environment, environment, exclude_newer=cutoff): environment
+            for environment in pending
+        }
+        for future in concurrent.futures.as_completed(futures):
+            environment = futures[future]
+            try:
+                compiled[environment] = future.result()
+            except LockError as error:
+                errors.append(error)
+    if errors:
+        raise LockError("\n\n".join(sorted(str(error) for error in errors)))
+
+    written = []
+    for environment in pending:
+        _write_lock(PROJECT_ROOT / environment.lockfile, compiled[environment])
+        written.append(environment.lockfile)
+    reused = tuple(sorted(expected - set(written)))
+    pruned = _prune_locks(expected, environments, all_environments=not requested)
+    return tuple(written), reused, pruned
+
+
+def refresh_locks(requested: str | None = None, *, jobs: int = 4) -> tuple[str, tuple[Path, ...], tuple[Path, ...]]:
+    if requested:
+        candidates = (requested,)
+    else:
+        try:
+            result = subprocess.run(
+                [sys.executable, str(PROJECT_ROOT / "scripts" / "freshvenvs.py"), "output"],
+                cwd=PROJECT_ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.stdout or "").strip()
+            raise LockError(f"failed to find outdated test environments: {details}") from error
+        candidates = tuple(result.stdout.split())
+
+    if not candidates:
+        print("No outdated test environments found.", file=sys.stderr)
+        return "", (), ()
+
+    print(f"Outdated test environments: {' '.join(candidates)}", file=sys.stderr)
+    for candidate in candidates:
+        try:
+            select_environments((candidate,))
+        except LockError:
+            if requested:
+                raise
+            print(f"No test environments found for {candidate}", file=sys.stderr)
+            continue
+
+        written, _reused, pruned = generate_locks((candidate,), jobs=jobs, rebuild=True)
+        with redirect_stdout(sys.stderr):
+            cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
+        if cooldown_status:
+            raise LockError(f"cooldown validation failed for {candidate}")
+        return candidate, written, pruned
+
+    return "", (), ()
+
+
+def check_locks() -> int:
+    environments = get_environments()
+    expected = {environment.lockfile for environment in environments}
+    actual = {
+        path.relative_to(PROJECT_ROOT)
+        for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")
+        if _RIOT_UV_LOCK.fullmatch(path.name)
+    }
+    missing = sorted(expected - actual)
+    obsolete = sorted(actual - expected)
+    if missing or obsolete:
+        details = []
+        if missing:
+            details.append("missing uv locks:\n" + "\n".join(f"  {path}" for path in missing))
+        if obsolete:
+            details.append("obsolete uv locks:\n" + "\n".join(f"  {path}" for path in obsolete))
+        raise LockError("\n".join(details))
+    return len(actual)
+
+
+def list_hashes(name: str, python_version: str | None = None) -> tuple[str, ...]:
+    requested_python = f"py{python_version.replace('.', '')}" if python_version else None
+    prefix = f"{_slug(name)}--"
+    hashes = []
+    for path in (PROJECT_ROOT / LOCK_ROOT).glob(f"{prefix}*.txt"):
+        try:
+            _name, python, environment_hash = path.stem.rsplit("--", 2)
+        except ValueError:
+            continue
+        if requested_python is None or python == requested_python:
+            hashes.append(environment_hash)
+    if not hashes:
+        raise LockError(f"no uv environments found for Riot environment: {name}")
+    return tuple(sorted(hashes))
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Manage uv locks for Riot test environments.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    list_parser = subparsers.add_parser("list", help="List environment hashes for a Riot environment.")
+    list_parser.add_argument("name", help="Riot environment name.")
+    list_parser.add_argument("--python", help="Only list hashes for this Python version.")
+
+    subparsers.add_parser("check", help="Check that Riot environments and committed uv locks match.")
+
+    lock_parser = subparsers.add_parser("lock", help="Generate missing and prune obsolete uv locks.")
+    lock_parser.add_argument("names", nargs="*", help="Riot environment names; defaults to all.")
+    lock_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
+
+    refresh_parser = subparsers.add_parser("refresh", help="Refresh one explicit or outdated Riot environment.")
+    refresh_parser.add_argument("name", nargs="?", help="Riot environment name.")
+    refresh_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
+
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "check":
+            count = check_locks()
+            print(f"Validated {count} uv locks for active Riot environments.")
+            return 0
+        if args.command == "list":
+            for environment_hash in list_hashes(args.name, args.python):
+                print(environment_hash)
+            return 0
+        if args.command == "refresh":
+            name, written, pruned = refresh_locks(args.name, jobs=args.jobs)
+            if name:
+                print(
+                    f"Wrote {len(written)} uv lock(s); pruned {len(pruned)} obsolete lock(s).",
+                    file=sys.stderr,
+                )
+                print(name)
+            return 0
+        written, reused, pruned = generate_locks(
+            args.names,
+            jobs=args.jobs,
+        )
+    except LockError as error:
+        parser.error(str(error))
+
+    print(f"Wrote {len(written)} uv lock(s); reused {len(reused)}; pruned {len(pruned)}.")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

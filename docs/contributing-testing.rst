@@ -245,7 +245,7 @@ How do I update a test environment to use the latest version of a package?
 
 Update the dependency constraint in the suite's ``Venv`` in ``riotfile.py``, run
 ``scripts/ddtest scripts/compile-and-prune-test-requirements``, and commit both ``riotfile.py`` and the resulting
-``.riot/requirements`` lock changes.
+dependency lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------
