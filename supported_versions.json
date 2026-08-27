@@ -1669,6 +1669,20 @@
                 "tested_versions": [
                     "1.17.0"
                 ]
+            },
+            "3.14": {
+                "minimum_package_version": "2.2.0",
+                "maximum_package_version": "2.2.0",
+                "tested_versions": [
+                    "2.2.0"
+                ]
+            },
+            "3.15": {
+                "minimum_package_version": "2.2.0",
+                "maximum_package_version": "2.2.0",
+                "tested_versions": [
+                    "2.2.0"
+                ]
             }
         }
     },
