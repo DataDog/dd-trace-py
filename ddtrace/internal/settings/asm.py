@@ -263,8 +263,8 @@ class ASMConfig(DDConfig):
     _bypass_instrumentation_for_waf = False
     _is_testing_instrumentation_for_waf = False
 
-    # AIDEV-NOTE: Only runtime gate for IAST version support; the native extensions are not
-    # version-gated in setup.py. This bound intentionally leads requires-python (currently <3.15):
+    # TODO(py-315): Only runtime gate for IAST version support; the native extensions are not
+    # version-gated in setup.py. This bound intentionally leads requires-python in pyproject.toml:
     # IAST already works on 3.15, so do not "resync" it downwards until 3.15 ships in the matrix.
     # IAST supported on python 3.6 to 3.15 and never on windows
     _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 16, 0)) and not (
