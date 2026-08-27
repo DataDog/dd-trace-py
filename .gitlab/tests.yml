@@ -199,6 +199,8 @@ include:
       # Each xdist worker wrote to its own COVERAGE_FILE;
       # 'coverage combine' merges them so coverage can be uploaded.
       coverage combine
+
+.ddtest_run_snapshot:
   extends: .ddtest_base_snapshot
   script:
     - |
