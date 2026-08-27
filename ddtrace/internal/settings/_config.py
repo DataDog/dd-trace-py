@@ -639,6 +639,13 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+
+        self._propagation_as_span_links = _get_config(
+            "DD_TRACE_PROPAGATION_AS_SPAN_LINKS",
+            set(),
+            # Expected format: comma-separated integration names (e.g. "kafka,google_cloud_pubsub").
+            lambda x: {name.strip() for name in x.split(",") if name.strip()},
+        )
         self._baggage_tag_keys = _get_config(
             "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
         )

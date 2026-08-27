@@ -11,7 +11,6 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
@@ -19,7 +18,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
-_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
+_ContextT = TypeVar("_ContextT", bound="Context")
 
 class DDSketch:
     def __init__(self): ...
@@ -192,7 +191,7 @@ if sys.platform == "linux":
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
-    def update_otel_thread_context_from_context(context: ContextData, trace_flags: int) -> None:
+    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
         """Update the OTel thread context from an active trace Context.
 
         Invalid Context identifiers detach the current thread context. The local root span ID is
@@ -1110,7 +1109,7 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
-class ContextData:
+class Context:
     trace_id: Optional[int]
     span_id: Optional[int]
     _meta: dict[str, str]
@@ -1119,20 +1118,37 @@ class ContextData:
     _span_links: list[Any]
     _is_remote: bool
     _reactivate: bool
+    sampling_priority: Optional[Any]
+    dd_origin: Optional[str]
+    dd_user_id: Optional[str]
+    _trace_id_64bits: Optional[int]
+    _traceflags: str
+    _traceparent: str
+    _tracestate: str
 
     def __new__(
-        cls: type[_ContextDataT],
+        cls: type[_ContextT],
         trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
-        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
-        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        dd_origin: Optional[str] = None,
+        sampling_priority: Optional[float] = None,
         meta: Optional[dict[str, str]] = None,
         metrics: Optional[dict[str, Any]] = None,
-        lock: Optional[Any] = None,  # placeholder for Context.__init__
         span_links: Optional[list[Any]] = None,
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
-    ) -> _ContextDataT: ...
+    ) -> _ContextT: ...
+    def __enter__(self: _ContextT) -> _ContextT: ...
+    def __exit__(self, *args: Any) -> None: ...
+    def __getstate__(self) -> tuple: ...
+    def __setstate__(self, state: tuple) -> None: ...
+    def set_baggage_item(self, key: str, value: Any) -> None: ...
+    def get_baggage_item(self, key: str) -> Optional[Any]: ...
+    def get_all_baggage_items(self) -> dict[str, Any]: ...
+    def remove_baggage_item(self, key: str) -> None: ...
+    def remove_all_baggage_items(self) -> None: ...
+    def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
+    def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
 
 class SpanData:
     name: str
