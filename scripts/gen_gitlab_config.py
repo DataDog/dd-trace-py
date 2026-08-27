@@ -584,6 +584,16 @@ def _emit_ddtest_jobs(
                         flags = re.sub(r"--dist=\S+", "", flags).strip()
                         flags = re.sub(r"--numprocesses\s+\S+", "", flags).strip()
                         flags = re.sub(r"\s+", " ", flags).strip()
+                        # If not a nightly build, disable coverage to avoid sqlite
+                        # corruption with multiple xdist workers. Nightly needs
+                        # coverage for upload, so keep --cov (or add it if
+                        # missing) when NIGHTLY_BUILD is true.
+                        if _get_bool_env("NIGHTLY_BUILD") != "true":
+                            if "--no-cov" not in flags:
+                                flags = (flags + " --no-cov").strip()
+                        else:
+                            # Nightly: ensure coverage is enabled
+                            flags = flags.replace("--no-cov", "").strip()
                         if flags:
                             pytest_addopts = flags
                         break
