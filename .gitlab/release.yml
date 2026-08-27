@@ -15,10 +15,13 @@
     TWINE_NON_INTERACTIVE: "1"
   script:
     - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
-    - uvx --with="twine>=5.0,<7" twine check --strict pywheels/*
-    # DEV(py-315): cp315 wheels are built for internal S3 and the private prerelease index,
+    # TODO(py-315): cp315 wheels are built for internal S3 and the private prerelease index,
     # and are withheld from PyPI while Python 3.15 is unsupported. Drop this filter once
     # 3.15 is a supported target. Everything else, sdist included, is still uploaded.
+    #
+    # The list is built before "twine check" so both steps see exactly the same
+    # distributions: a malformed cp315 wheel from an allow_failure build must not fail a
+    # release whose supported wheels are all fine.
     - |
       set -eu
       set --
@@ -32,6 +35,7 @@
       fi
       printf 'Uploading %s distribution(s) to %s:\n' "$#" "${PYPI_REPOSITORY}"
       printf '  %s\n' "$@"
+      uvx --with="twine>=5.0,<7" twine check --strict "$@"
       uvx --with="twine>=5.0,<7" twine upload --repository "${PYPI_REPOSITORY}" "$@"
   artifacts:
     paths:
