@@ -1,3 +1,5 @@
+import os
+
 import pytest
 
 
@@ -395,6 +397,234 @@ runtime.refresh_identity()
 assert seen == [runtime.get_runtime_id()]
 """
     _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+
+
+@pytest.mark.parametrize("auto_enable_crashtracking", [False])
+def test_listen_for_identity_refresh_hooks_noop_does_not_import_core(monkeypatch, auto_enable_crashtracking):
+    import builtins
+
+    import ddtrace.internal.runtime as runtime
+
+    monkeypatch.setattr(runtime, "in_aws_lambda_microvm", lambda: False)
+
+    real_import = builtins.__import__
+
+    def fail_core_import(name, *args, **kwargs):
+        fromlist = kwargs.get("fromlist", ())
+        if len(args) >= 3:
+            fromlist = args[2]
+        if name == "ddtrace.internal" and "core" in fromlist:
+            raise AssertionError("listen_for_identity_refresh_hooks() imported core outside a MicroVM")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fail_core_import)
+
+    runtime.listen_for_identity_refresh_hooks(lambda _event, _callback: None)
+
+
+def test_web_request_starting_event_name_is_shared_with_contrib_event():
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+
+    assert "web.request.starting" == WebFrameworkEvents.WEB_REQUEST_STARTING.value
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_import_ddtrace_in_microvm_environment():
+    """MicroVM hook registration must not import contrib before ddtrace.config exists."""
+    import ddtrace
+
+    assert ddtrace.config is not None
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None, "_DD_GLOBAL_TRACER_INIT": "false"}, err=None)
+def test_import_ddtrace_outside_microvm_does_not_import_core():
+    """Normal ddtrace imports do not load the event core needed only by MicroVM hooks."""
+    import sys
+
+    import ddtrace  # noqa: F401
+
+    assert "ddtrace.internal.core" not in sys.modules
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_matches_microvm_run_hook():
+    """Only the exact AWS Lambda MicroVM /run hook request triggers a refresh."""
+    import ddtrace.internal.runtime as runtime
+
+    runtime_id = runtime.get_runtime_id()
+
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+
+    refreshed_runtime_id = runtime.get_runtime_id()
+    assert refreshed_runtime_id != runtime_id
+
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+
+    assert runtime.get_runtime_id() == refreshed_runtime_id
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_identity_refresh_hook_runs_before_root_span_creation():
+    """The pre-request hook must refresh runtime-id before a web root span reads it."""
+    from ddtrace import tracer
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+
+    runtime_id = runtime.get_runtime_id()
+    core.dispatch(
+        WebFrameworkEvents.WEB_REQUEST_STARTING.value, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+    )
+
+    refreshed_runtime_id = runtime.get_runtime_id()
+    assert refreshed_runtime_id != runtime_id
+
+    with tracer.trace("web.request") as span:
+        assert span.get_tag("runtime-id") == refreshed_runtime_id
+
+    core.dispatch(
+        WebFrameworkEvents.WEB_REQUEST_STARTING.value, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+    )
+
+    assert runtime.get_runtime_id() == refreshed_runtime_id
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_is_thread_safe():
+    """Concurrent observations of the same /run hook refresh identity once."""
+    import threading
+    import time
+
+    import ddtrace.internal.runtime as runtime
+
+    calls = []
+
+    def refresh_identity():
+        calls.append(1)
+        time.sleep(0.01)
+
+    runtime.refresh_identity = refresh_identity
+
+    workers = 16
+    barrier = threading.Barrier(workers)
+    errors = []
+    threads = []
+
+    def refresh_from_request_layer():
+        try:
+            barrier.wait()
+            runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+        except Exception as e:
+            errors.append(e)
+
+    for _ in range(workers):
+        thread = threading.Thread(target=refresh_from_request_layer)
+        thread.start()
+        threads.append(thread)
+
+    for thread in threads:
+        thread.join()
+
+    assert errors == []
+    assert len(calls) == 1
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_retries_after_refresh_failure():
+    """A failed identity refresh must not make later /run hooks no-op."""
+    import pytest
+
+    import ddtrace.internal.runtime as runtime
+
+    calls = []
+
+    def refresh_identity():
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("identity refresh failed")
+
+    runtime.refresh_identity = refresh_identity
+
+    with pytest.raises(RuntimeError, match="identity refresh failed"):
+        runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+
+    assert len(calls) == 2
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_microvm_refresh_guard_resets_after_fork():
+    """A child process must not inherit a locked or already-refreshed MicroVM guard."""
+    from ddtrace.internal import forksafe
+    import ddtrace.internal.runtime as runtime
+
+    runtime._IDENTITY_REFRESH_HOOK_REFRESH_LOCK.acquire()
+    runtime._IDENTITY_REFRESH_HOOK_REFRESHED.set()
+
+    forksafe.ddtrace_after_in_child()
+
+    assert runtime._IDENTITY_REFRESH_HOOK_REFRESH_LOCK.acquire(False)
+    assert not runtime._IDENTITY_REFRESH_HOOK_REFRESHED.is_set()
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_maybe_refresh_identity_ignores_other_requests():
+    """A different method/path, or the /resume hook, must not trigger a refresh."""
+    import ddtrace.internal.runtime as runtime
+
+    runtime_id = runtime.get_runtime_id()
+
+    runtime.maybe_refresh_identity("GET", runtime.MICROVM_RUN_HOOK_PATH)
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, "/aws/lambda-microvms/runtime/v1/resume")
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, "/some/other/path")
+    runtime.maybe_refresh_identity(None, runtime.MICROVM_RUN_HOOK_PATH)
+    runtime.maybe_refresh_identity(runtime.MICROVM_RUN_HOOK_METHOD, None)
+
+    assert runtime.get_runtime_id() == runtime_id
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": None}, err=None)
+def test_listen_for_identity_refresh_hooks_noop_outside_microvm():
+    """Outside a MicroVM, do not register the request-event listener."""
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+
+    core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value)
+    runtime.listen_for_identity_refresh_hooks(core.on)
+
+    runtime_id = runtime.get_runtime_id()
+
+    core.dispatch(
+        WebFrameworkEvents.WEB_REQUEST_STARTING.value, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+    )
+
+    assert runtime.get_runtime_id() == runtime_id
+
+
+@pytest.mark.parametrize("microvm_image_arn", ["", "   "])
+def test_listen_for_identity_refresh_hooks_noop_for_blank_microvm_env(run_python_code_in_subprocess, microvm_image_arn):
+    """Blank MicroVM image ARN env values must not enable hook registration."""
+    code = """
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.internal import core
+import ddtrace.internal.runtime as runtime
+
+core.reset_listeners(WebFrameworkEvents.WEB_REQUEST_STARTING.value)
+runtime.listen_for_identity_refresh_hooks(core.on)
+
+runtime_id = runtime.get_runtime_id()
+core.dispatch(
+    WebFrameworkEvents.WEB_REQUEST_STARTING.value, (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH)
+)
+
+assert runtime.get_runtime_id() == runtime_id
+"""
+    env = os.environ.copy()
+    env["AWS_LAMBDA_MICROVM_IMAGE_ARN"] = microvm_image_arn
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
 
 
