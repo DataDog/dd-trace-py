@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""Infer the base service name from DDTEST_SUITE_PATH.
+
+Under normal riot CI, the pytest command is `pytest ... ${DDTEST_SUITE_PATH}/`,
+so sys.argv's first path arg is the suite directory and detect_service() infers
+the suite's package (e.g. tests/internal -> tests.internal). Under ddtest, the
+pytest command gets the individual test *files* for this CI node, so
+detect_service(sys.argv) picks whichever file sorts first -- often a subpackage
+such as tests/internal/remoteconfig, yielding a wrong session-wide service
+(tests.internal.remoteconfig) that breaks snapshot tests asserting the
+inferred `service` field.
+
+This script computes the service detect_service() would have returned for
+the suite directory and prints it, so the ddtest run script can export it
+as _DD_PYTEST_XDIST_INFERRED_SERVICE before pytest starts. detect_service()
+short-circuits on that env var (checked before walking sys.argv), so the
+import-time call in Config.__init__ picks up the correct suite-level service.
+
+Usage:
+    export _DD_PYTEST_XDIST_INFERRED_SERVICE="$(scripts/ddtest-infer-service)"
+
+Reads DDTEST_SUITE_PATH from the environment. Prints nothing (empty) when
+the path is absent or does not resolve to a Python package.
+"""
+import os
+import pathlib
+import sys
+
+
+def deduce_package_name(fp: pathlib.Path) -> str:
+    """Replicate PythonDetector.deduce_package_name from ddtrace.
+
+    Walks the path up while __init__.py exists, joining directory names with '.'.
+    Returns '' if no __init__.py is found (not a package).
+    """
+    up = fp.parent
+    current = fp
+    traversed = []
+    while current != up:
+        if not (current / "__init__.py").exists():
+            break
+        traversed.insert(0, current.name)
+        current = up
+        up = current.parent
+    return ".".join(traversed)
+
+
+def main() -> None:
+    suite_path = os.environ.get("DDTEST_SUITE_PATH", "")
+    if not suite_path:
+        return
+    # Strip any ::class or ::node selector (ddtest suite paths may include them).
+    suite_path = suite_path.split("::")[0]
+    try:
+        abs_path = pathlib.Path(suite_path).resolve()
+    except Exception:
+        return
+    if not abs_path.exists():
+        return
+    # If it's a file, start from its parent (the package directory).
+    stripped = abs_path if abs_path.is_dir() else abs_path.parent
+    name = deduce_package_name(stripped)
+    if name:
+        print(name)
+
+
+if __name__ == "__main__":
+    main()
