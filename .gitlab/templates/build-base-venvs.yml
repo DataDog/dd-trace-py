@@ -37,6 +37,15 @@ build_base_venvs:
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
+    # requires-python in pyproject.toml stops at the versions we actually
+    # support, so pip refuses riot's `pip install -e .` of the dev package on a
+    # newer interpreter we are only trialling here. Relax that check for the
+    # trial versions so their base venv can be built without advertising
+    # support we do not have. Drop a version from this list once requires-python
+    # covers it; supported versions must never appear here.
+    case "$PYTHON_VERSION" in
+      3.15) export PIP_IGNORE_REQUIRES_PYTHON=1 ;;
+    esac
     riot -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
