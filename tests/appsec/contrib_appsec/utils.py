@@ -2304,21 +2304,6 @@ class Contrib_TestClass_For_Threats_RC(_Contrib_TestClass_Base):
     Factorized test class for threats tests requiring remote config enabled.
     """
 
-    # These tests rely on ddtrace.config._extra_services_queue, which is only
-    # created at Config init when DD_REMOTE_CONFIGURATION_ENABLED is true
-    # (ddtrace/internal/settings/_config.py). The per-test
-    # override_global_config(dict(_remote_config_enabled=True)) below cannot
-    # recreate that queue, so the tests are fundamentally env-dependent:
-    # they can only pass when RC was enabled at startup. Skip otherwise so the
-    # class is safe to collect from a suite that disables RC (e.g. the iast
-    # suite, which under ddtest's file-level glob + '-k Test_FastAPI' substring
-    # filter also picks up Test_FastAPI_RC even though its node selector
-    # targets only Test_FastAPI).
-    pytestmark = pytest.mark.skipif(
-        not ddtrace.config._remote_config_enabled,
-        reason="requires DD_REMOTE_CONFIGURATION_ENABLED=true at startup",
-    )
-
     def test_rc_ip_blocklist_update_lifecycle(self, interface, test_spans, entry_span):
         """Test the full lifecycle of RC rule updates:
         1. Default config: IP not blocked
