@@ -147,6 +147,13 @@ include:
       for _hash in ${RIOT_HASHES}; do
         scripts/ddtest-riot.py prepare "${_hash}"
         eval "$(scripts/ddtest-riot.py venv-env "${_hash}")"
+        # ddtest reads DD_TRACE_AGENT_URL for the agent URL.
+        # _CI_DD_AGENT_URL is set by .testrunner before_script to
+        # the real agent (ddagent sidecar). Export it as
+        # DD_TRACE_AGENT_URL so ddtest's API requests go
+        # through the agent's EVP proxy (not localhost:8126
+        # default, which may not reach the agent in all setups).
+        export DD_TRACE_AGENT_URL="${_CI_DD_AGENT_URL}"
         ./bin/ddtest plan \
           --platform python \
           --framework pytest \
