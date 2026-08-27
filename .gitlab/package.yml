@@ -106,6 +106,8 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
   # TODO(py-315): drop the cp315 allow_failure rule once #17849 ports the bytecode
   # wrapping path to sys.monitoring (currently raises NotImplementedError on 3.15).
+  # The cp315 wheels this matrix produces are kept for CI signal only and are deleted
+  # before every publication step by .gitlab/scripts/prune-unsupported-wheels.sh.
   rules:
     - if: $PYTHON_TAG == "cp315-cp315"
       allow_failure: true
