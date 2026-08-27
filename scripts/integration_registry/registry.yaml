@@ -443,7 +443,7 @@ integrations:
   tested_versions_by_dependency:
     google-adk:
       min: 1.0.0
-      max: 2.7.1
+      max: 2.8.0
 
 - integration_name: google_cloud_pubsub
   is_external_package: true
