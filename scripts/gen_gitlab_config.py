@@ -626,7 +626,10 @@ def _emit_ddtest_jobs(
             seen_py.add(py)
             print(f'          - PYTHON_VERSION: "{py}"', file=f)
 
-    # ---- plan job: one instance per venv ----
+    # ---- plan job: single job per suite (loops over all hashes) ----
+    # One plan job per suite (not per venv) to reduce CI runner contention.
+    # The job loops over all RIOT_HASHES sequentially: prepare + plan each,
+    # partitioning the plan artifact by hash.
     print(f"{plan_name}:", file=f)
     print(f"  extends: {plan_tpl}", file=f)
     print(f"  stage: {stage}", file=f)
@@ -635,19 +638,15 @@ def _emit_ddtest_jobs(
     emit_needs_build_base_venvs()
     emit_services(plan=True)
     emit_before_script(plan=True)
-    emit_variables({"DDTEST_NODES": str(k), "PYTEST_ADDOPTS": pytest_addopts})
-    print("  parallel:", file=f)
-    print("    matrix:", file=f)
-    for h, py in venvs:
-        print(f'      - RIOT_HASH: "{h}"', file=f)
-        print(f'        PYTHON_VERSION: "{py}"', file=f)
+    riot_hashes = " ".join(h for h, _ in venvs)
+    emit_variables({"DDTEST_NODES": str(k), "PYTEST_ADDOPTS": pytest_addopts, "RIOT_HASHES": riot_hashes})
     if retry is not None:
         print(f"  retry: {retry}", file=f)
     if timeout is not None:
         print(f"  timeout: {timeout}", file=f)
     if allow_failure:
         print("  allow_failure: true", file=f)
-    # artifacts (.testoptimization/) are declared on the .ddtest_plan template.
+    # artifacts (.testoptimization-*/) are declared on the .ddtest_plan template.
 
     # ---- run job: K instances per venv ----
     print(f"{run_name}:", file=f)
@@ -656,16 +655,11 @@ def _emit_ddtest_jobs(
     print("  needs:", file=f)
     print("    - prechecks", file=f)
     emit_needs_build_base_venvs()
-    # Match the plan job instance for the same RIOT_HASH (matrix-matched needs,
-    # same pattern used for build_base_venvs). Each run instance downloads
-    # only its own venv's .testoptimization/ artifact.
+    # The plan job is a single job (not matrix), so no matrix match needed.
+    # Each run downloads the single plan artifact (which contains all hashes'
+    # plans, partitioned by hash) and restores its own hash's plan.
     print("    - job: " + plan_name, file=f)
     print("      artifacts: true", file=f)
-    print("      parallel:", file=f)
-    print("        matrix:", file=f)
-    for h, py in venvs:
-        print(f'          - RIOT_HASH: "{h}"', file=f)
-        print(f'            PYTHON_VERSION: "{py}"', file=f)
     emit_services(plan=False)
     emit_before_script(plan=False)
     emit_variables({"PYTEST_ADDOPTS": pytest_addopts} if pytest_addopts else None)

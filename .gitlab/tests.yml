@@ -138,20 +138,24 @@ include:
   extends: .ddtest_base
   script:
     - |
-      eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
-      ./bin/ddtest plan \
-        --platform python \
-        --framework pytest \
-        --tests-location "${DDTEST_SUITE_PATH}/**/test*.py" \
-        --min-parallelism "${DDTEST_NODES}" \
-        --max-parallelism "${DDTEST_NODES}"
-      # Partition the plan artifact by RIOT_HASH so run jobs with
-      # different hashes don't overwrite each other's .testoptimization/.
-      mv .testoptimization ".testoptimization-${RIOT_HASH}"
+      # Single plan job per suite: loop over all RIOT_HASHES sequentially
+      # (prepare + plan each), partitioning the plan artifact by hash.
+      # This reduces N×M plan jobs to just 1 per suite.
+      for _hash in ${RIOT_HASHES}; do
+        scripts/ddtest-riot.py prepare "${_hash}"
+        eval "$(scripts/ddtest-riot.py venv-env "${_hash}")"
+        ./bin/ddtest plan \
+          --platform python \
+          --framework pytest \
+          --tests-location "${DDTEST_SUITE_PATH}/**/test*.py" \
+          --min-parallelism "${DDTEST_NODES}" \
+          --max-parallelism "${DDTEST_NODES}"
+        mv .testoptimization ".testoptimization-${_hash}"
+      done
   artifacts:
     when: always
     paths:
-      - .testoptimization-${RIOT_HASH}/
+      - .testoptimization-*/
     expire_in: 1 week
 
 # Run: execute this CI node's files in the activated venv.
