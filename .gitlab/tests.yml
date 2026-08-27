@@ -123,7 +123,7 @@ include:
       # does NOT contaminate the before_script environment
       # (which riot run -s wait inherits). The ddtest plan/run
       # scripts re-activate below.
-      eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")" && python -c "import ddtrace, pytest, envier"
+      (eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")" && python -c "import ddtrace, pytest, envier")
 
 .ddtest_base_snapshot:
   extends: .ddtest_base
