@@ -77,6 +77,10 @@ CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH = "max_snapshot_depth"
 CONTEXT_TRUNCATION_MAX_VISITED_NODES = "max_visited_nodes"
 CONTEXT_TRUNCATION_CYCLE = "cycle"
 CONTEXT_TRUNCATION_SNAPSHOT_ERROR = "snapshot_error"
+# A single unsupported key or value drops only its own field. Ruby's
+# bounded_context_snapshot falls through its leaf type case the same way, so one
+# caller value cannot discard the fields around it.
+CONTEXT_TRUNCATION_UNSUPPORTED_VALUE = "unsupported_value"
 
 _EMPTY_CONTEXT: typing.Mapping[str, typing.Any] = MappingProxyType({})
 
@@ -333,8 +337,15 @@ def _flatten_mapping(
         if not _consume_budget(budget, reasons):
             return
         index += 1
-        if type(child_key) is not str:
-            raise TypeError("evaluation context keys must be exact strings")
+        if not isinstance(child_key, str):
+            # Skip this field only. Aborting the walk would discard every valid
+            # field around it.
+            reasons.add(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
+            continue
+        # str.__str__ normalizes a str subclass without running a caller override.
+        # StrEnum members and lazy translation strings arrive here routinely.
+        lookup_key = child_key
+        child_key = str.__str__(child_key)
         if root and child_key in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
             continue
         separator_length = 0 if not prefix else 1
@@ -342,7 +353,7 @@ def _flatten_mapping(
             reasons.add(CONTEXT_TRUNCATION_MAX_KEY_LENGTH)
             continue
         child_prefix = child_key if not prefix else f"{prefix}.{child_key}"
-        child_value = value[child_key]
+        child_value = value[lookup_key]
         _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, budget)
 
 
@@ -400,21 +411,35 @@ def _flatten_sequence(
 
 
 def _validated_leaf(value: typing.Any) -> typing.Any:
-    """Return an immutable OpenFeature scalar without invoking caller conversion hooks."""
-    if value is None or type(value) in (bool, int, float):
+    """Return an immutable OpenFeature scalar without invoking caller conversion hooks.
+
+    Scalar subclasses are normalized through the unbound builtin method, so a caller
+    override of __str__, __float__, or isoformat never runs. IntEnum, StrEnum, and
+    bool-like subclasses are common in real evaluation context.
+    """
+    if value is None:
+        return value
+    # bool before int: bool is an int subclass, so the order preserves True/False
+    # on the wire instead of encoding them as 1/0.
+    if isinstance(value, bool):
+        return bool.__bool__(value)
+    if isinstance(value, int):
         # The cross-SDK contract applies MAX_VALUE_LENGTH to strings only. Numeric
         # scalars and null retain their existing wire representation without a new cap.
-        return value
-    if type(value) is str:
-        if len(value) > MAX_VALUE_LENGTH:
+        return int.__int__(value)
+    if isinstance(value, float):
+        return float.__float__(value)
+    if isinstance(value, str):
+        normalized = str.__str__(value)
+        if len(normalized) > MAX_VALUE_LENGTH:
             raise ValueError(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
-        return value
-    if type(value) is datetime:
+        return normalized
+    if isinstance(value, datetime):
         serialized = datetime.isoformat(value)
         if len(serialized) > MAX_VALUE_LENGTH:
             raise ValueError(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
         return _JSONSafeOtherString(serialized)
-    raise TypeError("unsupported evaluation context scalar")
+    raise ValueError(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
 
 
 def _flatten_bounded(
@@ -460,8 +485,12 @@ def _flatten_bounded(
     try:
         output[prefix] = _validated_leaf(value)
     except ValueError as exc:
-        if exc.args == (CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,):
-            reasons.add(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
+        # Both reasons drop this one field and leave the rest of the walk intact.
+        if exc.args in (
+            (CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,),
+            (CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,),
+        ):
+            reasons.add(exc.args[0])
             return
         raise
 

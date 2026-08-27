@@ -15,6 +15,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 from datetime import datetime
 from datetime import timezone
+import enum
 import json
 import logging
 import os
@@ -36,6 +37,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATI
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VALUE_LENGTH
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VISITED_NODES
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_SNAPSHOT_ERROR
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_UNSUPPORTED_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
@@ -585,10 +587,42 @@ class TestFlattenAndPruneContext:
         assert writer._context_truncated == {}
 
     @pytest.mark.parametrize("unsafe", [b"x" * (MAX_VALUE_LENGTH + 1), object()])
-    def test_unsupported_scalars_fail_closed(self, writer, unsafe):
-        writer.enqueue(_make_event(attrs={"kept": "discarded", "unsafe": unsafe}))
-        assert writer._queue.get_nowait().attrs == {}
-        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
+    def test_unsupported_scalars_drop_only_their_own_field(self, writer, unsafe):
+        """One unsupported value must not discard the valid fields around it.
+
+        Ruby's bounded_context_snapshot falls through its leaf type case the same
+        way, so Python matches the reference implementation here.
+        """
+        writer.enqueue(_make_event(attrs={"kept": "retained", "unsafe": unsafe}))
+        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
+
+    def test_non_string_keys_drop_only_their_own_field(self, writer):
+        writer.enqueue(_make_event(attrs={"kept": "retained", 2: "dropped"}))
+        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
+
+    def test_scalar_subclasses_are_retained_without_running_caller_hooks(self, writer):
+        """IntEnum, StrEnum, and str-subclass keys are common in real context."""
+
+        class Tier(enum.IntEnum):
+            GOLD = 3
+
+        class Region(str, enum.Enum):
+            EU = "eu-west"
+
+            def __str__(self):
+                raise AssertionError("subclass conversion must not run")
+
+        class LazyKey(str):
+            def __str__(self):
+                raise AssertionError("subclass conversion must not run")
+
+        writer.enqueue(
+            _make_event(attrs={"tier": Tier.GOLD, "region": Region.EU, LazyKey("lazy"): "v"})
+        )
+        assert writer._queue.get_nowait().attrs == {"tier": 3, "region": "eu-west", "lazy": "v"}
+        assert writer._context_truncated == {}
 
     def test_string_value_limit_counts_characters(self):
         exact_snapshot, exact_reasons = flatten_and_prune_context({"value": "😀" * MAX_VALUE_LENGTH})
@@ -603,9 +637,14 @@ class TestFlattenAndPruneContext:
             def isoformat(self, *args, **kwargs):
                 raise AssertionError("subclass conversion must not run")
 
-        writer.enqueue(_make_event(attrs={"value": UnsafeDatetime(2026, 1, 1)}))
-        assert writer._queue.get_nowait().attrs == {}
-        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
+        writer.enqueue(_make_event(attrs={"value": UnsafeDatetime(2026, 1, 1), "kept": "retained"}))
+        # datetime.isoformat is called unbound, so the subclass override never runs
+        # and the value is retained normally.
+        assert writer._queue.get_nowait().attrs == {
+            "value": "2026-01-01T00:00:00",
+            "kept": "retained",
+        }
+        assert writer._context_truncated == {}
 
 
 # ---------------------------------------------------------------------------
@@ -751,15 +790,17 @@ class TestEnqueue:
         queued = writer._queue.get_nowait()
         assert queued.attrs == {"user.id": 123, "user.plan": "pro"}
 
-    def test_unsupported_leaf_does_not_call_str_and_fails_closed(self, writer):
+    def test_unsupported_leaf_does_not_call_str_and_drops_only_its_own_field(self, writer):
+        """An unsupported leaf drops its own field. The fields around it survive."""
+
         class UnsafeLeaf:
             def __str__(self) -> str:
                 raise AssertionError("arbitrary leaf conversion must not run")
 
-        writer.enqueue(_make_event(attrs={"kept": "would-be-dropped", "unsafe": UnsafeLeaf()}))
+        writer.enqueue(_make_event(attrs={"kept": "retained", "unsafe": UnsafeLeaf()}))
 
-        assert writer._queue.get_nowait().attrs == {}
-        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
+        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
 
     def test_snapshot_error_queues_empty_context_and_is_counted(self, writer):
         attrs = mock.MagicMock()
@@ -1626,7 +1667,21 @@ class TestObservableDropCounters:
         cyclic = {}
         cyclic["self"] = cyclic
         writer.enqueue(_make_event(flag_key="cycle", attrs=cyclic))
-        writer.enqueue(_make_event(flag_key="error", attrs={"unsupported": object()}))
+        writer.enqueue(_make_event(flag_key="unsupported", attrs={"unsupported": object()}))
+
+        # snapshot_error now covers only a genuine traversal fault, not a single
+        # unsupported field.
+        class RaisingMapping(Mapping):
+            def __iter__(self):
+                raise RuntimeError("traversal fault")
+
+            def __getitem__(self, key):
+                raise KeyError(key)
+
+            def __len__(self):
+                return 1
+
+        writer.enqueue(_make_event(flag_key="error", attrs=RaisingMapping()))
         with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
             writer.enqueue(_make_event(flag_key="visited", attrs={"nested": {"value": "v"}}))
 
@@ -1648,6 +1703,7 @@ class TestObservableDropCounters:
             CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH,
             CONTEXT_TRUNCATION_MAX_VISITED_NODES,
             CONTEXT_TRUNCATION_CYCLE,
+            CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,
             CONTEXT_TRUNCATION_SNAPSHOT_ERROR,
         }
 
