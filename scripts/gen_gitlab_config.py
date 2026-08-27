@@ -551,6 +551,9 @@ def _emit_ddtest_jobs(
     """
     snapshot = config.get("snapshot", False)
     gpu = config.get("gpu", False)
+    ddtest_service = config.get("ddtest_service")
+    if not ddtest_service:
+        raise ValueError(f"ddtest suite {suite} must declare ddtest_service")
     services = list(dict.fromkeys(config.get("services") or []))
     env = dict(config.get("env") or {})
     retry = config.get("retry")
@@ -661,7 +664,12 @@ def _emit_ddtest_jobs(
     print("      artifacts: true", file=f)
     emit_services(plan=False)
     emit_before_script(plan=False)
-    emit_variables({"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"})
+    emit_variables(
+        {
+            "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
+            "_DD_PYTEST_XDIST_INFERRED_SERVICE": ddtest_service,
+        }
+    )
     print("  parallel:", file=f)
     print("    matrix:", file=f)
     for h, py in venvs:

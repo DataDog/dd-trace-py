@@ -181,7 +181,7 @@ include:
       export COVERAGE_FILE=".coverage.${RIOT_HASH}.${CI_NODE_INDEX}"
       riot_cmd=(bin/riot-env/bin/python -m riot -P -v run --pass-env -s)
       "${riot_cmd[@]}" --command \
-        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; export DD_CIVISIBILITY_LOG_LEVEL=none; export _DD_PYTEST_XDIST_INFERRED_SERVICE="$(scripts/ddtest-infer-service)"; ./bin/ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 4' \
+        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; export DD_CIVISIBILITY_LOG_LEVEL=none; ./bin/ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 4' \
         "${RIOT_HASH}"
       # Consolidate per-worker coverage files into one .coverage file.
       # Each xdist worker wrote to its own COVERAGE_FILE;
@@ -203,7 +203,7 @@ include:
       # is session-token-keyed, and parallel xdist workers cause cross-session
       # contamination (wrong stats, '400: list index out of range').
       "${riot_cmd[@]}" --command \
-        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; export DD_CIVISIBILITY_LOG_LEVEL=none; export DD_TRACE_AGENT_URL="http://testagent:9126"; export _DD_PYTEST_XDIST_INFERRED_SERVICE="$(scripts/ddtest-infer-service)"; ./bin/ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 1' \
+        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; export DD_CIVISIBILITY_LOG_LEVEL=none; export DD_TRACE_AGENT_URL="http://testagent:9126"; ./bin/ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 1' \
         "${RIOT_HASH}"
       # Consolidate per-worker coverage files into one .coverage file.
       coverage_files=(.coverage.*)
