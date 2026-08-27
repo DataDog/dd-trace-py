@@ -612,6 +612,35 @@ class ProfilingConfigPytorch(DDConfig):
     )
 
 
+class ProfilingConfigGC(DDConfig):
+    __item__ = __prefix__ = "gc"
+
+    enabled = DDConfig.v(
+        bool,
+        "enabled",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to enable the GC pause collector (per-generation pause "
+            "durations, collection counts, and long-pause timeline events)."
+        ),
+    )
+
+    pause_threshold_ns = DDConfig.v(
+        int,
+        "pause_threshold_ns",
+        default=1_000_000,
+        validator=_validate_non_negative_int,
+        help_type="Integer",
+        help=(
+            "Emit an individual timeline sample for each GC pause at least this "
+            "many nanoseconds long. Shorter pauses are aggregated per generation "
+            "and flushed once per upload interval. 0 emits every collection. "
+            "Default: 1000000 (1ms)."
+        ),
+    )
+
+
 class ProfilingConfigException(DDConfig):
     __item__ = __prefix__ = "exception"
 
@@ -652,6 +681,7 @@ ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigNativeHeap, namespace="native_heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
+ProfilingConfig.include(ProfilingConfigGC, namespace="gc")
 ProfilingConfig.include(ProfilingConfigException, namespace="exception")
 
 config = ProfilingConfig()
@@ -740,6 +770,8 @@ def config_str(config: ProfilingConfig) -> str:
         configured_features.append("nativeheap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
+    if config.gc.enabled:
+        configured_features.append("gc")
     if config.exception.enabled:
         configured_features.append("exception")
     configured_features.append("exp_dd")

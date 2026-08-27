@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    Profiling: Exact garbage-collection pause durations can now be collected
+    via ``gc.callbacks`` and exported as ``gc-time`` / ``gc-samples`` profile
+    values (experimental slots until libdatadog lands the dedicated types).
+    Enable with ``DD_PROFILING_GC_ENABLED=true``. Pauses shorter than
+    ``DD_PROFILING_GC_PAUSE_THRESHOLD_NS`` (default 1ms) are aggregated per
+    generation each upload; longer pauses are emitted as individual timeline
+    events. This is complementary to sampled ``Garbage collection`` stack
+    frames and does not replace them.

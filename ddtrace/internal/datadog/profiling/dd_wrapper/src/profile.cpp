@@ -130,6 +130,14 @@ Datadog::Profile::setup_samplers()
         val_idx.gpu_flops = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS);
         val_idx.gpu_flops_samples = add_sampler(DDOG_PROF_SAMPLE_TYPE_GPU_FLOPS_SAMPLES);
     }
+    if (0U != (type_mask & SampleType::GC)) {
+        // libdatadog v41 has no GcTime/GcSamples variants. Ride the experimental
+        // slots (pprof names "experimental-nanoseconds" / "experimental-count")
+        // until the dedicated types land; swapping the enum constants here is
+        // the only change required.
+        val_idx.gc_time = add_sampler(DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_NANOSECONDS);
+        val_idx.gc_count = add_sampler(DDOG_PROF_SAMPLE_TYPE_EXPERIMENTAL_COUNT);
+    }
 
     // Whatever the first sampler happens to be is the default "period" for the profile
     // The value of 1 is a pointless default.

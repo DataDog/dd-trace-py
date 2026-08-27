@@ -125,6 +125,7 @@ def SampleTestSimple():
     h.push_release(1, 1)
     h.push_alloc(1, 1)
     h.push_heap(1, 1)
+    h.push_gc(1, 1)
     h.flush_sample()
 
 
@@ -141,6 +142,7 @@ def SampleTest(
             h.push_release(value, 1)
             h.push_alloc(value, 1)
             h.push_heap(value, 1)
+            h.push_gc(value, 1)
             h.push_threadinfo(value, value, name)
             h.push_task_id(value)
             h.push_task_name(name)

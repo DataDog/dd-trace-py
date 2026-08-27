@@ -25,6 +25,7 @@ class ProfilingConfig(DDConfig):
     heap: ProfilingConfigHeap
     native_heap: ProfilingConfigNativeHeap
     pytorch: ProfilingConfigPytorch
+    gc: ProfilingConfigGC
     exception: ProfilingConfigException
 
     def dump_settings(self) -> dict[str, Any]: ...
@@ -65,6 +66,10 @@ class ProfilingConfigPytorch(DDConfig):
     enabled: bool
     events_limit: int
     max_frames: int
+
+class ProfilingConfigGC(DDConfig):
+    enabled: bool
+    pause_threshold_ns: int
 
 class ProfilingConfigException(DDConfig):
     enabled: bool

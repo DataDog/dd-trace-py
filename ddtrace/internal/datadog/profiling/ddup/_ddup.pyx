@@ -51,6 +51,7 @@ cdef extern from "sample.hpp" namespace "Datadog":
         bint push_gpu_gputime(int64_t time, int64_t count)
         bint push_gpu_memory(int64_t size, int64_t count)
         bint push_gpu_flops(int64_t flops, int64_t count)
+        bint push_gc(int64_t duration_ns, int64_t count)
         bint push_lock_name(string_view lock_name)
         bint push_threadinfo(int64_t thread_id, int64_t thread_native_id, string_view thread_name)
         bint push_task_id(uint64_t task_id)
@@ -497,6 +498,10 @@ cdef class SampleHandle:
     def push_gpu_flops(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
             self.ptr.push_gpu_flops(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gc(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            self.ptr.push_gc(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:

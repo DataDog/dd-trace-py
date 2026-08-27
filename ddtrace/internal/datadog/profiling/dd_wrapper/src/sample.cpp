@@ -578,6 +578,22 @@ Datadog::Sample::push_gpu_flops(int64_t size, int64_t count)
 }
 
 bool
+Datadog::Sample::push_gc(int64_t duration_ns, int64_t count)
+{
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (0U != (type_mask & SampleType::GC)) {
+        values[ProfilerState::get().profile_state.val().gc_time] += duration_ns * count;
+        values[ProfilerState::get().profile_state.val().gc_count] += count;
+        return true;
+    }
+    if (!already_warned) {
+        already_warned = true;
+        std::cerr << "bad push gc" << std::endl;
+    }
+    return false;
+}
+
+bool
 Datadog::Sample::push_exception_message(std::string_view exception_message)
 {
     push_label(ExportLabelKey::exception_message, exception_message);
