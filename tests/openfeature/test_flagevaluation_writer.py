@@ -211,6 +211,47 @@ class TestFlattenAndPruneContext:
         with pytest.raises(TypeError):
             snapshot["new"] = "value"
 
+    def test_caller_mutation_after_snapshot_does_not_change_the_snapshot(self):
+        """The snapshot must detach from the caller's own containers.
+
+        The hook returns control to the caller immediately after enqueue. The caller
+        is free to reuse or mutate the context object it passed. The queued snapshot
+        must keep the values that were present at evaluation time.
+        """
+        nested = {"inner": "original"}
+        elements = ["first"]
+        attrs = {"scalar": "original", "nested": nested, "list": elements}
+
+        snapshot, _ = flatten_and_prune_context(attrs)
+
+        attrs["scalar"] = "mutated"
+        attrs["added"] = "late"
+        del attrs["nested"]
+        nested["inner"] = "mutated"
+        elements[0] = "mutated"
+        elements.append("late")
+
+        assert snapshot == {
+            "scalar": "original",
+            "nested.inner": "original",
+            "list[0]": "first",
+        }
+
+    def test_enqueued_event_keeps_the_context_present_at_evaluation_time(self, writer):
+        """enqueue must buffer the snapshot, not a reference to the caller's mapping."""
+        nested = {"inner": "original"}
+        attrs = {"scalar": "original", "nested": nested}
+
+        writer.enqueue(_make_event(attrs=attrs))
+
+        attrs["scalar"] = "mutated"
+        nested["inner"] = "mutated"
+
+        queued = writer._queue.get_nowait()
+        assert queued.attrs == {"scalar": "original", "nested.inner": "original"}
+        with pytest.raises(TypeError):
+            queued.attrs["new"] = "value"
+
     def test_in_bounds_without_lists_preserves_existing_flattened_values(self):
         timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
         attrs = {
