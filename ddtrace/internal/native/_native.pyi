@@ -1379,6 +1379,7 @@ class RemoteConfigProduct:
     AsmData: "RemoteConfigProduct"
     AsmDd: "RemoteConfigProduct"
     AsmFeatures: "RemoteConfigProduct"
+    Debug: "RemoteConfigProduct"
     FfeFlags: "RemoteConfigProduct"
     LiveDebugging: "RemoteConfigProduct"
     LiveDebuggingSymbolDb: "RemoteConfigProduct"
