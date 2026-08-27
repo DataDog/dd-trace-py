@@ -506,7 +506,15 @@ venv = Venv(
             name="integration",
             env={
                 "DDTEST_SUITE_PATH": "tests/integration",
-                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
+                # --no-ddtrace disables CI Visibility for this suite, matching normal
+                # riot CI (whose command has no --ddtrace). ddtest's GetPlatformEnv()
+                # appends --ddtrace to every worker; --no-ddtrace overrides it (the
+                # plugin's is_enabled() checks `and not no-ddtrace`). CI Visibility's
+                # CIVisibilityWriter doesn't respect the testagent's session token,
+                # which corrupts snapshot comparisons (cross-session stats leakage,
+                # '400: list index out of range'). The dedicated integration-*-
+                # civisibility venvs run WITH --ddtrace (they have no --no-ddtrace).
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*' --no-ddtrace",
             },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
