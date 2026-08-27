@@ -1,5 +1,4 @@
 import json
-from json.decoder import JSONDecodeError
 from typing import Any
 from typing import Optional
 
@@ -15,7 +14,7 @@ class FilterRule(SamplingRule):
     """
     Definition of a filtering rule used to fully drop trace chunks matching a pattern.
 
-    Reuses :class:`SamplingRule`'s glob matching and probability handling.
+    Reuses SamplingRule's glob matching and probability handling.
     """
 
     def __init__(
@@ -61,17 +60,24 @@ def parse_filtering_rules(rules: str) -> list[FilterRule]:
         return filtering_rules
     try:
         json_rules = json.loads(rules)
-        for rule in json_rules:
-            rule_kwargs = dict(rule)
-            filter_rate = rule_kwargs.pop("filter_rate", 1.0)
-            filtering_rules.append(FilterRule(filter_rate=filter_rate, **rule_kwargs))
-    except (JSONDecodeError, ValueError, TypeError):
+    except (json.JSONDecodeError, ValueError):
         log.error(
-            "Failed to apply all filtering rules. Rules=%s, Applied=%s",
+            "Failed to parse DD_TRACE_FILTERING_RULES=%r, no filtering rules will be applied",
             rules,
-            filtering_rules,
             exc_info=True,
             extra={"send_to_telemetry": False},
         )
         return []
+    for rule in json_rules:
+        try:
+            rule_kwargs = dict(rule)
+            filter_rate = rule_kwargs.pop("filter_rate", 1.0)
+            filtering_rules.append(FilterRule(filter_rate=filter_rate, **rule_kwargs))
+        except Exception:
+            log.error(
+                "Failed to apply filtering rule %r, skipping it",
+                rule,
+                exc_info=True,
+                extra={"send_to_telemetry": False},
+            )
     return filtering_rules

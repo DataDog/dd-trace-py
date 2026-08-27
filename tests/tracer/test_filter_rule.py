@@ -123,3 +123,14 @@ def test_parse_filtering_rules_invalid_json():
         rules = parse_filtering_rules("not valid json")
     assert rules == []
     assert mock_log.error.called
+
+
+def test_parse_filtering_rules_malformed_field_is_skipped_not_fatal():
+    """A rule with a malformed field (e.g. tags as a list instead of a dict) must not raise -
+    it should be logged and skipped, while other valid rules in the same list still apply.
+    """
+    with mock.patch("ddtrace._trace.filter_rule.log") as mock_log:
+        rules = parse_filtering_rules('[{"tags":["x"]}, {"service":"xyz"}]')
+    assert mock_log.error.called
+    assert len(rules) == 1
+    assert rules[0].service.pattern == "xyz"

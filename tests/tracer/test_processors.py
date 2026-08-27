@@ -213,18 +213,25 @@ def test_filtering_processor_filter_rate_0_never_drops():
     assert aggr.writer.pop() == [span]
 
 
-def test_filtering_processor_runs_before_sampling_processor():
-    """Filtering must run before sampling so a dropped chunk never consumes rate-limiter budget."""
+def test_filtering_processor_runs_after_sampling_and_llmobs_processors():
+    """Filtering must run after sampling/llmobs so a dropped chunk still gets a sampling priority
+    tag and its LLMObs event is still routed (either riding the trace or falling back to the
+    LLMObs writer) before the chunk itself is discarded.
+    """
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
     aggr.writer = DummyWriter()
     aggr.filtering_processor = TraceFilteringProcessor([FilterRule(filter_rate=1.0)])
 
-    with mock.patch.object(TraceSamplingProcessor, "process_trace") as mock_sample:
+    with (
+        mock.patch.object(TraceSamplingProcessor, "process_trace", side_effect=lambda trace: trace) as mock_sample,
+        mock.patch.object(aggr.llmobs_processor, "process_trace", side_effect=lambda trace: trace) as mock_llmobs,
+    ):
         span = Span("span", on_finish=[aggr.on_span_finish])
         aggr.on_span_start(span)
         span.finish()
 
-    mock_sample.assert_not_called()
+    mock_sample.assert_called_once()
+    mock_llmobs.assert_called_once()
     assert aggr.writer.pop() == []
 
 

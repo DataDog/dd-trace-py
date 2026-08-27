@@ -119,7 +119,7 @@ class SpanProcessor(metaclass=abc.ABCMeta):
 
 class TraceFilteringProcessor(TraceProcessor):
     """Drops trace chunks matching a DD_TRACE_FILTERING_RULES rule whose deterministic draw says to
-    drop them. This runs before sampling, stats computation, and serialization ever see the chunk.
+    drop them, so the chunk is never considered for stats computation or serialization.
     """
 
     def __init__(self, filtering_rules: list[FilterRule]):
@@ -444,12 +444,12 @@ class SpanAggregator(SpanProcessor):
         # perf: Process spans outside of the span aggregator lock
         spans = finished
         for tp in chain(
-            [self.filtering_processor],
             self.dd_processors,
             self.user_processors,
             [
                 self.sampling_processor,
                 self.llmobs_processor,
+                self.filtering_processor,
                 self.tags_processor,
                 self.service_name_processor,
             ],
