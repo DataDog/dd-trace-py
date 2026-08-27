@@ -576,6 +576,14 @@ def _emit_ddtest_jobs(
                         # Exclude the path (which is now ${{DDTEST_SUITE_PATH}})
                         flags = flags.replace("${{DDTEST_SUITE_PATH}}", "").strip()
                         flags = flags.replace("tests/", "").strip()  # any remaining literal path
+                        # Strip -n / --dist / --numprocesses flags: xdist worker
+                        # count is for test execution (run), not collection (plan).
+                        # xdist during plan's --collect-only can crash with
+                        # "Unexpectedly no active workers available".
+                        flags = re.sub(r"-n\s+\S+", "", flags).strip()
+                        flags = re.sub(r"--dist=\S+", "", flags).strip()
+                        flags = re.sub(r"--numprocesses\s+\S+", "", flags).strip()
+                        flags = re.sub(r"\s+", " ", flags).strip()
                         if flags:
                             pytest_addopts = flags
                         break
