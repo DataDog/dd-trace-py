@@ -40,14 +40,42 @@ install() {
         "post-checkout"
     )
 
-    repo_root=$(git rev-parse --show-toplevel)
-    hooks_dir="$repo_root/.git/hooks"
+    # Resolve the shared git directory rather than "$repo_root/.git": inside a worktree
+    # the latter is a regular file, so the symlinks would land nowhere. Git looks for
+    # hooks in the common directory for every worktree, so installing once here covers
+    # the main checkout and all of its worktrees.
+    git_common_dir=$(git rev-parse --git-common-dir)
+    hooks_dir="$(cd "$git_common_dir" && pwd)/hooks"
+    mkdir -p "$hooks_dir"
     autohook_linktarget="../../hooks/autohook.sh"
     for hook_type in "${hook_types[@]}"
     do
         hook_symlink="$hooks_dir/$hook_type"
         ln -sf $autohook_linktarget $hook_symlink
     done
+
+    drop_relative_hooks_path
+}
+
+
+# A relative core.hooksPath is resolved against the root of the working tree, not against
+# the git directory. In a worktree that root holds a .git file, so a value like
+# ".git/hooks" resolves to nothing and every hook silently stops running -- commits are
+# accepted with no formatting, typing or secret-scanning check, and the failure surfaces
+# as red CI instead. Git's own default already resolves to the common hooks directory
+# from any worktree, so the override is removed rather than repointed.
+drop_relative_hooks_path() {
+    configured=$(git config --local --get core.hooksPath 2>/dev/null) || return 0
+    [[ -n $configured ]] || return 0
+
+    if [[ $configured == /* ]]
+    then
+        echo "core.hooksPath is set to '$configured'; leaving it alone. Unset it if hooks do not run."
+        return 0
+    fi
+
+    git config --local --unset-all core.hooksPath
+    echo "Removed relative core.hooksPath ('$configured'); it never resolves inside a worktree."
 }
 
 
