@@ -64,6 +64,10 @@ pub struct SpanData {
     pub _parent: Option<Py<PyAny>>,
     /// The parent `Context` this span was created under, or `None`.
     pub _parent_context: Option<Py<crate::context::Context>>,
+    /// This span's own `Context`, built eagerly for a root span (in `__init__`, before the
+    /// span is published) and lazily on first read for a child span. `None` on a child means
+    /// "not yet built" — see the `context` getter.
+    pub _context: Option<Py<crate::context::Context>>,
 }
 
 impl SpanData {
@@ -565,6 +569,64 @@ impl SpanData {
         };
     }
 
+    // _context property — this span's own Context, or None if not yet built (child only).
+    #[getter(_context)]
+    #[inline(always)]
+    fn get_own_context<'py>(&self, py: Python<'py>) -> Option<Bound<'py, crate::context::Context>> {
+        self._context.as_ref().map(|c| c.bind(py).clone())
+    }
+
+    /// Takes `slf` rather than `&mut self` so the native borrow is released before the old
+    /// value is dropped: `Context` is `weakref`-enabled, so dropping the last strong
+    /// reference can run a weakref callback/finalizer, and one that re-enters this same
+    /// `SpanData` would otherwise hit "already mutably borrowed".
+    #[setter(_context)]
+    #[inline(always)]
+    fn set_own_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+        let new_value = if value.is_none() {
+            None
+        } else {
+            value.extract::<Py<crate::context::Context>>().ok()
+        };
+        let old = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._context, new_value)
+        };
+        drop(old);
+    }
+
+    // context property — this span's trace context, built lazily on first read for a
+    // child span (a copy of the parent sharing trace-level state); a root span's context
+    // is normally built eagerly in __init__, so the fallback branch here only matters if
+    // a root's _context was cleared, e.g. via the setter.
+    #[getter(context)]
+    fn get_context<'py>(
+        &mut self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, crate::context::Context>> {
+        if let Some(ctx) = &self._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let new_ctx = if let Some(parent) = &self._parent_context {
+            crate::context::Context::copy_native(
+                parent.bind(py),
+                Some(self.trace_id),
+                Some(self.span_id as u128),
+            )?
+        } else {
+            crate::context::Context::new_root(py, self.trace_id, self.span_id as u128)?
+        }
+        .into_bound(py);
+        self._context = Some(new_ctx.clone().unbind());
+        Ok(new_ctx)
+    }
+
+    #[setter(context)]
+    #[inline(always)]
+    fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+        Self::set_own_context(slf, value);
+    }
+
     // _is_top_level property (native for performance - avoids Python property hop).
     // A span is top-level if it has no parent, or if its own service is set
     // and differs from its parent's service.
@@ -998,6 +1060,9 @@ impl SpanData {
             visit.call(p)?;
         }
         if let Some(c) = &self._parent_context {
+            visit.call(c)?;
+        }
+        if let Some(c) = &self._context {
             visit.call(c)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.
