@@ -577,12 +577,17 @@ impl SpanData {
 
     #[setter(_context)]
     #[inline(always)]
-    fn set_own_context(&mut self, value: &Bound<'_, PyAny>) {
-        self._context = if value.is_none() {
+    fn set_own_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+        let new_value = if value.is_none() {
             None
         } else {
             value.extract::<Py<crate::context::Context>>().ok()
         };
+        let old = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._context, new_value)
+        };
+        drop(old);
     }
 
     /// context property — this span's trace Context.
@@ -613,8 +618,8 @@ impl SpanData {
 
     #[setter(context)]
     #[inline(always)]
-    fn set_context(&mut self, value: &Bound<'_, PyAny>) {
-        self.set_own_context(value);
+    fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+        Self::set_own_context(slf, value);
     }
 
     // _is_top_level property (native for performance - avoids Python property hop).
