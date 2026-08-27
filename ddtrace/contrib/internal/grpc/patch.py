@@ -228,8 +228,8 @@ def _server_constructor_interceptor(wrapped, instance, args, kwargs):
     interceptor = create_server_interceptor()
 
     # DEV: Inject our tracing interceptor first in the list of interceptors
-    if kwargs.get("interceptors"):
-        kwargs["interceptors"] = (interceptor,) + tuple(kwargs["interceptors"])
+    if interceptors := kwargs.get("interceptors"):
+        kwargs["interceptors"] = (interceptor,) + tuple(interceptors)
     else:
         kwargs["interceptors"] = (interceptor,)
 
@@ -242,8 +242,8 @@ def _aio_server_constructor_interceptor(wrapped, instance, args, kwargs):
 
     interceptor = create_aio_server_interceptor()
     # DEV: Inject our tracing interceptor first in the list of interceptors
-    if kwargs.get("interceptors"):
-        kwargs["interceptors"] = (interceptor,) + tuple(kwargs["interceptors"])
+    if interceptors := kwargs.get("interceptors"):
+        kwargs["interceptors"] = (interceptor,) + tuple(interceptors)
     else:
         kwargs["interceptors"] = (interceptor,)
 
