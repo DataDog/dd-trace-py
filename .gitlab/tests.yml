@@ -107,7 +107,11 @@ include:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
     - |
       mkdir -p bin
-      # Build ddtest from source (until the commandOverride change is released).
+      # Install Go to build ddtest from source (until the commandOverride
+      # change is released and a new binary is published).
+      curl -fsSL https://go.dev/dl/go1.26.5.linux-amd64.tar.gz | tar xz -C /tmp
+      export PATH="/tmp/go/bin:$PATH"
+      # Build ddtest from the dogfooding branch.
       git clone --depth 1 --branch gnufede/ddtest-dogfooding https://github.com/DataDog/ddtest.git /tmp/ddtest-src
       (cd /tmp/ddtest-src && go build -o "${CI_PROJECT_DIR}/bin/ddtest" .)
       chmod +x bin/ddtest
