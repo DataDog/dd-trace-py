@@ -112,6 +112,60 @@ GCFrameTracker::get()
     return tracker;
 }
 
+#if PY_VERSION_HEX < 0x030f0000
+
+std::optional<std::reference_wrapper<GCFrameTracker::Slot>>
+GCFrameTracker::find_slot(PyInterpreterState* interp)
+{
+    if (interp == nullptr) {
+        return std::nullopt;
+    }
+
+    const std::size_t used = slots_used_.load(std::memory_order_acquire);
+    for (std::size_t i = 0; i < used; ++i) {
+        if (slots_[i].interp.load(std::memory_order_acquire) == interp) {
+            return std::ref(slots_[i]);
+        }
+    }
+
+    return std::nullopt;
+}
+
+std::optional<std::reference_wrapper<GCFrameTracker::Slot>>
+GCFrameTracker::find_or_claim_slot(PyInterpreterState* interp)
+{
+    if (auto maybe_slot = find_slot(interp); maybe_slot) {
+        return maybe_slot;
+    }
+
+    // No slot yet in the table, claim the first unused one.
+    for (std::size_t i = 0; i < slots_.size(); ++i) {
+        auto& slot = slots_[i];
+        if (slot.interp.load(std::memory_order_relaxed) != nullptr) {
+            continue;
+        }
+
+        // Claim the slot by publishing setting its interpreter address.
+        slot.frame.store(nullptr, std::memory_order_relaxed);
+        slot.interp.store(interp, std::memory_order_release);
+        if (slots_used_.load(std::memory_order_relaxed) <= i) {
+            slots_used_.store(i + 1, std::memory_order_release);
+        }
+        return std::ref(slot);
+    }
+
+    return std::nullopt;
+}
+
+void
+GCFrameTracker::clear_slot(Slot& slot)
+{
+    slot.callback = nullptr;
+    slot.frame.store(nullptr, std::memory_order_relaxed);
+}
+
+#endif // PY_VERSION_HEX < 0x030f0000
+
 bool
 GCFrameTracker::install_current_interpreter()
 {
@@ -139,15 +193,21 @@ GCFrameTracker::install_current_interpreter()
     bool created = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        auto [state, inserted] = states_.try_emplace(tstate->interp);
-        (void)inserted;
+        auto maybe_slot = find_or_claim_slot(tstate->interp);
+        if (!maybe_slot) {
+            Py_DECREF(candidate);
+            Py_DECREF(callbacks);
+            PyErr_SetString(PyExc_RuntimeError, "too many interpreters are tracking garbage collection");
+            return false;
+        }
 
-        if (state->second.callback == nullptr) {
-            state->second.callback = candidate;
+        auto& slot = maybe_slot->get();
+        if (slot.callback == nullptr) {
+            slot.callback = candidate;
             callback = candidate;
             created = true;
         } else {
-            callback = state->second.callback;
+            callback = slot.callback;
         }
 
         Py_INCREF(callback); // local reference used outside the lock
@@ -185,10 +245,10 @@ GCFrameTracker::install_current_interpreter()
             PyObject* owned_callback = nullptr;
             {
                 std::lock_guard<std::mutex> lock(mutex_);
-                auto state = states_.find(tstate->interp);
-                if (state != states_.end() && state->second.callback == callback) {
-                    owned_callback = state->second.callback;
-                    states_.erase(state);
+                auto maybe_slot = find_slot(tstate->interp);
+                if (maybe_slot && maybe_slot->get().callback == callback) {
+                    owned_callback = callback;
+                    clear_slot(maybe_slot->get());
                 }
             }
             Py_XDECREF(owned_callback);
@@ -219,11 +279,12 @@ GCFrameTracker::uninstall_current_interpreter()
     PyObject* callback = nullptr;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        auto state = states_.find(tstate->interp);
-        if (state == states_.end() || state->second.callback == nullptr) {
+        auto maybe_slot = find_slot(tstate->interp);
+        if (!maybe_slot || maybe_slot->get().callback == nullptr) {
             return true;
         }
-        callback = state->second.callback;
+
+        callback = maybe_slot->get().callback;
         Py_INCREF(callback);
     }
 
@@ -262,10 +323,10 @@ GCFrameTracker::uninstall_current_interpreter()
     PyObject* owned_callback = nullptr;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        auto state = states_.find(tstate->interp);
-        if (state != states_.end() && state->second.callback == callback) {
-            owned_callback = state->second.callback;
-            states_.erase(state);
+        auto maybe_slot = find_slot(tstate->interp);
+        if (maybe_slot && maybe_slot->get().callback == callback) {
+            owned_callback = callback;
+            clear_slot(maybe_slot->get());
         }
     }
     Py_XDECREF(owned_callback);
@@ -288,9 +349,8 @@ GCFrameTracker::capture(PyInterpreterState* interp)
 
     // Before CPython 3.15, GC frame coverage is limited to interpreters
     // where dd-trace-py installed its native gc.callbacks callback.
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto state = states_.find(interp);
-    return state == states_.end() ? nullptr : state->second.frame;
+    auto maybe_slot = find_slot(interp);
+    return maybe_slot ? maybe_slot->get().frame.load(std::memory_order_relaxed) : nullptr;
 #endif
 }
 
@@ -298,11 +358,12 @@ GCFrameTracker::capture(PyInterpreterState* interp)
 void
 GCFrameTracker::update(PyInterpreterState* interp, PyObject* frame)
 {
-    std::lock_guard<std::mutex> lock(mutex_);
-    auto state = states_.find(interp);
-    if (state != states_.end()) {
-        state->second.frame = frame;
+    auto maybe_slot = find_slot(interp);
+    if (!maybe_slot) {
+        return;
     }
+
+    maybe_slot->get().frame.store(frame, std::memory_order_relaxed);
 }
 #endif
 
@@ -326,12 +387,11 @@ void
 GCFrameTracker::postfork_child()
 {
 #if PY_VERSION_HEX < 0x030f0000
-    // prepare() acquires the lock before fork so the map is in a stable state.
+    // prefork() acquires the lock before fork so no install or uninstall is half done.
     // The inherited callback objects remain registered and owned by their interpreters,
     // but children cannot use a frame pointer captured in the parent.
-    for (auto& [interp, state] : states_) {
-        (void)interp;
-        state.frame = nullptr;
+    for (auto& slot : slots_) {
+        slot.frame.store(nullptr, std::memory_order_relaxed);
     }
     new (&mutex_) std::mutex;
 #endif
