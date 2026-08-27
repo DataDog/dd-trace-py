@@ -2907,6 +2907,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={
                 "pytest-randomly": latest,
+                "uvloop": latest,
             },
             venvs=[
                 Venv(

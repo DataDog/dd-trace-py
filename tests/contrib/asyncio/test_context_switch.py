@@ -15,6 +15,12 @@ from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 
 
+def _new_uvloop_event_loop():
+    import uvloop
+
+    return uvloop.new_event_loop()
+
+
 @pytest.fixture
 def asyncio_patch_state():
     was_patched = getattr(asyncio, "_datadog_patch", False)
@@ -226,8 +232,8 @@ def test_callback_failure_resynchronizes_before_exception_handler(context_switch
     assert handled == [("ambient", "ambient")]
 
 
-@pytest.mark.asyncio
-async def test_task_switches_publish_the_resumed_context(tracer, context_switches):
+@pytest.mark.parametrize("loop_factory", [asyncio.new_event_loop, _new_uvloop_event_loop], ids=["asyncio", "uvloop"])
+def test_task_switches_publish_the_resumed_context(tracer, context_switches, loop_factory):
     """Publish each resumed task's context and detach it before another task runs."""
 
     async def child(name):
@@ -235,5 +241,13 @@ async def test_task_switches_publish_the_resumed_context(tracer, context_switche
             await asyncio.sleep(0)
             assert context_switches[-1] is span
 
-    await asyncio.gather(child("first"), child("second"))
-    assert None in context_switches
+    async def main():
+        await asyncio.gather(child("first"), child("second"))
+
+    loop = loop_factory()
+    try:
+        with tracer.trace("ambient") as ambient:
+            loop.run_until_complete(main())
+            assert context_switches[-1] is ambient
+    finally:
+        loop.close()
