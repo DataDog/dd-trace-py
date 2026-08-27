@@ -307,6 +307,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             }
             auto& task = current_task.get();
 
+            // Only the emitted leaf task can own the GC marker. Every other task in the chain is
+            // context for that leaf, and must not make a suspended leaf look like the collection
+            // ran in it.
+            const bool leaf_owns_gc_marker = task_chain_depth == 1 && stack_info->on_cpu;
+
             // Look up the pre-computed coroutine stack for this task.
             // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
             // python_stack must be appended before coroutine frames.
@@ -338,11 +343,14 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                                           : 0;
                 // These frames should render before the coroutine frames. Append them first in leaf-to-root order.
                 for (size_t i = 0; i < frames_to_push; i++) {
-                    const auto& python_frame = python_stack[i];
+                    auto python_frame = python_stack[i];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
                     if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
                         continue;
+                    }
+                    if (!leaf_owns_gc_marker) {
+                        python_frame.is_in_gc = false;
                     }
                     stack.push_back(python_frame);
                 }
@@ -350,9 +358,7 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             if (task_stack != nullptr) {
                 for (size_t i = 0; i < task_frames_to_push; i++) {
                     auto task_frame = (*task_stack)[i];
-                    // Only the emitted leaf task can own the GC marker. Linked parent stacks are
-                    // context for that leaf and must not make suspended leaves look like GC ran in them.
-                    if (task_chain_depth != 1 || !stack_info->on_cpu) {
+                    if (!leaf_owns_gc_marker) {
                         task_frame.is_in_gc = false;
                     }
                     stack.push_back(task_frame);
