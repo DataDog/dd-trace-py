@@ -20,10 +20,9 @@ the design discussion: no coupling between ddtest and riot.
    invocations. ddtest jobs live in the **child pipeline** and `needs:
    build_base_venvs`, so they restore the prebuilt venv (ddtrace already
    compiled by `build_base_venvs`) — they never run `riot generate` and
-   never recompile native extensions. (An earlier pilot built its own venv
-   inline in the parent pipeline and OOMKilled recompiling ddtrace; the
-   lesson is that ddtest jobs must reuse `build_base_venvs`, which only
-   exists in the child pipeline.)
+   never recompile native extensions. The ddtest binary is built once in a
+   setup job and shared as an artifact. (An earlier pilot built its own venv
+   inline in the parent pipeline and OOMKilled recompiling ddtrace.)
 2. **Riot knowledge stays in the bridge.** `scripts/ddtest-riot.py`
    enumerates venvs (`hashes`) and activates them (`venv-env`). ddtest
    shells out to it; ddtest never imports or knows about riot.
@@ -34,23 +33,27 @@ the design discussion: no coupling between ddtest and riot.
 4. **Opt-in per suite.** A suite flips to ddtest via a suitespec key; the
    legacy riot path remains the default and coexists, so rollout is
    suite-by-suite and reversible.
-5. **K = per-venv CI nodes, from suitespec parallelism.** A suite that
-   should not split across nodes uses `parallelism: 1` → ddtest runs all
-   that venv's files in one node (xdist inside via `--ci-node-workers`).
-   K=1 is always valid; there is no special "cannot be parallelized" case.
+5. **K = per-venv CI nodes, from `ddtest_nodes`.** A suite that should
+   not split across nodes uses `ddtest_nodes: 1` → ddtest runs all that
+   venv's files in one node. K=1 is always valid; there is no special
+   "cannot be parallelized" case.
 
 ## What changes
 
 ### riotfile (per suite, already proven on `internal`)
 
-Each suite that opts into ddtest declares its test location once as a
-queryable env var instead of a literal baked into the pytest command:
+Each suite that opts into ddtest declares its test location and any
+pytest options needed by ddtest as queryable env vars. Keeping these separate
+from the legacy command avoids parsing shell command strings. A suite
+using a pytest node ID keeps it in `DDTEST_SUITE_PATH` for legacy riot and
+provides an equivalent file-level filter through `DDTEST_PYTEST_ADDOPTS`.
 
 ```python
 Venv(
     name="internal",
     env={
         "DDTEST_SUITE_PATH": "tests/internal",
+        "DDTEST_PYTEST_ADDOPTS": "-v",
         ...,
     },
     command="pytest -v -n auto --dist=worksteal {cmdargs} ${DDTEST_SUITE_PATH}/",
@@ -74,70 +77,58 @@ suites:
     paths: [...]
 ```
 
-No other suitespec change is required. K (per-venv CI nodes) reuses the
-suite's existing `parallelism`/`venvs_per_job` (the same value
-`gen_gitlab_config.py` already scales into a job count); ddtest receives
-it as `--min-parallelism K --max-parallelism K`.
+`DDTEST_SUITE_PATH` is required for every venv matched by a ddtest suite;
+the generator rejects incomplete suite definitions. `ddtest_nodes` controls
+`--min-parallelism` and `--max-parallelism`; legacy `parallelism` and
+`venvs_per_job` are not used by ddtest.
 
 ### gen_gitlab_config.py (new emission)
 
-`_gen_tests` emits, for each required suite with `ddtest: true`, a
-**ddtest-plan** job per venv and **ddtest-run** jobs per `(venv, node)`,
-mirroring the existing `JobSpec` emission but extending a new
-`.test_base_ddtest` template instead of `.test_base_riot`:
+`_gen_tests` emits, for each required suite with `ddtest: true`, one
+**ddtest-plan** job per suite and **ddtest-run** jobs per `(venv, node)`,
+mirroring the existing `JobSpec` emission but extending ddtest templates:
 
 ```
-<suite>/<name>::ddtest-plan:<hash>      stage: <suite stage>
-  extends: .test_base_ddtest
-  needs: [prechecks, build_base_venvs(matching PYTHON_VERSION)]
+ddtest-build:                         stage: setup
+  extends: .ddtest_build
+
+<suite>/<name>::ddtest-plan          stage: <suite stage>
+  extends: .ddtest_plan
+  needs: [prechecks, build_base_venvs, ddtest-build]
   variables:
-    RIOT_HASH: "<hash>"
-    DDTEST_SUITE_PATH: "tests/internal"     # from the venv's env
-    DDTEST_NODES: "<K>"                     # from suitespec parallelism
-  script:
-    - riot -P -v generate --python=$PYTHON_VERSION   # only if not
-                                                      # restoring build_base_venvs
-    - eval "$(python scripts/ddtest-riot.py venv-env $RIOT_HASH)"
-    - ./bin/ddtest plan -p python -f pytest \
-        --tests-location $DDTEST_SUITE_PATH \
-        --min-parallelism $DDTEST_NODES --max-parallelism $DDTEST_NODES
+    RIOT_HASHES: "<hashes for this suite>"
+    DDTEST_NODES: "<K>"
   artifacts:
-    paths: [.testoptimization/]
+    paths: [.testoptimization-*/]
 
 <suite>/<name>::ddtest-run:<hash>:<node>  stage: <suite stage>
-  extends: .test_base_ddtest
-  needs: [prechecks, build_base_venvs(matching),
-          <suite>/<name>::ddtest-plan:<hash>]
+  extends: .ddtest_run
+  needs: [prechecks, build_base_venvs, ddtest-build,
+          <suite>/<name>::ddtest-plan]
   variables:
     RIOT_HASH: "<hash>"
     CI_NODE_INDEX: "<node>"
-  script:
-    - eval "$(python scripts/ddtest-riot.py venv-env $RIOT_HASH)"
-    - ./bin/ddtest run -p python -f pytest --ci-node $CI_NODE_INDEX \
-        --ci-node-workers 1
 ```
 
-The plan stage `needs: build_base_venvs` (matching Python version) and
-uploads `.testoptimization/`; the run stage downloads that artifact. This
-is the "separate plan stage + artifact" option: plan runs once per venv,
-run jobs share it. (In ITR-on mode the per-hash deps venv is `prepare`d in
-the plan job; riot's `run` reuses the existing prefix in run jobs, so the
-second prepare is a no-op cache hit, not a reinstall.)
+The plan job loops over hashes in isolated subshells, preparing and activating
+one venv at a time. It uploads one partitioned plan artifact; run jobs restore
+their matching partition. The binary is built once by `ddtest-build`, while
+`build_base_venvs` supplies the precompiled ddtrace environments.
 
 ### .gitlab/tests.yml (new template)
 
-A `.test_base_ddtest` template analogous to `.test_base_riot`:
-restores `build_base_venvs` artifacts, downloads the ddtest binary, sets
-up the ddagent/testagent services (snapshot suites get the testagent,
-same as `.test_base_riot_snapshot`), and provides the `eval
-$(... venv-env)` activation step. It does **not** run riot's baked
-`command=`; ddtest owns pytest invocation.
+A set of ddtest templates analogous to `.test_base_riot`: the setup
+template builds ddtest once, while plan/run templates restore the ddtest
+artifact, use the prebuilt riot environments, and set up the declared
+service dependencies (snapshot suites get the testagent, same as
+`.test_base_riot_snapshot`). They do **not** run riot's baked `command=`;
+ddtest owns pytest invocation.
 
 ### scripts/ddtest-riot.py (already landed, unchanged)
 
 - `hashes <pattern>` → `<hash>\t<py_hint>\t<DDTEST_SUITE_PATH>`
 - `venv-env <hash>` → activation env (VIRTUAL_ENV, PATH, PYTHONPATH,
-  RIOT_*, DDTEST_SUITE_PATH)
+  RIOT_*, DDTEST_SUITE_PATH, DDTEST_PYTEST_ADDOPTS)
 
 ## CI graph (end state)
 
@@ -149,8 +140,9 @@ tests-gen (stage: tests)
 
 child pipeline (.gitlab/tests-gen.yml):
   build_base_venvs (per PYTHON_VERSION)
+  ddtest-build                     (once when ddtest is selected)
   <suite>::riot:<hash>            (legacy, for non-ddtest suites)
-  <suite>::ddtest-plan:<hash>     (ddtest suites; needs build_base_venvs)
+  <suite>::ddtest-plan             (ddtest suites; loops over hashes)
   <suite>::ddtest-run:<hash>:<n>  (needs ddtest-plan:<hash>)
 ```
 

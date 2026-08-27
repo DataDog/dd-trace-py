@@ -265,6 +265,8 @@ suites:
     ddtest: true
     ddtest_nodes: 2
     venvs_per_job: 1
+    services:
+      - testagent
     paths:
       - '@bootstrap'
       - '@core'

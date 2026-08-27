@@ -91,10 +91,30 @@ include:
 # knowledge stays in scripts/ddtest-riot.py (the bridge). See
 # docs/ddtest-dogfooding.md for the full design.
 #
-# before_script and script share the same shell session in GitLab, so the
-# venv activation (`eval ...`) done in before_script is in effect for the
-# ddtest command in script.
+# before_script and script share the same shell session in GitLab. Venv
+# preparation and activation are deliberately kept out of this common base:
+# plan jobs iterate over several hashes, while run jobs have one hash each.
 # ---------------------------------------------------------------------------
+.ddtest_build:
+  extends: .testrunner
+  stage: setup
+  needs: [prechecks]
+  script:
+    - |
+      set -e -o pipefail
+      mkdir -p bin
+      # Build ddtest from main (merged but not yet released).
+      curl -fsSL https://go.dev/dl/go1.26.5.linux-amd64.tar.gz | tar xz -C /tmp
+      export PATH="/tmp/go/bin:$PATH"
+      rm -rf /tmp/ddtest-src
+      git clone --depth 1 https://github.com/DataDog/ddtest.git /tmp/ddtest-src
+      (cd /tmp/ddtest-src && go build -o "${CI_PROJECT_DIR}/bin/ddtest" .)
+      chmod +x bin/ddtest
+  artifacts:
+    paths:
+      - bin/ddtest
+    expire_in: 1 week
+
 .ddtest_base:
   extends: .testrunner
   services:
@@ -105,23 +125,6 @@ include:
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
-    - |
-      mkdir -p bin
-      # Build ddtest from main (merged but not yet released).
-      curl -fsSL https://go.dev/dl/go1.26.5.linux-amd64.tar.gz | tar xz -C /tmp
-      export PATH="/tmp/go/bin:$PATH"
-      git clone --depth 1 https://github.com/DataDog/ddtest.git /tmp/ddtest-src
-      (cd /tmp/ddtest-src && go build -o "${CI_PROJECT_DIR}/bin/ddtest" .)
-      chmod +x bin/ddtest
-      # Prepare the per-hash riot venv (install envier, pytest, ... into the
-      # prefix) and activate it. build_base_venvs only installs ddtrace into
-      # the base venv; the per-hash deps are installed lazily by prepare.
-      scripts/ddtest-riot.py prepare "${RIOT_HASH}"
-      # Activate the venv in a subshell so the exported PYTHONPATH
-      # does NOT contaminate the before_script environment
-      # (which riot run -s wait inherits). The ddtest plan/run
-      # scripts re-activate below.
-      (eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")" && python -c "import ddtrace, pytest, envier")
 
 .ddtest_base_snapshot:
   extends: .ddtest_base
@@ -136,30 +139,45 @@ include:
 # No snapshot variant — plan only collects (glob + Datadog API) and sends
 # no traces, so the testagent is never needed at plan time.
 # --tests-location is a raw glob (ddtest does not combine it with python_files),
-# so it must include the file-glob part. dd-trace-py uses python_files = test*\.py.
+# so it must include the file-glob part. A file::node selector is handled by
+# using the file for discovery; the matching pytest filter is supplied through
+# DDTEST_PYTEST_ADDOPTS.
 .ddtest_plan:
   extends: .ddtest_base
   script:
     - |
-      # Single plan job per suite: loop over all RIOT_HASHES sequentially
-      # (prepare + plan each), partitioning the plan artifact by hash.
-      # This reduces N×M plan jobs to just 1 per suite.
+      # Keep each hash in a subshell. venv-env starts from the current process
+      # environment, so a loop without a subshell would accumulate PATH and
+      # PYTHONPATH entries from every previously activated venv.
       for _hash in ${RIOT_HASHES}; do
         scripts/ddtest-riot.py prepare "${_hash}"
-        eval "$(scripts/ddtest-riot.py venv-env "${_hash}")"
-        # ddtest reads DD_TRACE_AGENT_URL for the agent URL.
-        # _CI_DD_AGENT_URL is set by .testrunner before_script to
-        # the real agent (ddagent sidecar). Export it as
-        # DD_TRACE_AGENT_URL so ddtest's API requests go
-        # through the agent's EVP proxy (not localhost:8126
-        # default, which may not reach the agent in all setups).
-        export DD_TRACE_AGENT_URL="${_CI_DD_AGENT_URL}"
-        ./bin/ddtest plan \
-          --platform python \
-          --framework pytest \
-          --tests-location "${DDTEST_SUITE_PATH}/**/test*.py" \
-          --min-parallelism "${DDTEST_NODES}" \
-          --max-parallelism "${DDTEST_NODES}"
+        (
+          eval "$(scripts/ddtest-riot.py venv-env "${_hash}")"
+          : "${DDTEST_SUITE_PATH:?DDTEST_SUITE_PATH is required for every ddtest venv}"
+          _test_path="${DDTEST_SUITE_PATH%%::*}"
+          case "${_test_path}" in
+            *.py) _tests_location="${_test_path}" ;;
+            *) _tests_location="${_test_path%/}/**/test*.py" ;;
+          esac
+          _pytest_addopts="${DDTEST_PYTEST_ADDOPTS:-}"
+          if [[ "${NIGHTLY_BUILD}" != "true" && "${_pytest_addopts}" != *"--no-cov"* ]]; then
+            _pytest_addopts="${_pytest_addopts} --no-cov"
+          fi
+          export PYTEST_ADDOPTS="${_pytest_addopts# }"
+          # ddtest reads DD_TRACE_AGENT_URL for the agent URL.
+          # _CI_DD_AGENT_URL is set by .testrunner before_script to
+          # the real agent (ddagent sidecar). Export it as
+          # DD_TRACE_AGENT_URL so ddtest's API requests go
+          # through the agent's EVP proxy (not localhost:8126
+          # default, which may not reach the agent in all setups).
+          export DD_TRACE_AGENT_URL="${_CI_DD_AGENT_URL}"
+          ./bin/ddtest plan \
+            --platform python \
+            --framework pytest \
+            --tests-location "${_tests_location}" \
+            --min-parallelism "${DDTEST_NODES}" \
+            --max-parallelism "${DDTEST_NODES}"
+        )
         mv .testoptimization ".testoptimization-${_hash}"
       done
   artifacts:
@@ -176,7 +194,14 @@ include:
   extends: .ddtest_base
   script:
     - |
+      scripts/ddtest-riot.py prepare "${RIOT_HASH}"
       eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
+      : "${DDTEST_SUITE_PATH:?DDTEST_SUITE_PATH is required for every ddtest venv}"
+      _pytest_addopts="${DDTEST_PYTEST_ADDOPTS:-}"
+      if [[ "${NIGHTLY_BUILD}" != "true" && "${_pytest_addopts}" != *"--no-cov"* ]]; then
+        _pytest_addopts="${_pytest_addopts} --no-cov"
+      fi
+      export PYTEST_ADDOPTS="${_pytest_addopts# }"
       # Restore this venv's plan artifact (partitioned by RIOT_HASH in the plan job).
       rm -rf .testoptimization
       mv ".testoptimization-${RIOT_HASH}" .testoptimization
@@ -198,14 +223,23 @@ include:
       # Consolidate per-worker coverage files into one .coverage file.
       # Each xdist worker wrote to its own COVERAGE_FILE;
       # 'coverage combine' merges them so coverage can be uploaded.
-      # Non-fatal: 'No data to combine' when --no-cov is set or all tests skipped.
-      coverage combine || true
+      coverage_files=(.coverage.*)
+      if [[ -e "${coverage_files[0]}" ]]; then
+        coverage combine
+      fi
 
 .ddtest_run_snapshot:
   extends: .ddtest_base_snapshot
   script:
     - |
+      scripts/ddtest-riot.py prepare "${RIOT_HASH}"
       eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
+      : "${DDTEST_SUITE_PATH:?DDTEST_SUITE_PATH is required for every ddtest venv}"
+      _pytest_addopts="${DDTEST_PYTEST_ADDOPTS:-}"
+      if [[ "${NIGHTLY_BUILD}" != "true" && "${_pytest_addopts}" != *"--no-cov"* ]]; then
+        _pytest_addopts="${_pytest_addopts} --no-cov"
+      fi
+      export PYTEST_ADDOPTS="${_pytest_addopts# }"
       rm -rf .testoptimization
       mv ".testoptimization-${RIOT_HASH}" .testoptimization
       # Use a unique coverage data file per run to avoid sqlite corruption
@@ -229,7 +263,9 @@ include:
         --ci-node "${CI_NODE_INDEX}" \
         --ci-node-workers 4
       # Consolidate per-worker coverage files into one .coverage file.
-      # Non-fatal: 'No data to combine' when --no-cov is set or all tests skipped.
-      coverage combine || true
+      coverage_files=(.coverage.*)
+      if [[ -e "${coverage_files[0]}" ]]; then
+        coverage combine
+      fi
 
 # Required jobs will appear here

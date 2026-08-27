@@ -506,6 +506,7 @@ venv = Venv(
             name="integration",
             env={
                 "DDTEST_SUITE_PATH": "tests/integration",
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
             },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
@@ -529,6 +530,9 @@ venv = Venv(
         ),
         Venv(
             name="integration-civisibility",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
             command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
@@ -650,6 +654,7 @@ venv = Venv(
                 # unchanged whether or not ddtest is installed; ddtest reads this env
                 # var via scripts/ddtest-riot to plan/run individual files.
                 "DDTEST_SUITE_PATH": "tests/internal",
+                "DDTEST_PYTEST_ADDOPTS": "-v",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
@@ -4586,6 +4591,7 @@ venv = Venv(
             },
             env={
                 "DDTEST_SUITE_PATH": "tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI",
+                "DDTEST_PYTEST_ADDOPTS": "-k Test_FastAPI",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
