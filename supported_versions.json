@@ -2344,7 +2344,7 @@
                 "maximum_package_version": "1.28.1",
                 "tested_versions": [
                     "1.0.0",
-                    "1.28.1"
+                    "2.8.0"
                 ]
             }
         }
