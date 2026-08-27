@@ -1598,7 +1598,9 @@ def pytest_load_initial_conftests(
     # matching the console-script behavior.
     import ddtrace.internal.settings._inferred_base_service as _ibs
 
-    _clean_argv = [a for i, a in enumerate(sys.argv) if not (i == 0 and os.path.basename(a) == "__init__.py")]
+    _clean_argv = [
+        a for i, a in enumerate(sys.argv) if not (i == 0 and os.path.basename(a) in ("__init__.py", "__main__.py"))
+    ]
     _corrected_service = _ibs.detect_service(_clean_argv)
     if _corrected_service and _corrected_service != session_manager.service:
         session_manager.service = _corrected_service
