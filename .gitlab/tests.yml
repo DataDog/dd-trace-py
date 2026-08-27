@@ -180,6 +180,11 @@ include:
       # Restore this venv's plan artifact (partitioned by RIOT_HASH in the plan job).
       rm -rf .testoptimization
       mv ".testoptimization-${RIOT_HASH}" .testoptimization
+      # Use a unique coverage data file per run to avoid sqlite corruption
+      # when multiple xdist workers (--ci-node-workers) write to the
+      # same .coverage file simultaneously. Coverage is still collected
+      # and can be consolidated afterwards via 'coverage combine'.
+      export COVERAGE_FILE=".coverage.${RIOT_HASH}.${CI_NODE_INDEX}"
       # Suppress CI Visibility INFO logs in the subprocess (e.g.
       # SessionManager logs 'Service: ...' to stderr), which breaks
       # tests that assert stderr is empty (test_span_schematization).
@@ -190,14 +195,21 @@ include:
         --framework pytest \
         --ci-node "${CI_NODE_INDEX}" \
         --ci-node-workers 4
-
-.ddtest_run_snapshot:
+      # Consolidate per-worker coverage files into one .coverage file.
+      # Each xdist worker wrote to its own COVERAGE_FILE;
+      # 'coverage combine' merges them so coverage can be uploaded.
+      coverage combine
   extends: .ddtest_base_snapshot
   script:
     - |
       eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
       rm -rf .testoptimization
       mv ".testoptimization-${RIOT_HASH}" .testoptimization
+      # Use a unique coverage data file per run to avoid sqlite corruption
+      # when multiple xdist workers (--ci-node-workers) write to the
+      # same .coverage file simultaneously. Coverage is still collected
+      # and can be consolidated afterwards via 'coverage combine'.
+      export COVERAGE_FILE=".coverage.${RIOT_HASH}.${CI_NODE_INDEX}"
       # Suppress CI Visibility INFO logs in the subprocess (e.g.
       # SessionManager logs 'Service: ...' to stderr), which breaks
       # tests that assert stderr is empty (test_span_schematization).
@@ -213,5 +225,7 @@ include:
         --framework pytest \
         --ci-node "${CI_NODE_INDEX}" \
         --ci-node-workers 4
+      # Consolidate per-worker coverage files into one .coverage file.
+      coverage combine
 
 # Required jobs will appear here

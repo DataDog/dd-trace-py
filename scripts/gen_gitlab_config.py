@@ -589,13 +589,6 @@ def _emit_ddtest_jobs(
                         break
             break
 
-    # Regular CI does not need coverage (only nightly does). Coverage is
-    # enabled by default via setup.cfg addopts=--cov. Adding --no-cov
-    # prevents pytest-cov from writing the .coverage sqlite file, which
-    # corrupts when multiple xdist workers write simultaneously.
-    if "--no-cov" not in pytest_addopts:
-        pytest_addopts = (pytest_addopts + " --no-cov").strip() if pytest_addopts else "--no-cov"
-
     def emit_services(plan: bool) -> None:
         if not services:
             return
