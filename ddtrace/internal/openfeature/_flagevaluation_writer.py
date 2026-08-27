@@ -107,6 +107,11 @@ DEFAULT_FLUSH_INTERVAL = 10.0
 # window to accumulate more buckets than QUEUE_SIZE.
 DRAIN_INTERVAL = 0.1
 
+# Bound on the shutdown wait for the drain worker. An unbounded join blocks process
+# exit if the worker stalls in aggregation or in a caller __eq__ or __hash__ call.
+# dd-trace-rb and dd-trace-java both bound this wait at 5 seconds.
+DRAIN_WORKER_JOIN_TIMEOUT = 5.0
+
 # Flag metadata key where the provider stamps the evaluation timestamp (ms).
 EVAL_TIMESTAMP_METADATA_KEY = "dd.eval.timestamp_ms"
 
@@ -980,7 +985,17 @@ class FlagEvaluationWriter(PeriodicService):
         worker.stop()
         # The worker can already own a dequeued event. Wait until aggregation
         # completes so the final periodic() call cannot snapshot before it.
-        worker.join()
+        #
+        # The wait is bounded. Aggregation calls __eq__ and __hash__ on the caller's
+        # own canonical context key, so a caller implementation that blocks would
+        # otherwise hang process exit.
+        #
+        # PeriodicThread.join returns None whether the worker stopped or the wait
+        # expired, so the outcome is not observable here. A timeout is still safe:
+        # _aggregate and the periodic() snapshot both hold self._lock, so a worker
+        # that is still running writes into the post-swap maps rather than
+        # corrupting the flush. Such an event flushes late instead of never.
+        worker.join(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
 
     def _aggregate(self, event: _EvalEvent) -> None:
         """

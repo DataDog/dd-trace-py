@@ -39,6 +39,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATI
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_SNAPSHOT_ERROR
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_UNSUPPORTED_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
+from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOIN_TIMEOUT
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_DEGRADED_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_FULL_BUCKET_TARGET
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_SCALE_PER_FLAG_BUCKET_TARGET
@@ -1399,6 +1400,49 @@ class TestShutdownDrain:
         assert len(sent) == 1, "stop() must trigger a final drain+flush"
         decoded = json.loads(sent[0][0])
         assert decoded["flagEvaluations"][0]["flag"]["key"] == "lifecycle-flag"
+
+    def test_stop_drain_worker_bounds_the_join(self, writer):
+        """The shutdown join must pass a timeout so a stalled worker cannot hang exit."""
+        worker = mock.Mock()
+        writer._drain_worker = worker
+
+        writer._stop_drain_worker()
+
+        worker.stop.assert_called_once()
+        worker.join.assert_called_once_with(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
+        assert writer._drain_worker is None
+
+    def test_shutdown_completes_when_the_drain_worker_never_stops(self, writer):
+        """A worker that ignores stop() must not block on_shutdown past the timeout."""
+        writer.enqueue(_make_event(flag_key="pending"))
+
+        # Model a stalled worker: join() honours its timeout and then returns while
+        # the worker is still running. An unbounded join would block here forever.
+        class StalledWorker:
+            def __init__(self) -> None:
+                self.join_timeouts: list = []
+
+            def stop(self) -> None:
+                pass
+
+            def join(self, timeout: typing.Optional[float] = None) -> None:
+                self.join_timeouts.append(timeout)
+                # Block for the full requested wait, as the real join does on timeout.
+                threading.Event().wait(timeout=0.01 if timeout else None)
+
+        worker = StalledWorker()
+        writer._drain_worker = worker
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.on_shutdown()
+
+        assert worker.join_timeouts == [DRAIN_WORKER_JOIN_TIMEOUT], (
+            "an unbounded join(None) would hang process exit on a stalled worker"
+        )
+        # The final flush still happened, so the queued event was not lost.
+        mock_send.assert_called_once()
+        decoded = json.loads(mock_send.call_args[0][0])
+        assert decoded["flagEvaluations"][0]["flag"]["key"] == "pending"
 
     def test_final_drain_emits_accepted_truncation_counter(self, writer):
         writer.enqueue(_make_event(attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}))
