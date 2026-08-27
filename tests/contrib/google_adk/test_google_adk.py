@@ -1,3 +1,4 @@
+import gc
 from typing import Any
 
 from google.adk.code_executors.code_execution_utils import CodeExecutionInput
@@ -330,3 +331,25 @@ async def test_streaming_tool_span_finished_when_consumer_stops_early(adk, test_
     tool_spans = [s for t in test_spans.pop_traces() for s in t if "__call_tool_async" in s.resource]
     assert len(tool_spans) == 1
     assert tool_spans[0].duration is not None, "the span must be finished when the consumer stops early"
+
+
+@streaming_via_call_tool_async
+@pytest.mark.asyncio
+async def test_streaming_tool_span_finished_when_stream_never_started(adk, test_spans, streaming_tool_context):
+    """The non-live dispatch does not iterate an async generator result, it just stores it.
+
+    A generator that never starts never runs its finally, so the span cannot be finished from
+    inside the stream wrapper. Dropping the result must still finish it.
+    """
+    tool = FunctionTool(func=stream_values)
+
+    # `tool` positionally, matching the non-live dispatch that does not check for a generator.
+    result = await call_tool_async(adk)(tool, args={"count": 3}, tool_context=streaming_tool_context)
+
+    del result
+    gc.collect()
+
+    tool_spans = [s for t in test_spans.pop_traces() for s in t if "__call_tool_async" in s.resource]
+    assert len(tool_spans) == 1
+    assert tool_spans[0].duration is not None, "an abandoned stream must not leave its span unfinished"
+    assert tool_spans[0].duration >= 0, "an abandoned stream must not report a negative duration"

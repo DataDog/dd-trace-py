@@ -2,6 +2,7 @@ import inspect
 import sys
 from typing import Any
 from typing import Union
+import weakref
 
 from _ddtrace_internal.modules import check_module_path
 import google.adk as adk
@@ -11,6 +12,7 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.time import Time
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -117,7 +119,11 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
         if inspect.isasyncgen(result):
             # google-adk >= 2.7.0 returns an async generator for streaming tools. Keep the span
             # open so the streamed items are tagged instead of the generator object.
-            stream = _traced_tool_stream(result, span, integration, args, kwargs)
+            state = {"started": False, "handoff": Time.time_ns() / 1e9}
+            stream = _traced_tool_stream(result, span, integration, args, kwargs, state)
+            weakref.finalize(
+                stream, _finish_unstarted_stream_span, span, integration, args, kwargs, state
+            ).atexit = False
             stream_handed_off = True
             return stream
         return result
@@ -133,7 +139,25 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
             span.finish()
 
 
-async def _traced_tool_stream(agen, span, integration, args, kwargs):
+def _finish_unstarted_stream_span(span, integration, args, kwargs, state):
+    """Finish a tool span whose stream was handed off but never iterated.
+
+    A generator that never starts never runs its finally, and the non-live dispatch does not
+    iterate an async generator result. Runs before the stream's own cleanup, so it defers to
+    `started`, and finishes at the handoff rather than at collection time.
+    """
+    if state["started"] or span.duration_ns is not None:
+        return
+    try:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="tool")
+        span.finish(finish_time=state["handoff"])
+    except Exception:
+        logger.debug("Error finishing abandoned google adk tool stream span.", exc_info=True)
+
+
+async def _traced_tool_stream(agen, span, integration, args, kwargs, state=None):
+    if state is not None:
+        state["started"] = True
     chunks = []
     try:
         async for item in agen:
@@ -147,11 +171,13 @@ async def _traced_tool_stream(agen, span, integration, args, kwargs):
         # wait for async generator finalization. google-adk closes the stream itself, so mirror it.
         # A failure to close must not mask the streamed exception or strand the span.
         try:
-            await agen.aclose()
-        except Exception:
-            logger.debug("Error closing google adk tool stream.", exc_info=True)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
-        span.finish()
+            try:
+                await agen.aclose()
+            except Exception:
+                logger.debug("Error closing google adk tool stream.", exc_info=True)
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
+            span.finish()
 
 
 async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
