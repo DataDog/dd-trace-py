@@ -188,6 +188,10 @@ TARGET_JOBS = 200
 # All supported Python versions (fallback when no venv info is available)
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
+# A `riot run` in the build-base-venvs template that pins the job's interpreter, e.g.
+# `riot -v run -s --python=$PYTHON_VERSION smoke_test`. Captures the suite name.
+BASE_VENV_SUITE_RUN = re.compile(r"^[ \t]*riot\b[^\n]*\brun\b[^\n]*--python=\$PYTHON_VERSION\s+([\w.-]+)[ \t]*$", re.M)
+
 
 def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
     """Collect venv count and Python versions for multiple suites in a single pass.
@@ -742,6 +746,57 @@ def gen_cached_testrunner() -> None:
         )
 
 
+def base_venv_python_versions() -> list[str]:
+    """The Python versions the build_base_venvs job matrix will carry."""
+    if _global_python_versions:
+        return sorted(_global_python_versions)
+    return list(ALL_PYTHON_VERSIONS)
+
+
+def base_venv_suites() -> list[str]:
+    """The riot suites the build-base-venvs template runs once per matrix Python version.
+
+    Read out of the template rather than hardcoded so the coverage check below stays tied to
+    what the job actually runs. These are the only ``riot run`` invocations in the pipeline
+    that pin an interpreter: the per-suite jobs get their hashes from ``get-riot-hashes.sh``,
+    which does not filter by interpreter, and ``.gitlab/tests.yml`` already fails them on an
+    empty hash list.
+    """
+    template_path = (GITLAB / "templates" / "build-base-venvs").with_suffix(".yml")
+    suites = BASE_VENV_SUITE_RUN.findall(template_path.read_text())
+    if not suites:
+        raise ValueError(
+            f"{template_path} no longer runs a riot suite with --python=$PYTHON_VERSION in a shape "
+            "BASE_VENV_SUITE_RUN recognises. Update the pattern, or delete this check if the "
+            "template no longer selects an interpreter."
+        )
+    return suites
+
+
+def check_base_venv_suite_coverage(py_versions: t.Sequence[str], coverage: dict[str, set[str]]) -> None:
+    """Raise when a matrix Python version has no venv in a suite build_base_venvs runs.
+
+    ``py_versions`` is the build_base_venvs matrix; ``coverage`` maps each suite from
+    ``base_venv_suites`` to the interpreters its venvs declare, both derived rather than
+    written down, so this compares two moving parts instead of restating one of them.
+
+    Suites that deliberately cover only some interpreters are not affected: their jobs run
+    every hash the suite has, with no ``--python`` filter, so they cannot select an
+    interpreter they have no venv for. Only build_base_venvs pins an interpreter per job.
+    """
+    for suite, covered in sorted(coverage.items()):
+        missing = [version for version in py_versions if version not in covered]
+        if missing:
+            versions = ", ".join(missing)
+            raise ValueError(
+                f"build_base_venvs would run `riot run --python=<version> {suite}` for Python "
+                f"{versions}, but no {suite} venv declares {'them' if len(missing) > 1 else 'it'}. "
+                f"riot exits 0 when a --python filter matches nothing, so those jobs would report "
+                f"success having tested nothing. Either give {suite} venvs for {versions} in "
+                f"riotfile.py, or keep {versions} out of the matrix."
+            )
+
+
 def gen_build_base_venvs() -> None:
     """Generate the list of base jobs for building virtual environments.
 
@@ -751,12 +806,8 @@ def gen_build_base_venvs() -> None:
     Only builds venvs for the Python versions actually needed by the required suites,
     falling back to all supported versions when no venv info is available.
     """
-    if _global_python_versions:
-        py_versions = sorted(_global_python_versions)
-        LOGGER.info("Building base venvs for Python versions: %s", py_versions)
-    else:
-        py_versions = ALL_PYTHON_VERSIONS
-        LOGGER.info("No suite venv info available, building all Python versions: %s", py_versions)
+    py_versions = base_venv_python_versions()
+    LOGGER.info("Building base venvs for Python versions: %s", py_versions)
 
     python_versions_str = ", ".join(f'"{v}"' for v in py_versions)
 
@@ -769,6 +820,21 @@ def gen_build_base_venvs() -> None:
                 nightly_build=_get_bool_env("NIGHTLY_BUILD"),
             )
         )
+
+
+def gen_check_base_venv_suite_coverage() -> None:
+    """Fail generation if a build_base_venvs matrix entry would test nothing.
+
+    Defined after gen_build_base_venvs so it observes the same matrix: the generation steps
+    run in definition order, and the matrix is derived from state gen_required_suites fills
+    in. Failing here means the vacuous job is never created, rather than passing green.
+    """
+    suites = base_venv_suites()
+    venv_info = collect_all_suite_venv_info({suite: suite for suite in suites})
+    check_base_venv_suite_coverage(
+        base_venv_python_versions(),
+        {suite: venv_info[suite].python_versions if suite in venv_info else set() for suite in suites},
+    )
 
 
 # -----------------------------------------------------------------------------

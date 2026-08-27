@@ -40,6 +40,14 @@ build_base_venvs:
     riot -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
+    # riot exits 0 when a --python filter matches no venv, so a PYTHON_VERSION that
+    # smoke_test has no venv for would leave this step a no-op and the job green having
+    # tested nothing. scripts/gen_gitlab_config.py refuses to generate such a matrix entry;
+    # this also covers a venv riot failed to create, which it only logs before exiting 0.
+    if [ -z "$(riot list --hash-only --python=$PYTHON_VERSION smoke_test)" ]; then
+      echo "No smoke_test riot venv for Python $PYTHON_VERSION: this job would test nothing."
+      exit 1
+    fi
     riot -v run -s --python=$PYTHON_VERSION smoke_test
     sccache --show-stats || true
   artifacts:
