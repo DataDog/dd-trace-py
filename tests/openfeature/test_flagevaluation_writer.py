@@ -1927,3 +1927,120 @@ class TestObservableDropCounters:
         assert writer._dropped_degraded_overflow == 0
         assert writer._dropped_pre_queue == 0
         assert writer._dropped_queue == 0
+
+
+class TestConcurrentEnqueue:
+    """enqueue runs on arbitrary caller hook threads across three separate locks."""
+
+    def test_every_concurrent_enqueue_is_either_buffered_or_counted(self):
+        """Under contention, each attempt must land in exactly one outcome.
+
+        enqueue takes _lifecycle_lock and _counter_lock separately, and the O(1) full
+        check is not atomic with put_nowait. A lost update in either counter, or a
+        double count across the two drop paths, would make the drop telemetry
+        disagree with what the caller actually attempted.
+        """
+        threads_count = 8
+        per_thread = 250
+        total_attempted = threads_count * per_thread
+
+        # A queue far smaller than the offered load forces both drop paths to run:
+        # the pre-queue full check and the put_nowait queue.Full race.
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.QUEUE_SIZE", 64):
+            writer = FlagEvaluationWriter(interval=3600.0)
+            assert writer._queue.maxsize == 64
+
+            barrier = threading.Barrier(threads_count)
+            errors: list[BaseException] = []
+
+            def worker(thread_index: int) -> None:
+                try:
+                    barrier.wait(timeout=10.0)
+                    for i in range(per_thread):
+                        writer.enqueue(_make_event(flag_key=f"f{thread_index}", attrs={"i": i}))
+                except BaseException as exc:  # noqa: BLE001 - surfaced via assert below
+                    errors.append(exc)
+
+            threads = [threading.Thread(target=worker, args=(n,)) for n in range(threads_count)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(timeout=30.0)
+                assert not t.is_alive(), "enqueue must never block a caller thread"
+
+            assert not errors, f"enqueue raised on a caller thread: {errors!r}"
+
+            buffered = writer._queue.qsize()
+            dropped_pre_queue = writer._dropped_pre_queue
+            dropped_queue = writer._dropped_queue
+
+        assert buffered + dropped_pre_queue + dropped_queue == total_attempted, (
+            f"accounting lost or double-counted events: buffered={buffered} "
+            f"pre_queue={dropped_pre_queue} queue={dropped_queue} attempted={total_attempted}"
+        )
+        # The load far exceeds the queue, so backpressure must have been exercised.
+        assert dropped_pre_queue + dropped_queue > 0, "test did not exercise the drop paths"
+
+    def test_concurrent_enqueue_and_flush_preserve_total_accounting(self):
+        """A flush racing with enqueue must not lose or double-count events."""
+        threads_count = 6
+        per_thread = 200
+        total_attempted = threads_count * per_thread
+
+        writer = FlagEvaluationWriter(interval=3600.0)
+        flushed = 0
+        stop_flushing = threading.Event()
+        barrier = threading.Barrier(threads_count + 1)
+        errors: list[BaseException] = []
+
+        def producer(thread_index: int) -> None:
+            try:
+                barrier.wait(timeout=10.0)
+                for i in range(per_thread):
+                    writer.enqueue(_make_event(flag_key=f"f{thread_index}", attrs={"i": i}))
+            except BaseException as exc:  # noqa: BLE001 - surfaced via assert below
+                errors.append(exc)
+
+        def flusher() -> None:
+            nonlocal flushed
+            try:
+                barrier.wait(timeout=10.0)
+                while not stop_flushing.is_set():
+                    # Drain and snapshot repeatedly, competing with the producers.
+                    writer._drain_queue()
+                    with writer._lock:
+                        flushed += sum(e.count for e in writer._full.values())
+                        flushed += sum(e.count for e in writer._degraded.values())
+                        writer._full = {}
+                        writer._degraded = {}
+                        writer._per_flag_count = {}
+                        writer._global_count = 0
+            except BaseException as exc:  # noqa: BLE001 - surfaced via assert below
+                errors.append(exc)
+
+        producers = [threading.Thread(target=producer, args=(n,)) for n in range(threads_count)]
+        flush_thread = threading.Thread(target=flusher)
+        flush_thread.start()
+        for t in producers:
+            t.start()
+        for t in producers:
+            t.join(timeout=30.0)
+            assert not t.is_alive(), "enqueue must never block a caller thread"
+        stop_flushing.set()
+        flush_thread.join(timeout=30.0)
+        assert not flush_thread.is_alive()
+
+        assert not errors, f"a thread raised: {errors!r}"
+
+        # Sweep whatever the flusher did not observe before it stopped.
+        writer._drain_queue()
+        with writer._lock:
+            residual = sum(e.count for e in writer._full.values())
+            residual += sum(e.count for e in writer._degraded.values())
+
+        accounted = flushed + residual + writer._dropped_pre_queue + writer._dropped_queue
+        assert accounted == total_attempted, (
+            f"accounting lost or double-counted events: flushed={flushed} residual={residual} "
+            f"pre_queue={writer._dropped_pre_queue} queue={writer._dropped_queue} "
+            f"attempted={total_attempted}"
+        )
