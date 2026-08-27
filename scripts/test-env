@@ -15,6 +15,7 @@ from collections.abc import Sequence
 import concurrent.futures
 from contextlib import redirect_stdout
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 import re
 import shlex
@@ -35,7 +36,8 @@ LOCK_ROOT = Path(".uv")
 LOCK_PLATFORM = "linux"
 _SLUG_PART = re.compile(r"[^a-z0-9]+")
 _CONCRETE_PYTHON = re.compile(r"\d+\.\d+")
-_RIOT_UV_LOCK = re.compile(r".+--py\d+--[0-9a-f]{7}\.txt$")
+_LOCK_FILE = re.compile(r".+--py\d+--[0-9a-f]{12}\.txt$")
+_PINNED_REQUIREMENT = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^]]+\])?==([^;\s]+)")
 
 
 class LockError(RuntimeError):
@@ -52,14 +54,56 @@ class RiotEnvironment:
     dependencies: tuple[str, ...]
 
     @property
-    def lockfile(self) -> Path:
-        name = _slug(self.name)
+    def input_hash(self) -> str:
+        canonical = "\0".join(sorted(self.dependencies, key=str.casefold))
+        return hashlib.sha256(canonical.encode()).hexdigest()[:8]
+
+    @property
+    def lock_name(self) -> str:
+        return f"{_slug(self.name)}-{self.input_hash}"
+
+    @property
+    def lock_prefix(self) -> str:
         python = self.python.replace(".", "")
-        return LOCK_ROOT / f"{name}--py{python}--{self.riot_hash}.txt"
+        return f"{self.lock_name}--py{python}"
+
+    @property
+    def legacy_lockfile(self) -> Path:
+        python = self.python.replace(".", "")
+        return LOCK_ROOT / f"{_slug(self.name)}--py{python}--{self.riot_hash}.txt"
+
+    def lockfile(self, content: str) -> Path:
+        return LOCK_ROOT / f"{self.lock_prefix}--{_content_hash(content)}.txt"
 
 
 def _slug(value: str) -> str:
     return _SLUG_PART.sub("-", value.lower()).strip("-")
+
+
+def _content_hash(content: str) -> str:
+    requirements = []
+    for line in content.splitlines():
+        requirement = line.strip()
+        if not requirement or requirement.startswith(("#", "--")):
+            continue
+        match = _PINNED_REQUIREMENT.match(requirement)
+        if match:
+            name, version = match.groups()
+            requirements.append(f"{_slug(name)}=={version}")
+        else:
+            requirements.append(" ".join(requirement.split()))
+    canonical = ",".join(sorted(requirements, key=str.casefold))
+    return hashlib.sha256(canonical.encode()).hexdigest()[:12]
+
+
+def _lock_parts(path: Path) -> tuple[str, str, str] | None:
+    try:
+        name, python, lock_hash = path.stem.rsplit("--", 2)
+    except ValueError:
+        return None
+    if not python.startswith("py") or not python[2:].isdigit():
+        return None
+    return name, python, lock_hash
 
 
 def _dependencies(instance: object) -> tuple[str, ...]:
@@ -73,10 +117,13 @@ def _python_version(instance: object) -> str:
         return python
 
     versions = set()
-    for path in (PROJECT_ROOT / LOCK_ROOT).glob(f"{_slug(str(instance.name))}--py*--*.txt"):
-        try:
-            _name, python_part, _environment_hash = path.stem.rsplit("--", 2)
-        except ValueError:
+    name = _slug(str(instance.name))
+    for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt"):
+        parts = _lock_parts(path)
+        if parts is None:
+            continue
+        lock_name, python_part, _environment_hash = parts
+        if lock_name != name and not re.fullmatch(rf"{re.escape(name)}-[0-9a-f]{{8}}", lock_name):
             continue
         digits = python_part.removeprefix("py")
         if digits.isdigit() and len(digits) >= 2:
@@ -102,10 +149,10 @@ def get_environments() -> tuple[RiotEnvironment, ...]:
         if previous != environment:
             raise LockError(f"Riot hash maps to conflicting dependency environments: {environment.riot_hash}")
 
-    paths = [environment.lockfile for environment in environments.values()]
-    if len(paths) != len(set(paths)):
+    prefixes = [environment.lock_prefix for environment in environments.values()]
+    if len(prefixes) != len(set(prefixes)):
         raise LockError("multiple Riot environments map to the same uv lock")
-    return tuple(sorted(environments.values(), key=lambda environment: environment.lockfile))
+    return tuple(sorted(environments.values(), key=lambda environment: environment.lock_prefix))
 
 
 def select_environments(requested: Sequence[str] = ()) -> tuple[RiotEnvironment, ...]:
@@ -173,14 +220,53 @@ def _write_lock(path: Path, content: str) -> None:
     temporary_path.replace(path)
 
 
-def _prune_locks(
-    expected: set[Path], selected: Sequence[RiotEnvironment], *, all_environments: bool
-) -> tuple[Path, ...]:
-    if all_environments:
-        candidates = {path for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt") if _RIOT_UV_LOCK.fullmatch(path.name)}
-    else:
-        names = {_slug(environment.name) for environment in selected}
-        candidates = {path for name in names for path in (PROJECT_ROOT / LOCK_ROOT).glob(f"{name}--py*--*.txt")}
+def _locks_by_prefix() -> dict[str, tuple[Path, ...]]:
+    locks = {}
+    for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt"):
+        if not _LOCK_FILE.fullmatch(path.name):
+            continue
+        prefix = path.stem.rsplit("--", 1)[0]
+        locks.setdefault(prefix, []).append(path.relative_to(PROJECT_ROOT))
+    return {prefix: tuple(sorted(paths)) for prefix, paths in locks.items()}
+
+
+def remap_locks() -> tuple[tuple[Path, Path], ...]:
+    environments = {environment.legacy_lockfile: environment for environment in get_environments()}
+    sources = tuple(sorted(path.relative_to(PROJECT_ROOT) for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")))
+    targets = {}
+    moves = []
+    for source in sources:
+        content = (PROJECT_ROOT / source).read_text()
+        environment = environments.get(source)
+        if environment is not None:
+            target = environment.lockfile(content)
+        else:
+            parts = _lock_parts(source)
+            if parts is None:
+                raise LockError(f"cannot remap malformed uv lock: {source}")
+            name, python, _old_hash = parts
+            target = LOCK_ROOT / f"{name}--{python}--{_content_hash(content)}.txt"
+        previous = targets.setdefault(target, source)
+        if previous != source:
+            raise LockError(f"locks map to the same filename: {previous}, {source} -> {target}")
+        if source != target:
+            moves.append((source, target))
+
+    sources_set = set(sources)
+    for source, target in moves:
+        if target in sources_set:
+            raise LockError(f"cannot replace an existing lock while remapping: {source} -> {target}")
+    for source, target in moves:
+        (PROJECT_ROOT / source).rename(PROJECT_ROOT / target)
+    return tuple(moves)
+
+
+def _prune_locks(expected: set[Path], selected: Sequence[RiotEnvironment]) -> tuple[Path, ...]:
+    candidates = {
+        path
+        for environment in selected
+        for path in (PROJECT_ROOT / LOCK_ROOT).glob(f"{environment.lock_prefix}--*.txt")
+    }
 
     pruned = []
     for path in sorted(candidates):
@@ -201,10 +287,15 @@ def generate_locks(
     if not environments:
         raise LockError("no concrete test environments selected")
 
-    expected = {environment.lockfile for environment in environments}
-    pending = [
-        environment for environment in environments if rebuild or not (PROJECT_ROOT / environment.lockfile).is_file()
-    ]
+    locks_by_prefix = _locks_by_prefix()
+    current = {environment: locks_by_prefix.get(environment.lock_prefix, ()) for environment in environments}
+    ambiguous = {environment: paths for environment, paths in current.items() if len(paths) > 1}
+    if ambiguous:
+        details = "\n".join(
+            f"  {environment.lock_prefix}: {', '.join(map(str, paths))}" for environment, paths in ambiguous.items()
+        )
+        raise LockError(f"multiple locks map to one test environment:\n{details}")
+    pending = [environment for environment, paths in current.items() if rebuild or not paths]
     compiled: dict[RiotEnvironment, str] = {}
     errors = []
     cutoff = cooldown_cutoff()
@@ -222,12 +313,18 @@ def generate_locks(
     if errors:
         raise LockError("\n\n".join(sorted(str(error) for error in errors)))
 
+    generated = {environment: environment.lockfile(content) for environment, content in compiled.items()}
     written = []
-    for environment in pending:
-        _write_lock(PROJECT_ROOT / environment.lockfile, compiled[environment])
-        written.append(environment.lockfile)
+    for environment, path in sorted(generated.items(), key=lambda item: item[1]):
+        _write_lock(PROJECT_ROOT / path, compiled[environment])
+        written.append(path)
+    expected = (
+        set(generated.values())
+        if rebuild
+        else {paths[0] for paths in current.values() if paths} | set(generated.values())
+    )
     reused = tuple(sorted(expected - set(written)))
-    pruned = _prune_locks(expected, environments, all_environments=not requested)
+    pruned = _prune_locks(expected, environments)
     return tuple(written), reused, pruned
 
 
@@ -274,38 +371,56 @@ def refresh_locks(requested: str | None = None, *, jobs: int = 4) -> tuple[str, 
 
 def check_locks() -> int:
     environments = get_environments()
-    expected = {environment.lockfile for environment in environments}
-    actual = {
-        path.relative_to(PROJECT_ROOT)
-        for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")
-        if _RIOT_UV_LOCK.fullmatch(path.name)
-    }
-    missing = sorted(expected - actual)
-    obsolete = sorted(actual - expected)
-    if missing or obsolete:
+    lockfiles = {path.relative_to(PROJECT_ROOT) for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")}
+    actual = {path for path in lockfiles if _LOCK_FILE.fullmatch(path.name)}
+    malformed = sorted(lockfiles - actual)
+    locks_by_prefix = _locks_by_prefix()
+    missing = sorted(
+        environment.lock_prefix for environment in environments if environment.lock_prefix not in locks_by_prefix
+    )
+    ambiguous = sorted(
+        (environment.lock_prefix, locks_by_prefix[environment.lock_prefix])
+        for environment in environments
+        if len(locks_by_prefix.get(environment.lock_prefix, ())) > 1
+    )
+    mismatched = sorted(
+        path for path in actual if path.stem.rsplit("--", 1)[-1] != _content_hash((PROJECT_ROOT / path).read_text())
+    )
+    if missing or ambiguous or mismatched or malformed:
         details = []
         if missing:
-            details.append("missing uv locks:\n" + "\n".join(f"  {path}" for path in missing))
-        if obsolete:
-            details.append("obsolete uv locks:\n" + "\n".join(f"  {path}" for path in obsolete))
+            details.append("missing uv lock prefixes:\n" + "\n".join(f"  {prefix}" for prefix in missing))
+        if ambiguous:
+            details.append(
+                "multiple locks for one test environment:\n"
+                + "\n".join(f"  {prefix}: {', '.join(map(str, paths))}" for prefix, paths in ambiguous)
+            )
+        if mismatched:
+            details.append("uv locks with stale content hashes:\n" + "\n".join(f"  {path}" for path in mismatched))
+        if malformed:
+            details.append("malformed uv lock names:\n" + "\n".join(f"  {path}" for path in malformed))
         raise LockError("\n".join(details))
     return len(actual)
 
 
-def list_hashes(name: str, python_version: str | None = None) -> tuple[str, ...]:
+def list_locks(name: str, python_version: str | None = None) -> tuple[Path, ...]:
     requested_python = f"py{python_version.replace('.', '')}" if python_version else None
-    prefix = f"{_slug(name)}--"
-    hashes = []
-    for path in (PROJECT_ROOT / LOCK_ROOT).glob(f"{prefix}*.txt"):
-        try:
-            _name, python, environment_hash = path.stem.rsplit("--", 2)
-        except ValueError:
+    pattern = re.compile(name)
+    locks = []
+    locks_by_prefix = _locks_by_prefix()
+    for environment in get_environments():
+        if not pattern.search(environment.name):
             continue
-        if requested_python is None or python == requested_python:
-            hashes.append(environment_hash)
-    if not hashes:
+        if requested_python is not None and f"py{environment.python.replace('.', '')}" != requested_python:
+            continue
+        locks.extend(locks_by_prefix.get(environment.lock_prefix, ()))
+    if not locks:
         raise LockError(f"no uv environments found for Riot environment: {name}")
-    return tuple(sorted(hashes))
+    return tuple(sorted(locks))
+
+
+def list_hashes(name: str, python_version: str | None = None) -> tuple[str, ...]:
+    return tuple(path.stem.rsplit("--", 1)[-1] for path in list_locks(name, python_version))
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -315,8 +430,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     list_parser = subparsers.add_parser("list", help="List environment hashes for a Riot environment.")
     list_parser.add_argument("name", help="Riot environment name.")
     list_parser.add_argument("--python", help="Only list hashes for this Python version.")
+    list_parser.add_argument("--paths", action="store_true", help="List lock paths instead of content hashes.")
 
     subparsers.add_parser("check", help="Check that Riot environments and committed uv locks match.")
+    subparsers.add_parser("remap", help="Remap legacy lock names to content-derived names.")
 
     lock_parser = subparsers.add_parser("lock", help="Generate missing and prune obsolete uv locks.")
     lock_parser.add_argument("names", nargs="*", help="Riot environment names; defaults to all.")
@@ -333,8 +450,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Validated {count} uv locks for active Riot environments.")
             return 0
         if args.command == "list":
-            for environment_hash in list_hashes(args.name, args.python):
-                print(environment_hash)
+            values = list_locks(args.name, args.python) if args.paths else list_hashes(args.name, args.python)
+            for value in values:
+                print(value)
+            return 0
+        if args.command == "remap":
+            moves = remap_locks()
+            print(f"Remapped {len(moves)} uv locks.")
             return 0
         if args.command == "refresh":
             name, written, pruned = refresh_locks(args.name, jobs=args.jobs)

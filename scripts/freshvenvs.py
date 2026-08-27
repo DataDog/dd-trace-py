@@ -2,10 +2,13 @@ import argparse
 from collections import defaultdict
 import datetime as dt
 from functools import lru_cache
+import hashlib
 from http.client import HTTPSConnection
 from io import StringIO
 import json
 import pathlib
+import re
+import shlex
 import sys
 from typing import Any
 from typing import Optional
@@ -84,8 +87,8 @@ def _get_riot_envs_including_any(contrib_modules: set[str]) -> set[pathlib.Path]
     """Return uv locks for Riot environments that use one of the given modules."""
     envs = set()
     for item in pathlib.Path(".uv").glob("*.txt"):
-        riot_hash = item.stem.rsplit("--", 1)[-1]
-        if len(riot_hash) != 7:
+        content_hash = item.stem.rsplit("--", 1)[-1]
+        if len(content_hash) != 12:
             continue
         lockfile_content = item.read_text()
         for contrib_module in contrib_modules:
@@ -249,45 +252,34 @@ def _get_version_extremes(contrib_module: str) -> tuple[Optional[str], Optional[
     return earliest_within_window, latest_after_cooldown
 
 
-def _get_riot_hash_to_venv_name() -> dict[str, str]:
-    """Get a mapping of riot hash to venv name."""
-    import re
-
-    import riot
-
-    ctx = riot.Session.from_config_file("riotfile.py")
-    old_stdout = sys.stdout
-    result = StringIO()
-    sys.stdout = result
-
-    try:
-        pattern = re.compile(r"^.*$")
-        venv_pattern = re.compile(r"^.*$")
-        ctx.list_venvs(pattern=pattern, venv_pattern=venv_pattern, pipe_mode=True)
-        output = result.getvalue()
-    finally:
-        sys.stdout = old_stdout
-
-    hash_to_name = {}
-    for line in output.splitlines():
-        match = re.match(r"\[#\d+\]\s+([a-f0-9]+)\s+(\S+)", line)
-        if match:
-            venv_hash, venv_name = match.groups()
-            hash_to_name[venv_hash] = venv_name.lower()
-    return hash_to_name
+def _get_riot_names() -> dict[str, str]:
+    """Map uv lock names to their original Riot names."""
+    names = {}
+    for instance in riotfile.venv.instances():  # type: ignore[attr-defined]
+        if not instance.name:
+            continue
+        name = instance.name.lower()
+        slug = re.sub(r"[^a-z0-9]+", "-", name).strip("-")
+        dependencies = sorted(shlex.split(str(instance.full_pkg_str)), key=str.casefold)
+        input_hash = hashlib.sha256("\0".join(dependencies).encode()).hexdigest()[:8]
+        for lock_name in (slug, f"{slug}-{input_hash}"):
+            previous = names.setdefault(lock_name, name)
+            if previous != name:
+                raise ValueError(f"Riot environment names share the lockfile name {lock_name}: {previous}, {name}")
+    return names
 
 
 def _get_package_versions_from(
-    lockfile: pathlib.Path, contrib_modules: set[str], riot_hash_to_venv_name: dict[str, str]
+    lockfile: pathlib.Path, contrib_modules: set[str], riot_names: dict[str, str]
 ) -> list[tuple[str, str]]:
     """Return the list of package versions that are tested, related to the modules"""
     lockfile_content = lockfile.read_text().splitlines()
-    env = lockfile.stem.rsplit("--", 1)[-1]
+    lock_name = lockfile.stem.rsplit("--", 2)[0]
     lock_packages = []
     integration = None
     dependencies: set[str] = set()
-    if riot_hash_to_venv_name.get(env):
-        venv_name = riot_hash_to_venv_name[env].split(":")[0]
+    if lock_name in riot_names:
+        venv_name = riot_names[lock_name].split(":")[0]
 
         def get_integration_and_dependencies(venv_name: str) -> tuple[Optional[str], set[str]]:
             if venv_name in contrib_modules:
@@ -349,13 +341,13 @@ def _venv_sets_latest_for_package(venv: Any, suite_name: str) -> bool:
     return False
 
 
-def _get_all_used_versions(envs, contrib_modules, riot_hash_to_venv_name) -> dict:
+def _get_all_used_versions(envs, contrib_modules, riot_names) -> dict:
     """
     Returns dict(module, set(versions)) for a venv, as defined from uv locks.
     """
     all_used_versions = defaultdict(set)
     for env in envs:
-        versions_used = _get_package_versions_from(env, contrib_modules, riot_hash_to_venv_name)
+        versions_used = _get_package_versions_from(env, contrib_modules, riot_names)
         for package, version in versions_used:
             all_used_versions[package].add(version)
     return all_used_versions
@@ -372,7 +364,7 @@ def _get_version_bounds(contrib_modules: set[str]) -> dict:
     return bounds
 
 
-def output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name):
+def output_outdated_packages(all_updatable_contribs, envs, bounds, riot_names):
     """
     Output a list of package names that can be updated.
     """
@@ -384,7 +376,7 @@ def output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_
 
     all_used_versions = defaultdict(set)
     for env in envs:
-        versions_used = _get_package_versions_from(env, all_updatable_contribs, riot_hash_to_venv_name)
+        versions_used = _get_package_versions_from(env, all_updatable_contribs, riot_names)
         for pkg, version in versions_used:
             all_used_versions[pkg].add(version)
 
@@ -404,11 +396,11 @@ def main():
     parse_args()
     contribs = _get_contrib_modules()
     all_updatable_contribs = _get_updatable_packages_implementing(contribs)  # MODULE names
-    riot_hash_to_venv_name = _get_riot_hash_to_venv_name()
+    riot_names = _get_riot_names()
     envs = _get_riot_envs_including_any(contribs)
 
     bounds = _get_version_bounds(contribs)
-    output_outdated_packages(all_updatable_contribs, envs, bounds, riot_hash_to_venv_name)
+    output_outdated_packages(all_updatable_contribs, envs, bounds, riot_names)
 
 
 if __name__ == "__main__":

@@ -11,9 +11,11 @@
 import ast
 from collections import defaultdict
 from dataclasses import dataclass
+import hashlib
 import json
 from pathlib import Path
 import re
+import shlex
 import sys
 from typing import Any
 
@@ -36,14 +38,8 @@ LOCKS_DIR = PROJECT_ROOT / ".uv"
 # Allows the version of a dependency to be read from a generated lock when it is formatted
 # like anyio==4.9.0
 REQUIREMENT_RE = re.compile(r"^([A-Za-z0-9_.-]+)(?:\[[^\]]+\])?==([^;\s]+)")
-PYTHON_VERSION_RE = re.compile(r"^\d+\.\d+$")
+LOCK_NAME_RE = re.compile(r"^(.+)--py(\d)(\d+)--[0-9a-f]{12}$")
 LATEST = ""
-
-
-@dataclass(frozen=True)
-class RiotVenv:
-    name: str
-    python_version: str
 
 
 @dataclass(frozen=True)
@@ -99,17 +95,21 @@ def get_patch_modules() -> dict[str, bool]:
 PATCH_MODULES = get_patch_modules()
 
 
-def get_riot_hash_to_venvs() -> dict[str, RiotVenv]:
-    """Map each Riot environment hash to its venv metadata."""
-    riot_venvs = {}
+def get_riot_names() -> dict[str, str]:
+    """Map uv lock names to their original Riot names."""
+    riot_names = {}
     for instance in riotfile.venv.instances():
         if not instance.name:
             continue
-        riot_venvs[instance.short_hash] = RiotVenv(
-            name=instance.name.lower(),
-            python_version=instance.py._hint,
-        )
-    return riot_venvs
+        name = instance.name.lower()
+        slug = re.sub(r"[^a-z0-9]+", "-", name).strip("-")
+        dependencies = sorted(shlex.split(str(instance.full_pkg_str)), key=str.casefold)
+        input_hash = hashlib.sha256("\0".join(dependencies).encode()).hexdigest()[:8]
+        for lock_name in (slug, f"{slug}-{input_hash}"):
+            previous = riot_names.setdefault(lock_name, name)
+            if previous != name:
+                raise ValueError(f"Riot environment names share the lockfile name {lock_name}: {previous}, {name}")
+    return riot_names
 
 
 def parse_locked_versions(requirements_path: Path) -> dict[str, str]:
@@ -123,27 +123,22 @@ def parse_locked_versions(requirements_path: Path) -> dict[str, str]:
     return locked_versions
 
 
-def is_concrete_python_version(python_version: str) -> bool:
-    """Return whether a riot Python hint identifies one concrete major.minor runtime."""
-    return PYTHON_VERSION_RE.match(python_version) is not None
-
-
 def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
     """Collect tested dependency versions by integration and Python version."""
     tested_versions: dict[str, dict[str, set[TestedVersion]]] = defaultdict(lambda: defaultdict(set))
-    riot_hash_to_venvs = get_riot_hash_to_venvs()
+    riot_names = get_riot_names()
 
     for requirements_path in sorted(LOCKS_DIR.glob("*.txt")):
-        riot_hash = requirements_path.stem.rsplit("--", 1)[-1]
-        riot_venv = riot_hash_to_venvs.get(riot_hash, None)
-
-        if not riot_venv:
+        match = LOCK_NAME_RE.fullmatch(requirements_path.stem)
+        if not match:
+            continue
+        lock_name, python_major, python_minor = match.groups()
+        riot_name = riot_names.get(lock_name)
+        if riot_name is None:
             continue
 
-        if not is_concrete_python_version(riot_venv.python_version):
-            continue
-
-        integration_name = riot_venv.name.split(":", 1)[0]
+        integration_name = riot_name.split(":", 1)[0]
+        python_version = f"{python_major}.{python_minor}"
 
         dependency_names = get_dependency_names(integration_name)
         found_dependency_version = False
@@ -157,7 +152,7 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
                     tested_versions[integration_name][dependency].add(
                         TestedVersion(
                             version=version,
-                            python_version=riot_venv.python_version,
+                            python_version=python_version,
                         )
                     )
 
@@ -165,7 +160,7 @@ def collect_tested_versions() -> dict[str, dict[str, set[TestedVersion]]]:
             tested_versions[integration_name][f"stdlib.{integration_name}"].add(
                 TestedVersion(
                     version="",
-                    python_version=riot_venv.python_version,
+                    python_version=python_version,
                 )
             )
             continue
