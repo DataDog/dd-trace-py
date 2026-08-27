@@ -636,11 +636,6 @@ def gen_pre_checks() -> None:
         paths={"docker*", "ddtrace/*", "pyproject.toml", "scripts/lint"},
     )
     check(
-        name="Run riotfile.py tests",
-        command="scripts/lint riot",
-        paths={"docker*", "riotfile.py", "pyproject.toml", "scripts/lint"},
-    )
-    check(
         name="Style: Test snapshots",
         command="scripts/lint fmt-snapshots && git diff --exit-code tests/snapshots",
         paths={"docker*", "tests/snapshots/*", "scripts/lint"},
@@ -681,7 +676,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check project dependencies",
         command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
-        paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
+        paths={"pyproject.toml", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
     )
     check(
         name="Check package version",

@@ -5,7 +5,6 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG RIOT_VERSION=0.22.0
 ARG UV_VERSION=0.11.14
 
 # http://bugs.python.org/issue19846
@@ -124,6 +123,6 @@ RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYE
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
-RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "uv==${UV_VERSION}"
+RUN pip install --no-cache-dir -U "uv==${UV_VERSION}"
 
 CMD ["/bin/bash"]
