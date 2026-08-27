@@ -241,8 +241,9 @@ impl SpanText for PyBackedString {
         }
     }
 
-    fn from_owned(value: String) -> Self {
-        value.into()
+    // Don't call this now. It's not implemented yet.
+    fn from_owned(_value: String) -> Self {
+        todo!()
     }
 }
 

@@ -81,8 +81,8 @@ impl ChangeRecord {
         Self {
             path: path.to_string(),
             product: RemoteConfigProduct(path.product()),
-            config_id: path.config_id().to_string(),
-            name: path.name().to_string(),
+            config_id: path.config_id().to_owned(),
+            name: path.name().to_owned(),
             version,
             content,
         }
@@ -182,6 +182,7 @@ impl RemoteConfigClient {
 
         // The fetcher owns the storage; it's reached later via
         // `fetcher.fetcher.file_storage()`.
+        // `new_no_agentless` is the infallible, synchronous constructor
         let fetcher = SingleChangesFetcher::new_no_agentless(
             ShmStorage::new(),
             target,
@@ -310,7 +311,7 @@ impl RemoteConfigClient {
 
     /// The remote config client id (a UUID). Stable for the life of the process.
     fn get_client_id(&self) -> String {
-        self.lock().fetcher.get_client_id().to_string()
+        self.lock().fetcher.get_client_id().to_owned()
     }
 
     /// Enable cross-process broadcast: move the storage into shared memory. Must
