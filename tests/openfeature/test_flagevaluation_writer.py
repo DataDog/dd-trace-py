@@ -155,6 +155,46 @@ class TestCanonicalContextKey:
         b = {"a": "1", "b": "2"}
         assert canonical_context_key(a) == canonical_context_key(b)
 
+    def test_equal_but_distinct_snapshots_share_one_key(self):
+        """Two separate evaluations with equal context must aggregate into one bucket.
+
+        Each evaluation builds its own snapshot object. The key must depend only on
+        the content, so it cannot vary with object identity, hash randomization, or
+        the order the walk happened to emit fields.
+        """
+        timestamp = datetime(2026, 6, 23, 12, 0, tzinfo=timezone.utc)
+        raw = {
+            "zeta": "z",
+            "alpha": 1,
+            "enabled": True,
+            "ratio": 1.5,
+            "missing": None,
+            "when": timestamp,
+            "nested": {"b": "2", "a": "1"},
+            "tags": ["x", "y"],
+        }
+        reordered = {
+            "tags": ["x", "y"],
+            "nested": {"a": "1", "b": "2"},
+            "when": timestamp,
+            "missing": None,
+            "ratio": 1.5,
+            "enabled": True,
+            "alpha": 1,
+            "zeta": "z",
+        }
+
+        first, _ = flatten_and_prune_context(raw)
+        second, _ = flatten_and_prune_context(reordered)
+
+        assert first is not second
+        assert canonical_context_key(first) == canonical_context_key(second)
+
+    def test_key_is_stable_across_repeated_calls(self):
+        """Repeated calls on equal content must return the identical key every time."""
+        keys = {canonical_context_key({"b": "2", "a": 1, "c": True}) for _ in range(50)}
+        assert len(keys) == 1
+
     def test_int_vs_string_distinct_keys(self):
         """int 1 vs string '1' must produce different keys (type-tagged keys)."""
         k_int = canonical_context_key({"x": 1})
