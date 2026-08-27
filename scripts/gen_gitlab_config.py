@@ -590,7 +590,7 @@ def _emit_ddtest_jobs(
         if wait_for and not plan:
             print(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}", file=f)
 
-    def emit_variables(extra: dict[str, str] | None = None) -> None:
+    def emit_variables(extra: t.Optional[dict[str, str]] = None) -> None:
         print("  variables:", file=f)
         print(f"    SUITE_NAME: {suite_name}", file=f)
         for key, value in env.items():
