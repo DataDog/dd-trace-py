@@ -1,16 +1,15 @@
-"""Tests for the PyPI upload filter in ``.gitlab/release.yml``.
+"""Tests for the PyPI upload filter in .gitlab/release.yml.
 
-``release_pypi_prod`` only runs on release tags (``.is_release``), so a PR pipeline never
-executes its shell. These tests pull the ``script:`` block straight out of the YAML and run
-it against fixture directories with ``aws`` and ``uvx`` stubbed on PATH, so the assertions
-cannot drift from the shipped config.
+release_pypi_prod only runs on release tags (.is_release), so a PR pipeline never executes
+its shell. These tests pull the script: block straight out of the YAML and run it against
+fixture directories with aws and uvx stubbed on PATH, so the assertions cannot drift from
+the shipped config.
 
 What is being pinned:
   * cp315 wheels are withheld from PyPI while Python 3.15 is unsupported; everything else,
     sdist included, is still uploaded.
-  * ``twine check`` and ``twine upload`` see the same list. cp315 builds are
-    ``allow_failure``, so a malformed cp315 wheel must not fail a release whose supported
-    wheels are all fine.
+  * twine check and twine upload see the same list. cp315 builds are allow_failure, so a
+    malformed cp315 wheel must not fail a release whose supported wheels are all fine.
   * An empty list is a hard error rather than a silent no-op.
 """
 
@@ -62,14 +61,14 @@ ERROR_MESSAGE = "[ERROR] no PyPI-eligible distributions found in pywheels/ -- re
 
 
 class _GitLabLoader(yaml.SafeLoader):
-    """SafeLoader that tolerates GitLab's ``!reference`` tag."""
+    """SafeLoader that tolerates GitLab's !reference tag."""
 
 
 _GitLabLoader.add_constructor("!reference", lambda loader, node: None)
 
 
 def _resolve(doc: dict, job: str, key: str):
-    """Walk the ``extends:`` chain until ``key`` is found, the way GitLab does."""
+    """Walk the extends: chain until key is found, the way GitLab does."""
     while job is not None:
         if key in doc[job]:
             return doc[job][key]
@@ -90,7 +89,7 @@ def _merged_variables(doc: dict, job: str) -> dict:
 
 @pytest.fixture(scope="module")
 def release_job() -> tuple[str, dict]:
-    """The ``release_pypi_prod`` script, joined as GitLab joins it, plus its variables."""
+    """The release_pypi_prod script, joined as GitLab joins it, plus its variables."""
     doc = yaml.load(_RELEASE_YML.read_text(), Loader=_GitLabLoader)
     script = _resolve(doc, "release_pypi_prod", "script")
     assert isinstance(script, list), "release_pypi_prod script: is expected to be a list"
@@ -103,7 +102,7 @@ def release_job() -> tuple[str, dict]:
 
 @pytest.fixture()
 def run_release_job(release_job, tmp_path):
-    """Run the extracted script against a fixture ``pywheels/`` directory."""
+    """Run the extracted script against a fixture pywheels/ directory."""
     body, variables = release_job
 
     script = tmp_path / "release-job.sh"
@@ -145,7 +144,7 @@ def run_release_job(release_job, tmp_path):
 
 
 def _argv_after(recorded: list[str], marker: str) -> list[str]:
-    """The file arguments handed to ``twine check`` / ``twine upload``, or [] if not called."""
+    """The file arguments handed to twine check / twine upload, or [] if not called."""
     for line in recorded:
         _, _, tail = line.partition(marker)
         if tail:
@@ -208,7 +207,7 @@ def test_filter_is_a_no_op_when_no_cp315_is_present(run_release_job):
 
 
 def test_sdist_alone_is_enough_to_upload(run_release_job):
-    """``build sdist`` is a non-allow_failure dependency, so the list is never empty."""
+    """build sdist is a non-allow_failure dependency, so the list is never empty."""
     proc, recorded = run_release_job([SDIST])
 
     assert proc.returncode == 0, proc.stderr
