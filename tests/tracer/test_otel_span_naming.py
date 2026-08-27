@@ -47,7 +47,7 @@ def _name(
                 span._set_attribute(key, value)
             if span_hook is not None:
                 span_hook(span)
-            trace_utils._set_http_meta_otel(span, _integration_config(), method=method, route=route)
+            trace_utils.set_http_meta(span, _integration_config(), method=method, route=route)
             return span.resource
 
 
@@ -115,9 +115,9 @@ class TestOtelSpanNaming:
                 span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, _INTEGRATION_RESOURCE)
                 span._set_attribute(SPAN_KIND, "server")
                 ic = _integration_config()
-                trace_utils._set_http_meta_otel(span, ic, method="GET")
+                trace_utils.set_http_meta(span, ic, method="GET")
                 assert span.resource == "GET"
-                trace_utils._set_http_meta_otel(span, ic, method="GET", route="/users/<int:id>")
+                trace_utils.set_http_meta(span, ic, method="GET", route="/users/<int:id>")
                 assert span.resource == "GET /users/<int:id>"
 
     def test_a_user_resource_set_between_calls_stops_the_rename(self):
@@ -127,9 +127,9 @@ class TestOtelSpanNaming:
                 span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, _INTEGRATION_RESOURCE)
                 span._set_attribute(SPAN_KIND, "server")
                 ic = _integration_config()
-                trace_utils._set_http_meta_otel(span, ic, method="GET")
+                trace_utils.set_http_meta(span, ic, method="GET")
                 span.resource = "my custom name"
-                trace_utils._set_http_meta_otel(span, ic, method="GET", route="/users")
+                trace_utils.set_http_meta(span, ic, method="GET", route="/users")
                 assert span.resource == "my custom name"
                 assert span._get_ctx_item(RESOURCE_SET_BY_USER) is True
 
@@ -138,7 +138,7 @@ class TestOtelSpanNaming:
         with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
             with tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
                 span._set_attribute(SPAN_KIND, "server")
-                trace_utils._set_http_meta_otel(span, _integration_config(), method="get", route="/x")
+                trace_utils.set_http_meta(span, _integration_config(), method="get", route="/x")
                 assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
                 assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "get"
                 assert span.get_tag(http.OTEL_ROUTE) == "/x"
@@ -161,7 +161,7 @@ class TestNamedBeforeSampling:
                 normalized, original = normalize_http_method("GET")
                 set_otel_http_resource(span, normalized, original)
                 assert span.resource == "GET", "sampling would otherwise see the Datadog resource"
-                trace_utils._set_http_meta_otel(span, _integration_config(), method="GET", route="/users/{id}")
+                trace_utils.set_http_meta(span, _integration_config(), method="GET", route="/users/{id}")
                 assert span.resource == "GET /users/{id}"
 
     def test_unaccepted_client_method_is_normalized_at_start(self):
@@ -174,7 +174,7 @@ class TestNamedBeforeSampling:
                 normalized, original = normalize_http_method("PROPFIND")
                 set_otel_http_resource(span, normalized, original)
                 at_sampling = span.resource
-                trace_utils._set_http_meta_otel(span, _integration_config(), method="PROPFIND")
+                trace_utils.set_http_meta(span, _integration_config(), method="PROPFIND")
                 assert at_sampling == "HTTP"
                 assert span.resource == at_sampling
 

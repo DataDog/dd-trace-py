@@ -548,135 +548,50 @@ def set_http_meta(
         ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
         ``resolver_match.args``, Tornado ``path_args``).
+
+    Both the Datadog and the OpenTelemetry HTTP conventions are written from here, so the
+    shared work (headers, cookies, client IP, the AppSec dispatch) exists once and only the
+    attribute names and value shapes differ between them.
     """
+    otel_semantics = config._otel_trace_semantics_enabled
+    is_client = _is_http_client_span(span) if otel_semantics else False
+    normalized_method: Optional[str] = None
+    original_method: Optional[str] = None
+
     if method is not None:
-        span._set_attribute(http.METHOD, method)
-
-    if url is not None:
-        url = _sanitized_url(url)
-        _set_url_tag(integration_config, span, url, query)
-
-    if target_host is not None:
-        span._set_attribute(net.TARGET_HOST, target_host)
-
-    if server_address is not None:
-        span._set_attribute(net.SERVER_ADDRESS, server_address)
-
-    if status_code is not None:
-        try:
-            int_status_code = int(status_code)
-        except (TypeError, ValueError):
-            log.debug("failed to convert http status code %r to int", status_code)
+        if otel_semantics:
+            normalized_method, original_method = normalize_http_method(method)
+            span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
+            if original_method is not None:
+                span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
         else:
-            span._set_attribute(http.STATUS_CODE, str(status_code))
-            if config._http_server.is_error_code(int_status_code):
-                span.error = 1
-
-    if status_msg is not None:
-        span._set_attribute(http.STATUS_MSG, status_msg)
-
-    if query is not None and integration_config.trace_query_string:
-        span._set_attribute(http.QUERY_STRING, query)
-
-    request_ip = peer_ip
-    if request_headers:
-        _set_request_headers_meta(
-            span, integration_config, request_headers, headers_are_case_sensitive, http.USER_AGENT
-        )
-
-    if _should_collect_client_ip():
-        request_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
-        if request_ip:
-            span._set_attribute(http.CLIENT_IP, request_ip)
-
-        if peer_ip:
-            span._set_attribute("network.client.ip", peer_ip)
-
-    if response_headers is not None and integration_config.is_header_tracing_configured:
-        _store_response_headers(response_headers, span, integration_config)
-
-    if retries_remain is not None:
-        span._set_attribute(http.RETRIES_REMAIN, str(retries_remain))
-
-    core.dispatch(
-        "set_http_meta_for_asm",
-        (
-            span,
-            request_ip,
-            raw_uri,
-            route,
-            method,
-            request_headers,
-            request_cookies,
-            parsed_query,
-            request_path_params,
-            request_body,
-            status_code,
-            response_headers,
-            response_cookies,
-            peer_ip,
-            headers_are_case_sensitive,
-        ),
-    )
-
-    if route is not None:
-        span._set_attribute(http.ROUTE, route)
-
-
-def _set_http_meta_otel(
-    span: Span,
-    integration_config: "IntegrationConfig",
-    method: Optional[str] = None,
-    url: Optional[str] = None,
-    target_host: Optional[str] = None,
-    server_address: Optional[str] = None,
-    status_code: Optional[Union[int, str]] = None,
-    status_msg: Optional[str] = None,
-    query: Optional[str] = None,
-    parsed_query: Optional[Mapping[str, str]] = None,
-    request_headers: Optional[Mapping[str, str]] = None,
-    response_headers: Optional[Mapping[str, str]] = None,
-    retries_remain: Optional[Union[int, str]] = None,
-    raw_uri: Optional[str] = None,
-    request_cookies: Optional[dict[str, str]] = None,
-    request_path_params: Optional[Union[Mapping[str, Any], Sequence[Any]]] = None,
-    request_body: Optional[Union[str, dict[str, list[str]]]] = None,
-    peer_ip: Optional[str] = None,
-    headers_are_case_sensitive: bool = False,
-    route: Optional[str] = None,
-    response_cookies: Optional[dict[str, str]] = None,
-) -> None:
-    """OpenTelemetry HTTP semantic conventions variant of set_http_meta.
-
-    Bound to the public set_http_meta name at import when DD_TRACE_OTEL_SEMANTICS_ENABLED is
-    true, so the default path never pays for a branch. Attributes that have an OTel
-    equivalent are renamed, attributes that do not (http.endpoint, http.status_msg,
-    http.retries_remain, http.referrer_hostname, the configured header tags) keep their
-    Datadog names. See ddtrace/contrib/internal/trace_utils_base.py for the value shaping.
-    """
-    is_client = _is_http_client_span(span)
-
-    if method is not None:
-        normalized_method, original_method = normalize_http_method(method)
-        span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
-        if original_method is not None:
-            span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
+            span._set_attribute(http.METHOD, method)
 
     if url is not None:
-        if is_client:
+        if not otel_semantics:
+            url = _sanitized_url(url)
+            _set_url_tag(integration_config, span, url, query)
+        elif is_client:
             _set_url_tags_otel_client(integration_config, span, url, query)
         else:
             # the server path never carries credentials in the URL, and it does not emit
             # url.full, so there is nothing to redact before parsing
             _set_url_tags_otel_server(integration_config, span, url, query, raw_uri)
 
-    # target_host and server_address are only passed by client integrations, and both mean
-    # server.address. A host parsed out of the URL above is more complete, so it wins.
-    if span.get_tag(net.SERVER_ADDRESS) is None:
+    if otel_semantics:
+        # target_host and server_address are only passed by client integrations, and both mean
+        # server.address. A host parsed out of the URL above is more complete, so it wins.
+        if span.get_tag(net.SERVER_ADDRESS) is None:
+            if server_address is not None:
+                span._set_attribute(net.SERVER_ADDRESS, server_address)
+            elif target_host is not None:
+                span._set_attribute(net.SERVER_ADDRESS, target_host)
+    else:
+        if target_host is not None:
+            span._set_attribute(net.TARGET_HOST, target_host)
+
         if server_address is not None:
             span._set_attribute(net.SERVER_ADDRESS, server_address)
-        elif target_host is not None:
-            span._set_attribute(net.SERVER_ADDRESS, target_host)
 
     if status_code is not None:
         try:
@@ -684,30 +599,43 @@ def _set_http_meta_otel(
         except (TypeError, ValueError):
             log.debug("failed to convert http status code %r to int", status_code)
         else:
-            span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, _otel_number(int_status_code))
-            if _is_otel_error_status(int_status_code, is_client):
-                span.error = 1
-                # An exception carries more information than a status code, so a status code
-                # must never overwrite an error.type that came from one.
-                if span.get_tag(ERROR_TYPE) is None:
-                    span._set_attribute(ERROR_TYPE, str(int_status_code))
+            if otel_semantics:
+                span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, _otel_number(int_status_code))
+                if _is_otel_error_status(int_status_code, is_client):
+                    span.error = 1
+                    # An exception carries more information than a status code, so a status code
+                    # must never overwrite an error.type that came from one.
+                    if span.get_tag(ERROR_TYPE) is None:
+                        span._set_attribute(ERROR_TYPE, str(int_status_code))
+            else:
+                span._set_attribute(http.STATUS_CODE, str(status_code))
+                if config._http_server.is_error_code(int_status_code):
+                    span.error = 1
 
     if status_msg is not None:
         span._set_attribute(http.STATUS_MSG, status_msg)
 
+    # Under OTel semantics the query string is written as url.query by the url helpers above.
+    if not otel_semantics and query is not None and integration_config.trace_query_string:
+        span._set_attribute(http.QUERY_STRING, query)
+
     request_ip = peer_ip
     if request_headers:
         _set_request_headers_meta(
-            span, integration_config, request_headers, headers_are_case_sensitive, http.OTEL_USER_AGENT_ORIGINAL
+            span,
+            integration_config,
+            request_headers,
+            headers_are_case_sensitive,
+            http.OTEL_USER_AGENT_ORIGINAL if otel_semantics else http.USER_AGENT,
         )
 
     if _should_collect_client_ip():
         request_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
         if request_ip:
-            span._set_attribute(http.OTEL_CLIENT_ADDRESS, request_ip)
+            span._set_attribute(http.OTEL_CLIENT_ADDRESS if otel_semantics else http.CLIENT_IP, request_ip)
 
         if peer_ip:
-            span._set_attribute(net.NETWORK_PEER_ADDRESS, peer_ip)
+            span._set_attribute(net.NETWORK_PEER_ADDRESS if otel_semantics else "network.client.ip", peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
@@ -738,19 +666,13 @@ def _set_http_meta_otel(
 
     if route is not None:
         # http.route is spelled the same in both conventions
-        span._set_attribute(http.OTEL_ROUTE, route)
+        span._set_attribute(http.ROUTE, route)
 
-    if method is not None:
+    if otel_semantics and method is not None:
         # Named here rather than recomputed on span finish, so the span leaves the integration
         # with its OTel name. Server spans take http.route as the target; nothing emits
         # url.template yet, so client spans are the bare method.
         set_otel_http_resource(span, normalized_method, original_method, None if is_client else route)
-
-
-if config._otel_trace_semantics_enabled:
-    # Bound here for the same reason the helpers in trace_utils_base are: the choice is made
-    # once, so nothing branches per span. Tests set the environment variable in a subprocess.
-    set_http_meta = _set_http_meta_otel  # type: ignore[assignment]
 
 
 def activate_distributed_headers(
