@@ -1,4 +1,5 @@
 use pyo3::{
+    exceptions::PyTypeError,
     types::{
         PyAnyMethods as _, PyBool, PyBytes, PyBytesMethods as _, PyDict, PyDictMethods as _,
         PyFloat, PyFloatMethods as _, PyList, PyListMethods as _, PyMapping, PyMappingMethods as _,
@@ -580,19 +581,29 @@ impl SpanData {
     /// value is dropped: `Context` is `weakref`-enabled, so dropping the last strong
     /// reference can run a weakref callback/finalizer, and one that re-enters this same
     /// `SpanData` would otherwise hit "already mutably borrowed".
+    ///
+    /// Rejects non-`Context`/non-`None` values instead of silently storing `None`: this
+    /// field is backed by a native `Option<Py<Context>>`, so it cannot hold an arbitrary
+    /// duck-typed object the way the old pure-Python `_context` slot could. Silently
+    /// discarding an unrecognized value here would make a later `context` read fabricate
+    /// unrelated trace state instead of surfacing the caller's mistake.
     #[setter(_context)]
-    #[inline(always)]
-    fn set_own_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+    fn set_own_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<()> {
         let new_value = if value.is_none() {
             None
+        } else if let Ok(ctx) = value.extract::<Py<crate::context::Context>>() {
+            Some(ctx)
         } else {
-            value.extract::<Py<crate::context::Context>>().ok()
+            return Err(PyTypeError::new_err(
+                "_context must be a Context instance or None",
+            ));
         };
         let old = {
             let mut this = slf.borrow_mut();
             std::mem::replace(&mut this._context, new_value)
         };
         drop(old);
+        Ok(())
     }
 
     // context property — this span's trace context, built lazily on first read for a
@@ -623,8 +634,8 @@ impl SpanData {
 
     #[setter(context)]
     #[inline(always)]
-    fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
-        Self::set_own_context(slf, value);
+    fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) -> PyResult<()> {
+        Self::set_own_context(slf, value)
     }
 
     // _is_top_level property (native for performance - avoids Python property hop).
