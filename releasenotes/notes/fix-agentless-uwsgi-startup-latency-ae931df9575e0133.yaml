@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: Fixes an issue where uWSGI worker processes can stall for up to 60 seconds when
+    agentless tracing is enabled.

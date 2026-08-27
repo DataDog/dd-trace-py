@@ -419,6 +419,15 @@ class NativeWriterTests(BaseTestCase):
         # Call shutdown without ever calling start()
         writer.on_shutdown()
 
+    def test_shutdown_exporter_drops_unstarted_exporter(self):
+        writer = NativeWriter("http://dne:1234")
+        writer._exporter = exporter = mock.Mock()
+
+        writer.shutdown_exporter()
+
+        exporter.drop.assert_called_once_with()
+        exporter.shutdown.assert_not_called()
+
     # Http related metrics are sent by the native code
     def test_drop_reason_bad_endpoint(self):
         pytest.skip()

@@ -924,11 +924,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
     def shutdown_exporter(self) -> None:
-        """Tear down the native exporter without going through ``stop()``."""
+        """Discard an unstarted native exporter without activating its runtime."""
         try:
-            self._exporter.shutdown(3_000_000_000)
+            self._exporter.drop()
         except Exception:
-            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+            _safelog(log.warning, "failed to discard exporter", exc_info=True)
 
     def recreate(
         self,
