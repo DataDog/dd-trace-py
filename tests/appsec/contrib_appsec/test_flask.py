@@ -172,7 +172,7 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         response = app.test_client().get("/rasp/sql_injection/?user_id_1=1%20OR%201%3D1")
         assert response.status_code == (403 if rasp_enabled else 200)
 
-    # Helper unit tests live on Test_Flask so the appsec suite collects them.
+    # Helper unit tests live on Test_Flask so the riot venv ``::Test_Flask`` selector picks them up.
 
     def test_collect_flask_routes_registers_every_method_served(self, _isolated_endpoints):
         """User methods plus Werkzeug-auto-HEAD and Flask-auto-OPTIONS are all part of the attack surface."""
