@@ -1331,7 +1331,7 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
             # test, and a rate_by_service that is not a mapping fails inside the callback.
             _safelog(log.warning, "failed to hand the agent response to the sampler", exc_info=True)
 
-    def write(self, spans: Optional[list["Span"]] = None) -> None:
+    def write(self, spans: Optional[Sequence[SpanData]] = None) -> None:
         if not spans:
             return
         # `_dd.tracer_kr` is wire data, not a health metric: the backend scales its dropped-trace
@@ -1340,8 +1340,9 @@ class NativeTraceBuffer(TraceWriter, AgentWriterInterface):
         spans[0]._set_attribute(_KEEP_SPANS_RATE_KEY, 1.0)
 
         # Origin lives on the Context, not on the individual spans, so read it here and let the native
-        # side stamp `_dd.origin` on each span as it builds the wire form.
-        ctx = spans[0].context
+        # side stamp `_dd.origin` on each span as it builds the wire form. `context` is a Span
+        # property, not part of the SpanData base this method is typed against.
+        ctx = getattr(spans[0], "context", None)
         # write() reports a reason instead of raising, because it runs inside span.finish().
         reason = self._buffer.write(spans, ctx.dd_origin if ctx is not None else None)
         if reason:

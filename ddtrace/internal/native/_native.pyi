@@ -867,7 +867,7 @@ class TraceBuffer:
         :param synchronous_export_timeout_ns: Bound for that block. None waits forever.
         """
         ...
-    def write(self, spans: Iterable[Span], dd_origin: Optional[str] = None) -> Optional[str]:
+    def write(self, spans: Iterable[SpanData], dd_origin: Optional[str] = None) -> Optional[str]:
         """Build one trace chunk and enqueue it.
 
         Never raises, because Span.finish() calls it on an application thread. Returns None when the
