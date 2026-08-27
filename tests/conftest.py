@@ -173,23 +173,10 @@ def pytest_configure(config):
     # calls in the worker, then conftest pops it so it never leaks into test code.
     # Only set when xdist workers are actually being spawned (numprocesses > 0 or
     # 'auto') and only from the controller (workers have PYTEST_XDIST_WORKER set).
-    #
-    # The inferred service is derived from the first path-like argument. Under
-    # riot the pytest command is `pytest ... ${DDTEST_SUITE_PATH}/`, so the first
-    # path arg is the suite directory and the service is the suite's package
-    # (e.g. `tests.internal`). Under ddtest the controller is invoked with the
-    # individual test *files* for this CI node, so the first path arg is whichever
-    # file sorts first -- often a subpackage such as `tests/internal/symbol_db`,
-    # which would yield a wrong session-wide service (e.g. `tests.internal.symbol_db`)
-    # and break snapshot tests that assert the inferred `service` field
-    # (tests.internal.test_process_tags.*). DDTEST_SUITE_PATH is exported by the
-    # riotfile env in both setups, so prefer it as a stable stand-in for the suite
-    # directory and fall back to sys.argv when it is absent.
     if not os.environ.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
         from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
 
-        _suite_path = os.environ.get("DDTEST_SUITE_PATH")
-        _inferred = _detect_service([_suite_path]) if _suite_path else _detect_service(sys.argv)
+        _inferred = _detect_service(sys.argv)
         if _inferred:
             os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
 
