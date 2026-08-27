@@ -1427,13 +1427,40 @@ class AnyFloat(object):
         return isinstance(other, float)
 
 
+# PYTEST_ADDOPTS is set to "--ddtrace" by ddtest's platform env (ddtest/internal/
+# platform/python.go:GetPlatformEnv) so the pytest workers load the ddtrace testing plugin. It
+# leaks into every test-spawned subprocess via env inheritance. Under normal
+# riot CI this var is absent, so test subprocesses don't activate CI Visibility.
+# The leaked --ddtrace makes a nested pytest.main() enable the plugin, which
+# logs INFO to stderr (breaking tests that assert err == b"") and computes
+# stats (breaking snapshot tests). No test sets PYTEST_ADDOPTS via call_program's
+# env kwarg, so stripping it here is safe. DD_CIVISIBILITY_ENABLED is handled in
+# the subprocess fixtures (run_function_from_file, ddtrace_run_python_code_in_subprocess)
+# where the explicit marker env is layered on top of the inherited env, so we
+# strip the inherited value before the marker is applied.
+_DDTEST_LEAKED_PYTEST_ADDOPTS = ("PYTEST_ADDOPTS",)
+
+
+def _strip_ddtest_leaked_env(env):
+    """Remove PYTEST_ADDOPTS leaked from the ddtest parent worker."""
+    env = dict(env)
+    for key in _DDTEST_LEAKED_PYTEST_ADDOPTS:
+        env.pop(key, None)
+    return env
+
+
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
     if "env" in kwargs:
         # Remove all keys with the value None from env, None is used to unset an environment variable
         env = kwargs.pop("env")
         cleaned_env = {env: val for env, val in env.items() if val is not None}
-        kwargs["env"] = cleaned_env
+    else:
+        # No explicit env: subprocess would inherit os.environ directly.
+        cleaned_env = dict(os.environ)
+    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches normal
+    # riot CI, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
+    kwargs["env"] = _strip_ddtest_leaked_env(cleaned_env)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:

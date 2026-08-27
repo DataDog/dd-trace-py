@@ -210,11 +210,6 @@ include:
       # same .coverage file simultaneously. Coverage is still collected
       # and can be consolidated afterwards via 'coverage combine'.
       export COVERAGE_FILE=".coverage.${RIOT_HASH}.${CI_NODE_INDEX}"
-      # Suppress CI Visibility INFO logs in the subprocess (e.g.
-      # SessionManager logs 'Service: ...' to stderr), which breaks
-      # tests that assert stderr is empty (test_span_schematization).
-      # The tracer venv sets DD_CIVISIBILITY_LOG_LEVEL=none for the same reason.
-      export DD_CIVISIBILITY_LOG_LEVEL=none
       ./bin/ddtest run \
         --platform python \
         --framework pytest \
@@ -247,11 +242,6 @@ include:
       # same .coverage file simultaneously. Coverage is still collected
       # and can be consolidated afterwards via 'coverage combine'.
       export COVERAGE_FILE=".coverage.${RIOT_HASH}.${CI_NODE_INDEX}"
-      # Suppress CI Visibility INFO logs in the subprocess (e.g.
-      # SessionManager logs 'Service: ...' to stderr), which breaks
-      # tests that assert stderr is empty (test_span_schematization).
-      # The tracer venv sets DD_CIVISIBILITY_LOG_LEVEL=none for the same reason.
-      export DD_CIVISIBILITY_LOG_LEVEL=none
       # Snapshot suites: send traces to the testagent (not the real agent)
       # for local snapshot comparison. Set DD_TRACE_AGENT_URL only
       # for the inner pytest (ddtest run), not in before_script
