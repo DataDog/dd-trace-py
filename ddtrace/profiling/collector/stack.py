@@ -5,13 +5,15 @@ import sys
 from types import ModuleType
 import typing
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings.profiling import config
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.profiling import collector
 from ddtrace.profiling.collector import _task
 from ddtrace.profiling.collector import threading
@@ -133,6 +135,29 @@ class StackCollector(collector.Collector):
             stack.link_span(span.span_id, local_root_span_id, span_type)
         else:
             stack.clear_span()
+
+    @staticmethod
+    def snapshot() -> None:
+        # The sampling thread cannot touch Python, so it stashes the exception that killed
+        # it and we drain it here, on the scheduler thread, before every upload.
+        error = stack.take_sampling_thread_error()
+        if error is None:
+            return
+
+        error_type, message = error
+        LOG.error(
+            "The stack profiler sampling thread stopped after an unexpected error: %s: %s",
+            error_type,
+            message,
+            # The message is reported below with the error type as a tag, so the telemetry
+            # payload stays low cardinality.
+            extra={"send_to_telemetry": False},
+        )
+        telemetry_writer.add_log(
+            TELEMETRY_LOG_LEVEL.ERROR,
+            "The stack profiler sampling thread stopped after an unexpected error",
+            tags={"error_type": error_type},
+        )
 
     def _start_service(self) -> None:
         # This is split in its own function to ease testing

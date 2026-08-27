@@ -21,11 +21,6 @@ if [[ -z "$pkgs" ]]; then
     exit 0
 fi
 
-if ! "$DDTEST_CMD"; then
-    echo "Command '$DDTEST_CMD' failed."
-    exit 1
-fi
-
 for pkg in $pkgs; do
     echo "Checking if new latest version exists for $pkg"
     export VENV_NAME="$pkg"

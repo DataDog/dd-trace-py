@@ -4,9 +4,9 @@ from functools import partial
 from typing import Any
 from typing import Callable
 from typing import Optional
+from typing import Protocol
 from typing import Union
 
-from ddtrace._trace.span import Span
 from ddtrace.aiguard import AIGuardClient
 from ddtrace.aiguard import new_ai_guard_client
 from ddtrace.aiguard._constants import AI_GUARD
@@ -436,8 +436,14 @@ def _uninstall_anthropic_wrappers() -> None:
             logger.debug("AI Guard anthropic: failed to uninstall streaming wrapper on %s.%s", owner, attr)
 
 
+class _SpanTypeCarrier(Protocol):
+    """Structural stand-in for ddtrace._trace.span.Span"""
+
+    span_type: Optional[str]
+
+
 def _on_set_http_meta_for_ai_guard(
-    span: Span,
+    span: _SpanTypeCarrier,
     request_ip: Optional[str],
     raw_uri: Optional[str],
     route: Optional[str],
