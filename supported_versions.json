@@ -1009,18 +1009,12 @@
                         "3.10",
                         "3.11",
                         "3.12",
-                        "3.13"
+                        "3.13",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=1.10.0",
                 "tested": [
-                    "2.2.0"
-                ]
-            },
-            "3.14": {
-                "minimum_package_version": "2.2.0",
-                "maximum_package_version": "2.2.0",
-                "tested_versions": [
                     "2.2.0"
                 ]
             }
