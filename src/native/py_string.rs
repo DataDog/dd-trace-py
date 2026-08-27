@@ -233,6 +233,10 @@ impl SpanText for PyBackedString {
             storage: None,
         }
     }
+
+    fn from_owned(value: String) -> Self {
+        Self::from(value)
+    }
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
