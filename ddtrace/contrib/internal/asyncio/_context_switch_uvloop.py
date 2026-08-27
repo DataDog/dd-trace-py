@@ -1,5 +1,6 @@
-"""Publish python.context.switch around uvloop task callbacks."""
+"""Publish python.context.switch around uvloop callbacks."""
 
+import asyncio
 from contextvars import copy_context
 import sys
 from typing import Any
@@ -47,8 +48,18 @@ def _patch(uvloop: Any) -> None:
 
     wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon", _wrapped_schedule_callback)
     wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon_threadsafe", _wrapped_schedule_callback)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.call_later", _wrapped_schedule_timer)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.call_at", _wrapped_schedule_timer)
     wrapt.wrap_function_wrapper(uvloop, "Loop.run_forever", _wrapped_run_forever)
     setattr(uvloop.Loop, _PATCH_MARKER, True)
+
+    try:
+        running_loop = asyncio.get_running_loop()
+    except RuntimeError:
+        pass
+    else:
+        if isinstance(running_loop, uvloop.Loop):
+            setattr(running_loop, _AMBIENT_CONTEXT_ATTR, copy_context())
 
 
 def _unpatch(uvloop: Any) -> None:
@@ -56,6 +67,8 @@ def _unpatch(uvloop: Any) -> None:
         return
 
     unwrap(uvloop.Loop, "run_forever")
+    unwrap(uvloop.Loop, "call_at")
+    unwrap(uvloop.Loop, "call_later")
     unwrap(uvloop.Loop, "call_soon_threadsafe")
     unwrap(uvloop.Loop, "call_soon")
     delattr(uvloop.Loop, _PATCH_MARKER)
@@ -75,7 +88,23 @@ def _wrapped_run_forever(
 def _wrapped_schedule_callback(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
-    callback = get_argument_value(args, kwargs, 0, "callback")
+    return _wrap_scheduled_callback(wrapped, instance, args, kwargs, 0)
+
+
+def _wrapped_schedule_timer(
+    wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    return _wrap_scheduled_callback(wrapped, instance, args, kwargs, 1)
+
+
+def _wrap_scheduled_callback(
+    wrapped: Callable[..., Any],
+    instance: Any,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    callback_position: int,
+) -> Any:
+    callback = get_argument_value(args, kwargs, callback_position, "callback")
     if not callable(callback):
         return wrapped(*args, **kwargs)
 
@@ -96,5 +125,5 @@ def _wrapped_schedule_callback(
                 ambient_context.run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
 
     callback = wrapt.FunctionWrapper(callback, context_switched_callback)
-    args, kwargs = set_argument_value(args, kwargs, 0, "callback", callback)
+    args, kwargs = set_argument_value(args, kwargs, callback_position, "callback", callback)
     return wrapped(*args, **kwargs)

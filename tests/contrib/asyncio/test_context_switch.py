@@ -2,10 +2,12 @@ import asyncio
 from contextvars import ContextVar
 from contextvars import copy_context
 import sys
+from types import SimpleNamespace
 
 import pytest
 
 from ddtrace.contrib.internal.asyncio import _context_switch
+from ddtrace.contrib.internal.asyncio import _context_switch_uvloop
 from ddtrace.contrib.internal.asyncio.patch import _wrapped_create_task as _wrapped_trace_create_task
 from ddtrace.contrib.internal.asyncio.patch import patch
 from ddtrace.contrib.internal.asyncio.patch import unpatch
@@ -230,6 +232,79 @@ def test_callback_failure_resynchronizes_before_exception_handler(context_switch
         loop.close()
 
     assert handled == [("ambient", "ambient")]
+
+
+@pytest.mark.parametrize("schedule_method", ["call_later", "call_at"])
+def test_uvloop_timer_callbacks_publish_the_captured_context(asyncio_patch_state, monkeypatch, schedule_method):
+    """Publish timer callback entry and restore the loop's ambient context."""
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
+    marker = ContextVar("timer_callback_marker", default=None)
+    switches = []
+
+    def record_context_switch(_event):
+        switches.append(marker.get())
+
+    monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
+    patch()
+    loop = _new_uvloop_event_loop()
+    try:
+        marker.set("callback")
+        callback_context = copy_context()
+        marker.set("ambient")
+        observed = []
+
+        def callback():
+            observed.append((marker.get(), switches[-1] if switches else None))
+            loop.stop()
+
+        if schedule_method == "call_later":
+            loop.call_later(0.05, callback, context=callback_context)
+        else:
+            loop.call_at(loop.time() + 0.05, callback, context=callback_context)
+        loop.run_forever()
+
+        assert observed == [("callback", "callback")]
+        assert switches[-1] == "ambient"
+    finally:
+        loop.close()
+
+
+def test_uvloop_late_patch_restores_context(asyncio_patch_state, monkeypatch):
+    """Establish restoration state when patching from an already-running uvloop."""
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
+    marker = ContextVar("late_patch_marker", default=None)
+    switches = []
+
+    def record_context_switch(_event):
+        switches.append(marker.get())
+
+    async def main(loop):
+        marker.set("ambient")
+        patch()
+        switches.clear()
+
+        marker.set("callback")
+        callback_context = copy_context()
+        marker.set("ambient")
+        done = loop.create_future()
+        observed = []
+
+        def callback():
+            observed.append((marker.get(), switches[-1] if switches else None))
+            done.set_result(None)
+
+        loop.call_soon(callback, context=callback_context)
+        await done
+
+        assert observed == [("callback", "callback")]
+        assert switches[:3] == ["callback", "ambient", "ambient"]
+
+    monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
+    loop = _new_uvloop_event_loop()
+    try:
+        loop.run_until_complete(main(loop))
+    finally:
+        loop.close()
 
 
 @pytest.mark.parametrize("loop_factory", [asyncio.new_event_loop, _new_uvloop_event_loop], ids=["asyncio", "uvloop"])
