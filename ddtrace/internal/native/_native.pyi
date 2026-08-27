@@ -1474,6 +1474,9 @@ class RemoteConfigClient:
 
     Passing ``api_key`` (together with ``site`` and ``hostname``) selects agentless
     mode: configs are fetched from ``config.<site>`` rather than from the agent.
+
+    ``config_root`` and ``director_root`` are raw signed TUF root metadata that replace the
+    roots libdatadog embeds for the site. This is mostly for testing. They apply to agentless mode only.
     """
 
     def __new__(
@@ -1495,6 +1498,8 @@ class RemoteConfigClient:
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         hostname: Optional[str] = None,
+        config_root: Optional[str] = None,
+        director_root: Optional[str] = None,
     ) -> "RemoteConfigClient": ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""
