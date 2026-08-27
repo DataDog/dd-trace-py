@@ -132,7 +132,6 @@ include:
     - !reference [.services, testagent]
   before_script:
     - !reference [.ddtest_base, before_script]
-    - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
 # Plan: discover the venv's suite files and write .testoptimization/.
@@ -189,6 +188,11 @@ include:
       eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
       rm -rf .testoptimization
       mv ".testoptimization-${RIOT_HASH}" .testoptimization
+      # Snapshot suites: send traces to the testagent (not the real agent)
+      # for local snapshot comparison. Set DD_TRACE_AGENT_URL only
+      # for the inner pytest (ddtest run), not in before_script
+      # (so plan uses the real agent).
+      export DD_TRACE_AGENT_URL="http://testagent:9126"
       ./bin/ddtest run \
         --platform python \
         --framework pytest \
