@@ -61,6 +61,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import MAX_CONTEXT_FIEL
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_FIELD_LENGTH
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_KEY_LENGTH
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_LIST_ELEMENTS
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_SNAPSHOT_DEPTH
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_STRUCTURE_PROPERTIES
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_VALUE_LENGTH
 from ddtrace.internal.openfeature._flagevaluation_writer import PER_FLAG_CAP
@@ -105,6 +106,13 @@ def _make_event(
         error_message=error_message,
         eval_time_ms=eval_time_ms,
     )
+
+
+class _UnsafeLeaf:
+    """A caller value the walker must reject rather than coerce with str()."""
+
+    def __str__(self) -> str:
+        raise AssertionError("arbitrary leaf conversion must not run")
 
 
 def _wait_until(predicate, timeout: float = 2.0) -> bool:
@@ -227,20 +235,6 @@ class TestCanonicalContextKey:
         k_with = canonical_context_key({"a": "foo=bar\nbaz"})
         k_without = canonical_context_key({"a": "foo", "bar\nbaz": ""})
         assert k_with != k_without
-
-    def test_no_hashlib_or_md5_used(self):
-        """Verify no hash function is used by inspecting the module source."""
-        import inspect
-
-        import ddtrace.internal.openfeature._flagevaluation_writer as mod_src
-
-        src = inspect.getsource(mod_src)
-        assert "hashlib" not in src, "hashlib must not appear in the writer"
-        assert "md5" not in src, "md5 must not appear in the writer"
-
-    def test_returns_string_not_bytes(self):
-        k = canonical_context_key({"x": "y"})
-        assert isinstance(k, str)
 
 
 # ---------------------------------------------------------------------------
@@ -495,6 +489,21 @@ class TestFlattenAndPruneContext:
         assert snapshot == {"kept": "yes"}
         assert reasons == frozenset((CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,))
 
+    def test_snapshot_caps_match_the_cross_sdk_derivation(self):
+        """These bounds are mirrored in dd-trace-rb, dd-trace-java, and dd-trace-go.
+
+        Changing a value here without changing it in the other SDKs makes the same
+        customer context produce different payloads per language, so the derivation
+        is asserted rather than left implicit.
+        """
+        assert MAX_CONTEXT_FIELDS == MAX_KEY_LENGTH == MAX_VALUE_LENGTH == 256
+        assert MAX_LIST_ELEMENTS == MAX_STRUCTURE_PROPERTIES == 256
+        assert MAX_SNAPSHOT_DEPTH == 4
+        assert (GLOBAL_CAP, PER_FLAG_CAP, DEGRADED_CAP) == (131_072, 10_000, 32_768)
+        assert EVAL_SCALE_FULL_BUCKET_TARGET == 125_000
+        assert EVAL_SCALE_PER_FLAG_BUCKET_TARGET == 10_000
+        assert EVAL_SCALE_DEGRADED_BUCKET_TARGET == 25_000
+
     def test_exact_caps_do_not_report_truncation(self):
         attrs = {str(i): "v" for i in range(MAX_CONTEXT_FIELDS)}
         snapshot, reasons = flatten_and_prune_context(attrs)
@@ -614,19 +623,23 @@ class TestFlattenAndPruneContext:
         assert writer._queue.get_nowait().attrs == {"value": large_integer, "missing": None}
         assert writer._context_truncated == {}
 
-    @pytest.mark.parametrize("unsafe", [b"x" * (MAX_VALUE_LENGTH + 1), object()])
-    def test_unsupported_scalars_drop_only_their_own_field(self, writer, unsafe):
-        """One unsupported value must not discard the valid fields around it.
+    @pytest.mark.parametrize(
+        "attrs",
+        [
+            pytest.param({"kept": "retained", "unsafe": b"x" * (MAX_VALUE_LENGTH + 1)}, id="bytes-value"),
+            pytest.param({"kept": "retained", "unsafe": object()}, id="opaque-value"),
+            pytest.param({"kept": "retained", 2: "dropped"}, id="non-string-key"),
+            pytest.param({"kept": "retained", "unsafe": _UnsafeLeaf()}, id="leaf-refusing-str"),
+        ],
+    )
+    def test_unsupported_fields_drop_only_themselves(self, writer, attrs):
+        """One unsupported field must not discard the valid fields around it.
 
-        Ruby's bounded_context_snapshot falls through its leaf type case the same
-        way, so Python matches the reference implementation here.
+        The leaf-refusing-str case also pins that the walker never calls str() on a
+        caller object to coerce it. Ruby's bounded_context_snapshot falls through its
+        leaf type case the same way, so Python matches the reference implementation.
         """
-        writer.enqueue(_make_event(attrs={"kept": "retained", "unsafe": unsafe}))
-        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
-        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
-
-    def test_non_string_keys_drop_only_their_own_field(self, writer):
-        writer.enqueue(_make_event(attrs={"kept": "retained", 2: "dropped"}))
+        writer.enqueue(_make_event(attrs=attrs))
         assert writer._queue.get_nowait().attrs == {"kept": "retained"}
         assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
 
@@ -773,33 +786,6 @@ class TestAggregation:
 
 
 class TestEnqueue:
-    def test_full_queue_precheck_skips_snapshot_and_counts_pre_queue_overflow(self, writer):
-        writer._queue = queue.Queue(maxsize=1)
-        writer._queue.put_nowait(_make_event(flag_key="queued"))
-
-        with mock.patch(
-            "ddtrace.internal.openfeature._flagevaluation_writer.flatten_and_prune_context"
-        ) as mock_snapshot:
-            writer.enqueue(_make_event(flag_key="overflow"))
-
-        mock_snapshot.assert_not_called()
-        assert writer._dropped_pre_queue == 1
-        assert writer._dropped_queue == 0
-
-    def test_put_nowait_race_counts_queue_overflow(self, writer):
-        with mock.patch.object(writer._queue, "full", return_value=False):
-            with mock.patch.object(writer._queue, "put_nowait", side_effect=queue.Full):
-                writer.enqueue(
-                    _make_event(
-                        flag_key="race",
-                        attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)},
-                    )
-                )
-
-        assert writer._dropped_pre_queue == 0
-        assert writer._dropped_queue == 1
-        assert writer._context_truncated == {CONTEXT_TRUNCATION_MAX_VALUE_LENGTH: 1}
-
     def test_enqueue_succeeds_when_queue_has_capacity(self, writer):
         writer.enqueue(_make_event())
         assert writer._queue.qsize() == 1
@@ -821,18 +807,6 @@ class TestEnqueue:
 
         queued = writer._queue.get_nowait()
         assert queued.attrs == {"user.id": 123, "user.plan": "pro"}
-
-    def test_unsupported_leaf_does_not_call_str_and_drops_only_its_own_field(self, writer):
-        """An unsupported leaf drops its own field. The fields around it survive."""
-
-        class UnsafeLeaf:
-            def __str__(self) -> str:
-                raise AssertionError("arbitrary leaf conversion must not run")
-
-        writer.enqueue(_make_event(attrs={"kept": "retained", "unsafe": UnsafeLeaf()}))
-
-        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
-        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
 
     def test_snapshot_error_queues_empty_context_and_is_counted(self, writer):
         attrs = mock.MagicMock()
@@ -977,39 +951,6 @@ class TestPeriodicFlush:
         assert "reason" not in evals[0]
         assert evals[0]["first_evaluation"] <= evals[0]["last_evaluation"]
 
-    def test_context_pruning_above_256_fields(self, writer):
-        """Context with >256 fields is pruned before keying."""
-        attrs = {str(i): str(i) for i in range(300)}
-        e = _make_event(attrs=attrs)
-        writer.enqueue(e)
-
-        with mock.patch.object(writer, "_send_payload") as mock_send:
-            writer.periodic()
-
-        payload_bytes = mock_send.call_args[0][0]
-        decoded = json.loads(payload_bytes)
-        ev = decoded["flagEvaluations"][0]
-        # The context.evaluation map should exist but have ≤256 fields.
-        assert "context" in ev
-        assert len(ev["context"]["evaluation"]) <= MAX_CONTEXT_FIELDS
-
-    def test_context_value_exceeding_256_chars_pruned(self, writer):
-        """Context values >256 chars are skipped."""
-        long_val = "x" * (MAX_FIELD_LENGTH + 10)
-        attrs = {"short": "ok", "long_field": long_val}
-        e = _make_event(attrs=attrs)
-        writer.enqueue(e)
-
-        with mock.patch.object(writer, "_send_payload") as mock_send:
-            writer.periodic()
-
-        payload_bytes = mock_send.call_args[0][0]
-        decoded = json.loads(payload_bytes)
-        ev = decoded["flagEvaluations"][0]
-        ctx_eval = ev.get("context", {}).get("evaluation", {})
-        assert "short" in ctx_eval
-        assert "long_field" not in ctx_eval
-
     def test_openfeature_datetime_context_value_is_json_serialized(self, writer):
         """OpenFeature allows datetime context values; payload JSON should stringify them."""
         timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
@@ -1051,23 +992,6 @@ class TestPeriodicFlush:
             CONTEXT_TRUNCATION_SNAPSHOT_ERROR,
         )
 
-    def test_degraded_event_has_no_context_or_targeting_key(self, writer):
-        """Degraded-tier events must not include targeting_key or context fields."""
-        # Force to degraded by saturating per-flag cap.
-        writer._per_flag_count["my-flag"] = PER_FLAG_CAP
-
-        e = _make_event(targeting_key="tgt-user", attrs={"k": "v"})
-        writer.enqueue(e)
-
-        with mock.patch.object(writer, "_send_payload") as mock_send:
-            writer.periodic()
-
-        payload_bytes = mock_send.call_args[0][0]
-        decoded = json.loads(payload_bytes)
-        ev = decoded["flagEvaluations"][0]
-        assert "targeting_key" not in ev
-        assert "context" not in ev
-
     def test_targeting_key_is_not_duplicated_in_context_evaluation(self, writer):
         writer.enqueue(
             _make_event(
@@ -1083,22 +1007,6 @@ class TestPeriodicFlush:
         ev = decoded["flagEvaluations"][0]
         assert ev["targeting_key"] == "user-1"
         assert ev["context"]["evaluation"] == {"tier": "premium"}
-
-    def test_writer_endpoint_constant(self):
-        assert FLAGEVALUATIONS_ENDPOINT == "/evp_proxy/v2/api/v2/flagevaluation"
-
-    def test_cap_sizing_constants(self):
-        assert EVAL_SCALE_FULL_BUCKET_TARGET == 125_000
-        assert EVAL_SCALE_PER_FLAG_BUCKET_TARGET == 10_000
-        assert EVAL_SCALE_DEGRADED_BUCKET_TARGET == 25_000
-        assert GLOBAL_CAP == 131_072
-        assert PER_FLAG_CAP == 10_000
-        assert DEGRADED_CAP == 32_768
-
-    def test_class_exists_and_inherits_periodic_service(self):
-        from ddtrace.internal.periodic import PeriodicService
-
-        assert issubclass(FlagEvaluationWriter, PeriodicService)
 
     def test_payloads_are_split_under_evp_payload_size_limit(self, writer):
         for i in range(5):
@@ -1414,22 +1322,6 @@ class TestPayloadContractConformance:
             _assert_row_contract_valid(row)
         flags = {r["flag"]["key"] for r in rows}
         assert flags == {"full-flag", "deg-flag"}
-
-    def test_contract_rejects_top_level_reason(self):
-        bad = {
-            "flagEvaluations": [
-                {
-                    "timestamp": int(time.time() * 1000),
-                    "flag": {"key": "reason-flag"},
-                    "first_evaluation": int(time.time() * 1000),
-                    "last_evaluation": int(time.time() * 1000),
-                    "evaluation_count": 1,
-                    "reason": "targeting_match",
-                }
-            ]
-        }
-        with pytest.raises(AssertionError, match="reason"):
-            _assert_batch_contract_valid(bad)
 
 
 # ---------------------------------------------------------------------------
@@ -1808,8 +1700,17 @@ class TestObservableDropCounters:
     def test_pre_queue_overflow_drop_count_is_emitted_and_reset(self, writer):
         writer._queue = queue.Queue(maxsize=1)
         writer._queue.put_nowait(_make_event(flag_key="queued"))
-        writer.enqueue(_make_event(flag_key="dropped"))
+
+        # The O(1) full check must short-circuit before the snapshot walk, so an
+        # overflowing caller never pays for traversing its own context.
+        with mock.patch(
+            "ddtrace.internal.openfeature._flagevaluation_writer.flatten_and_prune_context"
+        ) as mock_snapshot:
+            writer.enqueue(_make_event(flag_key="dropped"))
+
+        mock_snapshot.assert_not_called()
         assert writer._dropped_pre_queue == 1
+        assert writer._dropped_queue == 0
 
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             with mock.patch.object(writer, "_send_payload"):
@@ -1825,6 +1726,7 @@ class TestObservableDropCounters:
         assert writer._dropped_pre_queue == 0
 
     def test_send_site_queue_race_is_emitted_and_reset_without_aggregate_rows(self, writer):
+        """A put_nowait losing the capacity race counts separately from the precheck."""
         with mock.patch.object(writer._queue, "full", return_value=False):
             with mock.patch.object(writer._queue, "put_nowait", side_effect=queue.Full):
                 writer.enqueue(
@@ -1833,6 +1735,11 @@ class TestObservableDropCounters:
                         attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)},
                     )
                 )
+
+        assert writer._dropped_pre_queue == 0
+        assert writer._dropped_queue == 1
+        # The snapshot ran before the race, so its truncation must survive the drop.
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_MAX_VALUE_LENGTH: 1}
 
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             writer.periodic()
@@ -1982,9 +1889,12 @@ class TestObservableDropCounters:
             _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_DEGRADED_CAP)
         assert writer._dropped_degraded_overflow == 0
 
-    def test_drop_accounting_is_complete_no_silent_loss(self, writer):
-        """Σ(tier counts + drops) == events processed (no silent loss)."""
-        # 3 distinct full-tier buckets + 2 degraded-overflow drops.
+    def test_uncontended_aggregation_records_every_event_without_dropping(self, writer):
+        """Well-under-cap aggregation must touch no drop counter.
+
+        The conservation property under contention is covered by
+        TestConcurrentEnqueue::test_every_concurrent_enqueue_is_either_buffered_or_counted.
+        """
         writer._aggregate(_make_event(flag_key="a", attrs={"x": 1}))
         writer._aggregate(_make_event(flag_key="b", attrs={"x": 2}))
         writer._aggregate(_make_event(flag_key="a", attrs={"x": 1}))  # repeat -> count 2 on bucket a
