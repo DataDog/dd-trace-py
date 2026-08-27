@@ -2,6 +2,10 @@ import logging
 import typing as t
 import uuid
 
+from ddtrace.internal.constants import WEB_REQUEST_STARTING_EVENT
+from ddtrace.internal.serverless import MICROVM_RUN_HOOK_METHOD
+from ddtrace.internal.serverless import MICROVM_RUN_HOOK_PATH
+from ddtrace.internal.serverless import in_aws_lambda_microvm
 from ddtrace.internal.settings import env
 
 from . import forksafe
@@ -16,6 +20,8 @@ __all__ = [
     "get_runtime_id",
     "get_parent_runtime_id",
     "get_runtime_propagation_envs",
+    "listen_for_identity_refresh_hooks",
+    "maybe_refresh_identity",
     "refresh_identity",
 ]
 
@@ -115,6 +121,54 @@ def refresh_identity(raise_on_error: bool = False) -> None:
     # state, which is different from the fork handling in _set_runtime_id().
     _refresh_runtime_id()
     _notify_runtime_identity_refresh_callbacks(raise_on_error=raise_on_error)
+
+
+# Multiple request layers can observe the same /run hook. Refresh identity once per
+# process so a single logical MicroVM instance gets one runtime-id rotation.
+_IDENTITY_REFRESH_HOOK_REFRESHED = forksafe.Event()
+_IDENTITY_REFRESH_HOOK_REFRESH_LOCK = forksafe.Lock()
+# Keep a failed transition retryable without rotating the identity again.
+_IDENTITY_REFRESH_HOOK_RUNTIME_ID: t.Optional[str] = None
+
+
+def listen_for_identity_refresh_hooks(
+    on_event: t.Callable[[str, t.Callable[[t.Optional[str], t.Optional[str]], None]], None],
+) -> None:
+    """Refresh MicroVM identity from request events emitted before root span creation."""
+    if not in_aws_lambda_microvm():
+        return
+
+    on_event(WEB_REQUEST_STARTING_EVENT, maybe_refresh_identity)
+
+
+def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
+    """Call refresh_identity() if this request is the AWS Lambda MicroVM /run hook."""
+    if not in_aws_lambda_microvm():
+        return
+    if not method or not path:
+        return
+    if method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
+        return
+
+    global _IDENTITY_REFRESH_HOOK_RUNTIME_ID
+    with _IDENTITY_REFRESH_HOOK_REFRESH_LOCK:
+        if _IDENTITY_REFRESH_HOOK_REFRESHED.is_set():
+            return
+
+        # Rotate once per transition; after a callback failure, retry all callbacks with the
+        # current ID instead of rotating again. The completion guard is set only after success.
+        if _IDENTITY_REFRESH_HOOK_RUNTIME_ID != _RUNTIME_ID:
+            try:
+                refresh_identity(raise_on_error=True)
+            except Exception:
+                # The ID has already rotated before invoking explicit subscribers. Retry those
+                # subscribers against that ID.
+                _IDENTITY_REFRESH_HOOK_RUNTIME_ID = _RUNTIME_ID
+                raise
+            _IDENTITY_REFRESH_HOOK_RUNTIME_ID = _RUNTIME_ID
+        else:
+            _notify_runtime_identity_refresh_callbacks(raise_on_error=True)
+        _IDENTITY_REFRESH_HOOK_REFRESHED.set()
 
 
 def get_runtime_id() -> str:
