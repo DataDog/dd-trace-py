@@ -1166,7 +1166,7 @@ class SpanData:
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
-    _parent_context: Optional[Any]  # parent Context, or None
+    _parent_context: Optional[Context]  # parent Context, or None
 
     def __new__(
         cls: type[_SpanDataT],
