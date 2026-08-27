@@ -1,0 +1,13 @@
+_v: 1
+name: aiokafka
+display_name: aiokafka
+description: Instruments aiokafka message sends, single and batch receives, and consumer offset commits with trace and data-stream
+  context propagation.
+packages:
+- name: aiokafka
+category:
+- messaging.consumer
+- messaging.producer
+systems:
+- kafka
+creation_date: '2025-11-18'
