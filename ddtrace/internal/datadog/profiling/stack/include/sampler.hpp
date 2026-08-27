@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
+#include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <mutex>
@@ -166,6 +167,9 @@ class Sampler
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    bool set_max_frames(uint64_t value);
+    [[nodiscard]] size_t max_frames() const;
+    [[nodiscard]] size_t frame_cache_capacity() const;
     bool is_running() const { return thread_running.load(); }
 
     // Returns the error that terminated the sampling thread, clearing it so it is
