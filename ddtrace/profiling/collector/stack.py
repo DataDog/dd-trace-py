@@ -5,12 +5,12 @@ import sys
 from types import ModuleType
 import typing
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
