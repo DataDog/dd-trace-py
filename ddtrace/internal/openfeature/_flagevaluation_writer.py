@@ -120,6 +120,9 @@ _TAG_INT = b"i"
 _TAG_FLOAT = b"f"
 _TAG_OTHER = b"o"
 
+# Prebound length prefix packer. The drain worker calls this twice per context field.
+_PACK_LENGTH = struct.Struct(">Q").pack
+
 
 class _JSONSafeOtherString(str):
     """Immutable JSON string retaining the prior canonical-key type distinction."""
@@ -164,11 +167,6 @@ def _count_metric(name: str, value: int, reason: typing.Optional[str] = None) ->
 # ---------------------------------------------------------------------------
 
 
-def _length_delimited(data: bytes) -> bytes:
-    """Prepend a fixed 8-byte big-endian length to data."""
-    return struct.pack(">Q", len(data)) + data
-
-
 def _encode_context_value(v: typing.Any) -> bytes:
     """Encode a validated context scalar with a type tag and bounded representation."""
     if type(v) is bool:
@@ -191,16 +189,17 @@ def _encode_context_value(v: typing.Any) -> bytes:
         raw = str.encode(v, "utf-8", errors="replace")
     else:
         raise TypeError("context value was not validated")
-    return tag + _length_delimited(raw)
+    return tag + _PACK_LENGTH(len(raw)) + raw
 
 
 def canonical_context_key(attrs: typing.Optional[typing.Mapping[str, typing.Any]]) -> str:
     """
     Build the EXACT, comparable canonical-context string key for a pruned context dict.
 
-    Uses sorted(attrs.items()) so the encoding is deterministic regardless of Python
-    dict insertion order. Each entry is encoded as:
-        length_delimited(key_bytes) + type_tag_byte + length_delimited(value_bytes)
+    Uses sorted(attrs) so the encoding is deterministic regardless of Python dict
+    insertion order. Each entry is encoded as:
+        len(key_bytes) + key_bytes + type_tag_byte + len(value_bytes) + value_bytes
+    where each length is a fixed 8-byte big-endian prefix.
 
     Because the full encoding is used as the map key (not a hash), distinct contexts
     ALWAYS produce distinct keys — no hash collisions, no misattribution.
@@ -209,10 +208,13 @@ def canonical_context_key(attrs: typing.Optional[typing.Mapping[str, typing.Any]
     """
     if attrs is None:
         return ""
-    parts = []
-    for k in sorted(attrs.keys()):
-        parts.append(_length_delimited(k.encode("utf-8", errors="replace")))
-        parts.append(_encode_context_value(attrs[k]))
+    parts: list[bytes] = []
+    append = parts.append
+    for k in sorted(attrs):
+        raw_key = k.encode("utf-8", errors="replace")
+        append(_PACK_LENGTH(len(raw_key)))
+        append(raw_key)
+        append(_encode_context_value(attrs[k]))
     return b"".join(parts).decode("latin-1")  # lossless binary → str for dict key
 
 
