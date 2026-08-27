@@ -77,11 +77,11 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
         venv_count=2,
         python_versions={"3.12"},
         venvs=[("hash-with-path", "3.12"), ("hash-without-path", "3.12")],
-        venv_paths={"hash-with-path": "tests/internal", "hash-without-path": ""},
+        venv_test_locations={"hash-with-path": "tests/internal", "hash-without-path": ""},
     )
 
     with pytest.raises(ValueError, match="hash-without-path"):
-        gen_gitlab_config_mod._validate_ddtest_venv_paths("internal", info)
+        gen_gitlab_config_mod._validate_ddtest_venv_test_locations("internal", info)
 
 
 def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):

@@ -506,14 +506,7 @@ venv = Venv(
             name="integration",
             env={
                 "DDTEST_SUITE_PATH": "tests/integration",
-                # --no-ddtrace disables CI Visibility for this suite, matching normal
-                # riot CI (whose command has no --ddtrace). ddtest's GetPlatformEnv()
-                # appends --ddtrace to every worker; --no-ddtrace overrides it (the
-                # plugin's is_enabled() checks `and not no-ddtrace`). CI Visibility's
-                # CIVisibilityWriter doesn't respect the testagent's session token,
-                # which corrupts snapshot comparisons (cross-session stats leakage,
-                # '400: list index out of range'). The dedicated integration-*-
-                # civisibility venvs run WITH --ddtrace (they have no --no-ddtrace).
+                "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
                 "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*' --no-ddtrace",
             },
             # Enabling coverage for integration tests breaks certain tests in CI
@@ -540,6 +533,7 @@ venv = Venv(
             name="integration-civisibility",
             env={
                 "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
+                "DDTEST_TESTS_LOCATION": "tests/integration/test_integration_civisibility.py",
             },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
@@ -657,11 +651,12 @@ venv = Venv(
             env={
                 # DDTEST_SUITE_PATH is the single source of truth for this suite's
                 # test location. The command references it via ${DDTEST_SUITE_PATH} so
-                # the path stays data (queryable by the ddtest bridge) rather than a
+                # the path stays data (queryable by Riot's environment) rather than a
                 # literal baked into the pytest invocation. Local `riot run` works
                 # unchanged whether or not ddtest is installed; ddtest reads this env
-                # var via scripts/ddtest-riot to plan/run individual files.
+                # var via Riot's --command override to plan/run individual files.
                 "DDTEST_SUITE_PATH": "tests/internal",
+                "DDTEST_TESTS_LOCATION": "tests/internal/**/test*.py",
                 "DDTEST_PYTEST_ADDOPTS": "-v",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
@@ -1467,6 +1462,7 @@ venv = Venv(
             name="mako",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/mako",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/mako/**/test*.py",
             },
             command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pys=select_pys(),
@@ -1721,6 +1717,7 @@ venv = Venv(
             pys=select_pys(),
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/structlog",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/structlog/**/test*.py",
             },
             command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
@@ -1833,6 +1830,7 @@ venv = Venv(
             name="botocore",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/botocore",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/botocore/**/test*.py",
             },
             command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
@@ -2401,6 +2399,7 @@ venv = Venv(
             name="graphql",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/graphql",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/graphql/**/test*.py",
             },
             command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pys=select_pys(),
@@ -2490,6 +2489,7 @@ venv = Venv(
             name="urllib3",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/urllib3",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/urllib3/**/test*.py",
             },
             command="pytest -n auto --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
@@ -2998,7 +2998,11 @@ venv = Venv(
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
-            env={"DDTEST_SUITE_PATH": "tests/opentelemetry", "DD_TRACE_OTEL_ENABLED": "true"},
+            env={
+                "DDTEST_SUITE_PATH": "tests/opentelemetry",
+                "DDTEST_TESTS_LOCATION": "tests/opentelemetry/**/test*.py",
+                "DD_TRACE_OTEL_ENABLED": "true",
+            },
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -3449,6 +3453,7 @@ venv = Venv(
             name="mistralai",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/mistralai",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/mistralai/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
@@ -3548,6 +3553,7 @@ venv = Venv(
             name="logbook",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/logbook",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/logbook/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             pys=select_pys(),
@@ -3561,6 +3567,7 @@ venv = Venv(
             name="loguru",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/loguru",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/loguru/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             pys=select_pys(),
@@ -3574,6 +3581,7 @@ venv = Venv(
             name="molten",
             env={
                 "DDTEST_SUITE_PATH": "tests/contrib/molten",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/molten/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest -n 8 --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}",
@@ -4599,6 +4607,7 @@ venv = Venv(
             },
             env={
                 "DDTEST_SUITE_PATH": "tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI",
+                "DDTEST_TESTS_LOCATION": "tests/appsec/contrib_appsec/test_fastapi.py",
                 "DDTEST_PYTEST_ADDOPTS": "-k 'Test_FastAPI and not Test_FastAPI_RC'",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",

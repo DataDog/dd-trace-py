@@ -182,10 +182,10 @@ class SuiteVenvInfo:
     # python_hint is the riot interpreter hint (e.g. "3.10") used to match
     # the build_base_venvs artifact for that venv.
     venvs: t.Optional[list[tuple[str, str]]] = None
-    # Effective DDTEST_SUITE_PATH values, keyed by short hash. Keeping this
-    # metadata during collection lets ddtest suites validate their venvs
+    # Effective DDTEST_TESTS_LOCATION values, keyed by short hash. Keeping
+    # this metadata during collection lets ddtest suites validate their venvs
     # before emitting a pipeline that cannot discover any tests.
-    venv_paths: t.Optional[dict[str, str]] = None
+    venv_test_locations: t.Optional[dict[str, str]] = None
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -225,7 +225,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     # hash -> python hint/path, per suite (deduplicated). Preserved as
     # ordered lists for the ddtest parallel matrix and validation.
     venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
-    venv_paths: dict[str, dict[str, str]] = {s: {} for s in compiled}
+    venv_test_locations: dict[str, dict[str, str]] = {s: {} for s in compiled}
 
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
@@ -235,7 +235,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
                 venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
                 venv_hash_hint[suite][inst.short_hash] = hint  # type: ignore[attr-defined]
-                venv_paths[suite][inst.short_hash] = inst.env.get("DDTEST_SUITE_PATH", "")
+                venv_test_locations[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_LOCATION", "")
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
                     python_versions[suite].add(hint)
@@ -248,18 +248,18 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
                 venv_count=len(venv_hashes[suite]),
                 python_versions=python_versions[suite],
                 venvs=venvs,
-                venv_paths=venv_paths[suite],
+                venv_test_locations=venv_test_locations[suite],
             )
         else:
             LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
     return result
 
 
-def _validate_ddtest_venv_paths(suite: str, info: SuiteVenvInfo) -> None:
-    """Reject ddtest suites whose matched venvs do not declare a test path."""
-    missing = [h for h, _py in (info.venvs or []) if not (info.venv_paths or {}).get(h)]
+def _validate_ddtest_venv_test_locations(suite: str, info: SuiteVenvInfo) -> None:
+    """Reject ddtest suites whose matched venvs do not declare a test location."""
+    missing = [h for h, _py in (info.venvs or []) if not (info.venv_test_locations or {}).get(h)]
     if missing:
-        raise ValueError(f"ddtest suite {suite} has venvs without DDTEST_SUITE_PATH: {', '.join(missing)}")
+        raise ValueError(f"ddtest suite {suite} has venvs without DDTEST_TESTS_LOCATION: {', '.join(missing)}")
 
 
 def calculate_parallelism_from_venvs(venv_count: int, venvs_per_job: int, max_parallelism: int = 25) -> int:
@@ -723,7 +723,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
-        _validate_ddtest_venv_paths(suite, suite_venv_info[suite])
+        _validate_ddtest_venv_test_locations(suite, suite_venv_info[suite])
 
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
