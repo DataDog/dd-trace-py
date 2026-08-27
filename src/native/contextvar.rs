@@ -2,9 +2,10 @@ use pyo3::ffi;
 use pyo3::prelude::*;
 use std::ffi::CString;
 
-// PyContextVar_* are public CPython C-API symbols (since 3.7), not Limited API.
-// pyo3-ffi omits them under Py_LIMITED_API. Local decls so this module builds
-// when that cfg is on.
+/// PyContextVar_New/_Get/_Set are absent from pyo3-ffi's limited-API bindings (Py_LIMITED_API),
+/// which can be enabled via PYO3_USE_ABI3_FORWARD_COMPATIBILITY.
+/// Declare the CPython C-API entry points locally so this module builds either way.
+/// Context variables were introduced in Python 3.7, so these symbols exist on every supported CPython.
 unsafe extern "C" {
     fn PyContextVar_New(
         name: *const std::os::raw::c_char,
