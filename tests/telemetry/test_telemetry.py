@@ -122,6 +122,52 @@ else:
     assert len(app_started) == 1
 
 
+def test_metric_collection_after_fork(test_agent_session, run_python_code_in_subprocess):
+    """A regular Python fork rebuilds the worker and reports metrics from the child."""
+    code = """
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import os
+
+import ddtrace  # enables telemetry
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+
+pid = os.fork()
+if pid == 0:
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "fork_child_metric", 1)
+    telemetry_writer.periodic(force_flush=True)
+    print(get_runtime_id(), flush=True)
+    os._exit(0)
+
+os.waitpid(pid, 0)
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert stderr == b"", stderr
+
+    child_runtime_id = stdout.strip().decode("utf-8")
+    child_metric_events = [
+        event for event in test_agent_session.get_events("generate-metrics") if event["runtime_id"] == child_runtime_id
+    ]
+    child_metrics = [
+        metric
+        for event in child_metric_events
+        for metric in event["payload"]["series"]
+        if metric["metric"] == "fork_child_metric"
+    ]
+
+    assert len(child_metrics) == 1, child_metrics
+    assert child_metrics[0]["type"] == "count"
+    assert child_metrics[0]["points"][0][1] == 1
+
+
 @pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
 def test_metric_points_do_not_block_after_native_fork(run_python_code_in_subprocess):
     """Native forks that bypass Python hooks must not leave metric producers blocked."""
