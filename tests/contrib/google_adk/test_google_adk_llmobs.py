@@ -1,11 +1,16 @@
+import json
+import logging
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
 
+from ddtrace.internal.encoding import AgentlessTraceJSONEncoder
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_parent_id
+from ddtrace.trace import Span
 from tests.contrib.google_adk.conftest import create_test_message
 from tests.llmobs._utils import assert_llmobs_span_data
 
@@ -40,7 +45,63 @@ AGENT_MANIFEST_METADATA = {
 }
 
 
+def dynamic_instruction(_):
+    raise AssertionError("Instruction providers must not be called while collecting telemetry")
+
+
+def _agent_manifest_from_span(span):
+    encoder = AgentlessTraceJSONEncoder(max_size=20 << 20, max_item_size=20 << 20)
+    encoder.put([span])
+    payload = json.loads(encoder.encode()[0][0])
+    return payload["traces"][0]["spans"][0]["meta_struct"]["_llmobs"]["meta"]["metadata"]["_dd"]["agent_manifest"]
+
+
 class TestLLMObsGoogleADK:
+    @pytest.mark.parametrize("instruction", ["Static instruction", dynamic_instruction])
+    def test_agent_manifest_instructions_are_json_serializable(self, adk, instruction):
+        integration = adk._datadog_integration
+        agent = SimpleNamespace(
+            name="test-agent",
+            model=SimpleNamespace(model="gemini-2.5-pro"),
+            description="Test agent",
+            instruction=instruction,
+            model_config={},
+            tools=[],
+        )
+        span = Span("google_adk.agent")
+
+        integration._tag_agent_manifest(span, {}, agent)
+        span.finish()
+
+        manifest = _agent_manifest_from_span(span)
+
+        expected_instruction = instruction if isinstance(instruction, str) else str(instruction)
+        assert isinstance(manifest["instructions"], str)
+        assert manifest["instructions"] == expected_instruction
+
+    def test_agent_manifest_unexpected_instruction_type_logs_warning(self, adk, caplog):
+        integration = adk._datadog_integration
+        unexpected_instruction = object()
+        agent = SimpleNamespace(
+            name="test-agent",
+            model=SimpleNamespace(model="gemini-2.5-pro"),
+            description="Test agent",
+            instruction=unexpected_instruction,
+            model_config={},
+            tools=[],
+        )
+        span = Span("google_adk.agent")
+
+        with caplog.at_level(logging.WARNING, logger="ddtrace.llmobs._integrations.google_adk"):
+            integration._tag_agent_manifest(span, {}, agent)
+        span.finish()
+
+        manifest = _agent_manifest_from_span(span)
+
+        assert "Unexpected Google ADK instruction type: object" in caplog.text
+        assert isinstance(manifest["instructions"], str)
+        assert manifest["instructions"] == str(unexpected_instruction)
+
     @pytest.mark.asyncio
     async def test_agent_run1(self, test_runner, request_vcr, test_spans, google_adk_llmobs):
         """Test that a simple agent run creates a valid LLMObs span event."""
