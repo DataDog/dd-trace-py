@@ -2299,6 +2299,31 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             self.check_rules_triggered(sorted(expected_rules), entry_span)
 
 
+class Contrib_TestClass_For_Threats_NonSnapshot(_Contrib_TestClass_Base):
+    """API and endpoint metadata tests that can run without a snapshot agent."""
+
+    test_api_endpoint_discovery = Contrib_TestClass_For_Threats.test_api_endpoint_discovery
+    test_normalized_route = Contrib_TestClass_For_Threats.test_normalized_route
+    test_normalized_route_disabled_when_api_security_off = (
+        Contrib_TestClass_For_Threats.test_normalized_route_disabled_when_api_security_off
+    )
+    test_normalized_route_survives_request_span_name_override = (
+        Contrib_TestClass_For_Threats.test_normalized_route_survives_request_span_name_override
+    )
+    test_api_security_schemas = Contrib_TestClass_For_Threats.test_api_security_schemas
+    test_api_security_scanners = Contrib_TestClass_For_Threats.test_api_security_scanners
+    test_api_custom_scanners = Contrib_TestClass_For_Threats.test_api_custom_scanners
+    test_api_security_sampling = Contrib_TestClass_For_Threats.test_api_security_sampling
+    test_asm_enabled_headers = Contrib_TestClass_For_Threats.test_asm_enabled_headers
+    test_asm_waf_integration_identify_requests = (
+        Contrib_TestClass_For_Threats.test_asm_waf_integration_identify_requests
+    )
+    test_trace_tagging = Contrib_TestClass_For_Threats.test_trace_tagging
+    test_api10 = Contrib_TestClass_For_Threats.test_api10
+    test_api10_addresses = Contrib_TestClass_For_Threats.test_api10_addresses
+    test_api10_addresses_redirects = Contrib_TestClass_For_Threats.test_api10_addresses_redirects
+
+
 class Contrib_TestClass_For_Threats_RC(_Contrib_TestClass_Base):
     """
     Factorized test class for threats tests requiring remote config enabled.

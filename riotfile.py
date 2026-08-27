@@ -4608,9 +4608,69 @@ venv = Venv(
             env={
                 "DDTEST_SUITE_PATH": "tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI",
                 "DDTEST_TESTS_LOCATION": "tests/appsec/contrib_appsec/test_fastapi.py",
-                "DDTEST_PYTEST_ADDOPTS": "-k 'Test_FastAPI and not Test_FastAPI_RC'",
+                "DDTEST_PYTEST_ADDOPTS": (
+                    "-k 'Test_FastAPI and not ("
+                    "test_api_endpoint_discovery or test_normalized_route or "
+                    "test_normalized_route_disabled_when_api_security_off or "
+                    "test_normalized_route_survives_request_span_name_override or "
+                    "test_api_security_schemas or test_api_security_scanners or "
+                    "test_api_custom_scanners or test_api_security_sampling or "
+                    "test_asm_enabled_headers or test_asm_waf_integration_identify_requests or "
+                    "test_trace_tagging or test_api10 or test_api10_addresses or "
+                    "test_api10_addresses_redirects)'"
+                ),
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
+                "DD_PATCH_MODULES": "unittest:false",
+                **_appsec_threats_iast_env,
+            },
+            venvs=[
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.86.0",
+                        "anyio": "==3.7.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.94.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "~=0.114.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.10", "3.14"],
+                    pkgs={
+                        "fastapi": "==0.141.1",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_fastapi_non_snapshot",
+            command="pytest ${{DDTEST_SUITE_PATH}} {cmdargs}",
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "pytest-xdist": latest,
+                "requests": latest,
+                "hypothesis": latest,
+                "httpx": "<0.28.0",
+            },
+            env={
+                "DDTEST_SUITE_PATH": (
+                    "tests/appsec/contrib_appsec/_test_fastapi_non_snapshot.py::Test_FastAPI_NonSnapshot"
+                ),
+                "DDTEST_TESTS_LOCATION": "tests/appsec/contrib_appsec/_test_fastapi_non_snapshot.py",
+                "DDTEST_PYTEST_ADDOPTS": "-n auto -k Test_FastAPI_NonSnapshot",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
                 "DD_PATCH_MODULES": "unittest:false",

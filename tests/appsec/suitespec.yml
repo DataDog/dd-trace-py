@@ -265,8 +265,25 @@ suites:
     ddtest: true
     ddtest_nodes: 2
     venvs_per_job: 1
-    services:
-      - testagent
+    snapshot: true
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@appsec'
+      - '@appsec_iast'
+      - '@asgi'
+      - '@wsgi'
+      - '@fastapi'
+      - '@starlette'
+      - '@remoteconfig'
+      - tests/appsec/*
+      - tests/appsec/contrib_appsec/*
+    retry: 2
+  appsec_threats_fastapi_non_snapshot:
+    ddtest: true
+    ddtest_nodes: 2
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'

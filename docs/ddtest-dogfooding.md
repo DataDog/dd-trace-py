@@ -84,6 +84,16 @@ suite; the generator rejects incomplete suite definitions. `ddtest_nodes` contro
 `--min-parallelism` and `--max-parallelism`; legacy `parallelism` and
 `venvs_per_job` are not used by ddtest.
 
+### FastAPI AppSec split
+
+The IAST FastAPI threat tests are split by responsibility: the original
+`Test_FastAPI` file remains the testagent-backed group, while endpoint and API
+security metadata checks live in `_test_fastapi_non_snapshot.py`. The latter
+uses `-n auto` and `ddtest_nodes: 2`; the leading underscore keeps the helper
+file out of legacy directory-based Riot suites. The snapshot group remains
+serialized within each CI job, and both groups are partitioned across
+independent CI nodes.
+
 ### gen_gitlab_config.py (new emission)
 
 `_gen_tests` emits, for each required suite with `ddtest: true`, one
