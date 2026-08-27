@@ -183,6 +183,68 @@ def _set_custom(span):
     span.resource = "my custom name"
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_event_supplied_resource_is_replaced_not_treated_as_user_owned():
+    """Integrations supply a resource when they create the span, and it must still be renamed.
+
+    requests passes resource="GET /actual/path" through HttpClientRequestEvent. Reading that as
+    a user's choice would ship the URI path as the span name, which the conventions forbid, and
+    would do so at sampling time as well as at export.
+    """
+    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.span_bus import span_from_context
+
+    for method, expected in (("GET", "GET"), ("PROPFIND", "HTTP"), ("get", "GET")):
+        with core.context_with_event(
+            HttpClientRequestEvent(
+                http_operation="requests.request",
+                service="svc",
+                component="requests",
+                resource="{} /actual/path/42".format(method),
+                integration_config=config.requests,
+                request_method=method,
+                request_headers={},
+                query="",
+                request_url="http://host/actual/path/42",
+            ),
+        ) as ctx:
+            span = span_from_context(ctx)
+            # The subscriber has run, so this is what a sampling rule would match on.
+            assert span.resource == expected, "{} gave {!r}".format(method, span.resource)
+            assert "/actual/path/42" not in span.resource
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_a_user_replacing_the_resource_after_start_still_wins():
+    """The ownership marker must not turn into a blanket override of user intent."""
+    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+    from ddtrace.contrib.internal import trace_utils
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.span_bus import span_from_context
+
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            http_operation="requests.request",
+            service="svc",
+            component="requests",
+            resource="GET /actual/path/42",
+            integration_config=config.requests,
+            request_method="GET",
+            request_headers={},
+            query="",
+            request_url="http://host/actual/path/42",
+        ),
+    ) as ctx:
+        span = span_from_context(ctx)
+        assert span.resource == "GET"
+        span.resource = "my custom name"
+        trace_utils.set_http_meta(span, config.requests, method="GET")
+        assert span.resource == "my custom name"
+
+
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
