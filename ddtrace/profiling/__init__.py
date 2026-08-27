@@ -1,5 +1,7 @@
 from typing import Any
 
+from ddtrace.internal.datadog.profiling import ddup
+
 
 # Native profiling extensions may be absent on some Python versions (e.g. 3.15
 # until setup.py gates are lifted). Mirror the is_available pattern used by
@@ -8,6 +10,9 @@ is_available: bool = False
 failure_msg: str = ""
 
 try:
+    if not ddup.is_available:
+        raise ImportError(ddup.failure_msg or "native profiling extensions are not built")
+
     from .profiler import Profiler  # noqa: F401
 
     is_available = True

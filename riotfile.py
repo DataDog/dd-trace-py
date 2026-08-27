@@ -1079,6 +1079,33 @@ venv = Venv(
                         "django-q2": latest,
                     },
                 ),
+                Venv(
+                    # Django 6.x can install on Python 3.15, although Django has not yet
+                    # added Python 3.15 to its officially supported runtime matrix. Reuse
+                    # the Django 5.x exclusions because Django 6.x also requires a newer
+                    # PostgreSQL version than this suite's PostgreSQL 12 service.
+                    pys=["3.15"],
+                    command=(
+                        "pytest {cmdargs} "
+                        "--ignore=tests/contrib/django/test_django_dbm.py "
+                        "--ignore=tests/contrib/django/test_django_snapshots.py "
+                        "-k 'not test_user_name_included and not test_user_name_excluded "
+                        "and not test_cached_view' "
+                        "tests/contrib/django"
+                    ),
+                    pkgs={
+                        # Released coverage wheels stop at CPython 3.14. Pin the upstream
+                        # revision that declares Python 3.15 support until it is released.
+                        "coverage": (
+                            "@git+https://github.com/coveragepy/coveragepy.git@392a0e21efc041098a3aa8de3c8fde20c6ab4cce"
+                        ),
+                        "lxml": "==6.1.2",
+                        "django": ["~=6.0"],
+                        "psycopg": latest,
+                        "channels": latest,
+                        "django-q2": latest,
+                    },
+                ),
             ],
         ),
         Venv(

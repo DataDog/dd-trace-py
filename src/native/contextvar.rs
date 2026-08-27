@@ -2,6 +2,23 @@ use pyo3::ffi;
 use pyo3::prelude::*;
 use std::ffi::CString;
 
+// PyO3 0.28 does not expose these otherwise-public CPython 3.15 symbols yet.
+// Declare the stable C API locally so the native extension can build while the
+// PyO3 bindings catch up. Context variables were introduced in Python 3.7, so
+// these symbols are available on every supported interpreter.
+unsafe extern "C" {
+    fn PyContextVar_New(
+        name: *const std::os::raw::c_char,
+        def: *mut ffi::PyObject,
+    ) -> *mut ffi::PyObject;
+    fn PyContextVar_Get(
+        var: *mut ffi::PyObject,
+        default_value: *mut ffi::PyObject,
+        value: *mut *mut ffi::PyObject,
+    ) -> std::os::raw::c_int;
+    fn PyContextVar_Set(var: *mut ffi::PyObject, value: *mut ffi::PyObject) -> *mut ffi::PyObject;
+}
+
 /// Create a new `contextvars.ContextVar` via the C API (`PyContextVar_New`)
 /// with `default` as its default value. Avoids importing the `contextvars`
 /// module from Rust.
@@ -13,9 +30,7 @@ pub fn contextvar_new<'py>(
     let c_name = CString::new(name).expect("contextvar name must not contain NUL bytes");
     // SAFETY: `c_name` is a valid NUL-terminated string for the duration of the call;
     // `default.as_ptr()` is a valid borrowed reference (PyContextVar_New takes its own ref).
-    unsafe {
-        Bound::from_owned_ptr_or_err(py, ffi::PyContextVar_New(c_name.as_ptr(), default.as_ptr()))
-    }
+    unsafe { Bound::from_owned_ptr_or_err(py, PyContextVar_New(c_name.as_ptr(), default.as_ptr())) }
 }
 
 /// Read the current value of `var` via `PyContextVar_Get`.
@@ -28,7 +43,7 @@ pub fn contextvar_get<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let mut value: *mut ffi::PyObject = std::ptr::null_mut();
     // SAFETY: `var` is a valid ContextVar object; `value` is a valid out-pointer.
-    let rc = unsafe { ffi::PyContextVar_Get(var.as_ptr(), std::ptr::null_mut(), &mut value) };
+    let rc = unsafe { PyContextVar_Get(var.as_ptr(), std::ptr::null_mut(), &mut value) };
     if rc < 0 {
         return Err(PyErr::take(py).unwrap_or_else(|| {
             pyo3::exceptions::PyRuntimeError::new_err("PyContextVar_Get failed")
@@ -80,7 +95,7 @@ pub fn safe_contextvar_set(
             }));
         }
 
-        let token = ffi::PyContextVar_Set(var.as_ptr(), value.as_ptr());
+        let token = PyContextVar_Set(var.as_ptr(), value.as_ptr());
 
         // Capture any error before the decrefs below can perturb interpreter state.
         let err = if token.is_null() {
@@ -113,7 +128,7 @@ pub fn safe_contextvar_set(
 ) -> PyResult<()> {
     // SAFETY: the GIL (`py`) is held for the duration of the call.
     unsafe {
-        let token = ffi::PyContextVar_Set(var.as_ptr(), value.as_ptr());
+        let token = PyContextVar_Set(var.as_ptr(), value.as_ptr());
         if token.is_null() {
             return Err(PyErr::take(py).unwrap_or_else(|| {
                 PyErr::new::<pyo3::exceptions::PyRuntimeError, _>("PyContextVar_Set failed")
