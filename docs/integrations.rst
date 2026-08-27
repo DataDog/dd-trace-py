@@ -311,6 +311,12 @@ httpx
 ^^^^^
 .. automodule:: ddtrace.contrib.internal.httpx
 
+.. _httpx2:
+
+httpx2
+^^^^^^
+.. automodule:: ddtrace.contrib.internal.httpx2
+
 
 .. _jinja2:
 
