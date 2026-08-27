@@ -1606,10 +1606,10 @@ def pytest_load_initial_conftests(
         # Also fix BaseServiceProcessor._global_service, which was set
         # from config.service at import time (before this fix).
         # The _dd.base_service meta tag is derived from _global_service.
+        import ddtrace as _ddtrace
         from ddtrace.internal.schema import schematize_service_name
-        import ddtrace.tracer as _tracer
 
-        _aggregator = _tracer._span_aggregator
+        _aggregator = _ddtrace.tracer._span_aggregator
         _processors: list[t.Any] = getattr(_aggregator, "_dd_processors", [])
         for _proc in _processors:
             if hasattr(_proc, "_global_service"):
