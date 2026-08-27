@@ -19,8 +19,7 @@ pip-tools==7.5.2
 pip<25.3
 reno
 requests
-# Pinned to the commit containing Riot's --command override (PR #270).
-riot @ git+https://github.com/DataDog/riot.git@ffafc0689be524643c7f77c82e536caceea98e9e
+riot==0.22.0
 uv==0.9.25
 wrapt==1.16.0
 
