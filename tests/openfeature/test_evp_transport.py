@@ -17,7 +17,12 @@ class _Response:
         self.status = status
 
 
-def _selector(source: str = AGENTLESS, endpoints: tuple[str, ...] = (), api_key: typing.Optional[str] = "secret"):
+def _selector(
+    source: str = AGENTLESS,
+    endpoints: tuple[str, ...] = (),
+    api_key: typing.Optional[str] = "secret",
+    site: str = "datadoghq.com",
+):
     calls = []
 
     def info_provider(url: str):
@@ -28,7 +33,7 @@ def _selector(source: str = AGENTLESS, endpoints: tuple[str, ...] = (), api_key:
         configuration_source=source,
         agent_url="http://agent:8126",
         api_key=api_key,
-        site="datadoghq.com",
+        site=site,
         info_provider=info_provider,
     )
     return selector, calls
@@ -57,6 +62,52 @@ def test_agentless_uses_direct_when_discovery_fails_before_send():
     assert route is not None
     assert route.direct is True
     assert route.base_path == ""
+
+
+def test_agentless_direct_route_accepts_custom_hostname_domain():
+    selector, _ = _selector(endpoints=(), site="  CUSTOM.REGION.example-test.com  ")
+
+    route = selector.select()
+
+    assert route is not None
+    assert route.intake == "https://event-platform-intake.custom.region.example-test.com"
+    assert route.headers == {"DD-API-KEY": "secret"}
+
+
+@pytest.mark.parametrize(
+    "site",
+    [
+        "datadoghq.com@attacker.example",
+        "datadoghq.com:password@attacker.example",
+        "datadoghq.com:443",
+        "https://attacker.example",
+        "datadoghq.com/path",
+        "datadoghq.com?redirect=attacker.example",
+        "datadoghq.com#attacker.example",
+        "data doghq.com",
+        "datadoghq.com\n.attacker.example",
+        "datadoghq.com\\attacker.example",
+        "datadoghq.com%2eattacker.example",
+        "datadoghq.com。attacker.example",
+        "datadoghq.com．attacker.example",
+        "datadoghq.com｡attacker.example",
+    ],
+)
+def test_agentless_direct_route_rejects_host_confusion(site):
+    selector, _ = _selector(endpoints=(), site=site)
+
+    assert selector.select() is None
+
+
+@pytest.mark.parametrize("site", ["datadoghq.com@attacker.example", "datadoghq.com%2eattacker.example"])
+def test_invalid_direct_site_does_not_attach_api_key_to_local_route(site):
+    selector, _ = _selector(endpoints=("/evp_proxy/v4/",), site=site)
+
+    route = selector.select()
+
+    assert route is not None
+    assert route.headers == {"X-Datadog-EVP-Subdomain": "event-platform-intake"}
+    assert route.fallback is None
 
 
 def test_remote_configuration_never_uses_direct_intake():

@@ -42,6 +42,43 @@ DIRECT_RETRY_STATUSES = frozenset((403, 404, 405))
 _T = TypeVar("_T")
 
 
+def _build_direct_intake(site: str) -> Optional[str]:
+    # AIDEV-NOTE: DD_SITE is user-controlled and this endpoint carries DD-API-KEY.
+    # Keep the configured value confined to ASCII DNS labels so URL parsers cannot
+    # reinterpret credentials, delimiters, percent escapes, or IDNA dot variants.
+    normalized_site = site.strip().lower()
+    if not normalized_site or len(normalized_site) > 230:
+        return None
+
+    for label in normalized_site.split("."):
+        if not label or len(label) > 63 or label.startswith("-") or label.endswith("-"):
+            return None
+        if any(not ("a" <= character <= "z" or "0" <= character <= "9" or character == "-") for character in label):
+            return None
+
+    hostname = "event-platform-intake.%s" % normalized_site
+    intake = DIRECT_INTAKE_PREFIX + normalized_site
+    try:
+        parsed = urlsplit(intake)
+        port = parsed.port
+    except ValueError:
+        return None
+
+    if (
+        parsed.scheme != "https"
+        or parsed.username is not None
+        or parsed.password is not None
+        or port is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+        or parsed.netloc != hostname
+        or parsed.hostname != hostname
+    ):
+        return None
+    return intake
+
+
 class AmbiguousLocalEVPDeliveryError(Exception):
     """A local delivery failure that may have happened after the batch was accepted."""
 
@@ -226,8 +263,11 @@ class FeatureFlagEVPRouteSelector:
     def _direct_route(self) -> Optional[EVPRoute]:
         if not self._api_key:
             return None
+        intake = _build_direct_intake(self._site)
+        if intake is None:
+            return None
         return EVPRoute(
-            intake=DIRECT_INTAKE_PREFIX + self._site.strip().lower(),
+            intake=intake,
             base_path="",
             headers={"DD-API-KEY": self._api_key},
             direct=True,

@@ -104,12 +104,12 @@ def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> No
             raise AssertionError(f"unexpected metric {name} tags={tags}: {call}")
 
 
-def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key=None):
+def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key=None, site="datadoghq.com"):
     return FeatureFlagEVPRouteSelector(
         configuration_source=source,
         agent_url="http://agent:8126",
         api_key=api_key,
-        site="datadoghq.com",
+        site=site,
         info_provider=lambda _: {"endpoints": endpoints},
     )
 
@@ -458,6 +458,25 @@ class TestPeriodicFlush:
         assert direct_endpoint == "/api/v2/flagevaluation"
         assert direct_headers["DD-API-KEY"] == "secret"
         assert "X-Datadog-EVP-Subdomain" not in direct_headers
+
+    def test_agentless_unsafe_site_never_reaches_connection_factory(self):
+        mock_get_conn = mock.Mock()
+        selector = _route_selector(
+            source=AGENTLESS,
+            endpoints=(),
+            api_key="secret",
+            site="datadoghq.com%2eattacker.example",
+        )
+        writer = FlagEvaluationWriter(
+            interval=10.0,
+            route_selector=selector,
+            connection_factory=mock_get_conn,
+        )
+        writer.enqueue(_make_event())
+
+        writer.periodic()
+
+        mock_get_conn.assert_not_called()
 
     def test_agentless_ambiguous_failure_does_not_replay_current_batch(self):
         mock_get_conn = mock.Mock()
