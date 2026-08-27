@@ -113,9 +113,7 @@ class Span(SpanData):
             # state — no lock required. Built inline (not via the `context` getter) to
             # keep root-span creation off the getter call overhead on the hot path; this
             # mirrors the native `context` getter's root branch. Child spans stay lazy.
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-        else:
-            self._context = None
+            self.context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
 
         if links:
             for link in links:
@@ -124,25 +122,6 @@ class Span(SpanData):
         self._parent: Optional[Span] = None
         self._ignored_exceptions: Optional[list[type[BaseException]]] = None
         self._store: Optional[dict[str, Any]] = None
-
-    def _context_for_child(self) -> Context:
-        """Return the context a child span should inherit trace-level state from.
-
-        Reuses a context that already holds this trace's shared
-        ``_meta``/``_metrics``/``_baggage`` — this span's own context if it
-        was built, otherwise its (local) parent-context — so a deep local trace
-        materializes a single Context instead of one per span. A remote
-        parent-context is never handed down: a local child's parent-context must
-        stay local so ``_is_remote``/reactivation keep their meaning, so a
-        distributed entry span materializes its (local) context once here.
-        """
-        ctx = self._context
-        if ctx is not None:
-            return ctx
-        parent = self._parent_context
-        if parent is not None and not parent._is_remote:
-            return parent
-        return self.context
 
     def _update_tags_from_context(self) -> None:
         ctx = self.context
