@@ -23,6 +23,7 @@ SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
+    (3, 15),
 ]
 
 
@@ -41,6 +42,8 @@ def version_to_str(version: tuple[int, int]) -> str:
     '3.13'
     >>> version_to_str((3, 14))
     '3.14'
+    >>> version_to_str((3, 15))
+    '3.15'
     >>> version_to_str((3, ))
     '3'
     """
@@ -62,6 +65,8 @@ def str_to_version(version: str) -> tuple[int, int]:
     (3, 13)
     >>> str_to_version("3.14")
     (3, 14)
+    >>> str_to_version("3.15")
+    (3, 15)
     >>> str_to_version("3")
     (3,)
     """
@@ -69,7 +74,10 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
-MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
+# 3.15 is listed so select_pys(max_version="3.15") can opt in. Default stays
+# 3.14: 3.15 hashes share riot jobs with 3.9-3.14 under --exitfirst, wrap()
+# still raises (#17849), and pip install -e . fails until #19904.
+MAX_PYTHON_VERSION = "3.14"
 
 
 def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
@@ -83,6 +91,8 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     []
     >>> select_pys(min_version='3.9', max_version='3.10')
     ['3.9', '3.10']
+    >>> select_pys(max_version='3.15')
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     """
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
@@ -571,7 +581,7 @@ venv = Venv(
         ),
         Venv(
             name="detect_global_locks",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             command="python -X importtime scripts/global-lock-detection.py",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
@@ -754,7 +764,7 @@ venv = Venv(
         Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
         ),
         Venv(
             name="ddtracerun",
@@ -851,7 +861,7 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
         ),
         Venv(
             name="logging",
@@ -2782,7 +2792,7 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
@@ -3643,7 +3653,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/sourcecode",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "setuptools": latest,
                 "pytest-randomly": latest,
@@ -3689,7 +3699,7 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
             },
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
         ),
         Venv(
             name="integration_registry",
