@@ -285,6 +285,9 @@ def _flatten_mapping(
 ) -> None:
     iterator = iter(value)
     index = 0
+    # The per-field key allowance depends only on this container's prefix.
+    prefix_length = len(prefix)
+    key_budget = MAX_KEY_LENGTH - prefix_length - (0 if not prefix_length else 1)
     while True:
         if traversal_terminal[0]:
             return
@@ -304,23 +307,36 @@ def _flatten_mapping(
         except StopIteration:
             return
         index += 1
-        if not isinstance(child_key, str):
-            # Skip this field only. Aborting the walk would discard every valid
-            # field around it.
-            reasons.add(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
-            continue
-        # str.__str__ normalizes a str subclass without running a caller override.
-        # StrEnum members and lazy translation strings arrive here routinely.
         lookup_key = child_key
-        child_key = str.__str__(child_key)
+        if type(child_key) is not str:
+            if not isinstance(child_key, str):
+                # Skip this field only. Aborting the walk would discard every valid
+                # field around it.
+                reasons.add(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
+                continue
+            # str.__str__ normalizes a str subclass without running a caller override.
+            # StrEnum members and lazy translation strings arrive here routinely.
+            child_key = str.__str__(child_key)
         if root and child_key in DEDICATED_TARGETING_KEY_CONTEXT_FIELDS:
             continue
-        separator_length = 0 if not prefix else 1
-        if len(child_key) > MAX_KEY_LENGTH - len(prefix) - separator_length:
+        if len(child_key) > key_budget:
             reasons.add(CONTEXT_TRUNCATION_MAX_KEY_LENGTH)
             continue
-        child_prefix = child_key if not prefix else f"{prefix}.{child_key}"
+        child_prefix = child_key if not prefix_length else f"{prefix}.{child_key}"
         child_value = value[lookup_key]
+        # An exact scalar is neither a Mapping nor a Sequence, so the ABC dispatch in
+        # _flatten_bounded cannot apply to it. Subclasses still take the slow path,
+        # where the unbound-builtin normalization runs.
+        leaf_type = type(child_value)
+        if leaf_type is str:
+            if len(child_value) > MAX_VALUE_LENGTH:
+                reasons.add(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
+            else:
+                output[child_prefix] = child_value
+            continue
+        if leaf_type is int or leaf_type is bool or leaf_type is float or child_value is None:
+            output[child_prefix] = child_value
+            continue
         _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
 
 
@@ -335,6 +351,9 @@ def _flatten_sequence(
 ) -> None:
     iterator = iter(value)
     index = 0
+    # The element-key allowance depends only on this container's prefix.
+    prefix_length = len(prefix)
+    key_budget = MAX_KEY_LENGTH - prefix_length
     while True:
         if traversal_terminal[0]:
             return
@@ -355,13 +374,24 @@ def _flatten_sequence(
             return
         # AIDEV-NOTE: Keep Python's existing tags[0] list notation. Changing it
         # to tags.0 requires explicit backend-owner approval under FFL-3060.
-        suffix_length = len(str(index)) + 2
-        if suffix_length > MAX_KEY_LENGTH - len(prefix):
+        index_text = str(index)
+        if len(index_text) + 2 > key_budget:
             reasons.add(CONTEXT_TRUNCATION_MAX_KEY_LENGTH)
             index += 1
             continue
-        child_prefix = f"{prefix}[{index}]" if prefix else f"[{index}]"
+        child_prefix = f"{prefix}[{index_text}]" if prefix_length else f"[{index_text}]"
         index += 1
+        # See the leaf fast-path note in _flatten_mapping.
+        leaf_type = type(child_value)
+        if leaf_type is str:
+            if len(child_value) > MAX_VALUE_LENGTH:
+                reasons.add(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
+            else:
+                output[child_prefix] = child_value
+            continue
+        if leaf_type is int or leaf_type is bool or leaf_type is float or child_value is None:
+            output[child_prefix] = child_value
+            continue
         _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
 
 
