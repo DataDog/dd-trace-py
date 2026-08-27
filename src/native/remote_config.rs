@@ -80,9 +80,9 @@ impl ChangeRecord {
     pub fn new(path: &RemoteConfigPath, version: u64, content: Option<Vec<u8>>) -> Self {
         Self {
             path: path.to_string(),
-            product: RemoteConfigProduct(path.product),
-            config_id: path.config_id.clone(),
-            name: path.name.clone(),
+            product: RemoteConfigProduct(path.product()),
+            config_id: path.config_id().to_owned(),
+            name: path.name().to_owned(),
             version,
             content,
         }
@@ -165,6 +165,7 @@ impl RemoteConfigClient {
                 language: language.unwrap_or_else(|| "python".to_string()),
                 tracer_version,
                 endpoint,
+                agentless: None,
             },
             products: Vec::new(),
             capabilities: Vec::new(),
@@ -180,7 +181,8 @@ impl RemoteConfigClient {
 
         // The fetcher owns the storage; it's reached later via
         // `fetcher.fetcher.file_storage()`.
-        let fetcher = SingleChangesFetcher::new(
+        // `new_no_agentless` is the infallible, synchronous constructor
+        let fetcher = SingleChangesFetcher::new_no_agentless(
             ShmStorage::new(),
             target,
             runtime_id,
@@ -308,7 +310,7 @@ impl RemoteConfigClient {
 
     /// The remote config client id (a UUID). Stable for the life of the process.
     fn get_client_id(&self) -> String {
-        self.lock().fetcher.get_client_id().clone()
+        self.lock().fetcher.get_client_id().to_owned()
     }
 
     /// Enable cross-process broadcast: move the storage into shared memory. Must
