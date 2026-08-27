@@ -187,7 +187,8 @@ suites:
   integration_agent:
     ddtest_nodes: 2
     ddtest: true
-    ddtest_service: tests.integration
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     parallelism: 2
     paths:
       - '@tracing'
@@ -201,7 +202,8 @@ suites:
   integration_testagent:
     ddtest_nodes: 2
     ddtest: true
-    ddtest_service: tests.integration
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -220,7 +222,8 @@ suites:
       - scripts/integration_registry/*
   internal:
     ddtest: true
-    ddtest_service: tests.internal
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal
     ddtest_nodes: 2
     retry: 2
     venvs_per_job: 2

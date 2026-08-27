@@ -543,7 +543,8 @@ suites:
   botocore:
     ddtest_nodes: 2
     ddtest: true
-    ddtest_service: tests.contrib.botocore
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.botocore
     retry: 2
     parallelism: 11
     paths:
@@ -844,7 +845,8 @@ suites:
   graphql:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.graphql
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.graphql
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -972,7 +974,8 @@ suites:
   logbook:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.logbook
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.logbook
     parallelism: 1
     paths:
       - '@core'
@@ -984,7 +987,8 @@ suites:
   loguru:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.loguru
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.loguru
     parallelism: 1
     paths:
       - '@core'
@@ -996,7 +1000,8 @@ suites:
   mako:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.mako
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.mako
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1034,7 +1039,8 @@ suites:
   molten:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.molten
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.molten
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1063,7 +1069,8 @@ suites:
   opentelemetry:
     ddtest_nodes: 2
     ddtest: true
-    ddtest_service: tests.opentelemetry
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.opentelemetry
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -1360,7 +1367,8 @@ suites:
   structlog:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.structlog
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.structlog
     parallelism: 1
     paths:
       - '@core'
@@ -1403,9 +1411,9 @@ suites:
   urllib3:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.urllib3
     parallelism: 2
     env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.urllib3
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
     paths:

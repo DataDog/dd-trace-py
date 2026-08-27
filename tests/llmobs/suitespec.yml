@@ -164,7 +164,8 @@ suites:
   mistralai:
     ddtest: true
     ddtest_nodes: 2
-    ddtest_service: tests.contrib.mistralai
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.mistralai
     parallelism: 1
     paths:
       - '@bootstrap'
