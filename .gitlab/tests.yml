@@ -107,8 +107,11 @@ include:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
     - |
       mkdir -p bin
-      # Download the ddtest binary from the latest release.
-      curl -fsSL "https://github.com/DataDog/ddtest/releases/${DDTEST_VERSION:-latest}/download/ddtest-linux-amd64" -o bin/ddtest
+      # Build ddtest from main (merged but not yet released).
+      curl -fsSL https://go.dev/dl/go1.26.5.linux-amd64.tar.gz | tar xz -C /tmp
+      export PATH="/tmp/go/bin:$PATH"
+      git clone --depth 1 https://github.com/DataDog/ddtest.git /tmp/ddtest-src
+      (cd /tmp/ddtest-src && go build -o "${CI_PROJECT_DIR}/bin/ddtest" .)
       chmod +x bin/ddtest
       # Prepare the per-hash riot venv (install envier, pytest, ... into the
       # prefix) and activate it. build_base_venvs only installs ddtrace into
