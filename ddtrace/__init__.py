@@ -6,7 +6,29 @@ LOADED_MODULES = frozenset(sys.modules.keys())
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
+
+from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
+from .internal.utils.deprecations import deprecate  # noqa: E402
+
+
+def check_supported_python_version():
+    if sys.version_info < (3, 10):
+        deprecation_message = (
+            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 5.0.0."
+        )
+        if sys.version_info < (3, 9):
+            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.0.0."
+        deprecate(
+            (deprecation_message % (sys.version_info[0], sys.version_info[1])),
+            category=DDTraceDeprecationWarning,
+        )
+
+
+# Must run before the first native import, which may fail on an unsupported interpreter
+check_supported_python_version()
+
 from ._logger import configure_ddtrace_logger  # noqa: E402
+
 
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
@@ -16,11 +38,9 @@ import ddtrace.internal.telemetry  # noqa: E402, F401
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
-from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402
+from .internal.compat import PYTHON_VERSION_INFO  # noqa: E402, F401
 from .internal.settings import env  # noqa: E402
 from .internal.settings._config import config  # noqa: E402
-from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-from .internal.utils.deprecations import deprecate  # noqa: E402
 from .version import __version__  # noqa: E402
 
 
@@ -39,19 +59,3 @@ __all__ = [
     "config",
     "DDTraceDeprecationWarning",
 ]
-
-
-def check_supported_python_version():
-    if PYTHON_VERSION_INFO < (3, 10):
-        deprecation_message = (
-            "Support for ddtrace with Python version %d.%d is deprecated and will be removed in 5.0.0."
-        )
-        if PYTHON_VERSION_INFO < (3, 9):
-            deprecation_message = "Support for ddtrace with Python version %d.%d was removed in 4.0.0."
-        deprecate(
-            (deprecation_message % (PYTHON_VERSION_INFO[0], PYTHON_VERSION_INFO[1])),
-            category=DDTraceDeprecationWarning,
-        )
-
-
-check_supported_python_version()
