@@ -1561,6 +1561,51 @@ class TestShutdownDrain:
         assert writer._queue is parent_queue
         assert writer._queue.get_nowait().flag_key == "parent-only"
 
+    def test_fork_child_reopens_intake_closed_by_parent_shutdown(self, writer):
+        """A child forked after the parent closed its intake must still accept events.
+
+        The child restarts its PeriodicThread through threads._after_fork_child, which
+        never calls _start_service. An inherited accepting_events of False would
+        therefore close the child intake for the life of the process.
+        """
+        with mock.patch.object(writer, "_send_payload"):
+            writer.on_shutdown()
+        assert writer._accepting_events is False, "parent intake must be closed"
+
+        read_fd, write_fd = os.pipe()
+        child_pid = -1
+        try:
+            child_pid = os.fork()
+            if child_pid == 0:
+                try:
+                    os.close(read_fd)
+                    writer.enqueue(_make_event(flag_key="child-after-parent-shutdown"))
+                    os.write(write_fd, f"{writer._accepting_events}:{writer._queue.qsize()}".encode())
+                finally:
+                    os._exit(0)
+        finally:
+            os.close(write_fd)
+
+        try:
+            readable, _, _ = select.select([read_fd], [], [], 3.0)
+            assert readable, "fork child produced no result"
+            assert os.read(read_fd, 128) == b"True:1"
+            _, status = os.waitpid(child_pid, 0)
+            assert os.waitstatus_to_exitcode(status) == 0
+        finally:
+            os.close(read_fd)
+            if child_pid > 0:
+                try:
+                    waited, _ = os.waitpid(child_pid, os.WNOHANG)
+                except ChildProcessError:
+                    waited = child_pid
+                if waited == 0:
+                    os.kill(child_pid, 9)
+                    os.waitpid(child_pid, 0)
+
+        # The parent intake stays closed. The child reset must not leak back.
+        assert writer._accepting_events is False
+
     def test_background_drain_accumulates_beyond_queue_size_before_flush(self):
         """A flush window can exceed the bounded queue size and naturally degrade."""
         sent = []

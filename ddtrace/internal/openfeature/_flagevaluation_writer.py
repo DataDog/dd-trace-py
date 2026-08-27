@@ -604,6 +604,11 @@ class _WriterProcessState:
         self.dropped_degraded_overflow = 0
         self.context_truncated: dict[str, int] = {}
         self.context_snapshot_error_logged = False
+        # A fork child starts open. The child restarts its PeriodicThread through
+        # threads._after_fork_child, which never calls _start_service, so a False
+        # value inherited from a parent mid-shutdown would close the child intake
+        # permanently.
+        self.accepting_events = True
 
 
 # ---------------------------------------------------------------------------
@@ -637,9 +642,10 @@ class FlagEvaluationWriter(PeriodicService):
             EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_VALUE,
         }
 
-        # Queue, aggregation, and counters are process-local. ResetObject replaces
-        # them before PeriodicThread restarts in a fork child, so inherited locks,
-        # queued events, and aggregate rows cannot deadlock or be emitted twice.
+        # Queue, aggregation, counters, and intake state are process-local. ResetObject
+        # replaces them before PeriodicThread restarts in a fork child, so inherited
+        # locks, queued events, and aggregate rows cannot deadlock or be emitted twice,
+        # and a child forked mid-shutdown starts with its intake open.
         self._queue = typing.cast("queue.Queue[_EvalEvent]", forksafe.ResetObject(_FlagEvaluationQueue))
         self._process_state = typing.cast(_WriterProcessState, forksafe.ResetObject(_WriterProcessState))
 
@@ -650,7 +656,6 @@ class FlagEvaluationWriter(PeriodicService):
         self._counter_lock = forksafe.Lock()
 
         self._drain_worker: typing.Optional[PeriodicThread] = None
-        self._accepting_events = True
 
     @property
     def _full(self) -> dict[tuple[typing.Any, ...], _Entry]:
@@ -723,6 +728,14 @@ class FlagEvaluationWriter(PeriodicService):
     @_context_snapshot_error_logged.setter
     def _context_snapshot_error_logged(self, value: bool) -> None:
         self._process_state.context_snapshot_error_logged = value
+
+    @property
+    def _accepting_events(self) -> bool:
+        return self._process_state.accepting_events
+
+    @_accepting_events.setter
+    def _accepting_events(self, value: bool) -> None:
+        self._process_state.accepting_events = value
 
     # ------------------------------------------------------------------
     # Public API used by FlagEvalEVPHook
