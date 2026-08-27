@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -60,7 +61,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response(response)
+                    ctx.event.set_response_attributes(response)
 
     async def _wrapped_async_send_single_request(
         self,
@@ -86,7 +87,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response(response)
+                    ctx.event.set_response_attributes(response)
 
     async def _wrapped_async_send(
         self,
@@ -174,14 +175,17 @@ class HttpxPatcher:
 
 
 def _set_response(event: HttpClientRequestEvent, response: Any) -> None:
-    event.set_response(response)
+    event.set_response_attributes(response)
+
+    if not asm_config._asm_enabled:
+        return
 
     # Preserve HTTPX response JSON for AppSec SSRF analysis without retaining the response.
-    if not response.is_closed or not response.content:
-        return
     try:
+        if not response.is_closed or not response.content:
+            return
         event.set_response_body(response.json())
-    except (json.JSONDecodeError, UnicodeDecodeError):
+    except (RuntimeError, json.JSONDecodeError, UnicodeDecodeError):
         event.set_response_body(None)
 
 
