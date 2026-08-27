@@ -503,6 +503,7 @@ class TestRunner:
         selected_venvs: list[RiotVenv],
         matching_suites: dict[str, dict],
         riot_args: list[str] = None,
+        skip_ddtrace_install: bool = False,
         dry_run: bool = False,
     ) -> bool:
         """Execute the selected venvs, grouped by suite with per-suite service management."""
@@ -611,11 +612,10 @@ class TestRunner:
                     "-v",
                     "run",
                     "--pass-env",
-                    venv.hash,
-                    "--",
-                    "--collect-only",
-                    "-q",
                 ]
+                if skip_ddtrace_install:
+                    build_cmd.append("-s")
+                build_cmd.extend([venv.hash, "--", "--collect-only", "-q"])
 
                 if dry_run:
                     print(f"[DRY RUN] Would build venv (under lock): {' '.join(build_cmd)}")
@@ -825,6 +825,9 @@ Examples:
   # Show what would be run without executing
   scripts/run-tests --dry-run
 
+  # Reuse an existing ddtrace installation while refreshing suite dependencies
+  scripts/run-tests -s --venv <hash>
+
   # Pass additional arguments to riot
   scripts/run-tests ddtrace/contrib/django/patch.py -- -s
 
@@ -843,6 +846,13 @@ Examples:
     )
 
     parser.add_argument("--dry-run", action="store_true", help="Show what would be run without executing")
+
+    parser.add_argument(
+        "-s",
+        "--skip-ddtrace-install",
+        action="store_true",
+        help="Reuse the selected environment's existing ddtrace installation",
+    )
 
     parser.add_argument(
         "--all-suites", action="store_true", help="Show all available suites regardless of file changes"
@@ -910,7 +920,13 @@ Examples:
             print("⚠️  Could not determine suite information for venvs, running without service management")
             matching_suites = {}
 
-        success = runner.run_tests(venvs_with_suite, matching_suites, riot_args=riot_args, dry_run=args.dry_run)
+        success = runner.run_tests(
+            venvs_with_suite,
+            matching_suites,
+            riot_args=riot_args,
+            skip_ddtrace_install=args.skip_ddtrace_install,
+            dry_run=args.dry_run,
+        )
         return 0 if success else 1
 
     # Normal flow: determine which files to check
@@ -960,7 +976,13 @@ Examples:
     selected_venvs = runner.interactive_venv_selection(matching_suites)
 
     # Execute tests
-    success = runner.run_tests(selected_venvs, matching_suites, riot_args=riot_args, dry_run=args.dry_run)
+    success = runner.run_tests(
+        selected_venvs,
+        matching_suites,
+        riot_args=riot_args,
+        skip_ddtrace_install=args.skip_ddtrace_install,
+        dry_run=args.dry_run,
+    )
 
     return 0 if success else 1
 
