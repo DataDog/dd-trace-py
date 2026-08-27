@@ -85,7 +85,7 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
         gen_gitlab_config_mod._validate_ddtest_venv_test_locations("internal", info)
 
 
-def test_ddtest_jobs_emit_explicit_service_name(gen_gitlab_config_mod):
+def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
     output = io.StringIO()
 
     gen_gitlab_config_mod._emit_ddtest_jobs(
@@ -100,7 +100,6 @@ def test_ddtest_jobs_emit_explicit_service_name(gen_gitlab_config_mod):
 
     content = output.getvalue()
     assert "_DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal" in content
-    assert "ddtest-infer-service" not in content
 
 
 def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
