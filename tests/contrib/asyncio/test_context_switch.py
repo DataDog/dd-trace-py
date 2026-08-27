@@ -47,6 +47,7 @@ def context_switches(tracer, asyncio_patch_state):
 def test_context_switch_hooks_follow_runtime_capability(fallback_required, asyncio_patch_state, monkeypatch):
     """Install fallback hooks only when needed, avoiding overlap with the native watcher."""
     monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: fallback_required)
+    eager_task_factory = getattr(asyncio, "eager_task_factory", None)
 
     patch()
 
@@ -54,11 +55,19 @@ def test_context_switch_hooks_follow_runtime_capability(fallback_required, async
     assert is_wrapped_with(asyncio.BaseEventLoop.create_task, _wrapped_trace_create_task)
     assert is_wrapped_with(asyncio.BaseEventLoop.create_task, _context_switch._wrapped_create_task) is eager_fallback
     assert is_wrapped_with(asyncio.Handle._run, _context_switch._wrapped_run_handle) is fallback_required
+    if eager_task_factory is not None:
+        assert asyncio.eager_task_factory is eager_task_factory
+        assert (
+            is_wrapped_with(asyncio.eager_task_factory, _context_switch._wrapped_eager_task_factory) is eager_fallback
+        )
     assert not is_wrapped(asyncio.to_thread)
 
     unpatch()
     assert not is_wrapped(asyncio.BaseEventLoop.create_task)
     assert not is_wrapped(asyncio.Handle._run)
+    if eager_task_factory is not None:
+        assert asyncio.eager_task_factory is eager_task_factory
+        assert not is_wrapped(asyncio.eager_task_factory)
 
 
 @pytest.mark.subprocess(
@@ -71,6 +80,10 @@ def test_context_switch_hooks_follow_runtime_capability(fallback_required, async
                 marks=pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+"),
             ),
             pytest.param(
+                "direct_eager_factory",
+                marks=pytest.mark.skipif(sys.version_info < (3, 12), reason="eager tasks require Python 3.12+"),
+            ),
+            pytest.param(
                 "eager_start",
                 marks=pytest.mark.skipif(
                     sys.version_info < (3, 14), reason="loop.create_task(eager_start=...) requires Python 3.14+"
@@ -80,7 +93,7 @@ def test_context_switch_hooks_follow_runtime_capability(fallback_required, async
     },
 )
 def test_task_creation_publishes_only_inline_context_switches():
-    """Leave lazy tasks untouched and publish one switch pair for eager loop task creation."""
+    """Leave lazy tasks untouched and publish one switch pair for eager task construction."""
     import asyncio
     from contextvars import ContextVar
     from contextvars import copy_context
@@ -92,6 +105,7 @@ def test_task_creation_publishes_only_inline_context_switches():
     from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 
     mode = os.environ["TASK_MODE"]
+    eager_task_factory = getattr(asyncio, "eager_task_factory", None)
     marker = ContextVar("marker", default=None)
     switches = []
 
@@ -113,8 +127,12 @@ def test_task_creation_publishes_only_inline_context_switches():
             if mode == "lazy":
                 task = loop.create_task(child())
             elif mode == "eager_factory":
-                loop.set_task_factory(asyncio.eager_task_factory)
+                assert eager_task_factory is not None
+                loop.set_task_factory(eager_task_factory)
                 task = loop.create_task(child(), context=task_context)
+            elif mode == "direct_eager_factory":
+                assert eager_task_factory is not None
+                task = eager_task_factory(loop, child(), context=task_context)
             else:
                 task = loop.create_task(child(), context=task_context, eager_start=True)
 

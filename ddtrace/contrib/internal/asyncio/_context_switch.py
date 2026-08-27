@@ -5,8 +5,9 @@ asyncio scheduling points covered by this fallback:
 
 * Handle._run: its callback is temporarily wrapped to publish entry inside the
   Context run and exit after _run restores the loop's ambient Context.
-* Eager task construction through the event loop: the coroutine is instrumented to
-  publish if its first step runs inline, before create_task returns.
+* Eager task construction through the event loop or asyncio.eager_task_factory:
+  the coroutine is instrumented to publish if its first step runs inline, before
+  task construction returns.
 
 Thread offloads are handled by the default-on futures integration. This integration only
 covers the event loops built into asyncio.
@@ -43,6 +44,7 @@ def install() -> None:
     wrap(asyncio.Handle._run, _wrapped_run_handle)  # type: ignore[arg-type]
     _installed = True
     if _eager_task_factory_code is not None:
+        wrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
         wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)  # type: ignore[arg-type]
 
 
@@ -54,6 +56,7 @@ def uninstall() -> None:
 
     if _eager_task_factory_code is not None:
         unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
+        unwrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
     unwrap(asyncio.Handle._run, _wrapped_run_handle)
     _installed = False
 
@@ -105,15 +108,8 @@ def _instrument_inline_first_step(coro: Any) -> tuple[Any, Callable[[], None]]:
     return context_switched_coro(), finish_inline_step
 
 
-def _wrapped_create_task(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Publish context changes caused by an inline first task step."""
-    task_factory = args[0].get_task_factory()
-    eager_factory = (
-        _eager_task_factory_code is not None and getattr(task_factory, "__code__", None) is _eager_task_factory_code
-    )
-    if not kwargs.get("eager_start") and not eager_factory:
-        return wrapped(*args, **kwargs)
-
+def _call_with_inline_first_step(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Instrument a task constructor's coroutine while preserving its return value."""
     coro = get_argument_value(args, kwargs, 1, "coro")
     if not asyncio.iscoroutine(coro):
         return wrapped(*args, **kwargs)
@@ -124,3 +120,20 @@ def _wrapped_create_task(wrapped: Callable[..., Any], args: tuple[Any, ...], kwa
         return wrapped(*args, **kwargs)
     finally:
         finish_inline_step()
+
+
+def _wrapped_eager_task_factory(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Publish context changes caused by direct eager task factory calls."""
+    return _call_with_inline_first_step(wrapped, args, kwargs)
+
+
+def _wrapped_create_task(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Publish context changes caused by an inline first task step."""
+    task_factory = args[0].get_task_factory()
+    eager_factory = (
+        _eager_task_factory_code is not None and getattr(task_factory, "__code__", None) is _eager_task_factory_code
+    )
+    if not kwargs.get("eager_start") and not eager_factory:
+        return wrapped(*args, **kwargs)
+
+    return _call_with_inline_first_step(wrapped, args, kwargs)
