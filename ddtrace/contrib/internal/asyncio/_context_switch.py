@@ -7,7 +7,7 @@ asyncio scheduling points covered by this fallback:
   Context run and exit after _run restores the loop's ambient Context.
 * BaseEventLoop.call_exception_handler on Python before 3.12: publish the
   restored ambient Context before invoking the exception handler.
-* uvloop task callbacks: scheduling wrappers publish entry and restore the loop's
+* uvloop callbacks: scheduling wrappers publish entry and restore the loop's
   ambient Context after each callback.
 * Eager task construction through the event loop or asyncio.eager_task_factory:
   the coroutine is instrumented to publish if its first step runs inline, before
