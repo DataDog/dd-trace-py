@@ -14,6 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config
+from ddtrace.internal.uwsgi import native_fork_hooks_unavailable
 
 from ...internal import atexit
 from ...internal import excepthook
@@ -258,6 +259,7 @@ class TelemetryWriter:
             heartbeat_interval_secs=config.HEARTBEAT_INTERVAL,
             extended_heartbeat_interval_secs=config.EXTENDED_HEARTBEAT_INTERVAL,
             debug_enabled=self._debug,
+            guard_native_forks=native_fork_hooks_unavailable(),
             # Only the root process emits app-started/app-closing; forked children
             # heartbeat with their own session id but must not re-emit them.
             emit_app_lifecycle=get_parent_runtime_id() is None,

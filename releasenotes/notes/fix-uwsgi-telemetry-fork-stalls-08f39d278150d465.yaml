@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: Fixes an issue where applications using uWSGI can experience request stalls after
+    worker processes start.

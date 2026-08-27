@@ -122,6 +122,63 @@ else:
     assert len(app_started) == 1
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
+def test_metric_points_do_not_block_after_native_fork(run_python_code_in_subprocess):
+    """Native forks that bypass Python hooks must not leave metric producers blocked."""
+    code = """
+import ctypes
+import os
+import signal
+import sys
+import time
+import types
+
+# Reproduce ddtrace-run loading ddtrace before uWSGI has populated uwsgi.opt.
+sys.modules["uwsgi"] = types.SimpleNamespace()
+import ddtrace
+from ddtrace.internal.native import MetricNamespace
+from ddtrace.internal.native import MetricType
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+worker = telemetry_writer._worker
+assert worker is not None
+context = worker.register_metric_context(
+    MetricNamespace.tracers,
+    "native_fork",
+    MetricType.count,
+    [],
+    True,
+)
+
+libc = ctypes.CDLL(None)
+libc.fork.restype = ctypes.c_int
+pid = libc.fork()
+if pid == 0:
+    for _ in range(4096):
+        worker.add_point(context, 1)
+        worker.add_point_with_tags(context, 1, ["fork:child"])
+    os._exit(0)
+
+deadline = time.monotonic() + 5
+while True:
+    waited, status = os.waitpid(pid, os.WNOHANG)
+    if waited:
+        break
+    if time.monotonic() >= deadline:
+        os.kill(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+        raise AssertionError("metric producer blocked on the inherited ring buffer")
+    time.sleep(0.01)
+
+assert os.waitstatus_to_exitcode(status) == 0
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+
+
 def _subprocess_lineage(test_agent_session):
     """Return {runtime_id: dd-parent-session-id} from the recorded request headers.
 
