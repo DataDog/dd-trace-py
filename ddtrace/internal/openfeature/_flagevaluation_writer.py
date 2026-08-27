@@ -11,7 +11,7 @@ Key design properties:
 - Canonical context key: sorted, type-tagged, length-delimited — NOT a hash, so distinct
   contexts always produce distinct keys with no collisions.
 - Context snapshotting: one bounded pass with inline field, key, value, container-width,
-  depth, cycle, and visited-node caps.
+  depth, and cycle caps.
 - Caps: GLOBAL_CAP=131_072 (full-tier), PER_FLAG_CAP=10_000 (per-flag full-tier),
   DEGRADED_CAP=32_768 (degraded-tier). Beyond the degraded cap: drop-and-count.
 - Eval-time from metadata key "dd.eval.timestamp_ms"; fallback to enqueue-time.
@@ -65,7 +65,6 @@ MAX_FIELD_LENGTH = MAX_VALUE_LENGTH
 MAX_LIST_ELEMENTS = 256
 MAX_STRUCTURE_PROPERTIES = 256
 MAX_SNAPSHOT_DEPTH = 4
-MAX_VISITED_NODES = MAX_CONTEXT_FIELDS * (MAX_SNAPSHOT_DEPTH + 1)
 DEDICATED_TARGETING_KEY_CONTEXT_FIELDS = frozenset(("targetingKey", "targeting_key"))
 
 CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS = "max_context_fields"
@@ -74,7 +73,6 @@ CONTEXT_TRUNCATION_MAX_VALUE_LENGTH = "max_value_length"
 CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS = "max_list_elements"
 CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES = "max_structure_properties"
 CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH = "max_snapshot_depth"
-CONTEXT_TRUNCATION_MAX_VISITED_NODES = "max_visited_nodes"
 CONTEXT_TRUNCATION_CYCLE = "cycle"
 CONTEXT_TRUNCATION_SNAPSHOT_ERROR = "snapshot_error"
 # A single unsupported key or value drops only its own field. Ruby's
@@ -137,6 +135,7 @@ FLAG_EVALUATION_REASON_QUEUE_OVERFLOW = "queue_overflow"
 FLAG_EVALUATION_REASON_CLOSED = "closed"
 FLAG_EVALUATION_REASON_DEGRADED_CAP = "degraded_cap"
 FLAG_EVALUATION_REASON_PAYLOAD_LIMIT = "payload_limit"
+FLAG_EVALUATION_REASON_SERIALIZATION_ERROR = "serialization_error"
 FLAG_EVALUATION_REASON_CARDINALITY_CAP = "cardinality_cap"
 
 
@@ -222,8 +221,8 @@ def flatten_and_prune_context(
 ) -> tuple[typing.Mapping[str, typing.Any], frozenset[str]]:
     """Create an immutable, flattened context snapshot in one bounded traversal.
 
-    Mapping insertion order determines which fields survive truncation. Every mapping
-    property and sequence element is charged before its key or value is inspected.
+    Mapping insertion order determines which fields survive truncation. Container-width
+    and global field limits are checked before the next key or value is inspected.
     """
     if attrs is None:
         return _EMPTY_CONTEXT, frozenset()
@@ -232,48 +231,31 @@ def flatten_and_prune_context(
 
     output: dict[str, typing.Any] = {}
     reasons: set[str] = set()
-    budget = [MAX_VISITED_NODES]
-    _flatten_mapping("", attrs, output, {id(attrs)}, 0, reasons, budget, root=True)
+    traversal_terminal = [False]
+    _flatten_mapping("", attrs, output, {id(attrs)}, 0, reasons, traversal_terminal, root=True)
     return MappingProxyType(output), frozenset(reasons)
-
-
-def _consume_budget(budget: list[int], reasons: set[str]) -> bool:
-    if budget[0] <= 0:
-        reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
-        return False
-    budget[0] -= 1
-    return True
 
 
 def _bounded_lookahead(
     iterator: typing.Iterator[typing.Any],
     output: dict[str, typing.Any],
     reasons: set[str],
-    budget: list[int],
+    traversal_terminal: list[bool],
     width_reason: str,
     width_reached: bool,
 ) -> None:
     """Inspect at most one extra item to distinguish an exact cap from truncation."""
-    budget_exhausted = budget[0] == 0
     field_limit_reached = len(output) >= MAX_CONTEXT_FIELDS
     try:
         next(iterator)
     except StopIteration:
         return
     except Exception:
-        # A boundary lookahead must not erase the valid retained prefix. An
-        # exhaustion probe is terminal even when the iterator fails, otherwise
-        # every ancestor could invoke one more caller-owned iterator operation.
-        if budget_exhausted:
-            budget[0] = -1
-            reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
-            if field_limit_reached:
-                reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
-            if width_reached:
-                reasons.add(width_reason)
-            return
+        # A boundary lookahead must not erase the valid retained prefix. A global
+        # field-cap probe is terminal even when the iterator fails, otherwise every
+        # ancestor could invoke one more caller-owned iterator operation.
         if field_limit_reached:
-            budget[0] = -2
+            traversal_terminal[0] = True
             reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
             if width_reached:
                 reasons.add(width_reason)
@@ -282,20 +264,12 @@ def _bounded_lookahead(
             reasons.add(width_reason)
             return
         raise
-    if budget_exhausted:
-        # A successful exhaustion probe is terminal for the whole traversal.
-        # Ancestors must not each inspect another caller-owned node while unwinding.
-        budget[0] = -1
-        reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
-    elif field_limit_reached:
-        # The field cap is global, so one successful probe is sufficient. Mark
-        # the traversal terminal before unwinding through parent containers.
-        budget[0] = -2
-    else:
-        budget[0] -= 1
     if width_reached:
         reasons.add(width_reason)
     if field_limit_reached:
+        # The field cap is global, so one successful probe is sufficient. Mark the
+        # traversal terminal before unwinding through parent containers.
+        traversal_terminal[0] = True
         reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
 
 
@@ -306,13 +280,13 @@ def _flatten_mapping(
     seen: set[int],
     depth: int,
     reasons: set[str],
-    budget: list[int],
+    traversal_terminal: list[bool],
     root: bool = False,
 ) -> None:
     iterator = iter(value)
     index = 0
     while True:
-        if budget[0] < 0:
+        if traversal_terminal[0]:
             return
         width_reached = index >= MAX_STRUCTURE_PROPERTIES
         if width_reached or len(output) >= MAX_CONTEXT_FIELDS:
@@ -320,26 +294,14 @@ def _flatten_mapping(
                 iterator,
                 output,
                 reasons,
-                budget,
+                traversal_terminal,
                 CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,
                 width_reached,
-            )
-            return
-        if budget[0] == 0:
-            _bounded_lookahead(
-                iterator,
-                output,
-                reasons,
-                budget,
-                CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,
-                False,
             )
             return
         try:
             child_key = next(iterator)
         except StopIteration:
-            return
-        if not _consume_budget(budget, reasons):
             return
         index += 1
         if not isinstance(child_key, str):
@@ -359,7 +321,7 @@ def _flatten_mapping(
             continue
         child_prefix = child_key if not prefix else f"{prefix}.{child_key}"
         child_value = value[lookup_key]
-        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, budget)
+        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
 
 
 def _flatten_sequence(
@@ -369,12 +331,12 @@ def _flatten_sequence(
     seen: set[int],
     depth: int,
     reasons: set[str],
-    budget: list[int],
+    traversal_terminal: list[bool],
 ) -> None:
     iterator = iter(value)
     index = 0
     while True:
-        if budget[0] < 0:
+        if traversal_terminal[0]:
             return
         width_reached = index >= MAX_LIST_ELEMENTS
         if width_reached or len(output) >= MAX_CONTEXT_FIELDS:
@@ -382,26 +344,14 @@ def _flatten_sequence(
                 iterator,
                 output,
                 reasons,
-                budget,
+                traversal_terminal,
                 CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS,
                 width_reached,
-            )
-            return
-        if budget[0] == 0:
-            _bounded_lookahead(
-                iterator,
-                output,
-                reasons,
-                budget,
-                CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS,
-                False,
             )
             return
         try:
             child_value = next(iterator)
         except StopIteration:
-            return
-        if not _consume_budget(budget, reasons):
             return
         # AIDEV-NOTE: Keep Python's existing tags[0] list notation. Changing it
         # to tags.0 requires explicit backend-owner approval under FFL-3060.
@@ -412,7 +362,7 @@ def _flatten_sequence(
             continue
         child_prefix = f"{prefix}[{index}]" if prefix else f"[{index}]"
         index += 1
-        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, budget)
+        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
 
 
 def _validated_leaf(value: typing.Any) -> typing.Any:
@@ -454,9 +404,9 @@ def _flatten_bounded(
     seen: set[int],
     depth: int,
     reasons: set[str],
-    budget: list[int],
+    traversal_terminal: list[bool],
 ) -> None:
-    """Flatten one already-charged mapping property or sequence element."""
+    """Flatten one selected mapping property or sequence element."""
     if isinstance(value, Mapping):
         if depth >= MAX_SNAPSHOT_DEPTH:
             reasons.add(CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH)
@@ -467,7 +417,7 @@ def _flatten_bounded(
             return
         seen.add(value_id)
         try:
-            _flatten_mapping(prefix, value, output, seen, depth + 1, reasons, budget)
+            _flatten_mapping(prefix, value, output, seen, depth + 1, reasons, traversal_terminal)
         finally:
             seen.remove(value_id)
         return
@@ -482,7 +432,7 @@ def _flatten_bounded(
             return
         seen.add(value_id)
         try:
-            _flatten_sequence(prefix, value, output, seen, depth + 1, reasons, budget)
+            _flatten_sequence(prefix, value, output, seen, depth + 1, reasons, traversal_terminal)
         finally:
             seen.remove(value_id)
         return
@@ -576,12 +526,14 @@ class _PayloadEventResult(typing.NamedTuple):
     encoded: typing.Optional[bytes]
     degraded_payload_limit: bool = False
     dropped_payload_limit: bool = False
+    dropped_serialization_error: bool = False
 
 
 class _PayloadBuildResult(typing.NamedTuple):
     payloads: list[tuple[bytes, int]]
     degraded_payload_limit: int = 0
     dropped_payload_limit: int = 0
+    dropped_serialization_error: int = 0
 
 
 class _FlagEvaluationQueue(queue.Queue[_EvalEvent]):
@@ -794,6 +746,10 @@ class FlagEvaluationWriter(PeriodicService):
             if not self._accepting_events:
                 closed = True
             else:
+                if truncation_reasons:
+                    with self._counter_lock:
+                        for reason in truncation_reasons:
+                            self._context_truncated[reason] = self._context_truncated.get(reason, 0) + 1
                 try:
                     self._queue.put_nowait(bounded_event)
                 except queue.Full:
@@ -804,10 +760,6 @@ class FlagEvaluationWriter(PeriodicService):
                         bounded_event.flag_key,
                     )
                     return
-                if truncation_reasons:
-                    with self._counter_lock:
-                        for reason in truncation_reasons:
-                            self._context_truncated[reason] = self._context_truncated.get(reason, 0) + 1
         if closed:
             self._count_closed_drop()
 
@@ -816,19 +768,30 @@ class FlagEvaluationWriter(PeriodicService):
     # ------------------------------------------------------------------
 
     def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        self._drain_worker = None
         with self._lifecycle_lock:
             self._accepting_events = True
-        self._drain_worker = PeriodicThread(
-            DRAIN_INTERVAL,
-            target=self._drain_queue,
-            name="%s:%s:drain" % (self.__class__.__module__, self.__class__.__name__),
-            no_wait_at_start=False,
-        )
-        self._drain_worker.start()
+        try:
+            self._drain_worker = PeriodicThread(
+                DRAIN_INTERVAL,
+                target=self._drain_queue,
+                name="%s:%s:drain" % (self.__class__.__module__, self.__class__.__name__),
+                on_shutdown=self.periodic,
+                no_wait_at_start=False,
+            )
+            self._drain_worker.start()
+        except Exception:
+            with self._lifecycle_lock:
+                self._accepting_events = False
+            self._drain_worker = None
+            self.periodic()
+            raise
         try:
             super()._start_service(*args, **kwargs)
         except Exception:
-            self._stop_drain_worker()
+            with self._lifecycle_lock:
+                self._accepting_events = False
+            self._request_drain_worker_stop()
             raise
 
     def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
@@ -960,6 +923,11 @@ class FlagEvaluationWriter(PeriodicService):
             result.dropped_payload_limit,
             FLAG_EVALUATION_REASON_PAYLOAD_LIMIT,
         )
+        _count_metric(
+            FLAG_EVALUATION_DROPPED_METRIC,
+            result.dropped_serialization_error,
+            FLAG_EVALUATION_REASON_SERIALIZATION_ERROR,
+        )
         if len(result.payloads) > 1:
             _count_metric(FLAG_EVALUATION_SPLITS_METRIC, len(result.payloads) - 1)
 
@@ -967,10 +935,10 @@ class FlagEvaluationWriter(PeriodicService):
             self._send_payload(payload, num_events)
 
     def on_shutdown(self) -> None:  # type: ignore[override]
-        """Close intake under the enqueue commit lock, then perform the final drain."""
+        """Close intake and flush without joining another periodic worker."""
         with self._lifecycle_lock:
             self._accepting_events = False
-        self._stop_drain_worker()
+        self._request_drain_worker_stop()
         self.periodic()
 
     # ------------------------------------------------------------------
@@ -990,24 +958,22 @@ class FlagEvaluationWriter(PeriodicService):
                 break
             self._aggregate(event)
 
+    def _request_drain_worker_stop(self) -> bool:
+        worker = self._drain_worker
+        if worker is None:
+            return False
+        worker.stop()
+        return True
+
     def _stop_drain_worker(self) -> None:
         worker = self._drain_worker
         if worker is None:
             return
-        self._drain_worker = None
         worker.stop()
-        # The worker can already own a dequeued event. Wait until aggregation
-        # completes so the final periodic() call cannot snapshot before it.
-        #
-        # The wait is bounded. Aggregation calls __eq__ and __hash__ on the caller's
-        # own canonical context key, so a caller implementation that blocks would
-        # otherwise hang process exit.
-        #
-        # PeriodicThread.join returns None whether the worker stopped or the wait
-        # expired, so the outcome is not observable here. A timeout is still safe:
-        # _aggregate and the periodic() snapshot both hold self._lock, so a worker
-        # that is still running writes into the post-swap maps rather than
-        # corrupting the flush. Such an event flushes late instead of never.
+        # Only the application-thread service stop path performs this bounded join.
+        # The worker can already own a dequeued event, so it also owns the final
+        # drain and flush through its on_shutdown callback. If this join times out,
+        # the worker invokes that callback after its current aggregation finishes.
         worker.join(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
 
     def _aggregate(self, event: _EvalEvent) -> None:
@@ -1039,9 +1005,7 @@ class FlagEvaluationWriter(PeriodicService):
                 # Log the exception type only. Traceback frames here hold context
                 # values in their locals, and those values are consent-gated in the
                 # payload. They must not reach the log sink.
-                logger.debug(
-                    "FlagEvaluationWriter: context canonicalization error (%s)", type(exc).__name__
-                )
+                logger.debug("FlagEvaluationWriter: context canonicalization error (%s)", type(exc).__name__)
         full_key = (
             event.flag_key,
             event.variant,
@@ -1172,7 +1136,7 @@ def _encode_payload_event(
         encoded = _json_dumps(event)
     except (TypeError, ValueError):
         logger.debug("FlagEvaluationWriter: failed to encode event", exc_info=True)
-        return _PayloadEventResult(None)
+        return _PayloadEventResult(None, dropped_serialization_error=True)
 
     if len(encoded) <= single_event_payload_limit:
         return _PayloadEventResult(encoded)
@@ -1183,7 +1147,7 @@ def _encode_payload_event(
             encoded = _json_dumps(degraded_event)
         except (TypeError, ValueError):
             logger.debug("FlagEvaluationWriter: failed to encode degraded event", exc_info=True)
-            return _PayloadEventResult(None)
+            return _PayloadEventResult(None, dropped_serialization_error=True)
         if len(encoded) <= single_event_payload_limit:
             logger.warning(
                 "FlagEvaluationWriter: degraded oversized flag evaluation event for %s before sending",
@@ -1218,14 +1182,18 @@ def _build_payloads_with_stats(
     payloads: list[tuple[bytes, int]] = []
     degraded_payload_limit = 0
     dropped_payload_limit = 0
+    dropped_serialization_error = 0
 
     for event in events:
         event_result = _encode_payload_event(event, single_event_payload_limit)
         encoded_event = event_result.encoded
+        evaluation_count = int(event.get("evaluation_count", 1) or 1)
         if event_result.dropped_payload_limit:
-            dropped_payload_limit += int(event.get("evaluation_count", 1) or 1)
+            dropped_payload_limit += evaluation_count
         if event_result.degraded_payload_limit:
-            degraded_payload_limit += int(event.get("evaluation_count", 1) or 1)
+            degraded_payload_limit += evaluation_count
+        if event_result.dropped_serialization_error:
+            dropped_serialization_error += evaluation_count
         if encoded_event is None:
             continue
 
@@ -1246,4 +1214,9 @@ def _build_payloads_with_stats(
         payload.extend(suffix)
         payloads.append((bytes(payload), num_events))
 
-    return _PayloadBuildResult(payloads, degraded_payload_limit, dropped_payload_limit)
+    return _PayloadBuildResult(
+        payloads,
+        degraded_payload_limit,
+        dropped_payload_limit,
+        dropped_serialization_error,
+    )

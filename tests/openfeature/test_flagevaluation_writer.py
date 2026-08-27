@@ -35,7 +35,6 @@ from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATI
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VALUE_LENGTH
-from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VISITED_NODES
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_SNAPSHOT_ERROR
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_UNSUPPORTED_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
@@ -54,6 +53,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_PAYLOAD_LIMIT
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_QUEUE_OVERFLOW
+from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_REASON_SERIALIZATION_ERROR
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAG_EVALUATION_SPLITS_METRIC
 from ddtrace.internal.openfeature._flagevaluation_writer import FLAGEVALUATIONS_ENDPOINT
 from ddtrace.internal.openfeature._flagevaluation_writer import GLOBAL_CAP
@@ -61,15 +61,14 @@ from ddtrace.internal.openfeature._flagevaluation_writer import MAX_CONTEXT_FIEL
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_FIELD_LENGTH
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_KEY_LENGTH
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_LIST_ELEMENTS
-from ddtrace.internal.openfeature._flagevaluation_writer import MAX_SNAPSHOT_DEPTH
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_STRUCTURE_PROPERTIES
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_VALUE_LENGTH
-from ddtrace.internal.openfeature._flagevaluation_writer import MAX_VISITED_NODES
 from ddtrace.internal.openfeature._flagevaluation_writer import PER_FLAG_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._flagevaluation_writer import _build_payloads_with_stats
 from ddtrace.internal.openfeature._flagevaluation_writer import _EvalEvent
 from ddtrace.internal.openfeature._flagevaluation_writer import _flatten_sequence
+from ddtrace.internal.openfeature._flagevaluation_writer import _json_dumps
 from ddtrace.internal.openfeature._flagevaluation_writer import canonical_context_key
 from ddtrace.internal.openfeature._flagevaluation_writer import flatten_and_prune_context
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -127,6 +126,12 @@ def _assert_no_count_metric(mock_add_count, name: str, reason: str = None) -> No
     for call in mock_add_count.call_args_list:
         if call.args == (TELEMETRY_NAMESPACE.TRACERS, name, mock.ANY, tags):
             raise AssertionError(f"unexpected metric {name} tags={tags}: {call}")
+
+
+def _json_dumps_rejecting_invalid_row(obj: typing.Any) -> bytes:
+    if isinstance(obj, dict) and obj.get("flag", {}).get("key") == "invalid":
+        raise TypeError("invalid row")
+    return _json_dumps(obj)
 
 
 @pytest.fixture
@@ -447,7 +452,7 @@ class TestFlattenAndPruneContext:
             set(),
             1,
             reasons,
-            [MAX_VISITED_NODES],
+            [False],
         )
 
         assert output == {}
@@ -479,16 +484,16 @@ class TestFlattenAndPruneContext:
         assert snapshot == {"root.one.two.three.four": "kept"}
         assert CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH in reasons
 
-    def test_visited_node_budget_exhaustion(self):
-        level = {f"leaf-{i}": "v" * (MAX_VALUE_LENGTH + 1) for i in range(MAX_STRUCTURE_PROPERTIES)}
-        for depth in range(MAX_SNAPSHOT_DEPTH - 1):
-            level = {f"level-{depth}-{i}": level for i in range(MAX_STRUCTURE_PROPERTIES)}
+    def test_more_than_old_visited_node_cap_retains_later_scalar(self):
+        # Five exact-width lists plus six root entries inspect 1,286 entries.
+        discarded = [object()] * MAX_LIST_ELEMENTS
+        attrs = {f"discarded-{index}": discarded for index in range(5)}
+        attrs["kept"] = "yes"
 
-        snapshot, reasons = flatten_and_prune_context(level)
+        snapshot, reasons = flatten_and_prune_context(attrs)
 
-        assert MAX_VISITED_NODES == MAX_CONTEXT_FIELDS * (MAX_SNAPSHOT_DEPTH + 1)
-        assert len(snapshot) < MAX_CONTEXT_FIELDS
-        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+        assert snapshot == {"kept": "yes"}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,))
 
     def test_exact_caps_do_not_report_truncation(self):
         attrs = {str(i): "v" for i in range(MAX_CONTEXT_FIELDS)}
@@ -535,65 +540,6 @@ class TestFlattenAndPruneContext:
         snapshot, reasons = flatten_and_prune_context(attrs)
         assert snapshot == {}
         assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_KEY_LENGTH, CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES))
-
-    def test_targeting_key_alias_consumes_visited_budget_before_filtering(self):
-        attrs = {"targetingKey": "ignored", "kept": "not-inspected"}
-        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
-            snapshot, reasons = flatten_and_prune_context(attrs)
-        assert snapshot == {}
-        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
-
-    def test_visited_budget_uses_only_one_exhaustion_lookahead(self):
-        class TrackingSequence(Sequence):
-            def __init__(self):
-                self.accessed = []
-
-            def __getitem__(self, index):
-                self.accessed.append(index)
-                return "not-inspected"
-
-            def __len__(self):
-                raise AssertionError("len must not be called")
-
-        values = TrackingSequence()
-        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
-            snapshot, reasons = flatten_and_prune_context({"values": values})
-        assert snapshot == {}
-        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
-        assert values.accessed == [0]
-
-    def test_exact_visited_budget_does_not_report_truncation(self):
-        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
-            snapshot, reasons = flatten_and_prune_context({"kept": "yes"})
-        assert snapshot == {"kept": "yes"}
-        assert reasons == frozenset()
-
-    def test_visited_budget_allows_only_one_successful_unwind_lookahead(self):
-        class TrackingSequence(Sequence):
-            def __init__(self, values: list[typing.Any]) -> None:
-                self.values = values
-                self.accessed: list[int] = []
-
-            def __getitem__(self, index: int) -> typing.Any:
-                self.accessed.append(index)
-                if index >= len(self.values):
-                    raise IndexError(index)
-                return self.values[index]
-
-            def __len__(self) -> int:
-                raise AssertionError("len must not be called")
-
-        inner = TrackingSequence(["first-extra", "inner-extra"])
-        outer = TrackingSequence([inner, "outer-extra"])
-        attrs = {"values": outer, "root-extra": "not-inspected"}
-
-        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 2):
-            snapshot, reasons = flatten_and_prune_context(attrs)
-
-        assert snapshot == {}
-        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_VISITED_NODES,))
-        assert outer.accessed == [0]
-        assert inner.accessed == [0]
 
     def test_false_and_raising_len_mappings_are_iterated_without_truthiness_or_len(self):
         class FalseMapping(Mapping):
@@ -700,9 +646,7 @@ class TestFlattenAndPruneContext:
             def __str__(self):
                 raise AssertionError("subclass conversion must not run")
 
-        writer.enqueue(
-            _make_event(attrs={"tier": Tier.GOLD, "region": Region.EU, LazyKey("lazy"): "v"})
-        )
+        writer.enqueue(_make_event(attrs={"tier": Tier.GOLD, "region": Region.EU, LazyKey("lazy"): "v"}))
         assert writer._queue.get_nowait().attrs == {"tier": 3, "region": "eu-west", "lazy": "v"}
         assert writer._context_truncated == {}
 
@@ -845,10 +789,16 @@ class TestEnqueue:
     def test_put_nowait_race_counts_queue_overflow(self, writer):
         with mock.patch.object(writer._queue, "full", return_value=False):
             with mock.patch.object(writer._queue, "put_nowait", side_effect=queue.Full):
-                writer.enqueue(_make_event(flag_key="race"))
+                writer.enqueue(
+                    _make_event(
+                        flag_key="race",
+                        attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)},
+                    )
+                )
 
         assert writer._dropped_pre_queue == 0
         assert writer._dropped_queue == 1
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_MAX_VALUE_LENGTH: 1}
 
     def test_enqueue_succeeds_when_queue_has_capacity(self, writer):
         writer.enqueue(_make_event())
@@ -1215,6 +1165,42 @@ class TestPeriodicFlush:
         mock_send.assert_not_called()
         _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_PAYLOAD_LIMIT)
 
+    def test_serialization_failure_drops_only_bad_row_and_counts_exact_evaluations(self, writer):
+        writer.enqueue(_make_event(flag_key="invalid"))
+        writer.enqueue(_make_event(flag_key="invalid"))
+        writer.enqueue(_make_event(flag_key="valid"))
+
+        with mock.patch(
+            "ddtrace.internal.openfeature._flagevaluation_writer._json_dumps",
+            side_effect=_json_dumps_rejecting_invalid_row,
+        ):
+            with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+                with mock.patch.object(writer, "_send_payload") as mock_send:
+                    writer.periodic()
+
+        mock_send.assert_called_once()
+        rows = json.loads(mock_send.call_args[0][0])["flagEvaluations"]
+        assert [row["flag"]["key"] for row in rows] == ["valid"]
+        serialization_calls = [
+            call
+            for call in mock_count.call_args_list
+            if call.args[1] == FLAG_EVALUATION_DROPPED_METRIC
+            and call.args[3] == (("reason", FLAG_EVALUATION_REASON_SERIALIZATION_ERROR),)
+        ]
+        assert serialization_calls == [
+            mock.call(
+                TELEMETRY_NAMESPACE.TRACERS,
+                FLAG_EVALUATION_DROPPED_METRIC,
+                2,
+                (("reason", FLAG_EVALUATION_REASON_SERIALIZATION_ERROR),),
+            )
+        ]
+        _assert_no_count_metric(
+            mock_count,
+            FLAG_EVALUATION_DROPPED_METRIC,
+            FLAG_EVALUATION_REASON_PAYLOAD_LIMIT,
+        )
+
     def test_build_payload_stats_count_payload_limit_degraded_and_dropped_rows(self):
         now_ms = int(time.time() * 1000)
         degradable = {
@@ -1235,6 +1221,7 @@ class TestPeriodicFlush:
 
         assert result.degraded_payload_limit == 7
         assert result.dropped_payload_limit == 0
+        assert result.dropped_serialization_error == 0
         assert len(result.payloads) == 1
 
         undegreadable = {
@@ -1250,6 +1237,7 @@ class TestPeriodicFlush:
 
         assert result.degraded_payload_limit == 0
         assert result.dropped_payload_limit == 11
+        assert result.dropped_serialization_error == 0
         assert result.payloads == []
 
 
@@ -1450,37 +1438,90 @@ class TestPayloadContractConformance:
 
 
 class TestShutdownDrain:
-    def test_on_shutdown_drains_queue_and_flushes(self, writer):
-        """on_shutdown (the PeriodicService shutdown callback) must drain + flush queued events."""
-        writer.enqueue(_make_event(flag_key="pending-1"))
-        writer.enqueue(_make_event(flag_key="pending-2"))
-        assert writer._queue.qsize() == 2
+    def test_direct_shutdown_without_worker_drains_and_flushes(self, writer):
+        writer.enqueue(_make_event(flag_key="direct-shutdown"))
 
         with mock.patch.object(writer, "_send_payload") as mock_send:
             writer.on_shutdown()
 
-        # The queued events were drained, aggregated, and flushed in a final POST.
         mock_send.assert_called_once()
-        decoded = json.loads(mock_send.call_args[0][0])
-        flags = {r["flag"]["key"] for r in decoded["flagEvaluations"]}
-        assert flags == {"pending-1", "pending-2"}
-        assert writer._queue.qsize() == 0
+        row = json.loads(mock_send.call_args[0][0])["flagEvaluations"][0]
+        assert row["flag"]["key"] == "direct-shutdown"
+        assert writer._queue.empty()
 
-    def test_real_start_stop_lifecycle_drains_pending_event(self):
-        """Real PeriodicService start()->enqueue->stop() drains the queue via on_shutdown."""
-        # Long interval so the periodic timer never fires; only stop() triggers the flush.
-        w = FlagEvaluationWriter(interval=3600.0)
+    def test_on_shutdown_signals_drain_worker_without_joining(self, writer):
+        drain_worker = mock.Mock()
+        writer._drain_worker = drain_worker
+
+        with mock.patch.object(writer, "periodic") as mock_periodic:
+            writer.on_shutdown()
+
+        drain_worker.stop.assert_called_once()
+        drain_worker.join.assert_not_called()
+        mock_periodic.assert_called_once()
+        assert writer._accepting_events is False
+
+    def test_shutdown_flushes_pending_event_with_stopped_drain_worker_reference(self, writer):
+        drain_worker = PeriodicThread(
+            3600.0,
+            target=writer._drain_queue,
+            name="ffl3060-stopped-drain",
+            on_shutdown=writer.periodic,
+            no_wait_at_start=False,
+        )
+        drain_worker.start()
+        drain_worker.stop()
+        drain_worker.join(timeout=2.0)
+        writer._drain_worker = drain_worker
+        writer.enqueue(_make_event(flag_key="stopped-drain"))
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.on_shutdown()
+
+        mock_send.assert_called_once()
+        rows = json.loads(mock_send.call_args[0][0])["flagEvaluations"]
+        assert len(rows) == 1
+        assert rows[0]["flag"]["key"] == "stopped-drain"
+        assert writer._queue.empty()
+
+    def test_start_failure_closes_intake_and_signals_drain_worker(self, writer):
+        drain_worker = mock.Mock()
+        with mock.patch(
+            "ddtrace.internal.openfeature._flagevaluation_writer.PeriodicThread",
+            return_value=drain_worker,
+        ):
+            with mock.patch(
+                "ddtrace.internal.periodic.PeriodicService._start_service",
+                side_effect=RuntimeError("startup failed"),
+            ):
+                with pytest.raises(RuntimeError, match="startup failed"):
+                    writer.start()
+
+        drain_worker.start.assert_called_once()
+        drain_worker.stop.assert_called_once()
+        drain_worker.join.assert_not_called()
+        assert writer._accepting_events is False
+        with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
+            writer.enqueue(_make_event(flag_key="after-failed-start"))
+        _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_CLOSED)
+        assert writer._queue.empty()
+
+    def test_real_start_stop_lifecycle_drains_pending_events(self):
+        """The drain worker owns the final drain and flush during service shutdown."""
+        writer = FlagEvaluationWriter(interval=3600.0)
         sent = []
-        with mock.patch.object(w, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
-            w.start()
-            w.enqueue(_make_event(flag_key="lifecycle-flag"))
-            w.stop()  # stop() runs on_shutdown -> periodic() -> drain + flush
-            # stop() requests shutdown; join() blocks until the worker (and its
-            # on_shutdown final flush) has fully completed before we assert.
-            w.join(timeout=5.0)
-        assert len(sent) == 1, "stop() must trigger a final drain+flush"
+        with mock.patch.object(writer, "_send_payload", side_effect=lambda p, n: sent.append((p, n))):
+            writer.start()
+            writer.enqueue(_make_event(flag_key="pending-1"))
+            writer.enqueue(_make_event(flag_key="pending-2"))
+            writer.stop()
+            writer.join(timeout=5.0)
+
+        assert len(sent) == 1, "stop() must trigger a final drain and flush"
         decoded = json.loads(sent[0][0])
-        assert decoded["flagEvaluations"][0]["flag"]["key"] == "lifecycle-flag"
+        flags = {row["flag"]["key"] for row in decoded["flagEvaluations"]}
+        assert flags == {"pending-1", "pending-2"}
+        assert writer._queue.empty()
 
     def test_stop_drain_worker_bounds_the_join(self, writer):
         """The shutdown join must pass a timeout so a stalled worker cannot hang exit."""
@@ -1491,45 +1532,16 @@ class TestShutdownDrain:
 
         worker.stop.assert_called_once()
         worker.join.assert_called_once_with(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
-        assert writer._drain_worker is None
+        assert writer._drain_worker is worker
 
-    def test_shutdown_completes_when_the_drain_worker_never_stops(self, writer):
-        """A worker that ignores stop() must not block on_shutdown past the timeout."""
-        writer.enqueue(_make_event(flag_key="pending"))
-
-        # Model a stalled worker: join() honours its timeout and then returns while
-        # the worker is still running. An unbounded join would block here forever.
-        class StalledWorker:
-            def __init__(self) -> None:
-                self.join_timeouts: list = []
-
-            def stop(self) -> None:
-                pass
-
-            def join(self, timeout: typing.Optional[float] = None) -> None:
-                self.join_timeouts.append(timeout)
-                # Block for the full requested wait, as the real join does on timeout.
-                threading.Event().wait(timeout=0.01 if timeout else None)
-
-        worker = StalledWorker()
-        writer._drain_worker = worker
-
-        with mock.patch.object(writer, "_send_payload") as mock_send:
-            writer.on_shutdown()
-
-        assert worker.join_timeouts == [DRAIN_WORKER_JOIN_TIMEOUT], (
-            "an unbounded join(None) would hang process exit on a stalled worker"
-        )
-        # The final flush still happened, so the queued event was not lost.
-        mock_send.assert_called_once()
-        decoded = json.loads(mock_send.call_args[0][0])
-        assert decoded["flagEvaluations"][0]["flag"]["key"] == "pending"
-
-    def test_final_drain_emits_accepted_truncation_counter(self, writer):
-        writer.enqueue(_make_event(attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}))
+    def test_final_drain_emits_accepted_truncation_counter(self):
+        writer = FlagEvaluationWriter(interval=3600.0)
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             with mock.patch.object(writer, "_send_payload"):
-                writer.on_shutdown()
+                writer.start()
+                writer.enqueue(_make_event(attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)}))
+                writer.stop()
+                writer.join(timeout=5.0)
         _assert_count_metric(
             mock_count,
             FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
@@ -1566,7 +1578,8 @@ class TestShutdownDrain:
         assert writer._queue.empty()
         _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_CLOSED)
 
-    def test_shutdown_waits_for_dequeued_event_before_final_flush(self, writer):
+    def test_shutdown_waits_for_dequeued_event_before_final_flush(self):
+        writer = FlagEvaluationWriter(interval=3600.0)
         aggregate_started = threading.Event()
         release_aggregate = threading.Event()
         shutdown_finished = threading.Event()
@@ -1577,18 +1590,18 @@ class TestShutdownDrain:
             assert release_aggregate.wait(3.0)
             original_aggregate(event)
 
-        worker = PeriodicThread(0.001, target=writer._drain_queue, name="ffl3060-test-drain")
-        writer._drain_worker = worker
         sent = []
         with mock.patch.object(writer, "_aggregate", side_effect=blocking_aggregate):
             with mock.patch.object(
                 writer, "_send_payload", side_effect=lambda payload, count: sent.append((payload, count))
             ):
-                worker.start()
+                writer.start()
                 writer.enqueue(_make_event(flag_key="already-dequeued"))
                 assert aggregate_started.wait(2.0)
 
-                shutdown_thread = threading.Thread(target=lambda: (writer.on_shutdown(), shutdown_finished.set()))
+                shutdown_thread = threading.Thread(
+                    target=lambda: (writer.stop(), writer.join(timeout=3.0), shutdown_finished.set())
+                )
                 shutdown_thread.start()
                 try:
                     assert not shutdown_finished.wait(1.1)
@@ -1600,6 +1613,51 @@ class TestShutdownDrain:
         assert len(sent) == 1
         row = json.loads(sent[0][0])["flagEvaluations"][0]
         assert row["flag"]["key"] == "already-dequeued"
+        assert row["evaluation_count"] == 1
+
+    def test_drain_worker_final_flushes_dequeued_event_after_join_timeout(self):
+        writer = FlagEvaluationWriter(interval=3600.0)
+        aggregate_started = threading.Event()
+        release_aggregate = threading.Event()
+        original_aggregate = writer._aggregate
+
+        def blocking_aggregate(event: _EvalEvent) -> None:
+            aggregate_started.set()
+            assert release_aggregate.wait(3.0)
+            original_aggregate(event)
+
+        sent = []
+        with mock.patch(
+            "ddtrace.internal.openfeature._flagevaluation_writer.DRAIN_WORKER_JOIN_TIMEOUT",
+            0.01,
+        ):
+            with mock.patch.object(writer, "_aggregate", side_effect=blocking_aggregate):
+                with mock.patch.object(
+                    writer,
+                    "_send_payload",
+                    side_effect=lambda payload, count: sent.append((payload, count)),
+                ):
+                    writer.start()
+                    drain_worker = writer._drain_worker
+                    assert drain_worker is not None
+                    writer.enqueue(_make_event(flag_key="already-dequeued"))
+                    assert aggregate_started.wait(2.0)
+
+                    try:
+                        started = time.monotonic()
+                        writer.stop()
+                        writer.join(timeout=1.0)
+                        assert time.monotonic() - started < 1.0
+                        assert sent == []
+                    finally:
+                        release_aggregate.set()
+                        drain_worker.join(timeout=3.0)
+
+        assert len(sent) == 1
+        rows = json.loads(sent[0][0])["flagEvaluations"]
+        assert len(rows) == 1
+        assert rows[0]["flag"]["key"] == "already-dequeued"
+        assert rows[0]["evaluation_count"] == 1
 
     @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
     def test_fork_child_resets_inherited_queue_lock_and_events(self, writer):
@@ -1769,18 +1827,30 @@ class TestObservableDropCounters:
     def test_send_site_queue_race_is_emitted_and_reset_without_aggregate_rows(self, writer):
         with mock.patch.object(writer._queue, "full", return_value=False):
             with mock.patch.object(writer._queue, "put_nowait", side_effect=queue.Full):
-                writer.enqueue(_make_event(flag_key="race"))
+                writer.enqueue(
+                    _make_event(
+                        flag_key="race",
+                        attrs={"value": "v" * (MAX_VALUE_LENGTH + 1)},
+                    )
+                )
 
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             writer.periodic()
 
         _assert_count_metric(mock_count, FLAG_EVALUATION_DROPPED_METRIC, 1, FLAG_EVALUATION_REASON_QUEUE_OVERFLOW)
+        _assert_count_metric(
+            mock_count,
+            FLAG_EVALUATION_CONTEXT_TRUNCATED_METRIC,
+            1,
+            CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,
+        )
         _assert_no_count_metric(
             mock_count,
             FLAG_EVALUATION_DROPPED_METRIC,
             FLAG_EVALUATION_REASON_PRE_QUEUE_OVERFLOW,
         )
         assert writer._dropped_queue == 0
+        assert writer._context_truncated == {}
 
     def test_context_truncation_counts_once_per_event_per_reason_and_resets_without_rows(self, writer):
         attrs = {
@@ -1852,8 +1922,6 @@ class TestObservableDropCounters:
                 return 1
 
         writer.enqueue(_make_event(flag_key="error", attrs=RaisingMapping()))
-        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
-            writer.enqueue(_make_event(flag_key="visited", attrs={"nested": {"value": "v"}}))
 
         with mock.patch(TELEMETRY_COUNT_PATCH) as mock_count:
             with mock.patch.object(writer, "_send_payload"):
@@ -1871,7 +1939,6 @@ class TestObservableDropCounters:
             CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS,
             CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,
             CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH,
-            CONTEXT_TRUNCATION_MAX_VISITED_NODES,
             CONTEXT_TRUNCATION_CYCLE,
             CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,
             CONTEXT_TRUNCATION_SNAPSHOT_ERROR,
