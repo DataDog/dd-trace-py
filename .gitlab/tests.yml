@@ -198,7 +198,8 @@ include:
       # Consolidate per-worker coverage files into one .coverage file.
       # Each xdist worker wrote to its own COVERAGE_FILE;
       # 'coverage combine' merges them so coverage can be uploaded.
-      coverage combine
+      # Non-fatal: 'No data to combine' when --no-cov is set or all tests skipped.
+      coverage combine || true
 
 .ddtest_run_snapshot:
   extends: .ddtest_base_snapshot
@@ -228,6 +229,7 @@ include:
         --ci-node "${CI_NODE_INDEX}" \
         --ci-node-workers 4
       # Consolidate per-worker coverage files into one .coverage file.
-      coverage combine
+      # Non-fatal: 'No data to combine' when --no-cov is set or all tests skipped.
+      coverage combine || true
 
 # Required jobs will appear here
