@@ -1613,7 +1613,7 @@ def pytest_load_initial_conftests(
         _processors: list[t.Any] = getattr(_aggregator, "_dd_processors", [])
         for _proc in _processors:
             if hasattr(_proc, "_global_service"):
-                setattr(_proc, "_global_service", schematize_service_name(_corrected_service.lower()))
+                setattr(_proc, "_global_service", schematize_service_name(_corrected_service.lower()))  # type: ignore[operator]
                 break
 
     # When running with xdist, let the workers reuse what this controller fetched instead of querying the backend.
