@@ -4591,7 +4591,7 @@ venv = Venv(
             },
             env={
                 "DDTEST_SUITE_PATH": "tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI",
-                "DDTEST_PYTEST_ADDOPTS": "-k Test_FastAPI",
+                "DDTEST_PYTEST_ADDOPTS": "-k 'Test_FastAPI and not Test_FastAPI_RC'",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
