@@ -51,6 +51,10 @@ SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 # lose into a hard failure of "ddtrace package" -- which has no allow_failure and
 # gates the release stage. 4.14.0 shipped cp315 musllinux but no cp315 manylinux,
 # and would have been blocked by such a requirement.
+# TODO(py-315): keep this in lockstep with the cp315 allow_failure rule in
+# package.yml. Populating it while that rule stands re-creates the hard failure
+# above; dropping the rule without populating it leaves cp315 unvalidated. #17816
+# owns the flip and must do both at once.
 REQUIRED_PLATFORMS: dict[str, list[str]] = {"cp315": []}
 OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "linux" in p}
 
