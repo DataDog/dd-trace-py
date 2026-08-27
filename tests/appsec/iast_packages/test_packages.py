@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from contextlib import contextmanager
 import fcntl
 import json
@@ -42,6 +43,7 @@ TEMPLATE_VENV_DIR = os.path.join(DDTRACE_PATH, "template_venv")
 CLONED_VENVS_DIR = os.path.join(DDTRACE_PATH, "cloned_venvs")
 PIP_EXECUTABLE = os.path.join(TEMPLATE_VENV_DIR, "bin", "pip")
 PIP_CACHE_SHARED_VENVS_DIR = os.path.join(DDTRACE_PATH, "pip_cache_shared_venvs")
+FLASK_SERVER_START_LOCK_PATH = os.path.join(CLONED_VENVS_DIR, "flask_server_start.lock")
 
 # Compute a per-worker port offset so parallel xdist workers don't collide on the flask server port.
 # PYTEST_XDIST_WORKER is e.g. "gw0", "gw1", ... — not set when running without xdist.
@@ -97,6 +99,16 @@ def set_pip_cache_dir():
             os.environ["PIP_CACHE_DIR"] = original_value
         else:
             del os.environ["PIP_CACHE_DIR"]
+
+
+@contextmanager
+def synchronized_flask_server(*args, **kwargs):
+    """Start one package Flask subprocess at a time across xdist workers."""
+    with ExitStack() as stack:
+        with open(FLASK_SERVER_START_LOCK_PATH, "w") as _lock:
+            fcntl.flock(_lock, fcntl.LOCK_EX)
+            context = stack.enter_context(flask_server(*args, **kwargs))
+        yield context
 
 
 class PackageForTesting:
@@ -1084,7 +1096,7 @@ def test_packages_not_patched(package):
         )
 
     if package.test_e2e:
-        with flask_server(
+        with synchronized_flask_server(
             python_cmd=python_bin,
             iast_enabled="false",
             tracer_enabled="true",
@@ -1144,7 +1156,7 @@ def test_packages_patched(package):
             )
 
     if package.test_e2e or package.test_propagation:
-        with flask_server(
+        with synchronized_flask_server(
             python_cmd=python_bin,
             iast_enabled="true",
             remote_configuration_enabled="false",

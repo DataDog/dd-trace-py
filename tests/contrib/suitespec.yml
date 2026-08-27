@@ -121,6 +121,8 @@ components:
     - ddtrace/contrib/internal/httplib/*
   httpx:
     - ddtrace/contrib/internal/httpx/*
+  httpx2:
+    - ddtrace/contrib/internal/httpx2/*
   integration_registry:
     - scripts/integration_registry/*
   jinja2:
@@ -1766,6 +1768,29 @@ suites:
         - name: httpx-latest-legacy-cgi-latest
           python: ['3.13', '3.14']
           dependencies: [legacy-cgi, httpx]
+  httpx2:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@httpx2'
+      - ddtrace/contrib/internal/httpx/common.py
+      - tests/contrib/httpx2/*
+      - tests/snapshots/tests.contrib.httpx2.*
+    services:
+      - httpbin
+    snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/contrib/httpx2
+      dependencies: [pytest-asyncio, pytest-randomly]
+      variants:
+        - name: httpx2-2-0-0
+          dependencies: [httpx2~=2.0.0]
+        - name: httpx2-latest
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [httpx2]
   integration_registry:
     paths:
       - '@bootstrap'

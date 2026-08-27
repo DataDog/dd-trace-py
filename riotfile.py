@@ -132,46 +132,5 @@ venv = Venv(
         "hypothesis": "<6.45.1",
     },
     env=_base_env,
-    venvs=[
-        Venv(
-            name="opentracer",
-            pkgs={"opentracing": latest, "pytest-randomly": latest},
-            venvs=[
-                Venv(
-                    pys=select_pys(),
-                    command="pytest {cmdargs} tests/opentracer/core",
-                ),
-                Venv(
-                    pys=select_pys(),
-                    command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
-                    pkgs={"pytest-asyncio": "==0.21.1"},
-                ),
-                Venv(
-                    command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
-                    venvs=[
-                        Venv(
-                            pys="3.9",
-                            pkgs={"gevent": latest, "greenlet": latest},
-                        ),
-                        Venv(
-                            pys="3.10",
-                            pkgs={"gevent": latest},
-                        ),
-                        Venv(
-                            pys="3.11",
-                            pkgs={"gevent": latest},
-                        ),
-                        Venv(
-                            pys="3.12",
-                            pkgs={"gevent": "~=23.9.0"},
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.13"),
-                            pkgs={"gevent": latest},
-                        ),
-                    ],
-                ),
-            ],
-        ),
-    ],
+    venvs=[],
 )

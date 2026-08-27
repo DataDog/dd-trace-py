@@ -37,7 +37,6 @@ include:
       for environment_hash in "${environment_hashes[@]}"
       do
         echo "Running uv environment: ${environment_hash}"
-        export _CI_DD_TAGS="test.configuration.environment_id:${environment_hash}"
         scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
       done
       ./scripts/check-diff ".uv/" \

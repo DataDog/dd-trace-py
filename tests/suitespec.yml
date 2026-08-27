@@ -152,32 +152,6 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
-  build_docs:
-    type: helper
-    paths:
-      - docs/*
-      - scripts/docs/*
-      - benchmarks/README.rst
-      - .readthedocs.yml
-    matrix:
-      command: scripts/docs/build.sh
-      dependencies:
-        - reno~=3.5.0
-        - sphinx~=4.0
-        - sphinxcontrib-applehelp<1.0.8
-        - sphinxcontrib-devhelp<1.0.6
-        - sphinxcontrib-htmlhelp<2.0.5
-        - sphinxcontrib-serializinghtml<1.1.10
-        - sphinxcontrib-qthelp<1.0.7
-        - sphinxcontrib-spelling==7.7.0
-        - PyEnchant==3.2.2
-        - sphinx-copybutton==0.5.1
-        - furo<=2023.05.20
-        - standard-imghdr
-      env:
-        DD_TRACE_ENABLED: 'false'
-      python: ['3.10']
-      variants: [{name: default}]
   smoke_test:
     type: helper
     paths:

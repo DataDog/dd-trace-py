@@ -92,6 +92,15 @@ changing native code or project metadata, or after updating from main.
 
 An ``-s`` after ``--`` belongs to the test command and disables output capture.
 
+When using ``scripts/run-tests``, pass ``-s`` or ``--skip-ddtrace-install`` before the first ``--`` to reuse the
+selected environment's existing ddtrace installation while still refreshing its suite dependencies:
+
+.. code-block:: bash
+
+    scripts/run-tests -s --venv <hash> -- -- -k test_name
+
+An ``-s`` after the second ``--`` is a pytest option that disables output capture.
+
 Why are my tests failing with 404 errors?
 -----------------------------------------
 

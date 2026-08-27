@@ -117,6 +117,7 @@ def compile_environment(
             exclude_newer,
             "--no-annotate",
             "--no-header",
+            "--no-strip-extras",
             "--no-progress",
             "--no-python-downloads",
             "--no-sources",
@@ -236,7 +237,11 @@ def check_locks() -> int:
         raise LockError("multiple test environments map to the same uv lock")
 
     expected_paths = set(expected)
-    actual_paths = {path.relative_to(PROJECT_ROOT) for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")}
+    actual_paths = {
+        path.relative_to(PROJECT_ROOT)
+        for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")
+        if not path.name.startswith("build-docs--")
+    }
     missing = sorted(expected_paths - actual_paths)
     obsolete = sorted(actual_paths - expected_paths)
     if missing or obsolete:

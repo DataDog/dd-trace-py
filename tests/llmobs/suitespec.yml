@@ -509,6 +509,10 @@ suites:
     skip: true # Temporarily disabled
     matrix:
       command: pytest {cmdargs} tests/contrib/vllm
-      dependencies: [pytest-asyncio==0.21.1, pytest-randomly, torch, vllm>=0.10.2]
+      dependencies: [pytest-asyncio==0.21.1, pytest-randomly, torch]
       python: ['3.10', '3.11', '3.12', '3.13']
-      variants: [{name: default}]
+      variants:
+        - name: vllm-0-10-2
+          dependencies: [vllm~=0.10.2]
+        - name: vllm-latest
+          dependencies: [vllm]

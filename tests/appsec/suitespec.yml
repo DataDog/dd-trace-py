@@ -468,17 +468,17 @@ suites:
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
         - name: fastapi-0-86-0-anyio-3-7-1
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [fastapi==0.86.0, anyio==3.7.1]
         - name: fastapi-0-141-1
           python: ['3.10', '3.14']
           dependencies: [fastapi==0.141.1]
-        - name: fastapi-0-114-2-mcp-1-20-0
+        - name: fastapi-0-114-2-mcp-1-21-2
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [fastapi~=0.114.2, mcp==1.20.0]
-        - name: fastapi-latest-pydantic-2-12-1-mcp-1-20-0
+          dependencies: [fastapi~=0.114.2, mcp==1.21.2]
+        - name: fastapi-latest-pydantic-2-12-mcp-1-21-2
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [fastapi, pydantic~=2.12.1, mcp==1.20.0]
+          dependencies: [fastapi, pydantic~=2.12, mcp==1.21.2]
   appsec_threats_django_no_iast:
     venvs_per_job: 1
     paths:

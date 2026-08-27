@@ -2,7 +2,7 @@
 """Validate that pinned releases in test lockfiles are past the cooldown.
 
 The resolver excludes packages uploaded in the last 48 hours. This checker
-remains as defense in depth for generated and legacy test locks. It queries
+remains as defense in depth for generated test locks. It queries
 PyPI for each unique pin and fails when a release is younger than the policy permits.
 
 The intent matches the cross-language cooldown standard documented in
@@ -71,9 +71,7 @@ _PYPI_SKIP = {
 
 
 def _default_lockfiles() -> list[pathlib.Path]:
-    uv_locks = pathlib.Path(".uv").glob("*.txt")
-    riot_locks = pathlib.Path(".riot/requirements").glob("*.txt")
-    return sorted((*uv_locks, *riot_locks))
+    return sorted(pathlib.Path(".uv").glob("*.txt"))
 
 
 def _http_get_json(url: str, timeout: float = 30.0) -> Optional[dict]:

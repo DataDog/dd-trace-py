@@ -594,8 +594,11 @@ def gen_build_docs() -> None:
             print("  script:", file=f)
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
-            print("      find ddtrace -type f -name '*.so*' -exec touch {} +", file=f)
-            print('      scripts/run-tests -s --venv "$(scripts/test-env list build_docs)"', file=f)
+            print(
+                "      uv run --no-project --python 3.10 --no-python-downloads "
+                "--with-requirements .uv/build-docs--py310--*.txt scripts/docs/build.sh",
+                file=f,
+            )
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
