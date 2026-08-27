@@ -7,18 +7,20 @@ asyncio scheduling points covered by this fallback:
   Context run and exit after _run restores the loop's ambient Context.
 * BaseEventLoop.call_exception_handler on Python before 3.12: publish the
   restored ambient Context before invoking the exception handler.
+* uvloop task callbacks: scheduling wrappers publish entry and restore the loop's
+  ambient Context after each callback.
 * Eager task construction through the event loop or asyncio.eager_task_factory:
   the coroutine is instrumented to publish if its first step runs inline, before
   task construction returns.
 
-Thread offloads are handled by the default-on futures integration. This integration only
-covers the event loops built into asyncio.
+Thread offloads are handled by the default-on futures integration.
 """
 
 import asyncio
 from typing import Any
 from typing import Callable
 
+from ddtrace.contrib.internal.asyncio import _context_switch_uvloop
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal._context_watcher import context_switches_require_fallback
@@ -43,6 +45,7 @@ def install() -> None:
     if _installed or not context_switches_require_fallback():
         return
 
+    _context_switch_uvloop.install()
     wrap(asyncio.Handle._run, _wrapped_run_handle)  # type: ignore[arg-type]
     if PYTHON_VERSION_INFO < (3, 12):
         wrap(asyncio.BaseEventLoop.call_exception_handler, _wrapped_call_exception_handler)  # type: ignore[arg-type]
@@ -58,6 +61,7 @@ def uninstall() -> None:
     if not _installed:
         return
 
+    _context_switch_uvloop.uninstall()
     if _eager_task_factory_code is not None:
         unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
         unwrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
