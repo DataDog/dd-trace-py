@@ -1091,7 +1091,6 @@ class SpanData:
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
     _parent_context: Optional[Any]  # parent Context, or None
-    _context: Optional[Context]  # this span's own Context, or None if not yet built
     context: Context  # this span's trace context, built lazily on first read
 
     def __new__(
@@ -1109,6 +1108,7 @@ class SpanData:
         span_api: Optional[str] = None,
         links: Optional[list[SpanLink]] = None,  # placeholder for Span.__init__
     ) -> _SpanDataT: ...
+    def _context_for_child(self) -> Context: ...
     @property
     def finished(self) -> bool: ...  # Read-only, returns duration_ns != -1
     @property
