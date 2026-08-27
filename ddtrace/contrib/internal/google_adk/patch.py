@@ -13,6 +13,7 @@ from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.time import Time
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -28,6 +29,9 @@ def _supported_versions() -> dict[str, str]:
 
 def get_version() -> str:
     return getattr(adk, "__version__", "")
+
+
+GOOGLE_ADK_VERSION = parse_version(get_version())
 
 
 def _traced_agent_run_async(wrapped, instance, args, kwargs):
@@ -258,11 +262,6 @@ def extract_agent_from_tool_context(args: Any, kwargs: Any) -> Union[str, None]:
     return agent
 
 
-TOOL_DISPATCH_FUNCTIONS = [
-    ("__call_tool_async", _traced_functions_call_tool_async),
-    ("__call_tool_live", _traced_functions_call_tool_live),  # removed in google-adk 2.7.0
-]
-
 CODE_EXECUTOR_CLASSES = [
     "BuiltInCodeExecutor",  # make an external llm tool call to use the llms built in code executor
     "VertexAiCodeExecutor",
@@ -285,11 +284,10 @@ def patch():
     wrap("google.adk", "runners.Runner.run_async", _traced_agent_run_async)
     wrap("google.adk", "runners.Runner.run_live", _traced_agent_run_async)
 
-    # Tool execution (central dispatch). google-adk >= 2.7.0 removed `__call_tool_live` and routes
-    # live tool execution through `__call_tool_async`, so only wrap what the installed version has.
-    for tool_dispatch_fn, traced_fn in TOOL_DISPATCH_FUNCTIONS:
-        if check_module_path(adk, f"flows.llm_flows.functions.{tool_dispatch_fn}"):
-            wrap("google.adk", f"flows.llm_flows.functions.{tool_dispatch_fn}", traced_fn)
+    # Tool execution (central dispatch)
+    wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
+    if GOOGLE_ADK_VERSION < (2, 7, 0):
+        wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
@@ -310,9 +308,9 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_async")
     unwrap(adk.runners.Runner, "run_live")
 
-    for tool_dispatch_fn, _ in TOOL_DISPATCH_FUNCTIONS:
-        if check_module_path(adk, f"flows.llm_flows.functions.{tool_dispatch_fn}"):
-            unwrap(adk.flows.llm_flows.functions, tool_dispatch_fn)
+    unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
+    if GOOGLE_ADK_VERSION < (2, 7, 0):
+        unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
