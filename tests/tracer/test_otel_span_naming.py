@@ -298,6 +298,49 @@ def _emit_client_span_through_the_subscriber():
     return span
 
 
+def _emit_server_trace_sampled_during_client_propagation():
+    """Create a server root whose sampling decision is forced by a nested HTTP client."""
+    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config as _config
+    from ddtrace.internal.span_bus import span_from_context
+
+    with core.context_with_event(
+        WebFrameworkRequestEvent(
+            http_operation="django.request",
+            service="server",
+            component="django",
+            resource="GET /actual/path/42",
+            integration_config=_config.django,
+            request_method="GET",
+            request_headers={},
+            query="",
+            request_url="http://server/actual/path/42",
+            headers_case_sensitive=False,
+        ),
+    ) as server_ctx:
+        server_span = span_from_context(server_ctx)
+        assert server_span.resource == "GET"
+
+        with core.context_with_event(
+            HttpClientRequestEvent(
+                http_operation="requests.request",
+                service="client",
+                component="requests",
+                resource="POST /downstream/42",
+                integration_config=_config.requests,
+                request_method="POST",
+                request_headers={},
+                query="",
+                request_url="http://downstream/downstream/42",
+            ),
+        ):
+            pass
+
+    return server_span
+
+
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
@@ -327,8 +370,25 @@ def test_a_sampling_rule_matches_the_otel_resource():
 )
 def test_a_sampling_rule_does_not_match_the_pre_rename_resource():
     """The integration's own resource is gone before sampling, so a rule on it cannot match."""
-    from ddtrace.constants import USER_REJECT
+    from ddtrace.constants import AUTO_KEEP
     from tests.tracer.test_otel_span_naming import _emit_client_span_through_the_subscriber
 
     span = _emit_client_span_through_the_subscriber()
-    assert span.context.sampling_priority != USER_REJECT
+    assert span.context.sampling_priority == AUTO_KEEP
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "DD_TRACE_SAMPLING_RULES": '[{"resource": "GET", "sample_rate": 0.0}]',
+    },
+    err=None,
+)
+def test_server_rule_matches_when_client_propagation_forces_the_decision():
+    """The server root must be named before a nested client injects distributed headers."""
+    from ddtrace.constants import USER_REJECT
+    from tests.tracer.test_otel_span_naming import _emit_server_trace_sampled_during_client_propagation
+
+    server_span = _emit_server_trace_sampled_during_client_propagation()
+    assert server_span.resource == "GET"
+    assert server_span.context.sampling_priority == USER_REJECT

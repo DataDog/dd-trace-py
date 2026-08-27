@@ -20,6 +20,7 @@ from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _HOSTNAME_KEY
@@ -243,7 +244,7 @@ def _on_web_framework_finish_request(
             status_code = int(status_code)
         except ValueError:
             pass
-        span.resource = f"{method} {status_code}"
+        set_instrumentation_resource(span, f"{method} {status_code}")
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -549,11 +550,11 @@ def _set_flask_request_route_tags(request, span):
     try:
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = " ".join((request.method, request.endpoint))
+            set_instrumentation_resource(span, " ".join((request.method, request.endpoint)))
             span._set_attribute(FLASK_ENDPOINT, request.endpoint)
 
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
+            set_instrumentation_resource(span, " ".join((request.method, request.url_rule.rule)))
             span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
             # Side-channel tag for backend resource remapping; resource itself stays app-local.
             if request.script_root:
@@ -577,7 +578,7 @@ def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
     #      we still want `GET /product/<int:product_id>` grouped together,
     #      even if it is a 404
     if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
-        span.resource = " ".join((request.method, code))
+        set_instrumentation_resource(span, " ".join((request.method, code)))
 
     response_cookies = _cookies_from_response_headers(headers)
     _on_web_framework_finish_request(
@@ -624,7 +625,7 @@ def _on_request_span_modifier(
     #   POST /save
     # We will override this below in `traced_dispatch_request` when we have a `
     # RequestContext` and possibly a url rule
-    span.resource = " ".join((request.method, request.path))
+    set_instrumentation_resource(span, " ".join((request.method, request.path)))
 
     span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
@@ -1026,7 +1027,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
     span = span_from_context(ctx)
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
-    span.resource = f"{req.method} {path}"
+    set_instrumentation_resource(span, f"{req.method} {path}")
     trace_utils.set_http_meta(
         span,
         azure_functions_config,
@@ -1093,7 +1094,7 @@ def _on_azure_message_modifier(
 def _on_router_match(route):
     req_span = core.get_item("req_span")
     core.set_item("set_resource", False)
-    req_span.resource = f"{route.method} {route.template}"
+    set_instrumentation_resource(req_span, f"{route.method} {route.template}")
 
     MOLTEN_ROUTE = "molten.route"
 
@@ -1355,6 +1356,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
+    set_instrumentation_resource(span, span.resource)
 
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}

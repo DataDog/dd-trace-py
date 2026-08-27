@@ -1,5 +1,6 @@
 import asyncio
 import os
+from unittest import mock
 
 import httpx
 import pytest
@@ -15,6 +16,7 @@ from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
+from ddtrace.internal.settings._config import config
 from ddtrace.propagation import http as http_propagation
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -646,6 +648,21 @@ def test_inferred_spans_api_gateway(client, test_spans):
             url="https://local/",
             start=1736973768,
         )
+
+
+def test_otel_semantics_replaces_starlette_route_resource(tracer, test_spans):
+    async def endpoint(request):
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/items/{item_id}", endpoint=endpoint, methods=["PROPFIND"])])
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        with TestClient(app) as client:
+            response = client.request("PROPFIND", "/items/42")
+
+    assert response.status_code == 200
+    request_span = next(test_spans.filter_spans(name="starlette.request"))
+    assert request_span.resource == "HTTP /items/{item_id}"
 
 
 def test_cors_preflight_span_resource_uses_route_pattern(tracer, test_spans):

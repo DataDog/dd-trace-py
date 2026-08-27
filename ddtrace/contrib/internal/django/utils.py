@@ -15,6 +15,7 @@ from ddtrace import config
 from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.otel_http_naming import RESOURCE_SET_BY_USER
 from ddtrace._trace.otel_http_naming import otel_http_resource
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -452,7 +453,7 @@ def _after_request_tags(pin, span: Span, request, response):
             core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
-            span.resource = request.method
+            set_instrumentation_resource(span, request.method)
 
 
 def _request_path_params(request):

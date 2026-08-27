@@ -30,12 +30,12 @@ from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noq
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
 from ddtrace.contrib.internal.trace_utils_base import _normalize_tag_name
-from ddtrace.contrib.internal.trace_utils_base import _otel_number
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
-from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_otel_client
-from ddtrace.contrib.internal.trace_utils_base import _set_url_tags_otel_server
 from ddtrace.contrib.internal.trace_utils_base import _store_security_testing_headers
 from ddtrace.contrib.internal.trace_utils_base import normalize_http_method
+from ddtrace.contrib.internal.trace_utils_base import otel_number
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_otel_client
+from ddtrace.contrib.internal.trace_utils_base import set_url_tags_otel_server
 from ddtrace.contrib.internal.trace_utils_base import set_user  # noqa:F401
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -572,11 +572,11 @@ def set_http_meta(
             url = _sanitized_url(url)
             _set_url_tag(integration_config, span, url, query)
         elif is_client:
-            _set_url_tags_otel_client(integration_config, span, url, query)
+            set_url_tags_otel_client(integration_config, span, url, query)
         else:
             # the server path never carries credentials in the URL, and it does not emit
             # url.full, so there is nothing to redact before parsing
-            _set_url_tags_otel_server(integration_config, span, url, query, raw_uri)
+            set_url_tags_otel_server(integration_config, span, url, query, raw_uri)
 
     if otel_semantics:
         # target_host and server_address are only passed by client integrations, and both mean
@@ -600,7 +600,7 @@ def set_http_meta(
             log.debug("failed to convert http status code %r to int", status_code)
         else:
             if otel_semantics:
-                span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, _otel_number(int_status_code))
+                span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, otel_number(int_status_code))
                 if _is_otel_error_status(int_status_code, is_client):
                     span.error = 1
                     # An exception carries more information than a status code, so a status code

@@ -196,7 +196,7 @@ _KNOWN_HTTP_METHODS = frozenset(
 OTHER_HTTP_METHOD = "_OTHER"
 
 
-def _otel_number(value: int) -> Union[int, str]:
+def otel_number(value: int) -> Union[int, str]:
     """Represent an integer-typed OTel attribute for the exporter this process uses.
 
     The RFC requires server.port and http.response.status_code as integers over OTLP and
@@ -300,7 +300,7 @@ def set_query_string_tag(span: Span, query: str) -> None:
         span._set_attribute(http.OTEL_URL_QUERY, obfuscated)
 
 
-def _set_url_tags_otel_server(
+def set_url_tags_otel_server(
     integration_config: IntegrationConfig,
     span: Span,
     url: str,
@@ -326,7 +326,7 @@ def _set_url_tags_otel_server(
     if address:
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
-            span._set_attribute(net.SERVER_PORT, _otel_number(port))
+            span._set_attribute(net.SERVER_PORT, otel_number(port))
 
     # With http.url gone, url.query is the only place a server query string can live, so either
     # knob that used to permit capture still permits it.
@@ -337,9 +337,7 @@ def _set_url_tags_otel_server(
         span._set_attribute(http.OTEL_URL_QUERY, obfuscated)
 
 
-def _set_url_tags_otel_client(
-    integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]
-) -> None:
+def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
     """Emit url.full, server.address and server.port for a client span."""
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
@@ -360,7 +358,7 @@ def _set_url_tags_otel_client(
     if address:
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
-            span._set_attribute(net.SERVER_PORT, _otel_number(port))
+            span._set_attribute(net.SERVER_PORT, otel_number(port))
 
 
 def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
@@ -371,7 +369,7 @@ def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: 
     they go through this dispatcher instead.
     """
     if config._otel_trace_semantics_enabled:
-        _set_url_tags_otel_server(integration_config, span, url, query)
+        set_url_tags_otel_server(integration_config, span, url, query)
     else:
         _set_url_tag(integration_config, span, url, query)
 
@@ -386,7 +384,7 @@ def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
     except (TypeError, ValueError):
         log.debug("failed to convert http status code %r to int", status_code)
         return
-    span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, _otel_number(int_status_code))
+    span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, otel_number(int_status_code))
 
 
 def set_method_tag(span: Span, method: str) -> None:
@@ -430,7 +428,7 @@ def http_block_metadata(
             metadata[http.USER_AGENT] = user_agent
         return metadata
 
-    metadata[http.OTEL_RESPONSE_STATUS_CODE] = _otel_number(int(status_code))
+    metadata[http.OTEL_RESPONSE_STATUS_CODE] = otel_number(int(status_code))
     if method is not None:
         normalized_method, original_method = normalize_http_method(method)
         metadata[http.OTEL_REQUEST_METHOD] = normalized_method
