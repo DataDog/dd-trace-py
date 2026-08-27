@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    OpenFeature: Limits the size and nesting depth of evaluation context data captured for flag evaluation telemetry.
