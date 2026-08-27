@@ -272,3 +272,63 @@ def test_otel_semantics_forces_otlp_trace_export_over_agent_protocol():
     from ddtrace.internal.settings._agent import config as agent_config
 
     assert agent_config.trace_otlp_export_enabled is True
+
+
+def _emit_client_span_through_the_subscriber():
+    """Create an HTTP client span the way requests does, with a resource already set."""
+    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config as _config
+    from ddtrace.internal.span_bus import span_from_context
+
+    with core.context_with_event(
+        HttpClientRequestEvent(
+            http_operation="requests.request",
+            service="svc",
+            component="requests",
+            resource="GET /actual/path/42",
+            integration_config=_config.requests,
+            request_method="GET",
+            request_headers={},
+            query="",
+            request_url="http://host/actual/path/42",
+        ),
+    ) as ctx:
+        span = span_from_context(ctx)
+    return span
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "DD_TRACE_SAMPLING_RULES": '[{"resource": "GET", "sample_rate": 0.0}]',
+    },
+    err=None,
+)
+def test_a_sampling_rule_matches_the_otel_resource():
+    """The span must carry its OTel name by the time a rule is evaluated.
+
+    This is what the removed before_sampling hook used to guarantee.
+    """
+    from ddtrace.constants import USER_REJECT
+    from tests.tracer.test_otel_span_naming import _emit_client_span_through_the_subscriber
+
+    span = _emit_client_span_through_the_subscriber()
+    assert span.resource == "GET"
+    assert span.context.sampling_priority == USER_REJECT
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+        "DD_TRACE_SAMPLING_RULES": '[{"resource": "GET /actual/path/42", "sample_rate": 0.0}]',
+    },
+    err=None,
+)
+def test_a_sampling_rule_does_not_match_the_pre_rename_resource():
+    """The integration's own resource is gone before sampling, so a rule on it cannot match."""
+    from ddtrace.constants import USER_REJECT
+    from tests.tracer.test_otel_span_naming import _emit_client_span_through_the_subscriber
+
+    span = _emit_client_span_through_the_subscriber()
+    assert span.context.sampling_priority != USER_REJECT
