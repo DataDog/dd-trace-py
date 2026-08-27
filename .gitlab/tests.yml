@@ -173,11 +173,6 @@ include:
       # Restore this venv's plan artifact (partitioned by RIOT_HASH in the plan job).
       rm -rf .testoptimization
       mv ".testoptimization-${RIOT_HASH}" .testoptimization
-      # Remove stale HTTP cache (settings.json etc.) written during plan.
-      # The plan phase may write a 401 error body to cache/http/settings.json
-      # (when the agent has an invalid API key), which the subprocess reads
-      # and logs a warning to stderr, breaking 'assert err == b""'.
-      rm -rf .testoptimization/cache/http
       ./bin/ddtest run \
         --platform python \
         --framework pytest \
@@ -191,8 +186,6 @@ include:
       eval "$(scripts/ddtest-riot.py venv-env "${RIOT_HASH}")"
       rm -rf .testoptimization
       mv ".testoptimization-${RIOT_HASH}" .testoptimization
-      # Remove stale HTTP cache (settings.json etc.) written during plan.
-      rm -rf .testoptimization/cache/http
       # Snapshot suites: send traces to the testagent (not the real agent)
       # for local snapshot comparison. Set DD_TRACE_AGENT_URL only
       # for the inner pytest (ddtest run), not in before_script
