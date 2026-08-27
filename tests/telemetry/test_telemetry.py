@@ -169,8 +169,8 @@ os.waitpid(pid, 0)
 
 
 @pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
-def test_metric_points_do_not_block_after_native_fork(run_python_code_in_subprocess):
-    """Native forks that bypass Python hooks must not leave metric producers blocked."""
+def test_metric_collection_after_native_fork(test_agent_session, run_python_code_in_subprocess):
+    """Native forks that bypass Python hooks restart metric collection in the child."""
     code = """
 import ctypes
 import os
@@ -204,6 +204,7 @@ if pid == 0:
     for _ in range(4096):
         worker.add_point(context, 1)
         worker.add_point_with_tags(context, 1, ["fork:child"])
+    telemetry_writer.periodic(force_flush=True)
     os._exit(0)
 
 deadline = time.monotonic() + 5
@@ -223,6 +224,15 @@ assert os.waitstatus_to_exitcode(status) == 0
     _, stderr, status, _ = run_python_code_in_subprocess(code)
 
     assert status == 0, stderr
+    child_metrics = [
+        metric
+        for event in test_agent_session.get_events("generate-metrics")
+        for metric in event["payload"]["series"]
+        if metric["metric"] == "native_fork" and metric["tags"] == ["fork:child"]
+    ]
+    assert len(child_metrics) == 1, child_metrics
+    assert child_metrics[0]["type"] == "count"
+    assert child_metrics[0]["points"][0][1] == 4096
 
 
 def _subprocess_lineage(test_agent_session):

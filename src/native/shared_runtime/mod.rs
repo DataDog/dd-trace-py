@@ -1,11 +1,45 @@
 use libdd_shared_runtime::{ForkSafeRuntime, SharedRuntime};
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use std::sync::Arc;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::sync::OnceLock;
 use std::thread;
 use std::time::Duration;
 
 mod exceptions;
 use exceptions::shared_runtime_error_to_pyerr;
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+static ATFORK_RUNTIME: OnceLock<Arc<ForkSafeRuntime>> = OnceLock::new();
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+unsafe extern "C" fn before_fork() {
+    if let Some(runtime) = ATFORK_RUNTIME.get() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            runtime.before_fork();
+        }));
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+unsafe extern "C" fn after_fork_parent() {
+    if let Some(runtime) = ATFORK_RUNTIME.get() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = runtime.after_fork_parent();
+        }));
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+unsafe extern "C" fn after_fork_child() {
+    if let Some(runtime) = ATFORK_RUNTIME.get() {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _ = runtime.after_fork_child();
+        }));
+    }
+}
 
 #[pyclass(name = "SharedRuntime", subclass)]
 pub struct SharedRuntimePy {
@@ -42,6 +76,42 @@ impl SharedRuntimePy {
         self.inner
             .after_fork_child()
             .map_err(shared_runtime_error_to_pyerr)
+    }
+
+    fn register_at_fork(&self) -> PyResult<()> {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        {
+            if let Some(runtime) = ATFORK_RUNTIME.get() {
+                if Arc::ptr_eq(runtime, &self.inner) {
+                    return Ok(());
+                }
+                return Err(PyRuntimeError::new_err(
+                    "native fork handlers are already registered to another shared runtime",
+                ));
+            }
+
+            // AIDEV-NOTE: uWSGI forks in native code and bypasses Python's os.register_at_fork
+            // callbacks. pthread_atfork runs for both Python and native libc forks, ensuring the
+            // inherited Tokio synchronization primitives are replaced before child code runs.
+            ATFORK_RUNTIME.set(self.inner.clone()).map_err(|_| {
+                PyRuntimeError::new_err(
+                    "failed to register shared runtime for native fork handlers",
+                )
+            })?;
+            let result = unsafe {
+                libc::pthread_atfork(
+                    Some(before_fork),
+                    Some(after_fork_parent),
+                    Some(after_fork_child),
+                )
+            };
+            if result != 0 {
+                return Err(PyRuntimeError::new_err(format!(
+                    "failed to register native fork handlers: error {result}"
+                )));
+            }
+        }
+        Ok(())
     }
 
     fn shutdown(&self, timeout_ms: Option<u64>) -> PyResult<()> {

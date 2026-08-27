@@ -81,11 +81,6 @@ pub struct TelemetryWorkerPy {
     // runtime `Handle`: the worker task is owned by the SharedRuntime, which pauses/drops it
     // across fork. The inherited handle can thus be safely dropped in forks.
     handle: TelemetryWorkerHandle<NativeCapabilities>,
-    // AIDEV-NOTE: uWSGI can fork in native code without running Python's fork hooks. When its
-    // startup order makes that possible, this stores the creating process's PID. The child
-    // inherits the handle but not its consumer thread, so synchronous metric ring writes must
-    // be dropped there to keep back-pressure from hanging application threads.
-    native_fork_guard_pid: Option<u32>,
     shared_runtime: Arc<ForkSafeRuntime>,
     // Held to keep the worker registered on the SharedRuntime; dropping it
     // would leak the worker until the runtime shuts down. `stop()` consumes it.
@@ -125,7 +120,6 @@ impl TelemetryWorkerPy {
         heartbeat_interval_secs,
         extended_heartbeat_interval_secs,
         debug_enabled,
-        guard_native_forks = false,
         emit_app_lifecycle = true,
         endpoints_message_limit = 300,
         test_session_token = None,
@@ -161,7 +155,6 @@ impl TelemetryWorkerPy {
         heartbeat_interval_secs: f64,
         extended_heartbeat_interval_secs: f64,
         debug_enabled: bool,
-        guard_native_forks: bool,
         emit_app_lifecycle: bool,
         endpoints_message_limit: u32,
         test_session_token: Option<String>,
@@ -232,16 +225,17 @@ impl TelemetryWorkerPy {
             });
         }
 
-        // Spawning the worker on shared runtime with `restart_on_fork = false` so that children
-        // can safely drop it fully without emitting app-closing.
+        // AIDEV-NOTE: Keep this worker alive across native libc forks. The SharedRuntime's
+        // pthread_atfork handler rebuilds the runtime and resets this worker before child code
+        // can publish to its inherited metric ring. Python-managed forks subsequently replace it
+        // with a worker carrying the child's runtime/session IDs.
         let (handle, worker) = builder.build_worker::<NativeCapabilities>(None);
         let worker_handle = shared_runtime
-            .spawn_worker(worker, false)
+            .spawn_worker(worker, true)
             .map_err(|e| PyValueError::new_err(format!("failed to spawn telemetry worker: {e}")))?;
 
         Ok(TelemetryWorkerPy {
             handle,
-            native_fork_guard_pid: guard_native_forks.then(std::process::id),
             shared_runtime,
             worker_handle: Mutex::new(Some(worker_handle)),
         })
@@ -438,12 +432,6 @@ impl TelemetryWorkerPy {
     /// Add `value` to a metric context previously returned by [`register_metric_context`].
     /// Cheap hot path: the point is published to the worker's lock-free ring buffer.
     fn add_point(&self, context: &MetricContextPy, value: f64) {
-        if self
-            .native_fork_guard_pid
-            .is_some_and(|pid| pid != std::process::id())
-        {
-            return;
-        }
         drop_on_err(
             "metric point",
             self.handle.add_point(value, &context.0, Vec::new()),
@@ -453,12 +441,6 @@ impl TelemetryWorkerPy {
     /// Like [`add_point`], but allowing for explicit tags as well. To be used when the
     /// cardinality of tags is unknown.
     fn add_point_with_tags(&self, context: &MetricContextPy, value: f64, tags: Vec<String>) {
-        if self
-            .native_fork_guard_pid
-            .is_some_and(|pid| pid != std::process::id())
-        {
-            return;
-        }
         drop_on_err(
             "metric point",
             self.handle

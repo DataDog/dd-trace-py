@@ -14,7 +14,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._telemetry import config
-from ddtrace.internal.uwsgi import native_fork_hooks_unavailable
 
 from ...internal import atexit
 from ...internal import excepthook
@@ -200,9 +199,9 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in forked children (registered AFTER the native
-            # runtime's after_fork_child hook, which get_native_runtime() registered
-            # during enable(), so the shared runtime is restarted before we rebuild).
+            # Rebuild the native worker in Python-managed forked children. The native runtime's
+            # pthread_atfork child handler runs before Python's callbacks, so the shared runtime
+            # is already restarted when this callback runs.
             forksafe.register(self._fork_writer)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
@@ -259,7 +258,6 @@ class TelemetryWriter:
             heartbeat_interval_secs=config.HEARTBEAT_INTERVAL,
             extended_heartbeat_interval_secs=config.EXTENDED_HEARTBEAT_INTERVAL,
             debug_enabled=self._debug,
-            guard_native_forks=native_fork_hooks_unavailable(),
             # Only the root process emits app-started/app-closing; forked children
             # heartbeat with their own session id but must not re-emit them.
             emit_app_lifecycle=get_parent_runtime_id() is None,
@@ -896,12 +894,11 @@ class TelemetryWriter:
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
     def _fork_writer(self) -> None:
-        # Runs in the child after fork. The inherited native worker was spawned with
-        # restart_on_fork=False, so the shared runtime drops it (without app-closing) in the
-        # child; the inherited Python handle is now inert. Drop it and rebuild lazily on the
-        # child's next telemetry call (enable()), bound to the child's own runtime and session
-        # ids (get_runtime_id()/get_parent_runtime_id() now reflect the child), heartbeating
-        # without re-emitting app-started.
+        # Runs in the child after a Python-managed fork. The native atfork handler has already
+        # reset and restarted the inherited worker. Drop it and rebuild lazily on the child's
+        # next telemetry call (enable()), bound to the child's own runtime and session ids
+        # (get_runtime_id()/get_parent_runtime_id() now reflect the child), heartbeating without
+        # re-emitting app-started.
         # NOTE: rebuilding here, inside the fork-hook chain, trips a tokio IO-safety abort
         # (spawning on the just-restarted runtime from within the after-fork callbacks).
         #

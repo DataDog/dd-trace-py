@@ -39,16 +39,6 @@ def should_register_atexit() -> bool:
         return True
 
 
-def native_fork_hooks_unavailable() -> bool:
-    """Return whether uWSGI loaded ddtrace too early to register its post-fork hook."""
-    try:
-        import uwsgi
-    except ImportError:
-        return False
-
-    return not hasattr(uwsgi, "opt")
-
-
 def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Callable] = None) -> None:
     """Check whetever uwsgi is running and what needs to be done.
 

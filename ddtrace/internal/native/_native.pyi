@@ -218,6 +218,9 @@ class SharedRuntime:
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
         ...
+    def register_at_fork(self) -> None:
+        """Register native fork handlers for this shared runtime."""
+        ...
     def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         """Gracefully shut down the shared runtime.
 
@@ -280,7 +283,6 @@ class TelemetryWorker:
         heartbeat_interval_secs: float,
         extended_heartbeat_interval_secs: float,
         debug_enabled: bool,
-        guard_native_forks: bool = ...,
         emit_app_lifecycle: bool = ...,
         endpoints_message_limit: int = ...,
         test_session_token: Optional[str] = ...,
@@ -296,8 +298,6 @@ class TelemetryWorker:
         :param api_key: when not ``None`` selects agentless/direct submission
             (sets ``dd-api-key`` and the direct path); when ``None`` the worker
             POSTs through the agent proxy.
-        :param guard_native_forks: drop metric points when the current process
-            differs from the process that created the worker.
         :param emit_app_lifecycle: when ``False`` (forked children) ``start()``
             schedules heartbeats/flushes but emits neither ``app-started`` nor
             ``app-closing`` — only the root process emits them. Defaults to ``True``.
