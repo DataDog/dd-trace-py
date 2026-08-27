@@ -109,12 +109,10 @@ include:
       git clone --depth 1 https://github.com/DataDog/ddtest.git /tmp/ddtest-src
       (cd /tmp/ddtest-src && go build -o "${CI_PROJECT_DIR}/bin/ddtest" .)
       chmod +x bin/ddtest
-      # Riot's --command override supplies the venv environment without the
-      # integration. The merged feature is not on PyPI yet, so keep this
-      # pinned until it is deployed in the testrunner image.
+      # Riot's --command override supplies the venv environment. Its pinned
+      # Git commit is maintained in ci/requirements/ci.in until released.
       python -m venv bin/riot-env
-      bin/riot-env/bin/python -m pip install --no-cache-dir \
-        "riot @ git+https://github.com/DataDog/riot.git@ffafc0689be524643c7f77c82e536caceea98e9e"
+      bin/riot-env/bin/python -m pip install --no-cache-dir -r ci/requirements/ci.txt
   artifacts:
     paths:
       - bin/ddtest
