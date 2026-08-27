@@ -5,7 +5,6 @@ import inspect
 import math
 import sys
 import time
-import traceback
 from typing import Any
 from typing import Callable
 from typing import Literal
@@ -155,7 +154,6 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
-from ddtrace.llmobs._utils import EvaluationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _batched
@@ -2785,7 +2783,7 @@ class LLMObs(Service):
         evaluated_ml_app: Optional[str] = None,
         eval_scope: str = "span",
         emit_error_metric: bool = True,
-    ) -> EvaluationContext:
+    ) -> Span:
         """
         Open a judge span for an external (SDK-run) evaluator.
 
@@ -2794,10 +2792,11 @@ class LLMObs(Service):
         single-call and a multi-step judge look the same. Link the resulting score to it with
         ``submit_evaluation(judge_span=LLMObs.export_span(judge))``.
 
-        The judge span joins the trace that is active when it is opened, so an evaluator called inline
-        appears in the trace it judged; called with no active trace (a batch or offline evaluator), it
-        is its own root. Either way it is reported under the agent service of the application being
-        judged and identified by its ``evaluated_ml_app`` tag rather than by its agent service.
+        The judge span behaves like any other: run inline it joins the active trace, run on its own it
+        starts one. Either way ``evaluated_span`` is recorded as the ``evaluated_trace_id`` /
+        ``evaluated_span_id`` tags, so the UI can link a standalone judge back to what it judged. It is
+        reported under the agent service of the application being judged and identified by its
+        ``evaluated_ml_app`` tag rather than by its agent service.
 
         :param str name: The evaluation name (e.g. "relevance"). Reused as the ``submit_evaluation``
                          ``label``, so it must be non-empty and must not contain a '.'.
@@ -2812,18 +2811,15 @@ class LLMObs(Service):
                                        evaluated span, so an evaluator crash surfaces without a
                                        ``try/except``. Set False to opt out.
 
-        :returns: A context manager yielding the judge span, so
-                  ``with LLMObs.evaluation(...) as judge:`` gives you the span.
+        :returns: The Span object representing the judge, usable as
+                  ``with LLMObs.evaluation(...) as judge:``.
         """
         # Resolved before the disabled check so the destination and the marker tag always agree.
         evaluated_agent_service = evaluated_ml_app or resolve_ml_app()
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-            # Wrapped so `async with` works identically whether or not LLMObs is enabled.
-            return EvaluationContext(
-                cls._instance._start_span(
-                    "workflow", name="custom_evaluator.%s" % name, agent_service=evaluated_agent_service
-                )
+            return cls._instance._start_span(
+                "workflow", name="custom_evaluator.%s" % name, agent_service=evaluated_agent_service
             )
 
         # `name` is reused as the submit_evaluation `label`, which rejects empty/dotted values.
@@ -2842,8 +2838,6 @@ class LLMObs(Service):
                 "'trace_id' keys (use LLMObs.export_span())." % eval_scope
             )
 
-        prev_active = cls._instance._llmobs_context_provider.active()
-        prev_apm = cls._instance.tracer.context_provider.active()
         span = cls._instance._start_span(
             "workflow",
             name="custom_evaluator.%s" % name,
@@ -2861,41 +2855,34 @@ class LLMObs(Service):
             },
         )
 
-        on_error = None
         if emit_error_metric:
             judge_ref = cls.export_span(span)  # capture while live, for the correct trace id
 
-            def _emit_error_metric(exc: BaseException, _ref: Optional[ExportedLLMObsSpan] = judge_ref) -> None:
+            def _emit_error_metric(finished: Span) -> None:
+                message = finished.get_tag(ERROR_MSG)
+                if not finished.error or message is None:
+                    return
+                # ERROR_TYPE is fully qualified ("builtins.ValueError"); the metric carries the bare name.
+                exc_type = (finished.get_tag(ERROR_TYPE) or "").rsplit(".", 1)[-1]
                 cls.submit_evaluation(
                     label=name,
                     metric_type="categorical",  # required by the API; no value is sent for an errored eval
                     status="ERROR",
                     error={
-                        "type": type(exc).__name__,
-                        "message": str(exc),
-                        "stack": "".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+                        "type": exc_type,
+                        "message": message,
+                        "stack": finished.get_tag(ERROR_STACK) or "",
                     },
                     span=cast(dict, evaluated_span),
                     eval_scope=eval_scope,
-                    reasoning="evaluator raised %s: %s" % (type(exc).__name__, exc),
-                    judge_span=cast(dict, _ref),
+                    reasoning="evaluator raised %s: %s" % (exc_type, message),
+                    judge_span=cast(dict, judge_ref),
                     agent_service=evaluated_agent_service,
                 )
 
-            on_error = _emit_error_metric
+            span._on_finish_callbacks.append(_emit_error_metric)
 
-        # _start_span left the judge active in both providers; EvaluationContext re-activates it for the
-        # block, so a handle that is never entered doesn't leave the caller parented to the judge.
-        cls._instance._llmobs_context_provider.activate(prev_active)
-        cls._instance.tracer.context_provider.activate(prev_apm)
-        return EvaluationContext(
-            span,
-            on_error,
-            ctx_provider=cls._instance._llmobs_context_provider,
-            prev_active=prev_active,
-            tracer=cls._instance.tracer,
-            prev_apm=prev_apm,
-        )
+        return span
 
     @classmethod
     def embedding(

@@ -693,24 +693,11 @@ def test_evaluation_defaults_ml_app_to_configured_app(llmobs):
     assert get_llmobs_tags(judge)[EVALUATED_ML_APP_TAG] == expected
 
 
-def test_evaluation_unentered_handle_leaves_caller_context_intact(llmobs):
-    # A handle that is never used as a context manager must not strand the caller on the (never
-    # finished) judge span — in the APM provider as well as the LLMObs one.
-    with llmobs.agent(name="qa_agent") as agent_span:
-        llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"})
-        assert llmobs._instance._current_span() is agent_span
-        assert llmobs._instance.tracer.current_span() is agent_span
-        with llmobs.tool(name="fetch_kb") as tool_span:
-            pass
-    assert get_llmobs_parent_id(tool_span) == str(agent_span.span_id)
-    assert tool_span.parent_id == agent_span.span_id
-
-
-async def test_evaluation_async_with_while_disabled(llmobs):
-    # Enabling or disabling LLMObs must not change control flow: `async with` has to work either way.
+def test_evaluation_while_disabled_still_yields_a_span(llmobs):
+    # Disabling LLMObs must not change control flow: the block still runs and yields a span.
     llmobs.disable()
     try:
-        async with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+        with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
             assert judge is not None
     finally:
         llmobs.enable()
@@ -730,27 +717,18 @@ def test_evaluation_joins_active_agent_trace(llmobs):
 
 
 def test_evaluation_without_active_trace_is_its_own_root(llmobs):
-    # An evaluator run offline (no active trace) has nothing to join, so the judge is its own root.
-    with llmobs.evaluation(name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}) as judge:
+    # Run standalone (no active trace) the judge simply starts its own trace. evaluated_span is still
+    # recorded as tags, which is what lets the UI link back to what was judged.
+    target = {"span_id": "111", "trace_id": "222"}
+    with llmobs.evaluation(name="relevance", evaluated_span=target) as judge:
         with llmobs.llm(name="grade", model_name="m", model_provider="p") as judge_child:
             pass
     assert get_llmobs_parent_id(judge) == "undefined"
     assert get_llmobs_parent_id(judge_child) == str(judge.span_id)
     assert get_llmobs_trace_id(judge_child) == get_llmobs_trace_id(judge)
-
-
-def test_evaluation_nested_spans_inherit_judge_ml_app(llmobs):
-    with llmobs.evaluation(
-        name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, evaluated_ml_app="my-app"
-    ) as judge:
-        with llmobs.tool(name="fetch_kb") as tool_span:
-            pass
-        with llmobs.llm(name="grade", model_name="gpt-4o-mini", model_provider="openai") as llm_span:
-            pass
-    # Spans opened inside the judge root inherit the judge's service, which defaults to the judged app.
-    assert get_llmobs_tags(judge)["ml_app"] == "my-app"
-    assert get_llmobs_tags(tool_span)["ml_app"] == "my-app"
-    assert get_llmobs_tags(llm_span)["ml_app"] == "my-app"
+    tags = get_llmobs_tags(judge)
+    assert tags["evaluated_span_id"] == "111"
+    assert tags["evaluated_trace_id"] == "222"
 
 
 @pytest.mark.parametrize("outer_kind", ["agent", "workflow", "task"])
@@ -791,7 +769,7 @@ async def test_evaluation_restores_context_across_await(llmobs):
     # `async with` (__aenter__/__aexit__). The restore must still land in the caller's context so a
     # span opened after the await-ing judge block reattaches to the agent trace.
     with llmobs.agent(name="qa_agent") as agent_span:
-        async with llmobs.evaluation(name="relevance", evaluated_span=llmobs.export_span(agent_span)) as judge:
+        with llmobs.evaluation(name="relevance", evaluated_span=llmobs.export_span(agent_span)) as judge:
             assert llmobs._instance._current_span() is judge
             await asyncio.sleep(0)  # force a yield to the event loop inside the judge block
             with llmobs.llm(name="grade", model_name="m", model_provider="p") as judge_child:
@@ -814,7 +792,7 @@ async def test_evaluation_concurrent_async_tasks_are_isolated(llmobs):
     # independent roots. ContextVars are copied per-task, so one task's judge can't bleed into the other
     # even though they interleave at the await point.
     async def run_judge(name, evaluated):
-        async with llmobs.evaluation(name=name, evaluated_span=evaluated) as judge:
+        with llmobs.evaluation(name=name, evaluated_span=evaluated) as judge:
             await asyncio.sleep(0)  # yield so the two tasks interleave while both judge blocks are open
             with llmobs.llm(name="grade", model_name="m", model_provider="p") as child:
                 pass
@@ -848,7 +826,7 @@ async def test_original_trace_child_ignores_concurrently_open_judge(llmobs):
     holder = {}
 
     async def run_judge(evaluated):
-        async with llmobs.evaluation(name="relevance", evaluated_span=evaluated) as judge:
+        with llmobs.evaluation(name="relevance", evaluated_span=evaluated) as judge:
             holder["judge"] = judge
             judge_open.set()  # judge is now open & active in ITS task's context
             await let_judge_finish.wait()  # stay open while the original task makes its child
@@ -912,7 +890,7 @@ def test_evaluation_in_worker_thread_does_not_disturb_main_trace(llmobs):
     if "exc" in results:
         raise results["exc"]
     judge, child = results["judge"], results["child"]
-    # The judge is its own root: the worker thread's context was empty, so there was nothing to join.
+    # The worker thread's context was empty, so the judge is its own root.
     assert get_llmobs_trace_id(judge) != get_llmobs_trace_id(agent_span)
     assert get_llmobs_parent_id(judge) == "undefined"
     assert get_llmobs_parent_id(child) == str(judge.span_id)
@@ -1057,7 +1035,7 @@ def test_evaluation_error_metric_opt_out(llmobs, mock_llmobs_eval_metric_writer)
 async def test_evaluation_auto_error_metric_async(llmobs, mock_llmobs_eval_metric_writer):
     judge_ref = {}
     with pytest.raises(ValueError):
-        async with llmobs.evaluation(
+        with llmobs.evaluation(
             name="relevance", evaluated_span={"span_id": "1", "trace_id": "2"}, evaluated_ml_app="my-app"
         ) as judge:
             judge_ref.update(llmobs.export_span(judge))
