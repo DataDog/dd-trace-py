@@ -12,7 +12,7 @@ from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.internal import core
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
@@ -269,7 +269,7 @@ class _DatadogMultiHeader:
 
         # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
         # are propagated. If the tag is not present, we should not propagate downstream.
-        if not asm_config._apm_tracing_enabled and (TRACE_SOURCE_PROPAGATION_KEY not in span_context._meta):
+        if not standalone_config.apm_tracing_enabled and (TRACE_SOURCE_PROPAGATION_KEY not in span_context._meta):
             return
 
         if span_context.trace_id > _MAX_UINT_64BITS:
@@ -380,7 +380,7 @@ class _DatadogMultiHeader:
             if meta:
                 meta = validate_sampling_decision(meta)
 
-            if not asm_config._apm_tracing_enabled:
+            if not standalone_config.apm_tracing_enabled:
                 # When apm tracing is not enabled, only distributed traces with the `_dd.p.ts` tag
                 # are propagated downstream, however we need 1 trace per minute sent to the backend, so
                 # we unset sampling priority so the rate limiter decides.

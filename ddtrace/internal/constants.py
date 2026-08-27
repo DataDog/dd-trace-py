@@ -72,6 +72,9 @@ SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 # 8-bit (min) case-insensitive hex mask, per the DD_TRACE_ENABLED RFC. See TraceSource.
 TRACE_SOURCE_PROPAGATION_KEY = "_dd.p.ts"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
+# Shared standalone switch: when false, security and AI products keep working but the tracer stops
+# billing APM. Owned by ddtrace.internal.settings.standalone, not by any single product.
+APM_TRACING_ENV = "DD_APM_TRACING_ENABLED"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
 # Used to set the name of an integration on a span
 COMPONENT = "component"
