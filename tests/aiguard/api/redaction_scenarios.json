@@ -550,6 +550,149 @@
     },
 
     {
+      "id": "apply/conversation/history-and-latest",
+      "description": "The RFC multi-turn example: request redaction is copy-on-write, so an earlier user message still holds its original value while the latest one carries a new value. Both are replaced in a single response and the already-redacted assistant turn is left alone.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is 123-45-6789"},
+        {"role": "assistant", "content": "Your SSN is <REDACTED>."},
+        {"role": "user", "content": "my email is paco@paco.es"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"},
+        {"path": "messages[3].content", "replacement": "my email is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is <REDACTED>"},
+        {"role": "assistant", "content": "Your SSN is <REDACTED>."},
+        {"role": "user", "content": "my email is <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/conversation/every-role",
+      "description": "System, user and assistant messages all carry sensitive data: no role is exempt.",
+      "messages": [
+        {"role": "system", "content": "You are the support bot for account 4111111111111111."},
+        {"role": "user", "content": "My SSN is 123-45-6789"},
+        {"role": "assistant", "content": "I sent the details to paco@gmail.com"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "You are the support bot for account <REDACTED>."},
+        {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"},
+        {"path": "messages[2].content", "replacement": "I sent the details to <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are the support bot for account <REDACTED>."},
+        {"role": "user", "content": "My SSN is <REDACTED>"},
+        {"role": "assistant", "content": "I sent the details to <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/conversation/history-only",
+      "description": "Only an earlier assistant answer leaked a value while the latest message is benign, so redaction cannot be scoped to the last message.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What is on file for me?"},
+        {"role": "assistant", "content": "Your card is 4111111111111111"},
+        {"role": "user", "content": "Thanks, what are your opening hours?"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[2].content", "replacement": "Your card is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "What is on file for me?"},
+        {"role": "assistant", "content": "Your card is <REDACTED>"},
+        {"role": "user", "content": "Thanks, what are your opening hours?"}
+      ]
+    },
+    {
+      "id": "apply/conversation/several-turns",
+      "description": "Three turns where the system prompt, two earlier turns and the latest message are all replaced while the benign turn is untouched.",
+      "messages": [
+        {"role": "system", "content": "Escalate to ops@acme.io"},
+        {"role": "user", "content": "My SSN is 123-45-6789"},
+        {"role": "assistant", "content": "Noted."},
+        {"role": "user", "content": "Also my card 4111111111111111"},
+        {"role": "assistant", "content": "I filed it under paco@gmail.com"},
+        {"role": "user", "content": "My phone is 415-555-0132"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "Escalate to <REDACTED>"},
+        {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"},
+        {"path": "messages[3].content", "replacement": "Also my card <REDACTED>"},
+        {"path": "messages[4].content", "replacement": "I filed it under <REDACTED>"},
+        {"path": "messages[5].content", "replacement": "My phone is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "Escalate to <REDACTED>"},
+        {"role": "user", "content": "My SSN is <REDACTED>"},
+        {"role": "assistant", "content": "Noted."},
+        {"role": "user", "content": "Also my card <REDACTED>"},
+        {"role": "assistant", "content": "I filed it under <REDACTED>"},
+        {"role": "user", "content": "My phone is <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/conversation/tool-turn-in-history",
+      "description": "A completed tool round trip stays in the history: its arguments and its result are replaced alongside the latest message.",
+      "messages": [
+        {"role": "system", "content": "You are a payments assistant."},
+        {"role": "user", "content": "Pay my invoice"},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"iban\":\"DE89370400440532013000\"}"}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_1", "content": "paid from 000123456789"},
+        {"role": "user", "content": "Send the receipt to paco@gmail.com"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[2].tool_calls[0].function.arguments", "replacement": "{\"iban\":\"<REDACTED>\"}"},
+        {"path": "messages[3].content", "replacement": "paid from <REDACTED>"},
+        {"path": "messages[4].content", "replacement": "Send the receipt to <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a payments assistant."},
+        {"role": "user", "content": "Pay my invoice"},
+        {"role": "assistant", "tool_calls": [
+          {"id": "call_1", "function": {"name": "pay", "arguments": "{\"iban\":\"<REDACTED>\"}"}}
+        ]},
+        {"role": "tool", "tool_call_id": "call_1", "content": "paid from <REDACTED>"},
+        {"role": "user", "content": "Send the receipt to <REDACTED>"}
+      ]
+    },
+    {
+      "id": "apply/conversation/content-parts-across-turns",
+      "description": "A multimodal turn kept in the history: the text part of the earlier message and the latest message are replaced, the image locator is not.",
+      "messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card 4111111111111111"},
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
+        ]},
+        {"role": "assistant", "content": "Got it."},
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "and my SSN is 123-45-6789"}
+        ]}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[1].content[0].text", "replacement": "card <REDACTED>"},
+        {"path": "messages[3].content[0].text", "replacement": "and my SSN is <REDACTED>"}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "card <REDACTED>"},
+          {"type": "input_image", "image_url": {"url": "https://example.com/card.png"}}
+        ]},
+        {"role": "assistant", "content": "Got it."},
+        {"role": "user", "content": [
+          {"type": "input_text", "text": "and my SSN is <REDACTED>"}
+        ]}
+      ]
+    },
+
+    {
       "id": "skip/path/index-out-of-range",
       "description": "A message index past the end of the list.",
       "messages": [
@@ -1009,6 +1152,27 @@
         {"role": "assistant", "tool_calls": [
           {"id": "call_1", "function": {"name": "pay", "arguments": "{\"ssn\":\"<REDACTED>\"}"}}
         ]}
+      ]
+    },
+    {
+      "id": "mixed/conversation/history-applied-latest-skipped",
+      "description": "A partial failure on the latest message must not drop the redaction of the history: the earlier turns are still written and only the unusable path is left as-is.",
+      "messages": [
+        {"role": "system", "content": "Escalate to ops@acme.io"},
+        {"role": "user", "content": "My SSN is 123-45-6789"},
+        {"role": "assistant", "content": "Noted."},
+        {"role": "user", "content": "My phone is 415-555-0132"}
+      ],
+      "redaction_replacements": [
+        {"path": "messages[0].content", "replacement": "Escalate to <REDACTED>"},
+        {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"},
+        {"path": "messages[3].content", "replacement": null}
+      ],
+      "expected_messages": [
+        {"role": "system", "content": "Escalate to <REDACTED>"},
+        {"role": "user", "content": "My SSN is <REDACTED>"},
+        {"role": "assistant", "content": "Noted."},
+        {"role": "user", "content": "My phone is 415-555-0132"}
       ]
     }
   ]
