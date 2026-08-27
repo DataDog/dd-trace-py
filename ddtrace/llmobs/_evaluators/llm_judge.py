@@ -580,12 +580,12 @@ class LLMJudge(BaseEvaluator):
             client: Custom LLM client implementing the ``LLMClient`` protocol. If provided,
                 ``provider`` is not required.
             name: Optional evaluator name for identification in results.
-            emit_judge_trace: When True, each ``evaluate()`` call opens a judge trace via
+            emit_judge_trace: When True, each ``evaluate()`` call opens a judge span via
                 ``LLMObs.evaluation()`` and runs the judge inference inside it, so the judge's
-                latency, tokens, and errors are observable as a standalone trace under the
-                evaluated application's service. The returned ``EvaluatorResult`` carries a
-                ``judge_span`` reference, which the experiments SDK folds into the emitted
-                metric's metadata so the score can deep-link back to the judge trace.
+                latency, tokens, and errors are observable under the evaluated application's
+                service. The returned ``EvaluatorResult`` carries a ``judge_span`` reference,
+                which the experiments SDK folds into the emitted metric's metadata so the score
+                can deep-link back to the judge span.
                 Opt-in, so existing evaluators are unaffected. Requires LLMObs to be enabled;
                 a no-op otherwise.
             client_options: Provider-specific configuration options. Common keys are
@@ -739,7 +739,7 @@ class LLMJudge(BaseEvaluator):
         json_schema: Optional[dict[str, Any]],
         model: str,
     ) -> Union[EvaluatorResult, str, Any]:
-        """Run the judge inference inside a judge trace and attach the judge span to the result.
+        """Run the judge inference inside a judge span and attach it to the result.
 
         The judge trace is emitted under the evaluated application's service and linked to the
         evaluated span, so the judge's own latency/tokens/errors are observable. The judge span
