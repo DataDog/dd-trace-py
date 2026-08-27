@@ -8,7 +8,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
-from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
@@ -83,7 +82,9 @@ class GoogleAdkIntegration(BaseLLMIntegration):
         message = ""
         for part in new_message_parts:
             message += extract_message_from_part_google_genai(part, new_message_role).get("content", "")
-        result = extract_messages_from_adk_events(response)
+        # ``response`` is the compact message representation the patch wrapper already extracted
+        # from the streamed ADK events (bounded to avoid retaining raw event payloads).
+        result = response or []
 
         # Surface the ADK session metadata (user id, app name) as searchable span tags.
         session_tags = {}

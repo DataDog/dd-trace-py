@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -286,3 +288,150 @@ class TestLLMObsGoogleADK:
                 "app_name": "TestADKApp",
             },
         )
+
+    @pytest.mark.asyncio
+    async def test_run_live_does_not_buffer_when_llmobs_disabled(self, adk, test_spans):
+        """APMSP-3136: the agent wrapper must not retain anything when LLMObs is disabled.
+
+        Events were previously buffered unconditionally for the generator's lifetime, so a
+        long-lived run_live stream could exhaust memory even though the buffer is only ever
+        consumed by llmobs_set_tags (a no-op when LLMObs is disabled).
+        """
+        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
+
+        integration = adk._datadog_integration
+        assert not integration.llmobs_enabled
+
+        async def run_live(*args, **kwargs):
+            for i in range(50):
+                yield _fake_event("event-%d" % i)
+
+        run_live.__name__ = "run_live"
+
+        with _capture_tagged_response(integration) as captured:
+            gen = _traced_agent_run_async(run_live, _fake_agent_instance(), (), {"session_id": "s", "user_id": "u"})
+            consumed = [event async for event in gen]
+
+        # All 50 events still flow through to the caller...
+        assert len(consumed) == 50
+        # ...but nothing is retained when LLMObs is disabled.
+        assert captured["response"] == []
+
+    @pytest.mark.asyncio
+    async def test_run_live_bounds_retained_messages_by_count(self, adk, test_spans, google_adk_llmobs, monkeypatch):
+        """APMSP-3136: retention is bounded by message count, and compact messages (not raw
+        events) are retained.
+        """
+        from ddtrace.contrib.internal.google_adk import patch as adk_patch_mod
+        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
+
+        monkeypatch.setattr(adk_patch_mod, "_MAX_BUFFERED_AGENT_MESSAGES", 5)
+
+        integration = adk._datadog_integration
+        assert integration.llmobs_enabled
+
+        async def run_live(*args, **kwargs):
+            for i in range(20):
+                yield _fake_event("event-%d" % i)
+
+        run_live.__name__ = "run_live"
+
+        with _capture_tagged_response(integration) as captured:
+            gen = _traced_agent_run_async(run_live, _fake_agent_instance(), (), {"session_id": "s", "user_id": "u"})
+            consumed = [event async for event in gen]
+
+        # All events still reach the caller, but only the cap is retained for tagging...
+        assert len(consumed) == 20
+        assert len(captured["response"]) == 5
+        # ...as the extracted compact representation, not the raw event objects.
+        assert all(isinstance(m, dict) for m in captured["response"])
+
+    @pytest.mark.asyncio
+    async def test_run_live_bounds_retained_messages_by_size(self, adk, test_spans, google_adk_llmobs, monkeypatch):
+        """APMSP-3136: a few very large events cannot grow the buffer without bound; retention is
+        also capped by a total character budget.
+        """
+        from ddtrace.contrib.internal.google_adk import patch as adk_patch_mod
+        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
+
+        monkeypatch.setattr(adk_patch_mod, "_MAX_BUFFERED_AGENT_MESSAGES", 10000)
+        monkeypatch.setattr(adk_patch_mod, "_MAX_BUFFERED_AGENT_CHARS", 500)
+
+        integration = adk._datadog_integration
+
+        async def run_live(*args, **kwargs):
+            for _ in range(10):
+                yield _fake_event("x" * 1000)
+
+        run_live.__name__ = "run_live"
+
+        with _capture_tagged_response(integration) as captured:
+            gen = _traced_agent_run_async(run_live, _fake_agent_instance(), (), {"session_id": "s", "user_id": "u"})
+            consumed = [event async for event in gen]
+
+        # Well under the message-count cap, but the size budget stops retention early.
+        assert len(consumed) == 10
+        assert 0 < len(captured["response"]) < 10
+
+    @pytest.mark.asyncio
+    async def test_run_live_releases_buffer_when_llmobs_disabled_midstream(self, adk, test_spans, google_adk_llmobs):
+        """APMSP-3136: disabling LLMObs mid-stream releases the retained buffer instead of holding
+        it until the (potentially unbounded) live session ends.
+        """
+        from ddtrace.contrib.internal.google_adk.patch import _traced_agent_run_async
+        from ddtrace.llmobs import LLMObs
+
+        integration = adk._datadog_integration
+        assert integration.llmobs_enabled
+
+        async def run_live(*args, **kwargs):
+            for i in range(10):
+                yield _fake_event("event-%d" % i)
+
+        run_live.__name__ = "run_live"
+
+        with _capture_tagged_response(integration) as captured:
+            gen = _traced_agent_run_async(run_live, _fake_agent_instance(), (), {"session_id": "s", "user_id": "u"})
+            consumed = 0
+            async for _ in gen:
+                consumed += 1
+                if consumed == 3:
+                    LLMObs.disable()
+
+        assert consumed == 10
+        # Buffer was released once LLMObs turned off.
+        assert captured["response"] == []
+
+
+@contextmanager
+def _capture_tagged_response(integration):
+    """Replace ``llmobs_set_tags`` to capture the ``response`` handed to it by the wrapper."""
+    captured = {}
+
+    def _spy(span, args, kwargs, response=None, operation=""):
+        captured["response"] = response
+
+    with mock.patch.object(integration, "llmobs_set_tags", _spy):
+        yield captured
+
+
+def _fake_event(text):
+    """A minimal stand-in for an ADK ``Event`` carrying a single text part."""
+    return SimpleNamespace(content=create_test_message(text))
+
+
+def _fake_agent_instance():
+    """Minimal stand-in for an ADK ``Runner`` for exercising the agent-run wrapper directly."""
+
+    class _Model:
+        pass
+
+    class _Agent:
+        name = "test_agent"
+        model = _Model()
+
+    class _Runner:
+        agent = _Agent()
+        app_name = "TestADKApp"
+
+    return _Runner()
