@@ -254,23 +254,13 @@ def _set_resolver_tags(pin, span, request):
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
 
 
-def _early_otel_route_and_resource(request: Any) -> tuple[Optional[str], Optional[str]]:
-    """Resolve the low-cardinality Django route before child propagation samples the trace."""
+def _initial_otel_resource(request: Any) -> Optional[str]:
+    """Return the method-only resource used until Django resolves the application route."""
     if not config._otel_trace_semantics_enabled:
-        return None, None
-
-    try:
-        resolver = get_resolver(getattr(request, "urlconf", None))
-        resolver_match = resolver.resolve(request.path_info)
-        route = get_django_2_route(request, resolver_match) if DJANGO22 else None
-    except Resolver404:
-        return None, None
-
-    if not route:
-        return None, None
+        return None
 
     normalized_method, _ = normalize_http_method(request.method)
-    return route, otel_http_resource(normalized_method, route)
+    return otel_http_resource(normalized_method, None)
 
 
 def _before_request_tags(pin, span, request):
@@ -459,17 +449,14 @@ def _after_request_tags(pin, span: Span, request, response):
 def _request_path_params(request):
     """Polymorphic Django path-params extraction.
 
-    Returns ``resolver_match.kwargs`` (named captures), else ``resolver_match.args`` (unnamed captures), else ``None``.
-    Pre-view hooks may run before Django sets ``request.resolver_match``; we fall back to a fresh resolve in that
-    case. The broad try/except shields request tagging from raising third-party ``ResolverMatch`` subclasses.
+    Returns resolver_match.kwargs (named captures), else resolver_match.args (unnamed captures),
+    else None. Pre-view hooks must not resolve the route themselves because converters are
+    application code and Django will invoke them during its own resolution.
     """
     try:
         resolver_match = getattr(request, "resolver_match", None)
         if resolver_match is None:
-            resolver = get_resolver(getattr(request, "urlconf", None))
-            if resolver is None:
-                return None
-            resolver_match = resolver.resolve(request.path_info)
+            return None
         return resolver_match.kwargs or resolver_match.args or None
     except Exception:
         log.debug("Django request_path_params extraction failed", exc_info=True)

@@ -20,6 +20,7 @@ from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
 from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
@@ -408,7 +409,7 @@ def _on_traced_request_context_started_flask(ctx):
     # span before start_response so timed-out workers keep the route resource.
     req_span = ctx.find_item("req_span")
     if req_span is not None and req_span is not current_span:
-        _set_flask_request_route_tags(flask_request, req_span)
+        _set_flask_request_route_tags(flask_request, req_span, flask_config)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
@@ -534,7 +535,7 @@ def _set_flask_request_tags(request, span, flask_config):
         if span.name.split(".")[-1] == "request":
             span._set_attribute(SPAN_KIND, SpanKind.SERVER)
 
-        _set_flask_request_route_tags(request, span)
+        _set_flask_request_route_tags(request, span, flask_config)
 
         if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
             for k, v in request.view_args.items():
@@ -546,7 +547,7 @@ def _set_flask_request_tags(request, span, flask_config):
         log.debug('failed to set tags for "flask.request" span', exc_info=True)
 
 
-def _set_flask_request_route_tags(request, span):
+def _set_flask_request_route_tags(request, span, flask_config):
     try:
         # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
         if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
@@ -556,6 +557,13 @@ def _set_flask_request_route_tags(request, span):
         if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
             set_instrumentation_resource(span, " ".join((request.method, request.url_rule.rule)))
             span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
+            if config._otel_trace_semantics_enabled:
+                trace_utils.set_http_meta(
+                    span,
+                    flask_config,
+                    method=request.method,
+                    route=request.url_rule.rule,
+                )
             # Side-channel tag for backend resource remapping; resource itself stays app-local.
             if request.script_root:
                 span._set_attribute(
@@ -717,10 +725,30 @@ def _on_django_cache(
         _finish_span(ctx, exc_info)
 
 
-def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
+def _on_django_func_wrapped(args, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
             span_from_context(ctx)._ignore_exception(exc)
+
+    if not config._otel_trace_semantics_enabled or not args:
+        return
+
+    request = args[0]
+    resolver_match = getattr(request, "resolver_match", None)
+    route = getattr(resolver_match, "route", None)
+    if not route:
+        return
+
+    request_spans = getattr(request, "scope", {}).get("datadog", {}).get("request_spans", ())
+    request_span = request_spans[0] if request_spans else span_from_context(ctx)._parent
+    while request_span is not None:
+        if (
+            request_span.span_type == SpanTypes.WEB
+            and request_span.get_tag(COMPONENT) == config.django.integration_name
+        ):
+            trace_utils.set_http_meta(request_span, config.django, method=request.method, route=route)
+            return
+        request_span = request_span._parent
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str], django_config, url: str, query: str):
@@ -1356,7 +1384,7 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
 
     span = _start_span(ctx)
     ctx.set_item("req_span", span)
-    set_instrumentation_resource(span, span.resource)
+    record_initial_instrumentation_resource(span, ctx.get_item("resource"))
 
     if "datadog" not in scope:
         scope["datadog"] = {"request_spans": [span]}

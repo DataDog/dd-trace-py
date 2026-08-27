@@ -2,7 +2,8 @@ from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
-from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
@@ -12,6 +13,7 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils_base import normalize_http_method
 from ddtrace.contrib.internal.trace_utils_base import set_method_tag
 from ddtrace.contrib.internal.trace_utils_base import set_query_string_tag
+from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
@@ -37,15 +39,13 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             set_method_tag(span, event.request_method)
             # Named here, not just tagged: propagation can force a sampling decision before the
             # request finishes, and a rule must not match the integration's Datadog resource.
-            # The route is unknown this early, so this is the method alone; set_http_meta
-            # appends the route once the framework resolves it.
-            # The resource on the span at this point came from the integration through the
-            # event, so instrumentation owns it. Recording that first stops the rename below
-            # from mistaking an integration-supplied value such as "GET /actual/path" for a
-            # user's choice and shipping the URI path as the span name.
-            span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+            # Span-start callbacks have already run. Record ownership only if they left the
+            # event-supplied resource untouched, so their custom names remain user-owned.
+            record_initial_instrumentation_resource(span, event.resource)
             normalized_method, original_method = normalize_http_method(event.request_method)
-            set_otel_http_resource(span, normalized_method, original_method)
+            if event.request_route:
+                span._set_attribute(http.OTEL_ROUTE, event.request_route)
+            set_otel_http_resource(span, normalized_method, original_method, event.request_route)
 
     @classmethod
     def on_ended(
@@ -62,13 +62,9 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
 
         # event.resource can be updated at span finish time
         if event.resource:
-            span.resource = event.resource
-            if config._otel_trace_semantics_enabled:
-                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+            set_instrumentation_resource(span, event.resource)
         elif event.set_resource and status_code is not None:
-            span.resource = f"{method} {status_code}"
-            if config._otel_trace_semantics_enabled:
-                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+            set_instrumentation_resource(span, f"{method} {status_code}")
 
         try:
             trace_utils.set_http_meta(

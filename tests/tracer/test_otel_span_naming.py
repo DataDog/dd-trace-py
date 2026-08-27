@@ -245,6 +245,72 @@ def test_a_user_replacing_the_resource_after_start_still_wins():
         assert span.resource == "my custom name"
 
 
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_span_start_processor_resource_is_preserved():
+    from ddtrace._trace.processor import SpanProcessor
+    from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.span_bus import span_from_context
+
+    class SetResourceAtStart(SpanProcessor):
+        def on_span_start(self, span):
+            span.resource = "processor-owned"
+
+        def on_span_finish(self, span):
+            pass
+
+    processor = SetResourceAtStart()
+    processor.register()
+    try:
+        with core.context_with_event(
+            HttpClientRequestEvent(
+                http_operation="requests.request",
+                service="svc",
+                component="requests",
+                resource="GET /actual/path/42",
+                integration_config=config.requests,
+                request_method="GET",
+                request_headers={},
+                query="",
+                request_url="http://host/actual/path/42",
+            ),
+        ) as ctx:
+            span = span_from_context(ctx)
+            assert span.resource == "processor-owned"
+        assert span.resource == "processor-owned"
+    finally:
+        processor.unregister()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_web_resource_replaced_during_request_is_preserved_at_finish():
+    from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config
+    from ddtrace.internal.span_bus import span_from_context
+
+    event = WebFrameworkRequestEvent(
+        http_operation="aiohttp.request",
+        service="svc",
+        component="aiohttp",
+        resource="GET /users/42",
+        integration_config=config.aiohttp,
+        request_method="GET",
+        request_headers={},
+        query="",
+        request_url="http://host/users/42",
+        request_route="/users/{id}",
+        headers_case_sensitive=False,
+    )
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
+        assert span.resource == "GET /users/{id}"
+        span.resource = "user-owned"
+
+    assert span.resource == "user-owned"
+
+
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",

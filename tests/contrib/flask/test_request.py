@@ -135,6 +135,23 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         request_span = self.get_spans()[0]
         self.assertEqual(request_span.resource, "HTTP")
 
+    def test_otel_semantics_normalizes_route_resource_before_view(self):
+        from ddtrace.trace import tracer
+
+        captured = {}
+
+        @self.app.route("/items/<int:item_id>", methods=["PROPFIND"])
+        def item(item_id):
+            captured["resource"] = tracer.current_root_span().resource
+            return str(item_id)
+
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            response = self.client.open("/items/42", method="PROPFIND")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["resource"], "HTTP /items/<int:item_id>")
+        self.assertEqual(self.get_spans()[0].resource, "HTTP /items/<int:item_id>")
+
     def test_route_params_request(self):
         """
         When making a request to an endpoint with non-string url params

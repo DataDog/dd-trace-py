@@ -323,7 +323,7 @@ def traced_handler(wrapped, instance, args, kwargs):
             # route should only be in the root span
             if index == 0:
                 span._set_attribute(http.ROUTE, path)
-    # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
+    # At least always update the root ASGI span when only part of the route tree is available.
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
         _set_route_resource(request_spans[0], scope.get("method"), route)

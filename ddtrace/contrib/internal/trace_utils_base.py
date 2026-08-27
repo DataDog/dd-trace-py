@@ -364,9 +364,8 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
 def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
     """Tag the request URL of a server span in whichever semantics mode is active.
 
-    set_http_meta is swapped wholesale at import, but a handful of server integrations tag
-    the URL outside of it (Django's request handler, AppSec's blocked-response paths), so
-    they go through this dispatcher instead.
+    A handful of server integrations tag the URL outside set_http_meta (Django's request
+    handler, AppSec's blocked-response paths), so they use the same runtime dispatch here.
     """
     if config._otel_trace_semantics_enabled:
         set_url_tags_otel_server(integration_config, span, url, query)

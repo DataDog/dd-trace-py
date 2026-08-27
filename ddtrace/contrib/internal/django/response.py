@@ -10,7 +10,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 
 from ddtrace import config
-from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
@@ -97,10 +97,8 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     request_headers = utils._get_request_headers(request)
 
     pin = Pin.get_from(instance)
-    route, otel_resource = utils._early_otel_route_and_resource(request)
+    otel_resource = utils._initial_otel_resource(request)
     span_tags = {COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER}
-    if route is not None:
-        span_tags["http.route"] = route
 
     with core.context_with_data(
         "django.traced_get_response",
@@ -117,7 +115,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         activate_distributed_headers=True,
     ) as ctx:
         if otel_resource is not None:
-            span_from_context(ctx)._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, otel_resource)
+            record_initial_instrumentation_resource(span_from_context(ctx), otel_resource)
         core.dispatch(
             "django.traced_get_response.pre",
             (
@@ -210,8 +208,10 @@ async def traced_get_response_async(
     if span is None:
         return await func(*args, **kwargs)
 
-    # Reset the span resource so we can know if it was modified during the request or not
-    span.resource = REQUEST_DEFAULT_RESOURCE
+    # The ASGI subscriber already published the OTel method resource. Keep it stable while
+    # application code runs so nested propagation samples the same name that will be exported.
+    if not config._otel_trace_semantics_enabled:
+        span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)
     response = None
     try:

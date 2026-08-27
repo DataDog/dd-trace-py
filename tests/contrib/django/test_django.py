@@ -55,6 +55,8 @@ def test_otel_semantics_names_the_request_span_from_the_route():
         root = test_spans.get_root_span()
         assert root.get_tag("http.request.method") == "GET"
         assert root.get_tag("http.route") == "^fn-view/$"
+        assert root.get_metric("http.response.status_code") == 200
+        assert root.get_tag("http.response.status_code") is None
         assert root.resource == "GET ^fn-view/$"
 
 
@@ -71,6 +73,92 @@ def test_otel_semantics_substitutes_an_unaccepted_method_in_the_span_name():
         assert root.get_tag("http.request.method") == "_OTHER"
         assert root.get_tag("http.request.method_original") == "PROPFIND"
         assert root.resource == "HTTP ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_does_not_resolve_custom_converter_twice():
+    from tests.contrib.django.utils import setup_django
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    setup_django()
+
+    from django.http import HttpResponse
+    from django.test import Client
+    from django.urls import clear_url_caches
+    from django.urls import path
+    from django.urls import register_converter
+
+    from ddtrace.trace import tracer
+    from tests.contrib.django.django_app import urls
+
+    converted = []
+    captured = {}
+
+    class RecordingConverter:
+        regex = "[^/]+"
+
+        def to_python(self, value):
+            converted.append(value)
+            return value
+
+        def to_url(self, value):
+            return value
+
+    def converted_view(request, value):
+        captured["resource"] = tracer.current_root_span().resource
+        return HttpResponse(value)
+
+    register_converter(RecordingConverter, "recording")
+    urls.urlpatterns.insert(0, path("converted/<recording:value>/", converted_view))
+    clear_url_caches()
+
+    with setup_django_test_spans():
+        assert Client().get("/converted/value/").status_code == 200
+
+    assert converted == ["value"], converted
+    assert captured["resource"] == "GET converted/<recording:value>/", captured
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"}, err=None)
+def test_otel_semantics_keeps_async_request_resource_stable_during_application():
+    import asyncio
+
+    import mock
+
+    from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace._trace.pin import Pin
+    from ddtrace.contrib.internal.django import response as django_response
+    from ddtrace.ext import SpanTypes
+    from ddtrace.trace import tracer
+
+    captured = {}
+
+    class Handler:
+        pass
+
+    class Request:
+        pass
+
+    handler = Handler()
+    Pin().onto(handler)
+
+    with tracer.start_span("django.request", resource="GET", span_type=SpanTypes.WEB) as span:
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, "GET")
+        request = Request()
+        request.scope = {"datadog": {"request_spans": [span]}}
+
+        async def application(request):
+            captured["resource"] = span.resource
+            return object()
+
+        with (
+            mock.patch.object(django_response, "_before_request_tags"),
+            mock.patch.object(django_response, "_after_request_tags"),
+            mock.patch.object(django_response, "get_resolver", return_value=None),
+        ):
+            asyncio.run(django_response.traced_get_response_async(application, handler, (request,), {}))
+
+    assert captured["resource"] == "GET"
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})
@@ -1695,7 +1783,8 @@ def test_cached_view():
             "component": "django",
             "django.cache.backend": "django.core.cache.backends.locmem.LocMemCache",
             "django.cache.key": (
-                "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82.d41d8cd98f00b204e9800998ecf8..."
+                "views.decorators.cache.cache_page..GET.03cdc1cc4aab71b038a6764e5fcabb82."
+                "d41d8cd98f00b204e9800998ecf8..."
             ),
             "_dd.base_service": "ddtrace_subprocess_dir",
         }

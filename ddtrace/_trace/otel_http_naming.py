@@ -59,6 +59,15 @@ def set_otel_http_resource(
     span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
 
 
+def record_initial_instrumentation_resource(span: Span, resource: Optional[str]) -> None:
+    """Record whether instrumentation still owns the resource after span-start callbacks."""
+    expected_resource = resource or span.name
+    if span.resource == expected_resource:
+        span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+    else:
+        span._set_ctx_item(RESOURCE_SET_BY_USER, True)
+
+
 def set_instrumentation_resource(span: Span, resource: str) -> None:
     """Set a resource an integration composed, recording that instrumentation owns it.
 
@@ -66,6 +75,15 @@ def set_instrumentation_resource(span: Span, resource: str) -> None:
     code doing the same, and the later OTel naming would back off and leave the Datadog value
     on the span.
     """
+    if config._otel_trace_semantics_enabled:
+        if span._get_ctx_item(RESOURCE_SET_BY_USER):
+            return
+
+        previous_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
+        if previous_resource is not None and span.resource != previous_resource:
+            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
+            return
+
     span.resource = resource
     if config._otel_trace_semantics_enabled:
         span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, resource)
