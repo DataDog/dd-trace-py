@@ -301,7 +301,7 @@ Traces
          Example: ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS="google_cloud_pubsub,kafka"``.
 
      version_added:
-       v4.14.0:
+       v4.15.0:
 
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
      type: Boolean

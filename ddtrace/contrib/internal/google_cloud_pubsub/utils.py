@@ -1,6 +1,5 @@
 """Utilities for Google Cloud Pub/Sub instrumentation."""
 
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -14,16 +13,18 @@ _DEPRECATED_SPAN_LINKS_ENV = "DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS"
 def _propagation_as_span_links_enabled() -> bool:
     if "google_cloud_pubsub" in config._propagation_as_span_links:
         return True
-    if _DEPRECATED_SPAN_LINKS_ENV in env:
-        deprecate(
-            f"{_DEPRECATED_SPAN_LINKS_ENV} is deprecated",
-            message="Use DD_TRACE_PROPAGATION_AS_SPAN_LINKS with a comma-separated list of "
-            "integration names (e.g. 'google_cloud_pubsub,kafka') instead.",
-            removal_version="5.0.0",
-            category=DDTraceDeprecationWarning,
-        )
-        return asbool(_get_config(_DEPRECATED_SPAN_LINKS_ENV, default=False))
-    return False
+    legacy_value = _get_config(_DEPRECATED_SPAN_LINKS_ENV, default=None)
+    if legacy_value is None:
+        return False
+
+    deprecate(
+        f"{_DEPRECATED_SPAN_LINKS_ENV} is deprecated",
+        message="Use DD_TRACE_PROPAGATION_AS_SPAN_LINKS with a comma-separated list of "
+        "integration names (e.g. 'google_cloud_pubsub,kafka') instead.",
+        removal_version="5.0.0",
+        category=DDTraceDeprecationWarning,
+    )
+    return asbool(legacy_value)
 
 
 def ensure_config_registered() -> None:
