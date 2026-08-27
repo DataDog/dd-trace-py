@@ -93,7 +93,7 @@ def test_ddtest_jobs_emit_explicit_service_name(gen_gitlab_config_mod):
         suite="internal",
         stage="core",
         clean_name="internal",
-        config={"ddtest_service": "tests.internal"},
+        config={"env": {"_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.internal"}},
         venvs=[("abc1234", "3.13")],
         k=1,
     )
