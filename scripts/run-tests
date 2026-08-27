@@ -597,43 +597,41 @@ class TestRunner:
             # represent multiple commands or environment-variable variants.
             suite_success = True
 
-            if not skip_ddtrace_install:
-                # Build/verify venvs sequentially under a file lock. This prevents
-                # concurrent native builds from fighting over shared resources.
-                lock_path = self.root / ".riot" / ".build.lock"
-                lock_path.parent.mkdir(parents=True, exist_ok=True)
+            # Build/verify environments sequentially under a file lock. With -s,
+            # suite dependencies refresh without reinstalling ddtrace.
+            lock_path = self.root / ".riot" / ".build.lock"
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
 
-                for venv in venvs:
-                    build_cmd = [
-                        str(self.root / "scripts" / "ddtest"),
-                        "riot",
-                        "-v",
-                        "run",
-                        "--pass-env",
-                        venv.hash,
-                        "--",
-                        "--collect-only",
-                        "-q",
-                    ]
+            for venv in venvs:
+                build_cmd = [
+                    str(self.root / "scripts" / "ddtest"),
+                    "riot",
+                    "-v",
+                    "run",
+                    "--pass-env",
+                ]
+                if skip_ddtrace_install:
+                    build_cmd.append("-s")
+                build_cmd.extend([venv.hash, "--", "--collect-only", "-q"])
 
-                    if dry_run:
-                        print(f"[DRY RUN] Would build venv (under lock): {' '.join(build_cmd)}")
-                    else:
-                        print(f"\n🔨 Building venv ({venv.display_name}): {venv.hash}")
-                        lock_file = open(lock_path, "w")
-                        try:
-                            fcntl.flock(lock_file, fcntl.LOCK_EX)
-                            print("   🔒 Acquired build lock")
-                            result = subprocess.run(build_cmd, env=env, cwd=self.root)
-                            if result.returncode != 0:
-                                print(f"❌ Build failed for {venv.display_name} (exit code {result.returncode})")
-                                suite_success = False
-                                break
-                            print("   ✅ Venv built successfully")
-                        finally:
-                            fcntl.flock(lock_file, fcntl.LOCK_UN)
-                            lock_file.close()
-                            print("   🔓 Released build lock")
+                if dry_run:
+                    print(f"[DRY RUN] Would build venv (under lock): {' '.join(build_cmd)}")
+                else:
+                    print(f"\n🔨 Building venv ({venv.display_name}): {venv.hash}")
+                    lock_file = open(lock_path, "w")
+                    try:
+                        fcntl.flock(lock_file, fcntl.LOCK_EX)
+                        print("   🔒 Acquired build lock")
+                        result = subprocess.run(build_cmd, env=env, cwd=self.root)
+                        if result.returncode != 0:
+                            print(f"❌ Build failed for {venv.display_name} (exit code {result.returncode})")
+                            suite_success = False
+                            break
+                        print("   ✅ Venv built successfully")
+                    finally:
+                        fcntl.flock(lock_file, fcntl.LOCK_UN)
+                        lock_file.close()
+                        print("   🔓 Released build lock")
 
             if not suite_success:
                 # Stop services and bail out
@@ -828,8 +826,8 @@ Examples:
   # Show what would be run without executing
   scripts/run-tests --dry-run
 
-  # Reuse a current ddtrace installation for faster reruns
-  scripts/run-tests -s ddtrace/contrib/django/patch.py
+  # Reuse an existing ddtrace installation while refreshing suite dependencies
+  scripts/run-tests -s --venv <hash>
 
   # Pass additional arguments to the test command
   scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
@@ -848,7 +846,7 @@ Examples:
         "-s",
         "--skip-ddtrace-install",
         action="store_true",
-        help="Reuse a current ddtrace installation instead of reinstalling it",
+        help="Reuse the selected environment's existing ddtrace installation",
     )
 
     parser.add_argument(

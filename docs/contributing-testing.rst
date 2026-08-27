@@ -83,14 +83,16 @@ List the matching environments before selecting one by hash. The runner starts a
     $ scripts/run-tests --list tests/contrib/django/
     $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-After a successful first run, pass ``-s`` before ``--`` to reuse the current ddtrace installation. Omit it after
-changing native code or project metadata, or after updating from main.
+After a successful first run, pass ``-s`` before ``--`` to reuse the selected environment's existing ddtrace
+installation while refreshing its suite dependencies. Omit it after changing native code or project metadata, or
+after updating from main.
 
 .. code-block:: bash
 
     $ scripts/run-tests -s --venv <environment-hash> -- -k test_specific_function
 
-An ``-s`` after ``--`` belongs to the test command and disables output capture.
+An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
+remains supported for existing workflows.
 
 Why are my tests failing with 404 errors?
 -----------------------------------------
