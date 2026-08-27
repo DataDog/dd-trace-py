@@ -718,14 +718,18 @@ class FlagEvaluationWriter(PeriodicService):
         # bounded iterator is slow; the accepting state is rechecked before commit.
         try:
             bounded_attrs, truncation_reasons = flatten_and_prune_context(event.attrs)
-        except Exception:
+        except Exception as exc:
             bounded_attrs = _EMPTY_CONTEXT
             truncation_reasons = frozenset((CONTEXT_TRUNCATION_SNAPSHOT_ERROR,))
             with self._counter_lock:
                 should_log_snapshot_error = not self._context_snapshot_error_logged
                 self._context_snapshot_error_logged = True
             if should_log_snapshot_error:
-                logger.debug("FlagEvaluationWriter: context snapshot error", exc_info=True)
+                # Log the exception type only. The traversal calls __iter__ and
+                # __getitem__ on the caller's own context object, so an exception
+                # message or traceback can carry customer context data. That data is
+                # consent-gated in the payload, so it must not reach the log sink.
+                logger.debug("FlagEvaluationWriter: context snapshot error (%s)", type(exc).__name__)
 
         bounded_event = _EvalEvent(
             flag_key=event.flag_key,
@@ -965,7 +969,7 @@ class FlagEvaluationWriter(PeriodicService):
         # one dequeued event cannot abort the drain or final flush.
         try:
             ctx_key = canonical_context_key(context_attrs)
-        except (TypeError, ValueError, OverflowError):
+        except (TypeError, ValueError, OverflowError) as exc:
             context_attrs = _EMPTY_CONTEXT
             ctx_key = ""
             with self._counter_lock:
@@ -975,7 +979,12 @@ class FlagEvaluationWriter(PeriodicService):
                 should_log_snapshot_error = not self._context_snapshot_error_logged
                 self._context_snapshot_error_logged = True
             if should_log_snapshot_error:
-                logger.debug("FlagEvaluationWriter: context canonicalization error", exc_info=True)
+                # Log the exception type only. Traceback frames here hold context
+                # values in their locals, and those values are consent-gated in the
+                # payload. They must not reach the log sink.
+                logger.debug(
+                    "FlagEvaluationWriter: context canonicalization error (%s)", type(exc).__name__
+                )
         full_key = (
             event.flag_key,
             event.variant,

@@ -16,6 +16,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from datetime import timezone
 import json
+import logging
 import os
 import queue
 import select
@@ -769,6 +770,54 @@ class TestEnqueue:
 
         assert writer._queue.get_nowait().attrs == {}
         assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
+
+    def test_snapshot_error_log_excludes_caller_context_data(self, writer, caplog):
+        """A caller-controlled exception message must not reach the log sink.
+
+        The traversal calls __iter__ and __getitem__ on the caller's own object, so
+        the exception message and traceback can carry customer context. That data is
+        consent-gated in the payload and must not leak to logs.
+        """
+        secret = "SSN=123-45-6789"
+
+        class RaisingIterMapping(Mapping):
+            """A caller mapping whose iteration raises with sensitive text."""
+
+            def __iter__(self):
+                raise RuntimeError(secret)
+
+            def __getitem__(self, key):
+                raise KeyError(key)
+
+            def __len__(self):
+                return 1
+
+        with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._flagevaluation_writer"):
+            writer.enqueue(_make_event(attrs=RaisingIterMapping()))
+
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_SNAPSHOT_ERROR: 1}
+        assert caplog.records, "expected one snapshot-error log record"
+        for record in caplog.records:
+            assert secret not in record.getMessage()
+            assert record.exc_info is None
+        assert "RuntimeError" in caplog.records[0].getMessage()
+
+    def test_canonicalization_error_log_excludes_caller_context_data(self, writer, caplog):
+        """The drain-thread canonicalization failure must not log context values."""
+        secret = "email=alice@corp.com"
+
+        with mock.patch(
+            "ddtrace.internal.openfeature._flagevaluation_writer.canonical_context_key",
+            side_effect=ValueError(secret),
+        ):
+            with caplog.at_level(logging.DEBUG, logger="ddtrace.internal.openfeature._flagevaluation_writer"):
+                writer._aggregate(_make_event(attrs={"user": "u1"}))
+
+        assert caplog.records, "expected one canonicalization-error log record"
+        for record in caplog.records:
+            assert secret not in record.getMessage()
+            assert record.exc_info is None
+        assert "ValueError" in caplog.records[0].getMessage()
 
     def test_enqueue_after_shutdown_started_is_dropped_and_counted(self, writer):
         writer.on_shutdown()
