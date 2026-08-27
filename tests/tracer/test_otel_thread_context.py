@@ -215,7 +215,11 @@ def test_asyncio_to_thread_clears_stale_thread_context(tracer: Tracer):
                 asyncio.get_running_loop().set_default_executor(executor)
                 assert await asyncio.to_thread(_published_span_id) is None
 
-            asyncio.run(exercise())
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(exercise())
+            finally:
+                loop.close()
     finally:
         unpatch_futures()
         ambient_worker.finish()
