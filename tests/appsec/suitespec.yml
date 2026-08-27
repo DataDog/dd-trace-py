@@ -263,6 +263,7 @@ suites:
     retry: 2
   appsec_threats_fastapi_iast:
     ddtest: true
+    ddtest_service: tests.appsec.contrib_appsec
     ddtest_nodes: 2
     venvs_per_job: 1
     services:

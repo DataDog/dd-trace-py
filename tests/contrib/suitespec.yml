@@ -543,6 +543,7 @@ suites:
   botocore:
     ddtest_nodes: 2
     ddtest: true
+    ddtest_service: tests.contrib.botocore
     retry: 2
     parallelism: 11
     paths:
@@ -843,6 +844,7 @@ suites:
   graphql:
     ddtest: true
     ddtest_nodes: 2
+    ddtest_service: tests.contrib.graphql
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -970,6 +972,7 @@ suites:
   logbook:
     ddtest: true
     ddtest_nodes: 2
+    ddtest_service: tests.contrib.logbook
     parallelism: 1
     paths:
       - '@core'
@@ -981,6 +984,7 @@ suites:
   loguru:
     ddtest: true
     ddtest_nodes: 2
+    ddtest_service: tests.contrib.loguru
     parallelism: 1
     paths:
       - '@core'
@@ -992,6 +996,7 @@ suites:
   mako:
     ddtest: true
     ddtest_nodes: 2
+    ddtest_service: tests.contrib.mako
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1029,6 +1034,7 @@ suites:
   molten:
     ddtest: true
     ddtest_nodes: 2
+    ddtest_service: tests.contrib.molten
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1057,6 +1063,7 @@ suites:
   opentelemetry:
     ddtest_nodes: 2
     ddtest: true
+    ddtest_service: tests.opentelemetry
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -1353,6 +1360,7 @@ suites:
   structlog:
     ddtest: true
     ddtest_nodes: 2
+    ddtest_service: tests.contrib.structlog
     parallelism: 1
     paths:
       - '@core'
@@ -1395,6 +1403,7 @@ suites:
   urllib3:
     ddtest: true
     ddtest_nodes: 2
+    ddtest_service: tests.contrib.urllib3
     parallelism: 2
     env:
       TEST_HTTPBIN_HOST: httpbin
