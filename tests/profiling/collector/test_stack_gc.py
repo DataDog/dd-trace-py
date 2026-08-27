@@ -508,4 +508,5 @@ def test_gc_fallback_clears_stale_frame_after_fork_without_duplicate_callback() 
     _, status = os.waitpid(pid, 0)
     callbacks[0]("stop", {})
     collector.stop()
+    gc.enable()
     assert os.waitstatus_to_exitcode(status) == 0
