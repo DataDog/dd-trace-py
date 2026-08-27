@@ -229,7 +229,8 @@ resolve_type_histogram(const std::unordered_map<PyTypeObject*, uint32_t>& type_h
             } else if (qname_s.empty()) {
                 tname = mod_s;
             } else {
-                tname = mod_s + "." + qname_s;
+                tname = mod_s;
+                tname += "." + qname_s;
             }
         } else {
             tname = "<unknown>";
@@ -959,9 +960,10 @@ GCMonitor::take_snapshot()
               auto* hist = static_cast<std::unordered_map<PyTypeObject*, uint32_t>*>(arg);
               try {
                   (*hist)[Py_TYPE(obj)]++;
-              } catch (...) {
+              } catch (const std::exception& e) {
                   // A C++ exception must never propagate into CPython's C frames.
                   // On allocation failure we simply drop this object's tally.
+                  std::cerr << "Error in PyUnstable_GC_VisitObjects: " << e.what() << std::endl;
               }
               return 1; // continue iteration
           },
