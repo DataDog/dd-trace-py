@@ -1029,7 +1029,7 @@ suites:
   molten:
     ddtest: true
     ddtest_nodes: 2
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1395,7 +1395,7 @@ suites:
   urllib3:
     ddtest: true
     ddtest_nodes: 2
-    parallelism: 1
+    parallelism: 2
     env:
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
