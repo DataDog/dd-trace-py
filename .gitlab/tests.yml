@@ -107,7 +107,9 @@ include:
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
     - |
       mkdir -p bin
-      curl -fsSL "https://github.com/DataDog/ddtest/releases/${DDTEST_VERSION:-latest}/download/ddtest-linux-amd64" -o bin/ddtest
+      # Build ddtest from source (until the commandOverride change is released).
+      git clone --depth 1 --branch gnufede/ddtest-dogfooding https://github.com/DataDog/ddtest.git /tmp/ddtest-src
+      (cd /tmp/ddtest-src && go build -o "${CI_PROJECT_DIR}/bin/ddtest" .)
       chmod +x bin/ddtest
       # Prepare the per-hash riot venv (install envier, pytest, ... into the
       # prefix) and activate it. build_base_venvs only installs ddtrace into
