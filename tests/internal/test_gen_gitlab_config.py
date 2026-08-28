@@ -100,7 +100,6 @@ def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
 
     content = output.getvalue()
     assert "_DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal" in content
-    assert "RIOT_HASH_PYTHON: abc1234:3.13 def5678:3.14" in content
     run_313_needs = content.split("core/internal::ddtest-run-3.13:", 1)[1].split("\n  parallel:\n", 1)[0]
     run_314_needs = content.split("core/internal::ddtest-run-3.14:", 1)[1].split("\n  parallel:\n", 1)[0]
     assert 'PYTHON_VERSION: "3.13"' in run_313_needs
