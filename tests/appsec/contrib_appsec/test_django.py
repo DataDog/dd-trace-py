@@ -35,6 +35,7 @@ def isolated_database(tmp_path_factory):
         from django.db import connections
 
         connections.close_all()
+        importlib.import_module(_FLAT_URLCONF).DB.close()
         settings.DATABASES["default"]["NAME"] = original_database_name
 
 
@@ -64,7 +65,10 @@ class _Test_Django_Base:
         settings.ROOT_URLCONF = request.param
         clear_url_caches()
         endpoint_collection.reset()
-        importlib.reload(importlib.import_module(request.param))
+        urlconf = importlib.import_module(request.param)
+        if request.param == _FLAT_URLCONF:
+            urlconf.DB.close()
+        importlib.reload(urlconf)
 
         client = Client(
             f"http://localhost:{self.SERVER_PORT}",

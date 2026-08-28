@@ -189,6 +189,9 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
+            # Preserve the result for downstream consumers such as AppSec. In particular,
+            # an early blocked request never reaches Django's own resolver assignment.
+            request.resolver_match = resolver_match
 
         if hasattr(resolver_match[0], "view_class"):
             # In django==4.0, view.__name__ defaults to <module>.views.view
