@@ -5,6 +5,8 @@ from __future__ import annotations
 import gc
 import os
 from pathlib import Path
+import threading
+from typing import Callable
 from unittest import mock
 
 import pytest
@@ -47,6 +49,46 @@ def test_gc_collect_not_patched_after_stop() -> None:
     assert gc.collect is orig
 
 
+def test_stop_preserves_later_gc_collect_wrapper() -> None:
+    orig: Callable[..., int] = gc.collect
+    col: GCCollector = GCCollector()
+    col.start()
+    patched: Callable[..., int] = gc.collect
+
+    def later_wrapper(generation: int = 2) -> int:
+        return patched(generation)
+
+    gc.collect = later_wrapper
+    try:
+        col.stop()
+        assert gc.collect is later_wrapper
+    finally:
+        gc.collect = orig
+
+
+def test_reset_after_fork_clears_in_flight_state() -> None:
+    col: GCCollector = GCCollector()
+    col.start()
+    try:
+        gc.collect()
+        col._start_ns[0] = 123
+        assert col._explicit_count == 1
+        col._reset_after_fork()
+        assert col._explicit_count == 0
+        assert col._start_ns == {}
+    finally:
+        col.stop()
+
+
+def test_fork_hook_registered_and_unregistered() -> None:
+    with mock.patch("ddtrace.profiling.collector.gc.forksafe") as mock_forksafe:
+        col: GCCollector = GCCollector()
+        col.start()
+        mock_forksafe.register.assert_called_once_with(col._reset_after_fork)
+        col.stop()
+        mock_forksafe.unregister.assert_called_once_with(col._reset_after_fork)
+
+
 def test_explicit_count_increments() -> None:
     col = GCCollector()
     col.start()
@@ -82,6 +124,7 @@ def _make_isolated_collector() -> GCCollector:
     interference from real background GC events.
     """
     col = GCCollector()
+    col._lock = threading.Lock()
     col._start_ns = {}
     col._explicit_count = 0
     return col
