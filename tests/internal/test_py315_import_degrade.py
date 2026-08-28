@@ -5,11 +5,21 @@ Until #17849 lands bytecode wrapping for 3.15, products that import wrapping
 raise NotImplementedError when actually used.
 """
 
+import re
+
 import pytest
 
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
 from ddtrace.internal.compat import NEXT_PY_VERSION
 from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+
+_RUNNING_VERSION = f"{PYTHON_VERSION_INFO[0]}.{PYTHON_VERSION_INFO[1]}"
+_UNSUPPORTED_MSG = f"This version of CPython is not supported yet: {_RUNNING_VERSION}"
+
+
+def test_unsupported_msg_includes_running_version():
+    assert NEXT_PY_UNSUPPORTED_MSG == _UNSUPPORTED_MSG
 
 
 def test_wrapping_modules_import():
@@ -30,7 +40,7 @@ def test_wrap_raises_not_implemented_on_315():
     def wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
         return wrapped(*args, **kwargs)
 
-    with pytest.raises(NotImplementedError, match="3.15"):
+    with pytest.raises(NotImplementedError, match=re.escape(_UNSUPPORTED_MSG)):
         wrap(f, wrapper)
 
 
@@ -76,5 +86,5 @@ def test_inject_hook_raises_not_implemented_on_315():
     def hook(_arg: object) -> None:
         return None
 
-    with pytest.raises(NotImplementedError, match="3.15"):
+    with pytest.raises(NotImplementedError, match=re.escape(_UNSUPPORTED_MSG)):
         inject_hook(f, hook, f.__code__.co_firstlineno, None)
