@@ -6,6 +6,7 @@ patched ``RealtimeConnection`` backed by a fake websocket (integration test).
 """
 
 import base64
+import gc
 import json
 from types import SimpleNamespace
 
@@ -1140,6 +1141,42 @@ def test_realtime_recv_close_finalizes_without_explicit_close(openai, openai_llm
     # Nothing was spoken on either side (input committed with no appended audio, no output audio), so
     # the turn is just the root and the llm span - no phase windows to bracket.
     assert sorted(s.resource for s in spans) == ["createRealtimeResponse", "createRealtimeTurn"]
+
+
+def test_realtime_dropped_connection_finalizes_held_turn(openai, openai_llmobs, test_spans):
+    """A turn held for playback is still submitted when the caller drops the connection.
+
+    ``with`` blocks and a socket that closes are already covered (the SDK's ``__exit__`` closes, and
+    ``recv`` raises), so this is the un-managed case: without the connection's finalizer nothing
+    would ever flush the hold and the whole turn would be lost.
+    """
+    conn = RealtimeConnection(_FakeWebSocket([]))
+    client = openai.OpenAI()
+    _realtime._attach_session(SimpleNamespace(_dd_client=client, _dd_model="gpt-realtime"), conn)
+    state = conn._dd_realtime_state
+    state.on_server_event(_session_created(transcription=False))
+    # A truncation for a turn we no longer hold marks this as a client that cuts playback short, so
+    # the next turn is held while its audio plays.
+    _truncate(state, "gone", audio_end_ms=0)
+    state.on_server_event(_ns(type="response.created", response=_ns(id="r1")))
+    state.on_server_event(
+        _ns(type="response.output_audio.delta", response_id="r1", item_id="audio_r1", delta=_b64(_agent_pcm(5000)))
+    )
+    state.on_server_event(_ns(type="response.output_audio_transcript.done", response_id="r1", transcript="hi"))
+    state.on_server_event(_ns(type="response.done", response=_ns(id="r1", status="completed")))
+    assert len(state._playing) == 1, "held while the agent's 5s of audio plays out"
+    assert not [s for trace in test_spans.pop_traces() for s in trace], "nothing submitted while held"
+
+    # Drop the connection the way an un-managed caller would: no close(), no closed socket.
+    del conn, state
+    gc.collect()
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert sorted(s.resource for s in spans) == [
+        "createRealtimeAgentSpeech",
+        "createRealtimeResponse",
+        "createRealtimeTurn",
+    ]
 
 
 class _FakeAsyncWebSocket:

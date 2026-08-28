@@ -58,6 +58,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 import uuid
+import weakref
 
 import openai
 
@@ -1162,14 +1163,35 @@ def patched_connect(func: Callable[..., Any], instance: Any, args: tuple[Any, ..
     return manager
 
 
+def _finish_session_on_gc(state: "_RealtimeState") -> None:
+    """Last-resort finalizer: submit whatever the session still holds when the connection is dropped.
+
+    Runs from a ``weakref.finalize`` callback (garbage collection, or interpreter exit), so it must
+    never raise - by then there is no caller left to handle it.
+    """
+    try:
+        state.finish_session()
+    except Exception:
+        log.debug("error finalizing realtime session on connection drop", exc_info=True)
+
+
 def _attach_session(instance: Any, connection: Any) -> None:
     integration = _integration()
     if integration is None:
         return
     try:
-        connection._dd_realtime_state = _start_realtime_state(
+        state = _start_realtime_state(
             integration, getattr(instance, "_dd_client", None), getattr(instance, "_dd_model", None)
         )
+        connection._dd_realtime_state = state
+        # A turn held for playback (see ``_park_for_playback``) is only submitted by a later event or
+        # by ``finish_session``, so a caller that drops the connection without ``close()`` - and
+        # without ``recv()`` raising ConnectionClosed - would lose that turn entirely. ``with`` blocks
+        # are already covered (the SDK's ``__exit__`` closes), so this catches the un-managed case and
+        # process exit. ``finish_session`` is idempotent, so it is safe alongside the close paths.
+        # The state does not reference the connection, so this creates no cycle that would keep the
+        # connection alive.
+        weakref.finalize(connection, _finish_session_on_gc, state)
     except Exception:
         log.debug("error starting realtime state", exc_info=True)
 
