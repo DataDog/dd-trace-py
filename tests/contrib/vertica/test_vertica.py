@@ -57,14 +57,15 @@ class TestVerticaPatching(TracerTestCase):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
 
-    def test_query_event_can_block(self):
-        cases = (
-            ("execute", ("SELECT 1",)),
-            ("copy", ("COPY test_table (a, b) FROM STDIN DELIMITER ','", "1,foo")),
-        )
+    @pytest.mark.parametrize("query", ("SELECT 1", b"SELECT 1"))
+    def test_query_event_can_block(self, query):
+        cases = (("execute", (query,)), ("copy", (query, "1,foo")))
 
         for method, args in cases:
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+            with (
+                mock.patch.object(core, "has_listeners", return_value=True),
+                mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event,
+            ):
                 with pytest.raises(BlockingException):
                     _dispatch_query_event(method, args, {})
 
@@ -72,7 +73,7 @@ class TestVerticaPatching(TracerTestCase):
 
     def test_non_string_query_does_not_dispatch_event(self):
         with mock.patch.object(core, "dispatch_event") as dispatch_event:
-            _dispatch_query_event("execute", (b"SELECT 1",), {})
+            _dispatch_query_event("execute", (object(),), {})
 
         dispatch_event.assert_not_called()
 

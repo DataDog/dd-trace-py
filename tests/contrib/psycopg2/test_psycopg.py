@@ -7,8 +7,10 @@ import psycopg2
 from psycopg2 import extensions
 from psycopg2 import extras
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
@@ -241,18 +243,27 @@ class PsycopgCore(TracerTestCase):
             [SQL("""select {} as x""").format(Literal("one")), SQL("""select {} as x""").format(Literal("two"))]
         )
         db = self._get_conn()
+        events: list[DbQueryEvent] = []
 
-        with db.cursor() as cur:
-            cur.execute(query=query)
-            rows = cur.fetchall()
-            assert len(rows) == 2, rows
-            assert rows[0][0] == "one"
-            assert rows[1][0] == "two"
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            with db.cursor() as cur:
+                cur.execute(query=query)
+                rows = cur.fetchall()
+                assert len(rows) == 2, rows
+                assert rows[0][0] == "one"
+                assert rows[1][0] == "two"
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
 
         assert_is_measured(self.get_root_span())
         self.assert_structure(
             dict(name="postgres.query", resource=query.as_string(db)),
         )
+        assert events == [DbQueryEvent(query=query.as_string(db), span_name_prefix="postgres")]
 
     @skipIf(PSYCOPG2_VERSION < (2, 7), "SQL string composition not available in psycopg2<2.7")
     def test_composed_query_identifier(self):

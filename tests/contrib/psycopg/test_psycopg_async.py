@@ -1,13 +1,19 @@
 # stdlib
 import time
 
+import mock
 import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
 
+from ddtrace import config
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal import core
 from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.utils import assert_is_measured
 
@@ -155,6 +161,24 @@ class PsycopgCore(AsyncioTestCase):
         await conn.rollback()
 
         self.assert_structure(dict(name="psycopg.connection.rollback"))
+
+    @mark_asyncio
+    async def test_composed_query_event_is_stringified(self) -> None:
+        cursor = mock.AsyncMock(rowcount=0)
+        query = SQL("SELECT 1")
+        events: list[DbQueryEvent] = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            await Psycopg3TracedAsyncCursor(cursor, cfg=config.psycopg).execute(query)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        assert events == [DbQueryEvent(query=query.as_string(cursor), span_name_prefix="postgres")]
+        cursor.execute.assert_awaited_once_with(query)
 
     async def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""

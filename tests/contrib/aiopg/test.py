@@ -42,12 +42,27 @@ class AiopgTestCase(AsyncioTestCase):
         cursor = mock.AsyncMock()
         traced_cursor = AIOTracedCursor(cursor, Pin())
 
-        for method in ("execute", "executemany"):
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
-                with pytest.raises(BlockingException):
-                    await getattr(traced_cursor, method)("SELECT 1")
+        class StringifiableQuery:
+            def __init__(self) -> None:
+                self.as_string = mock.Mock(return_value="SELECT 1")
 
-            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
+        for method in ("execute", "executemany"):
+            query = StringifiableQuery()
+            expected = BlockingException()
+
+            def block(event: DbQueryEvent) -> None:
+                assert event == DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")
+                raise expected
+
+            core.on(DbQueryEvent.event_name, block)
+            try:
+                with pytest.raises(BlockingException) as exc_info:
+                    await getattr(traced_cursor, method)(query)
+            finally:
+                core.reset_listeners(DbQueryEvent.event_name, block)
+
+            assert exc_info.value is expected
+            query.as_string.assert_called_once_with(cursor)
             getattr(cursor, method).assert_not_awaited()
 
     @pytest.mark.asyncio

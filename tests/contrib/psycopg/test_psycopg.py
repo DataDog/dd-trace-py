@@ -1,4 +1,5 @@
 # stdlib
+import sys
 import time
 
 import mock
@@ -7,9 +8,15 @@ from psycopg.sql import SQL
 from psycopg.sql import Composed
 from psycopg.sql import Identifier
 from psycopg.sql import Literal
+import pytest
 
+from ddtrace import config
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg3FetchTracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.config import POSTGRES_CONFIG
@@ -185,6 +192,73 @@ class PsycopgCore(TracerTestCase):
         conn.rollback()
 
         self.assert_structure(dict(name="psycopg.connection.rollback"))
+
+    def test_composed_query_event_is_stringified(self) -> None:
+        cursor = mock.Mock(rowcount=0)
+        cursor.connection.pgconn._encoding = "utf-8"
+        query = SQL("SELECT ") + SQL("1")
+        events: list[DbQueryEvent] = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            Psycopg3TracedCursor(cursor, cfg=config.psycopg).execute(query)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        assert events == [DbQueryEvent(query=query.as_string(cursor), span_name_prefix="postgres")]
+        cursor.execute.assert_called_once_with(query)
+
+    def test_query_is_stringified_once_for_tracing_and_appsec(self) -> None:
+        cursor = mock.Mock(rowcount=0)
+
+        class StringifiableQuery:
+            def __init__(self) -> None:
+                self.as_string = mock.Mock(return_value="SELECT 1")
+
+        query = StringifiableQuery()
+        events: list[DbQueryEvent] = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            traced_cursor = Psycopg3FetchTracedCursor(cursor, cfg=config.psycopg)
+            traced_cursor.execute(query)
+            traced_cursor.fetchone()
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        query.as_string.assert_called_once_with(cursor)
+        assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")]
+        assert [span.resource for span in self.get_spans()] == ["SELECT 1", "SELECT 1"]
+        cursor.execute.assert_called_once_with(query)
+        cursor.fetchone.assert_called_once_with()
+
+    @pytest.mark.skipif(
+        sys.version_info < (3, 14) or PSYCOPG_VERSION < (3, 3),
+        reason="psycopg template queries require Python 3.14 and psycopg 3.3",
+    )
+    def test_template_query_event_is_stringified(self) -> None:
+        cursor = mock.Mock(rowcount=0)
+        cursor.connection.pgconn._encoding = "utf-8"
+        query = eval('t"SELECT 1"')
+        events: list[DbQueryEvent] = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            Psycopg3TracedCursor(cursor, cfg=config.psycopg).execute(query)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")]
+        cursor.execute.assert_called_once_with(query)
 
     def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""

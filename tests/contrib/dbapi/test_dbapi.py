@@ -1,6 +1,7 @@
 import mock
 import pytest
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.dbapi import FetchTracedCursor
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.contrib.dbapi import TracedCursor
@@ -31,12 +32,38 @@ class TestTracedCursor(TracerTestCase):
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
     def test_query_is_blocked_before_execution(self):
-        for method in ("execute", "executemany"):
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException):
-                with pytest.raises(BlockingException):
-                    getattr(TracedCursor(self.cursor, cfg={}), method)("SELECT 1")
+        for query in ("SELECT 1", b"SELECT 1"):
+            expected = BlockingException()
 
-            getattr(self.cursor, method).assert_not_called()
+            def block(event: DbQueryEvent) -> None:
+                assert event == DbQueryEvent(query=query, span_name_prefix="sql")
+                raise expected
+
+            for method in ("execute", "executemany"):
+                core.on(DbQueryEvent.event_name, block)
+                try:
+                    with pytest.raises(BlockingException) as exc_info:
+                        getattr(TracedCursor(self.cursor, cfg={}), method)(query)
+                finally:
+                    core.reset_listeners(DbQueryEvent.event_name, block)
+
+                assert exc_info.value is expected
+                getattr(self.cursor, method).assert_not_called()
+
+    def test_query_normalization_failure_does_not_affect_execution(self):
+        class BrokenQueryCursor(TracedCursor):
+            def _normalize_dbapi_query(self, query: object):
+                raise ValueError("cannot render query")
+
+        query = object()
+        cursor = BrokenQueryCursor(self.cursor, cfg={})
+
+        with mock.patch.object(core, "has_listeners", return_value=True):
+            with mock.patch.object(core, "dispatch_event") as dispatch_event:
+                cursor.execute(query)
+
+        dispatch_event.assert_not_called()
+        self.cursor.execute.assert_called_once_with(query)
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     def test_dbm_propagation_not_supported(self):

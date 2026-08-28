@@ -2,10 +2,10 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
-from ddtrace.contrib.internal.psycopg.cursor import Psycopg2FetchTracedCursor
-from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import PsycopgFetchTracedCursor
+from ddtrace.contrib.internal.psycopg.cursor import PsycopgTracedCursor
 from ddtrace.contrib.internal.psycopg.extensions import _patch_extensions
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
@@ -46,7 +46,7 @@ class Psycopg2TracedConnection(dbapi.TracedConnection):
     def __init__(self, conn, cursor_cls=None, db_tags=None):
         if not cursor_cls:
             # Do not trace `fetch*` methods by default
-            cursor_cls = Psycopg2FetchTracedCursor if config.psycopg.trace_fetch_methods else Psycopg2TracedCursor
+            cursor_cls = PsycopgFetchTracedCursor if config.psycopg.trace_fetch_methods else PsycopgTracedCursor
 
         super(Psycopg2TracedConnection, self).__init__(conn, cfg=config.psycopg, cursor_cls=cursor_cls, db_tags=db_tags)
 
