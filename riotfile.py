@@ -3328,11 +3328,9 @@ venv = Venv(
         Venv(
             name="mistralai",
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/mistralai",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/mistralai/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/mistralai",
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
@@ -4446,7 +4444,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest ${{DDTEST_SUITE_PATH}} {cmdargs}",
+            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
@@ -4455,9 +4453,6 @@ venv = Venv(
                 "httpx": "<0.28.0",
             },
             env={
-                "DDTEST_SUITE_PATH": "tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI",
-                "DDTEST_TESTS_LOCATION": "tests/appsec/contrib_appsec/test_fastapi.py",
-                "DDTEST_PYTEST_ADDOPTS": "-k 'Test_FastAPI and not Test_FastAPI_RC'",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",

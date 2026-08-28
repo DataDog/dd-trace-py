@@ -162,10 +162,6 @@ suites:
     snapshot: true
     venvs_per_job: 5
   mistralai:
-    ddtest: true
-    ddtest_nodes: 2
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.mistralai
     parallelism: 1
     paths:
       - '@bootstrap'
