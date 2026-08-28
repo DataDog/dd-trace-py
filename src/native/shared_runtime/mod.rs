@@ -2,6 +2,8 @@ use libdd_shared_runtime::{ForkSafeRuntime, SharedRuntime};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::sync::OnceLock;
@@ -13,6 +15,8 @@ use exceptions::shared_runtime_error_to_pyerr;
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 static ATFORK_RUNTIME: OnceLock<Arc<ForkSafeRuntime>> = OnceLock::new();
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+static CHILD_RESTART_PENDING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn before_fork() {
@@ -34,11 +38,10 @@ unsafe extern "C" fn after_fork_parent() {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn after_fork_child() {
-    if let Some(runtime) = ATFORK_RUNTIME.get() {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let _ = runtime.after_fork_child();
-        }));
-    }
+    // AIDEV-NOTE: Do not rebuild Tokio here. This callback also runs in fork+exec children,
+    // where exec closes the new runtime's descriptors while its worker thread is using them.
+    // The next Python-facing runtime or telemetry operation performs the restart instead.
+    CHILD_RESTART_PENDING.store(true, Ordering::Release);
 }
 
 #[pyclass(name = "SharedRuntime", subclass)]
@@ -47,9 +50,23 @@ pub struct SharedRuntimePy {
 }
 
 impl SharedRuntimePy {
-    pub(crate) fn as_arc(&self) -> &Arc<ForkSafeRuntime> {
-        &self.inner
+    pub(crate) fn as_arc(&self) -> PyResult<&Arc<ForkSafeRuntime>> {
+        ensure_after_fork_child(&self.inner)?;
+        Ok(&self.inner)
     }
+}
+
+pub(crate) fn ensure_after_fork_child(runtime: &Arc<ForkSafeRuntime>) -> PyResult<()> {
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    {
+        if CHILD_RESTART_PENDING.load(Ordering::Acquire) {
+            runtime
+                .after_fork_child()
+                .map_err(shared_runtime_error_to_pyerr)?;
+            CHILD_RESTART_PENDING.store(false, Ordering::Release);
+        }
+    }
+    Ok(())
 }
 
 #[pymethods]
@@ -73,9 +90,15 @@ impl SharedRuntimePy {
     }
 
     fn after_fork_child(&self) -> PyResult<()> {
-        self.inner
+        let result = self
+            .inner
             .after_fork_child()
-            .map_err(shared_runtime_error_to_pyerr)
+            .map_err(shared_runtime_error_to_pyerr);
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        if result.is_ok() {
+            CHILD_RESTART_PENDING.store(false, Ordering::Release);
+        }
+        result
     }
 
     fn register_at_fork(&self) -> PyResult<()> {
@@ -91,8 +114,9 @@ impl SharedRuntimePy {
             }
 
             // AIDEV-NOTE: uWSGI forks in native code and bypasses Python's os.register_at_fork
-            // callbacks. pthread_atfork runs for both Python and native libc forks, ensuring the
-            // inherited Tokio synchronization primitives are replaced before child code runs.
+            // callbacks. pthread_atfork pauses the runtime around every native fork. The child
+            // callback only marks the runtime for lazy restart because it also runs in transient
+            // fork+exec children, where starting threads would race with exec closing descriptors.
             ATFORK_RUNTIME.set(self.inner.clone()).map_err(|_| {
                 PyRuntimeError::new_err(
                     "failed to register shared runtime for native fork handlers",

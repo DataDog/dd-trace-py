@@ -235,6 +235,34 @@ assert os.waitstatus_to_exitcode(status) == 0
     assert child_metrics[0]["points"][0][1] == 4096
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires native atfork handlers")
+def test_native_atfork_does_not_start_runtime_before_exec(run_python_code_in_subprocess):
+    """Fork-exec children must not start Tokio before exec closes inherited descriptors."""
+    code = """
+import subprocess
+import sys
+
+import ddtrace  # enables telemetry and registers native atfork handlers
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+assert telemetry_writer._worker is not None
+for _ in range(64):
+    result = subprocess.run(
+        [sys.executable, "-c", "pass"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    assert result.stderr == b"", result.stderr
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert stderr == b"", stderr
+
+
 def _subprocess_lineage(test_agent_session):
     """Return {runtime_id: dd-parent-session-id} from the recorded request headers.
 

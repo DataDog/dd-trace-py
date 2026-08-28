@@ -196,7 +196,7 @@ impl HttpClientPy {
         treat_http_errors_as_errors: bool,
     ) -> PyResult<Self> {
         ensure_crypto_provider();
-        let rt = runtime.as_arc().clone();
+        let rt = runtime.as_arc()?.clone();
 
         // Parse the base URL to validate it and extract the canonical base origin.
         // unix:// is not a registered URL scheme so we handle it first; http/https

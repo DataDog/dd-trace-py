@@ -62,7 +62,7 @@ impl SymDBSenderPy {
             .map_err(|e| PyValueError::new_err(format!("invalid symdb endpoint: {e}")))?;
 
         Ok(Self {
-            runtime: runtime.as_arc().clone(),
+            runtime: runtime.as_arc()?.clone(),
             config,
             url: endpoint,
             tags,
