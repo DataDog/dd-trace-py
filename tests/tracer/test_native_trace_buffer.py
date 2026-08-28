@@ -68,7 +68,7 @@ def black_hole_server(port):
     """Accept connections but never answer, so a wait against it ends only on its own timeout."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind((_HOST, port))
+    sock.bind(("127.0.0.1", port))
     sock.listen(5)
     sock.settimeout(0.1)
     stop = threading.Event()
