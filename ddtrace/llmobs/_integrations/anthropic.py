@@ -17,11 +17,12 @@ from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import format_anthropic_tool_result_content
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
+from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
@@ -219,63 +220,11 @@ class AnthropicIntegration(BaseLLMIntegration):
         return input_messages
 
     def _format_tool_result_content(self, content) -> str:
-        if isinstance(content, str):
-            return content
-        elif isinstance(content, dict):
-            return safe_json(content)
-        elif isinstance(content, Iterable):
-            formatted_content = []
-            for tool_result_block in content:
-                if _get_attr(tool_result_block, "text", "") != "":
-                    formatted_content.append(_get_attr(tool_result_block, "text", ""))
-                elif _get_attr(tool_result_block, "type", None) == "image":
-                    # Store a placeholder for potentially enormous binary image data.
-                    formatted_content.append(IMAGE_DETECTED_MARKER)
-            return ",".join(formatted_content)
-        return str(content)
+        return format_anthropic_tool_result_content(content)
 
     def _extract_output_message(self, response) -> list[Message]:
         """Extract output messages from the stored response."""
-        output_messages: list[Message] = []
-        content = _get_attr(response, "content", "")
-        role = _get_attr(response, "role", "")
-
-        if isinstance(content, str):
-            return [Message(content=content, role=str(role))]
-
-        elif isinstance(content, list):
-            for completion in content:
-                completion_type = _get_attr(completion, "type", "") or ""
-                if completion_type == "thinking":
-                    thinking_text = _get_attr(completion, "thinking", "")
-                    output_messages.append(Message(content=str(thinking_text), role="reasoning"))
-                    continue
-                text = _get_attr(completion, "text", None)
-                output_message = Message(content=str(text) if text else "", role=str(role))
-                if "tool_use" in completion_type:
-                    input_data = _get_attr(completion, "input", {})
-                    if isinstance(input_data, str):
-                        input_data = safe_load_json(input_data)
-                    tool_call_info = ToolCall(
-                        name=str(_get_attr(completion, "name", "")),
-                        arguments=input_data,
-                        tool_id=str(_get_attr(completion, "id", "")),
-                        type=str(completion_type),
-                    )
-                    output_message["tool_calls"] = [tool_call_info]
-                if "tool_result" in completion_type:
-                    result = _get_attr(completion, "content", {})
-                    if hasattr(result, "model_dump") and callable(result.model_dump):
-                        result = result.model_dump()
-                    formatted_result = self._format_tool_result_content(result)
-                    tool_result_info = ToolResult(
-                        result=formatted_result,
-                        tool_id=str(_get_attr(completion, "tool_use_id", "")),
-                        type="tool_result",
-                    )
-                    output_message["tool_results"] = [tool_result_info]
-                output_messages.append(output_message)
-        return output_messages
+        return get_messages_from_anthropic_content(_get_attr(response, "role", ""), _get_attr(response, "content", ""))
 
     def _extract_usage(self, span: Span, usage: dict[str, Any]):
         if not usage:
