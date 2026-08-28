@@ -17,7 +17,7 @@ from ddtrace.llmobs.types import AgentManifest
 log = get_logger(__name__)
 
 # SDK-set, so a consumer can tell a hand-declared manifest from one read off a framework object.
-MANUAL_FRAMEWORK_NAME = "AgentObs SDK"
+MANUAL_FRAMEWORK_NAME = "manual"
 
 # What build_manual_agent_manifest reads. Checked before the annotation path keeps a caller's
 # mapping, so a version-only agent costs nothing.
