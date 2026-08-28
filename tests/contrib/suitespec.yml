@@ -541,10 +541,6 @@ suites:
       - azuresqledge
       - azureservicebusemulator
   botocore:
-    ddtest_nodes: 2
-    ddtest: true
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.botocore
     retry: 2
     parallelism: 11
     paths:
@@ -1050,10 +1046,6 @@ suites:
     services:
       - mysql
   opentelemetry:
-    ddtest_nodes: 2
-    ddtest: true
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.opentelemetry
     parallelism: 4
     paths:
       - '@bootstrap'
@@ -1153,8 +1145,6 @@ suites:
       - tests/contrib/pynamodb/*
     snapshot: true
   pytorch:
-    ddtest: true
-    ddtest_nodes: 2
     venvs_per_job: 1
     skip_pip_cache: true
     paths:

@@ -221,10 +221,6 @@ suites:
       - '@contrib'
       - scripts/integration_registry/*
   internal:
-    ddtest: true
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal
-    ddtest_nodes: 2
     retry: 2
     venvs_per_job: 2
     paths:

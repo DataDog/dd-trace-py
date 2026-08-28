@@ -657,13 +657,11 @@ venv = Venv(
                 # literal baked into the pytest invocation. Local `riot run` works
                 # unchanged whether or not ddtest is installed; ddtest reads this env
                 # var via Riot's --command override to plan/run individual files.
-                "DDTEST_SUITE_PATH": "tests/internal",
-                "DDTEST_TESTS_LOCATION": "tests/internal/**/test*.py",
                 "DDTEST_PYTEST_ADDOPTS": "-v",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
-            command="pytest -v -n auto --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}/",
+            command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
                 "httpretty": latest,
                 "gevent": latest,
@@ -1783,11 +1781,8 @@ venv = Venv(
         ),
         Venv(
             name="botocore",
-            env={
-                "DDTEST_SUITE_PATH": "tests/contrib/botocore",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/botocore/**/test*.py",
-            },
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            env={},
+            command="pytest {cmdargs} tests/contrib/botocore",
             pkgs={
                 "moto[all]": "<5.0",
                 "pytest-randomly": latest,
@@ -2887,13 +2882,11 @@ venv = Venv(
         ),
         Venv(
             name="opentelemetry",
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/opentelemetry",
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
             env={
-                "DDTEST_SUITE_PATH": "tests/opentelemetry",
-                "DDTEST_TESTS_LOCATION": "tests/opentelemetry/**/test*.py",
                 "DD_TRACE_OTEL_ENABLED": "true",
             },
             pkgs={
@@ -3271,11 +3264,8 @@ venv = Venv(
         ),
         Venv(
             name="pytorch",
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
-            env={
-                "DDTEST_SUITE_PATH": "tests/contrib/pytorch",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/pytorch/**/test*.py",
-            },
+            command="pytest {cmdargs} tests/contrib/pytorch",
+            env={},
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
