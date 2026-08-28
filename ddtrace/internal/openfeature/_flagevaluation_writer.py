@@ -11,7 +11,8 @@ Key design properties:
 - Canonical context key: sorted, type-tagged, length-delimited — NOT a hash, so distinct
   contexts always produce distinct keys with no collisions.
 - Context snapshotting: one bounded pass with inline field, key, value, container-width,
-  depth, and cycle caps.
+  depth, and cycle caps. A retained leaf sits at no more than MAX_SNAPSHOT_DEPTH path
+  segments, and null leaves are omitted — both matching dd-trace-rb's bounded_flatten.
 - Caps: GLOBAL_CAP=131_072 (full-tier), PER_FLAG_CAP=10_000 (per-flag full-tier),
   DEGRADED_CAP=32_768 (degraded-tier). Beyond the degraded cap: drop-and-count.
 - Eval-time from metadata key "dd.eval.timestamp_ms"; fallback to enqueue-time.
@@ -79,6 +80,9 @@ CONTEXT_TRUNCATION_SNAPSHOT_ERROR = "snapshot_error"
 # bounded_context_snapshot falls through its leaf type case the same way, so one
 # caller value cannot discard the fields around it.
 CONTEXT_TRUNCATION_UNSUPPORTED_VALUE = "unsupported_value"
+# Internal sentinel, never a telemetry reason. A null attribute is omitted by design
+# rather than truncated, so dropping it must not inflate the truncation counter.
+_LEAF_OMITTED_NULL = "null_value"
 
 _EMPTY_CONTEXT: typing.Mapping[str, typing.Any] = MappingProxyType({})
 
@@ -179,8 +183,10 @@ def _encode_context_value(v: typing.Any) -> bytes:
         tag = _TAG_FLOAT
         raw = float.__repr__(v).encode("ascii")
     elif v is None:
+        # A snapshot omits null leaves, so this is only reachable for a directly
+        # supplied context. Encode it as dd-trace-rb does: tag "o" with no bytes.
         tag = _TAG_OTHER
-        raw = b"None"
+        raw = b""
     elif type(v) is _JSONSafeOtherString:
         tag = _TAG_OTHER
         raw = str.encode(v, "utf-8", errors="replace")
@@ -336,7 +342,12 @@ def _flatten_mapping(
             else:
                 output[child_prefix] = child_value
             continue
-        if leaf_type is int or leaf_type is bool or leaf_type is float or child_value is None:
+        if child_value is None:
+            # A null attribute carries no value, so it is omitted rather than retained.
+            # dd-trace-rb drops nil leaves the same way; keeping them here would put the
+            # same caller context in a different aggregation bucket per language.
+            continue
+        if leaf_type is int or leaf_type is bool or leaf_type is float:
             output[child_prefix] = child_value
             continue
         _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
@@ -391,7 +402,10 @@ def _flatten_sequence(
             else:
                 output[child_prefix] = child_value
             continue
-        if leaf_type is int or leaf_type is bool or leaf_type is float or child_value is None:
+        if child_value is None:
+            # See the null-leaf note in _flatten_mapping.
+            continue
+        if leaf_type is int or leaf_type is bool or leaf_type is float:
             output[child_prefix] = child_value
             continue
         _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
@@ -405,14 +419,15 @@ def _validated_leaf(value: typing.Any) -> typing.Any:
     bool-like subclasses are common in real evaluation context.
     """
     if value is None:
-        return value
+        # Null leaves are omitted, matching the inline fast paths and dd-trace-rb.
+        raise ValueError(_LEAF_OMITTED_NULL)
     # bool before int: bool is an int subclass, so the order preserves True/False
     # on the wire instead of encoding them as 1/0.
     if isinstance(value, bool):
         return bool.__bool__(value)
     if isinstance(value, int):
         # The cross-SDK contract applies MAX_VALUE_LENGTH to strings only. Numeric
-        # scalars and null retain their existing wire representation without a new cap.
+        # scalars retain their existing wire representation without a new cap.
         return int.__int__(value)
     if isinstance(value, float):
         return float.__float__(value)
@@ -440,7 +455,10 @@ def _flatten_bounded(
 ) -> None:
     """Flatten one selected mapping property or sequence element."""
     if isinstance(value, Mapping):
-        if depth >= MAX_SNAPSHOT_DEPTH:
+        # depth is the container being descended FROM, so descending yields keys one
+        # segment deeper. Comparing depth + 1 caps a retained leaf at MAX_SNAPSHOT_DEPTH
+        # path segments, matching dd-trace-rb's bounded_flatten boundary.
+        if depth + 1 >= MAX_SNAPSHOT_DEPTH:
             reasons.add(CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH)
             return
         value_id = id(value)
@@ -455,7 +473,8 @@ def _flatten_bounded(
         return
 
     if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        if depth >= MAX_SNAPSHOT_DEPTH:
+        # See the depth + 1 note above.
+        if depth + 1 >= MAX_SNAPSHOT_DEPTH:
             reasons.add(CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH)
             return
         value_id = id(value)
@@ -472,7 +491,10 @@ def _flatten_bounded(
     try:
         output[prefix] = _validated_leaf(value)
     except ValueError as exc:
-        # Both reasons drop this one field and leave the rest of the walk intact.
+        # Each reason drops this one field and leaves the rest of the walk intact.
+        if exc.args == (_LEAF_OMITTED_NULL,):
+            # Omitted by design, so no truncation reason is recorded.
+            return
         if exc.args in (
             (CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,),
             (CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,),

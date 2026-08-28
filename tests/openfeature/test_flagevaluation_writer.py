@@ -307,10 +307,29 @@ class TestFlattenAndPruneContext:
             "a": "1",
             "b": 2,
             "enabled": True,
-            "missing": None,
             "user.id": "u1",
             "user.seen_at": timestamp.isoformat(),
         }
+        assert reasons == frozenset()
+
+    def test_null_leaves_are_omitted_without_a_truncation_reason(self):
+        """A null attribute carries no value, so it is omitted rather than retained.
+
+        dd-trace-rb's bounded_flatten drops nil leaves the same way. Retaining them
+        here would place the identical caller context in a different aggregation
+        bucket per language. Omission is by design, so no truncation is reported.
+        """
+        snapshot, reasons = flatten_and_prune_context(
+            {"kept": 1, "missing": None, "nested": {"gone": None, "here": "v"}, "items": [None, "v"]}
+        )
+
+        assert dict(snapshot) == {"kept": 1, "nested.here": "v", "items[1]": "v"}
+        assert reasons == frozenset()
+
+    def test_null_only_context_snapshots_empty(self):
+        snapshot, reasons = flatten_and_prune_context({"a": None, "b": None})
+
+        assert dict(snapshot) == {}
         assert reasons == frozenset()
 
     def test_current_list_notation_is_explicitly_bracket_indexes(self):
@@ -471,11 +490,30 @@ class TestFlattenAndPruneContext:
         assert CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES in reasons
 
     def test_snapshot_depth_cap_retains_scalars_at_depth_four(self):
-        attrs = {"root": {"one": {"two": {"three": {"four": "kept", "too_deep": {"leaf": "no"}}}}}}
+        """A retained leaf sits at no more than MAX_SNAPSHOT_DEPTH path segments.
+
+        dd-trace-rb's bounded_flatten applies the same boundary, so the identical
+        caller context must flatten to the identical key set in both SDKs.
+        """
+        attrs = {"root": {"one": {"two": {"three": "kept", "deeper": {"leaf": "no"}}}}}
 
         snapshot, reasons = flatten_and_prune_context(attrs)
 
-        assert snapshot == {"root.one.two.three.four": "kept"}
+        assert snapshot == {"root.one.two.three": "kept"}
+        assert CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH in reasons
+
+    def test_snapshot_depth_cap_drops_a_fifth_segment(self):
+        snapshot, reasons = flatten_and_prune_context({"a": {"b": {"c": {"d": {"e": "x"}}}}})
+
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH in reasons
+
+    def test_nested_sequences_share_the_depth_boundary(self):
+        assert flatten_and_prune_context({"l": [["a"]]})[0] == {"l[0][0]": "a"}
+
+        snapshot, reasons = flatten_and_prune_context({"l": [[[["deep"]]]]})
+
+        assert snapshot == {}
         assert CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH in reasons
 
     def test_more_than_old_visited_node_cap_retains_later_scalar(self):
@@ -620,7 +658,8 @@ class TestFlattenAndPruneContext:
     def test_non_string_scalars_do_not_get_an_unapproved_length_cap(self, writer):
         large_integer = 10 ** (MAX_VALUE_LENGTH + 1)
         writer.enqueue(_make_event(attrs={"value": large_integer, "missing": None}))
-        assert writer._queue.get_nowait().attrs == {"value": large_integer, "missing": None}
+        # The null is omitted, and omitting it is not a truncation.
+        assert writer._queue.get_nowait().attrs == {"value": large_integer}
         assert writer._context_truncated == {}
 
     @pytest.mark.parametrize(
