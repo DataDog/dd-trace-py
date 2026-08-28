@@ -419,7 +419,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -435,6 +435,8 @@ venv = Venv(
                 "freezegun": latest,
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/tracer",
+                "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
@@ -930,10 +932,14 @@ venv = Venv(
         ),
         Venv(
             name="celery",
-            command="pytest {cmdargs} tests/contrib/celery",
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
+            },
+            env={
+                "DDTEST_SUITE_PATH": "tests/contrib/celery",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/celery/**/test*.py",
             },
             venvs=[
                 Venv(
