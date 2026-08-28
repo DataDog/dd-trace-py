@@ -34,7 +34,7 @@ foreach ($line in $cmdOut) {
 $env:DISTUTILS_USE_SDK = '1'
 $env:MSSdk = '1'
 
-# rust-ruf has too long paths
+# rust-tuf has too long paths
 Write-Host "=== Enabling git long paths ==="
 git config --global core.longpaths true
 
