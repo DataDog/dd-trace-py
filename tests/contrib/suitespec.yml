@@ -635,11 +635,8 @@ suites:
       - tests/contrib/ddtrace_api/*
     snapshot: true
   django:
-    ddtest: true
-    ddtest_nodes: 2
     parallelism: 6
     env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.django
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
       TEST_REDIS_HOST: redis

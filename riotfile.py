@@ -1068,8 +1068,6 @@ venv = Venv(
                 "bcrypt": "==4.2.1",
             },
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/django",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/django/**/test*.py",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
@@ -1184,7 +1182,7 @@ venv = Venv(
         ),
         Venv(
             name="django:celery",
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/django_celery",
             pkgs={
                 # The test app was built with Django 2. We don't need to test
                 # other versions as the main purpose of these tests is to ensure
@@ -1195,10 +1193,6 @@ venv = Venv(
                 "requests": latest,
                 "typing-extensions": latest,
                 "pytest-randomly": latest,
-            },
-            env={
-                "DDTEST_SUITE_PATH": "tests/contrib/django_celery",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/django_celery/**/test*.py",
             },
             venvs=[
                 Venv(
