@@ -214,4 +214,4 @@ def apm_tracing_rc(lib_config, dd_config):
             config_item.set_value(new_rc_value, "remote_config")
             _apply_config_change(config_name, config_item.value(), dd_config)
 
-    log.debug("APM Tracing Received: %s from the Agent", lib_config)
+    log.debug("APM Tracing received from Remote Configuration: %s", lib_config)
