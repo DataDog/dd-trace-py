@@ -41,6 +41,7 @@ def test_wrap_runs_on_315():
     assert seen == ["sync"]
 
     def gen_wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
+        seen.append("gen")
         for value in wrapped(*args, **kwargs):
             yield value
 
@@ -50,6 +51,7 @@ def test_wrap_runs_on_315():
 
     wrap(g, gen_wrapper)
     assert list(g()) == [1, 2]
+    assert seen == ["sync", "gen"]
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() coroutine")
