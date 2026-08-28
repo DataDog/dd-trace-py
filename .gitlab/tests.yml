@@ -178,7 +178,13 @@ include:
         _workdir="$(mktemp -d "${TMPDIR:-/tmp}/ddtest-plan.XXXXXX")"
         rmdir "${_workdir}"
         git worktree add --quiet --detach "${_workdir}" HEAD
-        ln -s "${CI_PROJECT_DIR}/.riot" "${_workdir}/.riot"
+        # .riot/requirements is tracked, so the directory already exists in
+        # the worktree. Share only the built base venvs from the artifact;
+        # hash-specific venvs and their outputs remain worktree-local.
+        for _venv in "${CI_PROJECT_DIR}"/.riot/venv_*; do
+          [[ -d "${_venv}" ]] || continue
+          ln -s "${_venv}" "${_workdir}/.riot/$(basename "${_venv}")"
+        done
         ln -s "${CI_PROJECT_DIR}/bin" "${_workdir}/bin"
         plan_workdirs["${_hash}"]="${_workdir}"
         hashes_by_python["${_py}"]+="${_hash} "
