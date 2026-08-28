@@ -1434,10 +1434,10 @@ class AnyFloat(object):
 # The leaked --ddtrace makes a nested pytest.main() enable the plugin, which
 # logs INFO to stderr (breaking tests that assert err == b"") and computes
 # stats (breaking snapshot tests). No test sets PYTEST_ADDOPTS via call_program's
-# env kwarg, so stripping it here is safe. DD_CIVISIBILITY_ENABLED is handled in
-# the subprocess fixtures (run_function_from_file, ddtrace_run_python_code_in_subprocess)
-# where the explicit marker env is layered on top of the inherited env, so we
-# strip the inherited value before the marker is applied.
+# env kwarg, so stripping it here is safe. (ddtest's main.go also sets
+# DD_CIVISIBILITY_ENABLED=1 globally, but that var is inert on its own — the
+# pytest plugin needs --ddtrace to activate — so stripping PYTEST_ADDOPTS is
+# sufficient to keep subprocesses CI-Visibility-free.)
 _DDTEST_LEAKED_PYTEST_ADDOPTS = ("PYTEST_ADDOPTS",)
 
 

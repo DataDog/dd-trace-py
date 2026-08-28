@@ -287,12 +287,6 @@ def run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
         pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
-        # Strip the ddtest-leaked DD_CIVISIBILITY_ENABLED=1 (set globally by
-        # ddtest's main.go) so this subprocess matches normal riot CI, where
-        # it is absent. No test sets it via this fixture's env kwarg.
-        if "env" in kwargs:
-            kwargs["env"] = dict(kwargs["env"])
-            kwargs["env"].pop("DD_CIVISIBILITY_ENABLED", None)
         return call_program(sys.executable, str(pyfile), **kwargs)
 
     yield _run
@@ -303,12 +297,6 @@ def ddtrace_run_python_code_in_subprocess(tmpdir):
     def _run(code, **kwargs):
         pyfile = create_ddtrace_subprocess_dir_and_return_test_pyfile(tmpdir)
         pyfile.write(code)
-        # Strip the ddtest-leaked DD_CIVISIBILITY_ENABLED=1 (set globally by
-        # ddtest's main.go) so this subprocess matches normal riot CI, where
-        # it is absent. No test sets it via this fixture's env kwarg.
-        if "env" in kwargs:
-            kwargs["env"] = dict(kwargs["env"])
-            kwargs["env"].pop("DD_CIVISIBILITY_ENABLED", None)
         return call_program("ddtrace-run", sys.executable, str(pyfile), **kwargs)
 
     yield _run
@@ -432,11 +420,6 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
-    # Strip the ddtest-leaked DD_CIVISIBILITY_ENABLED=1 (set globally by ddtest's
-    # main.go) so this subprocess matches normal riot CI, where it is absent.
-    # Do this BEFORE applying the marker's env below, so a test that explicitly
-    # sets DD_CIVISIBILITY_ENABLED via the subprocess marker still wins.
-    env.pop("DD_CIVISIBILITY_ENABLED", None)
     pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
     env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
