@@ -157,9 +157,9 @@ include:
       export DDTEST_PLAN_AGENT_URL="${_CI_DD_AGENT_URL}"
       riot_cmd=(bin/riot-env/bin/python -m riot -P -v run --pass-env -s)
 
-      # Keep hashes on the same Python version in one process: Riot shares the
-      # per-Python dependency installer environment between hash-specific venvs.
-      # Different Python versions can safely prepare and plan concurrently.
+      # Keep at most one planner active per Python version to bound concurrent
+      # dependency installs and ddtest API traffic. Each hash gets its own
+      # worktree, so its hash-specific venv and planner output are isolated.
       declare -A hashes_by_python=()
       declare -A plan_workdirs=()
       cleanup_worktrees() {
@@ -181,10 +181,16 @@ include:
         # .riot/requirements is tracked, so the directory already exists in
         # the worktree. Share only the built base venvs from the artifact;
         # hash-specific venvs and their outputs remain worktree-local.
+        base_venv_count=0
         for _venv in "${CI_PROJECT_DIR}"/.riot/venv_*; do
           [[ -d "${_venv}" ]] || continue
           ln -s "${_venv}" "${_workdir}/.riot/$(basename "${_venv}")"
+          ((base_venv_count += 1))
         done
+        if ((base_venv_count == 0)); then
+          echo "No base Riot venvs found under ${CI_PROJECT_DIR}/.riot" >&2
+          exit 1
+        fi
         ln -s "${CI_PROJECT_DIR}/bin" "${_workdir}/bin"
         plan_workdirs["${_hash}"]="${_workdir}"
         hashes_by_python["${_py}"]+="${_hash} "
