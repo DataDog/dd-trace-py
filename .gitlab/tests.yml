@@ -157,7 +157,7 @@ include:
       riot_cmd=(bin/riot-env/bin/python -m riot -P -v run --pass-env -s)
       for _hash in ${RIOT_HASHES}; do
         "${riot_cmd[@]}" --command \
-          'export DD_TRACE_AGENT_URL="$DDTEST_PLAN_AGENT_URL"; export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; ./bin/ddtest plan --platform python --framework pytest --tests-location "$DDTEST_TESTS_LOCATION" --min-parallelism "$DDTEST_NODES" --max-parallelism "$DDTEST_NODES"' \
+          'export DD_TRACE_AGENT_URL="$DDTEST_PLAN_AGENT_URL"; export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; _ddtest_exclude=""; if [[ -n "$DDTEST_TESTS_EXCLUDE" ]]; then _ddtest_exclude="--tests-exclude-pattern $DDTEST_TESTS_EXCLUDE"; fi; ./bin/ddtest plan --platform python --framework pytest --tests-location "$DDTEST_TESTS_LOCATION" $_ddtest_exclude --min-parallelism "$DDTEST_NODES" --max-parallelism "$DDTEST_NODES"' \
           "${_hash}"
         mv .testoptimization ".testoptimization-${_hash}"
       done

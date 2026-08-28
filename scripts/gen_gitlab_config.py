@@ -186,6 +186,10 @@ class SuiteVenvInfo:
     # this metadata during collection lets ddtest suites validate their venvs
     # before emitting a pipeline that cannot discover any tests.
     venv_test_locations: t.Optional[dict[str, str]] = None
+    # Effective DDTEST_TESTS_EXCLUDE values, keyed by short hash. Optional glob
+    # passed to ddtest plan --tests-exclude-pattern (e.g. to exclude a file
+    # handled by a separate suite, like test_uwsgi_shutdown.py in tracer).
+    venv_test_excludes: t.Optional[dict[str, str]] = None
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -226,6 +230,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     # ordered lists for the ddtest parallel matrix and validation.
     venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
     venv_test_locations: dict[str, dict[str, str]] = {s: {} for s in compiled}
+    venv_test_excludes: dict[str, dict[str, str]] = {s: {} for s in compiled}
 
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
@@ -236,6 +241,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
                 venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
                 venv_hash_hint[suite][inst.short_hash] = hint  # type: ignore[attr-defined]
                 venv_test_locations[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_LOCATION", "")
+                venv_test_excludes[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_EXCLUDE", "")
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
                     python_versions[suite].add(hint)
@@ -249,6 +255,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
                 python_versions=python_versions[suite],
                 venvs=venvs,
                 venv_test_locations=venv_test_locations[suite],
+                venv_test_excludes=venv_test_excludes[suite],
             )
         else:
             LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
