@@ -8,11 +8,27 @@ from .constants import CPU_TIME_SYS
 from .constants import CPU_TIME_USER
 from .constants import CTX_SWITCH_INVOLUNTARY
 from .constants import CTX_SWITCH_VOLUNTARY
+from .constants import GC_COLLECTED_GEN0
+from .constants import GC_COLLECTED_GEN1
+from .constants import GC_COLLECTED_GEN2
+from .constants import GC_COLLECTIONS_GEN0
+from .constants import GC_COLLECTIONS_GEN1
+from .constants import GC_COLLECTIONS_GEN2
 from .constants import GC_COUNT_GEN0
 from .constants import GC_COUNT_GEN1
 from .constants import GC_COUNT_GEN2
+from .constants import GC_PAUSE_MAX
+from .constants import GC_PAUSE_TIME
+from .constants import GC_PAUSE_TIME_GEN0
+from .constants import GC_PAUSE_TIME_GEN1
+from .constants import GC_PAUSE_TIME_GEN2
+from .constants import GC_UNCOLLECTABLE_GEN0
+from .constants import GC_UNCOLLECTABLE_GEN1
+from .constants import GC_UNCOLLECTABLE_GEN2
 from .constants import MEM_RSS
 from .constants import THREAD_COUNT
+from .gc_monitor import GEN_COUNT
+from .gc_monitor import gc_pause_monitor
 
 
 class RuntimeMetricCollector(ValueCollector):
@@ -20,22 +36,88 @@ class RuntimeMetricCollector(ValueCollector):
     periodic = True
 
 
-class GCRuntimeMetricCollector(RuntimeMetricCollector):
-    """Collector for garbage collection generational counts
+def _read_gc_stats(gc_mod):
+    """Return (collections, collected, uncollectable) per generation from gc.get_stats()."""
+    stats = gc_mod.get_stats()
+    collections = []
+    collected = []
+    uncollectable = []
+    for i in range(GEN_COUNT):
+        row = stats[i] if i < len(stats) else {}
+        collections.append(int(row.get("collections", 0)))
+        collected.append(int(row.get("collected", 0)))
+        uncollectable.append(int(row.get("uncollectable", 0)))
+    return collections, collected, uncollectable
 
-    More information at https://docs.python.org/3/library/gc.html
+
+def _delta(current, previous):
+    return [max(0, c - p) for c, p in zip(current, previous)]
+
+
+class GCRuntimeMetricCollector(RuntimeMetricCollector):
+    """Collector for CPython GC counts, collection stats, and STW pause time.
+
+    ``gc.count.genN`` remains the ``gc.get_count()`` allocation counters.
+    Collection/pause metrics are interval deltas, matching CPU time.
     """
 
     required_modules = ["gc"]
+    _monitor = None
+
+    def _on_modules_load(self):
+        self._monitor = gc_pause_monitor()
+        self._monitor.acquire()
+        gc_mod = self.modules["gc"]
+        self._prev_collections, self._prev_collected, self._prev_uncollectable = _read_gc_stats(gc_mod)
+        forksafe.register(self._reset_state)
+
+    def _reset_state(self):
+        gc_mod = self.modules.get("gc")
+        if gc_mod is None:
+            return
+        self._prev_collections, self._prev_collected, self._prev_uncollectable = _read_gc_stats(gc_mod)
+
+    def stop(self):
+        monitor = self._monitor
+        if monitor is not None:
+            self._monitor = None
+            monitor.release()
 
     def collect_fn(self, keys):
-        gc = self.modules.get("gc")
+        gc_mod = self.modules.get("gc")
 
-        counts = gc.get_count()
+        counts = gc_mod.get_count()
+        collections, collected, uncollectable = _read_gc_stats(gc_mod)
+        d_collections = _delta(collections, self._prev_collections)
+        d_collected = _delta(collected, self._prev_collected)
+        d_uncollectable = _delta(uncollectable, self._prev_uncollectable)
+        self._prev_collections = collections
+        self._prev_collected = collected
+        self._prev_uncollectable = uncollectable
+
+        if self._monitor is not None:
+            pause = self._monitor.snapshot_and_reset()
+        else:
+            pause = None
+
         metrics = [
             (GC_COUNT_GEN0, counts[0]),
             (GC_COUNT_GEN1, counts[1]),
             (GC_COUNT_GEN2, counts[2]),
+            (GC_COLLECTIONS_GEN0, d_collections[0]),
+            (GC_COLLECTIONS_GEN1, d_collections[1]),
+            (GC_COLLECTIONS_GEN2, d_collections[2]),
+            (GC_COLLECTED_GEN0, d_collected[0]),
+            (GC_COLLECTED_GEN1, d_collected[1]),
+            (GC_COLLECTED_GEN2, d_collected[2]),
+            (GC_UNCOLLECTABLE_GEN0, d_uncollectable[0]),
+            (GC_UNCOLLECTABLE_GEN1, d_uncollectable[1]),
+            (GC_UNCOLLECTABLE_GEN2, d_uncollectable[2]),
+            (GC_PAUSE_TIME, 0 if pause is None else pause.total_ns),
+            (GC_PAUSE_MAX, 0 if pause is None else pause.max_ns),
+            (GC_PAUSE_TIME_GEN0, 0 if pause is None else pause.per_gen[0][1]),
+            (GC_PAUSE_TIME_GEN1, 0 if pause is None else pause.per_gen[1][1]),
+            (GC_PAUSE_TIME_GEN2, 0 if pause is None else pause.per_gen[2][1]),
         ]
 
         return metrics

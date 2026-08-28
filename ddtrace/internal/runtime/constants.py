@@ -2,6 +2,24 @@ GC_COUNT_GEN0 = "runtime.python.gc.count.gen0"
 GC_COUNT_GEN1 = "runtime.python.gc.count.gen1"
 GC_COUNT_GEN2 = "runtime.python.gc.count.gen2"
 
+# Deltas of gc.get_stats() over the flush interval.
+GC_COLLECTIONS_GEN0 = "runtime.python.gc.collections.gen0"
+GC_COLLECTIONS_GEN1 = "runtime.python.gc.collections.gen1"
+GC_COLLECTIONS_GEN2 = "runtime.python.gc.collections.gen2"
+GC_COLLECTED_GEN0 = "runtime.python.gc.collected.gen0"
+GC_COLLECTED_GEN1 = "runtime.python.gc.collected.gen1"
+GC_COLLECTED_GEN2 = "runtime.python.gc.collected.gen2"
+GC_UNCOLLECTABLE_GEN0 = "runtime.python.gc.uncollectable.gen0"
+GC_UNCOLLECTABLE_GEN1 = "runtime.python.gc.uncollectable.gen1"
+GC_UNCOLLECTABLE_GEN2 = "runtime.python.gc.uncollectable.gen2"
+
+# Stop-the-world pause over the flush interval, nanoseconds.
+GC_PAUSE_TIME = "runtime.python.gc.pause.time"
+GC_PAUSE_MAX = "runtime.python.gc.pause.max"
+GC_PAUSE_TIME_GEN0 = "runtime.python.gc.pause.time.gen0"
+GC_PAUSE_TIME_GEN1 = "runtime.python.gc.pause.time.gen1"
+GC_PAUSE_TIME_GEN2 = "runtime.python.gc.pause.time.gen2"
+
 THREAD_COUNT = "runtime.python.thread_count"
 MEM_RSS = "runtime.python.mem.rss"
 # `runtime.python.cpu.time.sys` metric is used to auto-enable runtime metrics dashboards in DD backend
@@ -11,7 +29,27 @@ CPU_PERCENT = "runtime.python.cpu.percent"
 CTX_SWITCH_VOLUNTARY = "runtime.python.cpu.ctx_switch.voluntary"
 CTX_SWITCH_INVOLUNTARY = "runtime.python.cpu.ctx_switch.involuntary"
 
-GC_RUNTIME_METRICS = set([GC_COUNT_GEN0, GC_COUNT_GEN1, GC_COUNT_GEN2])
+GC_RUNTIME_METRICS = set(
+    [
+        GC_COUNT_GEN0,
+        GC_COUNT_GEN1,
+        GC_COUNT_GEN2,
+        GC_COLLECTIONS_GEN0,
+        GC_COLLECTIONS_GEN1,
+        GC_COLLECTIONS_GEN2,
+        GC_COLLECTED_GEN0,
+        GC_COLLECTED_GEN1,
+        GC_COLLECTED_GEN2,
+        GC_UNCOLLECTABLE_GEN0,
+        GC_UNCOLLECTABLE_GEN1,
+        GC_UNCOLLECTABLE_GEN2,
+        GC_PAUSE_TIME,
+        GC_PAUSE_MAX,
+        GC_PAUSE_TIME_GEN0,
+        GC_PAUSE_TIME_GEN1,
+        GC_PAUSE_TIME_GEN2,
+    ]
+)
 
 NATIVE_PROCESS_RUNTIME_METRICS = set(
     [THREAD_COUNT, MEM_RSS, CTX_SWITCH_VOLUNTARY, CTX_SWITCH_INVOLUNTARY, CPU_TIME_SYS, CPU_TIME_USER, CPU_PERCENT]
