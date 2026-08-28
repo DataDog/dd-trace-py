@@ -393,7 +393,7 @@ download_dependency_wheels:
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   rules:
-    # cp315 ddtrace wheels are still allow_failure on build linux; keep SSI dep
+    # TODO(py-315): cp315 ddtrace wheels are still allow_failure on build linux; keep SSI dep
     # wheel download non-blocking until the wheel pipeline is stable (#17849).
     - if: '$PYTHON_VERSION == "3.15"'
       allow_failure: true
