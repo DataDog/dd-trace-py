@@ -177,6 +177,8 @@ suites:
   appsec_integrations_django:
     ddtest: true
     ddtest_nodes: 2
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.appsec.integrations.django_tests
     venvs_per_job: 1
     paths:
       - '@bootstrap'
