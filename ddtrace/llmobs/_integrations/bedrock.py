@@ -18,6 +18,8 @@ from ddtrace.llmobs._integrations.bedrock_agents import _get_or_create_bedrock_t
 from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
+from ddtrace.llmobs._integrations.utils import anthropic_tool_call_from_block
+from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
@@ -379,12 +381,32 @@ class BedrockIntegration(BaseLLMIntegration):
         for p in prompt:
             content = p.get("content", "")
             if isinstance(content, list) and isinstance(content[0], dict):
+                role = str(p.get("role", ""))
                 for entry in content:
-                    if entry.get("type") == "text":
-                        input_messages.append(Message(content=entry.get("text", ""), role=str(p.get("role", ""))))
-                    elif entry.get("type") == "image":
+                    entry_type = entry.get("type", "") or ""
+                    if entry_type == "text":
+                        input_messages.append(Message(content=entry.get("text", ""), role=role))
+                    elif entry_type == "image":
                         # Store a placeholder for potentially enormous binary image data.
-                        input_messages.append(Message(content=IMAGE_DETECTED_MARKER, role=str(p.get("role", ""))))
+                        input_messages.append(Message(content=IMAGE_DETECTED_MARKER, role=role))
+                    elif entry_type == "thinking":
+                        input_messages.append(Message(content=str(entry.get("thinking", "")), role="reasoning"))
+                    elif "tool_use" in entry_type:
+                        input_messages.append(
+                            Message(
+                                content=str(entry.get("text", "") or ""),
+                                role=role,
+                                tool_calls=[anthropic_tool_call_from_block(entry)],
+                            )
+                        )
+                    elif "tool_result" in entry_type:
+                        input_messages.append(
+                            Message(
+                                content="",
+                                role=role,
+                                tool_results=[anthropic_tool_result_from_block(entry)],
+                            )
+                        )
             else:
                 input_messages.append(Message(content=str(content), role=str(p.get("role", ""))))
         return input_messages

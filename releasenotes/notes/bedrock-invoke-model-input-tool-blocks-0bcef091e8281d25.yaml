@@ -1,0 +1,6 @@
+fixes:
+  - |
+    LLM Observability: botocore: This fix resolves an issue where the Amazon Bedrock
+    ``InvokeModel`` integration dropped ``tool_use``, ``tool_result``, and ``thinking``
+    blocks from Anthropic input messages, so replayed conversation history in agent
+    loops was missing its tool turns.

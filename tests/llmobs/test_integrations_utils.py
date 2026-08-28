@@ -1417,3 +1417,88 @@ class TestBedrockInvokeModelOutputMessages:
 
         assert messages[0]["role"] == "reasoning"
         assert messages[1]["content"] == "It is 18C."
+
+
+class TestBedrockInvokeModelInputMessages:
+    """Anthropic conversation history sent back to `InvokeModel` contains tool blocks.
+
+    Agent loops replay the assistant's `tool_use` and the user's `tool_result`, so those
+    blocks have to survive input extraction or the trace shows a model answering from nowhere.
+    """
+
+    @pytest.fixture
+    def extract(self):
+        from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
+
+        return BedrockIntegration._extract_input_message
+
+    def test_plain_string_prompt(self, extract):
+        assert extract("hello") == [{"content": "hello"}]
+
+    def test_text_blocks(self, extract):
+        prompt = [{"role": "user", "content": [{"type": "text", "text": "hi"}]}]
+
+        assert extract(prompt) == [{"content": "hi", "role": "user"}]
+
+    def test_tool_use_block_is_captured(self, extract):
+        prompt = [
+            {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {"city": "Paris"}}],
+            }
+        ]
+
+        messages = extract(prompt)
+
+        assert messages == [
+            {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_weather",
+                        "arguments": {"city": "Paris"},
+                        "tool_id": "toolu_01",
+                        "type": "tool_use",
+                    }
+                ],
+            }
+        ]
+
+    def test_tool_result_block_is_captured(self, extract):
+        prompt = [
+            {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "toolu_01", "content": [{"text": "18C"}]}],
+            }
+        ]
+
+        messages = extract(prompt)
+
+        assert messages[0]["tool_results"] == [{"result": "18C", "tool_id": "toolu_01", "type": "tool_result"}]
+
+    def test_full_agent_loop_history(self, extract):
+        """The whole replayed conversation must survive, not just its text turns."""
+        prompt = [
+            {"role": "user", "content": [{"type": "text", "text": "weather in Paris?"}]},
+            {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {"city": "Paris"}}],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "toolu_01", "content": [{"text": "18C"}]}],
+            },
+        ]
+
+        messages = extract(prompt)
+
+        assert len(messages) == 3
+        assert messages[0]["content"] == "weather in Paris?"
+        assert messages[1]["tool_calls"][0]["name"] == "get_weather"
+        assert messages[2]["tool_results"][0]["result"] == "18C"
+
+    def test_thinking_block_becomes_reasoning(self, extract):
+        prompt = [{"role": "assistant", "content": [{"type": "thinking", "thinking": "considering"}]}]
+
+        assert extract(prompt) == [{"content": "considering", "role": "reasoning"}]
