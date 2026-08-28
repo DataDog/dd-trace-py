@@ -36,6 +36,12 @@ class RuntimeCollectorsIterable(object):
         collected = (collector.collect(self._enabled) for collector in self._collectors)
         return itertools.chain.from_iterable(collected)
 
+    def stop(self):
+        for collector in self._collectors:
+            stop = getattr(collector, "stop", None)
+            if callable(stop):
+                stop()
+
     def __repr__(self):
         return "{}(enabled={})".format(
             self.__class__.__name__,
@@ -124,6 +130,7 @@ class RuntimeWorker(periodic.PeriodicService):
             #    _eintr_retry_call (/usr/lib/python2.7/subprocess.py:125)
             # which is the eventual cause of the deadlock.
             cls._instance.join(1)
+            cls._instance._runtime_metrics.stop()
             cls._instance = None
             cls.enabled = False
 
