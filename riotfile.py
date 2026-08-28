@@ -4379,6 +4379,8 @@ venv = Venv(
                     pkgs={
                         "fastapi": "==0.86.0",
                         "anyio": "==3.7.1",
+                        # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+                        "httpx2": "~=2.0.0",
                     },
                 ),
                 Venv(
@@ -4426,6 +4428,8 @@ venv = Venv(
                     pkgs={
                         "fastapi": "==0.86.0",
                         "anyio": "==3.7.1",
+                        # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+                        "httpx2": "~=2.0.0",
                     },
                 ),
                 Venv(
