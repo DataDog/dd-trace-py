@@ -3,6 +3,8 @@
 
 .multi_os_test_base:
   stage: tests
+  # multi-OS runners (especially windows) are prone to flaky infra/test failures
+  retry: 2
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"

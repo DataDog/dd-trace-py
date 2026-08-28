@@ -1195,6 +1195,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
+      - '@ray_serve'
       - tests/contrib/ray_serve/*
       - tests/contrib/ray_serve/multi_app/*
       - tests/snapshots/tests.contrib.ray_serve.*

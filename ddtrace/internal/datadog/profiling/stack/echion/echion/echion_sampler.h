@@ -59,6 +59,11 @@ class EchionSampler
     // allocator churn.
     std::unordered_set<PyObject*> seen_frames_scratch_;
 
+    // This GC frame is sample-local ambient state. Nested scopes
+    // intentionally suppress it while suspended greenlet stacks are unwound.
+    // The pointer is borrowed and used as an address only by the sampling thread.
+    PyObject* current_gc_frame_ = nullptr;
+
     // Accumulated asyncio task count across sampled threads in the current sampling cycle.
     // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
     // reflects tasks from the sampled subset, not all threads in the process.
@@ -80,6 +85,25 @@ class EchionSampler
     Datadog::StackRenderer renderer_;
 
   public:
+    class GCFrameScope
+    {
+        EchionSampler& echion_;
+        PyObject* previous_;
+
+      public:
+        GCFrameScope(EchionSampler& echion, PyObject* frame)
+          : echion_(echion)
+          , previous_(echion.current_gc_frame_)
+        {
+            echion_.current_gc_frame_ = frame;
+        }
+
+        ~GCFrameScope() { echion_.current_gc_frame_ = previous_; }
+
+        GCFrameScope(const GCFrameScope&) = delete;
+        GCFrameScope& operator=(const GCFrameScope&) = delete;
+    };
+
     EchionSampler(size_t frame_cache_capacity = 1024)
       : frame_cache_(frame_cache_capacity)
     {
@@ -114,6 +138,9 @@ class EchionSampler
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
+
+    PyObject* current_gc_frame() const { return current_gc_frame_; }
+    [[nodiscard]] GCFrameScope use_gc_frame(PyObject* frame) { return GCFrameScope(*this, frame); }
 
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
@@ -165,6 +192,7 @@ class EchionSampler
         rng_ = std::minstd_rand{ std::random_device{}() };
 
         new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
+        current_gc_frame_ = nullptr;
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary
