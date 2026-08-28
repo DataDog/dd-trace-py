@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from unittest import mock
 
 import pytest
@@ -224,7 +225,7 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         try:
             collector.collect(GC_RUNTIME_METRICS)
             gc.collect()
-            collected = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
         finally:
             collector.stop()
 
@@ -243,7 +244,7 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
 
             gc.collect()
             collector.collect(GC_RUNTIME_METRICS)
-            collected = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
         finally:
             collector.stop()
 

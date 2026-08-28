@@ -20,7 +20,7 @@ CPU_PERCENT = "runtime.python.cpu.percent"
 CTX_SWITCH_VOLUNTARY = "runtime.python.cpu.ctx_switch.voluntary"
 CTX_SWITCH_INVOLUNTARY = "runtime.python.cpu.ctx_switch.involuntary"
 
-GC_RUNTIME_METRICS = set(
+GC_RUNTIME_METRICS: set[str] = set(
     [
         GC_COUNT_GEN0,
         GC_COUNT_GEN1,

@@ -8,6 +8,7 @@ second callback.
 from __future__ import annotations
 
 import gc
+import logging
 import sys
 import threading
 import time
@@ -20,7 +21,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 
 
-log = get_logger(__name__)
+log: logging.Logger = get_logger(__name__)
 
 GEN_COUNT: int = 3
 

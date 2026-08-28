@@ -57,17 +57,17 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
     _prev_collections: list[int]
 
     def _on_modules_load(self) -> None:
-        self._monitor = gc_pause_monitor()
+        self._monitor: GCPauseMonitor = gc_pause_monitor()
         self._monitor.acquire()
         gc_mod: ModuleType = self.modules["gc"]
-        self._prev_collections = _read_gc_collections(gc_mod)
+        self._prev_collections: list[int] = _read_gc_collections(gc_mod)
         forksafe.register(self._reset_state)
 
     def _reset_state(self) -> None:
         gc_mod: Optional[ModuleType] = self.modules.get("gc")
         if gc_mod is None:
             return
-        self._prev_collections = _read_gc_collections(gc_mod)
+        self._prev_collections: list[int] = _read_gc_collections(gc_mod)
 
     def stop(self) -> None:
         monitor: Optional[GCPauseMonitor] = self._monitor
@@ -75,13 +75,13 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
             self._monitor = None
             monitor.release()
 
-    def collect_fn(self, keys):
-        gc_mod = self.modules.get("gc")
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, int]]:
+        gc_mod: ModuleType = self.modules["gc"]
 
-        counts = gc_mod.get_count()
+        counts: tuple[int, int, int] = gc_mod.get_count()
         collections: list[int] = _read_gc_collections(gc_mod)
         d_collections: list[int] = _delta(collections, self._prev_collections)
-        self._prev_collections = collections
+        self._prev_collections: list[int] = collections
 
         pause: Optional[GCPauseSnapshot]
         if self._monitor is not None:
