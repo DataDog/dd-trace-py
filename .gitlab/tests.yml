@@ -198,10 +198,10 @@ include:
       done
 
       # Limit concurrent Python groups because each group may install a
-      # hash-specific dependency set in the same pod. Two groups preserve
+      # hash-specific dependency set in the same pod. Four groups preserve
       # useful cross-version parallelism without allowing all six versions to
       # peak during pip installs and exhaust the planner's memory limit.
-      plan_parallelism=2
+      plan_parallelism=4
       declare -a plan_pids=()
       plan_status=0
       for _py in "${!hashes_by_python[@]}"; do
