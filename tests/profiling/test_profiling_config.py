@@ -124,6 +124,58 @@ class TestExcludeModulesConfig:
         assert cfg.exclude_modules == frozenset({"uvicorn", "asyncio"})
 
 
+class TestEmbeddedInterpreterFastCopy:
+    def test_is_python_embedded_returns_false_for_python(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("os.readlink", lambda _: "/usr/bin/python3.12")
+        monkeypatch.setattr("sys.platform", "linux")
+        assert _is_python_embedded() is False
+
+    def test_is_python_embedded_returns_true_for_non_python(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("os.readlink", lambda _: "/ucsr/bin/nginx")
+        monkeypatch.setattr("sys.platform", "linux")
+        assert _is_python_embedded() is True
+
+    def test_is_python_embedded_fallback_to_sys_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        def _raise_oserror(_: str) -> str:
+            raise OSError("no procfs")
+
+        monkeypatch.setattr("os.readlink", _raise_oserror)
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr("sys.executable", "/opt/myapp/bin/myapp")
+        assert _is_python_embedded() is True
+
+    def test_is_python_embedded_fallback_empty_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        def _raise_oserror(_: str) -> str:
+            raise OSError("no procfs")
+
+        monkeypatch.setattr("os.readlink", _raise_oserror)
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr("sys.executable", "")
+        assert _is_python_embedded() is True
+
+    def test_non_linux_falls_back_to_sys_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("sys.executable", "/usr/local/bin/python3")
+        assert _is_python_embedded() is False
+
+    def test_non_linux_embedded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("sys.executable", "/Applications/MyGame.app/Contents/MacOS/mygame")
+        assert _is_python_embedded() is True
+
+
 def test_always_excluded_modules_contains_required_entries() -> None:
     """_ALWAYS_EXCLUDED_MODULES must always contain the core stdlib concurrency modules.
 
