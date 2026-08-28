@@ -38,7 +38,15 @@ import ddtrace
 # Save it so pytest_configure can propagate the correct value to xdist workers
 # (the suitespec may set this to the suite-level service, e.g. tests.tracer;
 # detect_service(sys.argv) under ddtest would pick the first file's subpackage).
-_inferred_service_env = os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+# Only pop in the controller (not xdist workers): the controller's
+# pytest_configure re-sets it for workers to inherit, but workers' own
+# pytest_configure skips the re-set (PYTEST_XDIST_WORKER is set). Keeping
+# the env var in workers ensures tests like test_service that call Config()
+# get the correct suite-level service via detect_service().
+if os.environ.get("PYTEST_XDIST_WORKER"):
+    _inferred_service_env = None
+else:
+    _inferred_service_env = os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
 
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
