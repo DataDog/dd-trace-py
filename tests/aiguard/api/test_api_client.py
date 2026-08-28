@@ -232,7 +232,39 @@ def test_evaluate_invalid_json(mock_execute_request, telemetry_mock, ai_guard_cl
     with pytest.raises(AIGuardClientError) as exc_info:
         ai_guard_client.evaluate(TOOL_CALL)
 
-    assert str(exc_info.value) == "Unexpected error calling AI Guard service: Invalid JSON"
+    assert str(exc_info.value) == "AI Guard service returned an undecodable response body: Invalid JSON"
+    assert exc_info.value.status == 200
+    assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_invalid_json_error_status(mock_execute_request, telemetry_mock, ai_guard_client):
+    """An undecodable body on a failing status is reported as bad_status, not bad_response."""
+    mock_response = Mock()
+    mock_response.status = 502
+    mock_response.get_json.side_effect = Exception("Invalid JSON")
+    mock_execute_request.return_value = mock_response
+
+    with pytest.raises(AIGuardClientError) as exc_info:
+        ai_guard_client.evaluate(TOOL_CALL)
+
+    assert exc_info.value.status == 502
+    assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_status"),))
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_evaluate_transport_failure(mock_execute_request, telemetry_mock, ai_guard_client):
+    """A failure reaching the service is a client_error."""
+    mock_execute_request.side_effect = Exception("Connection refused")
+
+    with pytest.raises(AIGuardClientError) as exc_info:
+        ai_guard_client.evaluate(TOOL_CALL)
+
+    assert str(exc_info.value) == "Unexpected error calling AI Guard service: Connection refused"
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
     assert_telemetry(telemetry_mock, "error", (("type", "client_error"),))
 

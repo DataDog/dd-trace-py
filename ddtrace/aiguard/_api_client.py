@@ -265,9 +265,19 @@ class AIGuardClient:
 
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
-                    result = response.get_json() or {}  # type: ignore[no-untyped-call]
                 except Exception as e:
                     raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
+
+                try:
+                    result = response.get_json() or {}  # type: ignore[no-untyped-call]
+                except Exception as e:
+                    # A body we cannot decode is a response problem, not a transport one, unless
+                    # the status code already explains the failure.
+                    error_type = AI_GUARD.ERROR_BAD_RESPONSE if response.status == 200 else AI_GUARD.ERROR_BAD_STATUS
+                    raise AIGuardClientError(
+                        message=f"AI Guard service returned an undecodable response body: {e}",
+                        status=response.status,
+                    ) from e
 
                 if response.status == 200:
                     try:
