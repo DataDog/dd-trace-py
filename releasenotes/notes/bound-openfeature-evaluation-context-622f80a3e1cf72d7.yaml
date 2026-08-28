@@ -1,4 +1,6 @@
 ---
 features:
   - |
-    OpenFeature: Limits the size and nesting depth of evaluation context data captured for flag evaluation telemetry.
+    openfeature: Datadog now bounds the number, size, and nesting depth of evaluation context
+    fields reported with flag evaluations. Context data beyond these limits is omitted from
+    the reported evaluation; flag resolution itself is unaffected.
