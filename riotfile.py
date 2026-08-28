@@ -1444,8 +1444,7 @@ venv = Venv(
         ),
         Venv(
             name="mako",
-            env={
-            },
+            env={},
             command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
             pkgs={
@@ -1680,8 +1679,7 @@ venv = Venv(
         Venv(
             name="structlog",
             pys=select_pys(),
-            env={
-            },
+            env={},
             command="pytest {cmdargs} tests/contrib/structlog",
             pkgs={
                 "structlog": ["~=20.2.0", latest],
@@ -2340,8 +2338,7 @@ venv = Venv(
         ),
         Venv(
             name="graphql",
-            env={
-            },
+            env={},
             command="pytest {cmdargs} tests/contrib/graphql",
             pys=select_pys(),
             pkgs={
@@ -2425,8 +2422,7 @@ venv = Venv(
         ),
         Venv(
             name="urllib3",
-            env={
-            },
+            env={},
             command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
