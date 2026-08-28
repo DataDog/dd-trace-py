@@ -16,7 +16,7 @@ ENV LANG=C.UTF-8
 USER root
 
 # Create our bits user
-RUN useradd -ms /bin/bash bits
+RUN useradd -ms /bin/bash -u 1000 bits
 
 # Install system dependencies
 RUN apt-get update \
@@ -97,7 +97,8 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 
-USER bits
+# user bits has UID 1000
+USER 1000
 WORKDIR /home/bits/
 
 ENV PYTHONUNBUFFERED=1
