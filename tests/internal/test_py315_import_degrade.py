@@ -40,6 +40,7 @@ def test_wrapping_modules_import():
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
 
+# TODO(py-315): replace CURRENT_PY_VERSION_INFO with NEXT_PY_VERSION after 3.15 GAs
 @pytest.mark.skipif(PYTHON_VERSION_INFO < CURRENT_PY_VERSION_INFO, reason=f"{CURRENT_PY_VERSION} wrap() degrade")
 def test_wrap_raises_not_implemented_on_315():
     from ddtrace.internal.wrapping import wrap
@@ -54,6 +55,7 @@ def test_wrap_raises_not_implemented_on_315():
         wrap(f, wrapper)
 
 
+# TODO(py-315): replace CURRENT_PY_VERSION_INFO with NEXT_PY_VERSION after 3.15 GAs
 @pytest.mark.skipif(PYTHON_VERSION_INFO < CURRENT_PY_VERSION_INFO, reason=f"{CURRENT_PY_VERSION} lazy module degrade")
 def test_lazy_module_decorator_without_bytecode_wrap():
     import tests.internal.lazy as lazy_module
@@ -71,6 +73,7 @@ def test_exec_lazy_init_without_source():
     assert module_globals["exported"] == 123
 
 
+# TODO(py-315): replace CURRENT_PY_VERSION_INFO with NEXT_PY_VERSION after 3.15 GAs
 @pytest.mark.skipif(
     PYTHON_VERSION_INFO < CURRENT_PY_VERSION_INFO, reason=f"{CURRENT_PY_VERSION} debugging products degrade"
 )
