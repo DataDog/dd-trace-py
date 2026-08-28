@@ -617,9 +617,9 @@ def _emit_ddtest_jobs(
             seen_py.add(py)
             print(f'          - PYTHON_VERSION: "{py}"', file=f)
 
-    # ---- plan job: single job per suite (loops over all hashes) ----
+    # ---- plan job: single job per suite (groups hashes by Python version) ----
     # One plan job per suite (not per venv) to reduce CI runner contention.
-    # The job loops over all RIOT_HASHES sequentially: prepare + plan each,
+    # The job prepares and plans hashes in parallel across Python versions,
     # partitioning the plan artifact by hash.
     print(f"{plan_name}:", file=f)
     print(f"  extends: {plan_tpl}", file=f)
@@ -635,6 +635,7 @@ def _emit_ddtest_jobs(
         {
             "DDTEST_NODES": str(k),
             "RIOT_HASHES": riot_hashes,
+            "RIOT_HASH_PYTHON": " ".join(f"{h}:{py}" for h, py in venvs),
             "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
         }
     )
