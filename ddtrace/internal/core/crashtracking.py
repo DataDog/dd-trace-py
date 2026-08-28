@@ -127,9 +127,9 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     # Crash reports ride the telemetry intake, so agentless points at the same host the telemetry
     # writer uses. libdatadog only resolves the direct intake path (rather than the agent's
-    # telemetry proxy path) when the endpoint carries an API key *and* direct submission is
+    # telemetry proxy path) when the endpoint carries an API key and direct submission is
     # enabled in the receiver process, so both are set together below.
-    crash_agentless = bool(config._agentless_enabled and config._dd_api_key)
+    crash_agentless = config._agentless_enabled and config._dd_api_key
     if crash_agentless:
         upload_url = _agentless_endpoint_url(config._dd_site)
         api_key = config._dd_api_key
