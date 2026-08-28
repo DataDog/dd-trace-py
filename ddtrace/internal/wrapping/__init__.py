@@ -14,6 +14,8 @@ import bytecode as bc
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -261,6 +263,8 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     return a coroutine function, and so on. The signature is also preserved to
     avoid breaking, e.g., usages of the ``inspect`` module.
     """
+    if PY >= NEXT_PY_VERSION_INFO:
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
 
     code = wrapped.__code__
     lineno = code.co_firstlineno + FIRSTLINENO_OFFSET
@@ -308,6 +312,9 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
+    if PY >= NEXT_PY_VERSION_INFO:
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
+
     if is_obfuscated_code(f.__code__):
         log.warning("Cannot wrap %r: code object appears to be obfuscated (e.g. by PyArmor)", f.__code__.co_name)
         return cast(WrappedFunction, f)

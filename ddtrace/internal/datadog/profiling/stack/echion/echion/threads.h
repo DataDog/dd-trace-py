@@ -33,6 +33,7 @@
 #include <echion/timing.h>
 
 class EchionSampler;
+class ThreadInfoTaskTraversalTest;
 
 class ThreadInfo
 {
@@ -62,6 +63,11 @@ class ThreadInfo
 
     [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
     void unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
+
+    // Number of frames in python_stack from the asyncio boundary frame (inclusive) up to the root,
+    // that is to say the asyncio machinery plus the synchronous entry point. Returns the size of the
+    // whole stack when the boundary frame is not there.
+    [[nodiscard]] size_t find_upper_python_stack_size(EchionSampler&) const;
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -114,6 +120,8 @@ class ThreadInfo
     };
 
   private:
+    friend class ThreadInfoTaskTraversalTest;
+
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);

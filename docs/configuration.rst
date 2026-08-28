@@ -291,6 +291,18 @@ Traces
      default: 300
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
 
+   DD_TRACE_PROPAGATION_AS_SPAN_LINKS:
+     type: String
+     default: (empty)
+     description: |
+         Comma-separated list of integration names for which upstream context is attached to the
+         child span as span links instead of being used to parent the span.
+
+         Example: ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS="google_cloud_pubsub,kafka"``.
+
+     version_added:
+       v4.15.0:
+
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
      type: Boolean
      default: False

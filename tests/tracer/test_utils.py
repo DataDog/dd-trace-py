@@ -68,6 +68,20 @@ def test_parse_env_tags(tag_str, expected_tags):
 
 
 @pytest.mark.parametrize(
+    "tag_str,sep,expected_tags",
+    [
+        # No comma anywhere: auto-detection would fall back to whitespace and split "Bearer <token>".
+        # An explicit "," separator keeps it as a single value.
+        ("Authorization:Bearer abc123xyz", ",", {"Authorization": "Bearer abc123xyz"}),
+        # Explicit " " separator forces a whitespace split even though a comma is present.
+        ("a:b,c bKey:bVal", " ", {"a": "b,c", "bKey": "bVal"}),
+    ],
+)
+def test_parse_env_tags_explicit_sep(tag_str, sep, expected_tags):
+    assert parse_tags_str(tag_str, sep=sep) == expected_tags, tag_str
+
+
+@pytest.mark.parametrize(
     "key,value,expected",
     [
         ("a", "1", {"a": "1"}),

@@ -17,7 +17,6 @@ import urllib.parse
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.context import Context
 from ddtrace._trace.processor import _NoopTraceProcessor
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
@@ -33,6 +32,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
@@ -44,6 +44,7 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -154,7 +155,7 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _resolve_parent_agent
-from ddtrace.llmobs._utils import _sanitize_span_event_depth
+from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
@@ -200,7 +201,6 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -713,7 +713,7 @@ class LLMObs(Service):
         # reaches every span in its block, but only agent spans carry the tags.
         agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
         if agent_annotation and span_kind == "agent":
-            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = agent_annotation
+            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
@@ -738,7 +738,10 @@ class LLMObs(Service):
             output_type,
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
-        llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_depth(llmobs_meta)
+        llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
+        config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
+        if config is not None:
+            llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
             # replace them with underscores before encoding.

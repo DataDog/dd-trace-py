@@ -17,7 +17,7 @@ This happens because:
 
 import sys
 
-from tests.utils import override_env
+from tests.utils import override_global_config
 
 
 def sample_function_with_many_params(
@@ -84,16 +84,9 @@ class TestInspectModuleDropRegression:
         inspect_id_before = id(sys.modules.get("inspect"))
         inspect_module_before = sys.modules.get("inspect")
 
-        # Call post_preload directly (this is what happens in production)
-        # We need to ensure IAST is enabled for post_preload to run its logic
-        with override_env({"DD_IAST_ENABLED": "true"}):
-            # Force reload of asm_config to pick up the environment variable
-            import importlib
-
-            from ddtrace.internal.settings import asm
-
-            importlib.reload(asm)
-
+        # Enabled in place: reloading the asm module would rebind its config to a new object,
+        # leaving every module that already imported the old one reading stale settings.
+        with override_global_config(dict(_iast_enabled=True)):
             from ddtrace.internal.iast import product
 
             # Call post_preload - this should NOT drop inspect

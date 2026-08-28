@@ -17,6 +17,16 @@
 // Forward declaration
 class Frame;
 
+// Identity of the frame that separates the asyncio machinery from the pure Python stack.
+// We memoize the interned name and filename rather than a Frame cache key: the cache key
+// mixes in the bytecode offset, so it only matches the boundary frame while it sits on the
+// very instruction it happened to be on when we first identified it.
+struct BoundaryFrame
+{
+    StringTable::Key name = 0;
+    StringTable::Key filename = 0;
+};
+
 class EchionSampler
 {
     // Thread Info map (Thread ID -> ThreadInfo)
@@ -39,8 +49,8 @@ class EchionSampler
     PyObject* asyncio_eager_tasks_ = nullptr;
 
     // Task unwinding state
-    std::optional<Frame::Key> asyncio_frame_cache_key_;
-    std::optional<Frame::Key> uvloop_frame_cache_key_;
+    std::optional<BoundaryFrame> asyncio_boundary_frame_;
+    std::optional<BoundaryFrame> uvloop_boundary_frame_;
     std::unordered_set<PyObject*> previous_task_objects_;
 
     // Sampling-thread scratch buffer. Only the single sampling thread
@@ -48,6 +58,11 @@ class EchionSampler
     // entry; reusing the hash table across calls eliminates per-call
     // allocator churn.
     std::unordered_set<PyObject*> seen_frames_scratch_;
+
+    // This GC frame is sample-local ambient state. Nested scopes
+    // intentionally suppress it while suspended greenlet stacks are unwound.
+    // The pointer is borrowed and used as an address only by the sampling thread.
+    PyObject* current_gc_frame_ = nullptr;
 
     // Accumulated asyncio task count across sampled threads in the current sampling cycle.
     // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
@@ -70,6 +85,25 @@ class EchionSampler
     Datadog::StackRenderer renderer_;
 
   public:
+    class GCFrameScope
+    {
+        EchionSampler& echion_;
+        PyObject* previous_;
+
+      public:
+        GCFrameScope(EchionSampler& echion, PyObject* frame)
+          : echion_(echion)
+          , previous_(echion.current_gc_frame_)
+        {
+            echion_.current_gc_frame_ = frame;
+        }
+
+        ~GCFrameScope() { echion_.current_gc_frame_ = previous_; }
+
+        GCFrameScope(const GCFrameScope&) = delete;
+        GCFrameScope& operator=(const GCFrameScope&) = delete;
+    };
+
     EchionSampler(size_t frame_cache_capacity = 1024)
       : frame_cache_(frame_cache_capacity)
     {
@@ -99,11 +133,14 @@ class EchionSampler
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
     }
 
-    std::optional<Frame::Key>& asyncio_frame_cache_key() { return asyncio_frame_cache_key_; }
-    std::optional<Frame::Key>& uvloop_frame_cache_key() { return uvloop_frame_cache_key_; }
+    std::optional<BoundaryFrame>& asyncio_boundary_frame() { return asyncio_boundary_frame_; }
+    std::optional<BoundaryFrame>& uvloop_boundary_frame() { return uvloop_boundary_frame_; }
     std::unordered_set<PyObject*>& previous_task_objects() { return previous_task_objects_; }
 
     std::unordered_set<PyObject*>& seen_frames_scratch() { return seen_frames_scratch_; }
+
+    PyObject* current_gc_frame() const { return current_gc_frame_; }
+    [[nodiscard]] GCFrameScope use_gc_frame(PyObject* frame) { return GCFrameScope(*this, frame); }
 
     void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
@@ -149,12 +186,13 @@ class EchionSampler
         new (&greenlet_thread_map_) std::unordered_map<uintptr_t, GreenletInfo::ID>();
         new (&previous_task_objects_) std::unordered_set<PyObject*>();
 
-        asyncio_frame_cache_key_.reset();
-        uvloop_frame_cache_key_.reset();
+        asyncio_boundary_frame_.reset();
+        uvloop_boundary_frame_.reset();
         asyncio_task_count_ = 0;
         rng_ = std::minstd_rand{ std::random_device{}() };
 
         new (&seen_frames_scratch_) std::unordered_set<PyObject*>();
+        current_gc_frame_ = nullptr;
 
         // Clear renderer caches to avoid using stale interned IDs from the
         // parent's Profiles Dictionary

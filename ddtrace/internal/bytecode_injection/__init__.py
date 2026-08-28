@@ -7,6 +7,8 @@ from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -34,8 +36,8 @@ class InvalidLine(Exception):
 # the stack to the state prior to the call.
 
 INJECTION_ASSEMBLY = Assembly()
-if PY >= (3, 15):
-    raise NotImplementedError("Python >= 3.15 is not supported yet")
+if PY >= NEXT_PY_VERSION_INFO:
+    pass
 elif PY >= (3, 13):
     INJECTION_ASSEMBLY.parse(
         r"""
@@ -181,6 +183,9 @@ def inject_hooks(f: FunctionType, hooks: list[HookInfoType]) -> list[HookInfoTyp
 
     Returns the list of hooks that failed to be injected.
     """
+    if PY >= NEXT_PY_VERSION_INFO:
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
+
     code = get_function_code(f)
     if is_obfuscated_code(code):
         log.warning("Cannot inject hooks into %r: code object appears to be obfuscated (e.g. by PyArmor)", code.co_name)
@@ -252,6 +257,9 @@ def inject_hook(f: FunctionType, hook: HookType, line: int, arg: Any) -> Functio
     argument. The latter is also used as an identifier for the hook. This should
     be kept in case the hook needs to be removed.
     """
+    if PY >= NEXT_PY_VERSION_INFO:
+        raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
+
     if is_obfuscated_code(f.__code__):
         log.warning(
             "Cannot inject hook into %r: code object appears to be obfuscated (e.g. by PyArmor)",

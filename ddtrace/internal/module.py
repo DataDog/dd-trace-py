@@ -228,8 +228,11 @@ class _ImportHookChainedLoader:
             # loader type
             module.register_loader_type(_ImportHookChainedLoader, module.DefaultProvider)
 
-        for callback in self.callbacks.values():
-            callback(module)
+        for key, callback in self.callbacks.items():
+            try:
+                callback(module)
+            except Exception:
+                log.exception("Exception ignored in after_import hook %r for module %s", key, module.__name__)
 
     def load_module(self, fullname: str) -> t.Optional[ModuleType]:
         if self.loader is None:
@@ -258,20 +261,10 @@ class _ImportHookChainedLoader:
     def _find_first_hook(
         self, module: ModuleType, hooks_attr: str
     ) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
-        for _ in sys.meta_path:
-            if isinstance(_, ModuleWatchdog):
-                try:
-                    for (
-                        cond,
-                        hook,
-                    ) in getattr(_, hooks_attr, []):
-                        if (isinstance(cond, str) and cond == module.__name__) or (
-                            callable(cond) and cond(module.__name__)
-                        ):
-                            return hook
-                except Exception:
-                    log.debug("Exception happened while processing %s", hooks_attr, exc_info=True)
-        return None
+        universal = _UniversalModuleWatchdog._instance
+        if universal is None:
+            return None
+        return universal._find_first_hook(module, hooks_attr)
 
     def _find_first_exception_hook(self, module: ModuleType) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
         return self._find_first_hook(module, "_import_exception_hooks")
@@ -328,15 +321,21 @@ class _ImportHookChainedLoader:
             log.exception("Failed to call back on module %s", module)
 
 
-class BaseModuleWatchdog(abc.ABC):
-    """Base module watchdog.
+class _UniversalModuleWatchdog:
+    """The single finder ever inserted into ``sys.meta_path`` for module watchdog purposes.
 
-    Invokes ``after_import`` every time a new module is imported.
+    Concrete ``BaseModuleWatchdog`` subclasses register their instances here as
+    virtual participants, instead of each inserting itself into ``sys.meta_path``.
+    This collapses what would otherwise be O(N) redundant, mutually-recursive
+    ``find_spec`` scans (one per installed watchdog, each re-scanning the rest of
+    ``sys.meta_path`` to find the real underlying finder) into a single O(1) lookup
+    per import, regardless of how many watchdogs are installed.
     """
 
-    _instance: t.Optional["BaseModuleWatchdog"] = None
+    _instance: t.Optional["_UniversalModuleWatchdog"] = None
 
     def __init__(self) -> None:
+        self._watchdogs: list["BaseModuleWatchdog"] = []
         self._finding: set[str] = set()
 
         # DEV: pkg_resources support to prevent errors such as
@@ -361,31 +360,14 @@ class BaseModuleWatchdog(abc.ABC):
             else:
                 log.warning("Cannot ensure correct support with pkg_resources")
 
-    def _add_to_meta_path(self) -> None:
-        sys.meta_path.insert(0, self)  # type: ignore[arg-type]
+    def register(self, participant: "BaseModuleWatchdog") -> None:
+        self._watchdogs.append(participant)
 
-    @classmethod
-    def _find_in_meta_path(cls) -> t.Optional[int]:
-        for i, meta_path in enumerate(sys.meta_path):
-            if type(meta_path) is cls:
-                return i
-        return None
-
-    @classmethod
-    def _remove_from_meta_path(cls) -> None:
-        i = cls._find_in_meta_path()
-
-        if i is None:
-            log.warning("%s is not installed", cls.__name__)
-            return
-
-        sys.meta_path.pop(i)
-
-    def after_import(self, module: ModuleType) -> None:
-        raise NotImplementedError()
-
-    def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
-        return code
+    def unregister(self, participant: "BaseModuleWatchdog") -> None:
+        try:
+            self._watchdogs.remove(participant)
+        except ValueError:
+            pass
 
     def find_module(self, fullname: str, path: t.Optional[str] = None) -> t.Optional["Loader"]:
         if fullname in self._finding:
@@ -402,8 +384,9 @@ class BaseModuleWatchdog(abc.ABC):
                     else original_loader
                 )
 
-                loader.add_callback(type(self), self.after_import)
-                loader.add_transformer(type(self), self.transform)
+                for watchdog in list(self._watchdogs):
+                    loader.add_callback(type(watchdog), watchdog.after_import)
+                    loader.add_transformer(type(watchdog), watchdog.transform)
 
                 return t.cast("Loader", loader)
 
@@ -450,13 +433,75 @@ class BaseModuleWatchdog(abc.ABC):
             if not isinstance(loader, _ImportHookChainedLoader):
                 spec.loader = t.cast("Loader", _ImportHookChainedLoader(loader, spec))
 
-            t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(self), self.after_import)
-            t.cast(_ImportHookChainedLoader, spec.loader).add_transformer(type(self), self.transform)
+            for watchdog in list(self._watchdogs):
+                t.cast(_ImportHookChainedLoader, spec.loader).add_callback(type(watchdog), watchdog.after_import)
+                t.cast(_ImportHookChainedLoader, spec.loader).add_transformer(type(watchdog), watchdog.transform)
 
             return spec
 
         finally:
             self._finding.remove(fullname)
+
+    def _find_first_hook(
+        self, module: ModuleType, hooks_attr: str
+    ) -> t.Optional[t.Callable[[t.Any, ModuleType], None]]:
+        for watchdog in list(self._watchdogs):
+            try:
+                for (
+                    cond,
+                    hook,
+                ) in getattr(watchdog, hooks_attr, []):
+                    if (isinstance(cond, str) and cond == module.__name__) or (
+                        callable(cond) and cond(module.__name__)
+                    ):
+                        return hook
+            except Exception:
+                log.debug("Exception happened while processing %s", hooks_attr, exc_info=True)
+        return None
+
+    @classmethod
+    def _register(cls, participant: "BaseModuleWatchdog") -> None:
+        if cls._instance is None:
+            cls._instance = cls()
+        else:
+            # DEV: Some other finder (eg: pytest's assertion rewriter) may have
+            # inserted itself ahead of us in the meantime. Each individual watchdog
+            # used to re-insert itself at position 0 on every install(), so match
+            # that behavior by moving the shared instance back to the front on every
+            # new registration, not just the very first one.
+            try:
+                sys.meta_path.remove(cls._instance)  # type: ignore[arg-type]
+            except ValueError:
+                pass
+        sys.meta_path.insert(0, cls._instance)  # type: ignore[arg-type]
+        cls._instance.register(participant)
+
+    @classmethod
+    def _unregister(cls, participant: "BaseModuleWatchdog") -> None:
+        if cls._instance is None:
+            return
+        cls._instance.unregister(participant)
+        if not cls._instance._watchdogs:
+            try:
+                sys.meta_path.remove(cls._instance)  # type: ignore[arg-type]
+            except ValueError:
+                log.warning("%s is not installed", cls.__name__)
+            cls._instance = None
+
+
+class BaseModuleWatchdog(abc.ABC):
+    """Base module watchdog.
+
+    Invokes ``after_import`` every time a new module is imported.
+    """
+
+    _instance: t.Optional["BaseModuleWatchdog"] = None
+
+    def after_import(self, module: ModuleType) -> None:
+        raise NotImplementedError()
+
+    def transform(self, code: CodeType, _module: ModuleType) -> CodeType:
+        return code
 
     @classmethod
     def install(cls) -> None:
@@ -464,7 +509,7 @@ class BaseModuleWatchdog(abc.ABC):
         if cls.is_installed():
             return
         cls._instance = cls()
-        cls._instance._add_to_meta_path()
+        _UniversalModuleWatchdog._register(cls._instance)
         log.debug("%s installed", cls)
 
     @classmethod
@@ -482,7 +527,7 @@ class BaseModuleWatchdog(abc.ABC):
         if not cls.is_installed():
             return
 
-        cls._remove_from_meta_path()
+        _UniversalModuleWatchdog._unregister(t.cast("BaseModuleWatchdog", cls._instance))
 
         cls._instance = None
 
