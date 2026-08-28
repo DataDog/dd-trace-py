@@ -23,7 +23,7 @@ PYTHON_VERSION_INFO = sys.version_info
 NEXT_PY_VERSION: str = "3.15"
 _next_py_parts = NEXT_PY_VERSION.split(".")[:2]
 NEXT_PY_VERSION_INFO: tuple[int, int] = (int(_next_py_parts[0]), int(_next_py_parts[1]))
-NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Python %s and later)" % NEXT_PY_VERSION
+NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet: {}.{}".format(*sys.version_info[:2])
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:
