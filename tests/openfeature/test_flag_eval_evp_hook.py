@@ -22,10 +22,15 @@ from openfeature.flag_evaluation import Reason
 from openfeature.hook import HookContext
 import pytest
 
+from ddtrace.internal.openfeature._flagevaluation_writer import METADATA_OBSERVE_FULL_EVALUATION_DATA
+
+
+CONSENT_METADATA_KEY = "__dd_observe_full_evaluation_data"
+
 
 def _make_hook_context(
     flag_key: str = "my-flag",
-    targeting_key: str = "user-1",
+    targeting_key: typing.Optional[str] = "user-1",
     attrs: dict = None,
 ) -> HookContext:
     ctx = EvaluationContext(targeting_key=targeting_key, attributes=attrs if attrs is not None else {})
@@ -151,10 +156,24 @@ class TestFlagEvalEVPHook:
         event = writer.enqueue.call_args[0][0]
         assert event.targeting_key == "user-99"
 
+    @pytest.mark.parametrize("targeting_key", [None, ""], ids=["missing", "empty"])
+    def test_finally_after_preserves_targeting_key_presence(
+        self,
+        hook: typing.Any,
+        writer: typing.Any,
+        targeting_key: typing.Optional[str],
+    ) -> None:
+        hc = _make_hook_context(targeting_key=targeting_key)
+        hook.finally_after(hc, _make_details(), {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.targeting_key == targeting_key
+
     def test_finally_after_borrows_attrs_for_synchronous_writer_snapshot(self, hook, writer):
         attrs = {"tier": "premium", "region": "us-west"}
         hc = _make_hook_context(attrs=attrs)
-        details = _make_details()
+        # Consent-on so attrs capture is exercised (fail-closed default is off).
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: True})
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
@@ -166,7 +185,8 @@ class TestFlagEvalEVPHook:
 
         attrs = FalseMapping(tier="premium")
         hc = _make_hook_context(attrs=attrs)
-        hook.finally_after(hc, _make_details(), {})
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: True})
+        hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
         assert event.attrs is attrs
 
@@ -177,16 +197,41 @@ class TestFlagEvalEVPHook:
         event = writer.enqueue.call_args[0][0]
         assert event.allocation_key == "alloc-xyz"
 
-    def test_finally_after_falls_back_to_error_code_when_message_absent(self, hook, writer):
+    @pytest.mark.parametrize(
+        "consent,error_message,error_code,expected",
+        [
+            (True, "raw context value", ErrorCode.TYPE_MISMATCH, "raw context value"),
+            (True, None, ErrorCode.FLAG_NOT_FOUND, ErrorCode.FLAG_NOT_FOUND.value),
+            (False, "raw context value", ErrorCode.TYPE_MISMATCH, ErrorCode.TYPE_MISMATCH.value),
+            (False, "raw context value", None, ""),
+        ],
+        ids=[
+            "consent_on_prefers_message",
+            "consent_on_falls_back_to_code",
+            "consent_off_substitutes_code",
+            "consent_off_without_code_drops_message",
+        ],
+    )
+    def test_finally_after_error_message_respects_consent(
+        self,
+        hook: typing.Any,
+        writer: typing.Any,
+        consent: bool,
+        error_message: typing.Optional[str],
+        error_code: typing.Optional[ErrorCode],
+        expected: str,
+    ) -> None:
         hc = _make_hook_context()
         details = _make_details(
             variant=None,
             reason=Reason.ERROR,
-            error_code=ErrorCode.FLAG_NOT_FOUND,
+            flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: consent},
+            error_message=error_message,
+            error_code=error_code,
         )
         hook.finally_after(hc, details, {})
         event = writer.enqueue.call_args[0][0]
-        assert event.error_message == ErrorCode.FLAG_NOT_FOUND.value
+        assert event.error_message == expected
 
     def test_finally_after_does_no_aggregation_on_hook_thread(self, hook, writer):
         """The hook must call enqueue only — not build payloads or aggregate."""
@@ -392,3 +437,62 @@ class TestKillswitchGating:
                 provider = DataDogProvider()
                 assert provider._flag_eval_evp_writer is not None
                 assert provider._flag_eval_evp_hook is not None
+
+
+class TestFlagEvalEVPHookReadsConsent:
+    """The hook reads the cross-SDK consent key from details.flag_metadata.
+
+    It fails closed on missing or malformed values and skips attribute capture
+    when consent is off.
+    """
+
+    def test_metadata_key_matches_contract_literal(self) -> None:
+        assert METADATA_OBSERVE_FULL_EVALUATION_DATA == CONSENT_METADATA_KEY
+
+    def test_consent_true_captured_from_metadata(self, hook, writer):
+        hc = _make_hook_context(attrs={"plan": "enterprise"})
+        details = _make_details(flag_metadata={CONSENT_METADATA_KEY: True})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is True
+        assert event.attrs == {"plan": "enterprise"}
+
+    def test_consent_false_captured_and_attrs_dropped(self, hook, writer):
+        """Consent-off: the context is neither serialized nor keyed, so the hook
+        skips attribute capture -- prevents PII living in the writer queue.
+        """
+        hc = _make_hook_context(attrs={"plan": "enterprise", "user_email": "leak@example.com"})
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: False})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False
+        assert event.attrs == {}
+
+    def test_missing_metadata_fails_closed(self, hook, writer):
+        hc = _make_hook_context(attrs={"plan": "enterprise"})
+        details = _make_details(flag_metadata={})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False
+        assert event.attrs == {}
+
+    def test_unprefixed_metadata_key_is_not_a_compatibility_alias(self, hook, writer) -> None:
+        hc = _make_hook_context(attrs={"plan": "enterprise"})
+        details = _make_details(flag_metadata={"observe_full_evaluation_data": True})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False
+        assert event.attrs == {}
+
+    @pytest.mark.parametrize("bad", ["true", "false", 1, 0, None, []])
+    def test_wrong_type_fails_closed(self, hook, writer, bad):
+        hc = _make_hook_context()
+        details = _make_details(flag_metadata={METADATA_OBSERVE_FULL_EVALUATION_DATA: bad})
+        hook.finally_after(hc, details, {})
+
+        event = writer.enqueue.call_args[0][0]
+        assert event.observe_full_evaluation_data is False

@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    openfeature: Server-side flag evaluation telemetry now hashes targeting
+    keys and omits evaluation context by default. Environments configured to
+    report full evaluation data retain unhashed targeting keys and evaluation
+    context.
