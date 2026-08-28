@@ -32,7 +32,7 @@ class RuntimeMetricCollector(ValueCollector):
 
 
 def _read_gc_collections(gc_mod: ModuleType) -> list[int]:
-    """Return per-generation ``collections`` counts from ``gc.get_stats()``."""
+    """Return per-generation collections counts from gc.get_stats()."""
     stats: list[dict[str, int]] = gc_mod.get_stats()
     collections: list[int] = []
     for i in range(GEN_COUNT):
@@ -48,7 +48,7 @@ def _delta(current: list[int], previous: list[int]) -> list[int]:
 class GCRuntimeMetricCollector(RuntimeMetricCollector):
     """Collector for CPython GC counts, collection stats, and STW pause time.
 
-    ``gc.count.genN`` remains the ``gc.get_count()`` allocation counters.
+    gc.count.genN remains the gc.get_count() allocation counters.
     Collection/pause metrics are interval deltas, matching CPU time.
     """
 
@@ -57,11 +57,21 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
     _prev_collections: list[int]
 
     def _on_modules_load(self) -> None:
-        self._monitor: GCPauseMonitor = gc_pause_monitor()
-        self._monitor.acquire()
-        gc_mod: ModuleType = self.modules["gc"]
-        self._prev_collections: list[int] = _read_gc_collections(gc_mod)
-        forksafe.register(self._reset_state)
+        monitor: Optional[GCPauseMonitor] = None
+        try:
+            gc_mod: ModuleType = self.modules["gc"]
+            # Seed collections before gc.callbacks is installed so an enable-time
+            # collection is not a pause without a matching collections delta.
+            self._prev_collections: list[int] = _read_gc_collections(gc_mod)
+            monitor = gc_pause_monitor()
+            monitor.acquire()
+            forksafe.register(self._reset_state)
+        except Exception:
+            if monitor is not None:
+                monitor.release()
+            self.enabled = False
+            return
+        self._monitor = monitor
 
     def _reset_state(self) -> None:
         gc_mod: Optional[ModuleType] = self.modules.get("gc")
@@ -74,20 +84,23 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
         if monitor is not None:
             self._monitor = None
             monitor.release()
+            forksafe.unregister(self._reset_state)
 
     def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, int]]:
-        gc_mod: ModuleType = self.modules["gc"]
+        # Snapshot first so flush allocations are not attributed to this window,
+        # and so stop() cannot None-out _monitor between the check and the call.
+        monitor: Optional[GCPauseMonitor] = self._monitor
+        pause: Optional[GCPauseSnapshot]
+        if monitor is not None:
+            pause = monitor.snapshot_and_reset()
+        else:
+            pause = None
 
+        gc_mod: ModuleType = self.modules["gc"]
         counts: tuple[int, int, int] = gc_mod.get_count()
         collections: list[int] = _read_gc_collections(gc_mod)
         d_collections: list[int] = _delta(collections, self._prev_collections)
         self._prev_collections: list[int] = collections
-
-        pause: Optional[GCPauseSnapshot]
-        if self._monitor is not None:
-            pause = self._monitor.snapshot_and_reset()
-        else:
-            pause = None
 
         metrics: list[tuple[str, int]] = [
             (GC_COUNT_GEN0, counts[0]),

@@ -256,3 +256,33 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         assert metrics[GC_COLLECTIONS_GEN0] == 0
         assert metrics[GC_COLLECTIONS_GEN1] == 0
         assert metrics[GC_COLLECTIONS_GEN2] == 0
+
+    def test_stop_unregisters_fork_hook(self) -> None:
+        from ddtrace.internal import forksafe
+
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+        try:
+            self.assertIn(collector._reset_state, forksafe._registry)
+        finally:
+            collector.stop()
+        self.assertNotIn(collector._reset_state, forksafe._registry)
+
+    def test_init_failure_releases_monitor(self) -> None:
+        import gc
+
+        from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+        from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+
+        monitor: GCPauseMonitor = gc_pause_monitor()
+        before: int = monitor._refcount
+        with mock.patch(
+            "ddtrace.internal.runtime.metric_collectors._read_gc_collections",
+            side_effect=RuntimeError("boom"),
+        ):
+            collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+
+        self.assertFalse(collector.enabled)
+        self.assertIsNone(collector._monitor)
+        self.assertEqual(monitor._refcount, before)
+        if before == 0:
+            self.assertNotIn(monitor._on_gc, gc.callbacks)

@@ -66,6 +66,25 @@ def test_listener_sees_generation_and_frame() -> None:
     assert frame is not None
 
 
+def test_release_clears_in_flight_start() -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    monitor.acquire()
+    monitor._on_gc("start", {"generation": 0})
+    assert monitor._start_ns[0] != 0
+    monitor.release()
+    assert monitor._start_ns == [0, 0, 0]
+
+    monitor.acquire()
+    try:
+        monitor._on_gc("stop", {"generation": 0})
+        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
+    finally:
+        monitor.release()
+
+    assert snap.n_pauses == 0
+    assert snap.total_ns == 0
+
+
 def test_reset_drops_window() -> None:
     monitor: GCPauseMonitor = GCPauseMonitor()
     monitor.acquire()

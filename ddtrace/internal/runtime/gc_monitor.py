@@ -1,6 +1,6 @@
 """Process-wide CPython GC pause observer.
 
-One ``gc.callbacks`` subscriber. Install is refcounted via acquire/release.
+One gc.callbacks subscriber. Install is refcounted via acquire/release.
 Runtime metrics drain a snapshot on each flush.
 """
 
@@ -54,7 +54,7 @@ class GCPauseSnapshot(NamedTuple):
 
 
 class GCPauseMonitor:
-    """Single ``gc.callbacks`` subscriber with refcounted install."""
+    """Single gc.callbacks subscriber with refcounted install."""
 
     _lock: threading.RLock
     _refcount: int
@@ -98,6 +98,9 @@ class GCPauseMonitor:
                     gc.callbacks.remove(self._on_gc)
                 except ValueError:
                     pass
+                # Drop in-flight starts so a later re-acquire cannot pair a
+                # new stop with a stale timestamp from before uninstall.
+                self._start_ns = [0] * GEN_COUNT
                 self._clear_window()
 
     def add_listener(self, listener: PauseListener) -> None:
@@ -118,11 +121,27 @@ class GCPauseMonitor:
             self._clear_window()
 
     def snapshot_and_reset(self) -> GCPauseSnapshot:
+        # Copy primitives, then clear, then allocate. A reentrant GC callback
+        # during NamedTuple/tuple construction must land in the next window.
         with self._lock:
-            per_gen: tuple[tuple[int, int, int], ...] = tuple((w.count, w.total_ns, w.max_ns) for w in self._per_gen)
-            snap: GCPauseSnapshot = GCPauseSnapshot(self._count, self._total_ns, self._max_ns, per_gen)
+            n_pauses: int = self._count
+            total_ns: int = self._total_ns
+            max_ns: int = self._max_ns
+            g0: _GenWindow = self._per_gen[0]
+            g1: _GenWindow = self._per_gen[1]
+            g2: _GenWindow = self._per_gen[2]
+            c0: int = g0.count
+            t0: int = g0.total_ns
+            m0: int = g0.max_ns
+            c1: int = g1.count
+            t1: int = g1.total_ns
+            m1: int = g1.max_ns
+            c2: int = g2.count
+            t2: int = g2.total_ns
+            m2: int = g2.max_ns
             self._clear_window()
-            return snap
+        per_gen: tuple[tuple[int, int, int], ...] = ((c0, t0, m0), (c1, t1, m1), (c2, t2, m2))
+        return GCPauseSnapshot(n_pauses, total_ns, max_ns, per_gen)
 
     def _clear_window(self) -> None:
         self._count = 0
