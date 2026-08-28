@@ -3,8 +3,8 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
+#     "ruamel.yaml>=0.17.21",
 # ]
 # ///
 """
@@ -41,6 +41,13 @@ def _get_bool_env(name: str) -> str:
     if value not in ("", "true", "false"):
         LOGGER.warning("Ignoring unexpected value for %s, treating it as false", name)
     return "true" if value == "true" else "false"
+
+
+def _wait_lockfile() -> str:
+    from tests.suitespec import get_test_environments
+
+    environments = get_test_environments(nightly=False)["wait"]
+    return str(next(environment.lockfile for environment in environments if environment.python == "3.9"))
 
 
 @dataclass
@@ -134,7 +141,7 @@ class JobSpec:
                 wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
             lines.append(
                 f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
-                "--with-requirements .uv/wait--py39--*.txt --no-progress "
+                f"--with-requirements {_wait_lockfile()} --no-progress "
                 f"python tests/wait-for-services.py {' '.join(wait_for)}"
             )
 
@@ -653,7 +660,7 @@ def gen_pre_checks() -> None:
     check(
         name="Check test locks",
         command="scripts/test-env check",
-        paths={"**/suitespec.yml", ".uv/*", "scripts/test-env", "tests/suitespec.py"},
+        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-env", "tests/suitespec.py"},
     )
     check(
         name="Check ddtrace error logs",

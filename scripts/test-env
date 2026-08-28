@@ -15,7 +15,6 @@ from collections.abc import Sequence
 import concurrent.futures
 from contextlib import redirect_stdout
 from pathlib import Path
-import re
 import subprocess
 import sys
 import tempfile
@@ -31,10 +30,6 @@ from scripts.check_lockfile_cooldown import main as check_lockfile_cooldown  # n
 
 if TYPE_CHECKING:
     from tests.suitespec import TestEnvironment
-
-
-LOCK_ROOT = Path(".uv")
-_SLUG_PART = re.compile(r"[^a-z0-9]+")
 
 
 class LockError(RuntimeError):
@@ -69,31 +64,20 @@ def select_environments(requested: Sequence[str] = ()) -> tuple[TestEnvironment,
 
 
 def list_hashes(name: str, python_version: str | None = None) -> tuple[str, ...]:
-    query = _SLUG_PART.sub("-", name.lower()).strip("-")
-    requested_python = f"py{python_version.replace('.', '')}" if python_version else None
-    environments = []
-    for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt"):
-        try:
-            suite, python, environment_hash = path.stem.rsplit("--", 2)
-        except ValueError:
-            continue
-        if not python.startswith("py") or not python[2:].isdigit():
-            continue
-        if len(environment_hash) != 12 or any(character not in "0123456789abcdef" for character in environment_hash):
-            continue
-        if requested_python is None or python == requested_python:
-            environments.append((suite, python, environment_hash))
-    exact = [environment for environment in environments if environment[0] == query]
-    matches = exact or [environment for environment in environments if environment[0].endswith(f"-{query}")]
+    environments = select_environments((name,))
+    matches = [
+        environment for environment in environments if python_version is None or environment.python == python_version
+    ]
     if not matches:
         raise LockError(f"no uv environments found for suite: {name}")
-    return tuple(environment_hash for _suite, _python, environment_hash in sorted(matches))
+    return tuple(environment.hash for environment in matches)
 
 
 def compile_environment(
     environment: TestEnvironment,
     *,
     exclude_newer: str,
+    upgrade: bool,
 ) -> str:
     from tests.suitespec import LOCK_PLATFORM
 
@@ -105,6 +89,9 @@ def compile_environment(
         requirements = temporary_path / "requirements.in"
         output = temporary_path / "requirements.txt"
         requirements.write_text("\n".join(sorted(environment.direct_dependencies, key=str.casefold)) + "\n")
+        existing_lock = PROJECT_ROOT / environment.lockfile
+        if existing_lock.is_file():
+            output.write_text(existing_lock.read_text())
         command = [
             "uv",
             "pip",
@@ -123,8 +110,10 @@ def compile_environment(
             "--no-sources",
             "--output-file",
             str(output),
-            str(requirements),
         ]
+        if upgrade:
+            command.append("--upgrade")
+        command.append(str(requirements))
         try:
             subprocess.run(command, cwd=PROJECT_ROOT, check=True, text=True, capture_output=True)
         except subprocess.CalledProcessError as error:
@@ -136,55 +125,64 @@ def compile_environment(
 
 def _write_lock(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        header = []
+        for line in path.read_text().splitlines(keepends=True):
+            if line.strip() and not line.startswith("#"):
+                break
+            header.append(line)
+        content = "".join(header) + content
     with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
         temporary.write(content)
         temporary_path = Path(temporary.name)
     temporary_path.replace(path)
 
 
-def _prune_locks(expected: set[Path], environments: Sequence[TestEnvironment]) -> tuple[Path, ...]:
-    pruned = []
-    prefixes = {f"{environment.lockfile.name.partition('--')[0]}--" for environment in environments}
-    for prefix in prefixes:
-        for path in sorted((PROJECT_ROOT / LOCK_ROOT).glob(f"{prefix}*.txt")):
-            relative = path.relative_to(PROJECT_ROOT)
-            if relative not in expected:
-                path.unlink()
-                pruned.append(relative)
-    return tuple(pruned)
+def _unique_lock_environments(environments: Sequence[TestEnvironment]) -> dict[Path, TestEnvironment]:
+    unique: dict[Path, TestEnvironment] = {}
+    for environment in environments:
+        existing = unique.setdefault(environment.lockfile, environment)
+        if (existing.python, existing.direct_dependencies) != (environment.python, environment.direct_dependencies):
+            raise LockError(f"incompatible test environments share {environment.lockfile}")
+    return unique
 
 
 def generate_locks(
     requested: Sequence[str] = (),
     *,
     jobs: int = 4,
+    upgrade: bool = False,
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
     environments = select_environments(requested)
     if not environments:
         raise LockError("no concrete test environments selected")
 
-    compiled: dict[TestEnvironment, str] = {}
+    lock_environments = _unique_lock_environments(environments)
+    compiled: dict[Path, str] = {}
     cutoff = cooldown_cutoff()
     errors = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
         futures = {
-            executor.submit(compile_environment, environment, exclude_newer=cutoff): environment
-            for environment in environments
+            executor.submit(compile_environment, environment, exclude_newer=cutoff, upgrade=upgrade): (
+                lockfile,
+                environment,
+            )
+            for lockfile, environment in lock_environments.items()
         }
         for future in concurrent.futures.as_completed(futures):
-            environment = futures[future]
+            lockfile, environment = futures[future]
             try:
-                compiled[environment] = future.result()
+                compiled[lockfile] = future.result()
             except LockError as error:
                 errors.append(error)
     if errors:
         raise LockError("\n\n".join(str(error) for error in errors))
 
     written = []
-    for environment in environments:
-        _write_lock(PROJECT_ROOT / environment.lockfile, compiled[environment])
-        written.append(environment.lockfile)
-    return tuple(written), _prune_locks(set(written), environments)
+    for lockfile in lock_environments:
+        _write_lock(PROJECT_ROOT / lockfile, compiled[lockfile])
+        written.append(lockfile)
+    return tuple(written), ()
 
 
 def refresh_locks(requested: str | None = None, *, jobs: int = 4) -> tuple[str, tuple[Path, ...], tuple[Path, ...]]:
@@ -220,7 +218,7 @@ def refresh_locks(requested: str | None = None, *, jobs: int = 4) -> tuple[str, 
             print(f"No test environments found for {candidate}", file=sys.stderr)
             continue
 
-        written, pruned = generate_locks((suite,), jobs=jobs)
+        written, pruned = generate_locks((suite,), jobs=jobs, upgrade=True)
         with redirect_stdout(sys.stderr):
             cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
         if cooldown_status:
@@ -232,35 +230,20 @@ def refresh_locks(requested: str | None = None, *, jobs: int = 4) -> tuple[str, 
 
 def check_locks() -> int:
     environments = select_environments()
-    expected = [environment.lockfile for environment in environments]
-    if len(expected) != len(set(expected)):
-        raise LockError("multiple test environments map to the same uv lock")
-
-    expected_paths = set(expected)
-    actual_paths = {
-        path.relative_to(PROJECT_ROOT)
-        for path in (PROJECT_ROOT / LOCK_ROOT).glob("*.txt")
-        if not path.name.startswith("build-docs--")
-    }
-    missing = sorted(expected_paths - actual_paths)
-    obsolete = sorted(actual_paths - expected_paths)
-    if missing or obsolete:
-        details = []
-        if missing:
-            details.append("missing uv locks:\n" + "\n".join(f"  {path}" for path in missing))
-        if obsolete:
-            details.append("obsolete uv locks:\n" + "\n".join(f"  {path}" for path in obsolete))
-        raise LockError("\n".join(details))
-    return len(actual_paths)
+    expected_paths = set(_unique_lock_environments(environments))
+    missing = sorted(path for path in expected_paths if not (PROJECT_ROOT / path).is_file())
+    if missing:
+        raise LockError("missing test locks:\n" + "\n".join(f"  {path}" for path in missing))
+    return len(expected_paths)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Manage concrete uv locks for test environments.")
+    parser = argparse.ArgumentParser(description="Manage concrete locks for test environments.")
     subparsers = parser.add_subparsers(dest="command", required=True)
     list_parser = subparsers.add_parser("list", help="List environment hashes for a suite.")
     list_parser.add_argument("suite", help="Full or short suite name.")
     list_parser.add_argument("--python", help="Only list hashes for this Python version.")
-    subparsers.add_parser("check", help="Check that declared environments and committed uv locks match.")
+    subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
     lock_parser.add_argument("suites", nargs="*", help="Full or unambiguous short suite names; defaults to all.")
     lock_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
@@ -272,7 +255,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.command == "check":
             count = check_locks()
-            print(f"Validated {count} concrete uv locks.")
+            print(f"Validated {count} concrete test locks.")
             return 0
         if args.command == "list":
             for environment_hash in list_hashes(args.suite, args.python):

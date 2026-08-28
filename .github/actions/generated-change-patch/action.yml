@@ -37,7 +37,7 @@ runs:
 
           case "$PROFILE" in
             package-versions)
-              if [[ "$path" =~ ^\.uv/[^/]+\.txt$ ]] ||
+              if [[ "$path" =~ ^\.riot/requirements/[^/]+\.txt$ ]] ||
                 [[ "$path" == "supported_versions.json" ]] ||
                 [[ "$path" == "scripts/integration_registry/registry.yaml" ]]; then
                 return

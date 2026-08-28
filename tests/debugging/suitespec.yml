@@ -16,6 +16,6 @@ suites:
       - tests/debugging/*
     matrix:
       command: pytest {cmdargs} tests/debugging/
-      dependencies: [msgpack, httpretty, typing-extensions, pytest-asyncio, pytest-benchmark,
-        pytest-memray, numpy]
-      variants: [{name: default}]
+      variants:
+        - name: debugger
+          dependencies: [msgpack, httpretty, typing-extensions, pytest-asyncio, pytest-benchmark, pytest-memray, numpy]

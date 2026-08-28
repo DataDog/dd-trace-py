@@ -31,10 +31,11 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/appsec/appsec/
-      dependencies: [requests, docker]
       env:
         DD_CIVISIBILITY_ITR_ENABLED: '0'
-      variants: [{name: default}]
+      variants:
+        - name: appsec
+          dependencies: [requests, docker]
   appsec_iast_default:
     venvs_per_job: 1
     paths:
@@ -49,16 +50,6 @@ suites:
     timeout: 30m
     matrix:
       command: pytest -v -n auto --dist=worksteal {cmdargs} tests/appsec/iast/
-      dependencies:
-        - requests
-        - urllib3
-        - cryptography
-        - simplejson
-        - grpcio
-        - pytest-asyncio
-        - protobuf
-        - pytest-xdist
-        - pip<25
       env:
         BROWSER: 'true'
         DD_CIVISIBILITY_ITR_ENABLED: '0'
@@ -67,10 +58,11 @@ suites:
         PYTHONFAULTHANDLER: '1'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
-        - name: pycryptodome-latest
+        - name: appsec_iast_default
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [pycryptodome]
-        - name: variant-2
+          dependencies: [requests, urllib3, cryptography, simplejson, grpcio, pytest-asyncio, protobuf, pytest-xdist, 'pip<25', pycryptodome]
+        - name: appsec_iast_default
+          dependencies: [requests, urllib3, cryptography, simplejson, grpcio, pytest-asyncio, protobuf, pytest-xdist, 'pip<25']
           python: ['3.14']
   appsec_iast_memcheck:
     env:
@@ -88,14 +80,6 @@ suites:
     timeout: 30m
     matrix:
       command: pytest --memray --stacks=35 {cmdargs} tests/appsec/iast_memcheck/
-      dependencies:
-        - requests
-        - urllib3
-        - cryptography
-        - pytest-memray
-        - pytest-asyncio
-        - pytest-randomly
-        - psycopg2-binary~=2.9.9
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_MAX_CONCURRENT_REQUEST: '1000'
@@ -103,7 +87,9 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_TRUNCATION_MAX_VALUE_LENGTH: '10000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
-      variants: [{name: default}]
+      variants:
+        - name: appsec_iast_memcheck
+          dependencies: [requests, urllib3, cryptography, pytest-memray, pytest-asyncio, pytest-randomly, 'psycopg2-binary~=2.9.9']
   appsec_iast_native:
     venvs_per_job: 1
     paths:
@@ -118,13 +104,14 @@ suites:
         cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking
         -B ddtrace/appsec/_iast/_taint_tracking && make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile
         native_tests && ddtrace/appsec/_iast/_taint_tracking/tests/native_tests
-      dependencies: [cmake, pybind11, clang]
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_VULNERABILITIES_PER_REQUEST: '100000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
-      variants: [{name: default}]
+      variants:
+        - name: appsec_iast_native
+          dependencies: [cmake, pybind11, clang]
   iast_aggregated_leak_testing:
     venvs_per_job: 1
     paths:
@@ -132,12 +119,13 @@ suites:
       - 'tests/appsec/iast_aggregated_memcheck/*'
     matrix:
       command: pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py
-      dependencies: [anyio, pydantic, pydantic-settings, pytest-asyncio, requests]
       env:
         DD_IAST_ENABLED: 'true'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.,scripts.iast.
       python: ['3.10', '3.11', '3.12']
-      variants: [{name: default}]
+      variants:
+        - name: iast_aggregated_leak_testing
+          dependencies: [anyio, pydantic, pydantic-settings, pytest-asyncio, requests]
   appsec_iast_packages:
     venvs_per_job: 1
     paths:
@@ -148,14 +136,16 @@ suites:
     timeout: 50m
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs}  -vvv -rxf tests/appsec/iast_packages/
-      dependencies: [requests, flask, pip==26.2.1, pytest-xdist, psutil==7.1.3]
       env:
         DD_IAST_DEDUPLICATE_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
         PYTHONDONTWRITEBYTECODE: '1'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec
       python: ['3.11', '3.12', '3.13', '3.14']
-      variants: [{name: default}]
+      variants:
+        - name: appsec_iast_packages
+          dependencies: [requests, flask, 'pip==26.2.1', pytest-xdist, 'psutil==7.1.3']
+          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', requests, flask, pytest-xdist, 'psutil==7.1.3']
   iast_tdd_propagation:
     venvs_per_job: 1
     paths:
@@ -171,22 +161,14 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/appsec/iast_tdd_propagation/
-      dependencies:
-        - requests
-        - flask
-        - cryptography
-        - sqlalchemy~=2.0.23
-        - pony
-        - aiosqlite
-        - tortoise-orm
-        - peewee
-        - psutil==7.1.3
       env:
         DD_IAST_DEDUPLICATE_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_VULNERABILITIES_PER_REQUEST: '100000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec
-      variants: [{name: default}]
+      variants:
+        - name: iast_tdd_propagation
+          dependencies: [requests, flask, cryptography, 'sqlalchemy~=2.0.23', pony, aiosqlite, tortoise-orm, peewee, 'psutil==7.1.3']
   appsec_integrations_pygoat:
     parallelism: 3
     paths:
@@ -202,7 +184,6 @@ suites:
     snapshot: true
     matrix:
       command: bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh tests/appsec/integrations/pygoat_tests/
-      dependencies: [requests, pyyaml==6.0.1, pip<25]
       env:
         DD_CIVISIBILITY_ITR_ENABLED: 'false'
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
@@ -214,7 +195,9 @@ suites:
         PYTHONUNBUFFERED: '1'
         _DD_IAST_DEBUG: 'false'
       python: ['3.10', '3.11', '3.12']
-      variants: [{name: default}]
+      variants:
+        - name: appsec_integrations_pygoat
+          dependencies: [requests, 'pyyaml==6.0.1', 'pip<25']
   appsec_integrations_packages:
     env:
       TEST_POSTGRES_HOST: postgres
@@ -235,26 +218,14 @@ suites:
       - mysql
     matrix:
       command: pytest -v tests/appsec/integrations/packages_tests/
-      dependencies:
-        - gevent
-        - pytest-xdist
-        - pytest-asyncio
-        - requests
-        - SQLAlchemy
-        - psycopg2-binary~=2.9.9
-        - psycopg
-        - pymysql
-        - mysqlclient==2.1.1
-        - mysql-connector-python
-        - MarkupSafe~=2.1.1
-        - Werkzeug~=3.0.6
-        - babel
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_VULNERABILITIES_PER_REQUEST: '100000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
-      variants: [{name: default}]
+      variants:
+        - name: appsec_integrations_packages
+          dependencies: [gevent, pytest-xdist, pytest-asyncio, requests, SQLAlchemy, 'psycopg2-binary~=2.9.9', psycopg, pymysql, 'mysqlclient==2.1.1', mysql-connector-python, 'MarkupSafe~=2.1.1', 'Werkzeug~=3.0.6', babel]
   appsec_integrations_stripe:
     paths:
       - '@bootstrap'
@@ -265,16 +236,15 @@ suites:
     retry: 2
     matrix:
       command: 'pytest {cmdargs} -v tests/appsec/integrations/stripe_tests/ '
-      dependencies: [vcrpy]
       variants:
-        - name: stripe-latest
-          dependencies: [stripe]
-        - name: stripe-11-0
-          dependencies: [stripe~=11.0]
-        - name: stripe-12-0
-          dependencies: [stripe~=12.0]
-        - name: stripe-13-0
-          dependencies: [stripe~=13.0]
+        - name: appsec_integrations_stripe
+          dependencies: [stripe, vcrpy]
+        - name: appsec_integrations_stripe
+          dependencies: ['stripe~=11.0', vcrpy]
+        - name: appsec_integrations_stripe
+          dependencies: ['stripe~=12.0', vcrpy]
+        - name: appsec_integrations_stripe
+          dependencies: ['stripe~=13.0', vcrpy]
   appsec_integrations_langchain:
     venvs_per_job: 1
     paths:
@@ -289,7 +259,6 @@ suites:
     retry: 2
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/
-      dependencies: [pytest-asyncio, pytest-randomly]
       env:
         AGENT_VERSION: testagent
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
@@ -297,15 +266,15 @@ suites:
         DD_TRACE_AGENT_URL: http://testagent:9126
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
-        - name: langchain-0-1-langchain-experimental-0-1
+        - name: appsec_integrations_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [langchain~=0.1, langchain-experimental~=0.1]
-        - name: langchain-0-2-langchain-community-0-2-langchain-experimental-0-2
+          dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.1', 'langchain-experimental~=0.1']
+        - name: appsec_integrations_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [langchain~=0.2, langchain-community~=0.2, langchain-experimental~=0.2]
-        - name: langchain-0-3-langchain-community-0-3-langchain-experimental-0-3
+          dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.2', 'langchain-community~=0.2', 'langchain-experimental~=0.2']
+        - name: appsec_integrations_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [langchain~=0.3, langchain-community~=0.3, langchain-experimental~=0.3]
+          dependencies: [pytest-asyncio, pytest-randomly, 'langchain~=0.3', 'langchain-community~=0.3', 'langchain-experimental~=0.3']
   appsec_integrations_flask:
     pattern: appsec_integrations_flask$
     venvs_per_job: 1
@@ -327,21 +296,20 @@ suites:
       command: >-
         pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/test_iast_flask.py
         tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
-      dependencies: [requests, psycopg2-binary~=2.9.9, flask-babel, sqlalchemy, pytest-randomly]
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_VULNERABILITIES_PER_REQUEST: '100000'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
-        - name: flask-1-1-markupsafe-1-1-itsdangerous-2-0-1-werkzeug-2-0-3
+        - name: appsec_integrations_flask
           python: ['3.9']
-          dependencies: [flask~=1.1, MarkupSafe~=1.1, itsdangerous==2.0.1, Werkzeug==2.0.3]
-        - name: flask-2-2
-          dependencies: [flask~=2.2]
-        - name: flask-3-1-werkzeug-3-1
+          dependencies: [requests, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'flask~=1.1', 'MarkupSafe~=1.1', 'itsdangerous==2.0.1', 'Werkzeug==2.0.3']
+        - name: appsec_integrations_flask
+          dependencies: [requests, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'flask~=2.2']
+        - name: appsec_integrations_flask
           python: ['3.11', '3.12', '3.13', '3.14']
-          dependencies: [flask~=3.1, Werkzeug~=3.1]
+          dependencies: [requests, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'flask~=3.1', 'Werkzeug~=3.1']
   appsec_integrations_flask_testagent:
     venvs_per_job: 1
     paths:
@@ -362,15 +330,6 @@ suites:
       command: >-
         pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/ --ignore=tests/appsec/integrations/flask_tests/test_iast_flask.py
         --ignore=tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
-      dependencies:
-        - requests==2.31.0
-        - gunicorn
-        - gevent
-        - psycopg2-binary~=2.9.9
-        - flask-babel
-        - sqlalchemy
-        - pytest-randomly
-        - psutil==7.1.3
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
@@ -378,12 +337,12 @@ suites:
         DD_TRACE_AGENT_URL: http://testagent:9126
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
-        - name: flask-2-2
+        - name: appsec_integrations_flask_testagent
           python: ['3.12']
-          dependencies: [flask~=2.2]
-        - name: flask-3-1-werkzeug-3-1
+          dependencies: ['requests==2.31.0', gunicorn, gevent, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'psutil==7.1.3', 'flask~=2.2']
+        - name: appsec_integrations_flask_testagent
           python: ['3.13']
-          dependencies: [flask~=3.1, Werkzeug~=3.1]
+          dependencies: ['requests==2.31.0', gunicorn, gevent, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'psutil==7.1.3', 'flask~=3.1', 'Werkzeug~=3.1']
   appsec_integrations_django:
     venvs_per_job: 1
     paths:
@@ -401,46 +360,36 @@ suites:
     timeout: 30m
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/
-      dependencies:
-        - requests
-        - gunicorn
-        - gevent
-        - pylibmc
-        - PyYAML
-        - dill
-        - bcrypt==4.2.1
-        - pytest-django[testing]==3.10.0
-        - psutil==7.1.3
       env:
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_TRACE_AGENT_URL: http://testagent:9126
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
-        - name: django-2-2
+        - name: appsec_integrations_django
           python: ['3.9']
-          dependencies: [django~=2.2]
-        - name: django-3-2-legacy-cgi-latest
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django~=2.2']
+        - name: appsec_integrations_django
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [django~=3.2, legacy-cgi]
-        - name: django-4-0-10-legacy-cgi-latest
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django~=3.2', legacy-cgi]
+        - name: appsec_integrations_django
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [django==4.0.10, legacy-cgi]
-        - name: django-4-2
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django==4.0.10', legacy-cgi]
+        - name: appsec_integrations_django
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [django~=4.2]
-        - name: django-4-2-legacy-cgi-latest
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django~=4.2']
+        - name: appsec_integrations_django
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [django~=4.2, legacy-cgi]
-        - name: django-5-2
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django~=4.2', legacy-cgi]
+        - name: appsec_integrations_django
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [django~=5.2]
-        - name: django-latest
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django~=5.2']
+        - name: appsec_integrations_django
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [django]
-        - name: django-latest-legacy-cgi-latest
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', django]
+        - name: appsec_integrations_django
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [django, legacy-cgi]
+          dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', django, legacy-cgi]
   appsec_integrations_fastapi:
     venvs_per_job: 1
     paths:
@@ -457,8 +406,6 @@ suites:
       - testagent
     matrix:
       command: pytest -vvv {cmdargs} tests/appsec/integrations/fastapi_tests/
-      dependencies: [requests, python-multipart, jinja2, httpx<0.28.0, uvicorn==0.33.0,
-        pytest-asyncio, psutil==7.1.3]
       env:
         AGENT_VERSION: testagent
         DD_IAST_DEDUPLICATION_ENABLED: 'false'
@@ -467,18 +414,18 @@ suites:
         DD_TRACE_AGENT_URL: http://testagent:9126
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
-        - name: fastapi-0-86-0-anyio-3-7-1
+        - name: appsec_integrations_fastapi
           python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [fastapi==0.86.0, anyio==3.7.1]
-        - name: fastapi-0-141-1
+          dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', 'fastapi==0.86.0', 'anyio==3.7.1']
+        - name: appsec_integrations_fastapi
           python: ['3.10', '3.14']
-          dependencies: [fastapi==0.141.1]
-        - name: fastapi-0-114-2-mcp-1-21-2
+          dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', 'fastapi==0.141.1']
+        - name: appsec_integrations_fastapi
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [fastapi~=0.114.2, mcp==1.21.2]
-        - name: fastapi-latest-pydantic-2-12-mcp-1-21-2
+          dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', 'fastapi~=0.114.2', 'mcp==1.21.2']
+        - name: appsec_integrations_fastapi
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: [fastapi, pydantic~=2.12, mcp==1.21.2]
+          dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', fastapi, 'pydantic~=2.12', 'mcp==1.21.2']
   appsec_threats_django_no_iast:
     venvs_per_job: 1
     paths:
@@ -495,7 +442,6 @@ suites:
     retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
-      dependencies: [requests, httpx]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -503,24 +449,24 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: django-2-2
+        - name: appsec_threats_django_no_iast
           python: ['3.9']
-          dependencies: [django~=2.2]
-        - name: django-3-2
+          dependencies: [requests, httpx, 'django~=2.2']
+        - name: appsec_threats_django_no_iast
           python: ['3.9', '3.10']
-          dependencies: [django~=3.2]
-        - name: django-4-0-10
+          dependencies: [requests, httpx, 'django~=3.2']
+        - name: appsec_threats_django_no_iast
           python: ['3.10']
-          dependencies: [django==4.0.10]
-        - name: django-4-2
+          dependencies: [requests, httpx, 'django==4.0.10']
+        - name: appsec_threats_django_no_iast
           python: ['3.11', '3.13']
-          dependencies: [django~=4.2]
-        - name: django-5-1
+          dependencies: [requests, httpx, 'django~=4.2']
+        - name: appsec_threats_django_no_iast
           python: ['3.10', '3.13']
-          dependencies: [django~=5.1]
-        - name: django-6-0
+          dependencies: [requests, httpx, 'django~=5.1']
+        - name: appsec_threats_django_no_iast
           python: ['3.12', '3.14']
-          dependencies: [django~=6.0]
+          dependencies: [requests, httpx, 'django~=6.0']
   appsec_threats_django_iast:
     venvs_per_job: 1
     paths:
@@ -538,7 +484,6 @@ suites:
     retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
-      dependencies: [requests, httpx]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -549,24 +494,24 @@ suites:
         DD_IAST_WEAK_HASH_ALGORITHMS: NOTexist
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: django-2-2
+        - name: appsec_threats_django_iast
           python: ['3.9']
-          dependencies: [django~=2.2]
-        - name: django-3-2
+          dependencies: [requests, httpx, 'django~=2.2']
+        - name: appsec_threats_django_iast
           python: ['3.9', '3.10']
-          dependencies: [django~=3.2]
-        - name: django-4-0-10
+          dependencies: [requests, httpx, 'django~=3.2']
+        - name: appsec_threats_django_iast
           python: ['3.10']
-          dependencies: [django==4.0.10]
-        - name: django-4-2
+          dependencies: [requests, httpx, 'django==4.0.10']
+        - name: appsec_threats_django_iast
           python: ['3.11', '3.13']
-          dependencies: [django~=4.2]
-        - name: django-5-1
+          dependencies: [requests, httpx, 'django~=4.2']
+        - name: appsec_threats_django_iast
           python: ['3.10', '3.13']
-          dependencies: [django~=5.1]
-        - name: django-6-0
+          dependencies: [requests, httpx, 'django~=5.1']
+        - name: appsec_threats_django_iast
           python: ['3.12', '3.14']
-          dependencies: [django~=6.0]
+          dependencies: [requests, httpx, 'django~=6.0']
   appsec_threats_django_rc:
     venvs_per_job: 1
     paths:
@@ -583,7 +528,6 @@ suites:
     retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django_RC {cmdargs}
-      dependencies: [requests, httpx, django~=5.1]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -591,7 +535,9 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.10', '3.13']
-      variants: [{name: default}]
+      variants:
+        - name: appsec_threats_django_rc
+          dependencies: [requests, httpx, 'django~=5.1']
   appsec_threats_fastapi_no_iast:
     venvs_per_job: 1
     paths:
@@ -609,7 +555,6 @@ suites:
     retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
-      dependencies: [hypothesis, requests, httpx<0.28.0]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -618,18 +563,18 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: fastapi-0-86-0-anyio-3-7-1
+        - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [fastapi==0.86.0, anyio==3.7.1]
-        - name: fastapi-0-94-1
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1']
+        - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [fastapi==0.94.1]
-        - name: fastapi-0-114-2
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1']
+        - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [fastapi~=0.114.2]
-        - name: fastapi-0-141-1
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2']
+        - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.14']
-          dependencies: [fastapi==0.141.1]
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1']
   appsec_threats_fastapi_iast:
     venvs_per_job: 1
     paths:
@@ -648,7 +593,6 @@ suites:
     retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
-      dependencies: [hypothesis, requests, httpx<0.28.0]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -659,18 +603,18 @@ suites:
         DD_IAST_WEAK_HASH_ALGORITHMS: NOTexist
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: fastapi-0-86-0-anyio-3-7-1
+        - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [fastapi==0.86.0, anyio==3.7.1]
-        - name: fastapi-0-94-1
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1']
+        - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [fastapi==0.94.1]
-        - name: fastapi-0-114-2
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1']
+        - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [fastapi~=0.114.2]
-        - name: fastapi-0-141-1
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2']
+        - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.14']
-          dependencies: [fastapi==0.141.1]
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1']
   appsec_threats_fastapi_rc:
     venvs_per_job: 1
     paths:
@@ -689,7 +633,6 @@ suites:
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI_RC
         {cmdargs}
-      dependencies: [hypothesis, requests, httpx<0.28.0, fastapi~=0.114.2]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -697,7 +640,9 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.10', '3.13']
-      variants: [{name: default}]
+      variants:
+        - name: appsec_threats_fastapi_rc
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2']
   appsec_threats_flask_no_iast:
     venvs_per_job: 1
     paths:
@@ -714,7 +659,6 @@ suites:
     retry: 2
     matrix:
       command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
-      dependencies: [hypothesis, requests, httpx]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -722,18 +666,18 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: flask-1-1-markupsafe-1-1
+        - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [flask~=1.1, MarkupSafe~=1.1]
-        - name: flask-2-1-3-werkzeug-lt-3-0
+          dependencies: [hypothesis, requests, httpx, 'flask~=1.1', 'MarkupSafe~=1.1']
+        - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [flask==2.1.3, Werkzeug<3.0]
-        - name: flask-2-3
+          dependencies: [hypothesis, requests, httpx, 'flask==2.1.3', 'Werkzeug<3.0']
+        - name: appsec_threats_flask_no_iast
           python: ['3.10', '3.13']
-          dependencies: [flask~=2.3]
-        - name: flask-3-0
+          dependencies: [hypothesis, requests, httpx, 'flask~=2.3']
+        - name: appsec_threats_flask_no_iast
           python: ['3.11', '3.13']
-          dependencies: [flask~=3.0]
+          dependencies: [hypothesis, requests, httpx, 'flask~=3.0']
   appsec_threats_flask_iast:
     venvs_per_job: 1
     paths:
@@ -751,7 +695,6 @@ suites:
     retry: 2
     matrix:
       command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
-      dependencies: [hypothesis, requests, httpx]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -762,18 +705,18 @@ suites:
         DD_IAST_WEAK_HASH_ALGORITHMS: NOTexist
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: flask-1-1-markupsafe-1-1
+        - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [flask~=1.1, MarkupSafe~=1.1]
-        - name: flask-2-1-3-werkzeug-lt-3-0
+          dependencies: [hypothesis, requests, httpx, 'flask~=1.1', 'MarkupSafe~=1.1']
+        - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [flask==2.1.3, Werkzeug<3.0]
-        - name: flask-2-3
+          dependencies: [hypothesis, requests, httpx, 'flask==2.1.3', 'Werkzeug<3.0']
+        - name: appsec_threats_flask_iast
           python: ['3.10', '3.13']
-          dependencies: [flask~=2.3]
-        - name: flask-3-0
+          dependencies: [hypothesis, requests, httpx, 'flask~=2.3']
+        - name: appsec_threats_flask_iast
           python: ['3.11', '3.13']
-          dependencies: [flask~=3.0]
+          dependencies: [hypothesis, requests, httpx, 'flask~=3.0']
   appsec_threats_flask_rc:
     venvs_per_job: 1
     paths:
@@ -791,7 +734,6 @@ suites:
     matrix:
       command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask_RC
         {cmdargs}
-      dependencies: [hypothesis, requests, httpx, flask~=3.0]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -799,7 +741,9 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.11', '3.13']
-      variants: [{name: default}]
+      variants:
+        - name: appsec_threats_flask_rc
+          dependencies: [hypothesis, requests, httpx, 'flask~=3.0']
   appsec_threats_tornado_no_iast:
     venvs_per_job: 1
     paths:
@@ -816,7 +760,6 @@ suites:
     retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
-      dependencies: [requests, httpx]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -824,15 +767,15 @@ suites:
         DD_IAST_ENABLED: 'false'
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: tornado-6-3
+        - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [tornado~=6.3]
-        - name: tornado-6-4
+          dependencies: [requests, httpx, 'tornado~=6.3']
+        - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [tornado~=6.4]
-        - name: tornado-6-5
+          dependencies: [requests, httpx, 'tornado~=6.4']
+        - name: appsec_threats_tornado_no_iast
           python: ['3.10', '3.14']
-          dependencies: [tornado~=6.5]
+          dependencies: [requests, httpx, 'tornado~=6.5']
   appsec_threats_tornado_iast:
     venvs_per_job: 1
     paths:
@@ -850,7 +793,6 @@ suites:
     retry: 2
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
-      dependencies: [requests, httpx]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -861,15 +803,15 @@ suites:
         DD_IAST_WEAK_HASH_ALGORITHMS: NOTexist
         DD_TRACE_AGENT_URL: http://testagent:9126
       variants:
-        - name: tornado-6-3
+        - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [tornado~=6.3]
-        - name: tornado-6-4
+          dependencies: [requests, httpx, 'tornado~=6.3']
+        - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [tornado~=6.4]
-        - name: tornado-6-5
+          dependencies: [requests, httpx, 'tornado~=6.4']
+        - name: appsec_threats_tornado_iast
           python: ['3.10', '3.14']
-          dependencies: [tornado~=6.5]
+          dependencies: [requests, httpx, 'tornado~=6.5']
   appsec_threats_tornado_rc:
     venvs_per_job: 1
     paths:
@@ -887,7 +829,6 @@ suites:
     matrix:
       command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado_RC
         {cmdargs}
-      dependencies: [requests, httpx, tornado~=6.5]
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -895,7 +836,9 @@ suites:
         DD_REMOTE_CONFIGURATION_ENABLED: 'true'
         DD_TRACE_AGENT_URL: http://testagent:9126
       python: ['3.10', '3.14']
-      variants: [{name: default}]
+      variants:
+        - name: appsec_threats_tornado_rc
+          dependencies: [requests, httpx, 'tornado~=6.5']
   urllib:
     paths:
       - '@bootstrap'
@@ -907,23 +850,21 @@ suites:
     skip: true  # TODO: No environment available
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3
-      dependencies: [pytest-randomly, pytest-xdist]
       variants:
-        - name: urllib3-1-25-8-urllib3
+        - name: urllib3
           python: ['3.9']
-          dependencies: [urllib3==1.25.8]
-        - name: urllib3-latest
-          dependencies: [urllib3]
-        - name: urllib3-1-26-6-urllib3-2
+          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.25.8']
+        - name: urllib3
+          dependencies: [pytest-randomly, pytest-xdist, urllib3]
+        - name: urllib3
           python: ['3.10']
-          dependencies: [urllib3==1.26.6]
-        - name: urllib3-1-26-8-urllib3-3
+          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.6']
+        - name: urllib3
           python: ['3.11']
-          dependencies: [urllib3==1.26.8]
-        - name: urllib3-2-0-0-urllib3-4
+          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.8']
+        - name: urllib3
           python: ['3.12', '3.13', '3.14']
-          dependencies: [urllib3==2.0.0]
-    integration: urllib3
+          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
   webbrowser:
     paths:
       - '@bootstrap'
@@ -944,5 +885,6 @@ suites:
     venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/appsec/sca/
-      dependencies: [jsonschema]
-      variants: [{name: default}]
+      variants:
+        - name: sca
+          dependencies: [jsonschema]
