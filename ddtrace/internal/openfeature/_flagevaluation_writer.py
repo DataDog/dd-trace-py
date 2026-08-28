@@ -87,6 +87,14 @@ CONTEXT_TRUNCATION_SNAPSHOT_ERROR = "snapshot_error"
 # A single unsupported key or value drops only its own field. Ruby's
 # bounded_context_snapshot falls through its leaf type case the same way, so one
 # caller value cannot discard the fields around it.
+#
+# Intentionally Python-only as a reason string: dd-trace-rb drops the same field
+# silently (its leaf case falls through, or context_key_string returns nil) and records
+# nothing, leaving Ruby operators blind to type-rejected fields. Recording it here is
+# additive -- the retained key set is unchanged, and truncation reasons are local
+# advisory telemetry -- so it does not put the same caller context in a different
+# aggregation bucket per language. Do not delete this for the sake of reason-vocabulary
+# parity without also removing the visibility it provides.
 CONTEXT_TRUNCATION_UNSUPPORTED_VALUE = "unsupported_value"
 # Internal sentinel, never a telemetry reason. A null attribute is omitted by design
 # rather than truncated, so dropping it must not inflate the truncation counter.

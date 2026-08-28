@@ -630,8 +630,9 @@ class TestFlattenAndPruneContext:
 
         assert snapshot == {}
         assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
-        # The object() elements are genuinely unsupported, so Python reports that too.
-        # Ruby omits it here, but reasons are advisory telemetry and the key set matches.
+        # Python also reports unsupported_value, which dd-trace-rb omits. Kept
+        # deliberately: it is additional operator visibility into type-rejected fields,
+        # and reasons are local advisory telemetry, so the retained key set still matches.
         assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_VISITED_NODES, CONTEXT_TRUNCATION_UNSUPPORTED_VALUE))
 
     def test_snapshot_caps_match_the_cross_sdk_derivation(self):
