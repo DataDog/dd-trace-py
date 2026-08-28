@@ -936,14 +936,10 @@ venv = Venv(
         ),
         Venv(
             name="celery",
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/celery",
             pkgs={
                 "more_itertools": "<8.11.0",
                 "pytest-randomly": latest,
-            },
-            env={
-                "DDTEST_SUITE_PATH": "tests/contrib/celery",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/celery/**/test*.py",
             },
             venvs=[
                 Venv(
