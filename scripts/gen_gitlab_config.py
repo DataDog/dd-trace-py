@@ -603,11 +603,17 @@ def _emit_ddtest_jobs(
         print("    - job: ddtest-build", file=f)
         print("      artifacts: true", file=f)
 
-    def emit_needs_build_base_venvs() -> None:
+    def emit_needs_build_base_venvs(match_matrix: bool = False) -> None:
         print("    - job: build_base_venvs", file=f)
         print("      artifacts: true", file=f)
         print("      parallel:", file=f)
         print("        matrix:", file=f)
+        if match_matrix:
+            # Each run matrix entry only needs the base venv for its Python
+            # version. The plan job passes False because it loops over all
+            # hashes sequentially.
+            print("          - PYTHON_VERSION: ['$[[ matrix.PYTHON_VERSION ]]']", file=f)
+            return
         # Dedup PYTHON_VERSIONs: several hashes share a Python version, but
         # build_base_venvs only needs to be downloaded once per version.
         seen_py: set[str] = set()
@@ -652,7 +658,7 @@ def _emit_ddtest_jobs(
     print(f"  stage: {stage}", file=f)
     print("  needs:", file=f)
     print("    - prechecks", file=f)
-    emit_needs_build_base_venvs()
+    emit_needs_build_base_venvs(match_matrix=True)
     emit_needs_ddtest_build()
     # The plan job is a single job (not matrix), so no matrix match needed.
     # Each run downloads the single plan artifact (which contains all hashes'

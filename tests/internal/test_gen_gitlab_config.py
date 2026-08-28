@@ -94,12 +94,16 @@ def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
         stage="core",
         clean_name="internal",
         config={"env": {"_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.internal"}},
-        venvs=[("abc1234", "3.13")],
+        venvs=[("abc1234", "3.13"), ("def5678", "3.14")],
         k=1,
     )
 
     content = output.getvalue()
     assert "_DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal" in content
+    run_needs = content.split("core/internal::ddtest-run:", 1)[1].split("\n  parallel:\n", 1)[0]
+    assert "PYTHON_VERSION: ['$[[ matrix.PYTHON_VERSION ]]']" in run_needs
+    assert 'PYTHON_VERSION: "3.13"' not in run_needs
+    assert 'PYTHON_VERSION: "3.14"' not in run_needs
 
 
 def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
