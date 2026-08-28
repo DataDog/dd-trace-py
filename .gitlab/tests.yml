@@ -157,9 +157,10 @@ include:
       export DDTEST_PLAN_AGENT_URL="${_CI_DD_AGENT_URL}"
       riot_cmd=(bin/riot-env/bin/python -m riot -P -v run --pass-env -s)
 
-      # Keep at most one planner active per Python version to bound concurrent
-      # dependency installs and ddtest API traffic. Each hash gets its own
-      # worktree, so its hash-specific venv and planner output are isolated.
+      # Keep at most one planner active per Python version: Riot's nspkgs()
+      # temporarily modifies namespace-package .pth files in the shared base
+      # venv. Each hash gets its own worktree, so its hash-specific venv and
+      # planner output are isolated, but same-Python planners cannot overlap.
       declare -A hashes_by_python=()
       declare -A plan_workdirs=()
       cleanup_worktrees() {
