@@ -160,7 +160,11 @@ class ResetLock(ResetObject[_unpatched.threading_Lock]):
 
     def __init__(self) -> None:
         super().__init__(_unpatched.threading_Lock)
-        self._self_context_depths: dict[int, int] = {}
+        # AIDEV-NOTE: A primitive Lock can be released by a thread other than its acquirer, so
+        # ownership is a single value that every successful release clears. The separate fork
+        # depth only makes the inherited acquisition reentrant for the forking thread while
+        # child hooks and the pre-fork call stack unwind.
+        self._self_owner: typing.Optional[int] = None
         self._self_fork_owner: typing.Optional[int] = None
         self._self_fork_depth = 0
 
@@ -169,10 +173,14 @@ class ResetLock(ResetObject[_unpatched.threading_Lock]):
         if self._self_fork_owner == thread_id:
             self._self_fork_depth += 1
             return True
-        return self.__wrapped__.acquire(blocking, timeout)
+        acquired = self.__wrapped__.acquire(blocking, timeout)
+        if acquired:
+            self._self_owner = thread_id
+        return acquired
 
     def release(self) -> None:
-        if self._self_fork_owner == get_ident():
+        self._self_owner = None
+        if self._self_fork_owner is not None:
             self._self_fork_depth -= 1
             if self._self_fork_depth == 0:
                 self._self_fork_owner = None
@@ -181,18 +189,9 @@ class ResetLock(ResetObject[_unpatched.threading_Lock]):
         self.__wrapped__.release()
 
     def __enter__(self) -> typing.Any:
-        entered = self.acquire()
-        thread_id = get_ident()
-        self._self_context_depths[thread_id] = self._self_context_depths.get(thread_id, 0) + 1
-        return entered
+        return self.acquire()
 
     def __exit__(self, *args: typing.Any) -> typing.Any:
-        thread_id = get_ident()
-        context_depth = self._self_context_depths[thread_id] - 1
-        if context_depth:
-            self._self_context_depths[thread_id] = context_depth
-        else:
-            del self._self_context_depths[thread_id]
         self.release()
         return None
 
@@ -201,17 +200,17 @@ class ResetLock(ResetObject[_unpatched.threading_Lock]):
 
     def _reset_object(self) -> None:
         thread_id = get_ident()
-        context_depth = self._self_context_depths.get(thread_id, 0)
         if self._self_fork_owner == thread_id:
-            fork_depth = max(context_depth, self._self_fork_depth)
+            fork_depth = self._self_fork_depth
         else:
-            fork_depth = context_depth
-        self._self_context_depths = {thread_id: context_depth} if context_depth else {}
+            fork_depth = int(self._self_owner == thread_id)
         super()._reset_object()
+        self._self_owner = None
         self._self_fork_owner = None
         self._self_fork_depth = 0
         if fork_depth:
             self.__wrapped__.acquire()
+            self._self_owner = thread_id
             self._self_fork_owner = thread_id
             self._self_fork_depth = fork_depth
 
@@ -231,7 +230,7 @@ register(_reset_objects)
 
 
 def Lock() -> _unpatched.threading_Lock:
-    return ResetLock()
+    return ResetObject(_unpatched.threading_Lock)
 
 
 def Event() -> _unpatched.threading_Event:

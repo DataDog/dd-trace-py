@@ -22,14 +22,7 @@ class _ProfiledAsyncioCondition(_lock._ProfiledLock):
     pass
 
 
-class _LockCollector(_lock.LockCollector):
-    def _rollback_start(self) -> None:
-        if self._original_lock is None:
-            return
-        super()._rollback_start()
-
-
-class AsyncioLockCollector(_LockCollector):
+class AsyncioLockCollector(_lock.LockCollector):
     """Record asyncio.Lock usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledAsyncioLock] = _ProfiledAsyncioLock
@@ -37,7 +30,7 @@ class AsyncioLockCollector(_LockCollector):
     PATCHED_LOCK_NAME: str = "Lock"
 
 
-class AsyncioSemaphoreCollector(_LockCollector):
+class AsyncioSemaphoreCollector(_lock.LockCollector):
     """Record asyncio.Semaphore usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledAsyncioSemaphore] = _ProfiledAsyncioSemaphore
@@ -45,7 +38,7 @@ class AsyncioSemaphoreCollector(_LockCollector):
     PATCHED_LOCK_NAME: str = "Semaphore"
 
 
-class AsyncioBoundedSemaphoreCollector(_LockCollector):
+class AsyncioBoundedSemaphoreCollector(_lock.LockCollector):
     """Record asyncio.BoundedSemaphore usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledAsyncioBoundedSemaphore] = _ProfiledAsyncioBoundedSemaphore
@@ -53,7 +46,7 @@ class AsyncioBoundedSemaphoreCollector(_LockCollector):
     PATCHED_LOCK_NAME: str = "BoundedSemaphore"
 
 
-class AsyncioConditionCollector(_LockCollector):
+class AsyncioConditionCollector(_lock.LockCollector):
     """Record asyncio.Condition usage."""
 
     PROFILED_LOCK_CLASS: type[_ProfiledAsyncioCondition] = _ProfiledAsyncioCondition

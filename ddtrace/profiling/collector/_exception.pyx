@@ -182,11 +182,14 @@ class ExceptionCollector(collector.Collector):
                     sys.monitoring.events.RAISE,
                     _on_exception,
                 )
-            except ValueError:
+            except ValueError as e:
                 LOG.exception("Failed to set up exception monitoring")
                 if monitoring_claimed:
                     self._stop_service()
-                return
+                # AIDEV-NOTE: Raise instead of returning so Service.start() does not mark this
+                # collector RUNNING when monitoring was never actually installed (e.g. the tool ID
+                # is still held by a previous instance that failed to free it on stop).
+                raise collector.CollectorUnavailable from e
             except BaseException:
                 self._stop_service()
                 raise

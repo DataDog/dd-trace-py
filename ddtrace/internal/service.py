@@ -31,7 +31,7 @@ class Service(metaclass=abc.ABCMeta):
         self.status: ServiceStatus = ServiceStatus.STOPPED
         # AIDEV-NOTE: Lifecycle methods can release the GIL while holding this lock, so a child
         # must reset it instead of inheriting ownership from a thread that disappeared at fork.
-        self._service_lock: typing.ContextManager = forksafe.Lock()
+        self._service_lock = forksafe.ResetLock()
 
     def __repr__(self):
         class_name = self.__class__.__name__

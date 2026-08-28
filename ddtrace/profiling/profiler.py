@@ -16,7 +16,6 @@ from ddtrace.internal import process_tags
 from ddtrace.internal import service
 from ddtrace.internal import uwsgi
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.forksafe import Lock
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.profiling import config as profiling_config
@@ -45,7 +44,7 @@ class Profiler(object):
     """
 
     _active_instance: Optional["Profiler"] = None
-    _active_lock = Lock()
+    _active_lock = forksafe.ResetLock()
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._profiler: "_ProfilerInstance" = _ProfilerInstance(*args, **kwargs)
@@ -134,7 +133,11 @@ class Profiler(object):
     def _stop_with_active_lock(self, flush: bool = True) -> None:
         atexit.unregister(self.stop)
         if self._profiler._start_cleanup_pending:
-            self._profiler._rollback_start(flush=flush)
+            try:
+                self._profiler._rollback_start(flush=flush)
+            except BaseException:
+                LOG.debug("Failed to finish pending profiler cleanup during stop", exc_info=True)
+                raise
             self._finalize_stop_with_active_lock()
             return
         try:
@@ -167,6 +170,15 @@ class Profiler(object):
             return True
         # AIDEV-NOTE: A child can inherit ownership while another thread is rolling startup back.
         # Finish that inherited transaction before deciding whether a replacement may start.
+        # This is deliberately scoped to the cross-fork case: within the same process, a pending
+        # cleanup belongs to a start()/stop() call already in flight elsewhere (impossible here,
+        # since Profiler._active_lock serializes all callers) or one that gave up and left the
+        # profiler wedged. Racing that owner's own retry by attempting rollback inline here would
+        # make two callers contend over the same non-reentrant collector/scheduler rollback; the
+        # owner's own next start()/stop() call is the one that should finish it. Verified by
+        # tests/profiling/test_profiler.py::test_restart_finishes_failed_scheduler_cleanup_before_restarting_collectors
+        # and friends, which assert a competing start() must not touch the collectors while cleanup
+        # is pending in the same process.
         cleanup_generation = getattr(active._profiler, "_start_cleanup_generation", None)
         if (
             active._profiler._start_cleanup_pending
@@ -213,6 +225,9 @@ class Profiler(object):
             pass
         except Exception:
             LOG.debug("Exception while stopping profiler on exit signal", exc_info=True)
+            # AIDEV-NOTE: A pre-existing callable signal handler can keep the process alive after
+            # this handler returns. Preserve ownership when cleanup is incomplete so a later
+            # profiler cannot adopt shared native resources; this instance can retry stop().
         finally:
             Profiler._active_lock.release()
 

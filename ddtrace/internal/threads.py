@@ -32,6 +32,14 @@ __all__ = [
     "RLock",
 ]
 
+# AIDEV-NOTE: Exact text of the RuntimeErrors ddtrace/internal/_threads.cpp raises for a
+# thread/periodic-thread that was never started (via PyErr_SetString(PyExc_RuntimeError, ...)).
+# Callers such as ddtrace.profiling.scheduler.Scheduler._rollback_start match on these strings to
+# tell "never started" apart from a real failure; keep all three in sync if the native messages
+# change.
+THREAD_NOT_STARTED_ERROR = "Thread not started"
+PERIODIC_THREAD_NOT_STARTED_ERROR = "Periodic thread not started"
+
 
 # Forking state management. This is a barrier to either prevent new threads
 # from being started while forking, or to allow a thread to be started
@@ -87,6 +95,12 @@ class PeriodicThread(_PeriodicThread):
             return self._cancel_deferred_start_unlocked()
 
     def _cancel_deferred_start_unlocked(self) -> bool:
+        # AIDEV-NOTE: Callers outside this module (ddtrace.profiling.scheduler.Scheduler
+        # ._rollback_start) call this `_unlocked` variant directly while holding
+        # `_forking_lock` themselves, instead of `_cancel_deferred_start()`, because they need
+        # the decision made here (deferred vs. already-running) to stay atomic with a fallback
+        # stop/join they run under the same lock. If this method's contract (return value
+        # semantics, or what state it mutates) changes, update that call site too.
         retained_starts = [start for start in _threads_to_start_after_fork if start.__self__ is not self]
         start_was_deferred = len(retained_starts) != len(_threads_to_start_after_fork)
         _threads_to_start_after_fork[:] = retained_starts

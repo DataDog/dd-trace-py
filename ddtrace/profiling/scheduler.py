@@ -44,6 +44,8 @@ class Scheduler(periodic.PeriodicService):
         with self._service_lock:
             if self._worker is not None:
                 # AIDEV-NOTE: The fork lock makes cancellation and native-worker classification atomic with restart.
+                # See the AIDEV-NOTE on PeriodicThread._cancel_deferred_start_unlocked for why this
+                # calls the `_unlocked` variant directly instead of `_cancel_deferred_start()`.
                 with internal_threads._forking_lock:
                     if self._worker._cancel_deferred_start_unlocked():
                         self._worker = None
@@ -51,12 +53,12 @@ class Scheduler(periodic.PeriodicService):
                         try:
                             self._stop_service()
                         except RuntimeError as error:
-                            if str(error) != "Thread not started":
+                            if str(error) != internal_threads.THREAD_NOT_STARTED_ERROR:
                                 raise
                             try:
                                 self._worker.join(0)
                             except RuntimeError as join_error:
-                                if str(join_error) != "Periodic thread not started":
+                                if str(join_error) != internal_threads.PERIODIC_THREAD_NOT_STARTED_ERROR:
                                     raise
                                 self._worker = None
                             else:

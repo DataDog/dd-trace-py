@@ -1250,6 +1250,44 @@ def test_signal_stop_recovers_failed_scheduler_transition():
     product_activated.assert_called_once_with(profiler.TELEMETRY_APM_PRODUCT.PROFILER, False)
 
 
+def test_signal_stop_preserves_ownership_when_cleanup_fails():
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self, *args, **kwargs):
+            return None
+
+    internal = TestProfiler(
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+    test_scheduler = mock.Mock(status=service.ServiceStatus.RUNNING)
+    test_scheduler.stop.side_effect = RuntimeError("stop failed")
+    test_scheduler._rollback_start.side_effect = RuntimeError("cleanup failed")
+    internal._scheduler = test_scheduler
+    internal._collectors = []
+    internal.status = service.ServiceStatus.RUNNING
+    wrapped = object.__new__(profiler.Profiler)
+    wrapped._profiler = internal
+    profiler.Profiler._active_instance = wrapped
+
+    competing = object.__new__(profiler.Profiler)
+    competing._profiler = mock.Mock(status=service.ServiceStatus.STOPPED)
+
+    with (
+        mock.patch("ddtrace.profiling.profiler.atexit.unregister"),
+        mock.patch("ddtrace.profiling.profiler.telemetry_writer.product_activated") as product_activated,
+    ):
+        wrapped._stop_on_signal()
+        competing.start()
+
+    assert internal._start_cleanup_pending is True
+    assert profiler.Profiler._active_instance is wrapped
+    competing._profiler.start.assert_not_called()
+    product_activated.assert_not_called()
+
+
 def test_constructor_failure_rolls_back_partial_instance(monkeypatch):
     registered_hooks = []
     unregistered_hooks = []
