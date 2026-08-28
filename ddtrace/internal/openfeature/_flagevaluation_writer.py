@@ -28,6 +28,7 @@ from collections.abc import Sequence
 from datetime import datetime
 import http.client as httplib
 import json
+import math
 import queue
 import struct
 import time
@@ -143,6 +144,10 @@ _TAG_OTHER = b"o"
 # Prebound length prefix packer. The drain worker calls this twice per context field.
 _PACK_LENGTH = struct.Struct(">Q").pack
 
+# Prebound finiteness test. Every float leaf is checked, so the attribute lookup is
+# hoisted out of the walk for the same reason as _PACK_LENGTH.
+_IS_FINITE = math.isfinite
+
 
 class _JSONSafeOtherString(str):
     """Immutable JSON string retaining the prior canonical-key type distinction."""
@@ -163,7 +168,11 @@ FLAG_EVALUATION_REASON_CARDINALITY_CAP = "cardinality_cap"
 
 
 def _json_dumps(obj: typing.Any) -> bytes:
-    return json.dumps(obj, default=_json_default, separators=_JSON_SEPARATORS).encode("utf-8")
+    # allow_nan=False is a backstop behind the snapshot's finiteness check. Python's
+    # default emits bare NaN/Infinity tokens, which are not valid JSON and would make a
+    # whole payload undecodable. Raising instead routes the single event into the
+    # counted serialization_error drop path.
+    return json.dumps(obj, default=_json_default, separators=_JSON_SEPARATORS, allow_nan=False).encode("utf-8")
 
 
 def _json_default(value: typing.Any) -> str:
@@ -394,8 +403,17 @@ def _flatten_mapping(
             # dd-trace-rb drops nil leaves the same way; keeping them here would put the
             # same caller context in a different aggregation bucket per language.
             continue
-        if leaf_type is int or leaf_type is bool or leaf_type is float:
+        if leaf_type is int or leaf_type is bool:
             output[child_prefix] = child_value
+            continue
+        if leaf_type is float:
+            # json.dumps emits bare NaN/Infinity tokens, which are not valid JSON. One
+            # such value would make the whole payload undecodable and discard every
+            # event batched with it, so the field is dropped instead.
+            if _IS_FINITE(child_value):
+                output[child_prefix] = child_value
+            else:
+                reasons.add(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
             continue
         _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, state)
 
@@ -455,8 +473,15 @@ def _flatten_sequence(
         if child_value is None:
             # See the null-leaf note in _flatten_mapping.
             continue
-        if leaf_type is int or leaf_type is bool or leaf_type is float:
+        if leaf_type is int or leaf_type is bool:
             output[child_prefix] = child_value
+            continue
+        if leaf_type is float:
+            # See the non-finite note in _flatten_mapping.
+            if _IS_FINITE(child_value):
+                output[child_prefix] = child_value
+            else:
+                reasons.add(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
             continue
         _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, state)
 
@@ -480,7 +505,12 @@ def _validated_leaf(value: typing.Any) -> typing.Any:
         # scalars retain their existing wire representation without a new cap.
         return int.__int__(value)
     if isinstance(value, float):
-        return float.__float__(value)
+        normalized_float = float.__float__(value)
+        if not _IS_FINITE(normalized_float):
+            # See the non-finite note in _flatten_mapping. A float subclass such as
+            # numpy.float64 reaches this path rather than the inline fast path.
+            raise ValueError(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
+        return normalized_float
     if isinstance(value, str):
         normalized = str.__str__(value)
         if len(normalized) > MAX_VALUE_LENGTH:

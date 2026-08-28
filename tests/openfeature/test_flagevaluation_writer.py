@@ -832,6 +832,54 @@ class TestFlattenAndPruneContext:
         assert without == {"a.b": 1}
         assert canonical_context_key(with_empty_segment) != canonical_context_key(without)
 
+    @pytest.mark.parametrize(
+        "unsafe",
+        [
+            pytest.param(float("nan"), id="nan"),
+            pytest.param(float("inf"), id="positive-infinity"),
+            pytest.param(float("-inf"), id="negative-infinity"),
+        ],
+    )
+    def test_non_finite_floats_drop_only_themselves(self, writer, unsafe):
+        """A non-finite float must not reach the payload.
+
+        json.dumps emits bare NaN/Infinity tokens, which are not valid JSON. One such
+        value would make the whole payload undecodable and discard every event batched
+        with it, so the field is dropped and counted like any other unsupported value.
+        """
+        writer.enqueue(_make_event(attrs={"kept": 1.5, "unsafe": unsafe}))
+        assert writer._queue.get_nowait().attrs == {"kept": 1.5}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
+
+    def test_non_finite_float_in_a_list_drops_only_that_element(self, writer):
+        """The sequence walk has its own inline leaf path, so it needs its own guard."""
+        writer.enqueue(_make_event(attrs={"scores": [1.5, float("nan"), 2.5]}))
+        assert writer._queue.get_nowait().attrs == {"scores[0]": 1.5, "scores[2]": 2.5}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
+
+    def test_non_finite_float_subclass_is_dropped(self, writer):
+        """A float subclass takes the _validated_leaf slow path, not the inline one.
+
+        numpy.float64 is the common real-world case; it arrives as NaN whenever a
+        caller's context passes through a dataframe with a missing cell.
+        """
+
+        class Measurement(float):
+            pass
+
+        writer.enqueue(_make_event(attrs={"kept": "retained", "unsafe": Measurement("nan")}))
+        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
+
+    def test_json_dumps_rejects_non_finite_floats(self):
+        """Backstop behind the snapshot guard: encoding must fail closed, not emit NaN.
+
+        _encode_payload_event catches ValueError and counts a serialization_error drop,
+        so a non-finite value that ever bypassed the snapshot costs one event rather
+        than the whole payload.
+        """
+        with pytest.raises(ValueError):
+            _json_dumps({"value": float("nan")})
 
     def test_string_value_limit_counts_characters(self):
         exact_snapshot, exact_reasons = flatten_and_prune_context({"value": "😀" * MAX_VALUE_LENGTH})
