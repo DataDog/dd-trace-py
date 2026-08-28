@@ -80,6 +80,13 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
     raise PermissionDenied()
 
 
+def traced_resolve_request(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Publish Django's resolved route before view middleware and application code run."""
+    resolver_match = func(*args, **kwargs)
+    core.dispatch("django.resolve_request", (resolver_match,), allow_raise=True)
+    return resolver_match
+
+
 def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Trace django.core.handlers.base.BaseHandler.get_response() (or other implementations).
 
@@ -233,6 +240,12 @@ def instrument_module(django: ModuleType, django_core_handlers_base: ModuleType)
         )
 
     if django.VERSION >= (3, 1):
+        if not is_wrapped_with(django_core_handlers_base.BaseHandler.resolve_request, traced_resolve_request):
+            wrap(
+                django_core_handlers_base.BaseHandler.resolve_request,
+                traced_resolve_request,
+            )
+
         # DEV: We cannot use bytecode wrappers here, otherwise in Python 3.13+ we'll trigger:
         #      `ValueError: coroutine already executing`
         if not trace_utils.iswrapped(django_core_handlers_base.BaseHandler, "get_response_async"):
@@ -247,6 +260,12 @@ def uninstrument_module(django: ModuleType, django_core_handlers_base: ModuleTyp
         )
 
     if django.VERSION >= (3, 1):
+        if is_wrapped_with(django_core_handlers_base.BaseHandler.resolve_request, traced_resolve_request):
+            unwrap(
+                django_core_handlers_base.BaseHandler.resolve_request,
+                traced_resolve_request,
+            )
+
         # DEV: We cannot use bytecode wrappers here, otherwise in Python 3.13+ we'll trigger:
         #      `ValueError: coroutine already executing`
         if trace_utils.iswrapped(django_core_handlers_base.BaseHandler, "get_response_async"):

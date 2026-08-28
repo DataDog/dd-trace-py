@@ -167,6 +167,33 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
         path = re.sub(r"<path:[a-z_]+>", "a/b/c", path)
         return path if path.startswith("/") else ("/" + path)
 
+    def test_path_params_block_before_view(self, interface):
+        from django.http import HttpResponse
+        from django.urls import path
+
+        from tests.utils import override_global_config
+
+        view_calls = []
+
+        def blocked_view(_request, value):
+            view_calls.append(value)
+            return HttpResponse("view ran")
+
+        urlconf = importlib.import_module(settings.ROOT_URLCONF)
+        pattern = path("block-before-view/<str:value>/", blocked_view)
+        urlconf.urlpatterns.insert(0, pattern)
+        clear_url_caches()
+        try:
+            with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=utils.rules.RULES_SRB)):
+                self.update_tracer(interface)
+                response = interface.client.get("/block-before-view/AiKfOeRcvG45/")
+
+            assert self.status(response) == 403
+            assert view_calls == []
+        finally:
+            urlconf.urlpatterns.remove(pattern)
+            clear_url_caches()
+
     @pytest.mark.skipif(django.VERSION < (3, 1, 0), reason="Django ASGI requires Django 3.1+")
     def test_normalized_route_asgi(self, interface: utils.Interface, get_entry_span_tag):
         """Regression: ASGI request path must forward ``route=`` to ``set_http_meta``.

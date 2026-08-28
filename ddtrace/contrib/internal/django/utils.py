@@ -453,13 +453,20 @@ def _request_path_params(request):
     """Polymorphic Django path-params extraction.
 
     Returns resolver_match.kwargs (named captures), else resolver_match.args (unnamed captures),
-    else None. Pre-view hooks must not resolve the route themselves because converters are
-    application code and Django will invoke them during its own resolution.
+    else None. Django 3.1+ publishes its resolver match before the view runs; older versions
+    require an early fallback resolution for AppSec request blocking.
     """
     try:
         resolver_match = getattr(request, "resolver_match", None)
         if resolver_match is None:
-            return None
+            if django.VERSION >= (3, 1):
+                return None
+            # AIDEV-NOTE: Django <3.1 has no resolve_request hook. Pre-view resolution is required there so AppSec
+            # can inspect path parameters before application code runs.
+            resolver = get_resolver(getattr(request, "urlconf", None))
+            if resolver is None:
+                return None
+            resolver_match = resolver.resolve(request.path_info)
         return resolver_match.kwargs or resolver_match.args or None
     except Exception:
         log.debug("Django request_path_params extraction failed", exc_info=True)
