@@ -233,6 +233,11 @@ impl SpanText for PyBackedString {
             storage: None,
         }
     }
+
+    // Don't call this now. It's not implemented yet.
+    fn from_owned(_value: String) -> Self {
+        todo!()
+    }
 }
 
 #[derive(Clone, Default, Debug, PartialEq, Eq, Hash, Serialize)]
