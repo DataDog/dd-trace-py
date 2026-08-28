@@ -187,30 +187,6 @@ If missing, run:
 hooks/autohook.sh install
 ```
 
-### Hooks Silently Skipped In A Worktree
-If commits succeed with no `[Autohook]` output while the same commit runs the hooks in
-the main checkout, check for a relative `core.hooksPath`:
-
-```bash
-git config --get core.hooksPath
-```
-
-A relative value is resolved against the root of the working tree, not against the git
-directory. A worktree's root holds a `.git` *file* rather than a directory, so a value
-like `.git/hooks` resolves to nothing and every hook is skipped without a warning.
-Git's default resolution already finds the shared hooks directory from any worktree, so
-the override should be removed:
-
-```bash
-hooks/autohook.sh install   # removes a relative core.hooksPath as part of installing
-```
-
-To confirm hooks resolve from the current directory:
-
-```bash
-git hook run --ignore-missing pre-commit
-```
-
 ### Hook Failing
 Check the hook scripts are executable:
 ```bash

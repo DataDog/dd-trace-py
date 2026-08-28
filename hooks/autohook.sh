@@ -40,10 +40,7 @@ install() {
         "post-checkout"
     )
 
-    # Resolve the shared git directory rather than "$repo_root/.git": inside a worktree
-    # the latter is a regular file, so the symlinks would land nowhere. Git looks for
-    # hooks in the common directory for every worktree, so installing once here covers
-    # the main checkout and all of its worktrees.
+    # Install into git-common-dir/hooks; a worktree's .git is a file.
     git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
     hooks_dir="$git_common_dir/hooks"
     mkdir -p "$hooks_dir"
@@ -58,21 +55,11 @@ install() {
 }
 
 
-# A relative core.hooksPath is resolved against the root of the working tree, not against
-# the git directory. In a worktree that root holds a .git file, so a value like
-# ".git/hooks" resolves to nothing and every hook silently stops running -- commits are
-# accepted with no formatting, typing or secret-scanning check, and the failure surfaces
-# as red CI instead. Git's own default already resolves to the common hooks directory
-# from any worktree, so the override is removed rather than repointed.
-#
-# The value often lives in the common .git/config (shared by every worktree). --local
-# from a worktree only writes that worktree's config file, so both are unset.
+# Unset a relative core.hooksPath in repo-scoped config; it does not resolve in a worktree.
 drop_relative_hooks_path() {
     git_common_dir="$1"
     git_dir=$(cd "$(git rev-parse --git-dir)" && pwd)
-    # Only repo-scoped files. A global absolute hooksPath must not hide a relative
-    # override sitting in the common .git/config — that override is what worktrees
-    # fail to resolve.
+    # Repo-scoped files only; leave absolute / --global hooksPath alone.
     for scope_file in "$git_dir/config" "$git_common_dir/config"
     do
         [[ -f $scope_file ]] || continue
