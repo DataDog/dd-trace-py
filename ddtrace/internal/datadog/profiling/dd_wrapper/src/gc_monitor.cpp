@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstring>
 #include <ctime>
+#include <pthread.h>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -744,6 +745,8 @@ GCMonitor::get()
 void
 GCMonitor::start(uint64_t interval_ms, int survivor_threshold, int top_n, bool referrers_enabled, int max_depth)
 {
+    install_atfork_once();
+
     std::unique_lock<std::mutex> lock(_mutex);
     if (_started) {
         return;
@@ -771,6 +774,71 @@ GCMonitor::stop()
     }
     _cv.notify_one();
     // Do not join -- caller must not block on shutdown.
+}
+
+void
+GCMonitor::install_atfork_once()
+{
+    // pthread_atfork can only be safely registered once. Use call_once so
+    // repeated start()/stop() cycles do not accumulate duplicate handlers.
+    static std::once_flag flag;
+    std::call_once(flag, []() {
+        pthread_atfork([]() { GCMonitor::get().prefork(); },
+                       []() { GCMonitor::get().postfork_parent(); },
+                       []() { GCMonitor::get().postfork_child(); });
+    });
+}
+
+void
+GCMonitor::prefork()
+{
+    // Snapshot the running state *before* locking so postfork_child() can
+    // decide whether to re-arm the thread; the placement-new below wipes it.
+    _was_running_at_fork = _started;
+
+    // Take the mutex on the forking thread so fork() sees a quiescent snapshot
+    // of GCMonitor state. The background thread is either inside _cv.wait_for
+    // (mutex released) or inside take_snapshot()/serialize() (mutex briefly
+    // held); this call blocks the forker until the sampling thread relinquishes
+    // the mutex, guaranteeing consistent copy-on-write state in the child.
+    _mutex.lock();
+}
+
+void
+GCMonitor::postfork_parent()
+{
+    // The parent's background thread survives the fork unchanged, so simply
+    // release the mutex that prefork() acquired and continue monitoring.
+    _mutex.unlock();
+}
+
+void
+GCMonitor::postfork_child()
+{
+    // Only the forking thread exists in the child. The parent's std::thread
+    // is gone but its handle remains in _thread; the mutex/cv may be inherited
+    // in an undefined state; and any bookkeeping the background thread was
+    // maintaining is stale. Reset every piece of state via placement-new so
+    // subsequent stop_gc_monitor()/start_gc_monitor() calls behave the same
+    // way they would in a fresh process.
+    new (&_thread) std::thread();
+    new (&_mutex) std::mutex();
+    new (&_cv) std::condition_variable();
+    _stop_flag = false;
+    _started = false;
+    _prev_gen_stats = {};
+    _survivor_counts.clear();
+    _prev_objs.clear();
+    _latest_json.clear();
+
+    if (_was_running_at_fork) {
+        // Re-arm a fresh background thread with the same configuration the
+        // parent was using. The interval/threshold/top_n/... fields survive
+        // fork intact because they are plain data.
+        _started = true;
+        _thread = std::thread(&GCMonitor::thread_main, this);
+        _thread.detach();
+    }
 }
 
 std::string

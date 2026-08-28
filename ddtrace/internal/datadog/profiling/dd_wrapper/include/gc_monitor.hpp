@@ -56,6 +56,17 @@ class GCMonitor
     // string if no snapshot has been taken yet.
     std::string get_latest_json() const;
 
+    // pthread_atfork handlers. Installed on the first successful start().
+    // prefork:         held on the parent so fork() sees quiescent state.
+    // postfork_parent: releases what prefork acquired, parent thread lives on.
+    // postfork_child:  the parent's std::thread does not exist in the child.
+    //                  Reset the sync primitives via placement-new (they may
+    //                  be inherited in an undefined state), clear the state,
+    //                  and re-arm a fresh sampling thread if we were running.
+    void prefork();
+    void postfork_parent();
+    void postfork_child();
+
   private:
     GCMonitor() = default;
     GCMonitor(const GCMonitor&) = delete;
@@ -63,6 +74,7 @@ class GCMonitor
 
     void thread_main();
     void take_snapshot();
+    void install_atfork_once();
 
     // Serialize the tree + gc stats to the output JSON string.
     // Called with GIL already released.
@@ -97,6 +109,11 @@ class GCMonitor
     std::unordered_map<uintptr_t, std::pair<uint32_t, uint64_t>> _prev_objs;
 
     std::string _latest_json; // protected by _mutex
+
+    // Snapshot of _started captured in prefork() so postfork_child() can
+    // decide whether to re-arm the sampling thread; postfork_child() clears
+    // _started itself as part of resetting per-process state.
+    bool _was_running_at_fork{ false };
 };
 
 } // namespace Datadog
