@@ -10,6 +10,7 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.settings.profiling import ProfilingConfig
 from ddtrace.profiling.collector.gc import GCCollector
 from tests.profiling.collector import pprof_utils
 
@@ -158,22 +159,19 @@ def test_on_gc_stop_without_start_is_noop() -> None:
 
 
 def test_snapshot_emits_config_sample() -> None:
-    col = GCCollector()
-    col.start()
-    try:
-        gc.collect()
-        gc.collect()
+    # Isolated: starting the collector registers _on_gc, and a live pause
+    # during snapshot() would also call SampleHandle.push_walltime.
+    col: GCCollector = _make_isolated_collector()
+    col._explicit_count = 2
 
-        with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
-            mock_handle = mock.MagicMock()
-            mock_ddup.SampleHandle.return_value = mock_handle
-            col.snapshot()
+    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+        mock_handle: mock.MagicMock = mock.MagicMock()
+        mock_ddup.SampleHandle.return_value = mock_handle
+        col.snapshot()
 
-        mock_handle.push_walltime.assert_called_once_with(0, 2)
-        mock_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
-        mock_handle.flush_sample.assert_called_once()
-    finally:
-        col.stop()
+    mock_handle.push_walltime.assert_called_once_with(0, 2)
+    mock_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
+    mock_handle.flush_sample.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -212,10 +210,8 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
 
 def test_gc_collector_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
-    # Re-import to pick up the env var
-    import importlib
-
-    import ddtrace.internal.settings.profiling as prof_settings
-
-    importlib.reload(prof_settings)
-    assert not prof_settings.config.gc.enabled
+    # Fresh instance — do not importlib.reload the settings module. Reload
+    # replaces ProfilingConfigHeap with a second class object and breaks
+    # isinstance() in _derive_default_heap_sample_size for later tests.
+    config: ProfilingConfig = ProfilingConfig()
+    assert not config.gc.enabled
