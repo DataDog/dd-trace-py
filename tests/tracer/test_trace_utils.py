@@ -1300,8 +1300,13 @@ def test_set_flattened_tags_exclude_policy():
 # OpenTelemetry HTTP semantic conventions (DD_TRACE_OTEL_SEMANTICS_ENABLED)
 # ---------------------------------------------------------------------------------------
 
+_OTEL_SEMANTICS_SUBPROCESS_ENV = {
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+    "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": None,
+}
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_server_attributes():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1341,7 +1346,7 @@ def test_otel_semantics_server_attributes():
             assert span.get_tag(legacy) is None, legacy
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_server_prefers_encoded_raw_uri_path():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1364,7 +1369,7 @@ def test_otel_semantics_server_prefers_encoded_raw_uri_path():
         assert span.get_tag("url.query") == "<redacted>&page=2"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_client_attributes():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1396,7 +1401,7 @@ def test_otel_semantics_client_attributes():
             assert span.get_tag(legacy) is None, legacy
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_client_trace_query_string_keeps_obfuscated_query():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1419,7 +1424,7 @@ def test_otel_semantics_client_trace_query_string_keeps_obfuscated_query():
         assert span.get_tag("url.full") == "https://api.example.com/search?<redacted>&page=2"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_client_url_redacts_password_containing_at_sign():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1436,7 +1441,7 @@ def test_otel_semantics_client_url_redacts_password_containing_at_sign():
         assert span.get_tag("server.address") == "api.example.com"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_client_default_port_from_scheme():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1453,7 +1458,7 @@ def test_otel_semantics_client_default_port_from_scheme():
         assert span.get_metric("server.port") == 443
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_method_normalization():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1482,7 +1487,7 @@ def test_otel_semantics_method_normalization():
             assert span.get_tag("http.request.method_original") == expected_original, raw
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_error_statuses_defaults():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1514,9 +1519,7 @@ def test_otel_semantics_error_statuses_defaults():
         assert tag(SpanTypes.HTTP, status_code) == (1, str(status_code))
 
 
-@pytest.mark.subprocess(
-    env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true", "DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"}
-)
+@pytest.mark.subprocess(env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
 def test_otel_semantics_server_error_statuses_configured():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1536,7 +1539,7 @@ def test_otel_semantics_server_error_statuses_configured():
             assert span.get_tag("error.type") == expected_type
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_status_code_does_not_overwrite_exception_error_type():
     import sys
 
@@ -1559,7 +1562,7 @@ def test_otel_semantics_status_code_does_not_overwrite_exception_error_type():
         assert span.get_tag("error.type") == "builtins.ValueError"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
 def test_otel_semantics_url_query_is_obfuscated():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1581,7 +1584,7 @@ def test_otel_semantics_url_query_is_obfuscated():
         assert span.get_tag("url.path") == "/login"
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true", "DD_TRACE_CLIENT_IP_ENABLED": "true"})
+@pytest.mark.subprocess(env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "DD_TRACE_CLIENT_IP_ENABLED": "true"})
 def test_otel_semantics_client_ip_attributes():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
     from ddtrace.ext import SpanTypes
@@ -1606,7 +1609,7 @@ def test_otel_semantics_client_ip_attributes():
 
 
 @pytest.mark.subprocess(
-    env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true", "OTEL_TRACES_EXPORTER": "otlp"},
+    env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "OTEL_TRACES_EXPORTER": "otlp"},
 )
 def test_otel_semantics_numeric_attributes_typed_for_otlp():
     from ddtrace.contrib.internal.trace_utils import set_http_meta
