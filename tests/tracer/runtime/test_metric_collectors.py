@@ -4,7 +4,12 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.runtime.constants import CPU_PERCENT
+from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN0
+from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN1
+from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN2
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
+from ddtrace.internal.runtime.constants import GC_PAUSE_MAX
+from ddtrace.internal.runtime.constants import GC_PAUSE_TIME
 from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import MEM_RSS
 from ddtrace.internal.runtime.constants import NATIVE_PROCESS_RUNTIME_METRICS
@@ -178,30 +183,70 @@ def test_metrics_reflect_child_after_fork():
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
-        for metric_name, value in collector.collect(GC_RUNTIME_METRICS):
-            self.assertIsNotNone(value)
-            self.assertRegex(metric_name, r"^runtime.python\..*")
+        try:
+            for metric_name, value in collector.collect(GC_RUNTIME_METRICS):
+                self.assertIsNotNone(value)
+                self.assertRegex(metric_name, r"^runtime.python\..*")
+            self.assertEqual({name for name, _ in collector.collect(GC_RUNTIME_METRICS)}, GC_RUNTIME_METRICS)
+        finally:
+            collector.stop()
 
     def test_gen1_changes(self):
         # disable gc
         import gc
 
         gc.disable()
-
-        # start collector and get current gc counts
         collector = GCRuntimeMetricCollector()
-        gc.collect()
-        start = gc.get_count()
+        try:
+            gc.collect()
+            start = gc.get_count()
 
-        # create reference
-        a = []
-        collected = collector.collect([GC_COUNT_GEN0])
-        self.assertGreaterEqual(collected[0][1], start[0])
+            # create reference
+            a = []
+            collected = collector.collect([GC_COUNT_GEN0])
+            self.assertGreaterEqual(collected[0][1], start[0])
 
-        # delete reference and collect
-        del a
-        gc.collect()
-        collected_after = collector.collect([GC_COUNT_GEN0])
-        assert len(collected_after) == 1
-        assert collected_after[0][0] == "runtime.python.gc.count.gen0"
-        assert isinstance(collected_after[0][1], int)
+            # delete reference and collect
+            del a
+            gc.collect()
+            collected_after = collector.collect([GC_COUNT_GEN0])
+            assert len(collected_after) == 1
+            assert collected_after[0][0] == "runtime.python.gc.count.gen0"
+            assert isinstance(collected_after[0][1], int)
+        finally:
+            collector.stop()
+            gc.enable()
+
+    def test_collections_and_pause_after_collect(self):
+        import gc
+
+        collector = GCRuntimeMetricCollector()
+        try:
+            dict(collector.collect(GC_RUNTIME_METRICS))
+            gc.collect()
+            metrics = dict(collector.collect(GC_RUNTIME_METRICS))
+        finally:
+            collector.stop()
+
+        collections = metrics[GC_COLLECTIONS_GEN0] + metrics[GC_COLLECTIONS_GEN1] + metrics[GC_COLLECTIONS_GEN2]
+        assert collections >= 1
+        assert metrics[GC_PAUSE_TIME] > 0
+        assert metrics[GC_PAUSE_MAX] > 0
+        assert metrics[GC_PAUSE_MAX] <= metrics[GC_PAUSE_TIME]
+
+    def test_pause_window_resets_between_flushes(self):
+        collector = GCRuntimeMetricCollector()
+        try:
+            import gc
+
+            gc.collect()
+            dict(collector.collect(GC_RUNTIME_METRICS))
+            metrics = dict(collector.collect(GC_RUNTIME_METRICS))
+        finally:
+            collector.stop()
+
+        assert metrics[GC_PAUSE_TIME] == 0
+        assert metrics[GC_PAUSE_MAX] == 0
+        assert metrics[GC_COLLECTIONS_GEN0] == 0
+        assert metrics[GC_COLLECTIONS_GEN1] == 0
+        assert metrics[GC_COLLECTIONS_GEN2] == 0

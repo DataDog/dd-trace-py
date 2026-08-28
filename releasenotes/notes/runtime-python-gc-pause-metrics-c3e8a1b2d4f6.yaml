@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Runtime metrics now include CPython GC collection counts and
+    stop-the-world pause time and max pause (nanoseconds) when
+    ``DD_RUNTIME_METRICS_ENABLED`` is set.
