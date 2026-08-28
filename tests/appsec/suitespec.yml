@@ -175,6 +175,8 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
+    ddtest: true
+    ddtest_nodes: 2
     venvs_per_job: 1
     paths:
       - '@bootstrap'

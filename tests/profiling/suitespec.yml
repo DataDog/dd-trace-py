@@ -7,6 +7,8 @@ components:
     - ddtrace/internal/settings/profiling.py
 suites:
   profile:
+    ddtest: true
+    ddtest_nodes: 2
     env:
       DD_TRACE_AGENT_URL: ''
     venvs_per_job: 1
