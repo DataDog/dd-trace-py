@@ -1,7 +1,15 @@
-# Python 3.15 stack — draft PRs (1–14)
+# Python 3.15 stack — draft PRs (historical 14-PR)
+
+**Live stack is 5 PRs:** see [`PROFILING_STACK.md`](PROFILING_STACK.md)
+(#19267 → #19269 → #19270 → #19272 → #19273). Do not open or retarget
+#17849 / riot / official-support onto that chain.
+
+The 1–14 bodies below are the older split (gab multiplexer, CI matrix,
+official-support as tip). Kept for archaeology; `pr-numbers.env` now lists
+the 5-PR chain.
 
 EMU blocks `gh pr create` / `gh pr edit`. Run [`sync-pr-numbers.sh`](sync-pr-numbers.sh) then [`open-all-draft-prs.sh`](open-all-draft-prs.sh).
-Set numbers: `./sync-pr-numbers.sh PR1=19250 PR6=19255 ...` (preserves existing, fills gaps from GitHub).
+Set numbers: `./sync-pr-numbers.sh PR1=19267 PR2=19269 ...` (preserves existing, fills gaps from GitHub).
 
 ## 1/14 — `gab/315-monitoring-multiplexer` → `main`
 

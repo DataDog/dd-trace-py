@@ -1,4 +1,7 @@
 #!/usr/bin/env bash
+# HISTORICAL: rebuilds the old 14-PR split (gab multiplexer → official-support).
+# Live stack is 5 PRs — see scripts/py315-stack/PROFILING_STACK.md.
+# Do not run this against the current #19267–#19273 branches.
 # Rebuild the 14-PR stack off origin/main with correct incremental commits.
 set -euo pipefail
 

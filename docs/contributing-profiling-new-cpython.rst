@@ -40,8 +40,10 @@ Current status
      - Merged (`PR #15546`__)
      - Echion frame/task/asyncio, ``setup.py`` un-gating, Riot venv splits, tests done.
    * - 3.15
-     - In review (`PR #19269`__ → `PR #19254`__)
-     - Echion: ``FRAME_OWNED_BY_CSTACK`` removed; ``PyFrameState`` renumbered;
+     - In review (`PR #19267`__–`PR #19273`__)
+     - Five-PR profiling stack (peripheral → native → collectors/CI →
+       asyncio ``sys.monitoring`` → dev tooling). Echion:
+       ``FRAME_OWNED_BY_CSTACK`` removed; ``PyFrameState`` renumbered;
        ``FRAME_SUSPENDED_YIELD_FROM_LOCKED`` added for free-threaded builds.
        ``_asyncio.py``: ``sys.monitoring`` PY_RETURN path gated at 3.15 because
        wrapping is unavailable, not because the API is new (PEP 669, 3.12).
@@ -49,8 +51,8 @@ Current status
        Use ``0x030f0000`` guards.
 
 __ https://github.com/DataDog/dd-trace-py/pull/15546
-__ https://github.com/DataDog/dd-trace-py/pull/19269
-__ https://github.com/DataDog/dd-trace-py/pull/19254
+__ https://github.com/DataDog/dd-trace-py/pull/19267
+__ https://github.com/DataDog/dd-trace-py/pull/19273
 
 Version hex quick reference
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
