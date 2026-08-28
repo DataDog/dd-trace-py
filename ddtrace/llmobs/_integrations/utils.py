@@ -314,6 +314,35 @@ def format_anthropic_tool_result_content(content) -> str:
     return str(content)
 
 
+def anthropic_tool_call_from_block(block: Any) -> ToolCall:
+    """Build a ToolCall from an Anthropic `tool_use` content block.
+
+    `input` arrives as a dict on complete responses and as an accumulated JSON string
+    when reassembled from streaming deltas, so it is normalized to a dict here.
+    """
+    input_data = _get_attr(block, "input", {})
+    if isinstance(input_data, str):
+        input_data = safe_load_json(input_data)
+    return ToolCall(
+        name=str(_get_attr(block, "name", "")),
+        arguments=input_data,
+        tool_id=str(_get_attr(block, "id", "")),
+        type=str(_get_attr(block, "type", "")),
+    )
+
+
+def anthropic_tool_result_from_block(block: Any) -> ToolResult:
+    """Build a ToolResult from an Anthropic `tool_result` content block."""
+    result = _get_attr(block, "content", {})
+    if hasattr(result, "model_dump") and callable(result.model_dump):
+        result = result.model_dump()
+    return ToolResult(
+        result=format_anthropic_tool_result_content(result),
+        tool_id=str(_get_attr(block, "tool_use_id", "")),
+        type="tool_result",
+    )
+
+
 def get_messages_from_anthropic_content(role: str, content: Any) -> list[Message]:
     """
     Extracts out a list of messages from an Anthropic Messages API `content` field.
@@ -330,7 +359,7 @@ def get_messages_from_anthropic_content(role: str, content: Any) -> list[Message
     """
     if isinstance(content, str):
         return [Message(content=content, role=str(role))]
-    if not isinstance(content, Iterable):
+    if not isinstance(content, list):
         return []
 
     output_messages: list[Message] = []
@@ -342,29 +371,12 @@ def get_messages_from_anthropic_content(role: str, content: Any) -> list[Message
             continue
         text = _get_attr(block, "text", None)
         message = Message(content=str(text) if text else "", role=str(role))
+        # Substring match: Anthropic also emits `server_tool_use`, `mcp_tool_use`,
+        # and `web_search_tool_result`, which carry the same payload shape.
         if "tool_use" in block_type:
-            input_data = _get_attr(block, "input", {})
-            if isinstance(input_data, str):
-                input_data = safe_load_json(input_data)
-            message["tool_calls"] = [
-                ToolCall(
-                    name=str(_get_attr(block, "name", "")),
-                    arguments=input_data,
-                    tool_id=str(_get_attr(block, "id", "")),
-                    type=str(block_type),
-                )
-            ]
+            message["tool_calls"] = [anthropic_tool_call_from_block(block)]
         if "tool_result" in block_type:
-            result = _get_attr(block, "content", {})
-            if hasattr(result, "model_dump") and callable(result.model_dump):
-                result = result.model_dump()
-            message["tool_results"] = [
-                ToolResult(
-                    result=format_anthropic_tool_result_content(result),
-                    tool_id=str(_get_attr(block, "tool_use_id", "")),
-                    type="tool_result",
-                )
-            ]
+            message["tool_results"] = [anthropic_tool_result_from_block(block)]
         output_messages.append(message)
     return output_messages
 

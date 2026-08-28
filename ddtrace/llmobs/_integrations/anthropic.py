@@ -17,17 +17,15 @@ from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import format_anthropic_tool_result_content
+from ddtrace.llmobs._integrations.utils import anthropic_tool_call_from_block
+from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.types import Message
-from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import ToolDefinition
-from ddtrace.llmobs.types import ToolResult
 from ddtrace.trace import Span
 
 
@@ -192,35 +190,28 @@ class AnthropicIntegration(BaseLLMIntegration):
 
                     elif "tool_use" in (content_type or ""):
                         text = _get_attr(block, "text", None)
-                        input_data = _get_attr(block, "input", {})
-                        if isinstance(input_data, str):
-                            input_data = safe_load_json(input_data)
-                        tool_call_info = ToolCall(
-                            name=str(_get_attr(block, "name", "")),
-                            arguments=input_data,
-                            tool_id=str(_get_attr(block, "id", "")),
-                            type=str(_get_attr(block, "type", "")),
-                        )
                         if text is None:
                             text = ""
-                        input_messages.append(Message(content=str(text), role=str(role), tool_calls=[tool_call_info]))
+                        input_messages.append(
+                            Message(
+                                content=str(text),
+                                role=str(role),
+                                tool_calls=[anthropic_tool_call_from_block(block)],
+                            )
+                        )
 
                     elif "tool_result" in (content_type or ""):
-                        content = _get_attr(block, "content", None)
-                        formatted_content = self._format_tool_result_content(content)
-                        tool_result_info = ToolResult(
-                            result=formatted_content,
-                            tool_id=str(_get_attr(block, "tool_use_id", "")),
-                            type="tool_result",
+                        input_messages.append(
+                            Message(
+                                content="",
+                                role=str(role),
+                                tool_results=[anthropic_tool_result_from_block(block)],
+                            )
                         )
-                        input_messages.append(Message(content="", role=str(role), tool_results=[tool_result_info]))
                     else:
                         input_messages.append(Message(content=str(block), role=str(role)))
 
         return input_messages
-
-    def _format_tool_result_content(self, content) -> str:
-        return format_anthropic_tool_result_content(content)
 
     def _extract_output_message(self, response) -> list[Message]:
         """Extract output messages from the stored response."""
