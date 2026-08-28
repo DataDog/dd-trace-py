@@ -1,8 +1,9 @@
 """Python 3.15 import-time degrade: wrapping modules must load.
 
 wrap() runs the existing trampoline plus the 3.15 generator/coroutine
-assemblies. Remaining NEXT_PY_VERSION gates (lazy wrapping) still degrade
-instead of crashing import. inject_hook is monitoring-based on 3.15.
+assemblies, and fails closed on the next CPython. Remaining NEXT_PY_VERSION
+gates (lazy wrapping) still degrade instead of crashing import. inject_hook
+is monitoring-based on 3.15.
 """
 
 from types import CoroutineType
@@ -77,6 +78,28 @@ async def test_wrap_coroutine_on_315():
     wrap(c, wrapper)
     assert await c() == 42
     assert seen == [42]
+
+
+def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
+    """wrap() must fail closed on the CPython after NEXT_PY_VERSION."""
+    import ddtrace.internal.wrapping as wrapping
+
+    monkeypatch.setattr(
+        wrapping,
+        "PY",
+        (NEXT_PY_VERSION_INFO[0], NEXT_PY_VERSION_INFO[1] + 1),
+    )
+
+    def f() -> None:
+        return None
+
+    def wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
+        return wrapped(*args, **kwargs)
+
+    with pytest.raises(NotImplementedError, match="not supported yet"):
+        wrapping.wrap(f, wrapper)
+    with pytest.raises(NotImplementedError, match="not supported yet"):
+        wrapping.wrap_bytecode(wrapper, f)
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} lazy module degrade")
