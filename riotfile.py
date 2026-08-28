@@ -4117,6 +4117,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4170,6 +4171,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4223,6 +4225,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "django": "~=5.1",
             },
             env={
@@ -4244,6 +4247,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4290,6 +4294,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4336,6 +4341,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "flask": "~=3.0",
             },
             env={
@@ -4357,6 +4363,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": "<0.28.0",
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4403,6 +4410,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": "<0.28.0",
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4449,6 +4457,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": "<0.28.0",
+                "httpx2": ["~=2.0.0", latest],
                 "fastapi": "~=0.114.2",
             },
             env={
@@ -4467,6 +4476,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -4503,6 +4513,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -4539,6 +4550,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "tornado": "~=6.5",
             },
             env={
