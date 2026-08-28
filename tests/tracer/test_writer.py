@@ -1451,14 +1451,32 @@ def test_agentless_end_to_end_payload_reaches_the_intake():
     assert headers["content-type"] == "application/json"
     assert headers["x-datadog-trace-count"] == "1"
 
-    chunks = json.loads(body)["traces"]
-    assert len(chunks) == 1
-    assert chunks[0]["languageName"] == "python"
-    spans = chunks[0]["spans"]
-    assert [(s["name"], s["service"], s["resource"]) for s in spans] == [
-        ("agentless-e2e", "agentless-svc", "a-resource")
-    ]
-    assert spans[0]["meta"]["in_payload"] == "yes"
+    # libdatadog compresses the payload when it is built with its `compression` feature. The
+    # content-type keeps describing the decoded body, so the encoding decides how to read it.
+    encoding = headers.get("content-encoding")
+    payload = None
+    if encoding == "zstd":
+        assert body[:4] == b"\x28\xb5\x2f\xfd", "declared zstd but the frame magic is missing"
+        try:
+            from compression.zstd import decompress  # Python 3.14 and later
+
+            payload = decompress(body)
+        except ImportError:
+            # No decoder in this interpreter, so the headers above are as far as we can check.
+            pass
+    else:
+        assert encoding is None, f"unexpected content-encoding {encoding!r}"
+        payload = body
+
+    if payload is not None:
+        chunks = json.loads(payload)["traces"]
+        assert len(chunks) == 1
+        assert chunks[0]["languageName"] == "python"
+        spans = chunks[0]["spans"]
+        assert [(s["name"], s["service"], s["resource"]) for s in spans] == [
+            ("agentless-e2e", "agentless-svc", "a-resource")
+        ]
+        assert spans[0]["meta"]["in_payload"] == "yes"
 
 
 @pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})

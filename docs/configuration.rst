@@ -1029,11 +1029,10 @@ Agent
          ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
          startup. ``DD_SITE`` selects the intake to submit to.
 
-         The per-product settings ``_DD_APM_TRACING_AGENTLESS_ENABLED``,
-         ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this
-         value and can each be set explicitly to override it for that product. An explicit
-         ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-specific variants, likewise keeps
-         OpenTelemetry data going to your own collector.
+         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and
+         ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this value and can each be set explicitly to
+         override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
+         specific variants, likewise keeps OpenTelemetry data going to your own collector.
 
          Health metrics are disabled in agentless mode, since they rely on the Agent. Profiling
          and tracer flares always require an Agent.
