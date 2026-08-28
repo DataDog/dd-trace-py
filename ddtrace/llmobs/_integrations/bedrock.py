@@ -19,6 +19,7 @@ from ddtrace.llmobs._integrations.bedrock_agents import _max_finish_ns
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
+from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -391,7 +392,12 @@ class BedrockIntegration(BaseLLMIntegration):
     @staticmethod
     def _extract_output_message(response) -> list[Message]:
         """Extract output messages from the stored response.
-        Anthropic allows for chat messages, which requires some special casing.
+
+        Most Bedrock providers return plain text. Anthropic models return an
+        Anthropic Messages API `content` field: a list of tagged content blocks
+        (`text`, `thinking`, `tool_use`, ...), which is handed to the shared
+        Anthropic extractor so InvokeModel captures the same data the Anthropic
+        SDK and Converse integrations do.
         """
         resp_text = response.get("text", "")
         if isinstance(resp_text, str):
@@ -400,7 +406,7 @@ class BedrockIntegration(BaseLLMIntegration):
             if isinstance(resp_text[0], str):
                 return [Message(content=str(content)) for content in resp_text]
             if isinstance(resp_text[0], dict):
-                return [Message(content=resp_text[0].get("text", ""))]
+                return get_messages_from_anthropic_content("assistant", resp_text)
         return []
 
     def _get_base_url(self, **kwargs: dict[str, Any]) -> Optional[str]:

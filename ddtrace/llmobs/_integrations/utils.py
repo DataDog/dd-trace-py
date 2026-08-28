@@ -4,6 +4,7 @@ import inspect
 import json
 import re
 from typing import Any
+from typing import Iterable
 from typing import Optional
 from typing import Union
 
@@ -16,6 +17,7 @@ from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
@@ -292,6 +294,79 @@ def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
         return (role, content) if role else content
     except AttributeError:
         return str(message)
+
+
+def format_anthropic_tool_result_content(content) -> str:
+    """Flatten the `content` field of an Anthropic `tool_result` block into a string."""
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, dict):
+        return safe_json(content)
+    elif isinstance(content, Iterable):
+        formatted_content = []
+        for tool_result_block in content:
+            if _get_attr(tool_result_block, "text", "") != "":
+                formatted_content.append(_get_attr(tool_result_block, "text", ""))
+            elif _get_attr(tool_result_block, "type", None) == "image":
+                # Store a placeholder for potentially enormous binary image data.
+                formatted_content.append(IMAGE_DETECTED_MARKER)
+        return ",".join(formatted_content)
+    return str(content)
+
+
+def get_messages_from_anthropic_content(role: str, content: Any) -> list[Message]:
+    """
+    Extracts out a list of messages from an Anthropic Messages API `content` field.
+
+    `content` is either a string or a list of content blocks. Each block is a tagged union
+    discriminated by `type`, and the payload lives under a different key per type
+    (`text`, `thinking`, `input`/`name` for `tool_use`, `content` for `tool_result`).
+
+    Used by both the Anthropic SDK integration and the Bedrock `InvokeModel` integration,
+    since Bedrock passes Anthropic-formatted request and response bodies through unchanged.
+
+    For more info, see the Anthropic Messages API spec:
+    https://docs.anthropic.com/en/api/messages
+    """
+    if isinstance(content, str):
+        return [Message(content=content, role=str(role))]
+    if not isinstance(content, Iterable):
+        return []
+
+    output_messages: list[Message] = []
+    for block in content:
+        block_type = _get_attr(block, "type", "") or ""
+        if block_type == "thinking":
+            thinking_text = _get_attr(block, "thinking", "")
+            output_messages.append(Message(content=str(thinking_text), role="reasoning"))
+            continue
+        text = _get_attr(block, "text", None)
+        message = Message(content=str(text) if text else "", role=str(role))
+        if "tool_use" in block_type:
+            input_data = _get_attr(block, "input", {})
+            if isinstance(input_data, str):
+                input_data = safe_load_json(input_data)
+            message["tool_calls"] = [
+                ToolCall(
+                    name=str(_get_attr(block, "name", "")),
+                    arguments=input_data,
+                    tool_id=str(_get_attr(block, "id", "")),
+                    type=str(block_type),
+                )
+            ]
+        if "tool_result" in block_type:
+            result = _get_attr(block, "content", {})
+            if hasattr(result, "model_dump") and callable(result.model_dump):
+                result = result.model_dump()
+            message["tool_results"] = [
+                ToolResult(
+                    result=format_anthropic_tool_result_content(result),
+                    tool_id=str(_get_attr(block, "tool_use_id", "")),
+                    type="tool_result",
+                )
+            ]
+        output_messages.append(message)
+    return output_messages
 
 
 def get_messages_from_converse_content(role: str, content: list[dict[str, Any]]) -> list[Message]:
