@@ -437,6 +437,12 @@ venv = Venv(
             env={
                 "DDTEST_SUITE_PATH": "tests/tracer",
                 "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
+                # Exclude test_uwsgi_shutdown.py from ddtest's plan: it needs the
+                # uwsgi binary (in the separate tracer-uwsgi venv, not this one).
+                # ddtest reads DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN
+                # directly (settings.go), so setting it in the venv env works both
+                # in CI (riot --command inherits venv env) and locally (riot run).
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_shutdown.py",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
