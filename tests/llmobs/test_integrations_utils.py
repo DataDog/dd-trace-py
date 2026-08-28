@@ -33,6 +33,7 @@ from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_mes
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
+from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
@@ -1502,3 +1503,42 @@ class TestBedrockInvokeModelInputMessages:
         prompt = [{"role": "assistant", "content": [{"type": "thinking", "thinking": "considering"}]}]
 
         assert extract(prompt) == [{"content": "considering", "role": "reasoning"}]
+
+
+class TestAnthropicToolDefinitions:
+    """Bedrock `InvokeModel` sends Anthropic-format tool definitions, not the Converse shape."""
+
+    def test_empty(self):
+        assert get_tool_definitions_from_anthropic_tools([]) == []
+        assert get_tool_definitions_from_anthropic_tools(None) == []
+
+    def test_tool_definition(self):
+        tools = [
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}},
+            }
+        ]
+
+        assert get_tool_definitions_from_anthropic_tools(tools) == [
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "schema": {"type": "object", "properties": {"city": {"type": "string"}}},
+            }
+        ]
+
+    def test_deferred_tool_omits_description_and_schema(self):
+        tools = [
+            {
+                "name": "deferred",
+                "description": "should not be captured",
+                "input_schema": {"type": "object"},
+                "defer_loading": True,
+            }
+        ]
+
+        assert get_tool_definitions_from_anthropic_tools(tools) == [
+            {"name": "deferred", "description": "", "schema": {}}
+        ]

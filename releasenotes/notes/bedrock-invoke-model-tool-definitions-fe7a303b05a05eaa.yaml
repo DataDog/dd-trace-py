@@ -1,0 +1,5 @@
+fixes:
+  - |
+    LLM Observability: botocore: This fix resolves an issue where tool definitions were
+    not captured on Amazon Bedrock ``InvokeModel`` spans for Anthropic models, which send
+    tool definitions in the request body rather than in the Converse ``toolConfig`` field.

@@ -23,6 +23,7 @@ from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
+from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.types import Message
@@ -93,10 +94,15 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
 
         prompt = request_params.get("prompt", "")
-        tool_config = request_params.get("tool_config", {})
-        tool_definitions = self._extract_tool_definitions(tool_config)
 
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
+        # Converse wraps definitions in `toolConfig.tools[].toolSpec`; InvokeModel carries
+        # the provider's own format, which for Anthropic models is `tools[]`.
+        tool_definitions = (
+            self._extract_tool_definitions(request_params.get("tool_config", {}))
+            if is_converse
+            else get_tool_definitions_from_anthropic_tools(request_params.get("tools", []))
+        )
         input_messages = (
             self._extract_input_message_for_converse(prompt) if is_converse else self._extract_input_message(prompt)
         )

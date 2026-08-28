@@ -314,6 +314,28 @@ def format_anthropic_tool_result_content(content) -> str:
     return str(content)
 
 
+def get_tool_definitions_from_anthropic_tools(tools: Optional[Any]) -> list[ToolDefinition]:
+    """Build tool definitions from an Anthropic `tools` request field.
+
+    Used by the Anthropic SDK integration and by Bedrock `InvokeModel`, which sends
+    Anthropic-formatted tool definitions rather than the Converse `toolConfig` shape.
+    """
+    if not tools:
+        return []
+
+    tool_definitions = []
+    for tool in tools:
+        is_deferred = bool(_get_attr(tool, "defer_loading", False))
+        tool_definitions.append(
+            ToolDefinition(
+                name=tool.get("name", ""),
+                description="" if is_deferred else tool.get("description", ""),
+                schema={} if is_deferred else tool.get("input_schema", {}),
+            )
+        )
+    return tool_definitions
+
+
 def anthropic_tool_call_from_block(block: Any) -> ToolCall:
     """Build a ToolCall from an Anthropic `tool_use` content block.
 

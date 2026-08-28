@@ -21,6 +21,7 @@ from ddtrace.llmobs._integrations.utils import anthropic_tool_call_from_block
 from ddtrace.llmobs._integrations.utils import anthropic_tool_result_from_block
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
 from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
+from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_attr
@@ -277,16 +278,4 @@ class AnthropicIntegration(BaseLLMIntegration):
         return str(base_url) if base_url else None
 
     def _extract_tools(self, tools: Optional[Any]) -> list[ToolDefinition]:
-        if not tools:
-            return []
-
-        tool_definitions = []
-        for tool in tools:
-            is_deferred = bool(_get_attr(tool, "defer_loading", False))
-            tool_def = ToolDefinition(
-                name=tool.get("name", ""),
-                description="" if is_deferred else tool.get("description", ""),
-                schema={} if is_deferred else tool.get("input_schema", {}),
-            )
-            tool_definitions.append(tool_def)
-        return tool_definitions
+        return get_tool_definitions_from_anthropic_tools(tools)
