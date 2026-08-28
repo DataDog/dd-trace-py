@@ -108,3 +108,8 @@ configure_stack_internal_test(test_task_traversal)
 dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
+
+# vm.cc is compiled into the test binary: the fast-copy state lives in inline variables, so the copy in the test
+# executable is distinct from the one in the _stack library and only the constructor linked here initializes it.
+dd_wrapper_add_test(test_embedded_fast_copy test_embedded_fast_copy.cpp ../src/echion/vm.cc)
+configure_stack_internal_test(test_embedded_fast_copy)
