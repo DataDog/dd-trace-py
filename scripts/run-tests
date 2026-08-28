@@ -341,7 +341,7 @@ class TestRunner:
             print("=" * 80)
 
             def format_environment(environment):
-                return f"{environment.hash}  {environment.integration_name}/{environment.variant_name}"
+                return f"{environment.hash}  {environment.integration_name}/{environment.name}"
 
             selected = self._interactive_select(environments, "environments", format_environment)
 
@@ -349,7 +349,7 @@ class TestRunner:
                 selected_environments.extend(selected)
                 print(f"   Selected {len(selected)} environment(s) for suite '{suite_name}':")
                 for environment in selected:
-                    print(f"     • {environment.hash}: {environment.variant_name}")
+                    print(f"     • {environment.hash}: {environment.name}")
 
         return selected_environments
 

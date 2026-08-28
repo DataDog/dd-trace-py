@@ -39,7 +39,7 @@ include:
         echo "Running uv environment: ${environment_hash}"
         scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
       done
-      ./scripts/check-diff ".uv/" \
+      ./scripts/check-diff ".riot/requirements/" \
         "Changes detected in uv locks. Run scripts/test-env lock and commit the result."
 
 .test_base_snapshot:

@@ -19,8 +19,9 @@ suites:
     venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/aiguard/api/
-      dependencies: [requests]
-      variants: [{name: default}]
+      variants:
+        - name: ai_guard_api
+          dependencies: [requests]
   ai_guard_langchain:
     paths:
       - '@bootstrap'
@@ -36,19 +37,16 @@ suites:
     venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/langchain/
-      dependencies: [pytest-asyncio==0.23.7]
       variants:
-        - name: langchain-0-1-20-langchain-core-0-1-53-langchain-openai-0-1-6-op
+        - name: ai_guard_langchain
           python: ['3.9', '3.10', '3.11']
-          dependencies: [langchain==0.1.20, langchain-core==0.1.53, langchain-openai==0.1.6,
-            openai==1.102.0]
-        - name: langchain-0-2-17-langchain-core-0-2-43-langchain-openai-0-1-7-op
+          dependencies: ['pytest-asyncio==0.23.7', 'langchain==0.1.20', 'langchain-core==0.1.53', 'langchain-openai==0.1.6', 'openai==1.102.0']
+        - name: ai_guard_langchain
           python: ['3.9', '3.10', '3.11', '3.12']
-          dependencies: [langchain==0.2.17, langchain-core==0.2.43, langchain-openai==0.1.7,
-            openai==1.102.0]
-        - name: langchain-latest-langchain-core-latest-langchain-openai-latest-o
+          dependencies: ['pytest-asyncio==0.23.7', 'langchain==0.2.17', 'langchain-core==0.2.43', 'langchain-openai==0.1.7', 'openai==1.102.0']
+        - name: ai_guard_langchain
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [langchain, langchain-core, langchain-openai, openai]
+          dependencies: ['pytest-asyncio==0.23.7', langchain, langchain-core, langchain-openai, openai]
   ai_guard_openai:
     paths:
       - '@bootstrap'
@@ -63,16 +61,15 @@ suites:
     venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/openai/
-      dependencies: [pytest-asyncio==0.23.7]
       variants:
-        - name: openai-1-3-0-httpx-lt-0-28
+        - name: ai_guard_openai
           python: ['3.9', '3.10', '3.11', '3.12']
-          dependencies: [openai==1.3.0, httpx<0.28]
-        - name: openai-1-102-0
+          dependencies: ['pytest-asyncio==0.23.7', 'openai==1.3.0', 'httpx<0.28']
+        - name: ai_guard_openai
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [openai==1.102.0]
-        - name: openai-latest
-          dependencies: [openai]
+          dependencies: ['pytest-asyncio==0.23.7', 'openai==1.102.0']
+        - name: ai_guard_openai
+          dependencies: ['pytest-asyncio==0.23.7', openai]
   ai_guard_anthropic:
     paths:
       - '@bootstrap'
@@ -87,12 +84,11 @@ suites:
     venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/anthropic/
-      dependencies: [pytest-asyncio==0.23.7, pyyaml]
       variants:
-        - name: anthropic-0-28-0-httpx-0-27-0
-          dependencies: [anthropic==0.28.0, httpx~=0.27.0]
-        - name: anthropic-latest-httpx-lt-0-28-0
-          dependencies: [anthropic, httpx<0.28.0]
+        - name: ai_guard_anthropic
+          dependencies: ['pytest-asyncio==0.23.7', pyyaml, 'anthropic==0.28.0', 'httpx~=0.27.0']
+        - name: ai_guard_anthropic
+          dependencies: ['pytest-asyncio==0.23.7', pyyaml, anthropic, 'httpx<0.28.0']
   ai_guard_strands:
     paths:
       - '@bootstrap'
@@ -106,9 +102,10 @@ suites:
     venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/aiguard/strands_hooks/
-      dependencies: [strands-agents>=1.29.0]
       python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-      variants: [{name: default}]
+      variants:
+        - name: ai_guard_strands
+          dependencies: ['strands-agents>=1.29.0']
   ai_guard_litellm_guardrail:
     paths:
       - '@bootstrap'
@@ -122,11 +119,10 @@ suites:
     venvs_per_job: 2
     matrix:
       command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
-      dependencies: [pytest-asyncio]
       variants:
-        - name: litellm-proxy-1-78-5
+        - name: ai_guard_litellm_guardrail
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: ['litellm[proxy]==1.78.5']
-        - name: litellm-proxy-1-82-6
+          dependencies: [pytest-asyncio, 'litellm[proxy]==1.78.5']
+        - name: ai_guard_litellm_guardrail
           python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-          dependencies: ['litellm[proxy]==1.82.6']
+          dependencies: [pytest-asyncio, 'litellm[proxy]==1.82.6']

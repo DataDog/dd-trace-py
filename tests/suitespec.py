@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import cache
 import hashlib
-import json
 from pathlib import Path
 import re
 from typing import Any
@@ -14,11 +13,10 @@ from ruamel.yaml import YAML  # noqa
 TESTS = Path(__file__).parents[1] / "tests"
 BENCHMARKS = Path(__file__).parents[1] / "benchmarks"
 SEARCH_ROOTS = ((TESTS, ""), (BENCHMARKS, "benchmarks"))
-LOCK_ROOT = Path(".uv")
+LOCK_ROOT = Path(".riot/requirements")
 LOCK_PLATFORM = "linux"
 
 _REQUIREMENT_NAME = re.compile(r"^([A-Za-z0-9_.-]+)(\[[A-Za-z0-9_., -]+\])?")
-_SLUG_PART = re.compile(r"[^a-z0-9]+")
 
 DEFAULT_DEPENDENCIES = (
     "mock",
@@ -138,27 +136,26 @@ class TestEnvironment:
     """A concrete test dependency environment."""
 
     suite: str
-    variant_name: str
+    name: str
     integration_name: str
     python: str
     direct_dependencies: tuple[str, ...]
+    # Preserve historical Riot lock hashes when uv requires a different dependency declaration.
+    riot_lock_dependencies: tuple[str, ...]
     runs: tuple[TestRun, ...]
 
     @property
     def lockfile(self) -> Path:
-        suite = _SLUG_PART.sub("-", self.suite.lower()).strip("-")
-        return LOCK_ROOT / f"{suite}--py{self.python.replace('.', '')}--{self.hash}.txt"
+        return LOCK_ROOT / f"{self.lock_hash}.txt"
+
+    @property
+    def lock_hash(self) -> str:
+        return _test_environment_hash(self.name, self.python, self.riot_lock_dependencies)
 
     @property
     def hash(self) -> str:
-        identity = {
-            "suite": self.suite,
-            "variant": self.variant_name,
-            "python": self.python,
-            "dependencies": sorted(self.direct_dependencies, key=str.casefold),
-        }
-        encoded = json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
-        return hashlib.sha256(encoded).hexdigest()[:12]
+        name = f"{self.suite}::{self.name}"
+        return _test_environment_hash(name, self.python, self.direct_dependencies)
 
 
 def _requirement_key(requirement: str) -> str:
@@ -169,13 +166,22 @@ def _requirement_key(requirement: str) -> str:
     return f"{name}{extras or ''}".lower().replace("_", "-")
 
 
+def _test_environment_hash(name: str, python: str, dependencies: tuple[str, ...]) -> str:
+    packages = " ".join(f"'{dependency}'" for dependency in dependencies)
+    payload = f"{name!r}Interpreter(_hint={python!r}){packages}".encode()
+    digest = int(hashlib.sha256(payload).hexdigest(), 16)
+    return f"{digest % ((1 << 61) - 1):x}"[:7]
+
+
 def _merge_dependencies(*groups: tuple[str, ...]) -> tuple[str, ...]:
-    merged: list[str] = []
+    merged: dict[str, str] = {}
     for group in groups:
-        replaced = {_requirement_key(requirement) for requirement in group}
-        merged = [requirement for requirement in merged if _requirement_key(requirement) not in replaced]
-        merged.extend(group)
-    return tuple(merged)
+        for requirement in group:
+            name = _requirement_key(requirement)
+            _, separator, marker = requirement.partition(";")
+            key = f"{name};{marker.strip()}" if separator else name
+            merged[key] = requirement
+    return tuple(merged.values())
 
 
 def _runs(
@@ -206,12 +212,8 @@ def _variant_settings(
     matrix: dict[str, Any],
     variant: dict[str, Any],
     nightly: bool,
-) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
-    dependencies = _merge_dependencies(
-        DEFAULT_DEPENDENCIES,
-        tuple(matrix["dependencies"]) if "dependencies" in matrix else (),
-        tuple(variant["dependencies"]) if "dependencies" in variant else (),
-    )
+) -> tuple[tuple[str, ...], tuple[str, ...], str, tuple[TestRun, ...]]:
+    dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
     if "env" in matrix:
         environment.update(matrix["env"])
@@ -223,7 +225,8 @@ def _variant_settings(
     command = variant.get("command", matrix.get("command"))
     run_specs = variant.get("runs", matrix.get("runs"))
     integration = variant.get("integration", suite_config.get("integration", suite.split("::", 1)[-1]))
-    return dependencies, integration, _runs(command, environment, run_specs)
+    riot_lock_dependencies = tuple(variant.get("riot_lock_dependencies", dependencies))
+    return dependencies, riot_lock_dependencies, integration, _runs(command, environment, run_specs)
 
 
 def _expand_suite_matrix(
@@ -247,7 +250,7 @@ def _expand_suite_matrix(
         python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies, integration, runs = _variant_settings(
+        dependencies, riot_lock_dependencies, integration, runs = _variant_settings(
             suite,
             suite_config,
             matrix,
@@ -258,10 +261,11 @@ def _expand_suite_matrix(
             environments.append(
                 TestEnvironment(
                     suite=suite,
-                    variant_name=name,
+                    name=name,
                     integration_name=integration,
                     python=python,
                     direct_dependencies=dependencies,
+                    riot_lock_dependencies=riot_lock_dependencies,
                     runs=runs,
                 )
             )

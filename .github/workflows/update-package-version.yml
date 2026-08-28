@@ -164,4 +164,4 @@ jobs:
           labels: changelog/no-changelog
           body: |
             Update ${{ inputs.package_name }} lockfiles.
-            This updates only the uv locks for the selected test suite.
+            This updates only the uv-generated locks for the selected test suite.

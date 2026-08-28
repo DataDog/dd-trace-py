@@ -14,6 +14,8 @@ suites:
       - tests/errortracking/*
     matrix:
       command: pytest {cmdargs} tests/errortracking/
-      dependencies: [flask, pip==26.2.1]
       python: ['3.10', '3.11', '3.12', '3.13', '3.14']
-      variants: [{name: default}]
+      variants:
+        - name: errortracker
+          dependencies: [flask, 'pip==26.2.1']
+          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', flask]
