@@ -361,6 +361,7 @@ class TestKillswitchGating:
 
     def test_provider_shutdown_joins_evp_writer_final_flush(self):
         """Provider shutdown waits for FlagEvaluationWriter.on_shutdown final flush."""
+        from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOIN_TIMEOUT
         from tests.utils import override_global_config
 
         with override_global_config({"experimental_flagging_provider_enabled": True}):
@@ -374,8 +375,11 @@ class TestKillswitchGating:
                     provider.shutdown()
 
         writer.stop.assert_called_once()
-        writer.join.assert_called_once()
-        assert writer.mock_calls.index(mock.call.stop()) < writer.mock_calls.index(mock.call.join())
+        # The join must be bounded. The final flush runs inside the worker's on_shutdown,
+        # so an unbounded join would let a hung agent connection block process exit.
+        writer.join.assert_called_once_with(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
+        join_call = mock.call.join(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
+        assert writer.mock_calls.index(mock.call.stop()) < writer.mock_calls.index(join_call)
 
     def test_killswitch_enabled_true_registers_evp_hook(self):
         """DD_FLAGGING_EVALUATION_COUNTS_ENABLED=true must register the EVP hook."""

@@ -35,6 +35,7 @@ from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetrics
 from ddtrace.internal.openfeature._flageval_metrics import FlagEvalMetricsHook
+from ddtrace.internal.openfeature._flagevaluation_writer import DRAIN_WORKER_JOIN_TIMEOUT
 from ddtrace.internal.openfeature._flagevaluation_writer import EVAL_TIMESTAMP_METADATA_KEY
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._native import VariationType
@@ -333,7 +334,10 @@ class DataDogProvider(AbstractProvider):
         if self._flag_eval_evp_writer is not None:
             try:
                 self._flag_eval_evp_writer.stop()
-                self._flag_eval_evp_writer.join()
+                # Bounded join: the final flush runs inside the worker's on_shutdown, so
+                # a hung agent connection here would otherwise block process exit until
+                # the orchestrator kills it.
+                self._flag_eval_evp_writer.join(timeout=DRAIN_WORKER_JOIN_TIMEOUT)
                 logger.debug("FlagEvaluationWriter stopped")
             except ServiceStatusError:
                 logger.debug("FlagEvaluationWriter has already stopped", exc_info=True)
