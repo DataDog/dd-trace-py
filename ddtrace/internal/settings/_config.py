@@ -504,6 +504,9 @@ class Config(object):
             "DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS, asbool
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
+        # Opt in to NativeTraceBuffer, which hands buffering and flush scheduling to libdatadog
+        # instead of running them from a Python periodic thread. Internal while it is under test.
+        self._trace_native_buffer_enabled = _get_config("_DD_TRACE_NATIVE_BUFFER_ENABLED", False, asbool)
 
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")

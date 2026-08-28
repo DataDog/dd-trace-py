@@ -364,9 +364,9 @@ def test_otel_resource_attributes_version_tag():
     ],
 )
 def test_parse_otlp_headers(raw, expected):
-    from ddtrace.internal.writer.writer import NativeWriter
+    from ddtrace.internal.writer.writer import _parse_otlp_headers
 
-    assert NativeWriter._parse_otlp_headers(raw) == expected
+    assert _parse_otlp_headers(raw) == expected
 
 
 @pytest.mark.subprocess()

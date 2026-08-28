@@ -521,6 +521,15 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                     },
                 ),
+                Venv(
+                    # Same snapshot tests, with the native trace buffer opted in. The snapshots
+                    # assert the wire payload, which is what has to match NativeWriter.
+                    name="integration-snapshot-native-buffer",
+                    env={
+                        "AGENT_VERSION": "testagent",
+                        "_DD_TRACE_NATIVE_BUFFER_ENABLED": "true",
+                    },
+                ),
             ],
         ),
         Venv(

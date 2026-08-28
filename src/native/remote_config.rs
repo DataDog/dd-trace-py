@@ -165,6 +165,7 @@ impl RemoteConfigClient {
                 language: language.unwrap_or_else(|| "python".to_string()),
                 tracer_version,
                 endpoint,
+                // We talk to the RC backend through the Datadog Agent, not directly.
                 agentless: None,
             },
             products: Vec::new(),

@@ -8,8 +8,10 @@ use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
+mod trace_buffer;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
+use trace_buffer::TraceBufferPy;
 
 /// A wrapper around [TraceExporterBuilder]
 ///
@@ -17,7 +19,7 @@ use exceptions::TraceExporterErrorPy;
 /// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
-    builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
+    pub(super) builder: Option<TraceExporterBuilder<ForkSafeRuntime>>,
 }
 
 impl TraceExporterBuilderPy {
@@ -349,6 +351,7 @@ impl TraceExporterPy {
 pub fn register_data_pipeline(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TraceExporterBuilderPy>()?;
     m.add_class::<TraceExporterPy>()?;
+    m.add_class::<TraceBufferPy>()?;
     exceptions::register_exceptions(m)?;
     agent_response::register_agent_response(m)?;
 

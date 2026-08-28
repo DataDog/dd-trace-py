@@ -838,6 +838,82 @@ class TraceExporterBuilder:
         """
         ...
 
+class TraceBuffer:
+    """Trace buffer owned by libdatadog: it holds built v0.4 spans, bounds itself by bytes, and
+    exports them from its own worker thread.
+
+    Construct it from a configured TraceExporterBuilder, which it consumes.
+    """
+
+    def __init__(
+        self,
+        builder: TraceExporterBuilder,
+        shared_runtime: SharedRuntime,
+        max_buffered_bytes: Optional[int] = None,
+        flush_threshold_bytes: Optional[int] = None,
+        max_flush_interval_ns: Optional[int] = None,
+        synchronous_export: bool = False,
+        synchronous_export_timeout_ns: Optional[int] = None,
+    ) -> None:
+        """
+        :param builder: The exporter configuration. Cannot be reused afterwards.
+        :param shared_runtime: The runtime that drives the export worker.
+        :param max_buffered_bytes: Drop new chunks above this size. None keeps libdatadog's default.
+        :param flush_threshold_bytes: Export once the buffer holds this many bytes. None keeps the default.
+        :param max_flush_interval_ns: Export at least this often. None keeps the default.
+        :param synchronous_export: Block every write until the batch is exported. Needed where the host
+            can freeze or kill the process between requests.
+        :param synchronous_export_timeout_ns: Bound for that block. None waits forever.
+        """
+        ...
+    def write(self, spans: Iterable[SpanData], dd_origin: Optional[str] = None) -> Optional[str]:
+        """Build one trace chunk and enqueue it.
+
+        Never raises, because Span.finish() calls it on an application thread. Returns None when the
+        buffer accepted every span, else a reason describing what it dropped.
+        :param spans: The spans of one trace chunk, as any iterable. A TraceProcessor can return a
+            tuple or a generator, and neither may reach the caller as an exception.
+        :param dd_origin: The trace-level origin, stamped as `_dd.origin` on every span. A value that
+            is not a string is ignored.
+        """
+        ...
+    def force_flush(self) -> None:
+        """Ask the worker to export what is buffered. Returns before the export completes."""
+        ...
+    def flush(self, timeout_ns: int) -> None:
+        """Flush what is buffered and block until the worker exports it, or until timeout_ns
+        elapses. Leaves the buffer usable.
+
+        timeout_ns of 0 only triggers the flush, the same as force_flush.
+
+        Raises RuntimeError("TimedOut...") if the export did not finish in time, or
+        RuntimeError("AlreadyClosed...") if the buffer no longer accepts chunks or a concurrent
+        close ended the wait. Neither means the data was lost: a timed-out export is still
+        queued, and a shutdown drain can still export data left over from an AlreadyClosed wait.
+        """
+        ...
+    def shutdown(self, timeout_ns: int) -> None:
+        """Flush what is buffered, stop the worker, and shut the exporter down, within timeout_ns.
+
+        Shutting the exporter down is what reclaims the workers it owns, so a buffer that is dropped
+        without this call leaks them until the process ends.
+
+        The budget splits across the flush, the worker stop, and the exporter shutdown, so this
+        returns close to timeout_ns even against an agent that never answers. A second call does
+        nothing.
+        """
+        ...
+    def take_agent_response(self) -> Optional[str]:
+        """Return the last agent response body, and clear it.
+
+        The response arrives on a worker thread that must not touch Python, so the buffer parks it for
+        a Python thread to collect.
+        """
+        ...
+    def queue_metrics(self) -> tuple[int, int]:
+        """Return (spans_dropped_full_buffer, spans_queued), and reset both counters."""
+        ...
+
 class AgentResponse:
     """Sampling-rate response from the Datadog agent after a successful trace export."""
 
@@ -1090,7 +1166,7 @@ class SpanData:
     parent_id: Optional[int]  # TODO[5.0.0] change type to `int`
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
-    _parent_context: Optional[Any]  # parent Context, or None
+    _parent_context: Optional[Context]  # parent Context, or None
 
     def __new__(
         cls: type[_SpanDataT],
