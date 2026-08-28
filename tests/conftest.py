@@ -47,8 +47,8 @@ _inferred_service_env = os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None
 # result is None, so we only seed when the env var differs from the natural
 # result — this avoids breaking tests that expect config.service is None.
 if _inferred_service_env:
-    from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
     from ddtrace.internal.settings._inferred_base_service import CACHE as _detect_service_cache
+    from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
 
     _natural = _detect_service(sys.argv)
     if _natural != _inferred_service_env:
