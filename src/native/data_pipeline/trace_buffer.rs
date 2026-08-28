@@ -393,9 +393,15 @@ impl TraceBufferPy {
             // However long the steps above took, the exporter still gets its reserved slice, not
             // whatever is left over.
             let exporter_budget = total.saturating_sub(start.elapsed()).max(exporter_reserve);
-            let exporter_down = Self::shutdown_exporter(exporter, exporter_budget);
+            // Best effort, like the flush and worker-stop steps above: the exporter's workers are
+            // already reclaimed once this call returns (`shutdown_exporter` only awaits their
+            // shutdown, it doesn't leak them on timeout), so a slow or unresponsive agent here must
+            // not fail the whole `shutdown()` call.
+            if let Err(err) = Self::shutdown_exporter(exporter, exporter_budget) {
+                tracing::warn!("native trace buffer exporter shutdown failed: {err}");
+            }
 
-            stopped.and(exporter_down)
+            stopped
         })
     }
 
