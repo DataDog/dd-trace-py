@@ -23,6 +23,11 @@ fast_copy_env_disabled()
 
 // Checks whether Python is running as an embedded interpreter by checking
 // whether the process executable looks like a Python binary.
+//
+// When the executable path cannot be read (for example no procfs),
+// we report "embedded". This constructor is the only gate that runs
+// before the SIGSEGV/SIGBUS handlers are installed, so an indeterminate
+// process must not keep handlers that may belong to a host.
 static bool
 is_python_embedded()
 {
@@ -31,16 +36,16 @@ is_python_embedded()
 #if defined PL_LINUX
     ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
     if (len <= 0) {
-        return false; // Cannot determine; assume not embedded.
+        return true;
     }
     exe_path[len] = '\0';
 #elif defined PL_DARWIN
     uint32_t bufsize = sizeof(exe_path);
     if (_NSGetExecutablePath(exe_path, &bufsize) != 0) {
-        return false;
+        return true;
     }
 #else
-    return false;
+    return true;
 #endif
 
     const char* base = strrchr(exe_path, '/');
