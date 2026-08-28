@@ -21,6 +21,9 @@ def _exec_with_import_hooks(source: str):
     return seen
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 15), reason="Accurate import hook injection is not supported on Python 3.15+"
+)
 def test_import_hook_injection_skips_runtime_false_import():
     seen = _exec_with_import_hooks("RUNTIME_FALSE = bool(0)\nif RUNTIME_FALSE:\n    import math\nimport json\n")
 
@@ -28,6 +31,9 @@ def test_import_hook_injection_skips_runtime_false_import():
     assert (0, "<import-hook-test>", ("", ("math",))) not in seen
 
 
+@pytest.mark.skipif(
+    sys.version_info >= (3, 15), reason="Accurate import hook injection is not supported on Python 3.15+"
+)
 def test_import_hook_injection_tracks_function_local_import_only_when_called():
     from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_import_hooks
     from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
@@ -54,6 +60,17 @@ def test_import_hook_injection_tracks_function_local_import_only_when_called():
 
     namespace["import_in_function"](True)
     assert (0, "<import-hook-test>", ("", ("decimal",))) in seen
+
+
+@pytest.mark.skipif(sys.version_info < (3, 15), reason="Accurate import hook injection is supported before Python 3.15")
+def test_import_hook_injection_is_not_supported():
+    from ddtrace.internal.coverage.import_instrumentation_py3_12 import inject_import_hooks
+    from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_events
+
+    code = compile("import json\n", "<import-hook-test>", "exec")
+
+    with pytest.raises(NotImplementedError, match="Accurate import tracking is not supported on Python 3.15\\+"):
+        inject_import_hooks(code, lambda _: None, "<import-hook-test>", iter_import_events(code, ""))
 
 
 def test_import_event_extraction_groups_from_imports_by_line():

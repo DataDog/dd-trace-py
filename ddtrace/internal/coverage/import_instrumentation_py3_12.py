@@ -1,13 +1,20 @@
 """Import dependency bytecode helpers for Python 3.12+ coverage instrumentation."""
 
+import sys
 from types import CodeType
 import typing as t
 
 from bytecode import Bytecode
 from bytecode import Instr
 
-from ddtrace.internal.bytecode_injection import INJECTION_ASSEMBLY
+from ddtrace.internal import bytecode_injection as _bytecode_injection
+from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.bytecode_injection import HookType
+
+
+_INJECTION_ASSEMBLY: t.Optional[Assembly] = (
+    _bytecode_injection.INJECTION_ASSEMBLY if sys.version_info < (3, 15) else None
+)
 
 
 ImportName = tuple[str, tuple[str, ...]]
@@ -36,6 +43,13 @@ def _decoded_arg_for_history(instr: Instr) -> t.Any:
     if instr.name == "LOAD_SMALL_INT":
         return instr.arg if isinstance(instr.arg, int) else 0
     return 0
+
+
+def _decoded_import_name(value: t.Any) -> str:
+    # AIDEV-NOTE: bytecode 0.19 decodes Python 3.15 IMPORT_NAME args to (lazy, eager, name).
+    if isinstance(value, tuple) and len(value) == 3:
+        return t.cast(str, value[2])
+    return t.cast(str, value)
 
 
 def iter_import_events(
@@ -67,7 +81,7 @@ def iter_import_events(
         lineno = instr.lineno or code.co_firstlineno
         if instr.name == "IMPORT_NAME":
             import_depth = _decoded_import_depth(previous_previous_arg)
-            current_import_name = t.cast(str, instr.arg)
+            current_import_name = _decoded_import_name(instr.arg)
             current_import_package = _resolve_import_package(package, import_depth)
             events.append(ImportEvent(idx, lineno, (current_import_package, (current_import_name,))))
         elif instr.name == "IMPORT_FROM" and current_import_name is not None:
@@ -101,6 +115,9 @@ def inject_import_hooks(
     These injected hooks fire only when the interpreter reaches IMPORT_NAME/IMPORT_FROM, so false runtime branches do
     not create dependency edges. The hook is inserted after the import opcode, meaning failed imports are not recorded.
     """
+    if _INJECTION_ASSEMBLY is None:
+        raise NotImplementedError("Accurate import tracking is not supported on Python 3.15+")
+
     if isinstance(code_or_bytecode, CodeType):
         bytecode = Bytecode.from_code(code_or_bytecode)
     else:
@@ -111,6 +128,6 @@ def inject_import_hooks(
     ]
 
     for idx, arg, lineno in reversed(pending_insertions):
-        bytecode[idx + 1 : idx + 1] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
+        bytecode[idx + 1 : idx + 1] = _INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
 
     return bytecode.to_code()
