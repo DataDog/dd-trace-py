@@ -1143,6 +1143,7 @@ def test_realtime_recv_close_finalizes_without_explicit_close(openai, openai_llm
     assert sorted(s.resource for s in spans) == ["createRealtimeResponse", "createRealtimeTurn"]
 
 
+@pytest.mark.skipif(RealtimeConnection is None, reason="openai realtime API not available")
 def test_realtime_dropped_connection_finalizes_held_turn(openai, openai_llmobs, test_spans):
     """A turn held for playback is still submitted when the caller drops the connection.
 
