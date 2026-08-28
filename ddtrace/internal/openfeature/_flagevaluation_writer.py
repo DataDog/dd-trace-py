@@ -11,8 +11,9 @@ Key design properties:
 - Canonical context key: sorted, type-tagged, length-delimited — NOT a hash, so distinct
   contexts always produce distinct keys with no collisions.
 - Context snapshotting: one bounded pass with inline field, key, value, container-width,
-  depth, and cycle caps. A retained leaf sits at no more than MAX_SNAPSHOT_DEPTH path
-  segments, and null leaves are omitted — both matching dd-trace-rb's bounded_flatten.
+  depth, cycle, and visited-node caps. A retained leaf sits at no more than
+  MAX_SNAPSHOT_DEPTH path segments, and null leaves are omitted — both matching
+  dd-trace-rb's bounded_flatten.
 - Caps: GLOBAL_CAP=131_072 (full-tier), PER_FLAG_CAP=10_000 (per-flag full-tier),
   DEGRADED_CAP=32_768 (degraded-tier). Beyond the degraded cap: drop-and-count.
 - Eval-time from metadata key "dd.eval.timestamp_ms"; fallback to enqueue-time.
@@ -66,6 +67,12 @@ MAX_FIELD_LENGTH = MAX_VALUE_LENGTH
 MAX_LIST_ELEMENTS = 256
 MAX_STRUCTURE_PROPERTIES = 256
 MAX_SNAPSHOT_DEPTH = 4
+# Total nodes one traversal may inspect, matching dd-trace-rb's MAX_VISITED_NODES.
+# The other caps do not bound total work: omitted leaves (nulls especially) never grow
+# output, so the global field cap never trips, and the width caps are per-container.
+# Without this, cost is width**(depth+1) -- ~1.1e12 nodes at these caps -- on a
+# caller-supplied mapping, inline on the evaluation path.
+MAX_VISITED_NODES = MAX_CONTEXT_FIELDS * (MAX_SNAPSHOT_DEPTH + 1)
 DEDICATED_TARGETING_KEY_CONTEXT_FIELDS = frozenset(("targetingKey", "targeting_key"))
 
 CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS = "max_context_fields"
@@ -74,6 +81,7 @@ CONTEXT_TRUNCATION_MAX_VALUE_LENGTH = "max_value_length"
 CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS = "max_list_elements"
 CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES = "max_structure_properties"
 CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH = "max_snapshot_depth"
+CONTEXT_TRUNCATION_MAX_VISITED_NODES = "max_visited_nodes"
 CONTEXT_TRUNCATION_CYCLE = "cycle"
 CONTEXT_TRUNCATION_SNAPSHOT_ERROR = "snapshot_error"
 # A single unsupported key or value drops only its own field. Ruby's
@@ -239,8 +247,10 @@ def flatten_and_prune_context(
 
     output: dict[str, typing.Any] = {}
     reasons: set[str] = set()
-    traversal_terminal = [False]
-    _flatten_mapping("", attrs, output, {id(attrs)}, 0, reasons, traversal_terminal, root=True)
+    # One shared cell carries the remaining node budget. A negative value means the
+    # traversal is terminal, so the loops need a single check rather than two.
+    state = [MAX_VISITED_NODES]
+    _flatten_mapping("", attrs, output, {id(attrs)}, 0, reasons, state, root=True)
     return MappingProxyType(output), frozenset(reasons)
 
 
@@ -248,22 +258,31 @@ def _bounded_lookahead(
     iterator: typing.Iterator[typing.Any],
     output: dict[str, typing.Any],
     reasons: set[str],
-    traversal_terminal: list[bool],
+    state: list[int],
     width_reason: str,
     width_reached: bool,
 ) -> None:
     """Inspect at most one extra item to distinguish an exact cap from truncation."""
+    budget_exhausted = state[0] == 0
     field_limit_reached = len(output) >= MAX_CONTEXT_FIELDS
     try:
         next(iterator)
     except StopIteration:
         return
     except Exception:
-        # A boundary lookahead must not erase the valid retained prefix. A global
-        # field-cap probe is terminal even when the iterator fails, otherwise every
-        # ancestor could invoke one more caller-owned iterator operation.
+        # A boundary lookahead must not erase the valid retained prefix. An exhaustion
+        # probe is terminal even when the iterator fails, otherwise every ancestor could
+        # invoke one more caller-owned iterator operation.
+        if budget_exhausted:
+            state[0] = -1
+            reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
+            if field_limit_reached:
+                reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
+            if width_reached:
+                reasons.add(width_reason)
+            return
         if field_limit_reached:
-            traversal_terminal[0] = True
+            state[0] = -1
             reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
             if width_reached:
                 reasons.add(width_reason)
@@ -272,12 +291,20 @@ def _bounded_lookahead(
             reasons.add(width_reason)
             return
         raise
+    if budget_exhausted:
+        # A successful exhaustion probe is terminal for the whole traversal. Ancestors
+        # must not each inspect another caller-owned node while unwinding.
+        state[0] = -1
+        reasons.add(CONTEXT_TRUNCATION_MAX_VISITED_NODES)
+    elif field_limit_reached:
+        # The field cap is global, so one successful probe is sufficient. Mark the
+        # traversal terminal before unwinding through parent containers.
+        state[0] = -1
+    else:
+        state[0] -= 1
     if width_reached:
         reasons.add(width_reason)
     if field_limit_reached:
-        # The field cap is global, so one successful probe is sufficient. Mark the
-        # traversal terminal before unwinding through parent containers.
-        traversal_terminal[0] = True
         reasons.add(CONTEXT_TRUNCATION_MAX_CONTEXT_FIELDS)
 
 
@@ -288,7 +315,7 @@ def _flatten_mapping(
     seen: set[int],
     depth: int,
     reasons: set[str],
-    traversal_terminal: list[bool],
+    state: list[int],
     root: bool = False,
 ) -> None:
     iterator = iter(value)
@@ -297,15 +324,16 @@ def _flatten_mapping(
     prefix_length = len(prefix)
     key_budget = MAX_KEY_LENGTH - prefix_length - (0 if not prefix_length else 1)
     while True:
-        if traversal_terminal[0]:
+        remaining = state[0]
+        if remaining < 0:
             return
         width_reached = index >= MAX_STRUCTURE_PROPERTIES
-        if width_reached or len(output) >= MAX_CONTEXT_FIELDS:
+        if width_reached or not remaining or len(output) >= MAX_CONTEXT_FIELDS:
             _bounded_lookahead(
                 iterator,
                 output,
                 reasons,
-                traversal_terminal,
+                state,
                 CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES,
                 width_reached,
             )
@@ -314,6 +342,10 @@ def _flatten_mapping(
             child_key = next(iterator)
         except StopIteration:
             return
+        # Charge before inspecting the key or value. A field that exits early below still
+        # cost a traversal step, and those cheap exits are what an adversarial context is
+        # built from.
+        state[0] = remaining - 1
         index += 1
         lookup_key = child_key
         if type(child_key) is not str:
@@ -350,7 +382,7 @@ def _flatten_mapping(
         if leaf_type is int or leaf_type is bool or leaf_type is float:
             output[child_prefix] = child_value
             continue
-        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
+        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, state)
 
 
 def _flatten_sequence(
@@ -360,7 +392,7 @@ def _flatten_sequence(
     seen: set[int],
     depth: int,
     reasons: set[str],
-    traversal_terminal: list[bool],
+    state: list[int],
 ) -> None:
     iterator = iter(value)
     index = 0
@@ -368,15 +400,16 @@ def _flatten_sequence(
     prefix_length = len(prefix)
     key_budget = MAX_KEY_LENGTH - prefix_length
     while True:
-        if traversal_terminal[0]:
+        remaining = state[0]
+        if remaining < 0:
             return
         width_reached = index >= MAX_LIST_ELEMENTS
-        if width_reached or len(output) >= MAX_CONTEXT_FIELDS:
+        if width_reached or not remaining or len(output) >= MAX_CONTEXT_FIELDS:
             _bounded_lookahead(
                 iterator,
                 output,
                 reasons,
-                traversal_terminal,
+                state,
                 CONTEXT_TRUNCATION_MAX_LIST_ELEMENTS,
                 width_reached,
             )
@@ -385,6 +418,8 @@ def _flatten_sequence(
             child_value = next(iterator)
         except StopIteration:
             return
+        # See the charge-first note in _flatten_mapping.
+        state[0] = remaining - 1
         # AIDEV-NOTE: Keep Python's existing tags[0] list notation. Changing it
         # to tags.0 requires explicit backend-owner approval under FFL-3060.
         index_text = str(index)
@@ -408,7 +443,7 @@ def _flatten_sequence(
         if leaf_type is int or leaf_type is bool or leaf_type is float:
             output[child_prefix] = child_value
             continue
-        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, traversal_terminal)
+        _flatten_bounded(child_prefix, child_value, output, seen, depth, reasons, state)
 
 
 def _validated_leaf(value: typing.Any) -> typing.Any:
@@ -451,7 +486,7 @@ def _flatten_bounded(
     seen: set[int],
     depth: int,
     reasons: set[str],
-    traversal_terminal: list[bool],
+    state: list[int],
 ) -> None:
     """Flatten one selected mapping property or sequence element."""
     if isinstance(value, Mapping):
@@ -467,7 +502,7 @@ def _flatten_bounded(
             return
         seen.add(value_id)
         try:
-            _flatten_mapping(prefix, value, output, seen, depth + 1, reasons, traversal_terminal)
+            _flatten_mapping(prefix, value, output, seen, depth + 1, reasons, state)
         finally:
             seen.remove(value_id)
         return
@@ -483,7 +518,7 @@ def _flatten_bounded(
             return
         seen.add(value_id)
         try:
-            _flatten_sequence(prefix, value, output, seen, depth + 1, reasons, traversal_terminal)
+            _flatten_sequence(prefix, value, output, seen, depth + 1, reasons, state)
         finally:
             seen.remove(value_id)
         return

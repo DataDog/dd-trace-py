@@ -35,6 +35,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATI
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_STRUCTURE_PROPERTIES
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VALUE_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_MAX_VISITED_NODES
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_SNAPSHOT_ERROR
 from ddtrace.internal.openfeature._flagevaluation_writer import CONTEXT_TRUNCATION_UNSUPPORTED_VALUE
 from ddtrace.internal.openfeature._flagevaluation_writer import DEGRADED_CAP
@@ -64,6 +65,7 @@ from ddtrace.internal.openfeature._flagevaluation_writer import MAX_LIST_ELEMENT
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_SNAPSHOT_DEPTH
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_STRUCTURE_PROPERTIES
 from ddtrace.internal.openfeature._flagevaluation_writer import MAX_VALUE_LENGTH
+from ddtrace.internal.openfeature._flagevaluation_writer import MAX_VISITED_NODES
 from ddtrace.internal.openfeature._flagevaluation_writer import PER_FLAG_CAP
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature._flagevaluation_writer import _build_payloads_with_stats
@@ -465,7 +467,7 @@ class TestFlattenAndPruneContext:
             set(),
             1,
             reasons,
-            [False],
+            [MAX_VISITED_NODES],
         )
 
         assert output == {}
@@ -502,6 +504,101 @@ class TestFlattenAndPruneContext:
         assert snapshot == {"root.one.two.three": "kept"}
         assert CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH in reasons
 
+    def test_visited_node_budget_matches_dd_trace_rb(self):
+        assert MAX_VISITED_NODES == MAX_CONTEXT_FIELDS * (MAX_SNAPSHOT_DEPTH + 1)
+
+    def test_visited_node_budget_exhaustion(self):
+        level = {f"leaf-{i}": "v" * (MAX_VALUE_LENGTH + 1) for i in range(MAX_STRUCTURE_PROPERTIES)}
+        for depth in range(MAX_SNAPSHOT_DEPTH - 1):
+            level = {f"level-{depth}-{i}": level for i in range(MAX_STRUCTURE_PROPERTIES)}
+
+        snapshot, reasons = flatten_and_prune_context(level)
+
+        assert len(snapshot) < MAX_CONTEXT_FIELDS
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+
+    def test_omitted_null_leaves_cannot_drive_an_unbounded_walk(self):
+        """Null leaves are omitted, so no output-derived cap can bound this shape.
+
+        Without the visited-node budget the walk costs MAX_STRUCTURE_PROPERTIES **
+        (MAX_SNAPSHOT_DEPTH + 1) nodes: output never grows, so the global field cap never
+        trips, and the width caps are per-container. Siblings alias one shared child so
+        the input stays cheap to build; aliasing siblings is not a cycle, so the cycle cap
+        does not fire either.
+        """
+        level: typing.Any = {f"leaf-{i}": None for i in range(MAX_STRUCTURE_PROPERTIES)}
+        for _ in range(MAX_SNAPSHOT_DEPTH):
+            level = {f"k{i}": level for i in range(MAX_STRUCTURE_PROPERTIES)}
+
+        started = time.time()
+        snapshot, reasons = flatten_and_prune_context(level)
+        elapsed = time.time() - started
+
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+        # Generous bound: the budget caps this at MAX_VISITED_NODES nodes, and the
+        # unbounded walk this guards against ran for hours.
+        assert elapsed < 5.0
+
+    def test_exact_visited_budget_does_not_report_truncation(self):
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
+            snapshot, reasons = flatten_and_prune_context({"kept": "yes"})
+        assert snapshot == {"kept": "yes"}
+        assert reasons == frozenset()
+
+    def test_targeting_key_alias_consumes_visited_budget_before_filtering(self):
+        attrs = {"targetingKey": "ignored", "kept": "not-inspected"}
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
+            snapshot, reasons = flatten_and_prune_context(attrs)
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+
+    def test_visited_budget_uses_only_one_exhaustion_lookahead(self):
+        class TrackingSequence(Sequence):
+            def __init__(self):
+                self.accessed = []
+
+            def __getitem__(self, index):
+                self.accessed.append(index)
+                return "not-inspected"
+
+            def __len__(self):
+                raise AssertionError("len must not be called")
+
+        values = TrackingSequence()
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 1):
+            snapshot, reasons = flatten_and_prune_context({"values": values})
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+        assert values.accessed == [0]
+
+    def test_visited_budget_allows_only_one_successful_unwind_lookahead(self):
+        class TrackingSequence(Sequence):
+            def __init__(self, values: list[typing.Any]) -> None:
+                self.values = values
+                self.accessed: list[int] = []
+
+            def __getitem__(self, index: int) -> typing.Any:
+                self.accessed.append(index)
+                if index >= len(self.values):
+                    raise IndexError(index)
+                return self.values[index]
+
+            def __len__(self) -> int:
+                raise AssertionError("len must not be called")
+
+        inner = TrackingSequence(["first-extra", "inner-extra"])
+        outer = TrackingSequence([inner, "outer-extra"])
+        attrs = {"values": outer, "root-extra": "not-inspected"}
+
+        with mock.patch("ddtrace.internal.openfeature._flagevaluation_writer.MAX_VISITED_NODES", 2):
+            snapshot, reasons = flatten_and_prune_context(attrs)
+
+        assert snapshot == {}
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_VISITED_NODES,))
+        assert outer.accessed == [0]
+        assert inner.accessed == [0]
+
     def test_snapshot_depth_cap_drops_a_fifth_segment(self):
         snapshot, reasons = flatten_and_prune_context({"a": {"b": {"c": {"d": {"e": "x"}}}}})
 
@@ -516,7 +613,14 @@ class TestFlattenAndPruneContext:
         assert snapshot == {}
         assert CONTEXT_TRUNCATION_MAX_SNAPSHOT_DEPTH in reasons
 
-    def test_more_than_old_visited_node_cap_retains_later_scalar(self):
+    def test_visited_budget_drops_a_scalar_after_the_budget_is_spent(self):
+        """Exhausting the budget on earlier fields drops a later scalar.
+
+        Verified against dd-trace-rb: bounded_context_snapshot on this same shape also
+        returns {} and reports max_visited_nodes, so the retained key set matches per SDK.
+        Charging is positional, so a caller that front-loads wide containers loses the
+        fields behind them -- that is the cost of bounding the walk at all.
+        """
         # Five exact-width lists plus six root entries inspect 1,286 entries.
         discarded = [object()] * MAX_LIST_ELEMENTS
         attrs = {f"discarded-{index}": discarded for index in range(5)}
@@ -524,8 +628,11 @@ class TestFlattenAndPruneContext:
 
         snapshot, reasons = flatten_and_prune_context(attrs)
 
-        assert snapshot == {"kept": "yes"}
-        assert reasons == frozenset((CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,))
+        assert snapshot == {}
+        assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
+        # The object() elements are genuinely unsupported, so Python reports that too.
+        # Ruby omits it here, but reasons are advisory telemetry and the key set matches.
+        assert reasons == frozenset((CONTEXT_TRUNCATION_MAX_VISITED_NODES, CONTEXT_TRUNCATION_UNSUPPORTED_VALUE))
 
     def test_snapshot_caps_match_the_cross_sdk_derivation(self):
         """These bounds are mirrored in dd-trace-rb, dd-trace-java, and dd-trace-go.
