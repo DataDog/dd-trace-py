@@ -1,8 +1,7 @@
 """Process-wide CPython GC pause observer.
 
-One ``gc.callbacks`` subscriber. Runtime metrics drain ``snapshot_and_reset``
-on each flush. Profiling can ``add_listener`` for per-pause events without a
-second callback.
+One ``gc.callbacks`` subscriber. Install is refcounted via acquire/release.
+Runtime metrics drain a snapshot on each flush.
 """
 
 from __future__ import annotations
@@ -136,7 +135,7 @@ class GCPauseMonitor:
 
     def _on_gc(self, phase: str, info: dict[str, int]) -> None:
         # Do not allocate on the metrics-only path: object creation in a GC
-        # callback can recurse. Listeners are a profiling opt-in.
+        # callback can recurse.
         try:
             gen: int = info.get("generation", 0)
             if not 0 <= gen < GEN_COUNT:
@@ -186,7 +185,7 @@ _MONITOR_LOCK: threading.Lock = threading.Lock()
 
 
 def gc_pause_monitor() -> GCPauseMonitor:
-    """Process-wide monitor. Metrics and profiling share this instance."""
+    """Process-wide monitor."""
     global _MONITOR
     with _MONITOR_LOCK:
         if _MONITOR is None:
