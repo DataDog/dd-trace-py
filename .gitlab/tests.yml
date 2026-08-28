@@ -157,10 +157,9 @@ include:
       export DDTEST_PLAN_AGENT_URL="${_CI_DD_AGENT_URL}"
       riot_cmd=(bin/riot-env/bin/python -m riot -P -v run --pass-env -s)
 
-      # Keep at most two planners active per Python version to bound concurrent
+      # Keep at most one planner active per Python version to bound concurrent
       # dependency installs and ddtest API traffic. Each hash gets its own
       # worktree, so its hash-specific venv and planner output are isolated.
-      plan_parallelism=2
       declare -A hashes_by_python=()
       declare -A plan_workdirs=()
       cleanup_worktrees() {
@@ -197,39 +196,19 @@ include:
         hashes_by_python["${_py}"]+="${_hash} "
       done
 
-      plan_hash() {
-        local hash="$1"
-        local workdir="${plan_workdirs[${hash}]}"
-        (
-          cd "${workdir}"
-          "${riot_cmd[@]}" --command \
-            'export DD_TRACE_AGENT_URL="$DDTEST_PLAN_AGENT_URL"; export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; ./bin/ddtest plan --platform python --framework pytest --tests-location "$DDTEST_TESTS_LOCATION" --min-parallelism "$DDTEST_NODES" --max-parallelism "$DDTEST_NODES"' \
-            "${hash}"
-        )
-        mv "${workdir}/.testoptimization" "${CI_PROJECT_DIR}/.testoptimization-${hash}"
-      }
-
       declare -a plan_pids=()
       for _py in "${!hashes_by_python[@]}"; do
         (
-          declare -a hash_pids=()
-          group_status=0
           for _hash in ${hashes_by_python[${_py}]}; do
-            plan_hash "${_hash}" &
-            hash_pids+=("$!")
-            if ((${#hash_pids[@]} >= plan_parallelism)); then
-              if ! wait "${hash_pids[0]}"; then
-                group_status=1
-              fi
-              hash_pids=("${hash_pids[@]:1}")
-            fi
+            _workdir="${plan_workdirs[${_hash}]}"
+            (
+              cd "${_workdir}"
+              "${riot_cmd[@]}" --command \
+                'export DD_TRACE_AGENT_URL="$DDTEST_PLAN_AGENT_URL"; export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; ./bin/ddtest plan --platform python --framework pytest --tests-location "$DDTEST_TESTS_LOCATION" --min-parallelism "$DDTEST_NODES" --max-parallelism "$DDTEST_NODES"' \
+                "${_hash}"
+            )
+            mv "${_workdir}/.testoptimization" "${CI_PROJECT_DIR}/.testoptimization-${_hash}"
           done
-          for hash_pid in "${hash_pids[@]}"; do
-            if ! wait "${hash_pid}"; then
-              group_status=1
-            fi
-          done
-          exit "${group_status}"
         ) &
         plan_pids+=("$!")
       done
