@@ -9,6 +9,7 @@ from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib._events.dbapi import DbApiEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import iswrapped
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
@@ -126,6 +127,15 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
 
 
 async def _traced_query(pin, method, query, args, kwargs):
+    if isinstance(query, str):
+        core.dispatch_event(DbApiEvent(query=query, span_name_prefix="postgres"))
+
+    if pin is None:
+        log.debug("Pin not found for traced method %r", method)
+        return await method(*args, **kwargs)
+    if not pin.enabled():
+        return await method(*args, **kwargs)
+
     with tracer.trace(
         schematize_database_operation("postgres.query", database_provider="postgresql"),
         resource=query,
@@ -150,11 +160,14 @@ async def _traced_query(pin, method, query, args, kwargs):
         return await method(*args, **kwargs)
 
 
-@with_traced_module
-async def _traced_protocol_execute(asyncpg, pin, func, instance, args, kwargs):
-    state: Union[str, "PreparedStatement"] = get_argument_value(args, kwargs, 0, "state")
-    query = state if isinstance(state, str) or isinstance(state, bytes) else state.query
-    return await _traced_query(pin, func, query, args, kwargs)
+def _traced_protocol_execute(asyncpg_module):
+    async def wrapper(wrapped, instance, args, kwargs):
+        pin = Pin._find(instance, asyncpg_module)
+        state: Union[str, "PreparedStatement"] = get_argument_value(args, kwargs, 0, "state")
+        query = state if isinstance(state, (str, bytes)) else state.query
+        return await _traced_query(pin, wrapped, query, args, kwargs)
+
+    return wrapper
 
 
 def _patch(asyncpg: ModuleType) -> None:

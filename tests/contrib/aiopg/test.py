@@ -1,14 +1,21 @@
 import time
 
 import aiopg
+import mock
 from psycopg2 import extras
 import pytest
 
 # project
+from ddtrace._trace.pin import Pin
+from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib.internal.aiopg.connection import AIOTracedCursor
 from ddtrace.contrib.internal.aiopg.patch import patch
 from ddtrace.contrib.internal.aiopg.patch import unpatch
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib.asyncio.utils import AsyncioTestCase
+from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import assert_is_measured
@@ -29,6 +36,19 @@ class AiopgTestCase(AsyncioTestCase):
             self._conn.close()
 
         unpatch()
+
+    @mark_asyncio
+    async def test_query_is_blocked_before_execution(self):
+        cursor = mock.AsyncMock()
+        traced_cursor = AIOTracedCursor(cursor, Pin())
+
+        for method in ("execute", "executemany"):
+            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+                with pytest.raises(BlockingException):
+                    await getattr(traced_cursor, method)("SELECT 1")
+
+            dispatch_event.assert_called_once_with(DbApiEvent(query="SELECT 1", span_name_prefix="postgres"))
+            getattr(cursor, method).assert_not_awaited()
 
     @pytest.mark.asyncio
     async def _get_conn(self):

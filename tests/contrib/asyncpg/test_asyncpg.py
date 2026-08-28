@@ -5,16 +5,32 @@ import asyncpg
 import mock
 import pytest
 
+from ddtrace.contrib._events.dbapi import DbApiEvent
 from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS
+from ddtrace.contrib.internal.asyncpg.patch import _traced_query
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.wrapping import get_wrapped as _dd_get_wrapped
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import POSTGRES_CONFIG
+
+
+@pytest.mark.asyncio
+async def test_query_is_blocked_before_execution_without_pin() -> None:
+    method = mock.AsyncMock()
+
+    with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+        with pytest.raises(BlockingException):
+            await _traced_query(None, method, "SELECT 1", ("SELECT 1",), {})
+
+    dispatch_event.assert_called_once_with(DbApiEvent(query="SELECT 1", span_name_prefix="postgres"))
+    method.assert_not_awaited()
 
 
 @pytest.fixture(autouse=True)
