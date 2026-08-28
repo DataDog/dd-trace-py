@@ -3,13 +3,13 @@ GC_COUNT_GEN1 = "runtime.python.gc.count.gen1"
 GC_COUNT_GEN2 = "runtime.python.gc.count.gen2"
 
 # Deltas of gc.get_stats() collections over the flush interval.
-GC_COLLECTIONS_GEN0 = "runtime.python.gc.collections.gen0"
-GC_COLLECTIONS_GEN1 = "runtime.python.gc.collections.gen1"
-GC_COLLECTIONS_GEN2 = "runtime.python.gc.collections.gen2"
+GC_COLLECTIONS_GEN0: str = "runtime.python.gc.collections.gen0"
+GC_COLLECTIONS_GEN1: str = "runtime.python.gc.collections.gen1"
+GC_COLLECTIONS_GEN2: str = "runtime.python.gc.collections.gen2"
 
 # Stop-the-world pause over the flush interval, nanoseconds.
-GC_PAUSE_TIME = "runtime.python.gc.pause.time"
-GC_PAUSE_MAX = "runtime.python.gc.pause.max"
+GC_PAUSE_TIME: str = "runtime.python.gc.pause.time"
+GC_PAUSE_MAX: str = "runtime.python.gc.pause.max"
 
 THREAD_COUNT = "runtime.python.thread_count"
 MEM_RSS = "runtime.python.mem.rss"
