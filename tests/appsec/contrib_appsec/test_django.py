@@ -174,10 +174,20 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
         from tests.utils import override_global_config
 
         view_calls = []
+        view_middleware_calls = []
 
         def blocked_view(_request, value):
             view_calls.append(value)
             return HttpResponse("view ran")
+
+        def process_view(_request, _view_func, _view_args, _view_kwargs):
+            view_middleware_calls.append(True)
+
+        if django.VERSION >= (3, 1):
+            interface.client.handler.load_middleware(is_async=False)
+        else:
+            interface.client.handler.load_middleware()
+        interface.client.handler._view_middleware.append(process_view)
 
         urlconf = importlib.import_module(settings.ROOT_URLCONF)
         pattern = path("block-before-view/<str:value>/", blocked_view)
@@ -189,6 +199,7 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
                 response = interface.client.get("/block-before-view/AiKfOeRcvG45/")
 
             assert self.status(response) == 403
+            assert view_middleware_calls == []
             assert view_calls == []
         finally:
             urlconf.urlpatterns.remove(pattern)
