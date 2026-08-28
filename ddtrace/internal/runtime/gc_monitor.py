@@ -200,7 +200,7 @@ class GCPauseMonitor:
 
 
 _MONITOR: Optional[GCPauseMonitor] = None
-_MONITOR_LOCK: threading.Lock = threading.Lock()
+_MONITOR_LOCK: threading.Lock = forksafe.Lock()
 
 
 def gc_pause_monitor() -> GCPauseMonitor:
