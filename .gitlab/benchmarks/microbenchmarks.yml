@@ -16,9 +16,10 @@ variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
-  GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
   BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
+  # Known flaky benchmarks
+  FLAKY_BENCHMARKS_REGEX: "^iastaspects-(casefold_aspect|casefold_noaspect|lower_aspect|upper_noaspect|ljust_noaspect|swapcase_aspect|translate_aspect|translate_noaspect|index_aspect|replace_aspect|title_noaspect)$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^telemetryaddmetric-record-100-metrics$|^span-start$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
 
 .benchmarks:
   stage: test
@@ -94,7 +95,7 @@ variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
 
 baseline:detect:
-  image: $GITHUB_CLI_IMAGE
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: build
   id_tokens:
@@ -132,25 +133,33 @@ baseline:build:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
+    KUBERNETES_CPU_REQUEST: "6"
+    KUBERNETES_MEMORY_REQUEST: "10Gi"
+    KUBERNETES_MEMORY_LIMIT: "10Gi"
+    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
+    # and clamps the build container, causing OOMKills during parallel compilation.
+    DD_DISABLE_VPA: "true"
   script: |
-    CACHED_WHL=$(ls *.whl | head -n 1) 2>/dev/null || echo ""
+    mkdir -p baseline-wheel
+    CACHED_WHL=$(ls baseline-wheel/*.whl | head -n 1) 2>/dev/null || echo ""
     if [ ! -f "${CACHED_WHL}" ];
     then
       .gitlab/benchmarks/steps/build-baseline.sh
+      mv *.whl baseline-wheel/
     else
       echo "Using wheel from cache for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}:${CACHED_WHL}"
     fi
 
-    echo "BASELINE_WHL=$(ls *.whl | head -n 1)" | tee -a baseline.env
+    echo "BASELINE_WHL=$(ls baseline-wheel/*.whl | head -n 1)" | tee -a baseline.env
   cache:
     - key: v0-microbenchmarks-baseline-build-${BASELINE_COMMIT_SHA}
       paths:
-        - "*.whl"
+        - "baseline-wheel/*.whl"
   artifacts:
     reports:
       dotenv: baseline.env
     paths:
-      - "*.whl"
+      - "baseline-wheel/*.whl"
 
 candidate:
   image: $PACKAGE_IMAGE
@@ -161,8 +170,9 @@ candidate:
       job: "build linux: [amd64, cp39-cp39, v113741238-d2b8243-manylinux2014_x86_64]"
       artifacts: true
   script: |
-    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl ./
-    echo "CANDIDATE_WHL=$(ls *.whl | head -n 1)" | tee candidate.env
+    mkdir -p candidate-wheel
+    cp pywheels/*-cp39-cp39-manylinux*_x86_64*.whl candidate-wheel/
+    echo "CANDIDATE_WHL=$(ls candidate-wheel/*.whl | head -n 1)" | tee candidate.env
     echo "CANDIDATE_BRANCH=${CI_COMMIT_REF_NAME}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_SHA=${CI_COMMIT_SHA}" | tee -a candidate.env
     echo "CANDIDATE_COMMIT_DATE=$(git show -s --format=%ct $CI_COMMIT_SHA)" | tee -a candidate.env
@@ -170,7 +180,7 @@ candidate:
     reports:
       dotenv: candidate.env
     paths:
-      - "*.whl"
+      - "candidate-wheel/*.whl"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
@@ -209,6 +219,8 @@ benchmarks-pr-comment:
 check-slo-breaches:
   extends: .check-slo-breaches
   stage: gate
+  # Temporary override while benchmarking platform updates their template
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:16a75e4d
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: tests-gen

@@ -120,6 +120,8 @@ components:
     - ddtrace/contrib/internal/httplib/*
   httpx:
     - ddtrace/contrib/internal/httpx/*
+  httpx2:
+    - ddtrace/contrib/internal/httpx2/*
   integration_registry:
     - scripts/integration_registry/*
   jinja2:
@@ -346,6 +348,7 @@ suites:
       - '@appsec'
       - '@asgi'
       - tests/contrib/asgi/*
+      - tests/snapshots/tests.{suite}.*
     pattern: asgi$
     snapshot: true
   asyncpg:
@@ -432,6 +435,18 @@ suites:
     services:
       - azurite
       - azureeventhubsemulator
+    env:
+      # This job's services are heavier than average; pin resources and disable
+      # the VPA to make sure it consistently gets enough CPU/memory to start.
+      DD_DISABLE_VPA: 'true'
+      KUBERNETES_CPU_REQUEST: '2'
+      KUBERNETES_CPU_LIMIT: '2'
+      KUBERNETES_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_MEMORY_LIMIT: '8Gi'
+      KUBERNETES_SERVICE_CPU_REQUEST: '2'
+      KUBERNETES_SERVICE_CPU_LIMIT: '2'
+      KUBERNETES_SERVICE_MEMORY_REQUEST: '8Gi'
+      KUBERNETES_SERVICE_MEMORY_LIMIT: '8Gi'      
   azure_durable_functions:
     venvs_per_job: 3
     paths:
@@ -883,6 +898,20 @@ suites:
     services:
       - httpbin
     snapshot: true
+  httpx2:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@httpx2'
+      - ddtrace/contrib/internal/httpx/common.py
+      - tests/contrib/httpx2/*
+      - tests/snapshots/tests.contrib.httpx2.*
+    services:
+      - httpbin
+    snapshot: true
   integration_registry:
     paths:
       - '@bootstrap'
@@ -1166,6 +1195,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
+      - '@ray_serve'
       - tests/contrib/ray_serve/*
       - tests/contrib/ray_serve/multi_app/*
       - tests/snapshots/tests.contrib.ray_serve.*

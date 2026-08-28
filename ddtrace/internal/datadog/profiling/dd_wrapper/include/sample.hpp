@@ -129,12 +129,15 @@ class Sample
     bool push_threadinfo(int64_t thread_id, int64_t thread_native_id, std::string_view thread_name);
     bool push_task_id(uint64_t task_id);
     bool push_task_name(std::string_view task_name);
+    bool push_origin_task_id(uint64_t origin_task_id);
+    bool push_origin_task_name(std::string_view origin_task_name);
     bool push_span_id(uint64_t span_id);
     bool push_local_root_span_id(uint64_t local_root_span_id);
     bool push_trace_type(std::string_view trace_type);
     bool push_exceptioninfo(std::string_view exception_type, int64_t count);
     bool push_exception_message(std::string_view exception_message);
     bool push_class_name(std::string_view class_name);
+    bool push_allocator_domain(AllocatorDomain allocator_domain);
     bool push_monotonic_ns(int64_t monotonic_ns);
     bool push_absolute_ns(int64_t timestamp_ns);
 

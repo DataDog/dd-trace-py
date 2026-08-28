@@ -139,6 +139,7 @@ def patched_enable(cls, *args, **kwargs):
 CIVisibility.enable = classmethod(patched_enable)
 """
         self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_worker_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.chdir()
@@ -246,6 +247,7 @@ CIVisibility.enable = classmethod(patched_enable)
 
         # Create test files
         self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_worker_sitecustomize()
         self.testdir.makepyfile(
             test_scope1="""
 import pytest
@@ -370,6 +372,7 @@ def patched_enable(cls, *args, **kwargs):
 CIVisibility.enable = classmethod(patched_enable)
 """
         self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_worker_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.chdir()
@@ -471,6 +474,7 @@ def patched_enable(cls, *args, **kwargs):
 CIVisibility.enable = classmethod(patched_enable)
 """
         self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_worker_sitecustomize()
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
         self.testdir.chdir()
@@ -1976,6 +1980,7 @@ CIVisibility.enable = classmethod(patched_enable)
 
 """
         self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.make_xdist_worker_sitecustomize()
         self.testdir.makepyfile(
             test_scope1="""
 import pytest

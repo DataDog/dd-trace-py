@@ -38,7 +38,7 @@ from ddtrace.aiguard._common import wrap_abort_error
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 
 
@@ -650,7 +650,7 @@ def _anthropic_messages_create_before(client: AIGuardClient, kwargs: dict[str, A
 
     logger.debug("AI Guard anthropic before-hook evaluating %d message(s)", len(ai_guard_messages))
     try:
-        client.evaluate(ai_guard_messages, Options(block=ai_guard_config._ai_guard_block))
+        client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
@@ -690,7 +690,7 @@ def _anthropic_messages_create_after(client: AIGuardClient, kwargs: dict[str, An
     all_messages = request_messages + response_messages
 
     try:
-        client.evaluate(all_messages, Options(block=ai_guard_config._ai_guard_block))
+        client.evaluate(all_messages, Options(block=aiguard_config._ai_guard_block))
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:

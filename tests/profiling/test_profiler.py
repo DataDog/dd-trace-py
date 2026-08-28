@@ -97,6 +97,25 @@ def test_copy():
     assert p.tags == c.tags
 
 
+def test_profiler_does_not_mutate_custom_tags():
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self):
+            self.tags["generated"] = "value"
+
+    tags = {"team": "profiling"}
+    p = TestProfiler(
+        tags=tags,
+        _memory_collector_enabled=False,
+        _stack_collector_enabled=False,
+        _lock_collector_enabled=False,
+        _pytorch_collector_enabled=False,
+        _exception_profiling_enabled=False,
+    )
+
+    assert tags == {"team": "profiling"}
+    assert p.tags == {"team": "profiling", "generated": "value"}
+
+
 def test_failed_start_collector(caplog, monkeypatch):
     class ErrCollect(collector.Collector):
         def _start_service(self):
@@ -366,6 +385,21 @@ def test_stack_failure_telemetry_logging_with_auto():
         message = call_args[0][1]
         assert "Failed to load stack module" in message
         assert "mock failure message" in message
+
+
+@pytest.mark.subprocess(err=None)
+def test_profiling_auto_degrades_when_unavailable():
+    """import ddtrace.profiling.auto must not crash when native extensions are missing."""
+    import sys
+
+    import ddtrace.profiling as profiling_pkg
+
+    profiling_pkg.is_available = False
+    profiling_pkg.failure_msg = "native extensions missing"
+    sys.modules.pop("ddtrace.profiling.bootstrap.sitecustomize", None)
+    sys.modules.pop("ddtrace.profiling.auto", None)
+
+    import ddtrace.profiling.auto  # noqa: F401
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
@@ -682,3 +716,68 @@ def test_profiler_atexit_no_assertion_error_with_gevent():
 
     # We don't need to assert anything here, we only want to make sure the subprocess
     # runs (and exits) without raising an exception/crashing.
+
+
+def test_unavailable_profiler_matches_real_interface() -> None:
+    import inspect
+
+    from ddtrace.profiling import _UnavailableProfiler
+    from ddtrace.profiling.profiler import Profiler as RealProfiler
+
+    # __init__ and __getattr__ are part of the callable contract callers rely
+    # on (construction and attribute delegation), so include them alongside
+    # public methods when comparing interfaces.
+    interesting_dunders: set[str] = {"__init__", "__getattr__"}
+
+    def _relevant_methods(cls: type) -> set[str]:
+        return {
+            name
+            for name, _ in inspect.getmembers(cls, predicate=inspect.isfunction)
+            if not name.startswith("_") or name in interesting_dunders
+        }
+
+    real_methods: set[str] = _relevant_methods(RealProfiler)
+    stub_methods: set[str] = _relevant_methods(_UnavailableProfiler)
+    assert real_methods == stub_methods, (
+        f"Interface drift between Profiler and _UnavailableProfiler: "
+        f"missing on stub={real_methods - stub_methods}, extra on stub={stub_methods - real_methods}"
+    )
+
+    for name in real_methods:
+        real_sig: inspect.Signature = inspect.signature(getattr(RealProfiler, name))
+        stub_sig: inspect.Signature = inspect.signature(getattr(_UnavailableProfiler, name))
+        assert real_sig == stub_sig, f"Signature mismatch on {name}: real={real_sig}, stub={stub_sig}"
+
+
+def test_unavailable_profiler_preserves_public_name() -> None:
+    from ddtrace.profiling import _UnavailableProfiler
+    from ddtrace.profiling.profiler import Profiler as RealProfiler
+
+    Profiler: type[_UnavailableProfiler] = type("Profiler", (_UnavailableProfiler,), {})
+
+    assert Profiler.__name__ == RealProfiler.__name__
+    assert Profiler.__qualname__ == RealProfiler.__qualname__
+
+
+def test_unavailable_profiler_raises_import_error() -> None:
+    from ddtrace.profiling import _UnavailableProfiler
+
+    _UnavailableProfiler._import_error = RuntimeError("native ext missing")
+    try:
+        with pytest.raises(ImportError) as excinfo:
+            _UnavailableProfiler()
+        assert isinstance(excinfo.value.__cause__, RuntimeError)
+
+        # __init__ raises, so drive start/stop/__getattr__ against the class
+        # using a bare instance created without calling __init__.
+        bare: _UnavailableProfiler = _UnavailableProfiler.__new__(_UnavailableProfiler)
+        with pytest.raises(ImportError):
+            bare.start()
+        with pytest.raises(ImportError):
+            bare.stop()
+        with pytest.raises(ImportError):
+            bare.stop(flush=False)
+        with pytest.raises(ImportError):
+            _ = bare.status  # delegated attribute on the real Profiler
+    finally:
+        _UnavailableProfiler._import_error = None

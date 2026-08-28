@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Optional
 
 from ddtrace.internal.settings._core import DDConfig
@@ -22,8 +23,11 @@ class ProfilingConfig(DDConfig):
     lock: ProfilingConfigLock
     memory: ProfilingConfigMemory
     heap: ProfilingConfigHeap
+    native_heap: ProfilingConfigNativeHeap
     pytorch: ProfilingConfigPytorch
     exception: ProfilingConfigException
+
+    def dump_settings(self) -> dict[str, Any]: ...
 
 class ProfilingConfigStack(DDConfig):
     enabled: bool
@@ -34,7 +38,9 @@ class ProfilingConfigStack(DDConfig):
     adaptive_sampling_p_stable_window_s: int
     adaptive_sampling_p_stable_percentile: float
     max_threads: int
+    max_tasks: int
     native_frames: bool
+    gc_enabled: bool
     fast_copy: bool
 
 class ProfilingConfigLock(DDConfig):
@@ -52,6 +58,9 @@ class ProfilingConfigHeap(DDConfig):
     _sample_size: Optional[int]
     sample_size: int
 
+class ProfilingConfigNativeHeap(DDConfig):
+    enabled: bool
+
 class ProfilingConfigPytorch(DDConfig):
     enabled: bool
     events_limit: int
@@ -67,5 +76,8 @@ ddup_failure_msg: Optional[str]
 ddup_is_available: bool
 stack_v2_failure_msg: Optional[str]
 stack_v2_is_available: bool
+exception_failure_msg: str
+exception_is_available: bool
 
 def config_str(config: ProfilingConfig) -> str: ...
+def _is_python_embedded() -> bool: ...

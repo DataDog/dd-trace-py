@@ -186,31 +186,168 @@ def _root_module(path: Path) -> str:
     raise ValueError(msg)
 
 
+@cached(maxsize=256)
+def _is_install_root(directory: Path) -> bool:
+    """Whether ``directory`` ships any distribution metadata.
+
+    A sys.path entry named ``site-packages`` is the usual install target, but
+    distributions can also be installed onto an arbitrary directory (``pip
+    install --target=...``, vendored dependencies dropped on ``PYTHONPATH``).
+    The presence of a ``*.dist-info`` / ``*.egg-info`` child marks such a
+    directory as a candidate anchor. This is necessary but not sufficient: a
+    source checkout carries its own project ``*.egg-info`` yet does not own
+    unrelated dependency namespaces living in the same tree, so the match is
+    additionally gated on distribution ownership in _install_root_owner.
+    """
+    try:
+        if not directory.is_dir():
+            return False
+        for child in directory.iterdir():
+            if child.suffix in (".dist-info", ".egg-info"):
+                return True
+    except OSError:
+        return False
+    return False
+
+
+def _normalized_dist_name(name: str) -> str:
+    """Normalize a distribution name for comparison (PEP 503-ish).
+
+    ``.dist-info`` / ``.egg-info`` directories escape the project name (dashes
+    become underscores), so fold ``-``, ``_`` and ``.`` to a single form and
+    lowercase before comparing (``google-cloud-storage`` == ``google_cloud_storage``).
+    """
+    return name.replace("-", "_").replace(".", "_").lower()
+
+
+def _root_ships_distribution(directory: Path, dist_name: str) -> bool:
+    """Whether ``directory`` contains the metadata of ``dist_name`` itself.
+
+    Distinguishes a genuine install root of ``dist_name`` (its own
+    ``*.dist-info`` / ``*.egg-info`` is present) from an unrelated directory
+    that merely happens to carry some other distribution's metadata.
+    """
+    target = _normalized_dist_name(dist_name)
+    try:
+        children = list(directory.iterdir())
+    except OSError:
+        return False
+    for child in children:
+        if child.suffix not in (".dist-info", ".egg-info"):
+            continue
+        # ``{name}-{version}.dist-info`` / ``{name}.egg-info``: the name part
+        # (escaped, so it never contains a dash) precedes the first dash.
+        candidate = child.name[: -len(child.suffix)].split("-", 1)[0]
+        if _normalized_dist_name(candidate) == target:
+            return True
+    return False
+
+
+def _install_root_owner(path: Path, mapping: dict[str, Distribution]) -> t.Optional[Distribution]:
+    """Longest-prefix lookup for dependencies installed outside site-packages.
+
+    Handles ``pip install --target`` and vendored deps dropped on sys.path.
+    Unlike a site-packages root, such a directory is only trusted when it
+    verifiably ships the matched distribution's own metadata; otherwise an
+    editable source checkout (which carries its own project ``.egg-info``)
+    would capture unrelated namespace files sharing its tree and misreport
+    user code as that dependency.
+    """
+    for parent_path in resolve_sys_path():
+        if parent_path.name == "site-packages" or not _is_install_root(parent_path):
+            continue
+        try:
+            relative = path.relative_to(parent_path)
+        except ValueError:
+            continue
+        parts = relative.parts
+        for end in range(len(parts), 0, -1):
+            hit = mapping.get("/".join(parts[:end]))
+            if hit is not None:
+                if _root_ships_distribution(parent_path, hit.name):
+                    return hit
+                break
+    return None
+
+
+def _relative_to_known_root(path: Path) -> t.Optional[Path]:
+    """Return path relative to the site-packages-like root that contains it.
+    Only trusted dependency roots are considered (purelib/platlib and
+    site-packages dirs). Install roots outside site-packages are handled by
+    _install_root_owner, which additionally verifies distribution ownership.
+    Returns None when path is not under such a root.
+    """
+    for parent_path in (purelib_path, platlib_path):
+        try:
+            return path.resolve().relative_to(parent_path)
+        except ValueError:
+            pass
+
+    min_relative_path: t.Optional[Path] = None
+    for parent_path in resolve_sys_path():
+        if parent_path.name != "site-packages":
+            continue
+        try:
+            relative = path.relative_to(parent_path)
+        except ValueError:
+            continue
+        if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
+            min_relative_path = relative
+    if min_relative_path is not None:
+        return min_relative_path
+
+    for s in path.parents:
+        if s.parent.name == "site-packages":
+            try:
+                return path.relative_to(s.parent)
+            except ValueError:
+                pass
+    return None
+
+
 @callonce
 def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
     import importlib.metadata as importlib_metadata
 
-    namespaces: dict[str, bool] = {}
+    # Cache per directory prefix whether it is a *regular* package (a directory
+    # that ships an ``__init__.py``). PEP 420 namespace packages have no
+    # ``__init__.py`` at their shared levels, so several distributions can
+    # contribute siblings under the same prefix (``google/cloud/storage`` vs
+    # ``google/cloud/bigquery``). The key must therefore be the deepest
+    # importable root, not a fixed 2-level prefix, otherwise every sibling
+    # collapses onto whichever dist was scanned first and the longest-prefix
+    # lookup in filename_to_package has nothing specific to match.
+    regular_pkg: dict[str, bool] = {}
 
-    def is_namespace(f: importlib_metadata.PackagePath):
-        root = f.parts[0]
-        try:
-            return namespaces[root]
-        except KeyError:
-            pass
+    def root_key(f: importlib_metadata.PackagePath) -> str:
+        parts = f.parts
+        n = len(parts)
+        if n < 2:
+            # Top-level module file (e.g. ``six.py``); keep the file name.
+            return parts[0]
 
-        if len(f.parts) < 2:
-            namespaces[root] = False
-            return False
+        located: t.Optional[Path] = None
+        for depth in range(1, n):
+            prefix = "/".join(parts[:depth])
+            is_regular = regular_pkg.get(prefix)
+            if is_regular is None:
+                if located is None:
+                    located = t.cast(Path, f.locate())
+                pkg_dir = located.parents[n - 1 - depth]
+                is_regular = pkg_dir.is_dir() and (pkg_dir / "__init__.py").exists()
+                regular_pkg[prefix] = is_regular
+            if is_regular:
+                # First regular package on the path: this is the import root.
+                return prefix
 
-        located_f = t.cast(Path, f.locate())
-        parent = located_f.parents[len(f.parts) - 2]
-        if parent.is_dir() and not (parent / "__init__.py").exists():
-            namespaces[root] = True
-            return True
-
-        namespaces[root] = False
-        return False
+        # Every directory level is a namespace (no __init__.py anywhere on the
+        # path). Two distributions can then contribute module files directly
+        # under the shared namespace (dist A ships ``acme/foo.py``, dist B ships
+        # ``acme/bar.py``); dropping the file name collapses both onto the bare
+        # ``acme`` key and attributes every sibling to whichever dist was
+        # scanned first. Keep the full path (including the file name) so each
+        # module gets a distinct key the longest-prefix lookup can match.
+        return "/".join(parts)
 
     try:
         dists = list(importlib_metadata.distributions())
@@ -239,10 +376,9 @@ def _package_for_root_module_mapping() -> t.Optional[dict[str, Distribution]]:
                 root = f.parts[0]
                 if root.endswith(".dist-info") or root.endswith(".egg-info") or root == "..":
                     continue
-                if is_namespace(f):
-                    root = "/".join(f.parts[:2])
-                if root not in mapping:
-                    mapping[root] = d
+                key = root_key(f)
+                if key not in mapping:
+                    mapping[key] = d
         except Exception as exc:
             _warn_bad_dist(dist, exc)
 
@@ -268,6 +404,30 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
 
     try:
         path = Path(filename) if isinstance(filename, str) else filename
+
+        # Longest-prefix match against the mapping. Namespace distributions can
+        # share an intermediate level (google/cloud/storage vs
+        # google/cloud/bigquery), so the most specific (deepest) mapped prefix
+        # must win; _root_module only yields a fixed 2-level key and cannot tell
+        # the siblings apart. The probe is anchored at the site-packages-relative
+        # root, so a subpackage that happens to share a name with another
+        # top-level dist cannot mismatch.
+        relative = _relative_to_known_root(path)
+        if relative is not None:
+            parts = relative.parts
+            for end in range(len(parts), 0, -1):
+                hit = mapping.get("/".join(parts[:end]))
+                if hit is not None:
+                    return hit
+
+        # Dependencies installed outside site-packages (pip install --target,
+        # vendored deps on sys.path): anchor only when the root verifiably owns
+        # the matched distribution, so an editable source checkout carrying its
+        # own .egg-info cannot capture unrelated namespace files as a dependency.
+        owner = _install_root_owner(path, mapping)
+        if owner is not None:
+            return owner
+
         # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
         root_module_path = _root_module(path)
         if root_module_path in mapping:

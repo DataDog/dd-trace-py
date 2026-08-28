@@ -8,7 +8,7 @@ from ddtrace.contrib.internal.trace_utils import set_http_meta
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.settings.asm import config as asm_config
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
@@ -54,7 +54,7 @@ class TestAIGuardStandalone:
             original = asm_config._apm_tracing_enabled
             try:
                 asm_config._apm_tracing_enabled = False
-                assert ai_guard_config._ai_guard_enabled
+                assert aiguard_config._ai_guard_enabled
                 assert asm_config._apm_opt_out is True
             finally:
                 asm_config._apm_tracing_enabled = original
@@ -65,7 +65,7 @@ class TestAIGuardStandalone:
             original = asm_config._apm_tracing_enabled
             try:
                 asm_config._apm_tracing_enabled = True
-                assert ai_guard_config._ai_guard_enabled
+                assert aiguard_config._ai_guard_enabled
                 assert asm_config._apm_opt_out is False
             finally:
                 asm_config._apm_tracing_enabled = original

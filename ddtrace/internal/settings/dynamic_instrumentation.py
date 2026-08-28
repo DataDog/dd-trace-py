@@ -30,6 +30,18 @@ def _derive_tags(c: DDConfig) -> str:
     return ",".join([":".join((k, v)) for (k, v) in _tags.items() if v is not None])
 
 
+def _resolve_agentless(c: DDConfig) -> bool:
+    """Whether the APM trace writer should run in agentless mode.
+
+    Falls back when agentless is requested but ``DD_API_KEY`` is unset.
+    """
+    if not ddconfig._trace_agentless_enabled:
+        return False
+    if not ddconfig._dd_api_key:
+        return False
+    return True
+
+
 def normalize_ident(ident: str) -> str:
     return ident.strip().lower().replace("_", "")
 
@@ -64,6 +76,8 @@ class DynamicInstrumentationConfig(DDConfig):
         help_type="Boolean",
         help="Enable Dynamic Instrumentation",
     )
+
+    _agentless = DDConfig.d(bool, _resolve_agentless)
 
     metrics = DDConfig.v(
         bool,
@@ -140,6 +154,22 @@ class DynamicInstrumentationConfig(DDConfig):
         default=set(),
         help_type="List",
         help="List of identifiers to exclude from redaction",
+    )
+
+    capture_timeout_ms = DDConfig.v(
+        int,
+        "capture.timeout_ms",
+        default=150,
+        help_type="Integer",
+        help="Maximum wall-time in milliseconds for snapshot capture and serialization per probe invocation",
+    )
+
+    evaluation_timeout_ms = DDConfig.v(
+        int,
+        "evaluation.timeout_ms",
+        default=50,
+        help_type="Integer",
+        help="Maximum wall-time in milliseconds for condition and template expression evaluation per probe invocation",
     )
 
     probe_file = DDConfig.v(

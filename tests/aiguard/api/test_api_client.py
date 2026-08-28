@@ -13,8 +13,8 @@ from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
 from ddtrace.aiguard import new_ai_guard_client
-from ddtrace.appsec._constants import AI_GUARD
-from ddtrace.internal.settings.asm import ai_guard_config
+from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.settings.aiguard import aiguard_config
 from tests.aiguard.utils import assert_ai_guard_span
 from tests.aiguard.utils import assert_mock_execute_request_call
 from tests.aiguard.utils import find_ai_guard_span
@@ -93,12 +93,12 @@ def _build_test_params():
 
 
 def assert_telemetry(mocked, metric, tags):
-    metrics = [(args[0].value, args[1].value) + args[2:] for args, kwargs in mocked.add_metric.call_args_list]
-    assert ("count", "appsec", metric, 1, tags) in metrics
+    metrics = [(args[0].value,) + args[1:] for args, kwargs in mocked.call_args_list]
+    assert ("appsec", metric, 1, tags) in metrics
 
 
 @pytest.mark.parametrize("action,reason,tags,blocking,suite,target,messages", _build_test_params())
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_method(
     mock_execute_request,
@@ -132,7 +132,7 @@ def test_evaluate_method(
             assert result["tags"] == tags
         assert result["sds"] == []
 
-    expected_tags = {"ai_guard.target": target, "ai_guard.action": action}
+    expected_tags = {"ai_guard.target": target, "ai_guard.action": action, "ai_guard.redacted": "false"}
     if target == "tool":
         expected_tags.update({"ai_guard.tool_name": "calc"})
     if action != "ALLOW" and blocking:
@@ -152,6 +152,7 @@ def test_evaluate_method(
             ("action", action),
             ("block", "true" if should_block else "false"),
             ("error", "false"),
+            ("redacted", "false"),
         ),
     )
     assert_mock_execute_request_call(
@@ -181,7 +182,7 @@ def test_evaluate_block_defaults_to_remote_is_blocking_enabled(
         assert result["action"] == "DENY"
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_client):
     """Test HTTP error handling."""
@@ -199,7 +200,7 @@ def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_clie
     assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_http_error_empty_json_body(mock_execute_request, telemetry_mock, ai_guard_client):
     """Test HTTP error handling when the response body is empty."""
@@ -217,7 +218,7 @@ def test_evaluate_http_error_empty_json_body(mock_execute_request, telemetry_moc
     assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_invalid_json(mock_execute_request, telemetry_mock, ai_guard_client):
     """Test invalid JSON response handling."""
@@ -233,7 +234,7 @@ def test_evaluate_invalid_json(mock_execute_request, telemetry_mock, ai_guard_cl
     assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_guard_client):
     """Test malformed response structure handling."""
@@ -249,7 +250,7 @@ def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_gu
     assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_client):
     """Test invalid action handling."""
@@ -265,29 +266,29 @@ def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_
     assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
     messages = []
-    for i in range(ai_guard_config._ai_guard_max_messages_length + 1):
+    for i in range(aiguard_config._ai_guard_max_messages_length + 1):
         messages.append(Message(role="user", content="Tell me 10 things I should know about DataDog"))
     ai_guard_client.evaluate(messages)
 
     span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
-    assert len(meta["messages"]) == ai_guard_config._ai_guard_max_messages_length
+    assert len(meta["messages"]) == aiguard_config._ai_guard_max_messages_length
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "messages"),))
 
 
 @pytest.mark.parametrize("content_part", [True, False])
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, content_part):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
-    random_output = random_string(ai_guard_config._ai_guard_max_content_size + 1)
+    random_output = random_string(aiguard_config._ai_guard_max_content_size + 1)
     if content_part:
         messages = [Message(role="user", content=[ContentPart(type="text", text=random_output)])]
     else:
@@ -300,11 +301,11 @@ def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_g
     content = prompt["content"]
     if content_part:
         content = content[0]["text"]
-    assert len(content) == ai_guard_config._ai_guard_max_content_size
+    assert len(content) == aiguard_config._ai_guard_max_content_size
     assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "content"),))
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_client, tracer, test_spans):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
@@ -377,7 +378,7 @@ def test_message_immutability(mock_execute_request, telemetry_mock, ai_guard_cli
         ),
     ],
 )
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_sds_findings(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, sds_findings):
     """Test that sds_findings from the response are added to the span meta_struct and SDK response."""
@@ -402,7 +403,7 @@ def test_evaluate_sds_findings(mock_execute_request, telemetry_mock, ai_guard_cl
         pytest.param([], id="empty list"),
     ],
 )
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_sds_findings_empty(mock_execute_request, telemetry_mock, ai_guard_client, test_spans, sds_findings):
     """Test that empty or absent sds_findings are not added to the span meta_struct."""
@@ -417,7 +418,7 @@ def test_evaluate_sds_findings_empty(mock_execute_request, telemetry_mock, ai_gu
     assert "sds" not in meta
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_sds_findings_in_abort_error(mock_execute_request, telemetry_mock, ai_guard_client, test_spans):
     """Test that sds_findings are included in AIGuardAbortError."""
@@ -545,6 +546,36 @@ def test_endpoint_discovery(site, config, param, expected):
         with override_ai_guard_config(dict(_ai_guard_endpoint=config)):
             client = new_ai_guard_client(endpoint=param)
             assert client._endpoint == expected
+
+
+def test_execute_request_preserves_port_and_query_string(ai_guard_client):
+    """_execute_request must not force a default port into the connection's Host header, and
+    must not silently drop the query string from the target URL.
+    """
+    created_connections = []
+
+    class MockHTTPConnection:
+        def __init__(self, base_url, timeout=None):
+            self.base_url = base_url
+            self.requests: list = []
+            created_connections.append(self)
+
+        def request(self, method, path, body=None, headers=None):
+            self.requests.append({"method": method, "path": path})
+
+        def getresponse(self):
+            return Mock(status=200, read=lambda: b'{"action": "ALLOW", "tags": []}')
+
+        def close(self):
+            pass
+
+    with patch("ddtrace.aiguard._api_client.HTTPConnection", MockHTTPConnection):
+        ai_guard_client._execute_request("https://example.com:9443/ai-guard/evaluate?resource=abc", {})
+
+    assert len(created_connections) == 1
+    conn = created_connections[0]
+    assert conn.base_url == "https://example.com:9443"
+    assert conn.requests[0]["path"] == "/ai-guard/evaluate?resource=abc"
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

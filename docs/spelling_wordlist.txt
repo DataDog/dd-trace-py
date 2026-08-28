@@ -109,6 +109,7 @@ dramatiq
 Dramatiq
 dsn
 dunder
+eBPF
 echion
 eg
 elasticsearch
@@ -176,6 +177,7 @@ IPv
 iPython
 iterable
 jinja
+JIRA
 js
 JSON
 kafka
@@ -282,6 +284,7 @@ pytest-bdd
 PyTorch
 quickstart
 ratelimit
+Realtime
 reentrant
 redis
 rediscluster

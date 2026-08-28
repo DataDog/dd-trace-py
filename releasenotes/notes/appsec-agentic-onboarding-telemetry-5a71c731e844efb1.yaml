@@ -1,7 +1,6 @@
 ---
 features:
   - |
-    AAP: Add support for the ``DD_APPSEC_AGENTIC_ONBOARDING`` environment variable. When set, the
-    tracer reports an ``appsec.agentic_onboarding`` boolean in startup telemetry indicating
-    whether App & API Protection started successfully. The variable is presence-only; its value is
-    never read.
+    AAP: Add support for the ``DD_APPSEC_AGENTIC_ONBOARDING`` environment variable. Its value is
+    reported verbatim in configuration telemetry, letting Datadog record that a service was onboarded
+    through the agentic onboarding solution.

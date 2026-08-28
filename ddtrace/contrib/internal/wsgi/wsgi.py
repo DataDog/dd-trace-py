@@ -6,6 +6,7 @@ from typing import Iterable
 from typing import Optional
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.span_bus import span_from_context
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -32,9 +33,9 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor.debtcollector import deprecate
 
 
 log = get_logger(__name__)
@@ -395,7 +396,7 @@ class DDWSGIMiddleware(_DDWSGIMiddlewareBase):
                 tags={COMPONENT: self._config.integration_name, SPAN_KIND: SpanKind.SERVER},
                 integration_config=self._config,
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             return start_response(status, environ, exc_info)
 

@@ -2,6 +2,7 @@ import logging
 import sys
 import warnings
 
+import ddtrace
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.settings import env
@@ -51,11 +52,6 @@ def cleanup_loaded_modules() -> None:
             return
         del sys.modules[module_name]
 
-    # We need to import these modules to make sure they grab references to the
-    # right modules before we start unloading stuff.
-    import ddtrace.internal.http  # noqa
-    import ddtrace.internal.uds  # noqa
-
     # Unload all the modules that we have imported, except for the ddtrace one.
     # NB: this means that every `import threading` anywhere in `ddtrace/` code
     # uses a copy of that module that is distinct from the copy that user code
@@ -69,19 +65,17 @@ def cleanup_loaded_modules() -> None:
             "concurrent",
             "importlib._bootstrap",  # special import that must not be unloaded
             "typing",
+            "annotationlib",  # owns the ForwardRef class aliased by typing on CPython >= 3.14
+            "enum",  # annotationlib.Format is an IntEnum; keep enum so isinstance/issubclass hold
             "_operator",  # pickling issues with typing module
             "re",  # referenced by the typing module
             "sre_constants",  # imported by re at runtime
             "logging",
             "attr",
-            "google",
-            "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
             "bytecode",  # needed by before-fork hooks
             "pathlib",  # used in singledispatch
             "dataclasses",  # for product loaded remotely that use dataclasses
-            "yaml",  # third parties (e.g. Airflow) cache SafeLoader/safe_load at import time
-            "_yaml",  # PyYAML's C backend does not like being unloaded and reimported
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):

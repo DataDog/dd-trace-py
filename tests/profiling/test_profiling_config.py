@@ -7,6 +7,24 @@ import pytest
 from ddtrace.internal.settings.profiling import ProfilingConfig
 
 
+class TestMaxFramesConfig:
+    def test_default(self) -> None:
+        assert ProfilingConfig().max_frames == 64
+
+    @pytest.mark.parametrize("value", (600, 601, 10_000))
+    def test_clamps_to_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", str(value))
+
+        # One of the backend's 600 locations is reserved for the omitted-frame indicator.
+        assert ProfilingConfig().max_frames == 599
+
+    @pytest.mark.parametrize("value", (512, 599))
+    def test_preserves_value_within_backend_limit(self, monkeypatch: pytest.MonkeyPatch, value: int) -> None:
+        monkeypatch.setenv("DD_PROFILING_MAX_FRAMES", str(value))
+
+        assert ProfilingConfig().max_frames == value
+
+
 class TestAdaptiveSamplingConfig:
     def test_defaults(self) -> None:
         config = ProfilingConfig()
@@ -50,6 +68,16 @@ class TestAdaptiveSamplingConfig:
         monkeypatch.setenv("_DD_PROFILING_STACK_ADAPTIVE_SAMPLING_MAX_INTERVAL_US", "2000000")
         with pytest.raises(ValueError):
             ProfilingConfig()
+
+
+class TestGCFramesConfig:
+    def test_default(self) -> None:
+        assert ProfilingConfig().stack.gc_enabled is False
+
+    def test_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_STACK_GC_ENABLED", "true")
+
+        assert ProfilingConfig().stack.gc_enabled is True
 
 
 class TestExcludeModulesConfig:
@@ -129,6 +157,7 @@ class TestDumpSettings:
             "enabled",
             "upload_interval",
             "stack.enabled",
+            "stack.gc_enabled",
             "stack.adaptive_sampling",
             "stack.adaptive_sampling_target_overhead",
             "stack.adaptive_sampling_max_interval",
@@ -186,3 +215,98 @@ def test_always_excluded_modules_cannot_be_overridden() -> None:
         assert not isinstance(internal_lock, _ProfiledLock), (
             "Stdlib-internal lock must remain native even when DD_PROFILING_LOCK_EXCLUDE_MODULES is empty"
         )
+
+
+class TestEmbeddedInterpreterFastCopy:
+    def test_is_python_embedded_returns_false_for_python(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("os.readlink", lambda _: "/usr/bin/python3.12")
+        monkeypatch.setattr("sys.platform", "linux")
+        assert _is_python_embedded() is False
+
+    def test_is_python_embedded_returns_true_for_non_python(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("os.readlink", lambda _: "/ucsr/bin/nginx")
+        monkeypatch.setattr("sys.platform", "linux")
+        assert _is_python_embedded() is True
+
+    def test_is_python_embedded_fallback_to_sys_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        def _raise_oserror(_: str) -> str:
+            raise OSError("no procfs")
+
+        monkeypatch.setattr("os.readlink", _raise_oserror)
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr("sys.executable", "/opt/myapp/bin/myapp")
+        assert _is_python_embedded() is True
+
+    def test_is_python_embedded_fallback_empty_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        def _raise_oserror(_: str) -> str:
+            raise OSError("no procfs")
+
+        monkeypatch.setattr("os.readlink", _raise_oserror)
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr("sys.executable", "")
+        assert _is_python_embedded() is True
+
+    def test_non_linux_falls_back_to_sys_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("sys.executable", "/usr/local/bin/python3")
+        assert _is_python_embedded() is False
+
+    def test_non_linux_embedded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("sys.executable", "/Applications/MyGame.app/Contents/MacOS/mygame")
+        assert _is_python_embedded() is True
+
+
+class TestNativeHeapConfig:
+    """Config plumbing for experimental native (C/C++) heap profiling.
+
+    These assert the runtime gate only; they are platform-independent and do not
+    require the (opt-in, Linux-only) gotter cdylib to be present.
+    """
+
+    def test_default_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("DD_PROFILING_NATIVE_HEAP_ENABLED", raising=False)
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.native_heap.enabled is False
+
+    def test_enabled_via_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "true")
+        config: ProfilingConfig = ProfilingConfig()
+        assert config.native_heap.enabled is True
+
+    def test_config_str_includes_tag_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.setenv("DD_PROFILING_NATIVE_HEAP_ENABLED", "true")
+        assert "nativeheap" in config_str(ProfilingConfig())
+
+    def test_config_str_omits_tag_when_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import config_str
+
+        monkeypatch.delenv("DD_PROFILING_NATIVE_HEAP_ENABLED", raising=False)
+        assert "nativeheap" not in config_str(ProfilingConfig())
+
+
+class TestNativeHeapActivator:
+    """The ctypes activator must not raise on import."""
+
+    def test_import_does_not_raise(self) -> None:
+        from ddtrace.internal.datadog.profiling import heap_gotter
+
+        assert isinstance(heap_gotter.is_available, bool)
+        assert isinstance(heap_gotter.failure_msg, str)
+        # Do not call install() here: GOT patching is permanent and would poison
+        # the shared pytest worker. That path is covered by the subprocess
+        # smoke/fork tests in test_native_heap_gotter.py.

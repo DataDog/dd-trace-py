@@ -3,6 +3,8 @@ components:
   ai_guard:
     - ddtrace/aiguard/*
     - ddtrace/appsec/ai_guard/*
+    - ddtrace/internal/aiguard/*
+    - ddtrace/internal/settings/aiguard.py
 suites:
   ai_guard_api:
     paths:

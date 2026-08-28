@@ -10,6 +10,7 @@ from typing import Optional
 from typing import Union
 from urllib.parse import quote
 from urllib.parse import urlencode
+from urllib.parse import urlparse
 import warnings
 
 from ddtrace import config
@@ -116,6 +117,9 @@ class PromptManager:
         agentless: bool = True,
     ) -> None:
         self._base_url = base_url if "://" in base_url else "https://" + base_url
+        # get_connection() only keeps scheme/host/port, so any path prefix on a user-supplied
+        # base_url (e.g. via DD_LLMOBS_OVERRIDE_ORIGIN pointing at a proxy) must be reattached here.
+        self._base_path = urlparse(self._base_url).path.rstrip("/")
         self._timeout = timeout
         self._agentless = agentless
         self._api_key = api_key
@@ -323,6 +327,10 @@ class PromptManager:
         for thread in threads:
             thread.join(timeout=self._timeout)
 
+    def _full_path(self, path: str) -> str:
+        """Reattach any path prefix stripped from ``self._base_url`` by ``get_connection()``."""
+        return self._base_path + path if self._base_path else path
+
     def _http_request(
         self,
         method: str,
@@ -335,7 +343,7 @@ class PromptManager:
         conn = None
         try:
             conn = get_connection(self._base_url, timeout=timeout or self._timeout)
-            conn.request(method, path, body=body, headers=headers or self._headers)
+            conn.request(method, self._full_path(path), body=body, headers=headers or self._headers)
             response = conn.getresponse()
             return response.status, response.read().decode("utf-8")
         finally:
@@ -383,9 +391,10 @@ class PromptManager:
         Returns a prompt only on a positive FF hit. All other outcomes (not ready, disabled,
         no flag, error) return None and fall through to the HTTP floor.
         """
-        from ddtrace.internal.settings.openfeature import config as ffe_config
+        from ddtrace.internal.settings import openfeature as ffe_settings
 
-        if not ffe_config.experimental_flagging_provider_enabled:
+        source = ffe_settings.resolve_configuration_source(ffe_settings.config)
+        if source == ffe_settings.DISABLED:
             return None
 
         try:
@@ -396,7 +405,8 @@ class PromptManager:
             log.debug("OpenFeature SDK unavailable for FF prompt evaluation")
             return None
 
-        self._ensure_ffe_rc()
+        if source == ffe_settings.REMOTE_CONFIG:
+            self._ensure_ffe_rc()
         self._ensure_ffe_provider()
 
         try:
@@ -441,9 +451,13 @@ class PromptManager:
                 path = f"{PROMPTS_ENDPOINT}/{escaped_id}/resolve"
                 body = json.dumps({"data": {"type": "prompt_resolve_requests", "attributes": attrs}})
                 headers = {**self._headers, "Content-Type": "application/json", "DD-APPLICATION-KEY": self._app_key}
-                conn.request("POST", path, body=body, headers=headers)
+                conn.request("POST", self._full_path(path), body=body, headers=headers)
             else:
-                conn.request("GET", self._build_path(req.prompt_id, req.label, req.version), headers=self._headers)
+                conn.request(
+                    "GET",
+                    self._full_path(self._build_path(req.prompt_id, req.label, req.version)),
+                    headers=self._headers,
+                )
             response = conn.getresponse()
             status = response.status
 
@@ -451,7 +465,7 @@ class PromptManager:
 
             if status == 200:
                 source: Literal["registry", "resolve"] = "resolve" if req.use_resolve else "registry"
-                prompt = self._parse_prompt(body, source=source)
+                prompt = self._parse_prompt(body, source=source, label=req.label)
                 return prompt, False, ""
 
             not_found = status == 404
@@ -484,6 +498,7 @@ class PromptManager:
     def _parse_prompt(
         raw: Union[str, dict[str, Any]],
         source: Literal["registry", "ff", "resolve"],
+        label: Optional[str] = None,
     ) -> Optional[ManagedPrompt]:
         try:
             if isinstance(raw, str):
@@ -504,6 +519,7 @@ class PromptManager:
             return ManagedPrompt(
                 id=prompt_id,
                 version=str(version),
+                label=data.get("label", label),
                 source=source,
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),
@@ -589,6 +605,7 @@ class PromptManager:
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptResponse:
         body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
         if title:
@@ -599,6 +616,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -611,6 +630,7 @@ class PromptManager:
         description: str = "",
         user_version: str = "",
         labels: Optional[list[str]] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {"template": template}
@@ -620,6 +640,8 @@ class PromptManager:
             body["user_version"] = user_version
         if labels is not None:
             body["labels"] = labels
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -650,15 +672,18 @@ class PromptManager:
         *,
         labels: Optional[list[str]] = None,
         description: Optional[str] = None,
+        env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
-        if labels is None and description is None:
-            raise PromptValidationError(0, "At least one of labels or description must be provided")
+        if labels is None and description is None and env_ids is None:
+            raise PromptValidationError(0, "At least one of labels, description, or env_ids must be provided")
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {}
         if labels is not None:
             body["labels"] = labels
         if description is not None:
             body["description"] = description
+        if env_ids is not None:
+            body["env_ids"] = env_ids
         result: PromptVersionResponse = self._request(
             "PATCH", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions/{version}", body=body
         )

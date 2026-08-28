@@ -1,6 +1,5 @@
 # -*- encoding: utf-8 -*-
 import logging
-import time
 from unittest import mock
 
 from ddtrace.profiling import scheduler
@@ -42,16 +41,21 @@ def test_before_flush_failure(caplog):
 
 
 @mock.patch("ddtrace.profiling.scheduler.Scheduler.periodic")
-def test_serverless_periodic(mock_periodic):
+@mock.patch("ddtrace.profiling.scheduler.time.time_ns")
+def test_serverless_periodic(mock_time_ns, mock_periodic):
     s = scheduler.ServerlessScheduler()
     # Fake start()
-    s._last_export = time.time_ns()
-    s.periodic()
-    assert s._profiled_intervals == 1
+    s._last_export = 0
+    mock_time_ns.return_value = int(s.FORCED_INTERVAL * s.FLUSH_AFTER_INTERVALS * 1e9)
+
+    for _ in range(int(s.FLUSH_AFTER_INTERVALS) - 1):
+        s.periodic()
+
+    assert s._profiled_intervals == s.FLUSH_AFTER_INTERVALS - 1
     mock_periodic.assert_not_called()
-    s._last_export = time.time_ns() - int(65 * 1e9)
-    s._profiled_intervals = 65
+
     s.periodic()
+
     assert s._profiled_intervals == 0
     assert s.interval == 1
-    mock_periodic.assert_called()
+    mock_periodic.assert_called_once_with()

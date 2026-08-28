@@ -923,7 +923,7 @@ async def test_streamed_chat_unconsumed_async_stream_does_not_leak_context(
 
 
 def _assert_langchain_block_spans(test_spans, decision):
-    from ddtrace.appsec._constants import AI_GUARD
+    from ddtrace.aiguard._constants import AI_GUARD
 
     spans = test_spans.spans
     ai_guard_span = next((s for s in spans if s.name == AI_GUARD.RESOURCE_TYPE), None)

@@ -35,12 +35,14 @@ from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import Config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.propagation.http import HTTPPropagator
 
+from .services.bedrock import _resolve_inference_profile_in_progress
 from .services.bedrock import patched_bedrock_api_call
 from .services.bedrock_agents import patched_bedrock_agents_api_call
 from .services.kinesis import patched_kinesis_api_call
@@ -206,6 +208,9 @@ config._add(
         "operations": collections.defaultdict(Config._HTTPServerConfig),
         "tag_no_params": asbool(env.get("DD_AWS_TAG_NO_PARAMS", default=False)),
         "instrument_internals": asbool(env.get("DD_BOTOCORE_INSTRUMENT_INTERNALS", default=False)),
+        "bedrock_resolve_inference_profile": asbool(
+            env.get("DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE", default=False)
+        ),
         "propagation_enabled": asbool(env.get("DD_BOTOCORE_PROPAGATION_ENABLED", default=False)),
         "empty_poll_enabled": asbool(env.get("DD_BOTOCORE_EMPTY_POLL_ENABLED", default=True)),
         "dynamodb_primary_key_names_for_tables": _load_dynamodb_primary_key_names_for_tables(),
@@ -273,6 +278,10 @@ def patched_lib_fn(original_func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled() or not config.botocore["instrument_internals"]:
         return original_func(*args, **kwargs)
+
+    # Don't trace response parsing for the internal bedrock:GetInferenceProfile call.
+    if _resolve_inference_profile_in_progress.get():
+        return original_func(*args, **kwargs)
     with (
         core.context_with_data(
             "botocore.instrumented_lib_function",
@@ -280,7 +289,7 @@ def patched_lib_fn(original_func, instance, args, kwargs):
             tags={COMPONENT: config.botocore.integration_name, SPAN_KIND: SpanKind.CLIENT},
             pin=pin,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return original_func(*args, **kwargs)
 
@@ -289,6 +298,16 @@ def patched_lib_fn(original_func, instance, args, kwargs):
 def patched_api_call(botocore, pin, original_func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return original_func(*args, **kwargs)
+
+    # Skip tracing the internal bedrock:GetInferenceProfile call we make to resolve an
+    # application-inference-profile ARN, so it doesn't emit a stray span. Still suppress
+    # urllib3-layer propagation injection so headers aren't added post-signing.
+    if _resolve_inference_profile_in_progress.get():
+        token = _http_propagation_suppressed.set(True)
+        try:
+            return original_func(*args, **kwargs)
+        finally:
+            _http_propagation_suppressed.reset(token)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
@@ -395,7 +414,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
             span_type=SpanTypes.HTTP,
             span_key="instrumented_api_call",
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         core.dispatch("botocore.patched_api_call.started", (ctx,))
         if args and config.botocore["distributed_tracing"]:
@@ -410,7 +429,7 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
                     ctx,
                     e.response,
                     botocore.exceptions.ClientError,
-                    config.botocore.operations[ctx.span.resource].is_error_code,
+                    config.botocore.operations[span_from_context(ctx).resource].is_error_code,
                 ),
             )
             raise

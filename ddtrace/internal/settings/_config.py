@@ -38,9 +38,9 @@ from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
@@ -166,6 +166,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dogpile_cache",
         "pylibmc",
         "httpx",
+        "httpx2",
         "httplib",
         "rq",
         "jinja2",
@@ -400,11 +401,6 @@ def _default_config() -> dict[str, _ConfigItem]:
             otel_env="OTEL_TRACES_EXPORTER",
             modifier=asbool,
         ),
-        "_sca_enabled": _ConfigItem(
-            default=None,
-            envs=["DD_APPSEC_SCA_ENABLED"],
-            modifier=asbool,
-        ),
         "_llmobs_enabled": _ConfigItem(
             default=False,
             envs=["DD_LLMOBS_ENABLED"],
@@ -523,9 +519,6 @@ class Config(object):
         self.env = _get_config("DD_ENV", self.tags.get("env"))
         self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
 
-        self._is_user_provided_service = self.service is not None
-        _service_state.set_is_user_provided_service(self._is_user_provided_service)
-
         self._inferred_base_service = detect_service(sys.argv)
 
         # AIDEV-NOTE: Mirrors ddtrace.internal.schema's span-service-name-schema resolution
@@ -540,6 +533,9 @@ class Config(object):
             default_span_service_name = self._inferred_base_service or None
         else:
             default_span_service_name = self._inferred_base_service or DEFAULT_SERVICE_NAME
+
+        self._is_user_provided_service = self.service is not None
+        _service_state.set_is_user_provided_service(self._is_user_provided_service)
 
         if self.service is None and in_aws_lambda():
             self.service = _get_config("AWS_LAMBDA_FUNCTION_NAME", default_span_service_name)
@@ -640,6 +636,13 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+
+        self._propagation_as_span_links = _get_config(
+            "DD_TRACE_PROPAGATION_AS_SPAN_LINKS",
+            set(),
+            # Expected format: comma-separated integration names (e.g. "kafka,google_cloud_pubsub").
+            lambda x: {name.strip() for name in x.split(",") if name.strip()},
+        )
         self._baggage_tag_keys = _get_config(
             "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
         )
@@ -663,9 +666,13 @@ class Config(object):
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
-        self._otel_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
+        self._trace_stats_additional_tags = _get_config(
+            "DD_TRACE_STATS_ADDITIONAL_TAGS",
+            [],
+            lambda value: [tag.strip() for tag in value.split(",") if tag.strip()],
+        )
         self._client_side_stats_obfuscation = _get_config(
-            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", False, asbool
+            "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
         self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
@@ -693,6 +700,7 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_trace_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()
@@ -741,6 +749,7 @@ class Config(object):
             )
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
+        self._otel_thread_context_enabled = _get_config("DD_TRACE_OTEL_CTX_ENABLED", True, asbool)
 
         # When True, the default span name for @tracer.wrap() on methods includes the class name.
         # Defaults to False to preserve backwards compatibility; will become True in 5.0.0.

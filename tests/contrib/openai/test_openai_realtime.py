@@ -1277,11 +1277,11 @@ def test_realtime_integration_multi_turn_with_output_audio(openai, openai_llmobs
     turns = sorted((s for s in spans if s.resource == "createRealtimeTurn"), key=lambda s: s.start_ns)
     llm_spans = sorted((s for s in spans if s.resource == "createRealtimeResponse"), key=lambda s: s.start_ns)
     agent_spans = sorted((s for s in spans if s.resource == "createRealtimeAgentSpeech"), key=lambda s: s.start_ns)
-    datas = [_get_llmobs_data_metastruct(s) for s in llm_spans]
+    span_data = [_get_llmobs_data_metastruct(s) for s in llm_spans]
     # Both turns grouped into one conversation.
-    assert datas[0]["session_id"] == datas[1]["session_id"]
+    assert span_data[0]["session_id"] == span_data[1]["session_id"]
     # Each turn's output carries a playable WAV audio_part.
-    for data, raw in zip(datas, (b"\x01\x02", b"\x03\x04")):
+    for data, raw in zip(span_data, (b"\x01\x02", b"\x03\x04")):
         out = data["meta"]["output"]["messages"][0]
         assert out["audio_parts"] == [{"mime_type": "audio/wav", "content": _wav_b64(raw)}]
     for turn, llm, agent in zip(turns, llm_spans, agent_spans):

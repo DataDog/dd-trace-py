@@ -1365,7 +1365,7 @@ def test_cassette_deny_before_does_not_call_openai(mock_execute_request, openai_
 
 def _find_openai_llm_span(test_spans):
     """Return the openai LLM span (the only non-AI-Guard span)."""
-    from ddtrace.appsec._constants import AI_GUARD
+    from ddtrace.aiguard._constants import AI_GUARD
 
     spans = test_spans.spans
     llm_span = next((s for s in spans if s.name != AI_GUARD.RESOURCE_TYPE), None)

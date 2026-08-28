@@ -9,6 +9,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _extract_model_from_response
 from ddtrace.contrib.internal.claude_agent_sdk.utils import _retrieve_context
+from ddtrace.contrib.internal.claude_agent_sdk.utils import extract_partial_message_usage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -25,6 +26,21 @@ log = get_logger(__name__)
 class _SpanRef:
     span_id: str
     trace_id: str
+
+
+@dataclass
+class _MergedAssistantMessage:
+    """A synthetic AssistantMessage that merges several chunks sharing a message_id. This prevents
+    the same usage block from being counted on more than one LLM span. Exposes the same
+    attributes the integration reads off a real ``AssistantMessage`` (``content``, ``model``, ``usage``,
+    ``error``).
+    """
+
+    content: list
+    model: str
+    usage: Optional[dict]
+    error: Any
+    message_id: Optional[str]
 
 
 class CapturingAsyncIterable(wrapt.ObjectProxy):
@@ -75,18 +91,63 @@ def wrap_prompt_if_async_iterable(args, kwargs):
     return args, kwargs, None
 
 
-def handle_streamed_response(integration, resp, args, kwargs, span, operation, instance=None):
+def _is_partial_stream_noise(chunk) -> bool:
+    """Whether a chunk is one of the events we inject by forcing include_partial_messages.
+
+    Only the ``StreamEvent`` partials and the ``stream_request_start`` ping
+    (``SystemMessage(subtype="status")`` with ``data["status"] == "requesting"``) are ours.
+    Other ``status`` messages (compaction results/errors, permission-mode changes) are
+    caller-visible and not gated on partial messages, so we must let them through.
+    """
+    chunk_type = type(chunk).__name__
+    if chunk_type == "StreamEvent":
+        return True
+    if chunk_type == "SystemMessage" and getattr(chunk, "subtype", None) == "status":
+        data = getattr(chunk, "data", None)
+        return isinstance(data, dict) and data.get("status") == "requesting"
+    return False
+
+
+async def filter_forced_partial_noise(resp):
+    """Strip the events we injected from an otherwise untraced receive stream.
+
+    The ``connect(prompt=...)`` shortcut dispatches its prompt without a ``query()`` call, so
+    that stream has no span/handler to trace or filter it. When we forced partial streaming on
+    such a client, we still must not surface the extra events — enabling ddtrace should never
+    change the caller's message stream. This is a passthrough that drops only those events.
+    """
+    async for chunk in resp:
+        if _is_partial_stream_noise(chunk):
+            continue
+        yield chunk
+
+
+def handle_streamed_response(integration, resp, args, kwargs, span, operation, instance=None, filter_partial=False):
     return make_traced_stream(
         resp,
-        ClaudeAgentSdkAsyncStreamHandler(integration, span, args, kwargs, operation=operation, instance=instance),
+        ClaudeAgentSdkAsyncStreamHandler(
+            integration, span, args, kwargs, operation=operation, instance=instance, filter_partial=filter_partial
+        ),
     )
 
 
 class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
-    def __init__(self, integration, span, args, kwargs, operation, instance=None):
+    def __init__(self, integration, span, args, kwargs, operation, instance=None, filter_partial=False):
         super().__init__(integration, span, args, kwargs)
         self.operation = operation
         self.instance = instance
+        # Indicates whether we enabled include_partial_messages ourselves
+        self._filter_partial = filter_partial
+        # Per-turn usage mined from the partial-message stream, keyed by message_id:
+        # message_start seeds the input/cache tokens, each message_delta updates the true
+        # output tokens. On SDK versions without AssistantMessage.usage (< 0.1.49) this is
+        # the only token source; on newer versions it corrects the output snapshot.
+        self._partial_usage_by_id: dict[str, dict] = {}
+        # The message id currently streaming, keyed by parent_tool_use_id scope: None for the main
+        # agent, the spawning tool-use id for a subagent. Scoping keeps concurrent subagent runs,
+        # whose StreamEvents interleave in one stream, from clobbering each other's cursor when an
+        # id-less message_delta is attributed back to its message_start.
+        self._partial_current_id_by_scope: dict[Optional[str], str] = {}
         self.context = None
         self._active_tool_spans: dict[str, dict[str, Any]] = {}
         self.current_step_span = None
@@ -94,6 +155,14 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_response_chunk: Any = None  # deferred AssistantMessage for steps with tool calls
         self._step_input_snapshot: Optional[list[Message]] = None  # input captured before llm extension
         self._accumulated_input_messages: Optional[list[Message]] = None
+        # Buffer of consecutive AssistantMessage chunks that share a message_id.
+        # The turn is flushed (one llm span emitted) when a chunk with a different
+        # message_id arrives, or a UserMessage/ResultMessage ends the turn.
+        self._pending_chunks: list[Any] = []
+        self._pending_message_id: Optional[str] = None
+        # The streaming turn id captured when the pending turn started buffering. Used to join
+        # partial usage back to the turn on SDKs where AssistantMessage has no message_id.
+        self._pending_partial_id: Optional[str] = None
         self._is_finalized = False
         # Refs are (span_id, trace_id) snapshots and are used to chain together
         # step spans as well as llm → tool → llm spans.
@@ -102,9 +171,45 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         self._step_tool_span_refs: list[_SpanRef] = []
         self._create_step_span()
 
+    def _is_forced_partial_noise(self, chunk) -> bool:
+        """Chunks we turned on ourselves and must not surface to the caller or store."""
+        return self._filter_partial and _is_partial_stream_noise(chunk)
+
+    def _capture_partial_usage(self, chunk) -> None:
+        """Record per-turn token usage from a StreamEvent's raw Anthropic event.
+
+        ``message_start`` seeds the turn's input/cache tokens; each ``message_delta``
+        updates the running true output tokens (the last one seen wins). The id-less
+        ``message_delta`` is joined back to its ``message_start`` within the same
+        ``parent_tool_use_id`` scope, so concurrent subagent streams stay separate.
+        """
+        signal = extract_partial_message_usage(getattr(chunk, "event", None))
+        if signal is None:
+            return
+        scope = getattr(chunk, "parent_tool_use_id", None)
+        message_id, usage = signal
+        if message_id is not None:
+            self._partial_current_id_by_scope[scope] = message_id
+            self._partial_usage_by_id[message_id] = dict(usage)
+        elif usage:
+            current_id = self._partial_current_id_by_scope.get(scope)
+            if current_id is not None:
+                self._partial_usage_by_id.setdefault(current_id, {}).update(usage)
+
+    def should_yield_chunk(self, chunk) -> bool:
+        return not self._is_forced_partial_noise(chunk)
+
     async def process_chunk(self, chunk, iterator=None):
-        self.chunks.append(chunk)
         chunk_type = type(chunk).__name__
+
+        if chunk_type == "StreamEvent":
+            self._capture_partial_usage(chunk)
+
+        # Keep the events we injected out of chunk storage so span extraction is unaffected.
+        if self._is_forced_partial_noise(chunk):
+            return
+
+        self.chunks.append(chunk)
 
         if chunk_type == "ResultMessage":
             if self.instance and self.context is None:
@@ -127,6 +232,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             return
         self._is_finalized = True
         try:
+            # Flush the last buffered model turn (its llm/step spans and any tool spans).
+            self._flush_pending_turn()
+
             # Finalize any open llm span first.
             if self.current_llm_span is not None:
                 self._finalize_llm_span(None, exception=exception)
@@ -186,7 +294,9 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             submit_to_llmobs=True,
             span_name="claude_agent_sdk.llm",
             instance=self.instance,
+            activate=False,  # spans the caller starts while iterating should not nest under this span
         )
+        self._keep_step_active_in_llmobs()
         # Link each new llm span from the previous tool outputs (fan-in), or from the previous llm span if no tools ran.
         if self._step_tool_span_refs:
             for tool_ref in self._step_tool_span_refs:
@@ -210,6 +320,20 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
                 "output",
                 "input",
             )
+
+    def _keep_step_active_in_llmobs(self) -> None:
+        """Re-activate the step span as the active LLMObs span.
+
+        Creating the llm (or a tool) span makes that leaf the active LLMObs span, so anything
+        opened while the turn is still buffering would parent under it instead of the step.
+        Re-activating the step keeps it the parent.
+        """
+        if self.current_step_span is None or not self.integration.llmobs_enabled:
+            return
+        from ddtrace.llmobs import LLMObs
+
+        if LLMObs._instance is not None:
+            LLMObs._instance._llmobs_context_provider.activate(self.current_step_span)
 
     def _finalize_llm_span(self, chunk: Any, exception: BaseException | None = None) -> None:
         """Close the llm span with the AssistantMessage data."""
@@ -293,7 +417,65 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
         tool_span.finish()
 
     def _handle_assistant_message(self, chunk: Any, content: Any) -> None:
-        """Snapshot step input, finalize the llm span, open tool spans, and finalize or defer the step."""
+        """Buffer the chunk, deduping by message_id so one model turn maps to one llm span.
+
+        AIDEV-NOTE: The SDK may split one model turn (e.g. a text block plus a tool_use
+        block) into several AssistantMessage chunks that each repeat the same message-level
+        usage. Buffering and merging chunks of one message into a single llm span (flushed on
+        turn change / UserMessage / ResultMessage) keeps token counts from being
+        double-counted. Newer SDKs (>= 0.1.49) join the chunks by AssistantMessage.message_id;
+        older SDKs omit that field, so we join by the streaming message id from message_start
+        (unchanged until the next message_start), giving the same one-span-per-message result.
+        """
+        incoming_id = getattr(chunk, "message_id", None)
+        # The streaming message id currently active in this message's own subagent scope.
+        current_partial_id = self._partial_current_id_by_scope.get(getattr(chunk, "parent_tool_use_id", None))
+
+        # Same turn continued: accumulate onto the buffered chunks (usage counted once). Match
+        # on message_id when the SDK provides it, otherwise on the streaming message id, which
+        # stays constant across a message's chunks until the next message_start.
+        same_turn = self._pending_chunks and (
+            (incoming_id is not None and incoming_id == self._pending_message_id)
+            or (
+                incoming_id is None
+                and current_partial_id is not None
+                and current_partial_id == self._pending_partial_id
+            )
+        )
+        if same_turn:
+            self._pending_chunks.append(chunk)
+            self._open_tool_spans(content)
+            return
+
+        # New turn: flush the previous one, then start buffering this chunk.
+        self._flush_pending_turn()
+        if self.current_step_span is None:
+            self._create_step_span()
+        self._pending_chunks = [chunk]
+        self._pending_message_id = incoming_id
+        # Stamp the turn currently streaming so the usage can be joined back to it even when
+        # the SDK gives the AssistantMessage no message_id.
+        self._pending_partial_id = current_partial_id
+        self._open_tool_spans(content)
+
+    def _open_tool_spans(self, content: Any) -> None:
+        """Open a tool span for each ToolUseBlock in a chunk's content."""
+        if not isinstance(content, list):
+            return
+        for block in content:
+            if type(block).__name__ == "ToolUseBlock":
+                self._handle_tool_use_block(block)
+
+    def _flush_pending_turn(self) -> None:
+        """Emit the llm/step spans for the buffered AssistantMessage chunks, if any."""
+        if not self._pending_chunks:
+            return
+        chunks = self._pending_chunks
+        pending_partial_id = self._pending_partial_id
+        self._pending_chunks = []
+        self._pending_message_id = None
+        self._pending_partial_id = None
+
         if self.current_step_span is None:
             self._create_step_span()
 
@@ -303,24 +485,83 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             )
         self._step_input_snapshot = list(self._accumulated_input_messages)
 
-        # _finalize_llm_span must run before the ToolUseBlock loop so
-        # _last_llm_span_ref is set when _handle_tool_use_block emits the
-        # llm → tool link.
-        self._finalize_llm_span(chunk)
+        response = self._merge_assistant_chunks(chunks)
+        # Older SDKs (< 0.1.49) don't put a message_id on AssistantMessage, so fall back to the
+        # streaming turn id stamped when buffering began, which is how the usage was keyed.
+        turn_id = getattr(chunks[0], "message_id", None) or pending_partial_id
+        response = self._apply_partial_usage(response, turn_id)
 
-        if isinstance(content, list):
-            for block in content:
-                if type(block).__name__ == "ToolUseBlock":
-                    self._handle_tool_use_block(block)
+        self._finalize_llm_span(response)
 
         # Defer or finalize the step span.
         if self._active_tool_spans:
-            self._step_response_chunk = chunk
+            self._step_response_chunk = response
         else:
-            self._finalize_step_span(chunk)
+            self._finalize_step_span(response)
+
+    def _apply_partial_usage(self, response: Any, message_id: Optional[str]) -> Any:
+        """Reconcile the turn's usage with the true counts mined from the stream events.
+
+        ``response`` is always a fresh ``_MergedAssistantMessage`` with its own usage dict
+        (see ``_merge_assistant_chunks``), so we mutate it in place without touching the
+        message object the caller received from the stream.
+
+        When the SDK reported its own usage (``AssistantMessage.usage``, >= 0.1.49) we trust
+        its input/cache counts and only correct ``output_tokens`` from the deltas (the SDK's
+        value is a pre-generation snapshot). When it did not (< 0.1.49), the stream events
+        are the only source, so we synthesize the whole usage block from them.
+        """
+        if message_id is None:
+            return response
+        partial = self._partial_usage_by_id.get(message_id)
+        if not partial:
+            # Missing usage only matters if partials were in play; otherwise we keep the SDK's own.
+            if self._filter_partial or self._partial_usage_by_id:
+                log.debug("claude_agent_sdk: no partial usage captured for message %s", message_id)
+            return response
+        usage = getattr(response, "usage", None)
+        if isinstance(usage, dict) and usage:
+            true_output = partial.get("output_tokens")
+            if true_output is not None:
+                usage["output_tokens"] = true_output
+        else:
+            response.usage = dict(partial)
+        return response
+
+    def _merge_assistant_chunks(self, chunks: list) -> Any:
+        """Combine AssistantMessage chunks sharing a message_id into one response object.
+
+        Always returns a fresh ``_MergedAssistantMessage`` (never an SDK chunk), so later
+        corrections like ``_apply_partial_usage`` can mutate it safely without affecting the
+        message object the caller received from the stream.
+        """
+        merged_content: list = []
+        usage: Optional[dict] = None
+        error: Any = None
+        model = ""
+        message_id: Optional[str] = None
+        for c in chunks:
+            merged_content.extend(getattr(c, "content", []) or [])
+            # All chunks of one message repeat the same message-level usage; keep a copy of
+            # the last non-empty one (most complete) so it is counted exactly once and our
+            # later corrections never reach the SDK's own usage dict.
+            if getattr(c, "usage", None):
+                usage = dict(c.usage)
+            if error is None:
+                error = getattr(c, "error", None)
+            if not model:
+                model = getattr(c, "model", "") or ""
+            if message_id is None:
+                message_id = getattr(c, "message_id", None)
+        return _MergedAssistantMessage(
+            content=merged_content, model=model, usage=usage, error=error, message_id=message_id
+        )
 
     def _handle_user_message(self, chunk: Any, content: Any) -> None:
         """Finalize tool spans for any tool results and, once all are in, close the deferred step span."""
+        # A UserMessage (tool results) ends the current model turn
+        self._flush_pending_turn()
+
         if isinstance(content, list):
             for block in content:
                 if type(block).__name__ == "ToolResultBlock":
@@ -347,12 +588,18 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             "claude_agent_sdk.tool",
             submit_to_llmobs=True,
             span_name=f"claude_agent_sdk.tool.{tool_name}",
+            activate=False,
         )
-        if self._last_llm_span_ref is not None:
+        # Link from the current turn's llm span, which is still open (not yet finalized) when
+        # tools are opened eagerly. Fall back to the last finalized llm span if it is gone.
+        llm_ref = (
+            self._snapshot(self.current_llm_span) if self.current_llm_span is not None else self._last_llm_span_ref
+        )
+        if llm_ref is not None:
             add_span_link(
                 tool_span,
-                self._last_llm_span_ref.span_id,
-                self._last_llm_span_ref.trace_id,
+                llm_ref.span_id,
+                llm_ref.trace_id,
                 "output",
                 "input",
             )
@@ -361,6 +608,7 @@ class ClaudeAgentSdkAsyncStreamHandler(AsyncStreamHandler):
             "tool_input": tool_input,
             "tool_id": tool_id,
         }
+        self._keep_step_active_in_llmobs()
 
     def _handle_tool_result_block(self, block: Any) -> None:
         """Finalize the matching tool span for a ToolResultBlock if one is active."""

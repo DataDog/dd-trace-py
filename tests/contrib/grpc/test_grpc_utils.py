@@ -45,6 +45,13 @@ def test_parse_target_from_args(mock_log, args, kwargs, result, log_warning_call
         mock_log.warning.assert_not_called()
 
 
+@pytest.mark.parametrize("header", ["user-agent", "grpc.primary_user_agent"])
+def test_is_otlp_export_with_user_agent(monkeypatch, header):
+    monkeypatch.setattr(utils.config, "_otel_logs_enabled", True)
+
+    assert utils.is_otlp_export(((header, "OTel-OTLP-Exporter-Python/1.44.0"),))
+
+
 @pytest.mark.parametrize(
     "host, port, expected_tags",
     [
@@ -133,34 +140,19 @@ def test_set_grpc_method_meta(method, method_kind, expected_tags):
         assert span._get_attribute(key) == value, f"Expected tag {key}={value!r}, got {span._get_attribute(key)!r}"
 
 
-@mock.patch("tests.contrib.grpc.common.time.sleep")
 @mock.patch("tests.contrib.grpc.common.add_HelloServicer_to_server")
 @mock.patch("tests.contrib.grpc.common.logging_pool.pool")
 @mock.patch("tests.contrib.grpc.common.grpc.server")
-def test_start_server_retries_on_bind_runtime_error(mock_server, mock_pool, mock_add_servicer, mock_sleep):
-    # A failed bind raises RuntimeError (gRPC core returns port 0); the retry must catch it and rebind.
+def test_start_server_binds_ephemeral_port(mock_server, mock_pool, mock_add_servicer):
+    # The server binds an ephemeral port ("[::]:0") with SO_REUSEPORT disabled and stores the
+    # OS-assigned port, so xdist workers never contend for a fixed port (no rebind retries needed).
     fake_server = mock_server.return_value
-    fake_server.add_insecure_port.side_effect = [RuntimeError("Failed to bind")] * 2 + [50531]
+    fake_server.add_insecure_port.return_value = 54321
 
     instance = GrpcBaseTestCase.__new__(GrpcBaseTestCase)
     instance._start_server()
 
-    assert fake_server.add_insecure_port.call_count == 3
+    mock_server.assert_called_once_with(mock_pool.return_value, options=(("grpc.so_reuseport", 0),))
+    fake_server.add_insecure_port.assert_called_once_with("[::]:0")
+    assert instance._grpc_port == 54321
     fake_server.start.assert_called_once()
-
-
-@mock.patch("tests.contrib.grpc.common.time.sleep")
-@mock.patch("tests.contrib.grpc.common.add_HelloServicer_to_server")
-@mock.patch("tests.contrib.grpc.common.logging_pool.pool")
-@mock.patch("tests.contrib.grpc.common.grpc.server")
-def test_start_server_raises_after_exhausting_retries(mock_server, mock_pool, mock_add_servicer, mock_sleep):
-    # When every attempt keeps failing, give up after 10 tries and never start the server.
-    fake_server = mock_server.return_value
-    fake_server.add_insecure_port.side_effect = RuntimeError("Failed to bind")
-
-    instance = GrpcBaseTestCase.__new__(GrpcBaseTestCase)
-    with pytest.raises(RuntimeError, match="after multiple attempts"):
-        instance._start_server()
-
-    assert fake_server.add_insecure_port.call_count == 10
-    fake_server.start.assert_not_called()

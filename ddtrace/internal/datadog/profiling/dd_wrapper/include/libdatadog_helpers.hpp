@@ -54,12 +54,15 @@ intern_string(std::string_view s);
     X(thread_name, "thread name")                                                                                      \
     X(task_id, "task id")                                                                                              \
     X(task_name, "task name")                                                                                          \
+    X(origin_task_id, "origin task id")                                                                                \
+    X(origin_task_name, "origin task name")                                                                            \
     X(span_id, "span id")                                                                                              \
     X(local_root_span_id, "local root span id")                                                                        \
     X(trace_type, "trace type")                                                                                        \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")                                                                                          \
-    X(gpu_device_name, "gpu device name")
+    X(gpu_device_name, "gpu device name")                                                                              \
+    X(allocator_domain, "allocator domain")
 
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,

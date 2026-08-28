@@ -1,4 +1,4 @@
-from ddtrace.appsec._constants import Constant_Class
+from ddtrace.internal.constants import Constant_Class
 
 
 class COMMANDS(metaclass=Constant_Class):

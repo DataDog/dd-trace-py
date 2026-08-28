@@ -77,6 +77,20 @@ Traces
      version_added:
        v2.7.0:
 
+   DD_BOTOCORE_BEDROCK_RESOLVE_INFERENCE_PROFILE:
+      type: Boolean
+      default: False
+
+      description: |
+         Enables resolving the underlying foundation model of an AWS Bedrock application inference profile. When a
+         Bedrock request uses an application-inference-profile ARN as its ``modelId``, the model name is otherwise an
+         opaque identifier and LLM Observability cannot compute cost. When enabled, the integration makes an extra
+         ``bedrock:GetInferenceProfile`` call (once per profile, cached) to report the underlying model. The caller's
+         credentials must be allowed to call ``bedrock:GetInferenceProfile``.
+
+      version_added:
+         v4.13.0:
+
    DD_BOTOCORE_EMPTY_POLL_ENABLED:
       type: Boolean
       default: True
@@ -248,6 +262,14 @@ Traces
            ``DD_TRACE_OBFUSCATION_QUERY_STRING_REGEXP`` replaces ``DD_TRACE_OBFUSCATION_QUERY_STRING_PATTERN`` which is deprecated
            and will be deleted in 2.0.0
 
+   DD_TRACE_OTEL_CTX_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+         Enables publication of OpenTelemetry thread context records for external readers such as the OpenTelemetry eBPF Profiler.
+         These records describe the active traces running within the sampled process.
+
    DD_TRACE_OTEL_ENABLED:
      type: Boolean
      default: False
@@ -268,6 +290,18 @@ Traces
      type: Integer
      default: 300
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
+
+   DD_TRACE_PROPAGATION_AS_SPAN_LINKS:
+     type: String
+     default: (empty)
+     description: |
+         Comma-separated list of integration names for which upstream context is attached to the
+         child span as span links instead of being used to parent the span.
+
+         Example: ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS="google_cloud_pubsub,kafka"``.
+
+     version_added:
+       v4.15.0:
 
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
      type: Boolean
@@ -530,10 +564,10 @@ Application & API Security
    DD_APPSEC_AGENTIC_ONBOARDING:
      type: String
      description: |
-       A legitimate Datadog variable set automatically by Datadog's agentic onboarding solution when it
-       configures App & API Protection. It lets Datadog record, via
+       A legitimate Datadog variable set automatically by Datadog's agentic onboarding
+       solution when it configures App & API Protection. Its value is reported verbatim via
        `instrumentation telemetry <https://docs.datadoghq.com/tracing/configure_data_security/#telemetry-collection>`_,
-       that the service was onboarded through the agentic flow. Its value is never read.
+       so that Datadog can record that the service was onboarded through the agentic flow.
 
      version_added:
        v4.13.0:
@@ -646,6 +680,16 @@ AI Guard
        behavior configured in the Datadog AI Guard UI (in-app) will be honored. Set to ``False`` to
        force monitor-only mode locally: evaluations are still performed but ``AIGuardAbortError`` is
        never raised, regardless of the in-app blocking setting.
+
+   DD_AI_GUARD_REDACTION_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+       Global switch for AI Guard sensitive data redaction. When set to ``True`` (default) and the
+       AI Guard service asks for redaction, the tracer replaces the affected message content with the
+       redacted values returned by the AI Guard, and reports the redacted messages instead of the
+       originals. Set to ``False`` to disable the transformation without a tracer rollback: evaluations
+       still run and sensitive data findings are still reported, but no message is modified.
 
    DD_AI_GUARD_OPENAI_ENABLED:
      type: Boolean
@@ -769,6 +813,15 @@ Test Visibility
 ---------------
 
 .. ddtrace-configuration-options::
+
+   DD_CODE_COVERAGE_FLAGS:
+     type: String (comma-separated list)
+
+     description: |
+        Adds flags to uploaded code coverage reports for grouping and filtering. Separate flags with commas, for example
+        ``DD_CODE_COVERAGE_FLAGS="type:unit-tests,jvm-21"``. Surrounding whitespace and empty entries are ignored;
+        order and duplicate flags are preserved. Up to 32 flags are supported. If more are provided, the flags are
+        omitted without canceling the report upload.
 
    DD_CIVISIBILITY_AGENTLESS_ENABLED:
      type: Boolean
@@ -1172,6 +1225,57 @@ Sampling
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
+
+Feature Flagging
+----------------
+
+.. ddtrace-configuration-options::
+
+   DD_FEATURE_FLAGS_ENABLED:
+     type: Boolean
+     default: True
+     description: |
+         Stable kill switch for Feature Flagging. When ``False``, the provider is
+         disabled regardless of the configured source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE:
+     type: String
+     default: agentless
+     description: |
+         Selects where Feature Flagging loads Universal Flag Configuration from.
+         Supported values are ``agentless`` (load directly from the Datadog CDN)
+         and ``remote_config`` (deliver via the Datadog Agent's Remote
+         Configuration). ``offline`` is reserved and currently unsupported; any
+         unsupported value disables the provider without contacting either source.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL:
+     type: String
+     default: (none)
+     description: |
+         Overrides the Datadog-managed agentless Universal Flag Configuration
+         endpoint, for local development or an operator-managed proxy. The URL must
+         use HTTP or HTTPS. An origin or root URL receives the standard rules-based
+         server path, so ``http://localhost:8080`` resolves to
+         ``http://localhost:8080/api/v2/feature-flagging/config/rules-based/server``;
+         a URL with a non-root path, such as
+         ``https://ufc-proxy.internal.example.com/ufc``, is used verbatim as the
+         exact endpoint. ``DD_API_KEY`` is never sent to a custom endpoint. Only
+         applies when ``DD_FEATURE_FLAGS_CONFIGURATION_SOURCE`` is ``agentless``.
+         See `Use a custom agentless endpoint <https://docs.datadoghq.com/feature_flags/concepts/configuration_sources/#use-a-custom-agentless-endpoint>`_.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS:
+     type: Integer
+     default: 30
+     description: |
+         The agentless Universal Flag Configuration polling interval in seconds,
+         capped at one hour.
+
+   DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS:
+     type: Integer
+     default: 5
+     description: |
+         The per-request timeout in seconds for agentless Universal Flag
+         Configuration polls.
 
 Other
 -----

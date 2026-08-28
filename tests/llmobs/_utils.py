@@ -20,7 +20,9 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._llmobs import _STANDARD_INTEGRATION_SPAN_NAMES
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_span_links
+from ddtrace.llmobs._utils import get_llmobs_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
@@ -327,6 +329,25 @@ def _expected_llmobs_non_llm_span_event(
     return span_event
 
 
+def _expected_agent_attribution(span):
+    """Independently compute the agent_attribution block expected on a span event.
+
+    Walks the LLMObs ancestor chain to the nearest "agent" span (full walk) — this must
+    match the implementation, which achieves the same result via one-level inheritance at
+    activation. Returns the resolved block, or ``None`` when no agent ancestor exists (the
+    span event omits the block entirely in that case).
+    """
+    ancestor = _get_nearest_llmobs_ancestor(span)
+    while ancestor is not None:
+        if get_llmobs_span_kind(ancestor) == "agent":
+            return {
+                "pagent_name": get_llmobs_span_name(ancestor) or ancestor.name,
+                "pagent_span_id": str(ancestor.span_id),
+            }
+        ancestor = _get_nearest_llmobs_ancestor(ancestor)
+    return None
+
+
 def _llmobs_base_span_event(
     span,
     span_kind,
@@ -375,6 +396,9 @@ def _llmobs_base_span_event(
             "sampling_decision": mock.ANY,
         },
     }
+    expected_agent_attribution = _expected_agent_attribution(span)
+    if expected_agent_attribution is not None:
+        span_event["meta"]["agent_attribution"] = expected_agent_attribution
     if session_id:
         span_event["session_id"] = session_id
     if error:
@@ -404,6 +428,7 @@ def _expected_llmobs_eval_metric_event(
     eval_scope="span",
 ):
     eval_metric_event = {
+        "event_kind": "evaluation",
         "join_on": {},
         "metric_type": metric_type,
         "label": label,
@@ -441,6 +466,43 @@ def _expected_llmobs_eval_metric_event(
     if metadata is not None:
         eval_metric_event["metadata"] = metadata
     return eval_metric_event
+
+
+def _expected_llmobs_feedback_event(
+    metric_type,
+    label,
+    value,
+    submitter,
+    target_type,
+    target_value,
+    ml_app,
+    timestamp_ms=None,
+    tags=None,
+    assessment=None,
+    reasoning=None,
+):
+    feedback_event = {
+        "event_kind": "feedback",
+        target_type: target_value,
+        "metric_type": metric_type,
+        "label": label,
+        "{}_value".format(metric_type): value,
+        "submitter": submitter,
+        "tags": [
+            "ddtrace.version:{}".format(ddtrace.__version__),
+            "ml_app:{}".format(ml_app if ml_app is not None else "unnamed-ml-app"),
+        ],
+        "timestamp_ms": timestamp_ms if timestamp_ms is not None else mock.ANY,
+    }
+    if tags is not None:
+        feedback_event["tags"] = tags
+    if assessment is not None:
+        feedback_event["assessment"] = assessment
+    if reasoning is not None:
+        feedback_event["reasoning"] = reasoning
+    if ml_app is not None:
+        feedback_event["ml_app"] = ml_app
+    return feedback_event
 
 
 def _completion_event():
@@ -746,6 +808,7 @@ class DummyEvaluator:
 
 def _dummy_evaluator_eval_metric_event(span_id, trace_id, label=None):
     return LLMObsEvaluationMetricEvent(
+        event_kind="evaluation",
         join_on={"span": {"span_id": span_id, "trace_id": trace_id}},
         score_value=1.0,
         ml_app="unnamed-ml-app",

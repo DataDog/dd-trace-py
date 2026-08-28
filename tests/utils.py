@@ -168,6 +168,7 @@ def override_global_config(values: dict[str, Any]):
         "_trace_resource_renaming_always_simplified_endpoint",
         "_obfuscation_query_string_pattern",
         "_global_query_string_obfuscation_disabled",
+        "_trace_agentless_enabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
         "_remote_config_enabled",
@@ -1440,7 +1441,7 @@ def call_program(*args, **kwargs):
     except subprocess.TimeoutExpired:
         subp.terminate()
         stdout, stderr = subp.communicate(timeout=timeout)
-    return stdout, stderr, subp.wait(), subp.pid
+    return stdout, stderr, subp.returncode, subp.pid
 
 
 def request_token(request: pytest.FixtureRequest) -> str:

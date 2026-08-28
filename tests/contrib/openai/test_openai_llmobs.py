@@ -7,9 +7,12 @@ import pytest
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._integrations.utils import _est_tokens
+from ddtrace.llmobs._integrations.utils import _inline_image_budget
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metadata
+from ddtrace.llmobs._utils import get_llmobs_metrics
 from ddtrace.llmobs._utils import get_llmobs_model_name
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_output_messages
@@ -488,6 +491,72 @@ class TestLLMObsOpenaiV1:
             metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
         )
+
+    def test_chat_completion_inline_image_captured(self, openai, openai_llmobs, test_spans):
+        """An inline base64 image reaches the span as an image_part, leaving only the text content."""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What’s in this image?"},
+                            {"type": "image_url", "image_url": {"url": "data:image/png;base64,AAECAw=="}},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        assert_llmobs_span_data(
+            _get_llmobs_data_metastruct(spans[0]),
+            span_kind="llm",
+            name="OpenAI.createChatCompletion",
+            model_name=resp.model,
+            model_provider="openai",
+            input_messages=[
+                {
+                    "role": "user",
+                    "content": "What’s in this image?",
+                    "image_parts": [{"mime_type": "image/png", "content": "AAECAw=="}],
+                }
+            ],
+            output_messages=[{"role": "assistant", "content": resp.choices[0].message.content}],
+            metadata={},
+            metrics={"input_tokens": 1118, "output_tokens": 16, "total_tokens": 1134},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai", "integration": "openai"},
+        )
+
+    def test_chat_completion_oversize_inline_image_preserves_text_and_response(self, openai, openai_llmobs, test_spans):
+        """Regression: an oversize inline image degrades to a marker rather than costing the whole
+        span input+output, so the message text and the model response both survive.
+        """
+        oversize_data_url = "data:image/png;base64," + "A" * (_inline_image_budget() + 4)
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_image_input.yaml"):
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model="gpt-4-vision-preview",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": "What’s in this image?"},
+                            {"type": "image_url", "image_url": {"url": oversize_data_url}},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        span_event = _get_llmobs_data_metastruct(spans[0])
+        assert span_event["meta"]["input"]["messages"] == [
+            {"role": "user", "content": "What’s in this image?\n[image omitted: too large]"}
+        ]
+        assert span_event["meta"]["output"]["messages"] == [
+            {"role": "assistant", "content": resp.choices[0].message.content}
+        ]
 
     def test_chat_completion_multimodal_lazy_iterator(self, openai, openai_llmobs, test_spans):
         """Test that iterable message content is materialized to a list before the SDK
@@ -1973,6 +2042,41 @@ MUL: "*"
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
+    def test_response_inline_image_captured_end_to_end(self, openai, openai_llmobs, test_spans):
+        """The Responses API path that previously dumped the whole data URL into message text.
+
+        Covered end to end (kwargs -> span tags -> metastruct) rather than by a direct call to the
+        parser, since that leak reached customers through this full path.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model="gpt-4.1",
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": "What is in this image?"},
+                            {"type": "input_image", "image_url": "data:image/png;base64,AAECAw=="},
+                        ],
+                    }
+                ],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        messages = _get_llmobs_data_metastruct(spans[0])["meta"]["input"]["messages"]
+        assert messages == [
+            {
+                "role": "user",
+                "content": "What is in this image?",
+                "image_parts": [{"mime_type": "image/png", "content": "AAECAw=="}],
+            }
+        ]
+        assert resp.output  # the cassette response still flows through untouched
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
     def test_response_stream_tokens(self, openai, openai_llmobs, test_spans):
         """Assert that streamed token chunk extraction logic works when options are not explicitly passed from user."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_stream.yaml"):
@@ -3243,3 +3347,55 @@ def test_shadow_tags_chat_completion_with_cache_tokens(tracer):
 
     assert span.get_metric("_dd.llmobs.cache_read_input_tokens") == 12
     assert span.get_metric("_dd.llmobs.cache_write_input_tokens") == 34
+
+
+class TestLLMObsOpenAIOpenRouter:
+    """OpenRouter cost capture through the OpenAI-compatible client.
+
+    OpenRouter returns the billed cost on ``usage.cost`` (plus a ``usage.cost_details`` breakdown)
+    in every response. The integration should surface it on the span's ``total_cost`` metric, adding
+    ``input_cost``/``output_cost`` only when the upstream breakdown reconciles with the billed total.
+    """
+
+    def test_chat_completion_openrouter_cost(self, openai, openai_llmobs, test_spans):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_openrouter.yaml"):
+            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1")
+            client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[{"role": "user", "content": "What is the capital of France?"}],
+            )
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = get_llmobs_metrics(spans[0])
+        # total_cost is OpenRouter's billed cost, captured directly rather than estimated from tokens.
+        assert "total_cost" in metrics
+        assert metrics["total_cost"] > 0
+        # input_cost/output_cost are present only when they sum to total_cost; if present, verify that.
+        if "input_cost" in metrics or "output_cost" in metrics:
+            assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
+
+    def test_chat_completion_openrouter_byok_cost(self, openai, openai_llmobs, test_spans):
+        """OpenRouter BYOK upstream cost is surfaced on the span's cost metrics.
+
+        With BYOK, OpenRouter bills ``usage.cost=0`` and reports the real provider cost under
+        ``usage.cost_details.upstream_inference_cost`` (flagged by ``usage.is_byok=True``). The
+        integration should surface that upstream cost as ``total_cost`` rather than the billed 0.
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_openrouter_byok.yaml"):
+            client = openai.OpenAI(base_url="https://openrouter.ai/api/v1")
+            resp = client.chat.completions.create(
+                model="openai/gpt-4o-mini",
+                messages=[{"role": "user", "content": "What is the capital of France?"}],
+            )
+
+        assert _get_attr(resp.usage, "is_byok", None) is True
+        assert _get_attr(resp.usage, "cost", None) == 0
+        cost_details = _get_attr(resp.usage, "cost_details", {})
+        assert _get_attr(cost_details, "upstream_inference_cost", 0) > 0
+        spans = [s for trace in test_spans.pop_traces() for s in trace]
+        assert len(spans) == 1
+        metrics = get_llmobs_metrics(spans[0])
+        # BYOK bills cost=0; the upstream inference cost must still be surfaced as a non-zero total_cost.
+        assert metrics["total_cost"] > 0
+        if "input_cost" in metrics or "output_cost" in metrics:
+            assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)

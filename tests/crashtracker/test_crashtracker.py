@@ -678,6 +678,9 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
+    from ddtrace.internal.settings.profiling import config as profiling_config
+    from ddtrace.internal.settings.profiling import config_str
+
     service = "test_crashtracker_set_tag_profiler_config"
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -696,7 +699,8 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
         report = utils.get_crash_report(client, service=service)
         # Now check for the profiler_config tag
         assert b"profiler_config" in report["body"]
-        profiler_config = "stack_v2_lock_mem_heap_exp_dd_CAP1.0_MAXF64"
+
+        profiler_config = config_str(profiling_config)
         assert profiler_config.encode() in report["body"]
 
 
@@ -1026,3 +1030,42 @@ def test_crashtracker_receiver_env_inheritance():
 
     # Clean up
     os.environ.pop(test_env_key, None)
+
+
+unhandled_exception_code = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace.auto
+
+class CustomError(Exception):
+    pass
+
+raise CustomError("crashtracker_unhandled_test_message")
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
+    import json
+
+    service = "test_crashtracker_unhandled_exception"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        _stdout, stderr, exitcode, _ = run_python_code_in_subprocess(unhandled_exception_code, env=env)
+
+        # The process should exit with code 1, not a signal
+        assert exitcode == 1
+        assert b"CustomError" in stderr
+        assert b"crashtracker_unhandled_test_message" in stderr
+
+        report = utils.get_crash_report(client, service=service)
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+
+        error = message["error"]
+        error_str = json.dumps(error)
+        # The exception is defined in __main__
+        assert "__main__.CustomError" in error_str
+        assert "crashtracker_unhandled_test_message" in error_str

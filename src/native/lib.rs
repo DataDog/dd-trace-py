@@ -3,21 +3,33 @@ mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
 mod config;
+mod context;
+mod context_provider;
+#[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
+mod context_watcher;
 mod contextvar;
 mod data_pipeline;
 #[cfg(feature = "stats")]
 mod ddsketch;
 mod ddtrace_utils;
+mod debugger;
 mod event_hub;
 #[cfg(feature = "ffe")]
 mod ffe;
 mod http_client;
 mod library_config;
 mod log;
+#[cfg(target_os = "linux")]
+mod otel_thread_ctx;
+mod process_metrics;
 mod py_string;
 mod rand;
+mod rc_shm;
+mod remote_config;
 mod shared_runtime;
 mod span;
+mod symdb;
+mod telemetry;
 mod tracer_flare;
 
 use pyo3::prelude::*;
@@ -46,18 +58,42 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_on_fork, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_status, m)?)?;
         m.add_function(wrap_pyfunction!(crashtracker::crashtracker_receiver, m)?)?;
+        m.add_function(wrap_pyfunction!(
+            crashtracker::crashtracker_report_unhandled_exception_py,
+            m
+        )?)?;
     }
 
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
+
+    #[cfg(target_os = "linux")]
+    {
+        m.add_wrapped(wrap_pyfunction!(
+            otel_thread_ctx::update_otel_thread_context_from_span
+        ))?;
+        m.add_wrapped(wrap_pyfunction!(
+            otel_thread_ctx::update_otel_thread_context_from_context
+        ))?;
+        m.add_wrapped(wrap_pyfunction!(
+            otel_thread_ctx::detach_otel_thread_context
+        ))?;
+    }
     shared_runtime::register_shared_runtime(m)?;
+    remote_config::register_remote_config(m)?;
     data_pipeline::register_data_pipeline(m)?;
+    telemetry::register_telemetry(m)?;
+    debugger::register_debugger(m)?;
+    symdb::register_symdb(m)?;
     http_client::register_http_client(m)?;
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
     contextvar::register_contextvar(m)?;
+    context::register_context(m)?;
+    context_provider::register_context_provider(m)?;
     rand::register_rand(m)?;
+    process_metrics::register_process_metrics(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
@@ -74,6 +110,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add tracer_flare submodule
     m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
+
+    #[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
+    context_watcher::register(m)?;
 
     Ok(())
 }

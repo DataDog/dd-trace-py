@@ -51,7 +51,6 @@ Known limitations (deferred by design):
 
 import base64
 import importlib
-import os
 import time
 from types import ModuleType
 from types import SimpleNamespace
@@ -65,6 +64,7 @@ import openai
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
@@ -845,7 +845,7 @@ class _RealtimeState:
             log.debug("error finishing realtime span", exc_info=True)
             try:
                 span.finish()
-            except Exception:
+            except Exception:  # nosec B110 - already logged above; a span we cannot finish is dropped
                 pass
 
     def _turn_end_ns(self, turn: _ResponseTurn) -> Optional[int]:
@@ -1303,7 +1303,7 @@ def _realtime_modules() -> list[ModuleType]:
 def patch_realtime() -> None:
     # Realtime is a large, event-driven wrapping surface; allow disabling just it (while keeping the
     # rest of the OpenAI integration) via DD_OPENAI_REALTIME_ENABLED=false.
-    if not asbool(os.environ.get("DD_OPENAI_REALTIME_ENABLED", "true")):
+    if not asbool(env.get("DD_OPENAI_REALTIME_ENABLED", "true")):
         return
     for module in _realtime_modules():
         for class_name, method_name, wrapper in _REALTIME_WRAPS:

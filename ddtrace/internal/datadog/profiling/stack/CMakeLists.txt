@@ -69,6 +69,8 @@ add_library(
     src/echion/tasks.cc
     src/echion/threads.cc
     src/echion/vm.cc
+    src/gc_frame_tracker.cpp
+    src/origin_task_links.cpp
     src/sampler.cpp
     src/stack.cpp
     src/stack_renderer.cpp
