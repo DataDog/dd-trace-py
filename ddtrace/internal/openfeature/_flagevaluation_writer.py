@@ -328,9 +328,12 @@ def _flatten_mapping(
 ) -> None:
     iterator = iter(value)
     index = 0
-    # The per-field key allowance depends only on this container's prefix.
+    # The per-field key allowance depends only on this container's prefix. Every
+    # non-root container adds a "." separator, so it costs one character. Keying this
+    # off root rather than len(prefix) keeps a nested container that has an empty
+    # prefix from silently reclaiming the separator's character.
     prefix_length = len(prefix)
-    key_budget = MAX_KEY_LENGTH - prefix_length - (0 if not prefix_length else 1)
+    key_budget = MAX_KEY_LENGTH - prefix_length - (0 if root else 1)
     while True:
         remaining = state[0]
         if remaining < 0:
@@ -370,7 +373,11 @@ def _flatten_mapping(
         if len(child_key) > key_budget:
             reasons.add(CONTEXT_TRUNCATION_MAX_KEY_LENGTH)
             continue
-        child_prefix = child_key if not prefix_length else f"{prefix}.{child_key}"
+        # Only the root mapping omits the separator. Testing len(prefix) here instead
+        # would alias an empty caller key: {"": {"a": 1}} and {"a": 1} would both
+        # flatten to "a" and merge into one aggregation bucket, breaking the
+        # distinct-contexts-always-produce-distinct-keys guarantee.
+        child_prefix = child_key if root else f"{prefix}.{child_key}"
         child_value = value[lookup_key]
         # An exact scalar is neither a Mapping nor a Sequence, so the ABC dispatch in
         # _flatten_bounded cannot apply to it. Subclasses still take the slow path,

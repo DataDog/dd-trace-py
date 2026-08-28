@@ -810,6 +810,29 @@ class TestFlattenAndPruneContext:
         assert writer._queue.get_nowait().attrs == {"tier": 3, "region": "eu-west", "lazy": "v"}
         assert writer._context_truncated == {}
 
+    def test_empty_keys_do_not_alias_distinct_contexts(self):
+        """An empty caller key must keep its path segment.
+
+        Only the root mapping omits the "." separator. If the separator decision keyed
+        off len(prefix) instead, a nested container with an empty prefix would reclaim
+        the separator and two distinct contexts would flatten to the same key set, then
+        merge into one aggregation bucket.
+        """
+        nested_under_empty_key, _ = flatten_and_prune_context({"": {"a": 1}})
+        top_level, _ = flatten_and_prune_context({"a": 1})
+        assert nested_under_empty_key == {".a": 1}
+        assert top_level == {"a": 1}
+        assert canonical_context_key(nested_under_empty_key) != canonical_context_key(top_level)
+
+    def test_empty_keys_do_not_alias_at_depth(self):
+        """The same aliasing must not reappear one level down."""
+        with_empty_segment, _ = flatten_and_prune_context({"a": {"": {"b": 1}}})
+        without, _ = flatten_and_prune_context({"a": {"b": 1}})
+        assert with_empty_segment == {"a..b": 1}
+        assert without == {"a.b": 1}
+        assert canonical_context_key(with_empty_segment) != canonical_context_key(without)
+
+
     def test_string_value_limit_counts_characters(self):
         exact_snapshot, exact_reasons = flatten_and_prune_context({"value": "😀" * MAX_VALUE_LENGTH})
         truncated_snapshot, truncated_reasons = flatten_and_prune_context({"value": "😀" * (MAX_VALUE_LENGTH + 1)})
