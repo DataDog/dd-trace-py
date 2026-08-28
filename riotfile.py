@@ -1068,6 +1068,8 @@ venv = Venv(
                 "bcrypt": "==4.2.1",
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/contrib/django",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/django/**/test*.py",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
                 "DD_IAST_REQUEST_SAMPLING": "100",  # Override default 30% to analyze all IAST requests
                 # TODO: Remove once pkg_resources warnings are no longer emitted from this internal module
@@ -1439,10 +1441,8 @@ venv = Venv(
         Venv(
             name="mako",
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/mako",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/mako/**/test*.py",
             },
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/mako",
             pys=select_pys(),
             pkgs={
                 "mako": ["~=1.0.0", latest],
@@ -1677,10 +1677,8 @@ venv = Venv(
             name="structlog",
             pys=select_pys(),
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/structlog",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/structlog/**/test*.py",
             },
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/structlog",
             pkgs={
                 "structlog": ["~=20.2.0", latest],
                 "pytest-randomly": latest,
@@ -2339,10 +2337,8 @@ venv = Venv(
         Venv(
             name="graphql",
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/graphql",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/graphql/**/test*.py",
             },
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/graphql",
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -2426,10 +2422,8 @@ venv = Venv(
         Venv(
             name="urllib3",
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/urllib3",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/urllib3/**/test*.py",
             },
-            command="pytest -n auto --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
@@ -3283,7 +3277,11 @@ venv = Venv(
         ),
         Venv(
             name="pytorch",
-            command="pytest {cmdargs} tests/contrib/pytorch",
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            env={
+                "DDTEST_SUITE_PATH": "tests/contrib/pytorch",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/pytorch/**/test*.py",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
@@ -3430,12 +3428,10 @@ venv = Venv(
         Venv(
             name="logbook",
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/logbook",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/logbook/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             pys=select_pys(),
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/logbook",
             pkgs={
                 "logbook": ["~=1.0.0", latest],
                 "pytest-randomly": latest,
@@ -3444,12 +3440,10 @@ venv = Venv(
         Venv(
             name="loguru",
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/loguru",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/loguru/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             pys=select_pys(),
-            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest {cmdargs} tests/contrib/loguru",
             pkgs={
                 "loguru": ["~=0.4.0", latest],
                 "pytest-randomly": latest,
@@ -3458,11 +3452,9 @@ venv = Venv(
         Venv(
             name="molten",
             env={
-                "DDTEST_SUITE_PATH": "tests/contrib/molten",
-                "DDTEST_TESTS_LOCATION": "tests/contrib/molten/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
-            command="pytest -n 8 --dist=worksteal {cmdargs} ${{DDTEST_SUITE_PATH}}",
+            command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten",
             pys=select_pys(),
             pkgs={
                 "cattrs": ["<23.1.1"],

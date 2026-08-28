@@ -635,8 +635,11 @@ suites:
       - tests/contrib/ddtrace_api/*
     snapshot: true
   django:
+    ddtest: true
+    ddtest_nodes: 2
     parallelism: 6
     env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.django
       TEST_MEMCACHED_HOST: memcached
       TEST_POSTGRES_HOST: postgres
       TEST_REDIS_HOST: redis
@@ -846,10 +849,6 @@ suites:
       - tests/snapshots/tests.contrib.graphene*
     snapshot: true
   graphql:
-    ddtest: true
-    ddtest_nodes: 2
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.graphql
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -975,10 +974,6 @@ suites:
       - rabbitmq
     snapshot: true
   logbook:
-    ddtest: true
-    ddtest_nodes: 2
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.logbook
     parallelism: 1
     paths:
       - '@core'
@@ -988,10 +983,6 @@ suites:
       - tests/contrib/logbook/*
     snapshot: true
   loguru:
-    ddtest: true
-    ddtest_nodes: 2
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.loguru
     parallelism: 1
     paths:
       - '@core'
@@ -1001,10 +992,6 @@ suites:
       - tests/contrib/loguru/*
     snapshot: true
   mako:
-    ddtest: true
-    ddtest_nodes: 2
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.mako
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -1040,10 +1027,6 @@ suites:
       - tests/snapshots/tests.contrib.mlflow.*
     snapshot: true
   molten:
-    ddtest: true
-    ddtest_nodes: 2
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.molten
     parallelism: 2
     paths:
       - '@bootstrap'
@@ -1173,6 +1156,8 @@ suites:
       - tests/contrib/pynamodb/*
     snapshot: true
   pytorch:
+    ddtest: true
+    ddtest_nodes: 2
     venvs_per_job: 1
     skip_pip_cache: true
     paths:
@@ -1369,10 +1354,6 @@ suites:
     pattern: asyncio$|sqlite3$|futures$|dbapi$|dbapi_async$
     snapshot: true
   structlog:
-    ddtest: true
-    ddtest_nodes: 2
-    env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.structlog
     parallelism: 1
     paths:
       - '@core'
@@ -1413,11 +1394,8 @@ suites:
       - tests/contrib/tornado/*
     snapshot: true
   urllib3:
-    ddtest: true
-    ddtest_nodes: 2
     parallelism: 2
     env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.contrib.urllib3
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
     paths:
