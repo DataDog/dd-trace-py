@@ -38,15 +38,21 @@ import ddtrace
 # Save it so pytest_configure can propagate the correct value to xdist workers
 # (the suitespec may set this to the suite-level service, e.g. tests.tracer;
 # detect_service(sys.argv) under ddtest would pick the first file's subpackage).
-# Only pop in the controller (not xdist workers): the controller's
-# pytest_configure re-sets it for workers to inherit, but workers' own
-# pytest_configure skips the re-set (PYTEST_XDIST_WORKER is set). Keeping
-# the env var in workers ensures tests like test_service that call Config()
-# get the correct suite-level service via detect_service().
-if os.environ.get("PYTEST_XDIST_WORKER"):
-    _inferred_service_env = None
-else:
-    _inferred_service_env = os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+_inferred_service_env = os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+# Seed the detect_service cache so subsequent Config() calls in tests return
+# the same service as import time. Without this, detect_service(sys.argv) in
+# a test would re-compute from sys.argv (which under ddtest has individual
+# files, yielding a subpackage like tests.tracer.runtime instead of
+# tests.tracer). Under riot CI xdist workers (sys.argv=['-c']), the natural
+# result is None, so we only seed when the env var differs from the natural
+# result — this avoids breaking tests that expect config.service is None.
+if _inferred_service_env:
+    from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
+    from ddtrace.internal.settings._inferred_base_service import CACHE as _detect_service_cache
+
+    _natural = _detect_service(sys.argv)
+    if _natural != _inferred_service_env:
+        _detect_service_cache[tuple(sorted(sys.argv))] = _inferred_service_env
 
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
