@@ -1213,7 +1213,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(max_version="3.14"),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
