@@ -251,7 +251,7 @@ def test_otel_logs_exporter_configuration():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,service.version=1.0"}
+    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment.name=prod,service.name=bleh,service.version=1.0"}
 )
 def test_otel_resource_attributes_unified_tags():
     from ddtrace import config
@@ -259,6 +259,15 @@ def test_otel_resource_attributes_unified_tags():
     assert config.service == "bleh"
     assert config.version == "1.0"
     assert config.env == "prod"
+
+
+@pytest.mark.subprocess(
+    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=legacy,deployment.environment.name=stable"}
+)
+def test_otel_resource_attributes_prefer_stable_environment():
+    from ddtrace import config
+
+    assert config.env == "stable"
 
 
 @pytest.mark.subprocess(

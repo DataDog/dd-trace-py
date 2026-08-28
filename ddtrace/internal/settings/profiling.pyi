@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Optional
 
 from ddtrace.internal.settings._core import DDConfig
@@ -26,6 +27,8 @@ class ProfilingConfig(DDConfig):
     pytorch: ProfilingConfigPytorch
     exception: ProfilingConfigException
 
+    def dump_settings(self) -> dict[str, Any]: ...
+
 class ProfilingConfigStack(DDConfig):
     enabled: bool
     adaptive_sampling: bool
@@ -37,6 +40,7 @@ class ProfilingConfigStack(DDConfig):
     max_threads: int
     max_tasks: int
     native_frames: bool
+    gc_enabled: bool
     fast_copy: bool
 
 class ProfilingConfigLock(DDConfig):
