@@ -18,7 +18,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.processor import _NoopTraceProcessor
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
@@ -34,7 +33,6 @@ from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
@@ -97,7 +95,6 @@ from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMObsExportMode
-from ddtrace.llmobs._constants import LLMObsSamplingDecision
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._eval_metric import _build_evaluation_metric_event
 from ddtrace.llmobs._eval_metric import _build_feedback_metric_event
@@ -146,6 +143,8 @@ from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._sampler import LLMObsSampler
+from ddtrace.llmobs._sampler import LLMObsSamplingRegistry
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -622,7 +621,8 @@ class LLMObs(Service):
         self._annotation_context_lock = RLock()
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
-        self._sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
+        self._sampler = LLMObsSampler(sample_rate=config._llmobs_sample_rate, rules=config._llmobs_sampling_rules)
+        self._sampling_registry = LLMObsSamplingRegistry(self._sampler)
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -840,6 +840,9 @@ class LLMObs(Service):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
+        # The child inherited a snapshot of the parent's in-flight traces; none of them will ever
+        # finish here, so drop them rather than let them sit until the cap.
+        self._sampling_registry.clear()
         LLMObs._prompt_manager = None
         # The tracer's fork handler keeps whatever writer was active; we didn't swap it here,
         # so clear the flag to stop disable() reverting it in the child.
@@ -847,7 +850,9 @@ class LLMObs(Service):
         if self.enabled:
             # Rebind: the processor holds the pre-fork writer whose worker thread is dead
             # after fork(), so leaving it would silently buffer rescued events in the child.
-            self.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(self._llmobs_span_writer, self.tracer)
+            self.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+                self._llmobs_span_writer, self.tracer, sampling_registry=self._sampling_registry
+            )
             self._start_service()
 
     def _start_service(self) -> None:
@@ -1040,7 +1045,9 @@ class LLMObs(Service):
                 # Recreate the APM writer at v0.4; v0.5 strips meta_struct.
                 cls._instance.tracer._span_aggregator.reset(llmobs_enabled=True, reset_buffer=False)
             cls._instance.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
-                cls._instance._llmobs_span_writer, cls._instance.tracer
+                cls._instance._llmobs_span_writer,
+                cls._instance.tracer,
+                sampling_registry=cls._instance._sampling_registry,
             )
             cls._instance.start()
 
@@ -2441,8 +2448,9 @@ class LLMObs(Service):
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
-            sr = get_llmobs_sample_rate(active)
-            sd = get_llmobs_sampling_decision(active)
+            # About to hand this trace to another execution context, so the decision has to exist
+            # now. Resolving freezes it; if it was already resolved this just reads it back.
+            sr, sd = self._resolve_sampling(active)
             if sr is not None:
                 context._meta[PROPAGATED_SAMPLE_RATE] = sr
             if sd is not None:
@@ -2455,10 +2463,18 @@ class LLMObs(Service):
             return context
         return None
 
-    def _sample_span(self, span: Span) -> LLMObsSamplingDecision:
-        if self._sampler.sample(span):
-            return LLMObsSamplingDecision.SAMPLED
-        return LLMObsSamplingDecision.DROPPED
+    def _resolve_sampling(self, span: Span) -> tuple[Optional[str], Optional[str]]:
+        """Force this span's LLMObs trace to have a sampling decision, and return it.
+
+        Called from the points where the decision is about to leave the process, so that what goes
+        out is a real value rather than nothing. Idempotent: the first call freezes the answer.
+        """
+        sample_rate, sampling_decision = self._sampling_registry.resolve(get_llmobs_trace_id(span))
+        if sampling_decision is None:
+            # The registry only tracks traces rooted in this process. For one continued from
+            # upstream the decision was frozen there and inherited onto the span, so forward that.
+            return get_llmobs_sample_rate(span), get_llmobs_sampling_decision(span)
+        return sample_rate, sampling_decision
 
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
@@ -2488,8 +2504,10 @@ class LLMObs(Service):
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
-            sample_rate = format_rate(self._sampler.sample_rate)
-            sampling_decision = self._sample_span(span)
+            # Deliberately undecided. The root's tags aren't set yet, so resolving here would make
+            # tag rules unmatchable; the registry below defers it to the last safe moment.
+            sample_rate, sampling_decision = None, None
+        is_llmobs_root = not llmobs_parent
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         # Fall back to the trace-level default session when the parent chain carries none (e.g. a
@@ -2553,6 +2571,10 @@ class LLMObs(Service):
                 else sampling_decision
             ),
         )
+        if is_llmobs_root:
+            # Register before activating: from here on a child, an outbound injection, or a flush
+            # can ask for this trace's decision, and every one of them must find the same entry.
+            self._sampling_registry.register_root(llmobs_trace_id, span)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
         if span._local_root.get_tag("llmobs_trace_id") is None:
@@ -3470,8 +3492,10 @@ class LLMObs(Service):
             # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
-            sample_rate = get_llmobs_sample_rate(active_span)
-            sampling_decision = get_llmobs_sampling_decision(active_span)
+            # The headers must carry a real decision, so force one now and freeze it. Tags set on
+            # the root after this point can no longer change it - that is the cost of never
+            # letting one trace ship two different decisions.
+            sample_rate, sampling_decision = cls._instance._resolve_sampling(active_span)
         elif active_context is not None:
             # Context._meta always holds decimal wire format so we can read directly
             ml_app = resolve_ml_app(active_context._meta.get(PROPAGATED_ML_APP_KEY))

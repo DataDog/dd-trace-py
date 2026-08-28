@@ -18,5 +18,7 @@ def install_mock_llmobs_writer(tracer: Tracer, mock_writer=None):
         mock_writer = mock.MagicMock()
     LLMObs._instance._llmobs_span_writer.stop()
     LLMObs._instance._llmobs_span_writer = mock_writer
-    tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer, keep_meta_struct=True)
+    tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+        mock_writer, tracer, keep_meta_struct=True, sampling_registry=LLMObs._instance._sampling_registry
+    )
     return mock_writer

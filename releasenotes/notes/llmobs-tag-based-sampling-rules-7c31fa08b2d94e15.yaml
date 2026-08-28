@@ -1,0 +1,11 @@
+features:
+  - |
+    LLM Observability: Introduces tag-based head sampling via the ``DD_LLMOBS_SAMPLING_RULES`` environment variable,
+    which mirrors the format of ``DD_TRACE_SAMPLING_RULES``. Each rule declares a ``sample_rate`` and an optional
+    ``tags`` object whose values are glob-matched against the tags on the root span of an LLM Observability trace.
+    Rules are evaluated in order and the first match wins, with its rate replacing ``DD_LLMOBS_SAMPLE_RATE``; traces
+    matching no rule fall back to that global rate. For example,
+    ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'``
+    samples production traces at 50% and staging traces at 10%. Tags applied with ``LLMObs.annotate()`` after the root
+    span starts are matched too, as long as they are set before the trace is first propagated to another service or
+    partially flushed.
