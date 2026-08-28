@@ -120,3 +120,14 @@ def test_gc_aggregate_on_snapshot(tmp_path: Path) -> None:
     total_count = sum(s.value[count_idx] for s in named)
     assert total_ns > 0
     assert total_count >= 1
+
+
+def test_gc_collector_shares_monitor_callback() -> None:
+    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+
+    monitor = gc_pause_monitor()
+    with gc_collector.GCCollector(pause_threshold_ns=0):
+        assert monitor._on_gc in gc.callbacks
+        assert gc.callbacks.count(monitor._on_gc) == 1
+        owners = [getattr(cb, "__self__", None) for cb in gc.callbacks]
+        assert not any(type(o).__name__ == "GCCollector" for o in owners)

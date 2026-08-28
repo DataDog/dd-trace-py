@@ -72,3 +72,17 @@ def test_reset_drops_window():
     assert snap.n_pauses == 0
     assert snap.total_ns == 0
     assert snap.max_ns == 0
+
+
+def test_refcount_keeps_callback_until_last_release():
+    a = GCPauseMonitor()
+    b = GCPauseMonitor()
+    a.acquire()
+    b.acquire()
+    try:
+        a.release()
+        assert a._on_gc not in gc.callbacks
+        assert b._on_gc in gc.callbacks
+    finally:
+        b.release()
+    assert b._on_gc not in gc.callbacks
