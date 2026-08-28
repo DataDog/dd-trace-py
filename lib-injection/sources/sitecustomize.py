@@ -43,6 +43,7 @@ SCRIPT_DIR = os.path.dirname(__file__)
 RUNTIMES_ALLOW_LIST = {
     "cpython": {
         "min": Version(version=(3, 9), constraint=""),
+        # Exclusive upper bound; keep in sync with NEXT_PY_VERSION in ddtrace.internal.compat.
         "max": Version(version=(3, 16), constraint=""),
     }
 }
