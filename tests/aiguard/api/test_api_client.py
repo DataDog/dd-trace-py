@@ -94,7 +94,7 @@ def _build_test_params():
 
 def assert_telemetry(mocked, metric, tags):
     metrics = [(args[0].value,) + args[1:] for args, kwargs in mocked.call_args_list]
-    assert ("appsec", metric, 1, tags) in metrics
+    assert ("ai_guard", metric, 1, tags) in metrics
 
 
 @pytest.mark.parametrize("action,reason,tags,blocking,suite,target,messages", _build_test_params())
@@ -147,7 +147,7 @@ def test_evaluate_method(
     )
     assert_telemetry(
         telemetry_mock,
-        "ai_guard.requests",
+        "requests",
         (
             ("action", action),
             ("block", "true" if should_block else "false"),
@@ -197,7 +197,8 @@ def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_clie
 
     assert exc_info.value.status == 500
     assert exc_info.value.errors == errors
-    assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_status"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -215,7 +216,8 @@ def test_evaluate_http_error_empty_json_body(mock_execute_request, telemetry_moc
     assert str(exc_info.value) == "AI Guard service call failed, status: 500"
     assert exc_info.value.status == 500
     assert exc_info.value.errors == []
-    assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_status"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -231,7 +233,8 @@ def test_evaluate_invalid_json(mock_execute_request, telemetry_mock, ai_guard_cl
         ai_guard_client.evaluate(TOOL_CALL)
 
     assert str(exc_info.value) == "Unexpected error calling AI Guard service: Invalid JSON"
-    assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "error", (("type", "client_error"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -247,7 +250,8 @@ def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_gu
         ai_guard_client.evaluate(TOOL_CALL)
 
     assert str(exc_info.value).startswith("AI Guard service returned unexpected response format")
-    assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -263,7 +267,8 @@ def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_
         str(exc_info.value)
         == "AI Guard service returned unrecognized action: 'GO_TO_SLEEP'. Expected ['ALLOW', 'DENY', 'ABORT']"
     )
-    assert_telemetry(telemetry_mock, "ai_guard.requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -279,7 +284,7 @@ def test_span_meta_messages_truncation(mock_execute_request, telemetry_mock, ai_
     span = find_ai_guard_span(test_spans)
     meta = span._get_struct_tag(AI_GUARD.TAG)
     assert len(meta["messages"]) == aiguard_config._ai_guard_max_messages_length
-    assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "messages"),))
+    assert_telemetry(telemetry_mock, "truncated", (("type", "messages"),))
 
 
 @pytest.mark.parametrize("content_part", [True, False])
@@ -302,7 +307,7 @@ def test_span_meta_content_truncation(mock_execute_request, telemetry_mock, ai_g
     if content_part:
         content = content[0]["text"]
     assert len(content) == aiguard_config._ai_guard_max_content_size
-    assert_telemetry(telemetry_mock, "ai_guard.truncated", (("type", "content"),))
+    assert_telemetry(telemetry_mock, "truncated", (("type", "content"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")

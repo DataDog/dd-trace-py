@@ -133,14 +133,20 @@ class AIGuardClient:
 
     @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
-        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.REQUESTS_METRIC, 1, tags)
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.REQUESTS_METRIC, 1, tags)
+
+    @staticmethod
+    def _add_error_to_telemetry(error_type: str) -> None:
+        telemetry.telemetry_writer.add_count_metric(
+            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, 1, (("type", error_type),)
+        )
 
     @staticmethod
     def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
         max_messages_length = aiguard_config._ai_guard_max_messages_length
         if len(messages) > max_messages_length:
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
+                TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
             )
         messages = messages[-max_messages_length:]
 
@@ -169,7 +175,7 @@ class AIGuardClient:
         result = [truncate_message(message) for message in messages]
         if content_truncated:
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
+                TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
             )
         return result
 
@@ -242,6 +248,10 @@ class AIGuardClient:
 
         from ddtrace.trace import tracer
 
+        # Classifies the error metric when a raise below escapes. Transport failures and
+        # unexpected internal errors keep the default; response-driven raises narrow it.
+        error_type: str = AI_GUARD.ERROR_CLIENT
+
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             try:
                 payload = {"data": {"attributes": {"messages": messages, "meta": self._meta}}}
@@ -274,6 +284,7 @@ class AIGuardClient:
                         # detection metadata only and never drive redaction.
                         redaction_replacements = attributes.get("redaction_replacements")
                     except Exception as e:
+                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
                         value = json.dumps(result, indent=2)[:500]
                         raise AIGuardClientError(
                             message=f"AI Guard service returned unexpected response format: {value}",
@@ -281,6 +292,7 @@ class AIGuardClient:
                         ) from e
 
                     if action not in ACTIONS:
+                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
                         raise AIGuardClientError(
                             f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}",
                             status=response.status,
@@ -308,6 +320,7 @@ class AIGuardClient:
                     if tag_probs is not None:
                         meta_struct.update({"tag_probs": tag_probs})
                 else:
+                    error_type = AI_GUARD.ERROR_BAD_STATUS
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
                         status=response.status,
@@ -369,6 +382,7 @@ class AIGuardClient:
 
             except Exception:
                 self._add_request_to_telemetry((("error", "true"),))
+                self._add_error_to_telemetry(error_type)
                 # Log the size only: the messages may carry sensitive data that redaction would have
                 # removed, and this runs before any redaction decision is known.
                 logger.debug("AI Guard evaluation failed for %d messages", len(messages), exc_info=True)
