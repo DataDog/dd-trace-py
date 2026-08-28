@@ -18,6 +18,7 @@ use libdd_trace_utils::span::{
     SpanText as _,
 };
 
+use super::span_link::SPAN_LINK_FLAGS_PRESENT;
 use super::utils::{
     extract_backed_string_or_default, extract_backed_string_or_none, extract_i32_or_default,
     extract_i64_or_default, extract_time_unix_nano, wall_clock_ns,
@@ -1093,10 +1094,9 @@ fn build_native_link(
 ) -> NativeSpanLink<PyTraceData> {
     let trace_id_low = trace_id as u64;
     let trace_id_high = (trace_id >> 64) as u64;
-    // Encode "flags present" using bit 31: None -> 0, Some(f) -> f as u32 | 0x8000_0000.
     let flags = match flags {
         None => 0u32,
-        Some(f) => (f as u32) | 0x8000_0000u32,
+        Some(f) => (f as u32) | SPAN_LINK_FLAGS_PRESENT,
     };
     NativeSpanLink {
         trace_id: trace_id_low,
@@ -1220,9 +1220,8 @@ fn native_span_link_to_py(
     } else {
         Some(link.tracestate.clone_ref(py))
     };
-    // Bit 31 of native flags encodes "flags present": 0 means None, otherwise strip bit 31.
-    let flags = if link.flags & 0x8000_0000 != 0 {
-        Some((link.flags & 0x7FFF_FFFF) as i64)
+    let flags = if link.flags & SPAN_LINK_FLAGS_PRESENT != 0 {
+        Some((link.flags & !SPAN_LINK_FLAGS_PRESENT) as i64)
     } else {
         None
     };
