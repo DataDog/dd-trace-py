@@ -25,10 +25,10 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if sys.version_info < (3, 15):
-    raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
+if sys.version_info < (3, 12):
+    raise ImportError("ddtrace.internal.monitoring requires Python 3.12+")
 
-# mypy's configured python_version is below 3.15, so it considers everything
+# mypy's configured python_version is below 3.12, so it considers everything
 # past the guard above unreachable; that's expected here since the module
 # raises ImportError before this point on unsupported versions.
 log = get_logger(__name__)  # type: ignore[unreachable]
@@ -36,9 +36,18 @@ log = get_logger(__name__)  # type: ignore[unreachable]
 _E = sys.monitoring.events
 _DISABLE = sys.monitoring.DISABLE
 
-# On Python 3.15+, PY_UNWIND is a per-code "other" event and can be enabled via
-# set_local_events alongside PY_START/PY_RETURN/LINE.
-_LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
+# sys.monitoring distinguishes "local" events (set_local_events per code object)
+# from global-only events (set_events). PY_UNWIND was global-only on 3.12–3.14;
+# from 3.15 it can be enabled per code object (CPython gh-142186).
+if sys.version_info >= (3, 15):
+    _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
+    _GLOBAL_EVENTS = 0
+else:
+    _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE
+    _GLOBAL_EVENTS = _E.PY_UNWIND
+
+# Global-only events currently enabled via sys.monitoring.set_events (3.12–3.14).
+_active_global_events: int = 0
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
@@ -90,6 +99,11 @@ class _IdentityWeakKeyDictionary:
         if key_id not in self._data:
             raise KeyError(key)
         del self._data[key_id]
+
+    def iter_values(self) -> Any:
+        for ref, value in self._data.values():
+            if ref() is not None:
+                yield value
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
@@ -242,7 +256,11 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
-        return _DISABLE
+        # On 3.12–3.14 PY_UNWIND is global: returning DISABLE for unregistered code
+        # would permanently silence unwind at that site for all tools.
+        if sys.version_info >= (3, 15):
+            return _DISABLE
+        return None
     for e in handlers.snapshot:
         if e.events & _E.PY_UNWIND:
             try:
@@ -275,6 +293,20 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 
 def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
     sys.monitoring.set_local_events(tool_id, code, events)
+
+
+def _recompute_global_events() -> None:
+    """Re-derive the set of global-only events from the current registry."""
+    global _active_global_events
+    if _tool_id is None or not _GLOBAL_EVENTS:
+        return
+    needed: int = 0
+    for handlers in _registry.iter_values():
+        needed |= _events_for(handlers)
+    needed &= _GLOBAL_EVENTS
+    if needed != _active_global_events:
+        _active_global_events = needed
+        sys.monitoring.set_events(_tool_id, needed)
 
 
 def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
@@ -314,6 +346,8 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
             _rearm_local_events(tool_id, code, local_events)
         else:
             _set_local_events(tool_id, code, local_events)
+        if _GLOBAL_EVENTS:
+            _recompute_global_events()
 
 
 def refresh(code: CodeType) -> None:
@@ -345,3 +379,5 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
         else:
             assert _tool_id is not None  # nosec
             _set_local_events(_tool_id, code, _events_for(handlers) & _LOCAL_EVENTS)
+        if _GLOBAL_EVENTS:
+            _recompute_global_events()
