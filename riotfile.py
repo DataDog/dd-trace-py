@@ -1184,7 +1184,7 @@ venv = Venv(
         ),
         Venv(
             name="django:celery",
-            command="pytest {cmdargs} tests/contrib/django_celery",
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 # The test app was built with Django 2. We don't need to test
                 # other versions as the main purpose of these tests is to ensure
@@ -1195,6 +1195,10 @@ venv = Venv(
                 "requests": latest,
                 "typing-extensions": latest,
                 "pytest-randomly": latest,
+            },
+            env={
+                "DDTEST_SUITE_PATH": "tests/contrib/django_celery",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/django_celery/**/test*.py",
             },
             venvs=[
                 Venv(
