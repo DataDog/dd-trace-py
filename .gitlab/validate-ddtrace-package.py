@@ -29,7 +29,7 @@ from packaging.version import Version
 
 
 # Configuration
-PYTHON_TAGS = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314", "cp315"]
+PYTHON_TAGS: list[str] = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314", "cp315"]
 WIN_ARM64_PYTHON_TAGS = ["cp311", "cp312", "cp313", "cp314"]
 
 BASE_PLATFORMS = [
@@ -44,24 +44,14 @@ BASE_PLATFORMS = [
 ]
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
-# cp315 is best-effort: no cp315 wheel is required, and a cp315 Linux wheel is
-# tolerated when one does land. The macOS and Windows matrices stop at 3.14, and
-# every cp315 leg of "build linux" is allow_failure in package.yml, so requiring a
-# cp315 wheel here would turn a build that the pipeline is explicitly allowed to
-# lose into a hard failure of "ddtrace package" -- which has no allow_failure and
-# gates the release stage. 4.14.0 shipped cp315 musllinux but no cp315 manylinux,
-# and would have been blocked by such a requirement.
-# TODO(py-315): keep this in lockstep with the cp315 allow_failure rule in
-# package.yml. Populating it while that rule stands re-creates the hard failure
-# above; dropping the rule without populating it leaves cp315 unvalidated. #17816
-# owns the flip and must do both at once.
+# cp315 is optional: none required; tolerate Linux wheels if they land.
 REQUIRED_PLATFORMS: dict[str, list[str]] = {"cp315": []}
-OPTIONAL_WHEELS = {("cp315", p) for p in BASE_PLATFORMS if "linux" in p}
+OPTIONAL_WHEELS: set[tuple[str, str]] = {("cp315", p) for p in BASE_PLATFORMS if "linux" in p}
 
 
 def required_platforms(py_tag: str, platforms: list[str]) -> list[str]:
     """Restrict platforms for Python versions that are not built everywhere."""
-    allowed = REQUIRED_PLATFORMS.get(py_tag)
+    allowed: list[str] | None = REQUIRED_PLATFORMS.get(py_tag)
     if allowed is None:
         return platforms
     return [p for p in platforms if p in allowed]
@@ -238,7 +228,7 @@ def main(args: argparse.Namespace) -> None:
     # Phase 4: Build Expected Set
     print("[Phase 4] Building Expected Set")
     expected_set = build_expected_set(package_version, args)
-    unrestricted_tags = [t for t in PYTHON_TAGS if t not in REQUIRED_PLATFORMS]
+    unrestricted_tags: list[str] = [t for t in PYTHON_TAGS if t not in REQUIRED_PLATFORMS]
     print(f"Expected {len(expected_set)} wheels:")
     print(
         f"  - {len(unrestricted_tags)} Python versions ({unrestricted_tags[0]}-{unrestricted_tags[-1]})"
@@ -274,7 +264,7 @@ def main(args: argparse.Namespace) -> None:
     # Unexpected wheels
     unexpected_wheels = actual_set - expected_set
     # Filter out version mismatches (they're already reported)
-    unexpected_non_version = [
+    unexpected_non_version: list[tuple[str, str, str, str]] = [
         (v, p, pl, fl)
         for v, p, pl, fl in unexpected_wheels
         if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches and (p, pl) not in OPTIONAL_WHEELS
