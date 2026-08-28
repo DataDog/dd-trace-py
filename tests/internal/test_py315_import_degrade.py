@@ -1,18 +1,21 @@
-"""Python 3.15 import-time degrade: wrapping modules must load.
+"""Python 3.15 wrapping: trampoline plus 3.15 generator/coroutine assemblies.
 
-wrap() runs the existing trampoline plus the 3.15 generator/coroutine
-assemblies, and fails closed on the next CPython. Remaining NEXT_PY_VERSION
-gates (lazy wrapping) still degrade instead of crashing import. inject_hook
-is monitoring-based on 3.15.
+wrap() / wrap_bytecode() run on 3.15 and fail closed from NEXT_PY_VERSION.
+@lazy uses WrappingContext.wrap() (sys.monitoring) on 3.15. inject_hook is
+monitoring-based on 3.15.
 """
 
 from types import CoroutineType
 
 import pytest
 
-from ddtrace.internal.compat import NEXT_PY_VERSION
 from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+
+
+# wrap() is live on 3.15 until NEXT_PY. A skipif of version < NEXT_PY would
+# skip 3.15 once NEXT_PY is 3.16.
+_WRAP_ON_315 = (3, 15) <= PYTHON_VERSION_INFO[:2] < NEXT_PY_VERSION_INFO
 
 
 def test_wrapping_modules_import():
@@ -23,7 +26,7 @@ def test_wrapping_modules_import():
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() trampoline")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() trampoline on 3.15")
 def test_wrap_runs_on_315():
     from ddtrace.internal.wrapping import wrap
 
@@ -54,7 +57,7 @@ def test_wrap_runs_on_315():
     assert seen == ["sync", "gen"]
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() coroutine")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() coroutine on 3.15")
 @pytest.mark.asyncio
 async def test_wrap_coroutine_on_315():
     from ddtrace.internal.wrapping import wrap
@@ -83,14 +86,10 @@ async def test_wrap_coroutine_on_315():
 
 
 def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
-    """wrap() must fail closed on the CPython after NEXT_PY_VERSION."""
+    """wrap() must fail closed from NEXT_PY_VERSION on."""
     import ddtrace.internal.wrapping as wrapping
 
-    monkeypatch.setattr(
-        wrapping,
-        "PY",
-        (NEXT_PY_VERSION_INFO[0], NEXT_PY_VERSION_INFO[1] + 1),
-    )
+    monkeypatch.setattr(wrapping, "PY", NEXT_PY_VERSION_INFO)
 
     def f() -> None:
         return None
@@ -104,7 +103,7 @@ def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
         wrapping.wrap_bytecode(wrapper, f)
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} lazy module degrade")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="lazy module wrap on 3.15")
 def test_lazy_module_decorator_without_bytecode_wrap():
     import tests.internal.lazy as lazy_module
 
@@ -121,7 +120,7 @@ def test_exec_lazy_init_without_source():
     assert module_globals["exported"] == 123
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} debugging products degrade")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="debugging products load on 3.15")
 def test_debugging_products_load_without_failure():
     from ddtrace.internal.products import ProductManager
 
@@ -136,7 +135,7 @@ def test_debugging_products_load_without_failure():
         assert product_name not in product_manager._failed
 
 
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} inject_hook")
+@pytest.mark.skipif(not _WRAP_ON_315, reason="inject_hook on 3.15")
 def test_inject_hook_does_not_raise_on_315():
     from ddtrace.internal.bytecode_injection import inject_hook
     from ddtrace.internal.utils.inspection import linenos

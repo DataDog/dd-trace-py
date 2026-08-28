@@ -21,9 +21,6 @@ from ddtrace.internal.wrapping.generators import wrap_generator
 
 
 PY = sys.version_info[:2]
-# wrap() is enabled on NEXT_PY_VERSION (3.15). Fail closed on the next CPython.
-# TODO(py-315): drop the +1 when NEXT_PY_VERSION is bumped to 3.16
-_WRAP_UNSUPPORTED_FROM = (NEXT_PY_VERSION_INFO[0], NEXT_PY_VERSION_INFO[1] + 1)
 
 # Maps each wrapped function to its inner copy (the singly-linked list of
 # wrapping layers). WeakKeyDictionary so functions are not kept alive by the
@@ -303,7 +300,7 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     return a coroutine function, and so on. The signature is also preserved to
     avoid breaking, e.g., usages of the ``inspect`` module.
     """
-    if PY >= _WRAP_UNSUPPORTED_FROM:
+    if PY >= NEXT_PY_VERSION_INFO:
         raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
 
     code = wrapped.__code__
@@ -352,9 +349,8 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
-    if PY >= _WRAP_UNSUPPORTED_FROM:
+    if PY >= NEXT_PY_VERSION_INFO:
         raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
-
     wrapped = FunctionType(
         code := f.__code__,
         f.__globals__,
