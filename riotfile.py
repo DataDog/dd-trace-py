@@ -506,7 +506,7 @@ venv = Venv(
             env={
                 "DDTEST_SUITE_PATH": "tests/integration",
                 "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
-                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*' --no-ddtrace",
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
             },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
