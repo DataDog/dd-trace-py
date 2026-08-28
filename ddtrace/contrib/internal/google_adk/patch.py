@@ -1,6 +1,8 @@
+import inspect
 import sys
 from typing import Any
 from typing import Union
+import weakref
 
 import google.adk as adk
 
@@ -10,6 +12,8 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.time import Time
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 
@@ -25,6 +29,9 @@ def _supported_versions() -> dict[str, str]:
 
 def get_version() -> str:
     return getattr(adk, "__version__", "")
+
+
+GOOGLE_ADK_VERSION = parse_version(get_version())
 
 
 def _traced_agent_run_async(wrapped, instance, args, kwargs):
@@ -88,36 +95,92 @@ async def _traced_functions_call_tool_async(wrapped, instance, args, kwargs):
     integration: GoogleAdkIntegration = adk._datadog_integration
     agent = extract_agent_from_tool_context(args, kwargs)
     if agent is None:
-        logger.warning("Unable to trace google adk live tool call, could not extract agent from tool context.")
-        return wrapped(*args, **kwargs)
+        logger.warning("Unable to trace google adk tool call, could not extract agent from tool context.")
+        return await wrapped(*args, **kwargs)
 
     provider_name, model_name = extract_provider_and_model_name(
         instance=getattr(agent, "model", {}), model_name_attr="model"
     )
-    instance = instance or args[0]
+    # The streaming call path invokes this function with keyword arguments only, so the tool cannot
+    # be read from a fixed positional index.
+    instance = instance or get_argument_value(args, kwargs, 0, "tool")
 
-    with integration.trace(
+    span = integration.trace(
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
         kind="tool",
         submit_to_llmobs=True,
-    ) as span:
-        result = None
+    )
+
+    result = None
+    stream_handed_off = False
+    exc_info = None
+
+    try:
+        result = await wrapped(*args, **kwargs)
+        if inspect.isasyncgen(result):
+            # google-adk >= 2.7.0 returns an async generator for streaming tools. Keep the span
+            # open so the streamed items are tagged instead of the generator object.
+            state = {"started": False, "handoff": Time.time_ns() / 1e9}
+            stream = _traced_tool_stream(result, span, integration, args, kwargs, state)
+            weakref.finalize(
+                stream, _finish_unstarted_stream_span, span, integration, args, kwargs, state
+            ).atexit = False
+            stream_handed_off = True
+            return stream
+        return result
+    except Exception:
+        exc_info = sys.exc_info()
+        raise
+    finally:
+        # streamed spans are finished separately by _traced_tool_stream; cancellation finishes here
+        if not stream_handed_off:
+            if exc_info is not None:
+                span.set_exc_info(*exc_info)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
+            span.finish()
+
+
+def _finish_unstarted_stream_span(span, integration, args, kwargs, state):
+    """Finish a tool span whose stream was handed off but never iterated.
+
+    A generator that never starts never runs its finally, and the non-live dispatch does not
+    iterate an async generator result. Runs before the stream's own cleanup, so it defers to
+    `started`, and finishes at the handoff rather than at collection time.
+    """
+    if state["started"] or span.duration_ns is not None:
+        return
+    try:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="tool")
+        span.finish(finish_time=state["handoff"])
+    except Exception:
+        logger.debug("Error finishing abandoned google adk tool stream span.", exc_info=True)
+
+
+async def _traced_tool_stream(agen, span, integration, args, kwargs, state=None):
+    if state is not None:
+        state["started"] = True
+    chunks = []
+    try:
+        async for item in agen:
+            chunks.append(item)
+            yield item
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        # A consumer that stops early closes this generator, but the one it wraps would otherwise
+        # wait for async generator finalization. google-adk closes the stream itself, so mirror it.
+        # A failure to close must not mask the streamed exception or strand the span.
         try:
-            result = await wrapped(*args, **kwargs)
-            return result
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
+            try:
+                await agen.aclose()
+            except Exception:
+                logger.debug("Error closing google adk tool stream.", exc_info=True)
         finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="tool",
-            )
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chunks, operation="tool")
+            span.finish()
 
 
 async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
@@ -136,29 +199,26 @@ async def _traced_functions_call_tool_live(wrapped, instance, args, kwargs):
         instance=getattr(agent, "model", {}), model_name_attr="model"
     )
 
-    with integration.trace(
+    # Build the stream before starting the span: an activated span that never finishes would
+    # reparent everything after it.
+    agen = wrapped(*args, **kwargs)
+
+    # _traced_tool_stream owns the span from here: it tags the streamed items and finishes.
+    span = integration.trace(
         "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
         provider=provider_name,
         model=model_name,
         kind="tool",
         submit_to_llmobs=True,
-    ) as span:
-        result = None
-        try:
-            agen = wrapped(*args, **kwargs)
-            async for item in agen:
-                yield item
-        except Exception:
-            span.set_exc_info(*sys.exc_info())
-            raise
-        finally:
-            integration.llmobs_set_tags(
-                span,
-                args=args,
-                kwargs=kwargs,
-                response=result,
-                operation="tool",
-            )
+    )
+
+    stream = _traced_tool_stream(agen, span, integration, args, kwargs)
+    try:
+        async for item in stream:
+            yield item
+    finally:
+        # a consumer that abandons this generator does not close the one it delegates to
+        await stream.aclose()
 
 
 def _traced_code_executor_execute_code(wrapped, instance, args, kwargs):
@@ -225,7 +285,8 @@ def patch():
 
     # Tool execution (central dispatch)
     wrap("google.adk", "flows.llm_flows.functions.__call_tool_async", _traced_functions_call_tool_async)
-    wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
+    if GOOGLE_ADK_VERSION < (2, 7, 0):
+        wrap("google.adk", "flows.llm_flows.functions.__call_tool_live", _traced_functions_call_tool_live)
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
@@ -247,7 +308,8 @@ def unpatch():
     unwrap(adk.runners.Runner, "run_live")
 
     unwrap(adk.flows.llm_flows.functions, "__call_tool_async")
-    unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
+    if GOOGLE_ADK_VERSION < (2, 7, 0):
+        unwrap(adk.flows.llm_flows.functions, "__call_tool_live")
 
     # Code executors
     for code_executor in CODE_EXECUTOR_CLASSES:
