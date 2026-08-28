@@ -544,10 +544,10 @@ def _emit_ddtest_jobs(
 ) -> None:
     """Emit ddtest-plan and ddtest-run jobs for one suite.
 
-    One plan job loops over all suite venvs, while K run jobs are emitted per
-    venv (parallel matrix over RIOT_HASH/PYTHON_VERSION/CI_NODE_INDEX). The
-    plan partitions its artifact by hash so run jobs can restore only their
-    own plan.
+    One plan job loops over all suite venvs. Run jobs are emitted per Python
+    version, with a parallel matrix over that version's hashes and
+    CI_NODE_INDEX. The plan partitions its artifact by hash so run jobs can
+    restore only their own plan.
     """
     snapshot = config.get("snapshot", False)
     gpu = config.get("gpu", False)
@@ -603,21 +603,15 @@ def _emit_ddtest_jobs(
         print("    - job: ddtest-build", file=f)
         print("      artifacts: true", file=f)
 
-    def emit_needs_build_base_venvs(match_matrix: bool = False) -> None:
+    def emit_needs_build_base_venvs(needed_venvs: list[tuple[str, str]]) -> None:
         print("    - job: build_base_venvs", file=f)
         print("      artifacts: true", file=f)
         print("      parallel:", file=f)
         print("        matrix:", file=f)
-        if match_matrix:
-            # Each run matrix entry only needs the base venv for its Python
-            # version. The plan job passes False because it loops over all
-            # hashes sequentially.
-            print("          - PYTHON_VERSION: ['$[[ matrix.PYTHON_VERSION ]]']", file=f)
-            return
         # Dedup PYTHON_VERSIONs: several hashes share a Python version, but
         # build_base_venvs only needs to be downloaded once per version.
         seen_py: set[str] = set()
-        for _h, py in venvs:
+        for _h, py in needed_venvs:
             if py in seen_py:
                 continue
             seen_py.add(py)
@@ -632,7 +626,7 @@ def _emit_ddtest_jobs(
     print(f"  stage: {stage}", file=f)
     print("  needs:", file=f)
     print("    - prechecks", file=f)
-    emit_needs_build_base_venvs()
+    emit_needs_build_base_venvs(venvs)
     emit_needs_ddtest_build()
     emit_services(plan=True)
     emit_before_script(plan=True)
@@ -652,35 +646,44 @@ def _emit_ddtest_jobs(
         print("  allow_failure: true", file=f)
     # artifacts (.testoptimization-*/) are declared on the .ddtest_plan template.
 
-    # ---- run job: K instances per venv ----
-    print(f"{run_name}:", file=f)
-    print(f"  extends: {run_tpl}", file=f)
-    print(f"  stage: {stage}", file=f)
-    print("  needs:", file=f)
-    print("    - prechecks", file=f)
-    emit_needs_build_base_venvs(match_matrix=True)
-    emit_needs_ddtest_build()
-    # The plan job is a single job (not matrix), so no matrix match needed.
-    # Each run downloads the single plan artifact (which contains all hashes'
-    # plans, partitioned by hash) and restores its own hash's plan.
-    print("    - job: " + plan_name, file=f)
-    print("      artifacts: true", file=f)
-    emit_services(plan=False)
-    emit_before_script(plan=False)
-    emit_variables({"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"})
-    print("  parallel:", file=f)
-    print("    matrix:", file=f)
-    for h, py in venvs:
-        for node in range(k):
-            print(f'      - RIOT_HASH: "{h}"', file=f)
-            print(f'        PYTHON_VERSION: "{py}"', file=f)
-            print(f"        CI_NODE_INDEX: {node}", file=f)
-    if retry is not None:
-        print(f"  retry: {retry}", file=f)
-    if timeout is not None:
-        print(f"  timeout: {timeout}", file=f)
-    if allow_failure:
-        print("  allow_failure: true", file=f)
+    # ---- run jobs: K instances per venv, grouped by Python version ----
+    # Matrix expressions are not available on all GitLab versions used by CI,
+    # so emit one run job per Python version instead of dynamically matching a
+    # need from the run matrix. This keeps each run job's artifact download
+    # limited to its own build_base_venvs matrix entry.
+    venvs_by_py: dict[str, list[tuple[str, str]]] = {}
+    for venv in venvs:
+        venvs_by_py.setdefault(venv[1], []).append(venv)
+
+    for py, py_venvs in venvs_by_py.items():
+        py_run_name = f"{run_name}-{py}"
+        print(f"{py_run_name}:", file=f)
+        print(f"  extends: {run_tpl}", file=f)
+        print(f"  stage: {stage}", file=f)
+        print("  needs:", file=f)
+        print("    - prechecks", file=f)
+        emit_needs_build_base_venvs(py_venvs)
+        emit_needs_ddtest_build()
+        # Each run downloads the single plan artifact (which contains all
+        # hashes' plans, partitioned by hash) and restores its own hash's plan.
+        print("    - job: " + plan_name, file=f)
+        print("      artifacts: true", file=f)
+        emit_services(plan=False)
+        emit_before_script(plan=False)
+        emit_variables({"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"})
+        print("  parallel:", file=f)
+        print("    matrix:", file=f)
+        for h, _py in py_venvs:
+            for node in range(k):
+                print(f'      - RIOT_HASH: "{h}"', file=f)
+                print(f'        PYTHON_VERSION: "{py}"', file=f)
+                print(f"        CI_NODE_INDEX: {node}", file=f)
+        if retry is not None:
+            print(f"  retry: {retry}", file=f)
+        if timeout is not None:
+            print(f"  timeout: {timeout}", file=f)
+        if allow_failure:
+            print("  allow_failure: true", file=f)
 
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
