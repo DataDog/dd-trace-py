@@ -631,7 +631,7 @@ class ProfilingConfigGC(DDConfig):
         "enabled",
         default=True,
         help_type="Boolean",
-        help="Whether to enable the GC collector (pause durations, collection counts, freeze status).",
+        help="Whether to enable GC pause samples and explicit gc.collect() counts in the profiler.",
     )
 
 

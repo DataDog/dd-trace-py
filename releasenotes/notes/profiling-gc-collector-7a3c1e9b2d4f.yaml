@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    profiling: The profiler now records CPython GC pause samples by default.
+    Disable with ``DD_PROFILING_GC_ENABLED=false``.
