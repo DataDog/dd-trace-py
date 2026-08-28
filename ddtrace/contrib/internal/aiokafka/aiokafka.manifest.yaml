@@ -1,8 +1,8 @@
 _v: 1
 name: aiokafka
 display_name: aiokafka
-description: Instruments aiokafka message sends, single and batch receives, and consumer offset commits with trace and data-stream
-  context propagation.
+description: Instruments aiokafka message publishing and consumption with distributed tracing and Data Streams Monitoring,
+  including consumer offset tracking.
 packages:
 - name: aiokafka
 category:
