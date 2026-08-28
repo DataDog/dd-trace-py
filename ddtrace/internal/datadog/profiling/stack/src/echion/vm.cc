@@ -1,6 +1,12 @@
 #include <cstdio>
 #include <cstring>
 
+#include <climits>
+
+#if defined PL_DARWIN
+#include <mach-o/dyld.h>
+#endif
+
 #include <echion/vm.h>
 
 // Returns true when _DD_PROFILING_STACK_FAST_COPY is set to a falsy value.
@@ -13,6 +19,45 @@ fast_copy_env_disabled()
         return false;
     }
     return strcmp(val, "0") == 0 || strcmp(val, "false") == 0 || strcmp(val, "False") == 0;
+}
+
+// Checks whether Python is running as an embedded interpreter by checking
+// whether the process executable looks like a Python binary.
+static bool
+is_python_embedded()
+{
+    char exe_path[PATH_MAX] = { 0 };
+
+#if defined PL_LINUX
+    ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
+    if (len <= 0) {
+        return false; // Cannot determine; assume not embedded.
+    }
+    exe_path[len] = '\0';
+#elif defined PL_DARWIN
+    uint32_t bufsize = sizeof(exe_path);
+    if (_NSGetExecutablePath(exe_path, &bufsize) != 0) {
+        return false;
+    }
+#else
+    return false;
+#endif
+
+    const char* base = strrchr(exe_path, '/');
+    base = base ? base + 1 : exe_path;
+
+    // Case-insensitive substring search for "python" in the basename.
+    size_t base_len = strlen(base);
+    if (base_len >= 6) {
+        for (size_t i = 0; i <= base_len - 6; ++i) {
+            if ((base[i] | 0x20) == 'p' && (base[i + 1] | 0x20) == 'y' && (base[i + 2] | 0x20) == 't' &&
+                (base[i + 3] | 0x20) == 'h' && (base[i + 4] | 0x20) == 'o' && (base[i + 5] | 0x20) == 'n') {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 #if defined PL_LINUX
@@ -38,9 +83,11 @@ init_safe_copy()
     // Always probe process_vm_readv so we know whether it is a valid fallback.
     process_vm_readv_available = probe_process_vm_readv();
 
-    // Honor the fast-copy opt-out: when disabled via env var, skip installing
-    // the SIGSEGV/SIGBUS handlers and alt stack entirely.
-    if (fast_copy_env_disabled()) {
+    // Honor the fast-copy opt-out: when disabled via env var or when Python is
+    // embedded, skip installing the SIGSEGV/SIGBUS handlers entirely.
+    // Embedded interpreters must never use safe_memcpy because the host process
+    // owns the signal handlers.
+    if (fast_copy_env_disabled() || is_python_embedded()) {
         fast_copy_user_disabled = true;
         if (process_vm_readv_available) {
             safe_copy = process_vm_readv;
@@ -72,8 +119,9 @@ init_safe_copy()
 __attribute__((constructor)) void
 init_safe_copy()
 {
-    // Honor the fast-copy opt-out: skip installing signal handlers when disabled.
-    if (fast_copy_env_disabled()) {
+    // Honor the fast-copy opt-out: skip installing signal handlers when
+    // disabled or when Python is embedded (host owns signal handlers).
+    if (fast_copy_env_disabled() || is_python_embedded()) {
         fast_copy_user_disabled = true;
         return;
     }
