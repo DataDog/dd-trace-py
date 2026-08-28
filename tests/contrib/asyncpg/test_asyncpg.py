@@ -5,9 +5,10 @@ import asyncpg
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbApiEvent
 from ddtrace.contrib.internal.asyncpg.patch import _PROTOCOL_METHODS
-from ddtrace.contrib.internal.asyncpg.patch import _traced_query
+from ddtrace.contrib.internal.asyncpg.patch import _traced_dbapi_protocol_method
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
@@ -24,10 +25,12 @@ from tests.contrib.config import POSTGRES_CONFIG
 @pytest.mark.asyncio
 async def test_query_is_blocked_before_execution_without_pin() -> None:
     method = mock.AsyncMock()
+    traced_method = _traced_dbapi_protocol_method(asyncpg, "state")
 
-    with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
-        with pytest.raises(BlockingException):
-            await _traced_query(None, method, "SELECT 1", ("SELECT 1",), {})
+    with mock.patch.object(Pin, "_find", return_value=None):
+        with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+            with pytest.raises(BlockingException):
+                await traced_method(method, object(), ("SELECT 1",), {})
 
     dispatch_event.assert_called_once_with(DbApiEvent(query="SELECT 1", span_name_prefix="postgres"))
     method.assert_not_awaited()
@@ -162,13 +165,67 @@ async def test_cursor(patched_conn):
 
 
 @pytest.mark.asyncio
+async def test_cursor_query_emits_one_dbapi_event(patched_conn):
+    query = "SELECT generate_series(0, 100)"
+
+    async with patched_conn.transaction():
+        with mock.patch.object(core, "dispatch_event") as dispatch_event:
+            records = [record async for record in patched_conn.cursor(query, prefetch=10)]
+
+    assert len(records) == 101
+    dispatch_event.assert_called_once_with(DbApiEvent(query=query, span_name_prefix="postgres"))
+
+
+@pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=["resource"])
 async def test_cursor_manual(patched_conn):
+    query = "SELECT generate_series(0, 100)"
+
     async with patched_conn.transaction():
-        cur = await patched_conn.cursor("SELECT generate_series(0, 100)")
-        await cur.forward(10)
-        await cur.fetchrow()
-        await cur.fetch(5)
+        with mock.patch.object(core, "dispatch_event") as dispatch_event:
+            cur = await patched_conn.cursor(query)
+            await cur.forward(10)
+            await cur.fetchrow()
+            await cur.fetch(5)
+
+    dispatch_event.assert_called_once_with(DbApiEvent(query=query, span_name_prefix="postgres"))
+
+
+@pytest.mark.asyncio
+async def test_copy_from_query_is_blocked_before_execution(patched_conn):
+    written = []
+
+    async def writer(data):
+        written.append(data)
+
+    with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+        with pytest.raises(BlockingException):
+            await patched_conn.copy_from_query("SELECT 1", output=writer)
+
+    event = dispatch_event.call_args.args[0]
+    assert event.span_name_prefix == "postgres"
+    assert event.query.startswith("COPY (SELECT 1) TO STDOUT")
+    assert not written
+
+
+@pytest.mark.skipif(
+    parse_version(getattr(asyncpg, "__version__", "0.0.0")) < (0, 29, 0),
+    reason="the where parameter for copy_to_table requires asyncpg >= 0.29.0",
+)
+@pytest.mark.asyncio
+async def test_copy_to_table_where_emits_dbapi_event(patched_conn):
+    await patched_conn.execute("CREATE TEMP TABLE copy_test (value integer)")
+
+    async def source():
+        yield b"1\n"
+
+    with mock.patch.object(core, "dispatch_event") as dispatch_event:
+        await patched_conn.copy_to_table("copy_test", source=source(), where="value > 0")
+
+    event = dispatch_event.call_args.args[0]
+    assert event.span_name_prefix == "postgres"
+    assert event.query.startswith('COPY "copy_test" FROM STDIN')
+    assert event.query.endswith("WHERE value > 0")
 
 
 @pytest.mark.asyncio
@@ -385,16 +442,13 @@ async def test_pool_without_custom_connect():
 
 def test_patch_unpatch_asyncpg():
     assert iswrapped(asyncpg.connect)
-    assert iswrapped(asyncpg.protocol.Protocol.execute)
-    assert iswrapped(asyncpg.protocol.Protocol.bind_execute)
-    assert iswrapped(asyncpg.protocol.Protocol.query)
-    assert iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
+    for method in _PROTOCOL_METHODS:
+        assert iswrapped(asyncpg.protocol.Protocol, method)
+
     unpatch()
     assert not iswrapped(asyncpg.connect)
-    assert not iswrapped(asyncpg.protocol.Protocol.execute)
-    assert not iswrapped(asyncpg.protocol.Protocol.bind_execute)
-    assert not iswrapped(asyncpg.protocol.Protocol.query)
-    assert not iswrapped(asyncpg.protocol.Protocol.bind_execute_many)
+    for method in _PROTOCOL_METHODS:
+        assert not iswrapped(asyncpg.protocol.Protocol, method)
 
 
 def test_unpatch_removes_method_shadow():

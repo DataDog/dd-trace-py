@@ -1,5 +1,9 @@
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:I001
+from typing import Any
+from typing import Awaitable
+from typing import Callable
+from typing import Optional
 from typing import Union
 
 import asyncpg
@@ -36,7 +40,21 @@ if TYPE_CHECKING:  # pragma: no cover
 
 DBMS_NAME = "postgresql"
 
-_PROTOCOL_METHODS = ("execute", "bind_execute", "query", "bind_execute_many")
+_TRACED_PROTOCOL_METHODS = ("execute", "bind_execute", "query", "bind_execute_many")
+_DBAPI_EVENT_TRACED_PROTOCOL_METHODS = ("bind_execute", "query", "bind_execute_many")
+_DBAPI_EVENT_ONLY_PROTOCOL_METHODS = ("bind", "copy_in", "copy_out")
+_PROTOCOL_METHODS = _TRACED_PROTOCOL_METHODS + _DBAPI_EVENT_ONLY_PROTOCOL_METHODS
+_PROTOCOL_QUERY_ARGUMENTS = {
+    "bind": "state",
+    "bind_execute": "state",
+    "bind_execute_many": "state",
+    "copy_in": "copy_stmt",
+    "copy_out": "copy_stmt",
+    "execute": "state",
+    "query": "query",
+}
+
+_AsyncMethod = Callable[..., Awaitable[Any]]
 
 
 config._add(
@@ -126,10 +144,13 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
             return conn
 
 
-async def _traced_query(pin, method, query, args, kwargs):
-    if isinstance(query, str):
-        core.dispatch_event(DbApiEvent(query=query, span_name_prefix="postgres"))
-
+async def _traced_query(
+    pin: Optional[Pin],
+    method: _AsyncMethod,
+    query: Union[str, bytes],
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+) -> Any:
     if pin is None:
         log.debug("Pin not found for traced method %r", method)
         return await method(*args, **kwargs)
@@ -160,20 +181,62 @@ async def _traced_query(pin, method, query, args, kwargs):
         return await method(*args, **kwargs)
 
 
-def _traced_protocol_execute(asyncpg_module):
-    async def wrapper(wrapped, instance, args, kwargs):
+def _extract_protocol_query(args: tuple[Any, ...], kwargs: dict[str, Any], argument_name: str) -> Union[str, bytes]:
+    state: Union[str, bytes, "PreparedStatement"] = get_argument_value(args, kwargs, 0, argument_name)
+    return state if isinstance(state, (str, bytes)) else state.query
+
+
+def _is_cursor_forward_query(query: str) -> bool:
+    _, separator, portal_name = query.rpartition(" ")
+    return bool(separator) and query.startswith("MOVE FORWARD ") and portal_name.startswith("__asyncpg_portal_")
+
+
+def _dispatch_dbapi_event(query: Union[str, bytes]) -> None:
+    # Cursor.forward() operates on a query already checked when its portal was bound.
+    if isinstance(query, str) and not _is_cursor_forward_query(query):
+        core.dispatch_event(DbApiEvent(query=query, span_name_prefix="postgres"))
+
+
+def _traced_protocol_method(asyncpg_module: ModuleType, argument_name: str) -> _AsyncMethod:
+    async def wrapper(wrapped: _AsyncMethod, instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
         pin = Pin._find(instance, asyncpg_module)
-        state: Union[str, "PreparedStatement"] = get_argument_value(args, kwargs, 0, "state")
-        query = state if isinstance(state, (str, bytes)) else state.query
+        query = _extract_protocol_query(args, kwargs, argument_name)
         return await _traced_query(pin, wrapped, query, args, kwargs)
+
+    return wrapper
+
+
+def _traced_dbapi_protocol_method(asyncpg_module: ModuleType, argument_name: str) -> _AsyncMethod:
+    async def wrapper(wrapped: _AsyncMethod, instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+        pin = Pin._find(instance, asyncpg_module)
+        query = _extract_protocol_query(args, kwargs, argument_name)
+        _dispatch_dbapi_event(query)
+        return await _traced_query(pin, wrapped, query, args, kwargs)
+
+    return wrapper
+
+
+def _dbapi_protocol_method(argument_name: str) -> _AsyncMethod:
+    async def wrapper(wrapped: _AsyncMethod, instance: object, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+        query = _extract_protocol_query(args, kwargs, argument_name)
+        _dispatch_dbapi_event(query)
+        return await wrapped(*args, **kwargs)
 
     return wrapper
 
 
 def _patch(asyncpg: ModuleType) -> None:
     wrap(asyncpg, "connect", _traced_connect(asyncpg))
-    for method in _PROTOCOL_METHODS:
-        wrap(asyncpg.protocol, "Protocol.%s" % method, _traced_protocol_execute(asyncpg))
+    for method in _TRACED_PROTOCOL_METHODS:
+        argument_name = _PROTOCOL_QUERY_ARGUMENTS[method]
+        wrapper = (
+            _traced_dbapi_protocol_method(asyncpg, argument_name)
+            if method in _DBAPI_EVENT_TRACED_PROTOCOL_METHODS
+            else _traced_protocol_method(asyncpg, argument_name)
+        )
+        wrap(asyncpg.protocol, "Protocol.%s" % method, wrapper)
+    for method in _DBAPI_EVENT_ONLY_PROTOCOL_METHODS:
+        wrap(asyncpg.protocol, "Protocol.%s" % method, _dbapi_protocol_method(_PROTOCOL_QUERY_ARGUMENTS[method]))
 
 
 def patch() -> None:
