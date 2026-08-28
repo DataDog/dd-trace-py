@@ -11,7 +11,7 @@ import gc
 import sys
 import threading
 import time
-from typing import Any
+from types import FrameType
 from typing import Callable
 from typing import NamedTuple
 from typing import Optional
@@ -22,14 +22,17 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
-GEN_COUNT = 3
+GEN_COUNT: int = 3
 
 # (generation, pause_ns, start_ns, triggering frame or None)
-PauseListener = Callable[[int, int, int, Any], None]
+PauseListener = Callable[[int, int, int, Optional[FrameType]], None]
 
 
 class _GenWindow:
     __slots__ = ("count", "total_ns", "max_ns")
+    count: int
+    total_ns: int
+    max_ns: int
 
     def __init__(self) -> None:
         self.count = 0
@@ -46,12 +49,22 @@ class GCPauseSnapshot(NamedTuple):
 
     @classmethod
     def zeros(cls) -> GCPauseSnapshot:
-        empty = (0, 0, 0)
+        empty: tuple[int, int, int] = (0, 0, 0)
         return cls(0, 0, 0, (empty, empty, empty))
 
 
 class GCPauseMonitor:
     """Single ``gc.callbacks`` subscriber with refcounted install."""
+
+    _lock: threading.RLock
+    _refcount: int
+    _fork_registered: bool
+    _start_ns: list[int]
+    _count: int
+    _total_ns: int
+    _max_ns: int
+    _per_gen: list[_GenWindow]
+    _listeners: list[PauseListener]
 
     def __init__(self) -> None:
         # RLock: snapshot_and_reset allocates, which can reenter GC in this thread.
@@ -63,7 +76,7 @@ class GCPauseMonitor:
         self._total_ns = 0
         self._max_ns = 0
         self._per_gen = [_GenWindow() for _ in range(GEN_COUNT)]
-        self._listeners: list[PauseListener] = []
+        self._listeners = []
 
     def acquire(self) -> None:
         with self._lock:
@@ -106,8 +119,8 @@ class GCPauseMonitor:
 
     def snapshot_and_reset(self) -> GCPauseSnapshot:
         with self._lock:
-            per_gen = tuple((w.count, w.total_ns, w.max_ns) for w in self._per_gen)
-            snap = GCPauseSnapshot(self._count, self._total_ns, self._max_ns, per_gen)
+            per_gen: tuple[tuple[int, int, int], ...] = tuple((w.count, w.total_ns, w.max_ns) for w in self._per_gen)
+            snap: GCPauseSnapshot = GCPauseSnapshot(self._count, self._total_ns, self._max_ns, per_gen)
             self._clear_window()
             return snap
 
@@ -124,7 +137,7 @@ class GCPauseMonitor:
         # Do not allocate on the metrics-only path: object creation in a GC
         # callback can recurse. Listeners are a profiling opt-in.
         try:
-            gen = info.get("generation", 0)
+            gen: int = info.get("generation", 0)
             if not 0 <= gen < GEN_COUNT:
                 return
             if phase == "start":
@@ -134,14 +147,14 @@ class GCPauseMonitor:
             if phase != "stop":
                 return
             with self._lock:
-                start = self._start_ns[gen]
+                start: int = self._start_ns[gen]
                 if start == 0:
                     return
                 self._start_ns[gen] = 0
-                pause_ns = time.monotonic_ns() - start
+                pause_ns: int = time.monotonic_ns() - start
                 if pause_ns < 0:
                     return
-                window = self._per_gen[gen]
+                window: _GenWindow = self._per_gen[gen]
                 window.count += 1
                 window.total_ns += pause_ns
                 if pause_ns > window.max_ns:
@@ -153,6 +166,7 @@ class GCPauseMonitor:
                 listeners: Optional[tuple[PauseListener, ...]] = tuple(self._listeners) if self._listeners else None
             if not listeners:
                 return
+            frame: Optional[FrameType]
             try:
                 frame = sys._getframe(1)
             except ValueError:
@@ -167,7 +181,7 @@ class GCPauseMonitor:
 
 
 _MONITOR: Optional[GCPauseMonitor] = None
-_MONITOR_LOCK = threading.Lock()
+_MONITOR_LOCK: threading.Lock = threading.Lock()
 
 
 def gc_pause_monitor() -> GCPauseMonitor:

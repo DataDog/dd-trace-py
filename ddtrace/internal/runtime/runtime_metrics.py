@@ -36,7 +36,7 @@ class RuntimeCollectorsIterable(object):
         collected = (collector.collect(self._enabled) for collector in self._collectors)
         return itertools.chain.from_iterable(collected)
 
-    def stop(self):
+    def stop(self) -> None:
         for collector in self._collectors:
             stop = getattr(collector, "stop", None)
             if callable(stop):

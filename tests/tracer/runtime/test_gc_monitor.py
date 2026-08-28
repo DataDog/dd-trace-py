@@ -1,10 +1,13 @@
 import gc
+from types import FrameType
+from typing import Optional
 
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
 
 
-def test_callback_installed_only_while_acquired():
-    monitor = GCPauseMonitor()
+def test_callback_installed_only_while_acquired() -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
     assert monitor._on_gc not in gc.callbacks
     monitor.acquire()
     try:
@@ -18,13 +21,13 @@ def test_callback_installed_only_while_acquired():
     assert monitor._on_gc not in gc.callbacks
 
 
-def test_snapshot_records_real_collection():
-    monitor = GCPauseMonitor()
+def test_snapshot_records_real_collection() -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
     monitor.acquire()
     try:
         monitor.snapshot_and_reset()
         gc.collect()
-        snap = monitor.snapshot_and_reset()
+        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
     finally:
         monitor.release()
 
@@ -36,13 +39,13 @@ def test_snapshot_records_real_collection():
     assert sum(g[1] for g in snap.per_gen) == snap.total_ns
 
 
-def test_listener_sees_generation_and_frame():
-    events = []
+def test_listener_sees_generation_and_frame() -> None:
+    events: list[tuple[int, int, int, Optional[FrameType]]] = []
 
-    def listener(gen, pause_ns, start_ns, frame):
+    def listener(gen: int, pause_ns: int, start_ns: int, frame: Optional[FrameType]) -> None:
         events.append((gen, pause_ns, start_ns, frame))
 
-    monitor = GCPauseMonitor()
+    monitor: GCPauseMonitor = GCPauseMonitor()
     monitor.add_listener(listener)
     monitor.acquire()
     try:
@@ -52,6 +55,10 @@ def test_listener_sees_generation_and_frame():
         monitor.release()
 
     assert events
+    gen: int
+    pause_ns: int
+    start_ns: int
+    frame: Optional[FrameType]
     gen, pause_ns, start_ns, frame = events[-1]
     assert gen in (0, 1, 2)
     assert pause_ns > 0
@@ -59,13 +66,13 @@ def test_listener_sees_generation_and_frame():
     assert frame is not None
 
 
-def test_reset_drops_window():
-    monitor = GCPauseMonitor()
+def test_reset_drops_window() -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
     monitor.acquire()
     try:
         gc.collect()
         monitor.reset()
-        snap = monitor.snapshot_and_reset()
+        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
     finally:
         monitor.release()
 

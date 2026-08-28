@@ -217,33 +217,38 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
             collector.stop()
             gc.enable()
 
-    def test_collections_and_pause_after_collect(self):
+    def test_collections_and_pause_after_collect(self) -> None:
         import gc
 
-        collector = GCRuntimeMetricCollector()
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
         try:
-            dict(collector.collect(GC_RUNTIME_METRICS))
+            collector.collect(GC_RUNTIME_METRICS)
             gc.collect()
-            metrics = dict(collector.collect(GC_RUNTIME_METRICS))
+            collected = collector.collect(GC_RUNTIME_METRICS)
         finally:
             collector.stop()
 
-        collections = metrics[GC_COLLECTIONS_GEN0] + metrics[GC_COLLECTIONS_GEN1] + metrics[GC_COLLECTIONS_GEN2]
+        assert collected is not None
+        metrics: dict[str, int] = {name: int(value) for name, value in collected}
+        collections: int = metrics[GC_COLLECTIONS_GEN0] + metrics[GC_COLLECTIONS_GEN1] + metrics[GC_COLLECTIONS_GEN2]
         assert collections >= 1
         assert metrics[GC_PAUSE_TIME] > 0
         assert metrics[GC_PAUSE_MAX] > 0
         assert metrics[GC_PAUSE_MAX] <= metrics[GC_PAUSE_TIME]
 
-    def test_pause_window_resets_between_flushes(self):
-        collector = GCRuntimeMetricCollector()
+    def test_pause_window_resets_between_flushes(self) -> None:
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
         try:
             import gc
 
             gc.collect()
-            dict(collector.collect(GC_RUNTIME_METRICS))
-            metrics = dict(collector.collect(GC_RUNTIME_METRICS))
+            collector.collect(GC_RUNTIME_METRICS)
+            collected = collector.collect(GC_RUNTIME_METRICS)
         finally:
             collector.stop()
+
+        assert collected is not None
+        metrics: dict[str, int] = {name: int(value) for name, value in collected}
 
         assert metrics[GC_PAUSE_TIME] == 0
         assert metrics[GC_PAUSE_MAX] == 0
