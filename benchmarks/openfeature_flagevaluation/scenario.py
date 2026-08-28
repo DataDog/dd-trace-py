@@ -141,17 +141,28 @@ class OpenFeatureFlagEvaluation(bm.Scenario):
             yield _
 
         elif mode == "hook_plus_drain":
+            # One complete scale cycle must fit without using queue state to decide
+            # when the benchmark drains. enqueue() already checks backpressure.
+            assert cycle_count <= writer._queue.maxsize
+
+            def _drain_and_reset() -> None:
+                writer._drain_queue()
+                writer._full.clear()
+                writer._degraded.clear()
+                writer._per_flag_count.clear()
+                writer._global_count = 0
 
             def _(loops):
                 for i in range(loops):
                     idx = i % cycle_count
                     hook.finally_after(hook_contexts[idx], details_list[idx], {})
-                    if writer._queue.full() or (i % cycle_count) == (cycle_count - 1):
-                        writer._drain_queue()
-                        writer._full.clear()
-                        writer._degraded.clear()
-                        writer._per_flag_count.clear()
-                        writer._global_count = 0
+                    if (i + 1) % cycle_count == 0:
+                        _drain_and_reset()
+
+                # pyperf can calibrate a loop count that is not a whole scale cycle.
+                # Drain the remainder so every measured enqueue is also aggregated.
+                if loops % cycle_count:
+                    _drain_and_reset()
 
             yield _
 
