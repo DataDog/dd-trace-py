@@ -29,9 +29,6 @@ class GCCollector(collector.Collector):
     Data emitted:
     - Wall time samples (push_walltime) attributed to synthetic gc.collect[gen=N]
       frames. These appear in the Wall Time profile view.
-    - Alloc samples (push_alloc) that put collected-object count in the
-      alloc-space field so they appear in the Alloc profile view under the
-      same frames.
     - A gc.config snapshot sample per flush carrying the interval's explicit
       gc.collect() tally in the sample count field.
 
@@ -94,13 +91,8 @@ class GCCollector(collector.Collector):
             handle.push_monotonic_ns(time.monotonic_ns())
             handle.flush_sample()
 
-            collected: int = info.get("collected", 0)
-            if collected > 0:
-                handle2: ddup.SampleHandle = ddup.SampleHandle()
-                handle2.push_alloc(collected, 1)
-                handle2.push_frame(frame_name, "gc", 0, gen)
-                handle2.push_monotonic_ns(time.monotonic_ns())
-                handle2.flush_sample()
+            # TODO: If we later want collected-object counts on the profile, add a
+            # dedicated libdatadog/pprof sample type. Do not reuse push_alloc.
 
     def snapshot(self) -> None:  # type: ignore[override]
         with self._lock:

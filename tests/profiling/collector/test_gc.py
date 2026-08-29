@@ -144,7 +144,7 @@ def test_on_gc_records_pause_walltime() -> None:
         col._on_gc("start", {"generation": 0})
         col._on_gc("stop", {"generation": 0, "collected": 5, "uncollectable": 0})
 
-    assert len(handles) == 2
+    assert len(handles) == 1
     pause_handle = handles[0]
     pause_handle.push_walltime.assert_called_once()
     args = pause_handle.push_walltime.call_args[0]
@@ -153,45 +153,7 @@ def test_on_gc_records_pause_walltime() -> None:
     assert count == 1
     pause_handle.push_frame.assert_called_once_with("gc.collect[gen=0]", "gc", 0, 0)
     pause_handle.flush_sample.assert_called_once()
-
-
-def test_on_gc_emits_alloc_sample_for_collected_objects() -> None:
-    col = _make_isolated_collector()
-    handles: list[mock.MagicMock] = []
-
-    def make_handle() -> mock.MagicMock:
-        h = mock.MagicMock()
-        handles.append(h)
-        return h
-
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
-        mock_ddup.SampleHandle.side_effect = make_handle
-        col._on_gc("start", {"generation": 1})
-        col._on_gc("stop", {"generation": 1, "collected": 10, "uncollectable": 0})
-
-    # First handle: walltime; second handle: alloc for collected objects
-    assert len(handles) == 2
-    alloc_handle = handles[1]
-    alloc_handle.push_alloc.assert_called_once_with(10, 1)
-    alloc_handle.push_frame.assert_called_once_with("gc.collect[gen=1]", "gc", 0, 1)
-    alloc_handle.flush_sample.assert_called_once()
-
-
-def test_on_gc_no_alloc_sample_when_zero_collected() -> None:
-    col = _make_isolated_collector()
-    handles: list[mock.MagicMock] = []
-
-    def make_handle() -> mock.MagicMock:
-        h = mock.MagicMock()
-        handles.append(h)
-        return h
-
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
-        mock_ddup.SampleHandle.side_effect = make_handle
-        col._on_gc("start", {"generation": 0})
-        col._on_gc("stop", {"generation": 0, "collected": 0, "uncollectable": 0})
-
-    assert len(handles) == 1
+    pause_handle.push_alloc.assert_not_called()
 
 
 def test_on_gc_stop_without_start_is_noop() -> None:
