@@ -17,6 +17,7 @@ from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal import forksafe
+from ddtrace.internal._unpatched import threading_Lock
 from ddtrace.internal.logger import get_logger
 
 
@@ -200,7 +201,7 @@ class GCPauseMonitor:
 
 
 _MONITOR: Optional[GCPauseMonitor] = None
-_MONITOR_LOCK: threading.Lock = forksafe.Lock()
+_MONITOR_LOCK: threading_Lock = forksafe.Lock()
 
 
 def gc_pause_monitor() -> GCPauseMonitor:
