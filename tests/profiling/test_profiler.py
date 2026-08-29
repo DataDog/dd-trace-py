@@ -86,6 +86,30 @@ def test_disable_memory():
     assert all(not isinstance(col, memalloc.MemoryCollector) for col in profiler.Profiler()._profiler._collectors)
 
 
+@pytest.mark.subprocess()
+def test_default_gc():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import gc as gc_collector
+
+    assert all(not isinstance(col, gc_collector.GCCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_ENABLED="true"))
+def test_enable_gc():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import gc as gc_collector
+
+    assert any(isinstance(col, gc_collector.GCCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
+@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_ENABLED="false"))
+def test_disable_gc():
+    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import gc as gc_collector
+
+    assert all(not isinstance(col, gc_collector.GCCollector) for col in profiler.Profiler()._profiler._collectors)
+
+
 def test_copy():
     p = profiler._ProfilerInstance(env="123", version="dwq", service="foobar")
     c = p.copy()

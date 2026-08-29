@@ -251,10 +251,22 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
     assert len(gc_samples) > 0, "Expected at least one gc.collect wall-time sample"
 
 
-def test_gc_collector_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
+def test_gc_collector_default_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
     # Fresh instance — do not importlib.reload the settings module. Reload
     # replaces ProfilingConfigHeap with a second class object and breaks
     # isinstance() in _derive_default_heap_sample_size for later tests.
     config: ProfilingConfig = ProfilingConfig()
     assert not config.gc.enabled
+
+
+def test_gc_collector_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
+    config: ProfilingConfig = ProfilingConfig()
+    assert not config.gc.enabled
+
+
+def test_gc_collector_enabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
+    config: ProfilingConfig = ProfilingConfig()
+    assert config.gc.enabled
