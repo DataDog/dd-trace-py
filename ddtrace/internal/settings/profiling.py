@@ -629,9 +629,12 @@ class ProfilingConfigGC(DDConfig):
     enabled = DDConfig.v(
         bool,
         "enabled",
-        default=True,
+        default=False,
         help_type="Boolean",
-        help="Whether to enable GC pause samples and explicit gc.collect() counts in the profiler.",
+        help=(
+            "Whether to record GC pause samples and explicit gc.collect() counts. "
+            "Disabled by default; enable with DD_PROFILING_GC_ENABLED=true."
+        ),
     )
 
 
