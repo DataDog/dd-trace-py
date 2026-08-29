@@ -1,3 +1,4 @@
+import json
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Awaitable
@@ -12,6 +13,7 @@ from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -59,7 +61,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response(response)
+                    ctx.event.set_response_attributes(response)
 
     async def _wrapped_async_send_single_request(
         self,
@@ -85,7 +87,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response(response)
+                    ctx.event.set_response_attributes(response)
 
     async def _wrapped_async_send(
         self,
@@ -116,7 +118,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response(response)
+                    _set_response(ctx.event, response)
 
     def _wrapped_sync_send(
         self,
@@ -147,7 +149,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response(response)
+                    _set_response(ctx.event, response)
 
     def patch(self) -> None:
         if getattr(self._module, "_datadog_patch", False):
@@ -170,6 +172,21 @@ class HttpxPatcher:
         _u(self._module.Client, "send")
         _u(self._module.Client, "_send_single_request")
         _u(self._module.AsyncClient, "_send_single_request")
+
+
+def _set_response(event: HttpClientRequestEvent, response: Any) -> None:
+    event.set_response_attributes(response)
+
+    if not asm_config._asm_enabled:
+        return
+
+    # Preserve HTTPX response JSON for AppSec SSRF analysis without retaining the response.
+    try:
+        if not response.is_closed or not response.content:
+            return
+        event.set_response_body(response.json())
+    except (RuntimeError, json.JSONDecodeError, UnicodeDecodeError):
+        event.set_response_body(None)
 
 
 def httpx_url_to_str(url: Any) -> str:
