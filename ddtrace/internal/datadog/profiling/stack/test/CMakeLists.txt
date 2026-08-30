@@ -36,7 +36,9 @@ if(DO_VALGRIND)
 endif()
 
 function(dd_wrapper_add_test name)
-    add_executable(${name} ${ARGN})
+    cmake_parse_arguments(_ARG "" "INSTALL_SUBDIR" "" ${ARGN})
+    set(_SOURCES ${_ARG_UNPARSED_ARGUMENTS})
+    add_executable(${name} ${_SOURCES})
     # Replicate the include dirs that ${EXTENSION_NAME} sets PRIVATE (so they don't propagate to test targets): stack's
     # own headers, the profiling root (for "dd_wrapper/include/sample.hpp"), Python, echion, and the libdatadog
     # Rust-generated headers (NATIVE_HEADERS_DIR, set by the parent CMakeLists).
@@ -86,7 +88,11 @@ function(dd_wrapper_add_test name)
     endif()
 
     if(LIB_INSTALL_DIR)
-        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        if(_ARG_INSTALL_SUBDIR)
+            install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test/${_ARG_INSTALL_SUBDIR})
+        else()
+            install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
+        endif()
     endif()
 endfunction()
 
@@ -131,7 +137,11 @@ configure_stack_internal_test(test_embedded_fast_copy)
 # 3.15. All test bodies are gated on PY_VERSION_HEX >= 0x030f0000, so building on older versions would produce an empty
 # test binary.
 if(Python3_VERSION VERSION_GREATER_EQUAL "3.15")
-    dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp)
+    # INSTALL_SUBDIR py315 keeps this binary out of the shared test/ directory. build_base_venvs runs in parallel for
+    # all Python versions; GitLab merges their artifacts into one directory for downstream jobs.  Without isolation the
+    # py3.15-compiled binary (RPATH -> libpython3.15) would crash when the pytest gtest plugin tried to run it in a
+    # py3.10 environment.
+    dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp INSTALL_SUBDIR py315)
     # Route copy_memory through echion_fuzz_copy_memory so tests can assert whether the state guard allows execution to
     # reach the copy site.
     target_compile_definitions(test_frame_state_315 PRIVATE ECHION_FUZZING)
