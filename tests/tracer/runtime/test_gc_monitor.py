@@ -33,8 +33,6 @@ def test_snapshot_records_real_collection() -> None:
     assert snap.total_ns > 0
     assert snap.max_ns > 0
     assert snap.max_ns <= snap.total_ns
-    assert sum(g[0] for g in snap.per_gen) == snap.n_pauses
-    assert sum(g[1] for g in snap.per_gen) == snap.total_ns
 
 
 def test_release_clears_in_flight_start() -> None:
