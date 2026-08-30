@@ -1,6 +1,6 @@
 #!/bin/sh
 LINT_CMD="${LINT_CMD:-scripts/lint}"
-staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.py$' | grep -v '^tests/' | grep -v '^lib-injection/' | tr '\n' ' ')
+staged_files=$(git diff --staged --name-only HEAD --diff-filter=ACMR | grep -E '\.py$' | grep -v '^tests/' | tr '\n' ' ')
 if [ -n "$staged_files" ]; then
     file_count=$(echo "$staged_files" | wc -w | tr -d ' ')
     echo "Running security scan on $file_count staged Python file(s)..."
