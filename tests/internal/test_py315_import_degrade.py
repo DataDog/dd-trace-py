@@ -1,11 +1,9 @@
-"""Python 3.15 import-time degrade: wrapping must load, wrap() still raises.
+"""Python 3.15 import-time degrade: wrapping must load.
 
-Until #17849 lands bytecode wrapping for 3.15, products that import wrapping
-(e.g. ModuleWatchdog) must not crash the process. wrap()/inject_hook still
-raise NotImplementedError when actually used.
+Products that import wrapping (e.g. ModuleWatchdog) must not crash the process.
+Monitoring ``inject_hook`` already works on 3.15; this module does not assert
+that wrap() raises. Wrap lift is a later PR.
 """
-
-import re
 
 import pytest
 
@@ -29,20 +27,6 @@ def test_wrapping_modules_import():
     import ddtrace.internal.wrapping.asyncs  # noqa: F401
     import ddtrace.internal.wrapping.context  # noqa: F401
     import ddtrace.internal.wrapping.generators  # noqa: F401
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} wrap() degrade")
-def test_wrap_raises_not_implemented_on_315():
-    from ddtrace.internal.wrapping import wrap
-
-    def f() -> None:
-        return None
-
-    def wrapper(wrapped, args, kwargs):  # noqa: ANN001, ANN202
-        return wrapped(*args, **kwargs)
-
-    with pytest.raises(NotImplementedError, match=re.escape(_UNSUPPORTED_MSG)):
-        wrap(f, wrapper)
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} lazy module degrade")
@@ -75,17 +59,3 @@ def test_debugging_products_load_without_failure():
         "live-debugger",
     ):
         assert product_name not in product_manager._failed
-
-
-@pytest.mark.skipif(PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO, reason=f"{NEXT_PY_VERSION} inject_hook degrade")
-def test_inject_hook_raises_not_implemented_on_315():
-    from ddtrace.internal.bytecode_injection import inject_hook
-
-    def f() -> None:
-        return None
-
-    def hook(_arg: object) -> None:
-        return None
-
-    with pytest.raises(NotImplementedError, match=re.escape(_UNSUPPORTED_MSG)):
-        inject_hook(f, hook, f.__code__.co_firstlineno, None)
