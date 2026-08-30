@@ -7,6 +7,13 @@ GC_COLLECTIONS_GEN0: str = "runtime.python.gc.collections.gen0"
 GC_COLLECTIONS_GEN1: str = "runtime.python.gc.collections.gen1"
 GC_COLLECTIONS_GEN2: str = "runtime.python.gc.collections.gen2"
 
+GC_COUNT_GENS: tuple[str, str, str] = (GC_COUNT_GEN0, GC_COUNT_GEN1, GC_COUNT_GEN2)
+GC_COLLECTIONS_GENS: tuple[str, str, str] = (
+    GC_COLLECTIONS_GEN0,
+    GC_COLLECTIONS_GEN1,
+    GC_COLLECTIONS_GEN2,
+)
+
 # Stop-the-world pause over the flush interval, nanoseconds.
 GC_PAUSE_TIME: str = "runtime.python.gc.pause.time"
 GC_PAUSE_MAX: str = "runtime.python.gc.pause.max"

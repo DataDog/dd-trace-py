@@ -10,12 +10,8 @@ from .constants import CPU_TIME_SYS
 from .constants import CPU_TIME_USER
 from .constants import CTX_SWITCH_INVOLUNTARY
 from .constants import CTX_SWITCH_VOLUNTARY
-from .constants import GC_COLLECTIONS_GEN0
-from .constants import GC_COLLECTIONS_GEN1
-from .constants import GC_COLLECTIONS_GEN2
-from .constants import GC_COUNT_GEN0
-from .constants import GC_COUNT_GEN1
-from .constants import GC_COUNT_GEN2
+from .constants import GC_COLLECTIONS_GENS
+from .constants import GC_COUNT_GENS
 from .constants import GC_PAUSE_MAX
 from .constants import GC_PAUSE_TIME
 from .constants import MEM_RSS
@@ -99,19 +95,18 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
         gc_mod: ModuleType = self.modules["gc"]
         counts: tuple[int, int, int] = gc_mod.get_count()
         collections: list[int] = _read_gc_collections(gc_mod)
-        d_collections: list[int] = _delta(collections, self._prev_collections)
+        deltas: list[int] = _delta(collections, self._prev_collections)
         self._prev_collections: list[int] = collections
 
-        metrics: list[tuple[str, int]] = [
-            (GC_COUNT_GEN0, counts[0]),
-            (GC_COUNT_GEN1, counts[1]),
-            (GC_COUNT_GEN2, counts[2]),
-            (GC_COLLECTIONS_GEN0, d_collections[0]),
-            (GC_COLLECTIONS_GEN1, d_collections[1]),
-            (GC_COLLECTIONS_GEN2, d_collections[2]),
-            (GC_PAUSE_TIME, 0 if pause is None else pause.total_ns),
-            (GC_PAUSE_MAX, 0 if pause is None else pause.max_ns),
-        ]
+        metrics: list[tuple[str, int]] = []
+        name: str
+        n: int
+        for name, n in zip(GC_COUNT_GENS, counts):
+            metrics.append((name, n))
+        for name, n in zip(GC_COLLECTIONS_GENS, deltas):
+            metrics.append((name, n))
+        metrics.append((GC_PAUSE_TIME, 0 if pause is None else pause.total_ns))
+        metrics.append((GC_PAUSE_MAX, 0 if pause is None else pause.max_ns))
 
         return metrics
 
