@@ -35,23 +35,15 @@ class GCPauseSnapshot(NamedTuple):
 class GCPauseMonitor:
     """Single gc.callbacks subscriber with refcounted install."""
 
-    _lock: threading.RLock
-    _refcount: int
-    _fork_registered: bool
-    _start_ns: list[int]
-    _count: int
-    _total_ns: int
-    _max_ns: int
-
     def __init__(self) -> None:
         # RLock: snapshot_and_reset allocates, which can reenter GC in this thread.
-        self._lock = threading.RLock()
-        self._refcount = 0
-        self._fork_registered = False
-        self._start_ns = [0] * GEN_COUNT
-        self._count = 0
-        self._total_ns = 0
-        self._max_ns = 0
+        self._lock: threading.RLock = threading.RLock()
+        self._refcount: int = 0
+        self._fork_registered: bool = False
+        self._start_ns: list[int] = [0] * GEN_COUNT
+        self._count: int = 0
+        self._total_ns: int = 0
+        self._max_ns: int = 0
 
     def acquire(self) -> None:
         with self._lock:
@@ -59,6 +51,7 @@ class GCPauseMonitor:
             if self._refcount == 1:
                 if self._on_gc not in gc.callbacks:
                     gc.callbacks.append(self._on_gc)
+
                 if not self._fork_registered:
                     forksafe.register(self.reset)
                     self._fork_registered = True
@@ -67,12 +60,14 @@ class GCPauseMonitor:
         with self._lock:
             if self._refcount <= 0:
                 return
+
             self._refcount -= 1
             if self._refcount == 0:
                 try:
                     gc.callbacks.remove(self._on_gc)
                 except ValueError:
                     pass
+
                 # Drop in-flight starts so a later re-acquire cannot pair a
                 # new stop with a stale timestamp from before uninstall.
                 self._start_ns = [0] * GEN_COUNT
@@ -104,20 +99,25 @@ class GCPauseMonitor:
         gen: int = info.get("generation", 0)
         if not 0 <= gen < GEN_COUNT:
             return
+
         if phase == _GCPhase.START:
             with self._lock:
                 self._start_ns[gen] = time.monotonic_ns()
             return
+
         if phase != _GCPhase.STOP:
             return
+
         with self._lock:
             start: int = self._start_ns[gen]
             if start == 0:
                 return
+
             self._start_ns[gen] = 0
             pause_ns: int = time.monotonic_ns() - start
             if pause_ns < 0:
                 return
+
             self._count += 1
             self._total_ns += pause_ns
             if pause_ns > self._max_ns:
