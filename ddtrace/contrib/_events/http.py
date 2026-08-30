@@ -53,13 +53,17 @@ class HttpBaseEvent(Event):
     response_headers: Mapping[str, str] = event_field(default_factory=dict)
     response_status_code: Optional[int] = event_field(default=None)
     response_status_msg: Optional[str] = event_field(default=None)
+    response_body: Optional[JsonType] = event_field(default=None)
 
-    def set_response(self, response: _HttpResponse) -> None:
+    def set_response_attributes(self, response: _HttpResponse) -> None:
         self.response_status_code = getattr(response, "status_code", None)
         if self.response_status_code is None:
             self.response_status_code = getattr(response, "status", None)
         self.response_status_msg = getattr(response, "reason", None)
         self.response_headers = response.headers
+
+    def set_response_body(self, response_body: JsonType) -> None:
+        self.response_body = response_body
 
 
 @dataclass

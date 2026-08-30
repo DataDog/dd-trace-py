@@ -70,6 +70,16 @@ class TestAdaptiveSamplingConfig:
             ProfilingConfig()
 
 
+class TestGCFramesConfig:
+    def test_default(self) -> None:
+        assert ProfilingConfig().stack.gc_enabled is False
+
+    def test_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DD_PROFILING_STACK_GC_ENABLED", "true")
+
+        assert ProfilingConfig().stack.gc_enabled is True
+
+
 class TestExcludeModulesConfig:
     """Unit tests for the exclude_modules config field type guarantees."""
 
@@ -147,6 +157,7 @@ class TestDumpSettings:
             "enabled",
             "upload_interval",
             "stack.enabled",
+            "stack.gc_enabled",
             "stack.adaptive_sampling",
             "stack.adaptive_sampling_target_overhead",
             "stack.adaptive_sampling_max_interval",
@@ -204,6 +215,58 @@ def test_always_excluded_modules_cannot_be_overridden() -> None:
         assert not isinstance(internal_lock, _ProfiledLock), (
             "Stdlib-internal lock must remain native even when DD_PROFILING_LOCK_EXCLUDE_MODULES is empty"
         )
+
+
+class TestEmbeddedInterpreterFastCopy:
+    def test_is_python_embedded_returns_false_for_python(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("os.readlink", lambda _: "/usr/bin/python3.12")
+        monkeypatch.setattr("sys.platform", "linux")
+        assert _is_python_embedded() is False
+
+    def test_is_python_embedded_returns_true_for_non_python(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("os.readlink", lambda _: "/ucsr/bin/nginx")
+        monkeypatch.setattr("sys.platform", "linux")
+        assert _is_python_embedded() is True
+
+    def test_is_python_embedded_fallback_to_sys_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        def _raise_oserror(_: str) -> str:
+            raise OSError("no procfs")
+
+        monkeypatch.setattr("os.readlink", _raise_oserror)
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr("sys.executable", "/opt/myapp/bin/myapp")
+        assert _is_python_embedded() is True
+
+    def test_is_python_embedded_fallback_empty_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        def _raise_oserror(_: str) -> str:
+            raise OSError("no procfs")
+
+        monkeypatch.setattr("os.readlink", _raise_oserror)
+        monkeypatch.setattr("sys.platform", "linux")
+        monkeypatch.setattr("sys.executable", "")
+        assert _is_python_embedded() is True
+
+    def test_non_linux_falls_back_to_sys_executable(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("sys.executable", "/usr/local/bin/python3")
+        assert _is_python_embedded() is False
+
+    def test_non_linux_embedded(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from ddtrace.internal.settings.profiling import _is_python_embedded
+
+        monkeypatch.setattr("sys.platform", "darwin")
+        monkeypatch.setattr("sys.executable", "/Applications/MyGame.app/Contents/MacOS/mygame")
+        assert _is_python_embedded() is True
 
 
 class TestNativeHeapConfig:
