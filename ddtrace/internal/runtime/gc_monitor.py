@@ -7,7 +7,6 @@ Runtime metrics drain a snapshot on each flush.
 from __future__ import annotations
 
 import gc
-import logging
 import threading
 import time
 from typing import NamedTuple
@@ -15,10 +14,7 @@ from typing import Optional
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
-from ddtrace.internal.logger import get_logger
 
-
-log: logging.Logger = get_logger(__name__)
 
 GEN_COUNT: int = 3
 
@@ -136,35 +132,32 @@ class GCPauseMonitor:
 
     def _on_gc(self, phase: str, info: dict[str, int]) -> None:
         # Do not allocate: object creation in a GC callback can recurse.
-        try:
-            gen: int = info.get("generation", 0)
-            if not 0 <= gen < GEN_COUNT:
-                return
-            if phase == "start":
-                with self._lock:
-                    self._start_ns[gen] = time.monotonic_ns()
-                return
-            if phase != "stop":
-                return
+        gen: int = info.get("generation", 0)
+        if not 0 <= gen < GEN_COUNT:
+            return
+        if phase == "start":
             with self._lock:
-                start: int = self._start_ns[gen]
-                if start == 0:
-                    return
-                self._start_ns[gen] = 0
-                pause_ns: int = time.monotonic_ns() - start
-                if pause_ns < 0:
-                    return
-                window: _GenWindow = self._per_gen[gen]
-                window.count += 1
-                window.total_ns += pause_ns
-                if pause_ns > window.max_ns:
-                    window.max_ns = pause_ns
-                self._count += 1
-                self._total_ns += pause_ns
-                if pause_ns > self._max_ns:
-                    self._max_ns = pause_ns
-        except Exception:
-            log.debug("GC pause monitor callback failed", exc_info=True)
+                self._start_ns[gen] = time.monotonic_ns()
+            return
+        if phase != "stop":
+            return
+        with self._lock:
+            start: int = self._start_ns[gen]
+            if start == 0:
+                return
+            self._start_ns[gen] = 0
+            pause_ns: int = time.monotonic_ns() - start
+            if pause_ns < 0:
+                return
+            window: _GenWindow = self._per_gen[gen]
+            window.count += 1
+            window.total_ns += pause_ns
+            if pause_ns > window.max_ns:
+                window.max_ns = pause_ns
+            self._count += 1
+            self._total_ns += pause_ns
+            if pause_ns > self._max_ns:
+                self._max_ns = pause_ns
 
 
 _MONITOR: Optional[GCPauseMonitor] = None
