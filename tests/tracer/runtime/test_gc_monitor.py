@@ -1,6 +1,4 @@
 import gc
-from types import FrameType
-from typing import Optional
 
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
@@ -37,33 +35,6 @@ def test_snapshot_records_real_collection() -> None:
     assert snap.max_ns <= snap.total_ns
     assert sum(g[0] for g in snap.per_gen) == snap.n_pauses
     assert sum(g[1] for g in snap.per_gen) == snap.total_ns
-
-
-def test_listener_sees_generation_and_frame() -> None:
-    events: list[tuple[int, int, int, Optional[FrameType]]] = []
-
-    def listener(gen: int, pause_ns: int, start_ns: int, frame: Optional[FrameType]) -> None:
-        events.append((gen, pause_ns, start_ns, frame))
-
-    monitor: GCPauseMonitor = GCPauseMonitor()
-    monitor.add_listener(listener)
-    monitor.acquire()
-    try:
-        gc.collect()
-    finally:
-        monitor.remove_listener(listener)
-        monitor.release()
-
-    assert events
-    gen: int
-    pause_ns: int
-    start_ns: int
-    frame: Optional[FrameType]
-    gen, pause_ns, start_ns, frame = events[-1]
-    assert gen in (0, 1, 2)
-    assert pause_ns > 0
-    assert start_ns > 0
-    assert frame is not None
 
 
 def test_release_clears_in_flight_start() -> None:

@@ -8,11 +8,8 @@ from __future__ import annotations
 
 import gc
 import logging
-import sys
 import threading
 import time
-from types import FrameType
-from typing import Callable
 from typing import NamedTuple
 from typing import Optional
 
@@ -24,9 +21,6 @@ from ddtrace.internal.logger import get_logger
 log: logging.Logger = get_logger(__name__)
 
 GEN_COUNT: int = 3
-
-# (generation, pause_ns, start_ns, triggering frame or None)
-PauseListener = Callable[[int, int, int, Optional[FrameType]], None]
 
 
 class _GenWindow:
@@ -65,7 +59,6 @@ class GCPauseMonitor:
     _total_ns: int
     _max_ns: int
     _per_gen: list[_GenWindow]
-    _listeners: list[PauseListener]
 
     def __init__(self) -> None:
         # RLock: snapshot_and_reset allocates, which can reenter GC in this thread.
@@ -77,7 +70,6 @@ class GCPauseMonitor:
         self._total_ns = 0
         self._max_ns = 0
         self._per_gen = [_GenWindow() for _ in range(GEN_COUNT)]
-        self._listeners = []
 
     def acquire(self) -> None:
         with self._lock:
@@ -103,17 +95,6 @@ class GCPauseMonitor:
                 # new stop with a stale timestamp from before uninstall.
                 self._start_ns = [0] * GEN_COUNT
                 self._clear_window()
-
-    def add_listener(self, listener: PauseListener) -> None:
-        with self._lock:
-            self._listeners.append(listener)
-
-    def remove_listener(self, listener: PauseListener) -> None:
-        with self._lock:
-            try:
-                self._listeners.remove(listener)
-            except ValueError:
-                pass
 
     def reset(self) -> None:
         """Drop in-flight starts and the current window. Used after fork."""
@@ -154,8 +135,7 @@ class GCPauseMonitor:
             w.max_ns = 0
 
     def _on_gc(self, phase: str, info: dict[str, int]) -> None:
-        # Do not allocate on the metrics-only path: object creation in a GC
-        # callback can recurse.
+        # Do not allocate: object creation in a GC callback can recurse.
         try:
             gen: int = info.get("generation", 0)
             if not 0 <= gen < GEN_COUNT:
@@ -183,19 +163,6 @@ class GCPauseMonitor:
                 self._total_ns += pause_ns
                 if pause_ns > self._max_ns:
                     self._max_ns = pause_ns
-                listeners: Optional[tuple[PauseListener, ...]] = tuple(self._listeners) if self._listeners else None
-            if not listeners:
-                return
-            frame: Optional[FrameType]
-            try:
-                frame = sys._getframe(1)
-            except ValueError:
-                frame = None
-            for listener in listeners:
-                try:
-                    listener(gen, pause_ns, start, frame)
-                except Exception:
-                    log.debug("GC pause listener failed", exc_info=True)
         except Exception:
             log.debug("GC pause monitor callback failed", exc_info=True)
 
