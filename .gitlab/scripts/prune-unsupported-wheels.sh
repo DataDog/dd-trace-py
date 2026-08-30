@@ -24,8 +24,9 @@ set -euo pipefail
 #
 # TODO(py-315): cp315 wheels are built by "build linux" and "build linux serverless" under
 # allow_failure so that 3.15 keeps producing CI signal, but they are compiled against the
-# 3.15.0b1 PyThreadState layout and are ABI-broken. Drop cp315 from this list once #19861
-# makes those wheels correct and 3.15 is a supported target.
+# 3.15.0b1 PyThreadState layout and are ABI-broken. #19861 does not fix that ABI; it only
+# makes cp315 optional in the package validator. Drop cp315 from this list after IMAGE_TAG
+# is on images that can build a correct wheel, and only once 3.15 is a supported target.
 UNSUPPORTED_TAGS=("cp315")
 
 if [ "$#" -eq 0 ]; then
