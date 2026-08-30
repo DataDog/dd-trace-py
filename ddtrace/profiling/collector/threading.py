@@ -64,12 +64,10 @@ except ImportError:
     # TODO(py-315): _lock is a Cython extension not compiled for all Python versions
     # (e.g. Python 3.15 before the manylinux image carries it). Stubs raise
     # CollectorUnavailable so profiler.py skips them gracefully.
-    from ddtrace.profiling.collector import Collector as _Collector
-    from ddtrace.profiling.collector import CollectorUnavailable as _CollectorUnavailable
+    from ddtrace.profiling.collector import UnavailableCollector as _UnavailableCollector
 
-    class ThreadingLockCollector(_Collector):  # type: ignore[no-redef]
-        def start(self) -> None:
-            raise _CollectorUnavailable
+    class ThreadingLockCollector(_UnavailableCollector):  # type: ignore[no-redef]
+        pass
 
     ThreadingRLockCollector = ThreadingLockCollector  # type: ignore[assignment,misc]
     ThreadingSemaphoreCollector = ThreadingLockCollector  # type: ignore[assignment,misc]

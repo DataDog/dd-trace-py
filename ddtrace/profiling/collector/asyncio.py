@@ -53,12 +53,10 @@ except ImportError:
     # is absent the asyncio lock collectors are unavailable. Defining stubs that
     # raise CollectorUnavailable lets profiler.py discover and gracefully skip them
     # rather than failing at import time.
-    from ddtrace.profiling.collector import Collector as _Collector
-    from ddtrace.profiling.collector import CollectorUnavailable as _CollectorUnavailable
+    from ddtrace.profiling.collector import UnavailableCollector as _UnavailableCollector
 
-    class AsyncioLockCollector(_Collector):  # type: ignore[no-redef]
-        def start(self) -> None:
-            raise _CollectorUnavailable
+    class AsyncioLockCollector(_UnavailableCollector):  # type: ignore[no-redef]
+        pass
 
     AsyncioSemaphoreCollector = AsyncioLockCollector  # type: ignore[assignment,misc]
     AsyncioBoundedSemaphoreCollector = AsyncioLockCollector  # type: ignore[assignment,misc]
