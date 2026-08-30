@@ -75,7 +75,9 @@ def test_reset_after_fork_clears_in_flight_state() -> None:
         assert col._explicit_count == 1
         col._reset_after_fork()
         assert col._explicit_count == 0
-        assert col._start_ns == {}
+        assert col._start_ns == [0, 0, 0]
+        assert col._pause_count == [0, 0, 0]
+        assert col._pause_total_ns == [0, 0, 0]
     finally:
         col.stop()
 
@@ -125,7 +127,9 @@ def _make_isolated_collector() -> GCCollector:
     """
     col = GCCollector()
     col._lock = threading.Lock()
-    col._start_ns = {}
+    col._start_ns = [0, 0, 0]
+    col._pause_count = [0, 0, 0]
+    col._pause_total_ns = [0, 0, 0]
     col._explicit_count = 0
     return col
 
@@ -143,8 +147,10 @@ def test_on_gc_records_pause_walltime() -> None:
         mock_ddup.SampleHandle.side_effect = make_handle
         col._on_gc("start", {"generation": 0})
         col._on_gc("stop", {"generation": 0, "collected": 5, "uncollectable": 0})
+        mock_ddup.SampleHandle.assert_not_called()
+        col.snapshot()
 
-    assert len(handles) == 1
+    assert len(handles) == 2
     pause_handle = handles[0]
     pause_handle.push_walltime.assert_called_once()
     args = pause_handle.push_walltime.call_args[0]
@@ -154,6 +160,9 @@ def test_on_gc_records_pause_walltime() -> None:
     pause_handle.push_frame.assert_called_once_with("gc.collect[gen=0]", "gc", 0, 0)
     pause_handle.flush_sample.assert_called_once()
     pause_handle.push_alloc.assert_not_called()
+    config_handle = handles[1]
+    config_handle.push_walltime.assert_called_once_with(0, 0)
+    config_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
 
 
 def test_on_gc_stop_without_start_is_noop() -> None:
@@ -194,6 +203,7 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
         gc.collect(0)
         gc.collect(1)
         gc.collect(2)
+        col.snapshot()
     finally:
         col.stop()
 
