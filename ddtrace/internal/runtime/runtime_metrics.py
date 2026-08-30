@@ -40,6 +40,8 @@ class RuntimeCollectorsIterable(object):
     def stop(self) -> None:
         for collector in self._collectors:
             stop: Optional[Callable[[], None]] = getattr(collector, "stop", None)
+
+            # some collectors may not define a `stop()` method
             if callable(stop):
                 stop()
 
