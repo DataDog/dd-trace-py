@@ -168,7 +168,6 @@ def _events_for_handler(handler: MonitoringEventHandler) -> int:
     return events
 
 
-
 class _Entry(NamedTuple):
     handler: MonitoringEventHandler
     events: int  # pre-computed from _events_for_handler
@@ -307,7 +306,6 @@ def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
             sys.monitoring.set_local_events(tool_id, code, fallback)
         else:
             raise
-
 
 
 def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
