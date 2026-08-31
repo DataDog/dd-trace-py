@@ -11,6 +11,8 @@ from psycopg.sql import Literal
 import pytest
 
 from ddtrace import config
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._ddwaf import DDWafSqlTokenizer
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3FetchTracedCursor
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
@@ -196,6 +198,7 @@ class PsycopgCore(TracerTestCase):
     def test_composed_query_event_is_stringified(self) -> None:
         cursor = mock.Mock(rowcount=0)
         cursor.connection.pgconn._encoding = "utf-8"
+        cursor.connection.pgconn.parameter_status.return_value = b"UTF8"
         query = SQL("SELECT ") + SQL("1")
         events: list[DbQueryEvent] = []
 
@@ -210,6 +213,35 @@ class PsycopgCore(TracerTestCase):
 
         assert events == [DbQueryEvent(query=query.as_string(cursor), span_name_prefix="postgres")]
         cursor.execute.assert_called_once_with(query)
+
+    def test_sql_objects_reach_appsec_subscriber(self) -> None:
+        """SQL objects must be rendered before the AppSec subscriber receives them."""
+        from ddtrace.appsec._contrib.dbapi import subscribers as dbapi_subscribers
+
+        try:
+            for query in (SQL("SELECT 1"), SQL("SELECT ") + SQL("1")):
+                cursor = mock.Mock(rowcount=0)
+                cursor.connection.pgconn._encoding = "utf-8"
+                cursor.connection.pgconn.parameter_status.return_value = b"UTF8"
+                rendered_query = query.as_string(cursor)
+
+                with (
+                    mock.patch.object(dbapi_subscribers, "get_rasp_capability", return_value=True),
+                    mock.patch.object(dbapi_subscribers, "call_waf_callback", return_value=None) as call_waf,
+                ):
+                    Psycopg3TracedCursor(cursor, cfg=config.psycopg).execute(query)
+
+                call_waf.assert_called_once_with(
+                    {
+                        EXPLOIT_PREVENTION.ADDRESS.SQLI: rendered_query,
+                        EXPLOIT_PREVENTION.ADDRESS.SQLI_TYPE: DDWafSqlTokenizer.POSTGRESQL.value,
+                    },
+                    crop_trace="on_event",
+                    rule_type=EXPLOIT_PREVENTION.TYPE.SQLI,
+                )
+                cursor.execute.assert_called_once_with(query)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, dbapi_subscribers.AppSecDbApiSubscriber._on_event)
 
     def test_query_is_stringified_once_for_tracing_and_appsec(self) -> None:
         cursor = mock.Mock(rowcount=0)
