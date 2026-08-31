@@ -93,6 +93,11 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_runtime_id(mut slf: PyRefMut<'_, Self>, runtime_id: &'_ str) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_runtime_id(runtime_id);
+        Ok(slf.into())
+    }
+
     fn set_language(mut slf: PyRefMut<'_, Self>, language: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_language(language);
         Ok(slf.into())
