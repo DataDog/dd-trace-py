@@ -7,6 +7,7 @@ Uses the packaging library to properly parse and validate filenames.
 
 Expected artifacts:
   - 52 wheels: 6 Python versions × 8 base platforms + 4 versions × win_arm64
+    (cp315 is built best-effort and is not required)
   - 1 sdist: source distribution
 
 Usage:
@@ -28,7 +29,7 @@ from packaging.version import Version
 
 
 # Configuration
-PYTHON_TAGS = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314"]
+PYTHON_TAGS: list[str] = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314", "cp315"]
 WIN_ARM64_PYTHON_TAGS = ["cp311", "cp312", "cp313", "cp314"]
 
 BASE_PLATFORMS = [
@@ -43,16 +44,28 @@ BASE_PLATFORMS = [
 ]
 SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
 
+# cp315 is optional: none required; tolerate Linux wheels if they land.
+REQUIRED_PLATFORMS: dict[str, list[str]] = {"cp315": []}
+OPTIONAL_WHEELS: set[tuple[str, str]] = {("cp315", p) for p in BASE_PLATFORMS if "linux" in p}
+
+
+def required_platforms(py_tag: str, platforms: list[str]) -> list[str]:
+    """Restrict platforms for Python versions that are not built everywhere."""
+    allowed: list[str] | None = REQUIRED_PLATFORMS.get(py_tag)
+    if allowed is None:
+        return platforms
+    return [p for p in platforms if p in allowed]
+
 
 def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str, str, str, str]]:
     """Build set of expected (version, python_tag, platform, flavor) tuples."""
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
         if args.mode == "serverless":
-            for platform in SERVERLESS_PLATFORMS:
+            for platform in required_platforms(py_tag, SERVERLESS_PLATFORMS):
                 expected.add((version, py_tag, platform, "_serverless"))
         else:
-            for platform in BASE_PLATFORMS:
+            for platform in required_platforms(py_tag, BASE_PLATFORMS):
                 expected.add((version, py_tag, platform, ""))
             # Add win_arm64 for Python 3.11+
             if py_tag in WIN_ARM64_PYTHON_TAGS:
@@ -215,10 +228,15 @@ def main(args: argparse.Namespace) -> None:
     # Phase 4: Build Expected Set
     print("[Phase 4] Building Expected Set")
     expected_set = build_expected_set(package_version, args)
+    unrestricted_tags: list[str] = [t for t in PYTHON_TAGS if t not in REQUIRED_PLATFORMS]
     print(f"Expected {len(expected_set)} wheels:")
-    print(f"  - {len(PYTHON_TAGS)} Python versions (cp39-cp314)")
-    print(f"  - {len(BASE_PLATFORMS)} base platforms")
+    print(
+        f"  - {len(unrestricted_tags)} Python versions ({unrestricted_tags[0]}-{unrestricted_tags[-1]})"
+        f" on {len(BASE_PLATFORMS)} base platforms"
+    )
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
+    for py_tag, platforms in sorted(REQUIRED_PLATFORMS.items()):
+        print(f"  - {py_tag} required on {len(platforms)} platform(s)")
     print(f"  - {len(SERVERLESS_PLATFORMS)} platforms with ddtrace-serverless builds")
     print()
 
@@ -246,10 +264,10 @@ def main(args: argparse.Namespace) -> None:
     # Unexpected wheels
     unexpected_wheels = actual_set - expected_set
     # Filter out version mismatches (they're already reported)
-    unexpected_non_version = [
+    unexpected_non_version: list[tuple[str, str, str, str]] = [
         (v, p, pl, fl)
         for v, p, pl, fl in unexpected_wheels
-        if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches
+        if reconstruct_wheel_filename(v, p, pl, fl) not in version_mismatches and (p, pl) not in OPTIONAL_WHEELS
     ]
 
     if unexpected_non_version:
