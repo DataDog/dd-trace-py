@@ -575,9 +575,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     # === PASS 2: Emit YAML ===
     with TESTS_GEN.open("a") as f:
-        if any(suites[s].get("ddtest") for s in non_skipped):
-            print("ddtest-build:\n  extends: .ddtest_build", file=f)
-
         for suite in required_suites:
             suite_config = suites[suite].copy()
             stage = suite_config.pop("_stage", "core")

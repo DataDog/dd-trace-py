@@ -153,10 +153,6 @@ def emit_ddtest_jobs(
             for key, value in extra.items():
                 print(f"    {key}: {value}", file=f)
 
-    def emit_needs_ddtest_build() -> None:
-        print("    - job: ddtest-build", file=f)
-        print("      artifacts: true", file=f)
-
     def emit_needs_build_base_venvs(needed_venvs: list[tuple[str, str]]) -> None:
         print("    - job: build_base_venvs", file=f)
         print("      artifacts: true", file=f)
@@ -181,7 +177,6 @@ def emit_ddtest_jobs(
     print("  needs:", file=f)
     print("    - prechecks", file=f)
     emit_needs_build_base_venvs(venvs)
-    emit_needs_ddtest_build()
     emit_services(plan=True)
     emit_before_script(plan=True)
     riot_hashes = " ".join(h for h, _ in venvs)
@@ -218,7 +213,6 @@ def emit_ddtest_jobs(
         print("  needs:", file=f)
         print("    - prechecks", file=f)
         emit_needs_build_base_venvs(py_venvs)
-        emit_needs_ddtest_build()
         # Each run downloads the single plan artifact (which contains all
         # hashes' plans, partitioned by hash) and restores its own hash's plan.
         print("    - job: " + plan_name, file=f)
