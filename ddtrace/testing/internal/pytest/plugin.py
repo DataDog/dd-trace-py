@@ -441,33 +441,24 @@ class TestOptPlugin(TestOptPluginProtocol):
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # AIDEV-NOTE: This hook runs in every process, so an xdist session uploads one report per process, each
-        # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
-        # for a session, so the partial uploads add up to full coverage.
-        #
-        # Do NOT "fix" this by restricting the upload to the controller. Which process holds which data depends on who
-        # owns coverage.py:
-        #   - with pytest-cov, workers ship their data to the controller and pytest-cov merges it in its
-        #     pytest_runtestloop wrapper, i.e. before this hook, so the controller's report is complete;
-        #   - without pytest-cov, ddtrace starts coverage.py per process in pytest_configure and nothing merges across
-        #     processes, so the controller (which runs no tests under xdist) has an empty report and the workers hold
-        #     all the real data.
-        # Controller-only upload would therefore be harmless in the first case and lose everything in the second.
-        # Uploading once from the controller would only save bandwidth, and would first require implementing the
-        # cross-process merge that pytest-cov does for us in the first case but nobody does in the second.
+        # AIDEV-NOTE: Under xdist only one process should upload -- see _should_upload_coverage_report for which one
+        # and why that depends on whether pytest-cov owns the coverage.py instance.
         if self.manager.settings.coverage_report_upload_enabled and not get_offline_mode().payload_files_enabled:
-            # Create upload function wrapper for manager
-            def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
-                return self.manager.upload_coverage_report(
-                    coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
-                )
+            if self._should_upload_coverage_report(session.config):
+                # Create upload function wrapper for manager
+                def upload_func(coverage_report_bytes: bytes, coverage_format: str) -> bool:
+                    return self.manager.upload_coverage_report(
+                        coverage_report_bytes=coverage_report_bytes, coverage_format=coverage_format, tags=None
+                    )
 
-            handle_coverage_report(
-                config=session.config,
-                upload_func=upload_func,
-                is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
-                stop_coverage_func=stop_coverage,
-            )
+                handle_coverage_report(
+                    config=session.config,
+                    upload_func=upload_func,
+                    is_pytest_cov_enabled_func=_is_pytest_cov_enabled,
+                    stop_coverage_func=stop_coverage,
+                )
+            else:
+                log.debug("Skipping coverage report upload on xdist worker; controller will upload the merged report")
 
         coverage_percentage = get_coverage_percentage(_is_pytest_cov_enabled(session.config))
         if coverage_percentage is not None:
@@ -1192,6 +1183,30 @@ class TestOptPlugin(TestOptPluginProtocol):
 
         self.outcomes_by_nodeid.pop(nodeid, None)
         return status, tags
+
+    def _should_upload_coverage_report(self, config: pytest.Config) -> bool:
+        """Return whether this process is responsible for uploading the coverage report.
+
+        The caller has already checked that upload is configured (``coverage_report_upload_enabled`` and not
+        payload-files mode); this answers only the *who* question. The answer hinges on which process holds a
+        complete report when ``pytest_sessionfinish`` runs:
+
+        - With pytest-cov under xdist, every worker ships its coverage data to the controller and pytest-cov merges
+          it there (``DistMaster.finish`` -> ``cov.combine``) inside its ``pytest_runtestloop`` wrapper, which completes
+          *before* this hook. The controller therefore holds the full merged report, so only it uploads -- N+1 partial
+          uploads of the same data become one complete upload. Workers skip.
+        - Without pytest-cov, ddtrace starts coverage.py per process in ``pytest_configure`` and nothing merges across
+          processes: each process holds only what it ran (the controller, which runs no tests under xdist, has an empty
+          report). Every process must therefore upload its own partial report and the intake merges them; restricting
+          the upload to the controller here would lose every worker's data.
+
+        Safe by construction: the only case that returns False is an xdist worker that is also running pytest-cov,
+        where the controller is guaranteed to have already merged the worker's data. Any other case uploads, exactly as
+        it did before this optimization existed.
+        """
+        if self.is_xdist_worker and _is_pytest_cov_enabled(config):
+            return False
+        return True
 
     def _handle_itr(self, item: pytest.Item, test_ref: TestRef, test: Test) -> None:
         if not self.manager.is_skippable_test(test_ref):
