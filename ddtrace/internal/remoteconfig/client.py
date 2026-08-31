@@ -18,6 +18,7 @@ from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -97,7 +98,7 @@ class RemoteConfigClient:
 
     def __init__(self) -> None:
         self.id = str(uuid.uuid4())
-        self.agentless = ddtrace.config._agentless_enabled
+        self.agentless = agentless_config.any_enabled
         self.agent_url = agent_config.trace_agent_url
 
         # Product callbacks for single subscriber architecture

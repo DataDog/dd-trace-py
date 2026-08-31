@@ -596,3 +596,86 @@ def test_a_user_supplied_api_key_header_is_left_alone():
         "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "OTEL_EXPORTER_OTLP_METRICS_HEADERS", "http/protobuf", "metrics"
     )
     assert env.get("OTEL_EXPORTER_OTLP_METRICS_HEADERS") == "dd-api-key=set-by-the-user"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_EXPORTER_OTLP_METRICS_HEADERS": "x-team=apm,x-env=prod",
+    }
+)
+def test_signal_headers_keep_custom_entries_and_gain_the_api_key():
+    """The native trace-metrics exporter reads these values directly, never the SDK helper.
+
+    Without the key merged in here the intake rejects the metrics as unauthenticated.
+    """
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.METRICS_HEADERS == "x-team=apm,x-env=prod,dd-api-key=foobarkey"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_EXPORTER_OTLP_HEADERS": "x-team=apm",
+    }
+)
+def test_global_headers_are_kept_rather_than_replaced_by_the_api_key():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.METRICS_HEADERS == "x-team=apm,dd-api-key=foobarkey"
+    assert otel_config.exporter.LOGS_HEADERS == "x-team=apm,dd-api-key=foobarkey"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_EXPORTER_OTLP_METRICS_HEADERS": "dd-api-key=set-by-the-user",
+    }
+)
+def test_an_api_key_the_user_set_is_not_duplicated():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.METRICS_HEADERS == "dd-api-key=set-by-the-user"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+        "OTEL_EXPORTER_OTLP_HEADERS": "x-team=apm",
+    }
+)
+def test_a_collector_of_your_own_gets_your_headers_and_no_api_key():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.METRICS_HEADERS == "x-team=apm"
+    assert "dd-api-key" not in otel_config.exporter.LOGS_HEADERS
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+        "OTEL_EXPORTER_OTLP_METRICS_HEADERS": "x-team=apm",
+    }
+)
+def test_native_trace_metrics_exporter_sends_custom_headers_and_the_api_key():
+    """End of the chain: what the exporter is handed, not just what the config derives."""
+    from ddtrace.internal.settings._opentelemetry import otel_config
+    from ddtrace.internal.writer.writer import NativeWriter
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._otlp_metrics_endpoint == "https://otlp.datadoghq.com/v1/metrics"
+
+    # This is the value, and the parse of it, that _create_exporter hands to libdatadog.
+    headers = dict(NativeWriter._parse_otlp_headers(otel_config.exporter.METRICS_HEADERS))
+    assert headers["x-team"] == "apm"
+    assert headers["dd-api-key"] == "foobarkey"
