@@ -132,4 +132,9 @@ RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYE
 
 RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "uv==${UV_VERSION}"
 
+# TODO(py-315): Remove or revisit once the GA 3.15 testrunner image provides
+# pip-tools for every target interpreter. Lock generation runs pip-tools with
+# the target interpreter, while Python 3.15 is not the image's default.
+RUN PYENV_VERSION=3.15-dev python -m pip install --no-cache-dir "pip<25.3" "pip-tools==7.5.2"
+
 CMD ["/bin/bash"]
