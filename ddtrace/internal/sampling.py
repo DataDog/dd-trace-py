@@ -2,7 +2,6 @@ import json
 import math
 from typing import Any
 from typing import Optional
-from typing import Sequence
 from typing import TypedDict
 
 from ddtrace._trace.sampling_rule import SamplingRule
@@ -298,7 +297,7 @@ def _inherit_sampling_tags(target: Span, source: Span):
     target._set_attribute(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
-def _get_highest_precedence_rule_matching(span: Span, rules: Sequence[SamplingRule]) -> Optional[SamplingRule]:
+def _get_highest_precedence_rule_matching(span: Span, rules: list[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 
