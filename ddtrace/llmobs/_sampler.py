@@ -191,11 +191,7 @@ class _PendingDecision:
 
 
 class LLMObsSamplingRegistry:
-    """Tracks in-flight LLMObs traces and resolves each one's decision exactly once.
-
-    Lives here rather than on ``LLMObs`` so ``_processor`` can depend on it without importing
-    ``_llmobs`` (which imports ``_processor``).
-    """
+    """Tracks in-flight LLMObs traces and resolves each one's decision exactly once."""
 
     def __init__(self, sampler: LLMObsSampler) -> None:
         self._sampler = sampler
@@ -209,11 +205,11 @@ class LLMObsSamplingRegistry:
         return LLMObsSamplingDecision.SAMPLED.value if sampled else LLMObsSamplingDecision.DROPPED.value
 
     def default_decision(self, root: Span) -> tuple[str, str]:
-        """The global-rate decision, stamped at root start as a floor.
+        """The global-rate decision, stamped at root start.
 
-        Rules can't be evaluated this early — the root has no tags yet — but every span must carry
-        some decision, so this stands in until ``resolve`` can overwrite it with a rule-aware one.
-        It is also what a trace falls back to when the registry cannot answer for it at all.
+        Maintains the invariant that every span must carry some decision, so this stands in until ``resolve``
+        can overwrite it with a rule-aware one. It is also what a trace falls back to when the registry
+        cannot answer for it at all.
         """
         sampled, sample_rate = self._sampler.sample(root)
         return sample_rate, self._as_decision(sampled)
