@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where the stack profiler permanently fell back to a slower
+    memory-copy method when ``faulthandler`` was enabled, or the process forked, during
+    the first seconds after startup.
