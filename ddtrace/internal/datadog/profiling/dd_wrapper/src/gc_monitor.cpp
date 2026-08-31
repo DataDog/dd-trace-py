@@ -6,6 +6,7 @@
 #include <objimpl.h>
 
 #include "gc_monitor.hpp"
+#include "gc_monitor_json.hpp"
 #include "profile_borrow.hpp"
 #include "profiler_state.hpp"
 
@@ -14,7 +15,6 @@
 #include <cstring>
 #include <ctime>
 #include <pthread.h>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -48,7 +48,8 @@ pystr_to_std(PyObject* obj)
         Py_ssize_t n = PyBytes_GET_SIZE(obj);
         return std::string(s, static_cast<size_t>(n));
     }
-    return {};
+
+    return "";
 }
 
 // Return the fully qualified type name "module.qualname".
@@ -71,57 +72,12 @@ type_name_of(PyObject* obj)
     if (mod_s.empty() || mod_s == "builtins") {
         return qname_s.empty() ? "<unknown>" : qname_s;
     }
+
     if (qname_s.empty()) {
         return mod_s;
     }
+
     return mod_s + "." + qname_s;
-}
-
-// Escape a string for JSON output (handles \, ", and control chars).
-std::string
-json_escape(const std::string& s)
-{
-    std::string out;
-    out.reserve(s.size() + 4);
-    for (unsigned char c : s) {
-        if (c == '"') {
-            out += "\\\"";
-        } else if (c == '\\') {
-            out += "\\\\";
-        } else if (c == '\n') {
-            out += "\\n";
-        } else if (c == '\r') {
-            out += "\\r";
-        } else if (c == '\t') {
-            out += "\\t";
-        } else if (c < 0x20) {
-            char buf[8];
-            std::snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(c));
-            out += buf;
-        } else {
-            out += static_cast<char>(c);
-        }
-    }
-    return out;
-}
-
-// Serialize a single TreeNode (non-root) recursively into the stream.
-void
-serialize_node(std::ostringstream& out, const TreeNode& node, int indent)
-{
-    std::string pad(static_cast<size_t>(indent * 2), ' ');
-    out << pad << "{\"t\":" << node.type_idx << ",\"ic\":" << node.ic << ",\"ts\":" << node.ts;
-    if (!node.children.empty()) {
-        out << ",\"ch\":[";
-        for (size_t i = 0; i < node.children.size(); ++i) {
-            if (i > 0) {
-                out << ",";
-            }
-            serialize_node(out, node.children[i], indent + 1);
-        }
-        out << "]";
-    }
-    out << "}";
 }
 
 // Returns true when the type name matches a pattern that is known to produce
@@ -203,7 +159,7 @@ is_excluded_type(const std::string& tname) noexcept
 
 // Resolve a PyTypeObject* histogram into a parallel (type_table, type_counts)
 // representation, deduplicating by fully-qualified type name.  This is the only
-// part of the snapshot that needs Python API calls per *unique type* (not per
+// part of the snapshot that needs Python API calls (once per unique type, (not per
 // instance), so it is cheap.  GIL must be held.
 void
 resolve_type_histogram(const std::unordered_map<PyTypeObject*, uint32_t>& type_hist,
@@ -292,8 +248,8 @@ shallow_size(PyObject* obj) noexcept
     return size > 0 ? static_cast<uint64_t>(size) : 0;
 }
 
-// True for the generic builtin container types whose *contents* are what an
-// application object effectively retains. The collapse pass steps *through*
+// True for the generic builtin container types whose contents are what an
+// application object effectively retains. The collapse pass steps through
 // these instead of recording an edge to them, so that a chain like
 // "BundleIndex.__dict__ -> {bundle-id dict} -> Bundle" is attributed to
 // BundleIndex as "BundleIndex -> Bundle" rather than disappearing into the
@@ -379,9 +335,9 @@ build_subtree(uint32_t idx,
 }
 
 // Object-level reference graph captured under the GIL. Identity is preserved
-// (one node per live PyObject*) so the collapse pass can follow *real* object
-// references -- the .gcdump model -- instead of a lossy type->type aggregate
-// that washes container contents into the process-wide "dict"/"list" tally.
+// (one node per live PyObject*) so the collapse pass can follow real object
+// references instead of a lossy type->type aggregate that washes container
+// contents into the process-wide "dict"/"list" tally.
 struct ObjectGraph
 {
     std::vector<uint32_t> node_type;                      // type index per node (into type_table)
@@ -392,10 +348,10 @@ struct ObjectGraph
 };
 
 // Phase A (GIL held): walk every live object in `objs`, calling gc.get_referents
-// once per object, and record the *object-level* reference graph into `g`
+// once per object, and record the object-level reference graph into g
 // (preserving identity) plus the per-type instance counts/sizes. This is the
 // only phase that touches the Python API; the heavier graph processing runs
-// afterwards with the GIL released (see build_collapsed_forest).
+// afterwards with the GIL released (build_collapsed_forest).
 void
 build_object_graph(PyObject* gc_mod,
                    PyObject* objs,
@@ -761,7 +717,8 @@ GCMonitor::start(uint64_t interval_ms, int survivor_threshold, int top_n, bool r
     lock.unlock();
 
     _thread = std::thread(&GCMonitor::thread_main, this);
-    _thread.detach(); // we never join; shutdown is signal-only
+    // We never join; shutdown is signal-only using a condition variable
+    _thread.detach();
 }
 
 void
@@ -779,9 +736,8 @@ GCMonitor::stop()
 void
 GCMonitor::install_atfork_once()
 {
-    // pthread_atfork can only be safely registered once. Use call_once so
-    // repeated start()/stop() cycles do not accumulate duplicate handlers.
     static std::once_flag flag;
+
     std::call_once(flag, []() {
         pthread_atfork([]() { GCMonitor::get().prefork(); },
                        []() { GCMonitor::get().postfork_parent(); },
@@ -870,12 +826,9 @@ GCMonitor::take_snapshot()
     ProfilerStats::GCSnapshotTiming timing{};
     const auto t_wall_start = Clock::now();
 
-    // ------------------------------------------------------------------
     // Phase 1 (GIL held): GC engine stats + get_objects
-    //
     // We keep this section as short as possible.  The only reason we need
     // the GIL here is to call Python API functions.
-    // ------------------------------------------------------------------
     PyGILState_STATE gstate = PyGILState_Ensure();
     const auto t_gc_stats_start = Clock::now();
 
@@ -964,13 +917,12 @@ GCMonitor::take_snapshot()
     Clock::time_point t_name_resolve_start;
 
     if (_referrers_enabled) {
-        // --------------------------------------------------------------
-        // Reference-tree mode (.gcdump model).
+        // Reference chains enabled
         //
         // Phase A (GIL held): gc.get_objects() materializes the live object list
         // and owns a reference to every object, keeping them alive for the walk.
         // build_object_graph calls gc.get_referents() once per object and
-        // records the *object-level* reference graph (identity preserved). This
+        // records the object-level reference graph (identity preserved). This
         // is the only Python-touching phase, kept as short as possible.
         //
         // Phase B (GIL released): build_collapsed_forest collapses generic
@@ -979,7 +931,6 @@ GCMonitor::take_snapshot()
         // follows real object references, container contents are attributed to
         // the specific holder that owns them (e.g. BundleIndex -> Bundle), which
         // a type-only aggregate cannot do. Gated behind the referrers flag.
-        // --------------------------------------------------------------
         PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
         if (objs == nullptr || !PyList_Check(objs)) {
             Py_XDECREF(objs);
@@ -1006,9 +957,9 @@ GCMonitor::take_snapshot()
         // Phase B runs with the GIL released (no Python API below this point).
         build_collapsed_forest(graph, type_table, type_counts, _max_depth, ref_tree);
     } else {
+        // Reference chains disabled, we only make a class histogram
         std::unordered_map<PyTypeObject*, uint32_t> type_hist;
 #if PY_VERSION_HEX >= 0x030C0000
-        // --------------------------------------------------------------
         // Phases 1+2 (GIL held): walk all GC-tracked objects in place and tally
         // them by type.
         //
@@ -1020,7 +971,6 @@ GCMonitor::take_snapshot()
         // collection (GC is disabled for the duration of the visit anyway).  We
         // never store the object pointers, only their type pointers, so there is
         // no lifetime concern once the visit returns.
-        // --------------------------------------------------------------
         Py_DECREF(gc_mod); // not needed for the in-place walk
 
         PyUnstable_GC_VisitObjects(
@@ -1052,11 +1002,9 @@ GCMonitor::take_snapshot()
         PyErr_Clear();
         PyGILState_Release(gstate);
 #else
-        // --------------------------------------------------------------
         // Fallback for Python < 3.12, which lacks PyUnstable_GC_VisitObjects.
         //
         // Phase 1 (GIL held): gc.get_objects() materializes the live object list.
-        // --------------------------------------------------------------
         PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
         Py_DECREF(gc_mod);
 
@@ -1083,27 +1031,23 @@ GCMonitor::take_snapshot()
         timing.get_objects_us = elapsed_us(t_get_objects_start, t_type_scan_start);
         PyGILState_Release(gstate);
 
-        // --------------------------------------------------------------
         // Phase 2 (GIL released): build type histogram
         //
         // We read ob_type for each object and tally counts by PyTypeObject*.
         // No Python API calls, no refcount operations -- just a struct-field
         // read and a hashmap update.  Python threads are free to run while we
         // do the O(n) work here.
-        // --------------------------------------------------------------
         type_hist.reserve(static_cast<size_t>(n_objs / 8));
 
         for (PyObject* obj : ptrs) {
             type_hist[Py_TYPE(obj)]++;
         }
 
-        // --------------------------------------------------------------
         // Phase 3 (GIL re-acquired): resolve type names, release object list
         //
         // We resolve names while `objs` is still alive to guarantee that the
         // PyTypeObject* keys in type_hist are valid (a heap type's refcount
         // includes a contribution from each of its live instances).
-        // --------------------------------------------------------------
         gstate = PyGILState_Ensure();
         t_name_resolve_start = Clock::now();
         timing.type_scan_us = elapsed_us(t_type_scan_start, t_name_resolve_start);
@@ -1117,9 +1061,7 @@ GCMonitor::take_snapshot()
 #endif
     }
 
-    // ------------------------------------------------------------------
     // Phase 4 (GIL released): serialize
-    // ------------------------------------------------------------------
     const auto t_serialize_start = Clock::now();
     timing.name_resolve_us = elapsed_us(t_name_resolve_start, t_serialize_start);
 
@@ -1147,100 +1089,11 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
                      const std::vector<RootNode>& roots,
                      const std::vector<TreeNode>& ref_tree)
 {
-    // Compute snapshot time (ns since epoch)
-    auto now = std::chrono::system_clock::now();
-    auto ts_ns =
-      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
-
-    std::ostringstream out;
-    out << "{\"v\":1"
-        << ",\"ts_ns\":" << ts_ns;
-
-    // gc block
-    out << ",\"gc\":{"
-        << "\"enabled\":" << (gc_enabled ? "true" : "false") << ",\"thresholds\":[" << thresholds[0] << ","
-        << thresholds[1] << "," << thresholds[2] << "]"
-        << ",\"garbage\":" << garbage_count << ",\"gen\":[";
-    for (int i = 0; i < 3; ++i) {
-        if (i > 0) {
-            out << ",";
-        }
-        out << "{\"n\":" << gen_stats[i].n << ",\"col\":" << gen_stats[i].col << ",\"uncol\":" << gen_stats[i].uncol
-            << "}";
-    }
-    out << "],\"d_gen\":[";
-    for (int i = 0; i < 3; ++i) {
-        if (i > 0) {
-            out << ",";
-        }
-        out << "{\"n\":" << delta_stats[i].n << ",\"col\":" << delta_stats[i].col
-            << ",\"uncol\":" << delta_stats[i].uncol << "}";
-    }
-    out << "]}";
-
-    // type table
-    out << ",\"tt\":[";
-    for (size_t i = 0; i < type_table.size(); ++i) {
-        if (i > 0) {
-            out << ",";
-        }
-        out << "\"" << json_escape(type_table[i]) << "\"";
-    }
-    out << "]";
-
-    // per-type instance counts (parallel array to "tt")
-    out << ",\"tc\":[";
-    for (size_t i = 0; i < type_counts.size(); ++i) {
-        if (i > 0) {
-            out << ",";
-        }
-        out << type_counts[i];
-    }
-    out << "]";
-
-    // reference tree roots
-    out << ",\"r\":[";
-    for (size_t i = 0; i < roots.size(); ++i) {
-        const RootNode& r = roots[i];
-        if (i > 0) {
-            out << ",";
-        }
-        out << "{\"t\":" << r.type_idx << ",\"c\":\"" << r.category << "\""
-            << ",\"ic\":" << r.ic << ",\"ts\":" << r.ts;
-        if (!r.fn.empty()) {
-            out << ",\"fn\":\"" << json_escape(r.fn) << "\"";
-        }
-        if (!r.children.empty()) {
-            out << ",\"ch\":[";
-            for (size_t j = 0; j < r.children.size(); ++j) {
-                if (j > 0) {
-                    out << ",";
-                }
-                serialize_node(out, r.children[j], 0);
-            }
-            out << "]";
-        }
-        out << "}";
-    }
-    out << "]";
-
-    // reference tree (type -> type "holds a reference to" graph). Each node is
-    // {"t":type_idx,"ic":refs,"ts":bytes,"ch":[...]} -- see serialize_node. A
-    // root node's ic/ts are the type's live instance count and total shallow
-    // size; a child node's ic/ts are the number of references from the parent
-    // type to the child type and the bytes they retain (each held object's own
-    // shallow size plus the generic-container scaffold it owns).
-    out << ",\"rt\":[";
-    for (size_t i = 0; i < ref_tree.size(); ++i) {
-        if (i > 0) {
-            out << ",";
-        }
-        serialize_node(out, ref_tree[i], 0);
-    }
-    out << "]}";
+    std::string json = serialize_snapshot_json(
+      gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, roots, ref_tree);
 
     std::lock_guard<std::mutex> lock(_mutex);
-    _latest_json = out.str();
+    _latest_json = std::move(json);
 }
 
 } // namespace Datadog
