@@ -19,7 +19,6 @@ serialize_snapshot_json(const std::array<GCGenStats, 3>& gen_stats,
                         int garbage_count,
                         const std::vector<std::string>& type_table,
                         const std::vector<uint32_t>& type_counts,
-                        const std::vector<RootNode>& roots,
                         const std::vector<TreeNode>& ref_tree);
 
 } // namespace Datadog
