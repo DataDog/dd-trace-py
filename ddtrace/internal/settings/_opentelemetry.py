@@ -20,10 +20,13 @@ def _targets_agentless_intake(signal_endpoint_env_var: str = "") -> bool:
     return not (signal_endpoint_env_var and env.get(signal_endpoint_env_var))
 
 
-def _default_headers(config: "ExporterConfig", signal_endpoint_env_var: str) -> str:
-    if agentless_config.api_key and _targets_agentless_intake(signal_endpoint_env_var):
-        return f"dd-api-key={agentless_config.api_key}"
-    return config.HEADERS
+def _with_intake_auth(configured: str, signal_endpoint_env_var: str) -> str:
+    if not agentless_config.api_key or not _targets_agentless_intake(signal_endpoint_env_var):
+        return configured
+    if "dd-api-key" in configured.lower():
+        return configured
+    api_key_header = f"dd-api-key={agentless_config.api_key}"
+    return f"{configured},{api_key_header}" if configured else api_key_header
 
 
 def _default_protocol(config: "ExporterConfig", signal_endpoint_env_var: str = "") -> str:
@@ -57,7 +60,9 @@ def _derive_logs_protocol(config: "ExporterConfig"):
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_HEADERS", _default_headers(config, "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"))
+    return _with_intake_auth(
+        get_config("OTEL_EXPORTER_OTLP_LOGS_HEADERS", config.HEADERS), "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"
+    )
 
 
 def _derive_logs_timeout(config: "ExporterConfig"):
@@ -77,8 +82,8 @@ def _derive_metrics_protocol(config: "ExporterConfig"):
 
 
 def _derive_metrics_headers(config: "ExporterConfig"):
-    return get_config(
-        "OTEL_EXPORTER_OTLP_METRICS_HEADERS", _default_headers(config, "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT")
+    return _with_intake_auth(
+        get_config("OTEL_EXPORTER_OTLP_METRICS_HEADERS", config.HEADERS), "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"
     )
 
 
