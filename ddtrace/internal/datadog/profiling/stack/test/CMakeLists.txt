@@ -109,6 +109,12 @@ dd_wrapper_add_test(test_alt_stack_ownership test_alt_stack_ownership.cpp)
 # ThreadAltStack lives in the vendored echion header tree.
 target_include_directories(test_alt_stack_ownership PRIVATE ../echion)
 
+dd_wrapper_add_test(test_fault_chainback test_fault_chainback.cpp)
+# init_segv_catcher/safe_memcpy_wrapper are declared in the vendored echion header tree, behind the PL_LINUX/PL_DARWIN
+# platform switch that the extension defines.
+target_include_directories(test_fault_chainback PRIVATE ../echion)
+target_compile_definitions(test_fault_chainback PRIVATE "$<TARGET_PROPERTY:${EXTENSION_NAME},COMPILE_DEFINITIONS>")
+
 # vm.cc is compiled into the test binary: the fast-copy state lives in inline variables, so the copy in the test
 # executable is distinct from the one in the _stack library and only the constructor linked here initializes it.
 dd_wrapper_add_test(test_embedded_fast_copy test_embedded_fast_copy.cpp ../src/echion/vm.cc)

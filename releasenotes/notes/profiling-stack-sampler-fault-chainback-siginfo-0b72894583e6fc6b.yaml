@@ -1,0 +1,6 @@
+fixes:
+  - |
+    Profiling: fixed a crash in host applications that embed CPython. Faults the stack
+    sampler does not recover are now handed back to the previous signal handler with the
+    original fault address and cause intact, instead of being re-raised with metadata that
+    prevented the host from recovering.
