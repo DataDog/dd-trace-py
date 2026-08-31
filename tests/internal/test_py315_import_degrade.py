@@ -1,6 +1,6 @@
 """Python 3.15 wrapping: trampoline plus 3.15 generator/coroutine assemblies.
 
-wrap() / wrap_bytecode() run on 3.15 and fail closed from NEXT_PY_VERSION.
+wrap() / wrap_bytecode() run on 3.15 and fail closed from 3.16.
 @lazy uses WrappingContext.wrap() (sys.monitoring) on 3.15. inject_hook is
 monitoring-based on 3.15.
 """
@@ -9,13 +9,27 @@ from types import CoroutineType
 
 import pytest
 
-from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+from ddtrace.internal.compat import MAX_PY
+from ddtrace.internal.compat import MAX_PY_VERSION
+from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import PY_315_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 
-# wrap() is live on 3.15 until NEXT_PY. A skipif of version < NEXT_PY would
-# skip 3.15 once NEXT_PY is 3.16.
-_WRAP_ON_315 = (3, 15) <= PYTHON_VERSION_INFO[:2] < NEXT_PY_VERSION_INFO
+# wrap() is live on 3.15 until 3.16. Do not skipif on NEXT_MAX_PY (3.15).
+_WRAP_ON_315: bool = (3, 15) <= PYTHON_VERSION_INFO[:2] < (3, 16)
+
+
+def test_max_and_next_max_py_version_constants() -> None:
+    assert MAX_PY_VERSION == "3.14"
+    assert MAX_PY == (3, 14)
+    assert NEXT_MAX_PY == (MAX_PY[0], MAX_PY[1] + 1)
+    assert NEXT_MAX_PY == (3, 15)
+
+
+def test_py315_api_floor_is_not_aliased_to_max() -> None:
+    assert PY_315_VERSION_INFO == (3, 15)
+    assert PY_315_VERSION_INFO is not MAX_PY
 
 
 def test_wrapping_modules_import():
@@ -86,10 +100,10 @@ async def test_wrap_coroutine_on_315():
 
 
 def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
-    """wrap() must fail closed from NEXT_PY_VERSION on."""
+    """wrap() must fail closed from 3.16 on."""
     import ddtrace.internal.wrapping as wrapping
 
-    monkeypatch.setattr(wrapping, "PY", NEXT_PY_VERSION_INFO)
+    monkeypatch.setattr(wrapping, "PY", (3, 16))
 
     def f() -> None:
         return None
