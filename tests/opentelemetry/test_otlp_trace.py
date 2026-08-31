@@ -65,6 +65,109 @@ def test_otlp_traces_sent_via_http():
 
 @pytest.mark.subprocess(
     env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_ENV": "adaptive-env",
+        "DD_SERVICE": "adaptive-service",
+        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "http/json",
+    }
+)
+def test_agentless_adaptive_sampling_exports_otlp_trace_metadata():
+    """Agentless Remote Configuration sampling decisions survive explicit OTLP export."""
+    from http.server import BaseHTTPRequestHandler
+    import json
+    import os
+    import queue
+    import socketserver
+    import threading
+
+    received = queue.Queue()
+
+    class OtlpHandler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length", 0))
+            received.put((self.path, self.rfile.read(length)))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    with socketserver.TCPServer(("127.0.0.1", 0), OtlpHandler) as server:
+        port = server.server_address[1]
+        os.environ["OTEL_EXPORTER_OTLP_TRACES_ENDPOINT"] = f"http://127.0.0.1:{port}/v1/traces"
+
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        import ddtrace
+        from ddtrace._trace.product import apm_tracing_rc
+        from ddtrace.trace import Context
+        from ddtrace.trace import tracer
+
+        assert tracer._span_aggregator.writer.agentless is False
+        apm_tracing_rc(
+            {
+                "tracing_sampling_rules": [
+                    {
+                        "service": "adaptive-service",
+                        "resource": "GET /adaptive",
+                        "provenance": "dynamic",
+                        "sample_rate": 0.25,
+                    },
+                    {
+                        "service": "adaptive-service",
+                        "resource": "GET /drop",
+                        "provenance": "dynamic",
+                        "sample_rate": 0,
+                    },
+                ]
+            },
+            ddtrace.config,
+        )
+
+        with tracer.start_span(
+            "adaptive.request",
+            child_of=Context(trace_id=1, span_id=0),
+            service="adaptive-service",
+            resource="GET /adaptive",
+        ):
+            pass
+        with tracer.start_span(
+            "adaptive.request",
+            child_of=Context(trace_id=2, span_id=0),
+            service="adaptive-service",
+            resource="GET /drop",
+        ):
+            pass
+
+        tracer.flush()
+        server.shutdown()
+
+    assert received.qsize() == 1
+    path, body = received.get_nowait()
+    assert path == "/v1/traces"
+
+    payload = json.loads(body)
+    resource_span = payload["resourceSpans"][0]
+    resource_attributes = {item["key"]: item["value"] for item in resource_span["resource"]["attributes"]}
+    assert resource_attributes["service.name"]["stringValue"] == "adaptive-service"
+    assert resource_attributes["deployment.environment.name"]["stringValue"] == "adaptive-env"
+
+    spans = resource_span["scopeSpans"][0]["spans"]
+    assert len(spans) == 1
+    assert spans[0]["name"] == "GET /adaptive"
+    attributes = {item["key"]: item["value"] for item in spans[0]["attributes"]}
+    assert attributes["resource.name"]["stringValue"] == "GET /adaptive"
+    assert attributes["_dd.rule_psr"]["doubleValue"] == 0.25
+    assert int(attributes["_sampling_priority_v1"]["intValue"]) == 2
+    assert attributes["_dd.p.dm"]["stringValue"] == "-12"
+
+
+@pytest.mark.subprocess(
+    env={
         "OTEL_TRACES_EXPORTER": "otlp",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
         # Note: OTEL_EXPORTER_OTLP_METRICS_PROTOCOL is intentionally NOT set. The native
