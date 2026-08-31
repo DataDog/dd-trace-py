@@ -82,13 +82,13 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
     )
 
     with pytest.raises(ValueError, match="hash-without-path"):
-        gen_gitlab_config_mod._validate_ddtest_venv_test_locations("internal", info)
+        gen_gitlab_config_mod._ddtest_module().validate_ddtest_venv_test_locations("internal", info)
 
 
 def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
     output = io.StringIO()
 
-    gen_gitlab_config_mod._emit_ddtest_jobs(
+    gen_gitlab_config_mod._ddtest_module().emit_ddtest_jobs(
         output,
         suite="internal",
         stage="core",
