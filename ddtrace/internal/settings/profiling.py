@@ -299,6 +299,19 @@ class ProfilingConfig(DDConfig):
         ),
     )
 
+    export_via_pyo3 = DDConfig.v(
+        bool,
+        "export_via_pyo3",
+        default=False,
+        help_type="Boolean",
+        help=(
+            "Whether to upload profiles using the PyO3-based uploader (bypassing the C++ "
+            "Uploader/UploaderBuilder and the libdatadog C ABI) instead of the default uploader. "
+            "Experimental; disabled by default."
+        ),
+        private=True,
+    )
+
 
 class ProfilingConfigStack(DDConfig):
     __item__ = __prefix__ = "stack"

@@ -1,5 +1,6 @@
 #include "ddup_interface.hpp"
 
+#include "code_provenance.hpp"
 #include "defer.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
@@ -425,4 +426,60 @@ ddup_profile_add_endpoint_counts(
             ddog_Error_drop(&err);
         }
     }
+}
+
+DdupSerializeResult
+ddup_serialize() // cppcheck-suppress unusedFunction
+{
+    DdupSerializeResult result;
+
+    if (!ddup_is_initialized()) {
+        result.errmsg = "ddup_serialize() called before ddup_start()";
+        return result;
+    }
+
+    auto& state = Datadog::ProfilerState::get();
+
+    ddog_prof_Profile_SerializeResult encoded;
+    Datadog::ProfilerStats stats;
+    {
+        // Only keep the lock for the duration of the encoding operation, matching
+        // UploaderBuilder::build()'s scope.
+        auto borrowed = state.profile_state.borrow();
+
+        // Swap the ProfilerStats (which replaces the one being written to with an empty
+        // state) before serializing, so stats are reset even if serialization fails below.
+        std::swap(stats, borrowed.stats());
+        borrowed.stats().copy_fast_copy_metadata_from(stats);
+
+        encoded = ddog_prof_Profile_serialize(&borrowed.profile(), nullptr, nullptr);
+    }
+
+    if (encoded.tag != DDOG_PROF_PROFILE_SERIALIZE_RESULT_OK) {
+        auto err = encoded.err;
+        result.errmsg = Datadog::err_to_msg(&err, "Error serializing profile");
+        ddog_Error_drop(&err);
+        return result;
+    }
+
+    auto bytes_res = ddog_prof_EncodedProfile_bytes(&encoded.ok);
+    if (bytes_res.tag == DDOG_PROF_RESULT_BYTE_SLICE_ERR_BYTE_SLICE) {
+        result.errmsg = Datadog::err_to_msg(&bytes_res.err, "Error getting bytes from encoded profile");
+        ddog_Error_drop(&bytes_res.err);
+        ddog_prof_EncodedProfile_drop(&encoded.ok);
+        return result;
+    }
+
+    result.buffer.assign(reinterpret_cast<const char*>(bytes_res.ok.ptr), bytes_res.ok.len);
+    result.internal_metadata_json = stats.get_internal_metadata_json();
+    result.ok = true;
+
+    ddog_prof_EncodedProfile_drop(&encoded.ok);
+    return result;
+}
+
+std::string
+ddup_get_code_provenance_json() // cppcheck-suppress unusedFunction
+{
+    return std::string(Datadog::CodeProvenance::get_instance().get_json_str());
 }

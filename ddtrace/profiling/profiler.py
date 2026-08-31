@@ -239,6 +239,7 @@ class _ProfilerInstance(service.Service):
             sample_pool_capacity=profiling_config.sample_pool_capacity,
             timeout=profiling_config.api_timeout_ms,
             process_tags=self.process_tags,
+            use_native_uploader=profiling_config.export_via_pyo3,
         )
         ddup.start()
 

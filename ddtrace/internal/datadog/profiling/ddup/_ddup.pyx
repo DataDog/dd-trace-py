@@ -3,12 +3,15 @@
 
 import platform
 import types
+from os import getpid
+from time import time_ns
 from typing import Mapping
 from typing import Optional
 from typing import Union
 
 from cpython.object cimport PyObject
 from cpython.unicode cimport PyUnicode_AsUTF8AndSize
+from libcpp.string cimport string
 from libcpp.unordered_map cimport unordered_map
 from libcpp.utility cimport pair
 
@@ -19,9 +22,13 @@ from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.datadog.profiling._types import StringType
 from ddtrace.internal.datadog.profiling.code_provenance import get_code_provenance_file
 from ddtrace.internal.datadog.profiling.util import sanitize_string
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_process_role
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._agent import config as agent_config
+
+
+LOG = get_logger(__name__)
 
 
 ctypedef void (*func_ptr_t)(string_view)
@@ -100,6 +107,17 @@ cdef extern from "ddup_interface.hpp":
 
 cdef extern from "code_provenance_interface.hpp":
     void code_provenance_set_file_path(string_view file_path)
+
+
+cdef extern from "ddup_interface.hpp":
+    cdef cppclass DdupSerializeResult:
+        bint ok
+        string errmsg
+        string buffer
+        string internal_metadata_json
+
+    DdupSerializeResult ddup_serialize()
+    string ddup_get_code_provenance_json()
 
 
 # Create wrappers for cython
@@ -345,6 +363,18 @@ cdef int64_t clamp_to_int64_unsigned(value):
 # Module-level flag to track if code provenance has been set
 cdef bint _code_provenance_set = False
 
+# Config values cached here (in addition to being pushed into the C++ ProfilerState via
+# ddup_config_*) so that the PyO3 upload path can build its own tag list and construct a
+# native.ProfileUploader without a corresponding C-ABI accessor to read them back out of
+# ProfilerState. Only populated when use_native_uploader is requested.
+_native_uploader_config = None
+
+# Cached verbatim from the most recent set_profiler_settings_json() call, for the same reason as
+# _native_uploader_config: there is no C-ABI accessor to read profiler_settings_info_json back out
+# of ProfilerState, and the PyO3 upload path needs it to forward as the exporter's `info` payload
+# (the C++ path reads it directly off ProfilerState in Uploader::upload_unlocked()).
+_profiler_settings_json = None
+
 
 def config(
         service: StringType = None,
@@ -356,8 +386,10 @@ def config(
         output_filename: StringType = None,
         sample_pool_capacity: Optional[int] = None,
         timeout: Optional[int] = None,
-        process_tags: StringType = None
+        process_tags: StringType = None,
+        use_native_uploader: bool = False,
 ) -> None:
+    global _native_uploader_config
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
@@ -374,9 +406,12 @@ def config(
         call_func_with_str(ddup_config_process_tags, process_tags)
 
     # Inherited
-    call_func_with_str(ddup_config_runtime, platform.python_implementation())
-    call_func_with_str(ddup_config_runtime_version, platform.python_version())
-    call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
+    runtime = platform.python_implementation()
+    runtime_version = platform.python_version()
+    profiler_version = ddtrace.__version__
+    call_func_with_str(ddup_config_runtime, runtime)
+    call_func_with_str(ddup_config_runtime_version, runtime_version)
+    call_func_with_str(ddup_config_profiler_version, profiler_version)
 
     if max_nframes is not None:
         ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
@@ -393,12 +428,41 @@ def config(
     if timeout is not None:
         ddup_config_set_max_timeout_ms(clamp_to_uint64_unsigned(timeout))
 
+    if use_native_uploader:
+        user_tags = {}
+        if tags is not None:
+            for key, val in tags.items():
+                if key and val:
+                    user_tags[compat_str(key)] = compat_str(val)
+        _native_uploader_config = {
+            "env": compat_str(env) if env else None,
+            "service": compat_str(service),
+            "version": compat_str(version) if version else None,
+            "runtime": runtime,
+            "runtime_version": runtime_version,
+            "profiler_version": profiler_version,
+            "output_filename": compat_str(output_filename) if output_filename else None,
+            "process_tags": compat_str(process_tags) if process_tags else None,
+            "timeout_ms": timeout,
+            "user_tags": user_tags,
+        }
+    else:
+        _native_uploader_config = None
+
+
+cdef str compat_str(value):
+    if isinstance(value, bytes):
+        return value.decode("utf-8")
+    return value
+
 
 def start() -> None:
     ddup_start()
 
 
 def set_profiler_settings_json(settings_json: StringType) -> None:
+    global _profiler_settings_json
+    _profiler_settings_json = compat_str(settings_json)
     call_func_with_str(ddup_set_profiler_settings_json, settings_json)
 
 
@@ -412,7 +476,11 @@ def _get_endpoint(tracer)-> str:
     return endpoint
 
 
-def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
+def upload(
+        tracer: Optional[Tracer] = ddtrace.tracer,
+        enable_code_provenance: Optional[bool] = None,
+        start_ns: Optional[int] = None,
+) -> None:
     global _code_provenance_set
 
     call_func_with_str(ddup_set_runtime_id, get_runtime_id())
@@ -437,8 +505,80 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
             call_code_provenance_set_file_path(code_provenance_file)
             _code_provenance_set = True
 
+    if _native_uploader_config is not None:
+        # ddup_upload() (below) never raises -- it reports failures via stderr logging inside
+        # dd_wrapper and returns. Match that so a native-upload failure can't propagate up
+        # through Scheduler.flush()/periodic() and kill the periodic reporting thread.
+        try:
+            _upload_via_native(endpoint, role, endpoint_counts, start_ns)
+        except Exception:
+            LOG.error("Failed to upload profile via native uploader", exc_info=True)
+        return
+
     with nogil:
         ddup_upload()
+
+
+def _upload_via_native(endpoint: str, role: Optional[str], endpoint_counts: Mapping, start_ns: Optional[int]) -> None:
+    # Imported lazily: the native extension's `profiling` Cargo feature (and thus
+    # ProfileUploader) may not be built into every environment, and importing it eagerly at
+    # module scope would turn a purely opt-in code path into a hard import dependency.
+    from ddtrace.internal.native._native import ProfileUploader
+
+    cdef DdupSerializeResult result = ddup_serialize()
+    if not result.ok:
+        errmsg = (<bytes>result.errmsg).decode("utf-8", "replace")
+        LOG.error("Failed to serialize profile for native upload: %s", errmsg)
+        return
+
+    end_ns = time_ns()
+    if start_ns is None:
+        start_ns = end_ns
+
+    cfg = _native_uploader_config
+    tags = list(cfg["user_tags"].items())
+    tags.append(("language", "python"))
+    tags.append(("service", cfg["service"]))
+    tags.append(("runtime", cfg["runtime"]))
+    tags.append(("runtime_version", cfg["runtime_version"]))
+    tags.append(("profiler_version", cfg["profiler_version"]))
+    tags.append(("runtime-id", get_runtime_id()))
+    tags.append(("process_id", str(getpid())))
+    if cfg["env"]:
+        tags.append(("env", cfg["env"]))
+    if cfg["version"]:
+        tags.append(("version", cfg["version"]))
+    if role is not None:
+        tags.append(("process_type", role))
+
+    additional_files = []
+    code_provenance_json = <bytes>ddup_get_code_provenance_json()
+    if code_provenance_json:
+        additional_files.append(("code-provenance.json", code_provenance_json))
+
+    uploader = ProfileUploader(
+        library_name="dd-trace-py",
+        library_version=cfg["profiler_version"],
+        family="python",
+        url=endpoint,
+        tags=tags,
+        timeout_ms=cfg["timeout_ms"],
+        output_filename=cfg["output_filename"],
+    )
+    normalized_endpoints_stats = [
+        (compat_str(endpoint_name), count) for endpoint_name, count in endpoint_counts.items() if endpoint_name
+    ]
+
+    uploader.send_blocking(
+        buffer=<bytes>result.buffer,
+        start_ns=start_ns,
+        end_ns=end_ns,
+        internal_metadata_json=(<bytes>result.internal_metadata_json).decode("utf-8") or None,
+        info_json=_profiler_settings_json,
+        process_tags=cfg["process_tags"],
+        additional_files=additional_files,
+        endpoints_stats=normalized_endpoints_stats,
+    )
 
 
 cdef class SampleHandle:

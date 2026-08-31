@@ -20,6 +20,10 @@ mod library_config;
 mod log;
 #[cfg(target_os = "linux")]
 mod otel_thread_ctx;
+#[cfg(feature = "profiling")]
+mod profiling_sample;
+#[cfg(feature = "profiling")]
+mod profiling_uploader;
 mod py_string;
 mod rand;
 mod rc_shm;
@@ -44,6 +48,15 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     }
 
     m.add_class::<library_config::PyConfigurator>()?;
+
+    #[cfg(feature = "profiling")]
+    {
+        m.add_class::<profiling_uploader::ProfileUploaderPy>()?;
+        m.add_class::<profiling_sample::SampleHandlePy>()?;
+        m.add_class::<profiling_sample::DdProfilePy>()?;
+        m.add_function(wrap_pyfunction!(profiling_sample::set_timeline, m)?)?;
+        m.add("SAMPLE_TYPE_ALL", profiling_sample::SampleTypeMask::ALL)?;
+    }
 
     #[cfg(feature = "crashtracker")]
     {

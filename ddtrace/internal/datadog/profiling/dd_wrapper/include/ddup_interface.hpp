@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 
@@ -102,3 +103,32 @@ extern "C"
 #ifdef __cplusplus
 } // extern "C"
 #endif
+
+// Result of ddup_serialize(). Declared with C++ linkage (not inside the extern "C" block
+// above) because it carries owning std::string members -- this is only ever called from the
+// Cython layer, which is itself compiled as C++, so ordinary C++ value semantics apply.
+//
+// `buffer` holds the raw (gzip-compressed) pprof bytes. std::string is used rather than
+// std::vector<uint8_t> purely because Cython's libcpp.string.string binding converts directly
+// to a Python `bytes` object; std::string is safe here as a byte container since it carries an
+// explicit length and never assumes/requires NUL-termination.
+struct DdupSerializeResult
+{
+    bool ok = false;
+    std::string errmsg;
+    std::string buffer;
+    std::string internal_metadata_json;
+};
+
+// Serializes the aggregated profile (built up over the current export interval) and resets it
+// for the next interval. Does not send anything -- this is the "get me the bytes" half of what
+// UploaderBuilder::build() + ddog_prof_Profile_serialize() do today; sending is left to the
+// caller (see ddtrace.internal.native.ProfileUploader).
+DdupSerializeResult
+ddup_serialize();
+
+// Returns the current code-provenance JSON payload (empty if code provenance hasn't been
+// configured via code_provenance_set_file_path()), for callers that need to attach it
+// themselves as an additional upload file.
+std::string
+ddup_get_code_provenance_json();

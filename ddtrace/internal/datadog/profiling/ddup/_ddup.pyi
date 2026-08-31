@@ -20,10 +20,15 @@ def config(
     sample_pool_capacity: Optional[int] = None,
     timeout: Optional[int] = None,
     process_tags: Optional[str] = None,
+    use_native_uploader: bool = False,
 ) -> None: ...
 def start() -> None: ...
 def set_profiler_settings_json(settings_json: StringType) -> None: ...
-def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None: ...
+def upload(
+    tracer: Optional[Tracer] = ddtrace.tracer,
+    enable_code_provenance: Optional[bool] = None,
+    start_ns: Optional[int] = None,
+) -> None: ...
 def init(
     service: str,
     env: str,

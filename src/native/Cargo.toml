@@ -12,17 +12,22 @@ codegen-units = 1
 
 [features]
 crashtracker = ["dep:libdd-crashtracker", "dep:pyo3-ffi", "dep:libc"]
-profiling = ["dep:libdd-profiling-ffi"]
+profiling = ["dep:libdd-profiling-ffi", "dep:libdd-profiling", "dep:http", "dep:tokio-util", "dep:parking_lot", "dep:libc"]
 ffe = ["dep:libdd-ffe"]
 stats = ["dep:libdd-ddsketch"]
 
 [dependencies]
 anyhow = { version = "1.0" }
+http = { version = "1.1", optional = true }
+# Version must match libdd-profiling's own tokio-util pin (Cargo.toml comment there):
+# we name `tokio_util::sync::CancellationToken` directly, so it must be the same type.
+tokio-util = { version = "0.7.1", default-features = false, optional = true }
 # `bytes 1.10+` is required for `Bytes::from_owner` (used in http_client to
 # wrap PyBackedBytes zero-copy across the GIL release).
 bytes = "1.10"
 url = "2"
 libc = { version = "0.2", optional = true }
+parking_lot = { version = "0.12", optional = true }
 rand = "0.9"
 rustc-hash = "1.1"
 serde = "1.0"
@@ -48,6 +53,7 @@ libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", optional = true, features = [
     "cbindgen",
 ] }
+libdd-profiling = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0", optional = true }
 libdd-common = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
 libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v41.0.0" }
 native-proc-macro = { path = "native_proc_macro" }

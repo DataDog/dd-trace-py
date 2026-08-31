@@ -27,6 +27,35 @@ class DDSketch:
     @property
     def count(self) -> float: ...
 
+class ProfileUploader:
+    """
+    Pilot PyO3 binding for the profiling upload/export path, wrapping
+    libdatadog's safe `ProfileExporter` directly (bypasses dd_wrapper's
+    C++ Uploader/UploaderBuilder and the libdatadog C ABI for this slice).
+    """
+
+    def __init__(
+        self,
+        library_name: str,
+        library_version: str,
+        family: str,
+        url: str,
+        tags: list[tuple[str, str]] = ...,
+        timeout_ms: Optional[int] = None,
+        output_filename: Optional[str] = None,
+    ): ...
+    def send_blocking(
+        self,
+        buffer: bytes,
+        start_ns: int,
+        end_ns: int,
+        internal_metadata_json: Optional[str] = None,
+        info_json: Optional[str] = None,
+        process_tags: Optional[str] = None,
+        additional_files: list[tuple[str, bytes]] = ...,
+        endpoints_stats: list[tuple[str, int]] = ...,
+    ) -> int: ...
+
 class PyConfigurator:
     """
     PyConfigurator is a class responsible for configuring the Python environment
