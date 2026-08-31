@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    tracing: OpenTelemetry thread-context publication is now disabled by default. To enable it for external readers such as the OpenTelemetry eBPF Profiler, set ``DD_TRACE_OTEL_CTX_ENABLED=true``.

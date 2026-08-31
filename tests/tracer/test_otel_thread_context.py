@@ -12,6 +12,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import core
 from ddtrace.internal.opentelemetry.thread_context import register_otel_thread_context_listener
+from ddtrace.internal.settings._config import config
 
 
 pytestmark = pytest.mark.skipif(sys.platform != "linux", reason="OTel thread context is only published on Linux")
@@ -65,7 +66,8 @@ def _published_trace_flags():
 
 
 @pytest.fixture(autouse=True)
-def _register_otel_thread_context_listener(tracer):
+def _register_otel_thread_context_listener(tracer, monkeypatch):
+    monkeypatch.setattr(config, "_otel_thread_context_enabled", True)
     listeners = register_otel_thread_context_listener(tracer)
     assert listeners is not None
     activation_listener, context_switch_listener = listeners
@@ -149,8 +151,8 @@ def test_only_installed_context_provider_updates_thread_context(tracer: Tracer):
         assert _published_span_id() == span.span_id
 
 
-@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "false"})
-def test_thread_context_listeners_can_be_disabled():
+@pytest.mark.subprocess
+def test_thread_context_listeners_are_disabled_by_default():
     import sys
 
     assert "ddtrace" not in sys.modules
@@ -166,6 +168,25 @@ def test_thread_context_listeners_can_be_disabled():
         from ddtrace.internal.native._native import is_context_watcher_registered
 
         assert is_context_watcher_registered() is False
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_CTX_ENABLED": "true"})
+def test_thread_context_listeners_can_be_enabled():
+    import sys
+
+    assert "ddtrace" not in sys.modules
+
+    from ddtrace.internal import core
+    from ddtrace.internal.settings._config import config
+
+    assert config._otel_thread_context_enabled is True
+    assert core.has_listeners("ddtrace.context_provider.activate") is True
+    assert core.has_listeners("python.context.switch") is True
+
+    if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
+        from ddtrace.internal.native._native import is_context_watcher_registered
+
+        assert is_context_watcher_registered() is True
 
 
 def test_python_context_switch_syncs_active_span(tracer: Tracer):
