@@ -2127,6 +2127,16 @@ venv = Venv(
             pys="3.9",
         ),
         Venv(
+            name="deepeval",
+            command="pytest {cmdargs} tests/testing/internal/pytest/test_deepeval.py",
+            pys=select_pys(min_version="3.10"),
+            pkgs={
+                "msgpack": latest,
+                "pytest-randomly": latest,
+                "deepeval": ["==4.0.5", latest],
+            },
+        ),
+        Venv(
             name="pytest_bdd",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",

@@ -186,6 +186,13 @@ datadog_lambda
 .. automodule:: ddtrace.contrib.internal.aws_lambda
 
 
+.. _deepeval:
+
+deepeval
+^^^^^^^^
+.. automodule:: ddtrace.contrib.internal.deepeval
+
+
 .. _djangorestframework:
 .. _django:
 
