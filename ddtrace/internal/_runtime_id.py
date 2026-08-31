@@ -64,6 +64,11 @@ def on_runtime_identity_refresh(cb: t.Callable[[str], None]) -> None:
     _ON_RUNTIME_IDENTITY_REFRESH.add(cb)
 
 
+def remove_runtime_identity_refresh(cb: t.Callable[[str], None]) -> None:
+    """Unregister a callback for explicit runtime identity refreshes."""
+    _ON_RUNTIME_IDENTITY_REFRESH.discard(cb)
+
+
 def _notify_runtime_id_callbacks(callbacks: t.Set[t.Callable[[str], None]]) -> None:  # noqa: UP006
     for cb in list(callbacks):
         try:

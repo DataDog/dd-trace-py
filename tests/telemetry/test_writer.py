@@ -1,6 +1,7 @@
 import os
 import sys
 import sysconfig
+import threading
 from typing import Any
 from typing import Optional
 from unittest import mock
@@ -838,6 +839,271 @@ import opentelemetry
     # Sibling non-sensitive exporter configs (collected at import) remain present.
     assert "OTEL_EXPORTER_OTLP_PROTOCOL" in configurations
     assert "OTEL_EXPORTER_OTLP_TIMEOUT" in configurations
+
+
+def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatch):
+    """MicroVM identity refresh must not leave native telemetry on the old runtime ID."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+    import ddtrace.internal.native as native
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    workers = []
+    original_runtime_id = runtime.get_runtime_id()
+    callbacks = set()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", callbacks)
+
+    class FakeTelemetryWorker:
+        def __init__(self, native_runtime, **kwargs):
+            self.native_runtime = native_runtime
+            self.kwargs = kwargs
+            self.start_calls = 0
+            self.stop_calls = []
+            self.configurations = []
+            self.integrations = []
+            self.products = []
+            workers.append(self)
+
+        def start(self):
+            self.start_calls += 1
+
+        def stop(self, send_app_closing=True):
+            self.stop_calls.append(send_app_closing)
+
+        def add_configuration(self, *args):
+            self.configurations.append(args)
+
+        def add_integration(self, *args):
+            self.integrations.append(args)
+
+        def add_product_change(self, *args):
+            self.products.append(args)
+
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                pass
+
+            return _noop
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", False),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=True),
+        mock.patch.object(native, "TelemetryWorker", FakeTelemetryWorker),
+        mock.patch("ddtrace.internal.native_runtime.get_native_runtime", return_value=object()),
+    ):
+        writer = TelemetryWriter(agentless=False)
+        monkeypatch.setattr(ddtrace.internal.telemetry, "telemetry_writer", writer)
+        try:
+            writer.app_started()
+            first_worker = workers[-1]
+            first_runtime_id = first_worker.kwargs["runtime_id"]
+            writer.add_integration("integration", True, True, "", "1.2.3")
+            writer.add_configuration("test.config", "before-refresh", "env_var", "test-id")
+            writer.product_activated(TELEMETRY_APM_PRODUCT.PROFILER, True)
+            assert first_worker.start_calls == 1
+
+            runtime.refresh_identity()
+
+            assert first_worker.stop_calls == [False]
+            assert workers[-1] is writer._worker
+            assert workers[-1].kwargs["runtime_id"] == runtime.get_runtime_id()
+            assert workers[-1].kwargs["session_id"] == runtime.get_runtime_id()
+            assert workers[-1].kwargs["runtime_id"] != first_runtime_id
+            assert workers[-1].start_calls == 1
+            assert workers[-1].integrations == [("integration", "1.2.3", True, True, True, None)]
+            assert workers[-1].products == [(TELEMETRY_APM_PRODUCT.PROFILER, True, _pep440_to_semver())]
+            test_configurations = [args for args in workers[-1].configurations if args[0] == "test.config"]
+            first_test_configurations = [args for args in first_worker.configurations if args[0] == "test.config"]
+            assert [(args[0], args[1]) for args in test_configurations] == [("test.config", "before-refresh")]
+            assert test_configurations[0][4] > first_test_configurations[0][4]
+        finally:
+            writer.disable()
+            _runtime_id._RUNTIME_ID = original_runtime_id
+            assert callbacks == set()
+
+
+def test_microvm_identity_refresh_emits_new_runtime_id(telemetry_writer, test_agent_session, monkeypatch):
+    """Telemetry emitted after identity refresh uses the refreshed runtime ID."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal import runtime
+
+    original_runtime_id = runtime.get_runtime_id()
+    callbacks = set()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", callbacks)
+    telemetry_writer._is_microvm = True
+    telemetry_writer._worker_access_lock = telemetry_writer._enable_lock
+    runtime.on_runtime_identity_refresh(telemetry_writer._refresh_runtime_identity)
+
+    try:
+        telemetry_writer.periodic(force_flush=True)
+        test_agent_session.clear()
+
+        runtime.refresh_identity()
+        telemetry_writer.periodic(force_flush=True)
+
+        app_started_events = test_agent_session.get_events("app-started")
+        assert len(app_started_events) == 1
+        assert app_started_events[0]["runtime_id"] == runtime.get_runtime_id()
+    finally:
+        telemetry_writer.disable()
+        _runtime_id._RUNTIME_ID = original_runtime_id
+
+
+def test_non_microvm_writer_does_not_register_identity_refresh(monkeypatch):
+    """Identity refresh callbacks are only registered for MicroVM writers."""
+    from ddtrace.internal import _runtime_id
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    callbacks = set()
+    monkeypatch.setattr(_runtime_id, "_ON_RUNTIME_IDENTITY_REFRESH", callbacks)
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(TelemetryWriter, "enable", return_value=True),
+        mock.patch.object(TelemetryWriter, "install_excepthook"),
+        mock.patch("ddtrace.internal.telemetry.writer.in_aws_lambda_microvm", return_value=False),
+        mock.patch("ddtrace.internal.telemetry.writer.atexit.register"),
+        mock.patch("ddtrace.internal.telemetry.writer.forksafe.register"),
+    ):
+        writer = TelemetryWriter(agentless=False)
+
+    assert writer._worker_access_lock is None
+    assert callbacks == set()
+
+
+@pytest.mark.parametrize("is_microvm", [True, False])
+def test_worker_subscription_initial_sync_is_microvm_only(is_microvm):
+    class Subscriber:
+        def __init__(self):
+            self.workers = []
+
+        def on_worker_changed(self, worker):
+            self.workers.append(worker)
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = is_microvm
+    writer._worker_access_lock = threading.RLock() if is_microvm else None
+    writer._worker_subscribers = []
+    first_worker = object()
+    second_worker = object()
+    writer._worker = first_worker
+    subscriber = Subscriber()
+
+    writer._subscribe_worker_changes(subscriber.on_worker_changed, first_worker)
+    writer._notify_worker_changed(second_worker)
+
+    assert subscriber.workers == [second_worker]
+
+
+def test_microvm_worker_subscription_syncs_replacement():
+    class Subscriber:
+        def __init__(self):
+            self.workers = []
+
+        def on_worker_changed(self, worker):
+            self.workers.append(worker)
+
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._is_microvm = True
+    writer._worker_access_lock = threading.RLock()
+    writer._worker_subscribers = []
+    first_worker = object()
+    second_worker = object()
+    writer._worker = second_worker
+    subscriber = Subscriber()
+
+    writer._subscribe_worker_changes(subscriber.on_worker_changed, first_worker)
+
+    assert subscriber.workers == [second_worker]
+
+
+def test_microvm_metric_recording_serializes_identity_refresh():
+    """A MicroVM refresh waits for an in-flight metric write on the old worker."""
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    class TrackingLock:
+        def __init__(self):
+            self._lock = threading.RLock()
+            self._attempts = 0
+            self._attempts_lock = threading.Lock()
+            self.metric_acquired = threading.Event()
+            self.refresh_attempted = threading.Event()
+
+        def __enter__(self):
+            with self._attempts_lock:
+                self._attempts += 1
+                if self._attempts == 1:
+                    self.metric_acquired.set()
+                elif self._attempts == 2:
+                    self.refresh_attempted.set()
+            self._lock.acquire()
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self._lock.release()
+
+    class BlockingWorker:
+        def __init__(self):
+            self.point_entered = threading.Event()
+            self.release_point = threading.Event()
+            self.stopped = False
+
+        def add_point(self, context, value):
+            self.point_entered.set()
+            assert self.release_point.wait(5)
+            assert not self.stopped
+
+        def stop(self, send_app_closing):
+            self.stopped = True
+
+    lock = TrackingLock()
+    worker = BlockingWorker()
+    writer = TelemetryWriter.__new__(TelemetryWriter)
+    writer._enable_lock = lock
+    writer._worker_access_lock = lock
+    writer._enabled = True
+    writer._worker = worker
+    writer._metric_contexts = {}
+    writer._metric_lock = threading.Lock()
+    writer._worker_subscribers = []
+    writer.started = False
+    writer._dependency_tracker = mock.Mock()
+    writer.enable = lambda: True
+    writer.app_started = lambda: None
+
+    metric_errors = []
+    refresh_errors = []
+
+    def record_metric():
+        try:
+            writer.add_count_metric("tracers", "test.metric")
+        except BaseException as error:
+            metric_errors.append(error)
+
+    def refresh_identity():
+        try:
+            writer._refresh_runtime_identity("new-runtime-id")
+        except BaseException as error:
+            refresh_errors.append(error)
+
+    with mock.patch("ddtrace.internal.telemetry.writer.register_metric_context", return_value=object()):
+        metric_thread = threading.Thread(target=record_metric)
+        metric_thread.start()
+        assert lock.metric_acquired.wait(5)
+        assert worker.point_entered.wait(5)
+
+        refresh_thread = threading.Thread(target=refresh_identity)
+        refresh_thread.start()
+        assert lock.refresh_attempted.wait(5)
+
+        worker.release_point.set()
+        metric_thread.join(5)
+        refresh_thread.join(5)
+
+    assert metric_errors == []
+    assert refresh_errors == []
+    assert worker.stopped is True
 
 
 def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):

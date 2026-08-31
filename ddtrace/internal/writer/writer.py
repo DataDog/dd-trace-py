@@ -967,7 +967,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         exporter = builder.build(get_native_runtime())
         if shared_worker is not None:
             exporter.set_telemetry_handle(shared_worker)
-            telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed)
+            telemetry_writer._subscribe_worker_changes(self._on_telemetry_worker_changed, shared_worker)
         return exporter
 
     def _on_telemetry_worker_changed(self, worker: "Optional[native.TelemetryWorker]") -> None:
