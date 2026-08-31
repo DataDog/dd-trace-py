@@ -64,6 +64,48 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
         sys.version.split()[0],
     )
 
+# AIDEV-NOTE: Accurate import-hook injection (_DD_COVERAGE_ACCURATE_IMPORTS) is intentionally NOT
+# supported on Python 3.15+. It works by splicing a `hook(arg); pop_top` call immediately after each
+# IMPORT_NAME/IMPORT_FROM opcode (see import_instrumentation_py3_12.inject_import_hooks) so the hook
+# fires only when an import actually executes — failed imports and runtime-false guarded imports are
+# not recorded. That splice relies on INJECTION_ASSEMBLY, which ddtrace.internal.bytecode_injection
+# only exposes on Python < 3.15 (it switched to a sys.monitoring-based implementation on 3.15).
+#
+# Re-enabling accurate imports on 3.15+ is NOT a trivial port. Two blockers were identified while
+# investigating (see the AIDEV-TODO in import_instrumentation_py3_12.iter_import_events for the
+# first, and the analysis below for the second):
+#
+#   1. PEP 810 arg decoding. On 3.15 IMPORT_NAME's arg is bit-packed (lazy/eager flag bits + a
+#      co_names index). The `bytecode` library decodes it into a (lazy, eager, name) tuple rather
+#      than a plain name string, so iter_import_events' `t.cast(str, instr.arg)` is wrong on 3.15.
+#      The raw scanner in _extract_lines_and_imports already handles this via
+#      _IMPORT_NAME_ARG_SHIFT (=2 on 3.15+); the bytecode-library-based iter_import_events does not.
+#      This is a small fix and a prerequisite for either injection approach.
+#
+#   2. The injection mechanism. The `bytecode` library (0.19.x, the version pinned for 3.15)
+#      generates CALL instructions that segfault on execution under CPython 3.15.0rc1. The exact
+#      INJECTION_ASSEMBLY pattern (PUSH_NULL; LOAD_CONST hook; LOAD_CONST arg; CALL 1; POP_TOP)
+#      disassembles correctly but segfaults on exec for both C-builtins and pure-Python callables;
+#      NOP splices and unmodified from_code/to_code round-trips work, only CALL faults. This is
+#      almost certainly why bytecode_injection moved to sys.monitoring on 3.15. A naive re-exposure
+#      of INJECTION_ASSEMBLY on 3.15 is therefore blocked on an upstream `bytecode` fix (or a
+#      hand-rolled raw-bytecode emitter, which is fragile and version-specific).
+#
+# The viable path is to reimplement injection on top of sys.monitoring INSTRUCTION events (3.15
+# exposes a per-instruction event): fire the import hook when the instruction offset immediately
+# after IMPORT_NAME/IMPORT_FROM is reached, which preserves the "failed imports not recorded"
+# semantics. That requires extending ddtrace.internal.monitoring to multiplex INSTRUCTION (new
+# _LOCAL_EVENTS bit, on_instruction handler, dispatcher, register_callback wiring — today it only
+# multiplexes PY_START/PY_RETURN/PY_UNWIND/LINE), a per-code-object handler keyed by instruction
+# byte offset rather than line, and changing iter_import_events to emit real byte offsets (it
+# currently emits a position in the Bytecode list). INSTRUCTION fires on every instruction of an
+# instrumented code object, so it should be enabled only for code objects the static scan proves
+# contain imports (already computed here), and benchmarked — the conservative static path is the
+# default and is unaffected.
+#
+# Until that work is done, accurate imports stay disabled on 3.15+ and the conservative static
+# import tracking in _extract_lines_and_imports is used instead.
+
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
 # NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.

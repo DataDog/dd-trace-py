@@ -14,9 +14,10 @@ from ddtrace.internal.bytecode_injection import HookType
 # `hook(arg); pop_top` after IMPORT_NAME/IMPORT_FROM opcodes. On Python 3.15+ the bytecode_injection
 # module switched to a sys.monitoring-based implementation and no longer exposes INJECTION_ASSEMBLY.
 # Accurate import-hook injection is correspondingly disabled on 3.15+ (see
-# instrumentation_py3_12._USE_ACCURATE_IMPORTS), so inject_import_hooks() is never called there
-# and INJECTION_ASSEMBLY is unused. The import is gated so this module can still be imported on
-# 3.15+; otherwise merely loading the coverage backend would raise ImportError.
+# instrumentation_py3_12._USE_ACCURATE_IMPORTS and its AIDEV-NOTE for the full rationale and the
+# work required to re-enable it), so inject_import_hooks() is never called there and
+# INJECTION_ASSEMBLY is unused. The import is gated so this module can still be imported on 3.15+;
+# otherwise merely loading the coverage backend would raise ImportError.
 if sys.version_info < (3, 15):
     from ddtrace.internal.bytecode_injection import INJECTION_ASSEMBLY
 else:
