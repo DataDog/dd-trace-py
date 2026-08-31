@@ -542,6 +542,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config = suites[suite].copy()
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
+            suite_config.pop("matrix", None)
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
             jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)

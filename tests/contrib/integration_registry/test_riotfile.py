@@ -1,7 +1,72 @@
+import importlib
 import pathlib
+import shlex
+import sys
+import types
 from typing import Any
+from unittest import mock
 
 from mappings import EXCLUDED_FROM_TESTING
+import yaml
+
+import riotfile
+
+
+def _load_suitespec():
+    ruamel = types.ModuleType("ruamel")
+    ruamel_yaml = types.ModuleType("ruamel.yaml")
+
+    class YAML:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def load(self, content):
+            return yaml.safe_load(content.read_text())
+
+    ruamel_yaml.YAML = YAML
+    ruamel.yaml = ruamel_yaml
+    with mock.patch.dict(sys.modules, {"ruamel": ruamel, "ruamel.yaml": ruamel_yaml}):
+        return importlib.import_module("tests.suitespec")
+
+
+def test_uv_suitespec_matches_riot():
+    suitespec_module = _load_suitespec()
+    uv_test_suites = suitespec_module.UV_TEST_SUITES
+    riot_generated_env = {
+        "_CI_DD_TAGS",
+        "DD_CIVISIBILITY_ITR_ENABLED",
+        "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
+        "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
+    }
+    suitespec = suitespec_module.get_test_environments(nightly=False)
+    uv_environment_names = {environment.name for suite in uv_test_suites for environment in suitespec[suite]}
+
+    riot_environments = {}
+    for environment in riotfile.venv.instances():
+        if environment.name not in uv_environment_names:
+            continue
+        riot_environments[(environment.name, environment.py._hint)] = {
+            "command": environment.command,
+            "dependencies": tuple(shlex.split(environment.full_pkg_str)),
+            "environment": {key: value for key, value in environment.env.items() if key not in riot_generated_env},
+            "lock_hash": environment.short_hash,
+        }
+
+    declared_environments = {}
+    for suite in uv_test_suites:
+        for environment in suitespec[suite]:
+            declared_environments[(environment.name, environment.python)] = {
+                "command": environment.runs[0].command,
+                "dependencies": environment.direct_dependencies,
+                "environment": environment.runs[0].environment,
+                "lock_hash": environment.lock_hash,
+            }
+
+    assert len(declared_environments) == 19
+    assert declared_environments == riot_environments
 
 
 def test_integrations_have_riot_envs(
