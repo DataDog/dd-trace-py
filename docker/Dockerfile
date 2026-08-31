@@ -127,7 +127,7 @@ RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYE
 RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "uv==${UV_VERSION}"
 
 # Install ddtest (pre-built binary from GitHub releases)
-ARG DDTEST_VERSION=1.6.1
+ARG DDTEST_VERSION=1.7.0
 RUN curl -fsSL "https://github.com/DataDog/ddtest/releases/download/v${DDTEST_VERSION}/ddtest-linux-${TARGETARCH}" -o /usr/local/bin/ddtest \
   && chmod +x /usr/local/bin/ddtest
 
