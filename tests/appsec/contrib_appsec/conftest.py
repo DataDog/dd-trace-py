@@ -135,7 +135,7 @@ def api10_http_server_port(monkeypatch):
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Api10Handler)
     _, port = server.server_address
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
     thread.start()
 
     deadline = time.monotonic() + 2.0
