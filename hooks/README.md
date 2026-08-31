@@ -12,6 +12,35 @@ hooks/autohook.sh install
 
 This will create symlinks in `.git/hooks/` for all configured hook types.
 
+On Datadog-managed laptops (`core.hooksPath=/usr/local/dd/global_hooks`), **do not**
+set a local `core.hooksPath` override. That bypasses `dd-git-hooks` secrets scanning.
+`hooks/autohook.sh install` removes a stale local `.git/hooks` override automatically.
+After install, commits run:
+
+```
+global pre-commit → dd-git-hooks (secrets) → run-local-hooks → autohook (lint/format)
+```
+
+If you previously used `git config --local core.hooksPath .git/hooks`, re-run
+`hooks/autohook.sh install` or `hooks/scripts/ensure-dd-hook-chain.sh`.
+
+### Verifying the global hook chain (DD laptops)
+
+Unit tests cover `ensure-dd-hook-chain.sh` logic. To manually verify wiring and
+(optionally) secrets scanning on a Datadog laptop:
+
+```bash
+hooks/scripts/verify-dd-hook-chain.sh           # doctor + bypass/chain checks (+ repair if present)
+DD_HOOK_VERIFY_EXAMPLE_SECRET='...' hooks/scripts/verify-dd-hook-chain.sh --secrets
+```
+
+Or via hook tests: `DD_HOOK_CHAIN_INTEGRATION=1 bash scripts/run-hook-tests`
+
+For `--secrets`, set `DD_HOOK_VERIFY_EXAMPLE_SECRET` to a **non-production**
+test credential (e.g. a TruffleHog documentation example). The probe may **skip**
+if `dd-git-hooks` only blocks verified secrets or if the local scanner needs
+attention (`dd-git-hooks -doctor`).
+
 ## Available Hooks
 
 ### pre-commit (blocking)
@@ -185,6 +214,23 @@ If missing, run:
 hooks/autohook.sh install
 ```
 
+### Commits skip DD secrets scanning (Datadog laptops)
+If `git config --local core.hooksPath` points at `.git/hooks`, git never runs
+`/usr/local/dd/global_hooks/pre-commit` and `dd-git-hooks` is skipped. Fix:
+
+```bash
+hooks/scripts/ensure-dd-hook-chain.sh
+hooks/autohook.sh install
+```
+
+Verify the global chain (optional):
+
+```bash
+DD_GIT_HOOKS_DEBUG=1 /usr/local/dd/global_hooks/pre-commit
+```
+
+You should see `dd-git-hooks` run, then `run-local-hooks` invoking `.git/hooks/pre-commit`.
+
 ### Hook Failing
 Check the hook scripts are executable:
 ```bash
@@ -215,11 +261,16 @@ hooks/
 │   ├── ...
 │   └── 08-run-sg            # ast-grep scan on staged Python files
 ├── post-merge/              # Post-merge hooks
+│   ├── 00-ensure-dd-hook-chain # Symlink → scripts/run-ensure-dd-hook-chain-quiet.sh
 │   └── check-native-changes # Detects native code and dependency changes
 ├── post-checkout/           # Post-checkout hooks
+│   ├── 00-ensure-dd-hook-chain # Symlink → scripts/run-ensure-dd-hook-chain-quiet.sh
 │   └── check-native-changes # Detects native code and dependency changes
 └── scripts/                 # Shared scripts
-    └── check-native-changes # Native change and dependency detection logic
+    ├── check-native-changes # Native change and dependency detection logic
+    ├── ensure-dd-hook-chain.sh # DD laptop global-hook chain guard
+    ├── run-ensure-dd-hook-chain-quiet.sh # Shared post-checkout/post-merge entrypoint
+    └── verify-dd-hook-chain.sh # Manual DD laptop hook-chain verifier
 ```
 
 ## For Contributors
