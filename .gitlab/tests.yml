@@ -113,8 +113,11 @@ include:
       # dependencies from the locked file, then overlay the pinned Git commit.
       python -m venv bin/riot-env
       bin/riot-env/bin/python -m pip install --no-cache-dir -r ci/requirements/ci.txt
-      # Riot 0.23.0 is released on PyPI; no need for a git pin.
-      bin/riot-env/bin/python -m pip install --no-cache-dir "riot==0.23.0"
+      # VCS requirements cannot be hash-verified by pip; the commit itself is
+      # pinned and dependencies are supplied by the locked requirements above.
+      # ci-deps: allow-no-version
+      bin/riot-env/bin/python -m pip install --no-cache-dir --no-deps \
+        "riot @ git+https://github.com/DataDog/riot.git@ffafc0689be524643c7f77c82e536caceea98e9e"
   artifacts:
     paths:
       - bin/ddtest
