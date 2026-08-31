@@ -81,7 +81,6 @@ The valid traces of our C files, are like that:
 Have you been blessed by a Segmentation Fault? Have you got an error like...?
 
 ```sh
-scripts/run-tests --list tests/contrib/flask/test_blueprint.py
 riot run --python=3.11 -r flask
 ....
 tests/contrib/flask/test_blueprint.py .......                                                                                                                                                                                    [  9%]
