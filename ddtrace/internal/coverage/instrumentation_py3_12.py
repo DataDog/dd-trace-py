@@ -16,6 +16,7 @@ import typing as t
 from bytecode import Bytecode
 
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.compat import PY_315_VERSION_INFO
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportName
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import ImportNamesByLine
 from ddtrace.internal.coverage.import_instrumentation_py3_12 import import_names_by_line
@@ -45,7 +46,7 @@ LOAD_SMALL_INT = dis.opmap.get("LOAD_SMALL_INT")
 # In Python 3.15 (PEP 810 lazy imports), IMPORT_NAME's arg is bit-packed:
 # bits 2+ = name index into co_names, bits 0-1 = lazy/eager flags.
 # So the index is arg >> 2. On 3.12-3.14, arg is a plain index (shift by 0).
-_IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= (3, 15) else 0
+_IMPORT_NAME_ARG_SHIFT = 2 if sys.version_info >= PY_315_VERSION_INFO else 0
 
 # Detect empty modules: the bytecode pattern varies across Python versions.
 # Python 3.12-3.13: RESUME + RETURN_CONST
@@ -57,7 +58,7 @@ EMPTY_MODULE_BYTES = compile("", "<empty>", "exec").co_code
 # Check if file-level coverage is requested
 _USE_FILE_LEVEL_COVERAGE = asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "true"))
 _ACCURATE_IMPORTS_REQUESTED = asbool(env.get("_DD_COVERAGE_ACCURATE_IMPORTS", "false"))
-_USE_ACCURATE_IMPORTS = sys.version_info < (3, 15) and _ACCURATE_IMPORTS_REQUESTED
+_USE_ACCURATE_IMPORTS = sys.version_info < PY_315_VERSION_INFO and _ACCURATE_IMPORTS_REQUESTED
 if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
     log.info(
         "_DD_COVERAGE_ACCURATE_IMPORTS is enabled, but accurate import tracking is not supported on Python %s; "

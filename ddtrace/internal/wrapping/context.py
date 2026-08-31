@@ -16,6 +16,7 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import PY_315_VERSION_INFO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -222,9 +223,11 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
+# Hard 3.16 floor: wrapping already works on 3.15 via sys.monitoring.
+# NEXT_MAX_PY is 3.15 until 3.15 GAs; using it here would skip that path.
 if sys.version_info >= (3, 16):
     raise NotImplementedError("This version of Python is not supported yet")
-elif sys.version_info >= (3, 15):
+elif sys.version_info >= PY_315_VERSION_INFO:
     # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
     # needed.
     pass
@@ -441,8 +444,9 @@ elif sys.version_info >= (3, 9):
 # (3.15+) the stack is:
 #   monitored function → monitoring._on_py_start → uwc.on_py_start → __enter__
 # so the monitored frame is three levels up.
-_ENTER_FRAME_DEPTH = 3 if sys.version_info >= (3, 15) else 1
+_ENTER_FRAME_DEPTH = 3 if sys.version_info >= PY_315_VERSION_INFO else 1
 
+# PY_315_VERSION_INFO — mypy folds literals only
 if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
 
@@ -606,6 +610,7 @@ class WrappingContext(BaseWrappingContext):
             pass
 
 
+# PY_315_VERSION_INFO — mypy folds literals only
 if sys.version_info >= (3, 15):
     # Monitoring-based instrumentation has negligible per-function overhead, so
     # there is no benefit to deferring wrapping until first call. On Python 3.15+
@@ -701,6 +706,7 @@ class ContextWrappedFunction(Protocol):
 
 # On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
 # it can be registered directly with the multiplexer via register(code, self).
+# PY_315_VERSION_INFO — mypy folds literals only
 if sys.version_info >= (3, 15):
     from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
 
@@ -866,6 +872,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         return t.cast(T, super().__return__(value))
 
+    # PY_315_VERSION_INFO — mypy folds literals only
     if sys.version_info >= (3, 15):
         # Exceptions here are deliberately left uncaught (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
@@ -1295,6 +1302,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             _registry.pop(f, None)
 
 
+# PY_315_VERSION_INFO — mypy folds literals only
 if sys.version_info >= (3, 15):
 
     def _finalize_monitoring_wrap(

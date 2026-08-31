@@ -6,6 +6,7 @@ from typing import Optional
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import PY_315_VERSION_INFO
 
 
 PY = sys.version_info[:2]
@@ -56,7 +57,7 @@ COROUTINE_ASSEMBLY = Assembly()
 ASYNC_GEN_ASSEMBLY = Assembly()
 ASYNC_HEAD_ASSEMBLY: Optional[Assembly] = None
 
-if PY >= (3, 15):
+if PY >= PY_315_VERSION_INFO:
     _ensure_common_constant_none()
     ASYNC_HEAD_ASSEMBLY = Assembly()
     ASYNC_HEAD_ASSEMBLY.parse(
