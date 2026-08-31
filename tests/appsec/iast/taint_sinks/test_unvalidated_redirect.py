@@ -72,6 +72,26 @@ def test_unvalidated_redirect_secure_mark_applied_even_when_dedup_filters(iast_c
     )
 
 
+def test_unvalidated_redirect_same_source_at_independent_sinks_is_not_deduplicated(iast_context_defaults):
+    first = taint_pyobject(
+        "http://evil.com/redir",
+        source_name="location",
+        source_value="http://evil.com/redir",
+        source_origin=OriginType.PARAMETER,
+    )
+    second = taint_pyobject(
+        "http://evil.com/redir",
+        source_name="location",
+        source_value="http://evil.com/redir",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    _iast_report_unvalidated_redirect(first)
+    _iast_report_unvalidated_redirect(second)
+
+    assert len(get_iast_reporter().vulnerabilities) == 2
+
+
 def test_unvalidated_redirect_secure_mark_applied_when_quota_exhausted(iast_context_defaults):
     """Regression test: secure mark must be applied even when vulnerability quota is exhausted.
 
