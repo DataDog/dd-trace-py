@@ -66,7 +66,6 @@ serialize_snapshot_json(const std::array<GCGenStats, 3>& gen_stats,
                         int garbage_count,
                         const std::vector<std::string>& type_table,
                         const std::vector<uint32_t>& type_counts,
-                        const std::vector<RootNode>& roots,
                         const std::vector<TreeNode>& ref_tree)
 {
     auto now = std::chrono::system_clock::now();
@@ -116,32 +115,6 @@ serialize_snapshot_json(const std::array<GCGenStats, 3>& gen_stats,
             out << ",";
         }
         out << type_counts[i];
-    }
-    out << "]";
-
-    // reference tree roots
-    out << ",\"r\":[";
-    for (size_t i = 0; i < roots.size(); ++i) {
-        const RootNode& r = roots[i];
-        if (i > 0) {
-            out << ",";
-        }
-        out << "{\"t\":" << r.type_idx << ",\"c\":\"" << r.category << "\""
-            << ",\"ic\":" << r.ic << ",\"ts\":" << r.ts;
-        if (!r.fn.empty()) {
-            out << ",\"fn\":\"" << json_escape(r.fn) << "\"";
-        }
-        if (!r.children.empty()) {
-            out << ",\"ch\":[";
-            for (size_t j = 0; j < r.children.size(); ++j) {
-                if (j > 0) {
-                    out << ",";
-                }
-                serialize_node(out, r.children[j], 0);
-            }
-            out << "]";
-        }
-        out << "}";
     }
     out << "]";
 

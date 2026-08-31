@@ -477,13 +477,11 @@ def run_function_from_file(item, params=None):
             args.extend(marker.kwargs.get("args", []))
 
             def _subprocess_wrapper() -> None:
-                out: Union[bytes, str]
-                err: Union[bytes, str]
-                out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
+                out_b, err_b, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
+                out = out_b.decode("utf-8") if isinstance(out_b, bytes) else out_b
+                err = err_b.decode("utf-8") if isinstance(err_b, bytes) else err_b
 
-                xfailed = (
-                    "_pytest.outcomes.XFailed" in err if isinstance(err, str) else b"_pytest.outcomes.XFailed" in err
-                ) and status == 1
+                xfailed = "_pytest.outcomes.XFailed" in err and status == 1
                 if xfailed:
                     pytest.xfail("subprocess test resulted in XFail")
                     return
@@ -497,8 +495,8 @@ def run_function_from_file(item, params=None):
                 if not status_ok:
                     raise AssertionError(
                         "Expected status %s, got %s."
-                        "\n=== Captured STDOUT ===\n%r=== End of captured STDOUT ==="
-                        "\n=== Captured STDERR ===\n%r=== End of captured STDERR ==="
+                        "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
+                        "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
                         % (expected_status, status, out, err)
                     )
 

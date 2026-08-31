@@ -5,8 +5,6 @@ ddup/profiler state from one test does not bleed into another.
 
 Timing model for each test:
   DD_PROFILING_GC_INTERVAL=3   -> snapshot taken every 3 seconds
-  DD_PROFILING_GC_SURVIVOR_THRESHOLD=1 -> object flagged after surviving 1 consecutive snapshot
-    (i.e. appears in snapshot N and snapshot N+1)
   time.sleep(8) -> ensures two snapshots run (t≈3 and t≈6) before p.stop()
   p.stop(flush=True) -> triggers a final upload that writes the gc-stats.json file
 """
@@ -18,18 +16,11 @@ import pytest
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_monitor_detects_leak",
         DD_PROFILING_GC_INTERVAL="3",
-        DD_PROFILING_GC_SURVIVOR_THRESHOLD="1",
     ),
     timeout=30,
 )
 def test_gc_monitor_detects_leak() -> None:
-    """GC monitor writes a valid gc-stats.json that includes a deliberately leaked type.
-
-    We leak 100 instances of a list subclass, each holding 500 integer elements.
-    sys.getsizeof of each instance is ≈ 4056 bytes, which is larger than virtually
-    any normal Python runtime object. This ensures the leaked instances rank near
-    the top of the size-sorted suspect list and appear in the default top-N roots.
-    """
+    """GC monitor writes a valid gc-stats.json whose type histogram includes a leaked type."""
     import glob
     import json
     import os
@@ -38,13 +29,7 @@ def test_gc_monitor_detects_leak() -> None:
     from ddtrace.profiling.profiler import Profiler
 
     class _LeakCandidate(list):
-        """Large list subclass: sys.getsizeof ≈ 4056 bytes with 500 elements.
-
-        Subclassing list guarantees:
-          - Objects are GC-tracked (list implements tp_traverse).
-          - Shallow size (sys.getsizeof) equals the list buffer size, not just
-            a pointer-sized instance, making these objects rank high by size.
-        """
+        """List subclass so instances are GC-tracked (list implements tp_traverse)."""
 
     # Module-level reference keeps all instances alive across GC snapshots.
     _leaked = [_LeakCandidate(range(500)) for _ in range(100)]  # noqa: F841
@@ -54,30 +39,21 @@ def test_gc_monitor_detects_leak() -> None:
 
     p = Profiler()
     p.start()
-
-    # Timeline:
-    #   t ≈ 3s: GC snapshot 1 -- _LeakCandidate instances are new, no suspects yet
-    #   t ≈ 6s: GC snapshot 2 -- instances survived -> survivor_count 1 >= threshold 1
-    #   t = 8s: p.stop(flush=True) writes gc-stats.json with the snapshot 2 data
     time.sleep(8)
+    p.stop()
 
-    p.stop()  # flush=True by default
-
-    # -- Locate the gc-stats output file --
     gc_files = sorted(glob.glob(output_prefix + ".*.gc-stats.json"))
     assert len(gc_files) > 0, f"No gc-stats.json files found matching {output_prefix}.*.gc-stats.json"
 
     with open(gc_files[-1]) as f:
         data = json.load(f)
 
-    # -- Top-level schema --
     assert data["v"] == 1, f"Expected format version 1, got {data['v']}"
     assert isinstance(data["ts_ns"], int) and data["ts_ns"] > 0, "ts_ns must be a positive integer"
     assert "gc" in data, "Expected 'gc' block in output"
     assert "tt" in data, "Expected 'tt' type table in output"
-    assert "r" in data, "Expected 'r' root array in output"
+    assert "tc" in data, "Expected 'tc' type counts array in output"
 
-    # -- GC engine stats block --
     gc_block = data["gc"]
     assert gc_block["enabled"] is True, "GC must be enabled during test"
     assert len(gc_block["thresholds"]) == 3, "Expected three GC generation thresholds"
@@ -90,36 +66,19 @@ def test_gc_monitor_detects_leak() -> None:
         )
     assert gc_block["garbage"] >= 0, "garbage count must be non-negative"
 
-    # -- Type table --
-    # The type table is built by scanning all GC-tracked objects, so our
-    # _LeakCandidate type appears there regardless of top-N suspect filtering.
     assert len(data["tt"]) > 0, "Type table must not be empty"
+    assert len(data["tt"]) == len(data["tc"]), "tt and tc must have the same length"
     leaked_type = next((t for t in data["tt"] if "_LeakCandidate" in t), None)
     assert leaked_type is not None, (
         "Expected _LeakCandidate in type table. "
         f"Non-builtins types: {[t for t in data['tt'] if not t.startswith('builtins')][:20]}"
     )
 
-    # -- Reference tree root nodes --
-    assert len(data["r"]) > 0, "Expected at least one root node (suspect objects)"
-
-    # Each _LeakCandidate(range(500)) has sys.getsizeof ≈ 4056 bytes -- larger
-    # than virtually any normal Python runtime object -- so these instances rank
-    # near the top of the size-sorted suspect list and must appear in root nodes.
+    # The leaked instances must appear in the histogram with the expected count.
     leaked_idx = data["tt"].index(leaked_type)
-    leaked_roots = [r for r in data["r"] if r["t"] == leaked_idx]
-    assert len(leaked_roots) > 0, (
-        f"Expected {leaked_type!r} in root nodes. Root types found: {[data['tt'][r['t']] for r in data['r']]}"
+    assert data["tc"][leaked_idx] >= 100, (
+        f"Expected >= 100 live _LeakCandidate instances in tc, got {data['tc'][leaked_idx]}"
     )
-
-    leaked_root = leaked_roots[0]
-    assert leaked_root["ic"] > 0, "Instance count must be positive"
-    assert leaked_root["ts"] > 0, "Total size must be positive"
-    # Without DD_PROFILING_GC_REFERRERS=true, the referrer walk is skipped and
-    # the root category is always '?'
-    assert leaked_root["c"] == "?", f"Expected root category '?' (referrers disabled), got {leaked_root['c']!r}"
-    # 'fn' is only populated for K/S roots identified via the referrer walk
-    assert "fn" not in leaked_root, "'fn' should not be present when referrers are disabled"
 
 
 @pytest.mark.subprocess(
@@ -226,7 +185,6 @@ def test_gc_monitor_disabled() -> None:
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_monitor_schema",
         DD_PROFILING_GC_INTERVAL="3",
-        DD_PROFILING_GC_SURVIVOR_THRESHOLD="1",
     ),
     timeout=30,
 )
@@ -257,13 +215,9 @@ def test_gc_monitor_json_schema() -> None:
     with open(gc_files[-1]) as f:
         data = json.load(f)
 
-    # v
     assert isinstance(data["v"], int) and data["v"] == 1
-
-    # ts_ns
     assert isinstance(data["ts_ns"], int) and data["ts_ns"] > 0
 
-    # gc block
     gc_block = data["gc"]
     assert isinstance(gc_block["enabled"], bool)
     assert isinstance(gc_block["thresholds"], list) and len(gc_block["thresholds"]) == 3
@@ -289,24 +243,192 @@ def test_gc_monitor_json_schema() -> None:
     # tt -- type table
     assert isinstance(data["tt"], list)
     assert all(isinstance(t, str) and len(t) > 0 for t in data["tt"]), "All entries in tt must be non-empty strings"
-    # Type names must be unique
     assert len(data["tt"]) == len(set(data["tt"])), "Type table must not contain duplicates"
 
-    # r -- root nodes
-    assert isinstance(data["r"], list)
-    valid_categories = {"K", "S", "F", "O", "?"}
-    for root in data["r"]:
-        assert isinstance(root["t"], int) and 0 <= root["t"] < len(data["tt"]), (
-            f"Root type index {root['t']} out of range for tt (len={len(data['tt'])})"
+    # tc -- per-type instance counts (parallel array to tt)
+    assert isinstance(data["tc"], list)
+    assert len(data["tc"]) == len(data["tt"]), "tc and tt must have the same length"
+    assert all(isinstance(c, int) and c > 0 for c in data["tc"]), "All entries in tc must be positive ints"
+
+    # rt -- reference forest (empty when DD_PROFILING_GC_REFERRERS is not set)
+    tt = data["tt"]
+
+    def validate_rt_node(node) -> None:
+        assert isinstance(node["t"], int) and 0 <= node["t"] < len(tt)
+        assert isinstance(node["ic"], int) and node["ic"] > 0
+        assert isinstance(node["ts"], int) and node["ts"] > 0
+        if "ch" in node:
+            assert isinstance(node["ch"], list)
+            for child in node["ch"]:
+                validate_rt_node(child)
+
+    assert isinstance(data["rt"], list)
+    for node in data["rt"]:
+        validate_rt_node(node)
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_monitor_reference_chains",
+        DD_PROFILING_GC_INTERVAL="3",
+        DD_PROFILING_GC_REFERRERS="1",
+    ),
+    timeout=30,
+)
+def test_gc_monitor_reference_chains_1() -> None:
+    """With referrers enabled, the reference forest (rt) captures holder -> held edges."""
+    from dataclasses import dataclass
+    import glob
+    import json
+    import os
+    import random
+    import sys
+    import time
+
+    from ddtrace.profiling.profiler import Profiler
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_prefix = pprof_prefix + "." + str(os.getpid())
+
+    @dataclass
+    class Customer:
+        first_name: str
+        last_name: str
+
+    @dataclass
+    class Product:
+        name: str
+        price: float
+
+    @dataclass
+    class Order:
+        customer: "Customer"
+        products: "list[Product]"
+
+    @dataclass
+    class MyApp:
+        orders: "list[Order]"
+        customers: "list[Customer]"
+        products: "list[Product]"
+
+        def create_random_customers(self) -> None:
+            self.customers.append(
+                Customer(first_name=f"John {len(self.customers)}", last_name=f"Doe {len(self.customers)}")
+            )
+
+        def create_random_products(self) -> None:
+            self.products.append(Product(name=f"Product {len(self.products)}", price=random.random()))
+
+        def create_random_orders(self) -> None:
+            self.orders.append(
+                Order(
+                    customer=self.customers[random.randint(0, len(self.customers) - 1)],
+                    products=[self.products[random.randint(0, len(self.products) - 1)]],
+                )
+            )
+
+    customers = [Customer(first_name="John", last_name="Doe"), Customer(first_name="Jane", last_name="Doe")]
+    products = [Product(name="Product 1", price=10.0), Product(name="Product 2", price=20.0)]
+    orders = [Order(customer=customers[0], products=products), Order(customer=customers[1], products=products)]
+
+    app = MyApp(orders=orders, customers=customers, products=products)
+
+    p = Profiler()
+    p.start()
+    for _ in range(15):
+        app.create_random_customers()
+        app.create_random_products()
+        app.create_random_orders()
+        time.sleep(1)
+    p.stop()
+
+    gc_files = sorted(glob.glob(output_prefix + ".*.gc-stats.json"))
+    print(f"[test debug] gc-stats.json candidates for {output_prefix}: {gc_files}", file=sys.stderr)
+    assert len(gc_files) > 0, f"No gc-stats.json files found under {output_prefix}"
+
+    latest = gc_files[-1]
+    with open(latest) as f:
+        raw = f.read()
+    print(f"[test debug] using {latest} ({len(raw)} bytes)", file=sys.stderr)
+    print(f"[test debug] contents:\n{raw}", file=sys.stderr)
+
+    data = json.loads(raw)
+    print(
+        "[test debug] top-level keys={} tt_len={} rt_len={}".format(
+            sorted(data.keys()),
+            len(data.get("tt", [])),
+            len(data.get("rt", [])),
+        ),
+        file=sys.stderr,
+    )
+
+    tt = data["tt"]
+    assert isinstance(data["rt"], list)
+    assert len(data["rt"]) > 0, "Expected a non-empty reference forest when referrers are enabled"
+
+    # MyApp holds Order, Customer, Product; Order holds Customer and Product.
+    def find_root(type_name: str):
+        for root in data["rt"]:
+            if tt[root["t"]] == type_name:
+                return root
+        return None
+
+    myapp_root = find_root("__main__.MyApp")
+    assert myapp_root is not None, f"Expected __main__.MyApp in rt roots. Roots: {[tt[r['t']] for r in data['rt']]}"
+
+    # MyApp root: exactly one live instance, non-zero retained bytes.
+    assert myapp_root["ic"] == 1, f"Expected exactly one MyApp instance, got ic={myapp_root['ic']}"
+    assert myapp_root["ts"] > 0, "MyApp root ts must be > 0"
+
+    # MyApp holds Order, Customer, Product directly (via its three list fields).
+    myapp_children = {tt[c["t"]]: c for c in myapp_root.get("ch", [])}
+    for expected in ("__main__.Order", "__main__.Customer", "__main__.Product"):
+        assert expected in myapp_children, (
+            f"Expected {expected!r} as a direct child of MyApp; children: {sorted(myapp_children)}"
         )
-        assert root["c"] in valid_categories, f"Root category {root['c']!r} not in {valid_categories}"
-        assert isinstance(root["ic"], int) and root["ic"] > 0, "ic must be a positive int"
-        assert isinstance(root["ts"], int) and root["ts"] > 0, "ts must be a positive int"
-        if "fn" in root:
-            assert isinstance(root["fn"], str) and len(root["fn"]) > 0
-        if "ch" in root:
-            assert isinstance(root["ch"], list)
-            for child in root["ch"]:
-                assert isinstance(child["t"], int) and 0 <= child["t"] < len(data["tt"])
-                assert isinstance(child["ic"], int) and child["ic"] > 0
-                assert isinstance(child["ts"], int) and child["ts"] > 0
+        edge = myapp_children[expected]
+        assert edge["ic"] > 0, f"Edge MyApp -> {expected} must aggregate at least one reference"
+        assert edge["ts"] > 0, f"Edge MyApp -> {expected} must have a positive retained byte count"
+
+    # We appended ~15 orders/customers/products in the loop plus the 2 seeded
+    # each; every one is retained by MyApp, so the aggregated ref counts on the
+    # collapsed edges must reflect that scale (not e.g. 1 or 2).
+    assert myapp_children["__main__.Order"]["ic"] >= 15, (
+        f"MyApp -> Order aggregated ic should be >= 15, got {myapp_children['__main__.Order']['ic']}"
+    )
+    assert myapp_children["__main__.Customer"]["ic"] >= 15, (
+        f"MyApp -> Customer aggregated ic should be >= 15, got {myapp_children['__main__.Customer']['ic']}"
+    )
+    assert myapp_children["__main__.Product"]["ic"] >= 15, (
+        f"MyApp -> Product aggregated ic should be >= 15, got {myapp_children['__main__.Product']['ic']}"
+    )
+
+    # Order retains Customer (via its customer field) and Product (via its
+    # products list), so under MyApp -> Order we must also see those edges.
+    order_edge = myapp_children["__main__.Order"]
+    order_grandchildren = {tt[c["t"]] for c in order_edge.get("ch", [])}
+    for expected in ("__main__.Customer", "__main__.Product"):
+        assert expected in order_grandchildren, (
+            f"Expected {expected!r} under MyApp -> Order; grandchildren: {sorted(order_grandchildren)}"
+        )
+
+    # Sanity: leaf application types (Customer, Product) should not have
+    # application-type children hanging off them here -- they only reference
+    # str/float, which the excluded-types filter or transparent-stepping
+    # remove. Empty children is fine; nested __main__.* children would be
+    # surprising for these dataclasses.
+    for leaf_name in ("__main__.Customer", "__main__.Product"):
+        leaf_edge = myapp_children[leaf_name]
+        leaf_grandchildren = {tt[c["t"]] for c in leaf_edge.get("ch", [])}
+        unexpected = {g for g in leaf_grandchildren if g.startswith("__main__.")}
+        assert not unexpected, f"Unexpected __main__.* grandchildren under MyApp -> {leaf_name}: {unexpected}"
+
+    # Same for the top-level Order root (if the forest exposes one).
+    order_root = find_root("__main__.Order")
+    if order_root is not None:
+        assert order_root["ic"] >= 15, f"Order root ic should be >= 15, got {order_root['ic']}"
+        top_order_children = {tt[c["t"]] for c in order_root.get("ch", [])}
+        for expected in ("__main__.Customer", "__main__.Product"):
+            assert expected in top_order_children, (
+                f"Expected {expected!r} as a child of the Order root; children: {sorted(top_order_children)}"
+            )
