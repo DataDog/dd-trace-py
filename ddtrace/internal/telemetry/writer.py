@@ -24,6 +24,7 @@ from ..periodic import PeriodicService
 from ..runtime import get_ancestor_runtime_id
 from ..runtime import get_parent_runtime_id
 from ..runtime import get_runtime_id
+from ..runtime import on_runtime_identity_refresh
 from ..utils.formats import get_test_session_token
 from ..utils.version import version as tracer_version
 from .constants import TELEMETRY_APM_PRODUCT
@@ -209,6 +210,7 @@ class TelemetryWriter:
             # after_fork_child callback runs before this callback, ensuring the shared runtime
             # has been restarted before we drop and lazily rebuild the telemetry worker.
             forksafe.register(self._fork_writer)
+            on_runtime_identity_refresh(self._refresh_runtime_identity)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
     def _build_worker(self) -> "TelemetryWorker":
@@ -914,6 +916,24 @@ class TelemetryWriter:
         # Reset the configuration seq_id counter (test determinism). The native
         # worker owns the message-batch seq_id and resets it when rebuilt.
         TelemetryWriter._sequence_configurations = itertools.count(1)
+
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        if not self._enabled:
+            return
+        was_started = self.started
+        if self._worker is not None:
+            try:
+                self._worker.stop(send_app_closing=False)
+            except Exception:
+                log.debug("Failed to stop the native telemetry worker while refreshing runtime identity", exc_info=True)
+            self._worker = None
+            self.started = False
+            _unbind_metric_recorders(self)
+            self._notify_worker_changed(None)
+        self._dependency_tracker.reset()
+        self.enable()
+        if was_started:
+            self.app_started()
 
     def _fork_writer(self) -> None:
         # Runs in the child after a Python-managed fork. Drop the inherited worker and rebuild
