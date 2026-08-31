@@ -1,4 +1,4 @@
 fixes:
   - |
-    aiohttp: Fixes an issue where memory usage grows over time when tracing outbound
-    client requests.
+    AAP: Fixes an issue where memory usage grows over time when AAP is enabled for
+    applications making traced outbound HTTP requests.
