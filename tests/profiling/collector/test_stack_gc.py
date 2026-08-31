@@ -247,6 +247,7 @@ def test_gc_frame_survives_thread_reservoir_sampling() -> None:
 )
 def test_gc_frame_is_limited_to_on_cpu_asyncio_task() -> None:
     import asyncio
+    import gc
     import os
     import pathlib
     import tempfile
@@ -256,6 +257,11 @@ def test_gc_frame_is_limited_to_on_cpu_asyncio_task() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.gc_utils import gc_samples
     from tests.profiling.collector.gc_utils import slow_cyclic_collection
+
+    # Prevent automatic generational collections from producing GC samples outside the
+    # collecting task; those samples would render via the thread-stack fallback and
+    # miss the "task name" label the assertions below rely on.
+    gc.disable()
 
     test_name = "test_gc_frame_is_limited_to_on_cpu_asyncio_task"
     pprof_prefix = str(pathlib.Path(tempfile.mkdtemp()) / test_name)
@@ -301,6 +307,7 @@ def test_gc_frame_is_limited_to_on_cpu_asyncio_task() -> None:
 )
 def test_gc_frame_survives_collection_started_by_a_coroutine() -> None:
     import asyncio
+    import gc
     import os
     import pathlib
     import tempfile
@@ -310,6 +317,11 @@ def test_gc_frame_survives_collection_started_by_a_coroutine() -> None:
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.gc_utils import gc_samples
     from tests.profiling.collector.gc_utils import slow_cyclic_collection_coroutine
+
+    # Prevent automatic generational collections from producing GC samples outside the
+    # collecting task; those samples would render via the thread-stack fallback and
+    # miss the "task name" label the assertions below rely on.
+    gc.disable()
 
     test_name = "test_gc_frame_survives_coroutine_collection"
     pprof_prefix = str(pathlib.Path(tempfile.mkdtemp()) / test_name)
