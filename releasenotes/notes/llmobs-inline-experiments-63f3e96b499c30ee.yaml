@@ -1,0 +1,36 @@
+---
+features:
+  - |
+    LLM Observability: Add **experimental** inline experiments — a decorator-driven,
+    trace-seeded local regression mechanism ("unit test for LLM apps"). Mark an input/output
+    boundary in an already-instrumented app with the new
+    ``ddtrace.llmobs.experimental.experiment_start`` / ``experiment_end`` decorators (an inert
+    no-op during normal execution), then run it out-of-band with the new
+    ``ddtrace-experiment run`` command. ``run`` is offline by default: the first run records a
+    baseline and each later run re-runs the current code against it, reporting a per-case
+    execution status plus one verdict per evaluator with a CI-friendly exit code — no backend
+    or credentials required. Pass ``ddtrace-experiment run --publish`` to also send the run to
+    the LLM Obs Experiments UI: the first publish is a frozen *baseline* experiment (a real
+    run, so it carries cost + eval metrics) over the subject's auto-managed dataset, and every
+    later publish is compared against it via a printed compare-view link. The dataset is
+    refreshed to exactly each run's inputs. ``ddtrace-experiment`` also accepts ``--env-file``
+    (and auto-loads a ``.env`` in the current directory) to read ``DD_API_KEY`` /
+    ``OPENAI_API_KEY`` / ``DD_LLMOBS_ML_APP`` etc. without exporting them; real environment
+    variables take precedence.
+
+    Evaluation is unified on a single concept — *everything is an evaluator*. Pass an
+    ``evaluators`` argument to ``experiment_start`` to score a boundary with richer checks than
+    the default comparison: an SDK ``BaseEvaluator`` / ``LLMJudge``, a plain
+    ``(input_data, output_data, expected_output)`` function, or a ``comparison`` (the new
+    ``ddtrace.llmobs.experimental.comparison`` helper — ``structural`` / ``exact`` /
+    ``ignoring`` — an evaluator whose assessment is ``match`` / ``changed``). The argument
+    accepts a list or a zero-arg callable returning the list (the same lazy pattern as
+    ``fixtures``), so credentialed evaluators are never constructed by a production import.
+    ``structural`` is the zero-config default evaluator (plain ``run`` still gives an instant
+    regression verdict offline), and the ``--comparator`` / ``--ignore`` flags remain as
+    shortcuts for configuring it. Attached evaluators run alongside the default comparison —
+    locally via ``ddtrace-experiment run --evaluate`` (verdicts printed per case; a failing
+    evaluator gates the exit code) and on ``--publish`` through the Experiments engine (one
+    eval metric per evaluator).
+
+    These APIs are experimental and may change or be removed without notice.
