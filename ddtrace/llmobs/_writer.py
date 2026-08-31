@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import agent
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
@@ -374,6 +376,20 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
+    def _auth_headers(self) -> dict[str, str]:
+        """Credentials for a direct intake call, or the headers that make the agent supply them.
+
+        These endpoints authenticate with an app key on top of the api key. The agent's EVP proxy
+        only attaches one when asked via the needs-app-key header, so omitting it would proxy an
+        unauthenticated request and look like the proxy itself was unsupported.
+        """
+        if self._agentless:
+            return {"DD-API-KEY": self._api_key, "DD-APPLICATION-KEY": self._app_key}
+        return {
+            EVP_SUBDOMAIN_HEADER_NAME: self.EVP_SUBDOMAIN_HEADER_VALUE,
+            EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+        }
+
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         try:
             return self._request_with_retry(method, path, body, timeout)
@@ -390,13 +406,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         until=lambda result: isinstance(result, Response) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
-        headers = {
-            "Content-Type": "application/json",
-            "DD-API-KEY": self._api_key,
-            "DD-APPLICATION-KEY": self._app_key,
-        }
-        if not self._agentless:
-            headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+        headers = {"Content-Type": "application/json", **self._auth_headers()}
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
         conn = HTTPConnection(self._intake, timeout=timeout)
@@ -418,11 +428,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to publish evaluator {evaluation['eval_name']}: {resp.status}")
 
     def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
-        headers = {
-            "Content-Type": content_type,
-            "DD-API-KEY": self._api_key,
-            "DD-APPLICATION-KEY": self._app_key,
-        }
+        headers = {"Content-Type": content_type, **self._auth_headers()}
 
         conn = HTTPConnection(self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
         try:

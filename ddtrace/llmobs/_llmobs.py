@@ -606,12 +606,16 @@ class LLMObs(Service):
             interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
+        # These endpoints need an app key on top of the api key. With one configured locally, keep
+        # going straight to intake; without one, fall back to the agent's EVP proxy, which can supply
+        # both credentials, rather than failing outright. Agentless still wins when it is requested.
+        dne_agentless = bool(self._app_key) or agentless_enabled
         self._dne_client = LLMObsExperimentsClient(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
-            is_agentless=True,  # agent proxy doesn't seem to work for experiments
+            is_agentless=dne_agentless,
         )
         self._api_client = LLMObsAPIClient(app_key=self._app_key)
 
