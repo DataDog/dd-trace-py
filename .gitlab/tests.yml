@@ -109,12 +109,10 @@ include:
       git clone --depth 1 https://github.com/DataDog/ddtest.git /tmp/ddtest-src
       (cd /tmp/ddtest-src && go build -o "${CI_PROJECT_DIR}/bin/ddtest" .)
       chmod +x bin/ddtest
-      # Install ci dependencies, then upgrade riot to 0.23.0 (ci.txt still
-      # pins 0.22.0 from the old pyproject.toml; the lockfile will be
-      # regenerated separately).
+      # Install ci dependencies (includes riot==0.23.0, pinned in pyproject.toml
+      # and ci/requirements/ci.txt).
       python -m venv bin/riot-env
       bin/riot-env/bin/python -m pip install --no-cache-dir -r ci/requirements/ci.txt
-      bin/riot-env/bin/python -m pip install --no-cache-dir "riot==0.23.0"  # ci-deps: allow
   artifacts:
     paths:
       - bin/ddtest
