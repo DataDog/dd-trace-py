@@ -5,7 +5,7 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG RIOT_VERSION=0.22.0
+ARG RIOT_VERSION=0.23.0
 ARG UV_VERSION=0.11.14
 
 # http://bugs.python.org/issue19846
@@ -95,6 +95,12 @@ RUN apt-get update \
     fi \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
+
+# Install ddtest (pre-built binary from GitHub releases)
+# Must run as root before USER bits (below) — /usr/local/bin is root-owned.
+ARG DDTEST_VERSION=1.7.0
+RUN curl -fsSL "https://github.com/DataDog/ddtest/releases/download/v${DDTEST_VERSION}/ddtest-linux-${TARGETARCH}" -o /usr/local/bin/ddtest \
+  && chmod +x /usr/local/bin/ddtest
 
 
 USER bits

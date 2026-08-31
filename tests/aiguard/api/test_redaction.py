@@ -51,7 +51,7 @@ def _metrics(add_count_metric: Mock, metric: str) -> list[tuple[Any, Any]]:
     return [
         (args[2], args[3])
         for args, _ in add_count_metric.call_args_list
-        if args[0].value == "appsec" and args[1] == metric
+        if args[0].value == "ai_guard" and args[1] == metric
     ]
 
 
