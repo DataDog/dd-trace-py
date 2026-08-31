@@ -100,3 +100,8 @@ configure_stack_internal_test(test_sample_lifecycle)
 
 dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
 configure_stack_internal_test(test_sampling_cycle_state)
+
+# vm.cc is compiled into the test binary: the fast-copy state lives in inline variables, so the copy in the test
+# executable is distinct from the one in the _stack library and only the constructor linked here initializes it.
+dd_wrapper_add_test(test_embedded_fast_copy test_embedded_fast_copy.cpp ../src/echion/vm.cc)
+configure_stack_internal_test(test_embedded_fast_copy)

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import itertools
 import math
+import os
+import sys
 import typing as t
 
 from envier import Env
@@ -23,6 +25,19 @@ from ddtrace.internal.utils.formats import parse_tags_str
 
 
 logger = get_logger(__name__)
+
+
+def _is_python_embedded() -> bool:
+    try:
+        real_exe = os.readlink("/proc/self/exe") if sys.platform == "linux" else ""
+    except OSError:
+        real_exe = ""
+
+    exe = real_exe or (getattr(sys, "executable", "") or "")
+    if not exe:
+        return True
+
+    return "python" not in os.path.basename(exe).lower()
 
 
 def _derive_default_heap_sample_size(
@@ -620,6 +635,13 @@ if not stack_is_available:
             "Failed to load stack module (%s), disabling stack profiling" % msg,
         )
     config.stack.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
+
+# Fast memory copy is unsafe in embedded interpreters: the host process may
+# install its own signal handlers that conflict with the SIGSEGV/SIGBUS
+# recovery mechanism used by safe_memcpy.
+if config.stack.fast_copy and _is_python_embedded():
+    logger.debug("Python is running as an embedded interpreter; disabling fast memory copy for stack profiling")
+    config.stack.fast_copy = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Enrich tags with git metadata and DD_TAGS
 config.tags = _enrich_tags(config.tags)  # pyright: ignore[reportAttributeAccessIssue]
