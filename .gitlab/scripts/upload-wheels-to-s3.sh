@@ -24,10 +24,6 @@ if [ ! -d pywheels ]; then
   exit 0
 fi
 
-# s3://dd-trace-py-builds is anonymously readable and listable, so nothing unsupported may
-# leave via this script. Every caller and every index suffix goes through here.
-.gitlab/scripts/prune-unsupported-wheels.sh pywheels
-
 WHEELS=(pywheels/*.whl pywheels/*.tar.gz)
 
 if [ ${#WHEELS[@]} -eq 0 ]; then
