@@ -7,6 +7,7 @@ from typing import Optional
 
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -29,13 +30,9 @@ class HttpxPatcher:
         self,
         module: Any,
         integration_config: "IntegrationConfig",
-        request_event_name: Optional[str] = None,
-        send_event_name: Optional[str] = None,
     ) -> None:
         self._module = module
         self._integration_config = integration_config
-        self._request_event_name = request_event_name
-        self._send_event_name = send_event_name
 
     def _wrapped_sync_send_single_request(
         self,
@@ -53,7 +50,7 @@ class HttpxPatcher:
                 request_headers=request.headers,
                 request_body=lambda: request.content,
             ),
-            context_name_override=self._send_event_name,
+            context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
         ) as ctx:
             response = None
             try:
@@ -79,7 +76,7 @@ class HttpxPatcher:
                 request_headers=request.headers,
                 request_body=lambda: request.content,
             ),
-            context_name_override=self._send_event_name,
+            context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
         ) as ctx:
             response = None
             try:
@@ -110,7 +107,7 @@ class HttpxPatcher:
                 query=ensure_text(request.url.query),
                 target_host=request.url.host,
             ),
-            context_name_override=self._request_event_name,
+            context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
         ) as ctx:
             response = None
             try:
@@ -141,7 +138,7 @@ class HttpxPatcher:
                 query=ensure_text(request.url.query),
                 target_host=request.url.host,
             ),
-            context_name_override=self._request_event_name,
+            context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
         ) as ctx:
             response = None
             try:
