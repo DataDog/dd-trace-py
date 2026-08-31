@@ -93,11 +93,7 @@ class RuntimeWorker(periodic.PeriodicService):
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
-        if config._runtime_metrics_runtime_id_enabled:
-            # Enables tagging runtime metrics with runtime-id (as well as all the v1 tags)
-            self._platform_tags = self._format_tags(PlatformTagsV2())
-        else:
-            self._platform_tags = self._format_tags(PlatformTags())
+        self._platform_tags = self._collect_platform_tags()
 
         self._process_tags: list[str] = list(ProcessTags())
         # Only dd.internal.entity_id needs preserving here: service/env/version are already
@@ -144,7 +140,9 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = True
 
     def flush(self) -> None:
-        # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
+        # Refresh runtime-id tags when enabled; service/env/version are collected below via TracerTags().
+        if config._runtime_metrics_runtime_id_enabled:
+            self._platform_tags = self._collect_platform_tags()
         runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
         # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
         # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
@@ -156,6 +154,11 @@ class RuntimeWorker(periodic.PeriodicService):
             for key, value in self._runtime_metrics:
                 log.debug("Sending ddtrace runtime metric %s:%s", key, value)
                 self.send_metric(key, value)
+
+    def _collect_platform_tags(self) -> list[str]:
+        if config._runtime_metrics_runtime_id_enabled:
+            return self._format_tags(PlatformTagsV2())
+        return self._format_tags(PlatformTags())
 
     def _format_tags(self, tags: RuntimeCollectorsIterable) -> list[str]:
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
