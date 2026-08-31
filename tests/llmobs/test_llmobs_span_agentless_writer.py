@@ -7,6 +7,7 @@ import time
 import mock
 import pytest
 
+from ddtrace.internal.utils.http import Response
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._writer import LLMObsSpanWriter
@@ -140,6 +141,58 @@ def test_send_chat_completion_event(mock_writer_logs):
     llmobs_span_writer.enqueue(_chat_completion_event())
     llmobs_span_writer.periodic()
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
+
+
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_send_completion_retries_server_error(mock_send_payload, mock_writer_logs):
+    mock_send_payload.side_effect = [Response(status=502), Response(status=200)]
+    llmobs_span_writer = LLMObsSpanWriter(0, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    llmobs_span_writer.enqueue(_completion_event())
+
+    with mock.patch("ddtrace.llmobs._writer.telemetry.record_dropped_payload") as record_dropped_payload:
+        llmobs_span_writer.periodic()
+
+    assert mock_send_payload.call_count == 2
+    record_dropped_payload.assert_not_called()
+
+
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_send_completion_records_one_drop_after_server_error_retries_exhausted(mock_send_payload, mock_writer_logs):
+    mock_send_payload.return_value = Response(status=502)
+    llmobs_span_writer = LLMObsSpanWriter(0, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    llmobs_span_writer.enqueue(_completion_event())
+
+    with mock.patch("ddtrace.llmobs._writer.telemetry.record_dropped_payload") as record_dropped_payload:
+        llmobs_span_writer.periodic()
+
+    assert mock_send_payload.call_count == llmobs_span_writer.RETRY_ATTEMPTS
+    record_dropped_payload.assert_called_once_with(1, event_type="span", error="http_error")
+
+
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_send_completion_does_not_retry_client_error(mock_send_payload, mock_writer_logs):
+    mock_send_payload.return_value = Response(status=403)
+    llmobs_span_writer = LLMObsSpanWriter(0, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    llmobs_span_writer.enqueue(_completion_event())
+
+    with mock.patch("ddtrace.llmobs._writer.telemetry.record_dropped_payload") as record_dropped_payload:
+        llmobs_span_writer.periodic()
+
+    mock_send_payload.assert_called_once()
+    record_dropped_payload.assert_called_once_with(1, event_type="span", error="http_error")
+
+
+@mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
+def test_send_completion_records_one_drop_after_connection_retries_exhausted(mock_send_payload, mock_writer_logs):
+    mock_send_payload.side_effect = OSError("connection failed")
+    llmobs_span_writer = LLMObsSpanWriter(0, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
+    llmobs_span_writer.enqueue(_completion_event())
+
+    with mock.patch("ddtrace.llmobs._writer.telemetry.record_dropped_payload") as record_dropped_payload:
+        llmobs_span_writer.periodic()
+
+    assert mock_send_payload.call_count == llmobs_span_writer.RETRY_ATTEMPTS
+    record_dropped_payload.assert_called_once_with(1, event_type="span", error="connection_error")
 
 
 def test_send_completion_bad_api_key(mock_writer_logs):

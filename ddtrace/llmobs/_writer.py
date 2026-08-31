@@ -224,7 +224,8 @@ class BaseLLMObsWriter(PeriodicService):
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
             initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, Response),
+            # Retry on 5xx server errors and connection failures; return immediately on 2xx/4xx.
+            until=lambda result: isinstance(result, Response) and result.status < 500,
         )(self._send_payload)
 
     def start(self, *args, **kwargs):
@@ -285,9 +286,16 @@ class BaseLLMObsWriter(PeriodicService):
         if not enc_llm_events:
             return
         try:
-            self._send_payload_with_retry(enc_llm_events, len(events))
-        except Exception:
-            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
+            response = self._send_payload_with_retry(enc_llm_events, len(events))
+            if response.status >= 300:
+                telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="http_error")
+        except Exception as error:
+            error_type = (
+                "http_error"
+                if isinstance(error, RetryError) and error.args and isinstance(error.args[0], Response)
+                else "connection_error"
+            )
+            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error=error_type)
             logger.error(
                 "failed to send %d LLMObs %s events to %s",
                 len(events),
@@ -312,7 +320,6 @@ class BaseLLMObsWriter(PeriodicService):
                     resp.read(),
                     extra={"send_to_telemetry": False},
                 )
-                telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
             return Response.from_http_response(resp)
