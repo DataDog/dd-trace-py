@@ -783,8 +783,6 @@ GCMonitor::postfork_child()
     _stop_flag = false;
     _started = false;
     _prev_gen_stats = {};
-    _survivor_counts.clear();
-    _prev_objs.clear();
     _latest_json.clear();
 
     if (_was_running_at_fork) {
@@ -1065,8 +1063,7 @@ GCMonitor::take_snapshot()
     const auto t_serialize_start = Clock::now();
     timing.name_resolve_us = elapsed_us(t_name_resolve_start, t_serialize_start);
 
-    std::vector<RootNode> roots;
-    serialize(gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, roots, ref_tree);
+    serialize(gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, ref_tree);
 
     const auto t_wall_end = Clock::now();
     timing.serialize_us = elapsed_us(t_serialize_start, t_wall_end);
@@ -1086,11 +1083,10 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
                      int garbage_count,
                      const std::vector<std::string>& type_table,
                      const std::vector<uint32_t>& type_counts,
-                     const std::vector<RootNode>& roots,
                      const std::vector<TreeNode>& ref_tree)
 {
     std::string json = serialize_snapshot_json(
-      gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, roots, ref_tree);
+      gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, ref_tree);
 
     std::lock_guard<std::mutex> lock(_mutex);
     _latest_json = std::move(json);

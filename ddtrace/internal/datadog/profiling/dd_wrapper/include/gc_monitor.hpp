@@ -6,7 +6,6 @@
 #include <mutex>
 #include <string>
 #include <thread>
-#include <unordered_map>
 #include <vector>
 
 namespace Datadog {
@@ -31,12 +30,6 @@ struct TreeNode
         ic += instances;
         ts += size;
     }
-};
-
-struct RootNode : TreeNode
-{
-    char category{ '?' }; // K S F O ?
-    std::string fn;       // module.var or funcname:var (file:line); may be empty
 };
 
 class GCMonitor
@@ -85,7 +78,6 @@ class GCMonitor
                    int garbage_count,
                    const std::vector<std::string>& type_table,
                    const std::vector<uint32_t>& type_counts,
-                   const std::vector<RootNode>& roots,
                    const std::vector<TreeNode>& ref_tree);
 
     std::thread _thread;
@@ -103,10 +95,6 @@ class GCMonitor
 
     // Cross-snapshot state (only accessed from the background thread)
     std::array<GCGenStats, 3> _prev_gen_stats{};
-    // object id -> consecutive snapshots in which the object appeared
-    std::unordered_map<uintptr_t, int> _survivor_counts;
-    // object id -> (type_idx, shallow_size) from the previous snapshot
-    std::unordered_map<uintptr_t, std::pair<uint32_t, uint64_t>> _prev_objs;
 
     std::string _latest_json; // protected by _mutex
 
