@@ -70,7 +70,6 @@ def _model_decorator(operation_kind):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-        agent_service: Optional[str] = None,
     ):
         def inner(func):
             if iscoroutinefunction(func) or isasyncgenfunction(func):
@@ -88,7 +87,6 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agent_service=agent_service,
                         _decorator=True,
                     )
                     return yield_from_async_gen(func, span, args, kwargs)
@@ -106,7 +104,6 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agent_service=agent_service,
                         _decorator=True,
                     ) as span:
                         resp = await func(*args, **kwargs)
@@ -142,7 +139,6 @@ def _model_decorator(operation_kind):
                             name=span_name,
                             session_id=session_id,
                             ml_app=ml_app,
-                            agent_service=agent_service,
                             _decorator=True,
                         )
                         try:
@@ -168,7 +164,6 @@ def _model_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agent_service=agent_service,
                         _decorator=True,
                     ) as span:
                         resp = func(*args, **kwargs)
@@ -203,7 +198,6 @@ def _llmobs_decorator(operation_kind):
         name: Optional[str] = None,
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
-        agent_service: Optional[str] = None,
         version: Optional[str] = None,
         _automatic_io_annotation: bool = True,
     ):
@@ -228,7 +222,6 @@ def _llmobs_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agent_service=agent_service,
                         _decorator=True,
                         **version_kwargs,
                     )
@@ -249,7 +242,6 @@ def _llmobs_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agent_service=agent_service,
                         _decorator=True,
                         **version_kwargs,
                     ) as span:
@@ -277,7 +269,6 @@ def _llmobs_decorator(operation_kind):
                             name=span_name,
                             session_id=session_id,
                             ml_app=ml_app,
-                            agent_service=agent_service,
                             _decorator=True,
                             **version_kwargs,
                         )
@@ -307,7 +298,6 @@ def _llmobs_decorator(operation_kind):
                         name=span_name,
                         session_id=session_id,
                         ml_app=ml_app,
-                        agent_service=agent_service,
                         _decorator=True,
                         **version_kwargs,
                     ) as span:

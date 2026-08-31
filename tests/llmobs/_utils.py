@@ -123,7 +123,6 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         "service:{}".format(tags.get("service", "tests.llmobs")),
         "source:integration",
         "ml_app:{}".format(tags.get("ml_app", "unnamed-ml-app")),
-        "agent_service:{}".format(tags.get("ml_app", "unnamed-ml-app")),
         "ddtrace.version:{}".format(ddtrace.__version__),
         "language:python",
     ]
@@ -138,9 +137,7 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None, is_decor
         expected_tags.append("decorator:1")
     if tags:
         expected_tags.extend(
-            "{}:{}".format(k, v)
-            for k, v in tags.items()
-            if k not in ("version", "env", "service", "ml_app", "agent_service")
+            "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
         )
     return sorted(expected_tags)
 
