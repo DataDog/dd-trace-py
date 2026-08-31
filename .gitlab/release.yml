@@ -15,12 +15,7 @@
     TWINE_NON_INTERACTIVE: "1"
   script:
     - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
-    # "ddtrace package" already pruned cp315 out of the artifact this job inherits. Pruning
-    # again keeps the invariant local and checkable: every publish command under .gitlab/
-    # is preceded by a prune call, and tests/internal/test_unsupported_wheel_pruning.py
-    # fails if a new one is not. It also means "twine check" and "twine upload" see the same
-    # set, so a malformed cp315 wheel from an allow_failure build cannot fail a release
-    # whose supported wheels are all fine.
+    # Prune unsupported tags from PyPI; S3 SHA index keeps them for gate installs.
     - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
     - uvx --with="twine>=5.0,<7" twine check --strict pywheels/*
     - uvx --with="twine>=5.0,<7" twine upload --repository ${PYPI_REPOSITORY} pywheels/ddtrace-*

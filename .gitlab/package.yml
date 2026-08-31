@@ -106,8 +106,6 @@ variables:
         IMAGE_TAG: *AARCH64_IMAGES
   # TODO(py-315): drop the cp315 allow_failure rule once #17849 ports the bytecode
   # wrapping path to sys.monitoring (currently raises NotImplementedError on 3.15).
-  # The cp315 wheels this matrix produces are kept for CI signal only and are deleted
-  # before every publication step by .gitlab/scripts/prune-unsupported-wheels.sh.
   rules:
     - if: $PYTHON_TAG == "cp315-cp315"
       allow_failure: true
@@ -228,8 +226,7 @@ variables:
         echo "Version '${PACKAGE_VERSION:-}' has no local segment (+...) -- nothing to patch, exiting."
         exit 0
       fi
-    # The prerelease index exists to hand custom builds to customers and internal services,
-    # so it gets the same treatment as PyPI and S3.
+    # Prune unsupported tags from adms; S3 SHA index keeps them for gate installs.
     - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
     - python3 .gitlab/scripts/patch-wheel-versions.py pywheels pywheels-patched
     - |
@@ -504,8 +501,7 @@ download_dependency_wheels:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
 
-# This job's artifact is what release_pypi_prod uploads to PyPI and what "upload all"
-# publishes as the default commit-scoped S3 index, so pruning here covers both.
+# Do not prune here: "upload all" publishes this artifact as the SHA S3 index.
 "ddtrace package":
   extends: .package_base
   needs:
@@ -516,7 +512,6 @@ download_dependency_wheels:
     - "collect windows wheels"
     - "package version"
   script:
-    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
     - .gitlab/validate-ddtrace-package.py pywheels
 
 "ddtrace package serverless":
@@ -525,5 +520,4 @@ download_dependency_wheels:
     - "build linux serverless"
     - "package version"
   script:
-    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
     - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless
