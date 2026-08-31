@@ -113,6 +113,66 @@ def test_coverage_concurrent_futures_threadpool_session():
 
 
 @pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
+def test_coverage_context_isolated_across_threads():
+    """Regression: ctx_covered must be context-local, not a shared mutable default.
+
+    A background thread entering its own CollectInContext must not push onto (or pop from) the
+    main thread's coverage stack. Previously ctx_covered used default=[] (a single shared list
+    object returned by ContextVar.get() in every thread), so the CollectInContext.__init__
+    ``is None`` guard never fired and every thread shared one stack. A thread's push/pop then
+    corrupted the main stack and could mutate the dict that get_coverage_bitmaps() was
+    iterating, raising ``RuntimeError: dictionary changed size during iteration``.
+    """
+    import os
+    from pathlib import Path
+    import threading
+
+    from ddtrace.internal.coverage.code import ModuleCodeCollector
+    from ddtrace.internal.coverage.code import ctx_covered
+    from ddtrace.internal.coverage.installer import install
+
+    cwd = os.getcwd()
+    install(include_paths=[Path(cwd) / "tests/coverage/included_path/"])
+    ModuleCodeCollector.start_coverage()
+
+    thread_entered = threading.Event()
+    thread_can_exit = threading.Event()
+    observed = {}
+
+    with ModuleCodeCollector.CollectInContext():
+        main_top_dict = ctx_covered.get()[-1]
+
+        def worker():
+            # threading_coverage auto-enters a CollectInContext in _bootstrap_inner before
+            # running this target, so the thread's context is active by the time we signal.
+            thread_entered.set()
+            from tests.coverage.included_path.callee import called_in_context_main
+
+            called_in_context_main(1, 2)
+            thread_can_exit.wait()
+
+        t = threading.Thread(target=worker)
+        t.start()
+        thread_entered.wait()
+
+        # While the thread's CollectInContext is active, the main thread must still observe its
+        # OWN stack and top dict, unaffected by the thread's push.
+        observed["top_is_main"] = ctx_covered.get()[-1] is main_top_dict
+        observed["stack_len"] = len(ctx_covered.get())
+
+        thread_can_exit.set()
+        t.join()
+
+    assert observed["top_is_main"], (
+        "Main thread's coverage stack was corrupted by a background thread: "
+        "ctx_covered is shared across threads instead of being context-local"
+    )
+    assert observed["stack_len"] == 1, (
+        f"Main thread's coverage stack should contain only its own context, got len={observed['stack_len']}"
+    )
+
+
+@pytest.mark.subprocess(env={"_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_coverage_concurrent_futures_threadpool_context():
     import concurrent.futures
     import os

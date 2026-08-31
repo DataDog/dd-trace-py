@@ -46,8 +46,14 @@ def _is_site_packages_path(path: Path) -> bool:
     return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
 
 
-ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
-ctx_covered_files: ContextVar[list[set[str]]] = ContextVar("ctx_covered_files", default=[])
+# AIDEV-NOTE: These ContextVars MUST use default=None, not default=[]. A mutable default ([]) is a single
+# shared object returned by .get() in every thread/context, which defeats ContextVar isolation: the
+# CollectInContext.__init__ guard below ("if ... is None: ...set([])") only initializes a context-local
+# list when the default is None. With default=[] the guard never fires, so every thread appends to and
+# pops from the SAME shared stack, corrupting per-test coverage and racing with get_coverage_bitmaps()
+# iteration (RuntimeError: dictionary changed size during iteration). Do not change back to default=[].
+ctx_covered: ContextVar[t.Optional[list[defaultdict[str, CoverageLines]]]] = ContextVar("ctx_covered", default=None)
+ctx_covered_files: ContextVar[t.Optional[list[set[str]]]] = ContextVar("ctx_covered_files", default=None)
 ctx_is_import_coverage = ContextVar("ctx_is_import_coverage", default=False)
 ctx_coverage_enabled = ContextVar("ctx_coverage_enabled", default=False)
 
