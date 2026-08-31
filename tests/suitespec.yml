@@ -163,6 +163,8 @@ suites:
     paths:
       - 'conftest.py'
       - '**/conftest.py'
+      - 'tests/_ddtest_conftest_helpers.py'
+      - 'tests/_ddtest_env_helpers.py'
     pattern: meta-testing
     snapshot: false
   ddtracerun:
