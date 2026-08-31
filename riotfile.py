@@ -4363,7 +4363,6 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": "<0.28.0",
-                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4387,18 +4386,21 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "==0.94.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.14"],
                     pkgs={
                         "fastapi": "==0.141.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
             ],
@@ -4412,7 +4414,6 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": "<0.28.0",
-                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4436,18 +4437,21 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "==0.94.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.14"],
                     pkgs={
                         "fastapi": "==0.141.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
             ],
