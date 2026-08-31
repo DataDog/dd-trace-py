@@ -264,7 +264,8 @@ def test_uvloop_timer_callbacks_publish_the_captured_context(asyncio_patch_state
         loop.run_forever()
 
         assert observed == [("callback", "callback")]
-        assert switches[-1] == "ambient"
+        # The final ambient publication belongs to the run_forever wrapper.
+        assert switches == ["callback", "ambient", "ambient"]
     finally:
         loop.close()
 

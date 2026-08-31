@@ -49,7 +49,6 @@ def _patch(uvloop: Any) -> None:
     wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon", _wrapped_schedule_callback)
     wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon_threadsafe", _wrapped_schedule_callback)
     wrapt.wrap_function_wrapper(uvloop, "Loop.call_later", _wrapped_schedule_timer)
-    wrapt.wrap_function_wrapper(uvloop, "Loop.call_at", _wrapped_schedule_timer)
     wrapt.wrap_function_wrapper(uvloop, "Loop.run_forever", _wrapped_run_forever)
     setattr(uvloop.Loop, _PATCH_MARKER, True)
 
@@ -67,7 +66,6 @@ def _unpatch(uvloop: Any) -> None:
         return
 
     unwrap(uvloop.Loop, "run_forever")
-    unwrap(uvloop.Loop, "call_at")
     unwrap(uvloop.Loop, "call_later")
     unwrap(uvloop.Loop, "call_soon_threadsafe")
     unwrap(uvloop.Loop, "call_soon")
