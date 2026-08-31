@@ -183,6 +183,9 @@ def test_an_empty_directory_is_accepted(prune, tmp_path):
 
 def test_a_missing_directory_is_a_hard_error(prune, tmp_path):
     shell = shutil.which("bash")
+    if shell is None:
+        pytest.skip("bash is required to run the prune script")
+
     proc = subprocess.run(
         [shell, str(_PRUNE_SCRIPT), "pywheeels"],
         cwd=str(tmp_path),
@@ -197,6 +200,9 @@ def test_a_missing_directory_is_a_hard_error(prune, tmp_path):
 
 def test_no_arguments_is_a_hard_error(prune, tmp_path):
     shell = shutil.which("bash")
+    if shell is None:
+        pytest.skip("bash is required to run the prune script")
+
     proc = subprocess.run([shell, str(_PRUNE_SCRIPT)], cwd=str(tmp_path), capture_output=True, text=True, check=False)
 
     assert proc.returncode == 1
