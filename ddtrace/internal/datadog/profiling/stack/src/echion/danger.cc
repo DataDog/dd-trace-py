@@ -109,7 +109,7 @@ segv_handler(int signo, siginfo_t* info, void*)
         // Re-raising with pthread_kill instead delivers si_code == SI_TKILL with no fault
         // address and a PC inside this handler. Hosts that read siginfo to classify a
         // fault cannot recover from that: the Go runtime turns it into a fatal error
-        // rather than the nil-dereference panic it would otherwise raise (PROF-14568).
+        // rather than the nil-dereference panic it would otherwise raise (PROF-15342).
         cede_fault_signal(signo);
 
         if (info == nullptr || info->si_code <= 0) {

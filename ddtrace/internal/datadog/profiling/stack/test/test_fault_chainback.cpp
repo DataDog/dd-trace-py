@@ -118,7 +118,7 @@ run_cede_scenario(CedeOutcome& outcome, HostFaultReport& report)
 // siginfo intact. Re-raising via pthread_kill reports si_code == SI_TKILL with a null
 // fault address and a PC inside the profiler's handler, which stops a host such as the
 // Go runtime from classifying the fault as recoverable and turns a nil-dereference panic
-// into a fatal crash (PROF-14568).
+// into a fatal crash (PROF-15342).
 //
 // t_in_unarmed_chain latches after the first cede, so this scenario needs its own thread.
 TEST(FaultChainback, CedesUnarmedFaultWithOriginalSiginfo)
