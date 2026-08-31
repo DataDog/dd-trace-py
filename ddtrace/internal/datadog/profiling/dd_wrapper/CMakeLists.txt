@@ -56,6 +56,7 @@ add_library(
     src/code_provenance.cpp
     src/ddup_interface.cpp
     src/gc_monitor.cpp
+    src/gc_monitor_json.cpp
     src/libdatadog_helpers.cpp
     src/native_call_tracker.cpp
     src/profile.cpp
