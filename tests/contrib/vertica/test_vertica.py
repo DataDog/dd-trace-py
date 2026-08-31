@@ -1,11 +1,16 @@
+import mock
 import pytest
 
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib.internal.vertica.patch import _dispatch_query_event
 from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.settings._config import _deepmerge
@@ -51,6 +56,25 @@ class TestVerticaPatching(TracerTestCase):
     def tearDown(self):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
+
+    def test_query_event_can_block(self):
+        cases = (
+            ("execute", ("SELECT 1",)),
+            ("copy", ("COPY test_table (a, b) FROM STDIN DELIMITER ','", "1,foo")),
+        )
+
+        for method, args in cases:
+            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+                with pytest.raises(BlockingException):
+                    _dispatch_query_event(method, args, {})
+
+            dispatch_event.assert_called_once_with(DbApiEvent(query=args[0], span_name_prefix="vertica"))
+
+    def test_non_string_query_does_not_dispatch_event(self):
+        with mock.patch.object(core, "dispatch_event") as dispatch_event:
+            _dispatch_query_event("execute", (b"SELECT 1",), {})
+
+        dispatch_event.assert_not_called()
 
     def test_patch_before_import(self):
         patch()
