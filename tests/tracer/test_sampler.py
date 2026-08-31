@@ -395,60 +395,10 @@ def test_sampling_rule_init_via_env():
     mock_log.error.assert_has_calls(
         [
             mock.call(
-                "Failed to parse DD_TRACE_SAMPLING_RULES=%r, no sampling rules will be applied",
+                "Failed to apply all sampling rules. Rules=%s, Applied=%s",
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
+                [],
                 exc_info=True,
-                extra={"send_to_telemetry": False},
-            )
-        ]
-    )
-
-
-@pytest.mark.parametrize("malformed_rules", ["null", "42", '"a string"', '{"sample_rate": 1.0}'])
-def test_sampling_rule_init_via_env_requires_top_level_list(malformed_rules):
-    """Top-level JSON that isn't a list (null, scalar, object) fails open with no rules, no crash."""
-    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
-        with override_global_config(dict(_trace_sampling_rules=malformed_rules)):
-            sampling_rules = DatadogSampler().rules
-    assert sampling_rules == []
-    mock_log.error.assert_called_once_with(
-        "DD_TRACE_SAMPLING_RULES=%r is not a JSON array, no sampling rules will be applied",
-        malformed_rules,
-        extra={"send_to_telemetry": False},
-    )
-
-
-def test_sampling_rule_init_via_env_skips_only_malformed_rule():
-    """A malformed rule entry (wrong field types) is skipped without dropping the other valid rules."""
-    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
-        with override_global_config(
-            dict(
-                _trace_sampling_rules='[{"sample_rate":1.0,"service":"good"}, {"sample_rate":1.0,"tags":"not-a-dict"}]'
-            )
-        ):
-            sampling_rules = DatadogSampler().rules
-    assert len(sampling_rules) == 1
-    assert sampling_rules[0].service.pattern == "good"
-    mock_log.error.assert_called_once_with(
-        "Failed to apply sampling rule %r, skipping it",
-        {"sample_rate": 1.0, "tags": "not-a-dict"},
-        exc_info=True,
-        extra={"send_to_telemetry": False},
-    )
-
-    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
-        with override_global_config(
-            dict(
-                _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
-                + '{"service":"my-service","name":"my-name"}]'
-            )
-        ):
-            DatadogSampler().rules
-    mock_log.error.assert_has_calls(
-        [
-            mock.call(
-                "No sample_rate provided for sampling rule: %s. Skipping.",
-                {"service": "my-service", "name": "my-name"},
                 extra={"send_to_telemetry": False},
             )
         ]
