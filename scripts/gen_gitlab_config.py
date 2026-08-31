@@ -21,14 +21,19 @@ from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import hashlib
+
+# ddtest job emission is encapsulated in ddtest_jobs.py (same directory).
+# This script runs via uv-run-script; scripts/ is added to sys.path later
+# (line 884), so use a deferred import to avoid ModuleNotFoundError at top level.
+import importlib as _importlib
 import os
 import re
 import subprocess
 import typing as t
 
-from scripts.ddtest_jobs import ddtest_k
-from scripts.ddtest_jobs import emit_ddtest_jobs
-from scripts.ddtest_jobs import validate_ddtest_venv_test_locations
+
+def _ddtest_module():
+    return _importlib.import_module("ddtest_jobs")
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
@@ -522,7 +527,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
-        validate_ddtest_venv_test_locations(suite, suite_venv_info[suite])
+        _ddtest_module().validate_ddtest_venv_test_locations(suite, suite_venv_info[suite])
 
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
@@ -586,9 +591,9 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 if not venvs:
                     LOGGER.warning("Suite %s opted into ddtest but has no riot venvs; skipping", suite)
                     continue
-                k = ddtest_k(suite_config)
+                k = _ddtest_module().ddtest_k(suite_config)
                 LOGGER.info("Suite %s: ddtest (venvs=%d, nodes/venv=%d)", suite, len(venvs), k)
-                emit_ddtest_jobs(f, suite, stage, clean_name, suite_config, venvs, k)
+                _ddtest_module().emit_ddtest_jobs(f, suite, stage, clean_name, suite_config, venvs, k)
                 continue
 
             jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
