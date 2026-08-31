@@ -979,6 +979,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
     if (!want) {
         fast_copy_user_disabled = true;
     }
+    fast_copy_desired = want && safe_memcpy_initialized;
     set_fast_copy_enabled(want);
 
     Py_RETURN_NONE;
@@ -992,7 +993,12 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
     // faulthandler) install its own handler so it doesn't record ours as its
     // previous handler (which would create a signal-handler cycle).
     // Follow with stack_reinstall_segv_handler to reinstall on top.
-    if (fast_copy_active) {
+    //
+    // Keyed off the persistent intent rather than fast_copy_active: during the startup
+    // warmup window fast_copy_active is false while our handler is still installed, so
+    // gating on it let a faulthandler swap record our handler as its previous and keep
+    // ownership for the life of the process.
+    if (fast_copy_handler_ops_enabled()) {
         uninstall_segv_handler();
     }
     Py_RETURN_NONE;
@@ -1001,11 +1007,13 @@ stack_uninstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args
 static PyObject*
 stack_reinstall_segv_handler(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reinstall SIGSEGV/SIGBUS handlers if fast_copy (safe_memcpy) is active.
-    // This is used to reclaim the handler after another component (e.g., Python's
-    // faulthandler module) overwrites it. Our handler chains to the previous one
-    // for non-recovery faults, so both systems coexist correctly.
-    if (fast_copy_active) {
+    // Reclaim the SIGSEGV/SIGBUS handlers after a component we coordinate with (e.g.
+    // Python's faulthandler module) overwrote them. Our handler chains to the previous
+    // one for non-recovery faults, so both systems coexist correctly.
+    //
+    // Skipped once a foreign owner is authoritative: reclaiming on top of a handler we
+    // already ceded would break its crash path (see the notes in Sampler::sampling_thread).
+    if (fast_copy_handler_ops_enabled()) {
         init_segv_catcher();
     }
     Py_RETURN_NONE;
