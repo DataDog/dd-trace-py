@@ -461,7 +461,7 @@ def test_iast_vulnerable_request_downstream(server, config, apm_tracing_enabled,
         trace_id = 1212121212121212121
         parent_id = 34343434
         response = flask_client.get(
-            f"/vulnerablerequestdownstream?port={free_port}",
+            "/vulnerablerequestdownstream",
             headers={
                 "x-datadog-trace-id": str(trace_id),
                 "x-datadog-parent-id": str(parent_id),
