@@ -15,6 +15,10 @@ from ddtrace.internal.bytecode_injection import HookType
 _INJECTION_ASSEMBLY: t.Optional[Assembly] = (
     _bytecode_injection.INJECTION_ASSEMBLY if sys.version_info < (3, 15) else None
 )
+# AIDEV-NOTE: Accurate import-hook injection is intentionally unsupported on 3.15+; see the
+# AIDEV-NOTE at instrumentation_py3_12._USE_ACCURATE_IMPORTS for the full rationale and the work
+# required to re-enable it (the `bytecode` library's CALL codegen segfaults on 3.15, so injection
+# must be reimplemented on sys.monitoring INSTRUCTION events).
 
 
 ImportName = tuple[str, tuple[str, ...]]
