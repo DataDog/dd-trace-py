@@ -10,10 +10,9 @@ Rules are evaluated in the order they are declared and the first one that matche
 rule matches, the global ``DD_LLMOBS_SAMPLE_RATE`` is applied.
 
 Timing is the hard part. Tags land on the root span over its whole lifetime, but the decision must
-exist before anything leaves the process, and a shipped span event cannot be retracted -- so a
-decision revised after something shipped would leave one trace carrying two different answers.
+exist before anything leaves the process.
 
-The registry below decides as late as it safely can and then freezes:
+The registry below decides the sampling decision as late as it safely can and then freezes:
 
 * At root start, only a floor is stamped -- the global rate, since no tag exists yet to match a
   rule on. This guarantees no span can ever ship without a decision.
@@ -26,10 +25,11 @@ The registry below decides as late as it safely can and then freezes:
 
 import json
 from json.decoder import JSONDecodeError
+from typing import Any
 from typing import Optional
+from typing import Protocol
 import weakref
 
-from ddtrace._trace.span import Span
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
@@ -43,12 +43,19 @@ from ddtrace.llmobs._utils import get_llmobs_tags
 
 log = get_logger(__name__)
 
-DEFAULT_SAMPLE_RATE = 1.0
-
-# Ceiling on concurrently in-flight LLMObs traces awaiting a sampling decision. Entries are retired
-# when a trace completes, so this is only reached if roots are abandoned without finishing. Past the
-# cap we stop registering, and those traces keep the floor stamped at root start.
+# Ceiling on concurrently in-flight LLMObs traces awaiting a sampling decision. Once the cap is
+# reached, we stop registering, and those traces keep the default sampling decision from root start.
 MAX_PENDING_DECISIONS = 4096
+
+
+class _Sampleable(Protocol):
+    """What the sampler needs of a span: a trace id to hash.
+
+    Declared here rather than importing ``Span`` so this module does not depend on the tracing
+    product (see the ``dependency-direction-analysis`` skill).
+    """
+
+    _trace_id_64bits: int
 
 
 class LLMObsSamplingRule:
@@ -88,7 +95,7 @@ class LLMObsSamplingRule:
                 return False
         return True
 
-    def sample(self, span: Span) -> bool:
+    def sample(self, span: _Sampleable) -> bool:
         """Return whether ``span`` is kept, using the same deterministic hash as APM sampling."""
         if self._sample_rate == 1.0:
             return True
@@ -105,7 +112,7 @@ class LLMObsSampler:
 
     __slots__ = ("_default_rule", "rules")
 
-    def __init__(self, sample_rate: float = DEFAULT_SAMPLE_RATE, rules: Optional[str] = None) -> None:
+    def __init__(self, sample_rate: float, rules: Optional[str] = None) -> None:
         """
         :param sample_rate: The global rate applied when no rule matches (``DD_LLMOBS_SAMPLE_RATE``).
         :param rules: The raw JSON value of ``DD_LLMOBS_SAMPLING_RULES``.
@@ -117,9 +124,6 @@ class LLMObsSampler:
     def sample_rate(self) -> float:
         """The global sample rate applied to traces that match no rule."""
         return self._default_rule.sample_rate
-
-    def set_sample_rate(self, sample_rate: float) -> None:
-        self._default_rule.sample_rate = sample_rate
 
     @staticmethod
     def _parse_rules(rules: str) -> list[LLMObsSamplingRule]:
@@ -152,7 +156,7 @@ class LLMObsSampler:
                 return rule
         return None
 
-    def sample(self, span: Span, tags: Optional[dict[str, str]] = None) -> tuple[bool, str]:
+    def sample(self, span: _Sampleable, tags: Optional[dict[str, str]] = None) -> tuple[bool, str]:
         """Make the sampling decision for the root span of an LLMObs trace.
 
         :returns: A ``(sampled, sample_rate)`` pair, where ``sample_rate`` is the formatted rate of
@@ -175,14 +179,14 @@ class _PendingDecision:
 
     __slots__ = ("_root", "sample_rate", "sampling_decision")
 
-    def __init__(self, root: Span) -> None:
+    def __init__(self, root: Any) -> None:
         # Weak, so an abandoned root cannot keep its span graph alive through this registry.
         self._root = weakref.ref(root)
         self.sample_rate: Optional[str] = None
         self.sampling_decision: Optional[str] = None
 
     @property
-    def root(self) -> Optional[Span]:
+    def root(self) -> Optional[Any]:
         return self._root()
 
     @property
@@ -196,15 +200,13 @@ class LLMObsSamplingRegistry:
     def __init__(self, sampler: LLMObsSampler) -> None:
         self._sampler = sampler
         self._pending: dict[str, _PendingDecision] = {}
-        # Plain dict access under the GIL is atomic, but resolve() is read-modify-write and two
-        # threads injecting at once must not produce two different decisions for one trace.
         self._lock = RLock()
 
     @staticmethod
     def _as_decision(sampled: bool) -> str:
         return LLMObsSamplingDecision.SAMPLED.value if sampled else LLMObsSamplingDecision.DROPPED.value
 
-    def default_decision(self, root: Span) -> tuple[str, str]:
+    def default_decision(self, root: Any) -> tuple[str, str]:
         """The global-rate decision, stamped at root start.
 
         Maintains the invariant that every span must carry some decision, so this stands in until ``resolve``
@@ -214,7 +216,7 @@ class LLMObsSamplingRegistry:
         sampled, sample_rate = self._sampler.sample(root)
         return sample_rate, self._as_decision(sampled)
 
-    def register_root(self, llmobs_trace_id: str, root: Span) -> None:
+    def register_root(self, llmobs_trace_id: str, root: Any) -> None:
         """Note that an LLMObs trace has started, without deciding anything yet."""
         with self._lock:
             if len(self._pending) >= MAX_PENDING_DECISIONS:

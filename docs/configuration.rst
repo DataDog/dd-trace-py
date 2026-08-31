@@ -462,32 +462,18 @@ Traces
      description: |
          A JSON array of tag-based sampling rules for LLM Observability traces, mirroring the format of
          ``DD_TRACE_SAMPLING_RULES``. Each rule requires a ``sample_rate`` and may declare a ``tags``
-         object mapping tag names to glob patterns, matched case-insensitively against the **root span**
-         of an LLM Observability trace (``*`` matches any number of characters, ``?`` exactly one). Every
-         tag a rule declares must match for the rule to match, so a rule declaring no ``tags`` matches
-         every trace and is useful as a trailing catch-all.
+         object mapping tag names to glob patterns, matched case-insensitively against the root span of
+         the trace (``*`` matches any number of characters, ``?`` exactly one). Every declared tag must
+         match, so a rule with no ``tags`` matches every trace.
 
-         Rules are evaluated in the order they are declared and the first match wins. A matching rule's
-         rate **replaces** ``DD_LLMOBS_SAMPLE_RATE`` rather than compounding with it; traces matching no
-         rule fall back to that global rate. One decision applies to the whole trace: it is inherited by
-         every child span and propagated across distributed boundaries.
+         Rules are evaluated in order and the first match wins, with its rate replacing
+         ``DD_LLMOBS_SAMPLE_RATE``. Traces matching no rule fall back to that global rate. One decision
+         applies to the whole trace and is propagated across distributed boundaries.
 
          For example, to keep 50% of production traces and 10% of staging traces::
 
              DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5},
                                         {"tags": {"env": "staging"}, "sample_rate": 0.1}]'
-
-         Any tag on the root span can be matched, including ones set with ``LLMObs.annotate()`` after the
-         span has started, as well as ``env``, ``version``, ``service``, ``ml_app``, ``session_id``, and
-         anything from ``DD_TAGS``.
-
-         **Timing.** The decision is made the first time it is needed — the first outbound request that
-         propagates the trace, the first partial flush, or the root span finishing — and is then fixed for
-         the life of the trace. This guarantees that a trace is never split across two different sampling
-         decisions, but it means a tag set *after* the first outbound request, or after
-         ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS`` spans have finished, arrives too late to affect sampling and
-         the trace falls back to the global rate. Annotating the root at the start of its block, before
-         any nested work, ensures the tag is always considered.
 
      version_added:
         v4.15.0:

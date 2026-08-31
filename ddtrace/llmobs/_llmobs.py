@@ -2504,11 +2504,9 @@ class LLMObs(Service):
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
-            # A floor, not the answer. Tag rules can't be matched this early -- the root has no tags
-            # yet -- but every span must ship carrying some decision, so stamp the global rate now.
-            # LLMObsProcessor overwrites it with a rule-aware decision once the tags are in.
+            # Attach the default sampling decision to each span. LLMObsProcessor overwrites it with a
+            # rule-aware decision once the tags are in.
             sample_rate, sampling_decision = self._sampling_registry.default_decision(span)
-        is_llmobs_root = not llmobs_parent
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         # Fall back to the trace-level default session when the parent chain carries none (e.g. a
@@ -2572,9 +2570,8 @@ class LLMObs(Service):
                 else sampling_decision
             ),
         )
-        if is_llmobs_root:
-            # Register before activating: from here on a child, an outbound injection, or a flush
-            # can ask for this trace's decision, and every one of them must find the same entry.
+        if not llmobs_parent:
+            # Register root span before activating.
             self._sampling_registry.register_root(llmobs_trace_id, span)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
@@ -3493,9 +3490,8 @@ class LLMObs(Service):
             # meta_struct holds canonical hex so have to convert to decimal wire format
             ml_app = get_llmobs_ml_app(active_span)
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active_span))
-            # The headers must carry a real decision, so force one now and freeze it. Tags set on
-            # the root after this point can no longer change it - that is the cost of never
-            # letting one trace ship two different decisions.
+            # The headers must carry a real sampling decision, so force one now and freeze it. Tags set on
+            # the root after this point can no longer change it.
             sample_rate, sampling_decision = cls._instance._resolve_sampling(active_span)
         elif active_context is not None:
             # Context._meta always holds decimal wire format so we can read directly

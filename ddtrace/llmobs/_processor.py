@@ -76,9 +76,8 @@ class LLMObsProcessor(TraceProcessor):
     def _stamp_sampling_decisions(self, trace: list[Span]) -> None:
         """Resolve each LLMObs trace in this chunk and write its decision onto every span.
 
-        This is the last point at which the decision can still be influenced by the root's tags,
-        and the last point at which it can be written at all — the events are enqueued a few lines
-        later. A trace the registry cannot answer for is left as it is, keeping either the
+        This is the last point at which the decision can still be influenced by the root's tags.
+        A trace the registry cannot answer for is left as it is, keeping either the
         global-rate floor stamped at activation or a decision inherited from upstream.
         """
         if self._sampling_registry is None:
@@ -90,8 +89,6 @@ class LLMObsProcessor(TraceProcessor):
                 continue
             llmobs_trace_id = get_llmobs_trace_id(span)
             if llmobs_trace_id is not None:
-                # Grouped by LLMObs trace, not APM trace: one chunk can hold several independent
-                # LLMObs roots (successive top-level workflows under one APM request).
                 groups.setdefault(llmobs_trace_id, []).append(span)
         if not groups:
             return
@@ -102,18 +99,15 @@ class LLMObsProcessor(TraceProcessor):
 
         for llmobs_trace_id, spans in groups.items():
             sample_rate, sampling_decision = self._sampling_registry.resolve(llmobs_trace_id)
-            if sampling_decision is not None:
+            if sample_rate is not None and sampling_decision is not None:
                 for span in spans:
                     self._write_sampling_decision(span, sample_rate, sampling_decision)
-            # Else the registry has nothing for this trace -- continued from another process, or
-            # dropped past the cap -- and the spans keep the decision they were stamped with at
-            # activation (the global rate) or inherited from upstream. Never left unstamped.
             if not is_partial_flush:
                 # This APM trace is complete, so nothing more will ask about it.
                 self._sampling_registry.discard(llmobs_trace_id)
 
     @staticmethod
-    def _write_sampling_decision(span: Span, sample_rate: Optional[str], sampling_decision: str) -> None:
+    def _write_sampling_decision(span: Span, sample_rate: str, sampling_decision: str) -> None:
         """Write the decision into both places a span can be exported from.
 
         ``_llmobs_span_event`` shallow-copies the meta_struct ``_dd`` block into the event, so the
@@ -126,8 +120,7 @@ class LLMObsProcessor(TraceProcessor):
         ):
             if dd is None:
                 continue
-            if sample_rate is not None:
-                dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
+            dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
             dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
 
     def _scrub(self, span: Span) -> None:

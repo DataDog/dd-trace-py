@@ -78,7 +78,8 @@ class TestLLMObsSamplerRuleParsing:
 
     def test_parses_rules_in_order(self):
         sampler = LLMObsSampler(
-            rules='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'
+            sample_rate=1.0,
+            rules='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]',
         )
         assert [rule.sample_rate for rule in sampler.rules] == [0.5, 0.1]
 
@@ -102,7 +103,9 @@ class TestLLMObsSamplerRuleParsing:
     )
     def test_invalid_rule_is_skipped_and_others_kept(self, rule):
         with mock.patch("ddtrace.llmobs._sampler.log") as mock_log:
-            sampler = LLMObsSampler(rules=f'[{rule}, {{"tags": {{"env": "dev"}}, "sample_rate": 0.2}}]')
+            sampler = LLMObsSampler(
+                sample_rate=1.0, rules=f'[{rule}, {{"tags": {{"env": "dev"}}, "sample_rate": 0.2}}]'
+            )
         assert [r.sample_rate for r in sampler.rules] == [0.2]
         assert mock_log.warning.called
 
@@ -110,12 +113,13 @@ class TestLLMObsSamplerRuleParsing:
 class TestLLMObsSamplerSampling:
     def test_first_matching_rule_wins(self):
         sampler = LLMObsSampler(
-            rules='[{"tags": {"env": "prod"}, "sample_rate": 0}, {"tags": {"env": "prod"}, "sample_rate": 1}]'
+            sample_rate=1.0,
+            rules='[{"tags": {"env": "prod"}, "sample_rate": 0}, {"tags": {"env": "prod"}, "sample_rate": 1}]',
         )
         assert sampler.sample(_span(), {"env": "prod"}) == (False, "0")
 
     def test_rule_rate_is_reported(self):
-        sampler = LLMObsSampler(rules='[{"tags": {"env": "prod"}, "sample_rate": 0.25}]')
+        sampler = LLMObsSampler(sample_rate=1.0, rules='[{"tags": {"env": "prod"}, "sample_rate": 0.25}]')
         assert sampler.sample(_span(), {"env": "prod"})[1] == "0.25"
 
     def test_falls_back_to_global_rate_when_no_rule_matches(self):
@@ -143,12 +147,6 @@ class TestLLMObsSamplerSampling:
         assert 0.45 <= rates["prod"] <= 0.55
         assert 0.05 <= rates["staging"] <= 0.15
         assert rates["dev"] == 1.0
-
-    def test_set_sample_rate_updates_fallback(self):
-        sampler = LLMObsSampler(sample_rate=1.0)
-        sampler.set_sample_rate(0.0)
-        assert sampler.sample_rate == 0.0
-        assert sampler.sample(_span(), {"env": "prod"}) == (False, "0")
 
 
 class TestLLMObsSamplingRegistry:
