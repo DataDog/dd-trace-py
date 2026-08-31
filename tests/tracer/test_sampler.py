@@ -594,9 +594,9 @@ def test_sampling_rule_sample_rate_0():
 
 
 def test_datadog_sampler_sample_discard_true_on_rejected_trace():
-    """discard=True + rejected -> _sample reports discard=True."""
+    """discard=True + rejected -> sample_or_discard reports discard=True."""
     sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, discard=True)])
-    sampled, discard = sampler._sample(Span(name="test.span"))
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
     assert sampled is False
     assert discard is True
 
@@ -604,7 +604,7 @@ def test_datadog_sampler_sample_discard_true_on_rejected_trace():
 def test_datadog_sampler_sample_discard_false_when_sampled():
     """discard=True only matters for rejected chunks; a kept chunk reports discard=False."""
     sampler = DatadogSampler(rules=[SamplingRule(sample_rate=1.0, discard=True)])
-    sampled, discard = sampler._sample(Span(name="test.span"))
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
     assert sampled is True
     assert discard is False
 
@@ -612,7 +612,7 @@ def test_datadog_sampler_sample_discard_false_when_sampled():
 def test_datadog_sampler_sample_discard_false_by_default():
     """discard=False (default) + rejected -> unchanged legacy behavior: kept with reject priority."""
     sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0)])
-    sampled, discard = sampler._sample(Span(name="test.span"))
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
     assert sampled is False
     assert discard is False
 

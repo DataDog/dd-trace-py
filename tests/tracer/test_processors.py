@@ -273,6 +273,36 @@ def test_sampling_processor_discard_decision_frozen_by_early_partial_flush():
     assert aggr.writer.pop() == [parent], "the final chunk is NOT retroactively discarded"
 
 
+def test_sampling_processor_discard_persists_across_partial_flush_chunks():
+    """Once an early partial-flush chunk matches a discard=True rule and is dropped, later chunks of
+    the same trace must be dropped too, instead of falling through with the (already-set) reject
+    priority and reaching the writer.
+    """
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
+    aggr.writer = DummyWriter()
+    aggr.sampling_processor.sampler = DatadogSampler(rules=[TraceSamplingRule(sample_rate=0.0, discard=True)])
+
+    parent = Span("parent", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(parent)
+    child1 = Span("child1", on_finish=[aggr.on_span_finish])
+    child1.trace_id = parent.trace_id
+    child1.parent_id = parent.span_id
+    child1._local_root = parent
+    aggr.on_span_start(child1)
+    child2 = Span("child2", on_finish=[aggr.on_span_finish])
+    child2.trace_id = parent.trace_id
+    child2.parent_id = parent.span_id
+    child2._local_root = parent
+    aggr.on_span_start(child2)
+
+    child1.finish()
+    child2.finish()
+    assert aggr.writer.pop() == [], "first chunk matches the discard rule and is fully dropped"
+
+    parent.finish()
+    assert aggr.writer.pop() == [], "later chunk of the same trace must also be dropped"
+
+
 def test_sampling_processor_discard_short_circuits_llmobs_processor():
     """A discarded chunk never reaches llmobs_processor: discard means no Datadog product,
     including LLMObs, is influenced by the chunk.

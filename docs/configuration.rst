@@ -1217,9 +1217,9 @@ Sampling
      description: |
          A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", "tags", and "discard" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
 
-         When "discard" is set to ``true`` on a rule, a trace chunk that the rule rejects (does not select via "sample_rate") is fully dropped instead of being kept with a reject priority: it is excluded from client-side stats and never sent to the Agent. "discard" has no effect on chunks the rule selects (keeps).
+         Setting "discard" to ``true`` on a rule fully drops a trace chunk the rule rejects, excluding it from client-side stats and the Agent.
 
-         **Note** that a rule is matched against the current state of the trace chunk's local root span at the time each chunk is evaluated. When partial flushing is enabled (the default), child-span-only chunks may be evaluated and sent before the local root finishes, so a rule keyed on a field only assigned late in the request lifecycle (for example, the resolved HTTP route/resource in some web framework integrations) may not match, and therefore not discard, chunks flushed earlier in that trace even though the eventual root would have matched.
+         **Note** that with partial flushing enabled (the default), a chunk is matched against the trace's local root span as it stood when that chunk was flushed, so a rule keyed on data only available later in the request (e.g. a resolved HTTP route) may miss chunks flushed earlier in the same trace.
 
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
 

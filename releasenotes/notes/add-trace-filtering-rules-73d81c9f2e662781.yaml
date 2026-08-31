@@ -1,7 +1,6 @@
 ---
 features:
   - |
-    tracing: Adds a ``discard`` boolean field to ``DD_TRACE_SAMPLING_RULES`` rules. When set to
-    ``true`` on a rule, a trace chunk rejected by that rule (not selected by ``sample_rate``) is
-    fully dropped instead of being kept with a reject priority: it is excluded from client-side
-    stats and never sent to the Datadog Agent.
+    tracing: Adds a ``discard`` boolean field to ``DD_TRACE_SAMPLING_RULES`` rules to fully drop
+    trace chunks which were rejected during sampling. See the ``DD_TRACE_SAMPLING_RULES``
+    configuration docs for details.

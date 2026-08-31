@@ -272,11 +272,12 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 class _Trace:
-    __slots__ = ("spans", "num_finished")
+    __slots__ = ("spans", "num_finished", "discarded")
 
     def __init__(self, spans: Optional[list[Span]] = None, num_finished: int = 0):
         self.spans: list[Span] = spans if spans is not None else []
         self.num_finished: int = num_finished
+        self.discarded: bool = False
 
     def remove_finished(self) -> list[Span]:
         # perf: Avoid Span.finished which is a computed property and has function call overhead
@@ -422,23 +423,31 @@ class SpanAggregator(SpanProcessor):
                 return
 
         # perf: Process spans outside of the span aggregator lock
-        spans = finished
-        for tp in chain(
-            self.dd_processors,
-            self.user_processors,
-            [
-                self.sampling_processor,
-                self.llmobs_processor,
-                self.tags_processor,
-                self.service_name_processor,
-            ],
-        ):
-            try:
-                spans = tp.process_trace(spans) or []
-                if not spans:
-                    break
-            except Exception:
-                log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
+        if trace.discarded:
+            spans: list[Span] = []
+        else:
+            spans = finished
+            for tp in chain(
+                self.dd_processors,
+                self.user_processors,
+                [
+                    self.sampling_processor,
+                    self.llmobs_processor,
+                    self.tags_processor,
+                    self.service_name_processor,
+                ],
+            ):
+                try:
+                    spans = tp.process_trace(spans) or []
+                    if not spans:
+                        # TraceSamplingProcessor only ever returns an empty result for a discard=True
+                        # rule rejecting the chunk; remember that so later partial-flush chunks of this
+                        # trace are dropped too instead of being kept with the (already-set) reject priority.
+                        if tp is self.sampling_processor and not is_trace_complete:
+                            trace.discarded = True
+                        break
+                except Exception:
+                    log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 
         num_dropped = len(finished) - len(spans)
         if num_dropped > 0:

@@ -212,8 +212,8 @@ class DatadogSampler:
             str(self.rules) if self.rules is not None else "None",
             id(self),
         )
-        discard = bool(matched_rule is not None and matched_rule.discard and not sampled)
-        return sampled, discard
+        discarded = bool(matched_rule is not None and matched_rule.discard and not sampled)
+        return sampled, discarded
 
     def _get_sampling_mechanism(self, matched_rule: Optional[SamplingRule], agent_service_based: bool) -> int:
         if matched_rule and matched_rule.provenance == "customer":

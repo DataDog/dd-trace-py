@@ -73,7 +73,9 @@ class SamplingRule(object):
         self.name = GlobMatcher(name) if name is not None else None
         self.resource = GlobMatcher(resource) if resource else None
         self.provenance = provenance
-        self.discard = bool(discard)
+        if not isinstance(discard, bool):
+            raise ValueError(f"discard must be a boolean, got {discard!r}")
+        self.discard = discard
 
     @property
     def sample_rate(self) -> float:
