@@ -170,6 +170,13 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         "LD_LIBRARY_PATH",  # for loading native ext (Linux)
         "DYLD_LIBRARY_PATH",  # for loading native ext (macOS)
         "PYTHONPATH",  # for loading Python, for the receiver script
+        # Make sure the crashtracker respects proxying envs
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "NO_PROXY",
+        "https_proxy",
+        "http_proxy",
+        "no_proxy",
     ]
     for env_var in inherited_env_vars:
         env_value = env.get(env_var)
