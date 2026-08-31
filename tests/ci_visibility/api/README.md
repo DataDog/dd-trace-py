@@ -30,4 +30,8 @@ tests.
 1. List the environments with `scripts/run-tests --list tests/ci_visibility/api`.
 1. Select a hash from the `ci_visibility::ci_visibility:snapshot` suite; the test runner starts `testagent`:
    1. All tests: `scripts/run-tests --venv <environment-hash> -- -k FakeApiRunnersSnapshotTestCase`
-   1. Individual test: `scripts/run-tests --venv <environment-hash> -- -k test_manual_api_fake_runner_mix_fail_itr_test_level`
+1. Choose a `riot` environment (eg: using `riot list ci_visibility`)
+1. Make sure the `testagent` is running (refer to contributor docs again)
+1. Run the test(s) (note: you may want to pass `-s` `riot run` to speed up tests)
+   1. All tests: `riot -v run 1b90fc9 -- -k FakeApiRunnersSnapshotTestCase`
+   1. Individual test: `riot -v run 1b90fc9 -- -k test_manual_api_fake_runner_mix_fail_itr_test_level` 
