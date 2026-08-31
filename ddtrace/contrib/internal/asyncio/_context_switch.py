@@ -5,6 +5,8 @@ asyncio scheduling points covered by this fallback:
 
 * Handle._run: its callback is temporarily wrapped to publish entry inside the
   Context run and exit after _run restores the loop's ambient Context.
+* BaseEventLoop.call_exception_handler on Python before 3.12: publish the
+  restored ambient Context before invoking the exception handler.
 * Eager task construction through the event loop or asyncio.eager_task_factory:
   the coroutine is instrumented to publish if its first step runs inline, before
   task construction returns.
@@ -42,6 +44,8 @@ def install() -> None:
         return
 
     wrap(asyncio.Handle._run, _wrapped_run_handle)  # type: ignore[arg-type]
+    if PYTHON_VERSION_INFO < (3, 12):
+        wrap(asyncio.BaseEventLoop.call_exception_handler, _wrapped_call_exception_handler)  # type: ignore[arg-type]
     _installed = True
     if _eager_task_factory_code is not None:
         wrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
@@ -57,6 +61,8 @@ def uninstall() -> None:
     if _eager_task_factory_code is not None:
         unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
         unwrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
+    if PYTHON_VERSION_INFO < (3, 12):
+        unwrap(asyncio.BaseEventLoop.call_exception_handler, _wrapped_call_exception_handler)
     unwrap(asyncio.Handle._run, _wrapped_run_handle)
     _installed = False
 
@@ -85,6 +91,12 @@ def _wrapped_run_handle(wrapped: Callable[..., Any], args: tuple[Any, ...], kwar
         if getattr(handle._callback, _CONTEXT_SWITCH_HANDLE_MARKER, None) is handle:
             handle._callback = original_callback
         core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+
+
+def _wrapped_call_exception_handler(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Publish the ambient Context before a pre-3.12 exception handler runs."""
+    core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+    return wrapped(*args, **kwargs)
 
 
 def _instrument_inline_first_step(coro: Any) -> tuple[Any, Callable[[], None]]:

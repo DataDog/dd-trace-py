@@ -1,4 +1,5 @@
 import asyncio
+from contextvars import ContextVar
 from contextvars import copy_context
 import sys
 
@@ -52,9 +53,14 @@ def test_context_switch_hooks_follow_runtime_capability(fallback_required, async
     patch()
 
     eager_fallback = fallback_required and _context_switch._eager_task_factory_code is not None
+    exception_handler_fallback = fallback_required and sys.version_info < (3, 12)
     assert is_wrapped_with(asyncio.BaseEventLoop.create_task, _wrapped_trace_create_task)
     assert is_wrapped_with(asyncio.BaseEventLoop.create_task, _context_switch._wrapped_create_task) is eager_fallback
     assert is_wrapped_with(asyncio.Handle._run, _context_switch._wrapped_run_handle) is fallback_required
+    assert (
+        is_wrapped_with(asyncio.BaseEventLoop.call_exception_handler, _context_switch._wrapped_call_exception_handler)
+        is exception_handler_fallback
+    )
     if eager_task_factory is not None:
         assert asyncio.eager_task_factory is eager_task_factory
         assert (
@@ -65,6 +71,7 @@ def test_context_switch_hooks_follow_runtime_capability(fallback_required, async
     unpatch()
     assert not is_wrapped(asyncio.BaseEventLoop.create_task)
     assert not is_wrapped(asyncio.Handle._run)
+    assert not is_wrapped(asyncio.BaseEventLoop.call_exception_handler)
     if eager_task_factory is not None:
         assert asyncio.eager_task_factory is eager_task_factory
         assert not is_wrapped(asyncio.eager_task_factory)
@@ -188,6 +195,35 @@ def test_callback_failure_reports_the_application_callback(context_switches):
     assert handled[0]["exception"].args == ("application failure",)
     assert "application_callback" in handled[0]["message"]
     assert handle._callback is application_callback
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 12), reason="exception handlers inherit the originating context on 3.12+")
+def test_callback_failure_resynchronizes_before_exception_handler(context_switches):
+    """Publish the ambient context before a pre-3.12 exception handler runs."""
+    marker = ContextVar("marker", default="ambient")
+    published = []
+    handled = []
+
+    def record_context_switch():
+        published.append(marker.get())
+
+    def application_callback():
+        raise RuntimeError("application failure")
+
+    token = marker.set("callback")
+    callback_context = copy_context()
+    marker.reset(token)
+
+    loop = asyncio.new_event_loop()
+    loop.set_exception_handler(lambda _loop, _context: handled.append((marker.get(), published[-1])))
+    core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+    try:
+        asyncio.Handle(application_callback, (), loop, context=callback_context)._run()
+    finally:
+        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+        loop.close()
+
+    assert handled == [("ambient", "ambient")]
 
 
 @pytest.mark.asyncio
