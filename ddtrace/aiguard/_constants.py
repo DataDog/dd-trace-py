@@ -39,9 +39,16 @@ class AI_GUARD(metaclass=Constant_Class):
     STRUCT: Literal["ai_guard"] = "ai_guard"
 
     # metrics
-    METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
-    REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
-    TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"
+    # Reported under the dedicated ai_guard telemetry namespace, so the full metric ids are
+    # ai_guard.<name>. Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6600426215
+    REQUESTS_METRIC: Literal["requests"] = "requests"
+    TRUNCATED_METRIC: Literal["truncated"] = "truncated"
+    ERROR_METRIC: Literal["error"] = "error"
+
+    # Values of the "type" tag on the error metric.
+    ERROR_CLIENT: Literal["client_error"] = "client_error"
+    ERROR_BAD_STATUS: Literal["bad_status"] = "bad_status"
+    ERROR_BAD_RESPONSE: Literal["bad_response"] = "bad_response"
 
     # environment variables
     ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
