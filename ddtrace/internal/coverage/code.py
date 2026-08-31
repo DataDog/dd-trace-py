@@ -46,7 +46,7 @@ def _is_site_packages_path(path: Path) -> bool:
     return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
 
 
-# AIDEV-NOTE: These ContextVars MUST use default=None, not default=[]. A mutable default ([]) is a single
+# NOTE: These ContextVars MUST use default=None, not default=[]. A mutable default ([]) is a single
 # shared object returned by .get() in every thread/context, which defeats ContextVar isolation: the
 # CollectInContext.__init__ guard below ("if ... is None: ...set([])") only initializes a context-local
 # list when the default is None. With default=[] the guard never fires, so every thread appends to and
