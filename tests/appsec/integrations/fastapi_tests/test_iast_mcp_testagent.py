@@ -437,7 +437,7 @@ async def test_iast_mcp_sse_streaming_safe_tool(iast_test_token, free_port):
         assert response.status_code == 200
 
         # Now test MCP via HTTP/SSE streaming
-        async with mcp_client_session(8052) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize the session
             await session.initialize()
 
@@ -500,7 +500,7 @@ async def test_iast_mcp_sse_streaming_vulnerable_tool(iast_test_token, free_port
         assert response.status_code == 200
 
         # Test MCP vulnerable tool via HTTP/SSE streaming
-        async with mcp_client_session(8052) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize the session
             await session.initialize()
 
@@ -558,7 +558,7 @@ async def test_iast_mcp_sse_streaming_multiple_calls(iast_test_token, free_port)
         assert response.status_code == 200
 
         # Make multiple MCP calls via HTTP/SSE streaming
-        async with mcp_client_session(8052) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize
             await session.initialize()
 
@@ -632,7 +632,7 @@ async def test_iast_mcp_sse_streaming_stress_test_hundreds(iast_test_token, free
         assert response.status_code == 200
 
         # Make hundreds of calls to the same endpoint via HTTP/SSE streaming
-        async with mcp_client_session(8053) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize
             await session.initialize()
 

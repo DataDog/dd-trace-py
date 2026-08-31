@@ -14,6 +14,7 @@ from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
 from tests.webclient import Client
 
@@ -26,33 +27,6 @@ SERVER_STARTUP_TIMEOUT = float(os.environ.get("DD_TEST_SERVER_STARTUP_TIMEOUT", 
 SERVER_STARTUP_POLL_INTERVAL = 0.1
 
 
-def _port_is_available(port: int) -> bool:
-    """Whether a server could bind the port right now.
-
-    Binding is the question that matters, since it is what the next server does. Probing with
-    connect() instead reports a port as free once a bound server's listen backlog fills, and
-    opens real connections to a live server.
-    """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(("0.0.0.0", int(port)))
-            return True
-        except OSError:
-            return False
-
-
-def get_free_port() -> int:
-    """A port nothing is bound to right now, for a server that would otherwise reuse a fixed one.
-
-    Tests sharing a fixed port inherit the previous server's orphaned workers, which hold it
-    bound well past teardown and make the next bind fail.
-    """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.bind(("0.0.0.0", 0))
-        return int(sock.getsockname()[1])
-
-
 def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
     """Wait until the port can be bound again, returning False if it never can.
 
@@ -61,10 +35,10 @@ def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if _port_is_available(port):
+        if port_is_available(port):
             return True
         time.sleep(0.1)
-    return _port_is_available(port)
+    return port_is_available(port)
 
 
 def _process_exit_code(server_process) -> _t.Optional[int]:
@@ -114,7 +88,7 @@ def _server_diagnostics(server_process, port: int, cmd: list, port_was_free_at_s
         "free_port fixture) instead of sharing a fixed one."
     )
     return (
-        f"port={port} port_still_bound={not _port_is_available(port)} pid={server_process.pid} "
+        f"port={port} port_still_bound={not port_is_available(port)} pid={server_process.pid} "
         f"exit_code={exit_code} (None means it was still running, so it was too slow rather "
         f"than dead; a non-zero code with the port bound means another server still holds it)\n"
         f"command={cmd}" + already_taken

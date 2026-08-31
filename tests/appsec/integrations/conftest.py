@@ -1,8 +1,8 @@
 import pytest
 
-from tests.appsec.appsec_utils import get_free_port
 from tests.appsec.integrations.utils_testagent import clear_session
 from tests.appsec.integrations.utils_testagent import start_trace
+from tests.appsec.ports import get_free_port
 from tests.conftest import get_original_test_name
 
 
