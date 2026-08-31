@@ -102,14 +102,22 @@ def _wait_for_server_ready(client: Client, server_process, port: int, use_multip
             time.sleep(SERVER_STARTUP_POLL_INTERVAL)
 
 
-def _server_diagnostics(server_process, port: int, cmd: list) -> str:
+def _server_diagnostics(server_process, port: int, cmd: list, port_was_free_at_start: bool = True) -> str:
     """Facts that are not in the captured server output but explain most startup failures."""
     exit_code = _process_exit_code(server_process)
+    already_taken = (
+        ""
+        if port_was_free_at_start
+        else f"\nport {port} was ALREADY BOUND when this server was started, so it never had a "
+        "chance to bind and the failure above is a consequence, not the cause. Something a "
+        "previous test left running still holds the port; give this test its own port (the "
+        "free_port fixture) instead of sharing a fixed one."
+    )
     return (
         f"port={port} port_still_bound={not _port_is_available(port)} pid={server_process.pid} "
         f"exit_code={exit_code} (None means it was still running, so it was too slow rather "
         f"than dead; a non-zero code with the port bound means another server still holds it)\n"
-        f"command={cmd}"
+        f"command={cmd}" + already_taken
     )
 
 
@@ -497,8 +505,13 @@ def appsec_application_server(
             subprocess_kwargs["preexec_fn"] = preexec  # type: ignore[assignment]
 
     # A previous test's server may still hold the port, which would make this one fail to bind.
-    if not _wait_for_port_release(port):
-        print(f"WARNING: port {port} was still bound when starting the server")
+    port_was_free_at_start = _wait_for_port_release(port)
+    if not port_was_free_at_start:
+        print(
+            f"WARNING: port {port} is still bound by something a previous test left running. "
+            "Starting anyway, but this server will almost certainly fail to bind: expect the "
+            "startup failure below to be a symptom of this, not of the server itself."
+        )
 
     if use_multiprocess:
         # Run the server command by replacing the child Python process with the target binary (exec),
@@ -530,7 +543,7 @@ def appsec_application_server(
                 "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
                 "above.\n"
                 % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT)
-                + _server_diagnostics(server_process, port, cmd)
+                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
             ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
@@ -553,7 +566,7 @@ def appsec_application_server(
                 "Server shutdown request failed after %.3fs; its output is in the captured "
                 "stdout/stderr above.\n"
                 % (time.monotonic() - shutdown_started)
-                + _server_diagnostics(server_process, port, cmd)
+                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
                 + "\n"
                 + _dump_server_stacks(server_process)
             )
@@ -595,7 +608,11 @@ def appsec_application_server(
         finally:
             # Do not hand the port to the next test while a worker still holds it.
             if not _wait_for_port_release(port):
-                print(f"WARNING: port {port} still bound after server teardown")
+                print(
+                    f"WARNING: port {port} is still bound after tearing down the server; a worker "
+                    "outlived it. Harmless while each test uses its own port, but it will break "
+                    "the next test that asks for this one."
+                )
 
 
 def _mp_target(_cmd: list[str], _env: dict) -> None:

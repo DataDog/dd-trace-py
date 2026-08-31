@@ -13,7 +13,6 @@ from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
 from ddtrace.contrib.internal.sqlite3.patch import patch as sqlite3_patch
-from tests.appsec.appsec_utils import get_free_port
 from tests.utils import TracerSpanContainer
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -43,12 +42,6 @@ def pytest_configure():
         django_patch()
         enable_iast_propagation()
         django.setup()
-
-
-@pytest.fixture
-def free_port():
-    """A port of this test's own, so an orphan from the previous test cannot block its server."""
-    return get_free_port()
 
 
 @pytest.fixture

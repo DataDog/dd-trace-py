@@ -1,5 +1,6 @@
 import pytest
 
+from tests.appsec.appsec_utils import get_free_port
 from tests.appsec.integrations.utils_testagent import clear_session
 from tests.appsec.integrations.utils_testagent import start_trace
 from tests.conftest import get_original_test_name
@@ -20,3 +21,9 @@ def iast_test_token(request):
         yield token
     finally:
         clear_session(token)
+
+
+@pytest.fixture
+def free_port():
+    """A port of this test's own, so an orphan from the previous test cannot block its server."""
+    return get_free_port()
