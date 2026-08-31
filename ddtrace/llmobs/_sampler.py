@@ -10,12 +10,18 @@ Rules are evaluated in the order they are declared and the first one that matche
 rule matches, the global ``DD_LLMOBS_SAMPLE_RATE`` is applied.
 
 Timing is the hard part. Tags land on the root span over its whole lifetime, but the decision must
-exist before anything leaves the process, and once a span event has shipped it cannot be retracted
-— so re-deciding afterwards would leave one trace carrying two different decisions. The registry
-below resolves this by deciding as late as it safely can and then freezing: nothing is computed at
-root start, the decision is resolved the first time it is genuinely needed (an outbound injection,
-a partial flush, or the root finishing), and from then on it never changes. In the common case
-that window covers the top of the ``with`` body, which is where callers annotate.
+exist before anything leaves the process, and a shipped span event cannot be retracted -- so a
+decision revised after something shipped would leave one trace carrying two different answers.
+
+The registry below decides as late as it safely can and then freezes:
+
+* At root start, only a floor is stamped -- the global rate, since no tag exists yet to match a
+  rule on. This guarantees no span can ever ship without a decision.
+* The rule-aware decision is resolved the first time it is genuinely needed: an outbound
+  injection, a partial flush, or the root finishing. Whichever comes first wins and overwrites
+  the floor for every span of the trace.
+* From then on it never changes, which is what keeps a trace from being split across two
+  decisions. A tag set after that point cannot affect sampling.
 """
 
 import json
@@ -39,9 +45,9 @@ log = get_logger(__name__)
 
 DEFAULT_SAMPLE_RATE = 1.0
 
-# Ceiling on concurrently in-flight LLMObs traces awaiting a sampling decision. Entries are removed
-# when a trace's chunk is processed, so this is only reached if roots are abandoned without
-# finishing. Past the cap we stop registering and those traces fall back to the global rate.
+# Ceiling on concurrently in-flight LLMObs traces awaiting a sampling decision. Entries are retired
+# when a trace completes, so this is only reached if roots are abandoned without finishing. Past the
+# cap we stop registering, and those traces keep the floor stamped at root start.
 MAX_PENDING_DECISIONS = 4096
 
 
