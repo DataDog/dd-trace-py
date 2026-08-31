@@ -160,6 +160,15 @@ class TestLLMObsSamplingRegistry:
         assert registry.resolve("deadbeef") == (None, None)
         assert registry.resolve(None) == (None, None)
 
+    def test_default_decision_ignores_rules(self):
+        """The floor is the global rate: at root start there are no tags to match a rule on."""
+        registry = self._registry(sample_rate=1.0, rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
+        assert registry.default_decision(_span(tags={"tier": "gold"})) == ("1", "1")
+
+    def test_default_decision_follows_the_global_rate(self):
+        assert self._registry(sample_rate=0.0).default_decision(_span()) == ("0", "0")
+        assert self._registry(sample_rate=1.0).default_decision(_span()) == ("1", "1")
+
     def test_resolve_uses_tags_present_at_resolve_time(self):
         """The whole point: tags set after the root started still affect the decision."""
         registry = self._registry(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')

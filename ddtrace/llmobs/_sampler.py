@@ -198,12 +198,26 @@ class LLMObsSamplingRegistry:
         # threads injecting at once must not produce two different decisions for one trace.
         self._lock = RLock()
 
+    @staticmethod
+    def _as_decision(sampled: bool) -> str:
+        return LLMObsSamplingDecision.SAMPLED.value if sampled else LLMObsSamplingDecision.DROPPED.value
+
+    def default_decision(self, root: Span) -> tuple[str, str]:
+        """The global-rate decision, stamped at root start as a floor.
+
+        Rules can't be evaluated this early — the root has no tags yet — but every span must carry
+        some decision, so this stands in until ``resolve`` can overwrite it with a rule-aware one.
+        It is also what a trace falls back to when the registry cannot answer for it at all.
+        """
+        sampled, sample_rate = self._sampler.sample(root)
+        return sample_rate, self._as_decision(sampled)
+
     def register_root(self, llmobs_trace_id: str, root: Span) -> None:
         """Note that an LLMObs trace has started, without deciding anything yet."""
         with self._lock:
             if len(self._pending) >= MAX_PENDING_DECISIONS:
                 log.debug(
-                    "LLMObs sampling registry is full (%d entries); trace %s will use the global sample rate.",
+                    "LLMObs sampling registry is full (%d entries); trace %s keeps the global sample rate.",
                     MAX_PENDING_DECISIONS,
                     llmobs_trace_id,
                 )
@@ -230,9 +244,7 @@ class LLMObsSamplingRegistry:
                 return None, None
             sampled, sample_rate = self._sampler.sample(root, get_llmobs_tags(root) or {})
             pending.sample_rate = sample_rate
-            pending.sampling_decision = (
-                LLMObsSamplingDecision.SAMPLED.value if sampled else LLMObsSamplingDecision.DROPPED.value
-            )
+            pending.sampling_decision = self._as_decision(sampled)
             return pending.sample_rate, pending.sampling_decision
 
     def discard(self, llmobs_trace_id: str) -> None:

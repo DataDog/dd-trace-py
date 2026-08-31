@@ -13,11 +13,9 @@ from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
-from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._sampler import LLMObsSamplingRegistry
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
-from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 
@@ -28,6 +26,8 @@ if TYPE_CHECKING:
 
 log = get_logger(__name__)
 
+# Set by SpanAggregator.on_span_finish on the first span of a partially-flushed chunk.
+_PARTIAL_FLUSH_KEY = "_dd.py.partial_flush"
 
 __all__ = ["LLMObsProcessor"]
 
@@ -78,8 +78,8 @@ class LLMObsProcessor(TraceProcessor):
 
         This is the last point at which the decision can still be influenced by the root's tags,
         and the last point at which it can be written at all — the events are enqueued a few lines
-        later. Traces continuing from another process already carry an inherited decision and are
-        left alone.
+        later. A trace the registry cannot answer for is left as it is, keeping either the
+        global-rate floor stamped at activation or a decision inherited from upstream.
         """
         if self._sampling_registry is None:
             return
@@ -93,18 +93,23 @@ class LLMObsProcessor(TraceProcessor):
                 # Grouped by LLMObs trace, not APM trace: one chunk can hold several independent
                 # LLMObs roots (successive top-level workflows under one APM request).
                 groups.setdefault(llmobs_trace_id, []).append(span)
+        if not groups:
+            return
+
+        # A partial flush means more chunks of this APM trace are still coming, so the registry
+        # entries have to survive for them to read the same frozen decision.
+        is_partial_flush = trace[0]._get_numeric_attribute(_PARTIAL_FLUSH_KEY) is not None
 
         for llmobs_trace_id, spans in groups.items():
             sample_rate, sampling_decision = self._sampling_registry.resolve(llmobs_trace_id)
-            if sampling_decision is None:
-                # Unknown to the registry: continued from another process, or dropped past the
-                # cap. Either way these spans keep whatever they inherited.
-                continue
-            for span in spans:
-                self._write_sampling_decision(span, sample_rate, sampling_decision)
-            # Only retire the entry once the root itself is here. A partial flush ships children
-            # while the root is still open, and later chunks must find the same frozen decision.
-            if any(get_llmobs_parent_id(span) == ROOT_PARENT_ID for span in spans):
+            if sampling_decision is not None:
+                for span in spans:
+                    self._write_sampling_decision(span, sample_rate, sampling_decision)
+            # Else the registry has nothing for this trace -- continued from another process, or
+            # dropped past the cap -- and the spans keep the decision they were stamped with at
+            # activation (the global rate) or inherited from upstream. Never left unstamped.
+            if not is_partial_flush:
+                # This APM trace is complete, so nothing more will ask about it.
                 self._sampling_registry.discard(llmobs_trace_id)
 
     @staticmethod

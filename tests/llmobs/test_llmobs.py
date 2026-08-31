@@ -1358,6 +1358,22 @@ def test_sibling_llmobs_traces_decide_independently(llmobs, llmobs_events):
     assert by_name["free"]["sampling_decision"] == "1"
 
 
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_decision_survives_a_registry_miss(llmobs, llmobs_events):
+    """A span must never ship without a decision.
+
+    When the registry cannot answer for a trace -- past its cap, root already collected, entry
+    already retired -- the span keeps the global-rate floor stamped at activation instead of
+    shipping with the fields absent entirely.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+        llmobs._instance._sampling_registry.clear()  # stand in for a cap/GC/retire miss
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "1"  # the floor, not the matching rule's 0
+    assert event_dd["sample_rate"] == "1"
+
+
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules="not-valid-json")])
 def test_invalid_sampling_rules_fall_back_to_global_rate(llmobs, llmobs_events):
     """Unparseable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""

@@ -94,6 +94,40 @@ class TestExportModeKeepsMetaStruct:
             assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
             llmobs_service.disable()
 
+    def test_apm_agentless_stamps_sampling_decision_into_meta_struct(self, tracer):
+        """The decision must land in meta_struct, not only in the cached event dict.
+
+        ``_llmobs_span_event`` shallow-copies the meta_struct ``_dd`` block into the event, so the
+        two are separate objects by the time the processor runs. In APM_AGENTLESS the meta_struct is
+        what ships and the event is discarded, so stamping only the event would lose the decision.
+        """
+        llmobs_service.disable()
+        with override_global_config(
+            {
+                "_llmobs_ml_app": "test-ml-app",
+                "_dd_api_key": "<not-a-real-key>",
+                "service": "tests.llmobs",
+                "_llmobs_sampling_rules": '[{"tags": {"tier": "gold"}, "sample_rate": 0}]',
+            }
+        ):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            llmobs_service._instance._export_mode = LLMObsExportMode.APM_AGENTLESS
+            llmobs_service._instance._llmobs_span_writer.stop()
+            mock_writer = mock.MagicMock()
+            llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+                mock_writer, tracer, sampling_registry=llmobs_service._instance._sampling_registry
+            )
+            with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                _annotate_llm_span(span)
+                llmobs_service.annotate(span=span, tags={"tier": "gold"})
+            # Rides the APM trace, so the writer never sees it and meta_struct is not scrubbed.
+            mock_writer.enqueue.assert_not_called()
+            dd = _get_llmobs_data_metastruct(span)["_dd"]
+            assert dd["sampling_decision"] == "0"
+            assert dd["sample_rate"] == "0"
+            llmobs_service.disable()
+
     def test_llmobs_direct_mode_still_enqueues_and_scrubs(self, tracer):
         llmobs_service.disable()
         with override_global_config(

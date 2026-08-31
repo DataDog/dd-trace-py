@@ -2504,9 +2504,10 @@ class LLMObs(Service):
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
-            # Deliberately undecided. The root's tags aren't set yet, so resolving here would make
-            # tag rules unmatchable; the registry below defers it to the last safe moment.
-            sample_rate, sampling_decision = None, None
+            # A floor, not the answer. Tag rules can't be matched this early -- the root has no tags
+            # yet -- but every span must ship carrying some decision, so stamp the global rate now.
+            # LLMObsProcessor overwrites it with a rule-aware decision once the tags are in.
+            sample_rate, sampling_decision = self._sampling_registry.default_decision(span)
         is_llmobs_root = not llmobs_parent
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
