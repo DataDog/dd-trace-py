@@ -20,7 +20,7 @@ tests.
 
 #### Manually
  
-1. Set up and activate an environment with `ddtrace` installed.
+1. Set up (and activate) an environment (eg: using `pip install ddtrace` or `riot shell`)
 1. Run the script:
    1. Set expected environment variables (eg: `DD_API_KEY` and `DD_CIVISIBILITY_AGENTLESS_ENABLED`)
    1. Run the script, eg: `python tests/ci_visibility/api/fake_runner_all_pass.py`
