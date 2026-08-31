@@ -433,6 +433,10 @@ class Tracer(object):
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        self._recreate(reset_buffer=False)
+        self._store_metadata()
+
     def _recreate(
         self,
         trace_processors: Optional[list[TraceProcessor]] = None,

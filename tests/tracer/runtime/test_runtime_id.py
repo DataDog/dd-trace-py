@@ -649,3 +649,51 @@ assert seen == [runtime.get_runtime_id()]
 """
     _, err, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, err
+
+
+def test_tracer_microvm_identity_refresh_recreates_exporter_without_fork_side_effects():
+    """Tracer MicroVM refresh must not reuse fork recreation semantics."""
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal import runtime
+
+    with mock.patch("ddtrace._trace.tracer.store_metadata"):
+        tracer = Tracer()
+
+    try:
+        tracer._new_process = False
+        with (
+            mock.patch.object(tracer, "_recreate") as recreate,
+            mock.patch.object(tracer, "_store_metadata") as store_metadata,
+        ):
+            tracer._refresh_runtime_identity(runtime.get_runtime_id())
+
+        recreate.assert_called_once_with(reset_buffer=False)
+        store_metadata.assert_called_once_with()
+        assert tracer._new_process is False
+    finally:
+        tracer.shutdown()
+
+
+@pytest.mark.subprocess(env={"AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12"}, err=None)
+def test_identity_refresh_hook_notifies_global_tracer():
+    """The global tracer must rebuild its identity-bound state on the MicroVM /run hook."""
+    from unittest import mock
+
+    from ddtrace import tracer
+    from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+    from ddtrace.internal import core
+    import ddtrace.internal.runtime as runtime
+
+    with (
+        mock.patch.object(tracer, "_recreate") as recreate,
+        mock.patch.object(tracer, "_store_metadata") as store_metadata,
+    ):
+        core.dispatch(
+            WebFrameworkEvents.WEB_REQUEST_STARTING.value,
+            (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH),
+        )
+
+    recreate.assert_called_once_with(reset_buffer=False)
+    store_metadata.assert_called_once_with()

@@ -699,6 +699,7 @@ def _build_base_exporter_builder(
         .set_language_version(compat.PYTHON_VERSION)
         .set_language_interpreter(compat.PYTHON_INTERPRETER)
         .set_tracer_version(__version__)
+        .set_runtime_id(get_runtime_id())
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
