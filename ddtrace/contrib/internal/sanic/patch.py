@@ -5,6 +5,7 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
@@ -118,7 +119,7 @@ async def patch_run_request_middleware(wrapped, instance, args, kwargs):
     request = args[0]
     span = _get_current_span(request)
     if span is not None:
-        span.resource = "{} {}".format(request.method, _get_path(request))
+        set_instrumentation_resource(span, "{} {}".format(request.method, _get_path(request)))
     return await wrapped(*args, **kwargs)
 
 
@@ -253,7 +254,7 @@ async def sanic_http_routing_after(request, route, kwargs, handler):
     if route.regex:
         pattern = route.pattern
 
-    span.resource = "{} {}".format(request.method, pattern)
+    set_instrumentation_resource(span, "{} {}".format(request.method, pattern))
     span._set_attribute("sanic.route.name", route.name)
 
 

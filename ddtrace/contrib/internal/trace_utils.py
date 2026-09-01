@@ -419,6 +419,28 @@ def set_service_and_source(
         span.service = service
 
 
+def _should_collect_client_ip() -> bool:
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    return asm_config._asm_enabled or config._retrieve_client_ip
+
+
+def _resolve_client_ip(
+    request_headers: Optional[Mapping[str, str]], peer_ip: Optional[str], headers_are_case_sensitive: bool
+) -> Optional[str]:
+    """Resolve the client IP the same way in both semantics modes.
+
+    AppSec depends on this resolution, so the OTel path reuses it verbatim and only changes
+    the key the result is written under.
+    """
+    # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+    request_ip = core.find_item("http.request.remote_ip")
+    if not request_ip:
+        # Not calculated: framework does not support IP blocking or testing env
+        request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+    return request_ip
+
+
 def set_http_meta(
     span: Span,
     integration_config: "IntegrationConfig",
@@ -459,10 +481,12 @@ def set_http_meta(
         ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
         ``resolver_match.args``, Tornado ``path_args``).
+
+    Both the Datadog and the OpenTelemetry HTTP conventions are written from here, so the
+    shared work (headers, cookies, client IP, the AppSec dispatch) exists once and only the
+    attribute names and value shapes differ between them.
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
-    if otel_http is not None and not otel_http.is_client:
-        otel_http = None
 
     if method is not None:
         if otel_http is not None:
@@ -474,6 +498,7 @@ def set_http_meta(
         otel_http.set_url(
             url,
             query=query,
+            raw_uri=raw_uri,
             server_address=server_address,
             fallback_server_address=target_host,
         )
@@ -481,7 +506,6 @@ def set_http_meta(
         if url is not None:
             url = _sanitized_url(url)
             _set_url_tag(integration_config, span, url, query)
-
         if target_host is not None:
             span._set_attribute(net.TARGET_HOST, target_host)
 
@@ -528,21 +552,15 @@ def set_http_meta(
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
 
-    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-    if asm_config._asm_enabled or config._retrieve_client_ip:
-        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-        request_ip = core.find_item("http.request.remote_ip")
-
-        if not request_ip:
-            # Not calculated: framework does not support IP blocking or testing env
-            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-
-        if request_ip:
-            span._set_attribute(http.CLIENT_IP, request_ip)
-
-        if peer_ip:
-            span._set_attribute("network.client.ip", peer_ip)
+    if _should_collect_client_ip():
+        request_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+        if otel_http is not None:
+            otel_http.set_client_addresses(request_ip, peer_ip)
+        else:
+            if request_ip:
+                span._set_attribute(http.CLIENT_IP, request_ip)
+            if peer_ip:
+                span._set_attribute("network.client.ip", peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
@@ -572,6 +590,7 @@ def set_http_meta(
     )
 
     if route is not None:
+        # http.route is spelled the same in both conventions
         span._set_attribute(http.ROUTE, route)
 
     if otel_http is not None:
