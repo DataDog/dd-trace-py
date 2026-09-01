@@ -226,6 +226,8 @@ variables:
         echo "Version '${PACKAGE_VERSION:-}' has no local segment (+...) -- nothing to patch, exiting."
         exit 0
       fi
+    # Prune unsupported tags from adms; S3 SHA index keeps them for gate installs.
+    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
     - python3 .gitlab/scripts/patch-wheel-versions.py pywheels pywheels-patched
     - |
       set -euo pipefail
@@ -499,6 +501,7 @@ download_dependency_wheels:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
 
+# Do not prune here: "upload all" publishes this artifact as the SHA S3 index.
 "ddtrace package":
   extends: .package_base
   needs:
