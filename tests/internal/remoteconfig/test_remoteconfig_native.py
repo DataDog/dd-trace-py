@@ -9,6 +9,7 @@ Rust crate; here we validate the Python integration and the SHM/fork wiring.
 """
 
 import base64
+import contextlib
 import copy
 import hashlib
 from http.server import BaseHTTPRequestHandler
@@ -420,6 +421,24 @@ def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
     assert order == ["native", "before_fork", "start"], order
 
 
+@contextlib.contextmanager
+def _agentless_settings(**env):
+    """Drive the agentless settings singleton the RC client reads.
+
+    RemoteConfigClient.agentless comes from _agentless.config, which resolves once at import, so
+    override_global_config cannot reach it -- the environment has to be changed and the singleton
+    re-resolved against it. Its own MonkeyPatch keeps the restore to these variables.
+    """
+    from tests.utils import reinitialize_agentless_config
+
+    with pytest.MonkeyPatch.context() as mp:
+        for name, value in env.items():
+            mp.setenv(name, value)
+        reinitialize_agentless_config()
+        yield
+    reinitialize_agentless_config()
+
+
 def test_agentless_client_targets_the_backend_directly(monkeypatch):
     # DD_AGENTLESS_ENABLED must hand the native client the credentials it needs to
     # reach config.<site> itself, and the poller must skip the agent handshake
@@ -437,7 +456,10 @@ def test_agentless_client_targets_the_backend_directly(monkeypatch):
     monkeypatch.setattr(client_mod, "get_hostname", lambda: "a-host")
     monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", _fake_native)
 
-    with override_global_config(dict(_agentless_enabled=True, _dd_api_key="an-api-key", _dd_site="datad0g.com")):
+    with (
+        _agentless_settings(DD_AGENTLESS_ENABLED="true", DD_API_KEY="an-api-key"),
+        override_global_config(dict(_agentless_enabled=True, _dd_api_key="an-api-key", _dd_site="datad0g.com")),
+    ):
         poller = worker_mod.RemoteConfigPoller()
         assert poller._client.agentless is True
         assert poller._state == poller._online
@@ -461,7 +483,10 @@ def test_agent_client_is_not_given_intake_credentials(monkeypatch):
 
     monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", _fake_native)
 
-    with override_global_config(dict(_agentless_enabled=False, _dd_api_key="an-api-key")):
+    with (
+        _agentless_settings(DD_AGENTLESS_ENABLED="false"),
+        override_global_config(dict(_agentless_enabled=False, _dd_api_key="an-api-key")),
+    ):
         poller = worker_mod.RemoteConfigPoller()
         assert poller._client.agentless is False
         assert poller._state == poller._agent_check

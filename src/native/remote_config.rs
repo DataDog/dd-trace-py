@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use libdd_capabilities_impl::{HttpClientCapability, NativeCapabilities};
-use libdd_common::Endpoint;
+use libdd_common::{parse_uri, Endpoint};
 use libdd_remote_config::fetch::{
     AgentlessConfig, ConfigApplyState, ConfigInvariants, ConfigOptions, SingleChangesFetcher,
 };
@@ -180,11 +180,20 @@ impl RemoteConfigClient {
                 let site = site.ok_or_else(|| {
                     PyValueError::new_err("agentless remote config requires a `site`")
                 })?;
-                let mut intake = Endpoint::agentless(&site, api_key).map_err(|e| {
+                // Built here rather than with `Endpoint::agentless`, which panics on
+                // `PathAndQuery::from_static("")` with http 1.4. The path is a placeholder
+                // either way: the agentless fetcher rewrites the endpoint to
+                // `config.<site>/api/v0.1/configurations`.
+                let url = parse_uri(&format!("https://{site}/")).map_err(|e| {
                     PyValueError::new_err(format!("invalid remote config site '{site}': {e}"))
                 })?;
-                intake.timeout_ms = timeout_ms;
-                intake.test_token = test_token;
+                let intake = Endpoint {
+                    url,
+                    api_key: Some(api_key.into()),
+                    timeout_ms,
+                    test_token,
+                    use_system_resolver: true,
+                };
                 let mut agentless = AgentlessConfig::new(hostname.unwrap_or_default(), &intake)
                     .map_err(|e| PyValueError::new_err(e.to_string()))?;
                 // Raw signed TUF root metadata, replacing the root embedded for this site.
