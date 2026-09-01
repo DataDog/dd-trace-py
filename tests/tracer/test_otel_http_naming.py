@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace._trace import http_semantics
 from ddtrace._trace.http_semantics import OTHER_HTTP_METHOD
+from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
 from ddtrace._trace.http_semantics import http_block_metadata
 from ddtrace._trace.http_semantics import normalize_http_method
 from ddtrace._trace.http_semantics import set_method_tag
@@ -19,6 +20,10 @@ from ddtrace._trace.otel_http_naming import otel_http_resource
 from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
 from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace._trace.otel_http_naming import set_otel_http_resource
+from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.settings._config import config
@@ -233,6 +238,203 @@ def test_http_block_metadata_uses_active_semantics():
                     http.OTEL_URL_QUERY: "token=redacted",
                     http.OTEL_USER_AGENT_ORIGINAL: "agent",
                 }
+
+
+@pytest.fixture
+def integration_config():
+    return mock.Mock(http_tag_query_string=False, trace_query_string=False)
+
+
+@pytest.fixture
+def server_error_statuses():
+    original = config._http_server.error_statuses
+    try:
+        yield config._http_server
+    finally:
+        config._http_server.error_statuses = original
+
+
+@pytest.mark.parametrize(
+    "span_type, span_kind, expected",
+    [
+        (SpanTypes.HTTP, None, True),
+        (SpanTypes.WEB, None, False),
+        (SpanTypes.WEB, SpanKind.CLIENT, True),
+        (SpanTypes.HTTP, SpanKind.SERVER, False),
+        (SpanTypes.HTTP, SpanKind.PRODUCER, False),
+    ],
+)
+def test_otel_span_attributes_classifies_client_and_server(integration_config, span_type, span_kind, expected):
+    span = Span("request", span_type=span_type)
+    if span_kind is not None:
+        span._set_attribute(SPAN_KIND, span_kind)
+
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    assert attributes.is_client is expected
+
+
+@pytest.mark.parametrize(
+    "method, normalized, original",
+    [
+        ("GET", "GET", None),
+        ("get", "GET", "get"),
+        ("PROPFIND", OTHER_HTTP_METHOD, "PROPFIND"),
+    ],
+)
+def test_otel_span_attributes_sets_method(integration_config, method, normalized, original):
+    span = Span("request")
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    attributes.set_method(method)
+
+    assert span.get_tag(http.OTEL_REQUEST_METHOD) == normalized
+    assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == original
+
+
+def test_otel_span_attributes_dispatches_client_and_server_urls(integration_config):
+    client_span = Span("request", span_type=SpanTypes.HTTP)
+    server_span = Span("request", span_type=SpanTypes.WEB)
+
+    with mock.patch.object(http_semantics, "otel_number", side_effect=str):
+        OTelHTTPSpanAttributes(client_span, integration_config).set_url("https://example.com/users/42?token=secret")
+        OTelHTTPSpanAttributes(server_span, integration_config).set_url(
+            "https://example.com/users/42?token=secret",
+            raw_uri="/users/%34%32?token=secret",
+        )
+
+    assert client_span.get_tag(http.OTEL_URL_FULL) == "https://example.com/users/42"
+    assert client_span.get_tag(http.OTEL_URL_PATH) is None
+    assert server_span.get_tag(http.OTEL_URL_PATH) == "/users/%34%32"
+    assert server_span.get_tag(http.OTEL_URL_FULL) is None
+
+
+def test_otel_span_attributes_server_address_precedence(integration_config):
+    url_span = Span("request")
+    explicit_span = Span("request")
+    fallback_span = Span("request")
+
+    with mock.patch.object(http_semantics, "otel_number", side_effect=str):
+        OTelHTTPSpanAttributes(url_span, integration_config).set_url(
+            "https://url.example/path",
+            server_address="explicit.example",
+            fallback_server_address="fallback.example",
+        )
+    OTelHTTPSpanAttributes(explicit_span, integration_config).set_url(
+        None,
+        server_address="explicit.example",
+        fallback_server_address="fallback.example",
+    )
+    OTelHTTPSpanAttributes(fallback_span, integration_config).set_url(
+        "/relative",
+        fallback_server_address="fallback.example",
+    )
+
+    assert url_span.get_tag(net.SERVER_ADDRESS) == "url.example"
+    assert explicit_span.get_tag(net.SERVER_ADDRESS) == "explicit.example"
+    assert fallback_span.get_tag(net.SERVER_ADDRESS) == "fallback.example"
+
+
+@pytest.mark.parametrize(
+    "span_type, status_code, expected_error",
+    [
+        (SpanTypes.HTTP, 399, 0),
+        (SpanTypes.HTTP, 400, 1),
+        (SpanTypes.WEB, 499, 0),
+        (SpanTypes.WEB, 500, 1),
+        (SpanTypes.WEB, 700, 1),
+    ],
+)
+def test_otel_span_attributes_status_error_semantics(
+    integration_config,
+    server_error_statuses,
+    span_type,
+    status_code,
+    expected_error,
+):
+    server_error_statuses.error_statuses = "500-599"
+    span = Span("request", span_type=span_type)
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    with mock.patch.object(http_semantics, "otel_number", return_value=status_code):
+        attributes.set_status_code(str(status_code))
+
+    assert span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == status_code
+    assert span.error == expected_error
+    assert span.get_tag(ERROR_TYPE) == (str(status_code) if expected_error else None)
+
+
+@pytest.mark.parametrize(
+    "status_code, expected_error",
+    [
+        (404, 1),
+        (412, 1),
+        (413, 0),
+        (500, 0),
+        (700, 0),
+    ],
+)
+def test_otel_span_attributes_honors_custom_server_error_statuses(
+    integration_config,
+    server_error_statuses,
+    status_code,
+    expected_error,
+):
+    server_error_statuses.error_statuses = "404-412"
+    span = Span("request", span_type=SpanTypes.WEB)
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    with mock.patch.object(http_semantics, "otel_number", return_value=status_code):
+        attributes.set_status_code(status_code)
+
+    assert span.error == expected_error
+
+
+def test_otel_span_attributes_status_preserves_exception_error_type(integration_config, server_error_statuses):
+    server_error_statuses.error_statuses = "500-599"
+    span = Span("request", span_type=SpanTypes.WEB)
+    span._set_attribute(ERROR_TYPE, "ValueError")
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    with mock.patch.object(http_semantics, "otel_number", return_value=503):
+        attributes.set_status_code(503)
+
+    assert span.error == 1
+    assert span.get_tag(ERROR_TYPE) == "ValueError"
+
+
+def test_otel_span_attributes_sets_user_agent_and_client_addresses(integration_config):
+    span = Span("request")
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+
+    attributes.set_user_agent("test-agent")
+    attributes.set_client_addresses("203.0.113.10", "10.0.0.5")
+
+    assert span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == "test-agent"
+    assert span.get_tag(http.OTEL_CLIENT_ADDRESS) == "203.0.113.10"
+    assert span.get_tag(net.NETWORK_PEER_ADDRESS) == "10.0.0.5"
+
+
+def test_otel_span_attributes_refines_server_resource_with_route(integration_config):
+    span = Span("web.request", span_type=SpanTypes.WEB)
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+    attributes.set_method("GET")
+
+    attributes.set_resource(None)
+    assert span.resource == "GET"
+
+    attributes.set_resource("/users/{id}")
+    assert span.resource == "GET /users/{id}"
+
+
+def test_otel_span_attributes_client_resource_ignores_server_route(integration_config):
+    span = Span("http.request", span_type=SpanTypes.HTTP)
+    attributes = OTelHTTPSpanAttributes(span, integration_config)
+    attributes.set_method("get")
+
+    attributes.set_resource("/users/{id}")
+
+    assert span.resource == "GET"
 
 
 @pytest.mark.subprocess(
