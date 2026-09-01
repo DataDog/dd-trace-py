@@ -1,10 +1,10 @@
-name: Update riot package lockfiles
+name: Update test locks for a package
 
 on:
   workflow_dispatch:
     inputs:
       integration_name:
-        description: "Riot integration/venv name to update"
+        description: "Test suite name to update"
         required: true
         type: string
       package_name:
@@ -13,8 +13,8 @@ on:
         type: string
 
 jobs:
-  update-riot-package-lockfiles:
-    name: Update riot package lockfiles
+  update-test-locks:
+    name: Update test locks
     runs-on: ubuntu-22.04
     outputs:
       changed: ${{ steps.patch.outputs.changed }}
@@ -84,27 +84,10 @@ jobs:
         run: |
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
-      - name: Compute supply-chain cooldown cutoff
-        id: cooldown
-        run: |
-          # TEST-CD (APMLP-1362): forward a cutoff 48h in the past to riot's
-          # uv pip compile backend so transitive deps younger than the
-          # cooldown can't be pulled into a regenerated lockfile.
-          CUTOFF=$(date -u -d "2 days ago" "+%Y-%m-%dT%H:%M:%SZ" 2>/dev/null \
-                   || python -c "import datetime as dt; print((dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
-          echo "cutoff=${CUTOFF}" >> "$GITHUB_OUTPUT"
-          echo "Using exclude-newer cutoff: ${CUTOFF}"
-
-      - name: Run regenerate-riot-latest
+      - name: Regenerate test locks
         env:
           TARGET_PACKAGE: ${{ inputs.integration_name }}
-          # Opt riot's `requirements` compile step into `uv pip compile` so
-          # that --exclude-newer can be forwarded for the cooldown. Older
-          # riot versions ignore both variables silently, so this is safe
-          # to set before the riot upgrade lands.
-          RIOT_PIP_COMPILE_BACKEND: "uv"
-          RIOT_PIP_COMPILE_EXCLUDE_NEWER: ${{ steps.cooldown.outputs.cutoff }}
-        run: scripts/regenerate-riot-latest.sh "$TARGET_PACKAGE"
+        run: scripts/test-env refresh "$TARGET_PACKAGE" >/dev/null
 
       - name: Run integration registry update
         run: python scripts/integration_registry/update_and_format_registry.py
@@ -135,8 +118,8 @@ jobs:
 
   create-pull-request:
     name: Create pull request
-    needs: update-riot-package-lockfiles
-    if: needs.update-riot-package-lockfiles.outputs.changed == 'true'
+    needs: update-test-locks
+    if: needs.update-test-locks.outputs.changed == 'true'
     runs-on: ubuntu-22.04
     permissions:
       actions: read
@@ -177,8 +160,8 @@ jobs:
           commit-message: "Update package version"
           delete-branch: true
           base: main
-          title: "chore: update ${{ inputs.package_name }} latest version to ${{ needs.update-riot-package-lockfiles.outputs.new_latest }}"
+          title: "chore: update ${{ inputs.package_name }} latest version to ${{ needs.update-test-locks.outputs.new_latest }}"
           labels: changelog/no-changelog
           body: |
             Update ${{ inputs.package_name }} lockfiles.
-            This updates only the riot lockfiles for the selected package/venv.
+            This updates only the uv-generated locks for the selected test suite.

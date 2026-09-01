@@ -134,8 +134,8 @@ They use the Flask integration tests as a teaching example. Referencing these in
 
 1. Make sure a directory for your integration exists under ``tests/contrib``
 2. Create a new file ``tests/contrib/<integration>/test_<integration>_snapshot.py``
-3. Make sure a ``Venv`` exists in ``riotfile.py`` for your ``contrib`` subdirectory. Follow a nearby integration and
-   note the test suite name.
+3. Make sure a test environment exists for your ``contrib`` subdirectory. Follow a nearby integration and note its
+   test suite name.
 4. In this directory, write a simple "Hello World" application that uses the library you're
    integrating with similarly to how customers will use it. Depending on the library, this
    might be as simple as a function in the snapshot test file that imports the library.
@@ -238,8 +238,7 @@ The following is the check list for ensuring you have all of the components to h
 - Define `patch` and `unpatch` functions for your new integration under ``ddtrace/contrib/internal/your_integration_name``.
 - Document your integration in a ``ddtrace/contrib/internal/<integration_name>/__init__.py`` module and reference the doc string in ``docs/integrations.rst``.
 - Test code for the above in ``tests/contrib/your_integration_name``.
-- The test environment configuration in ``riotfile.py``.
-- The GitLab CI configuration in ``tests/contrib/suitespec.yml``.
+- The test environment and GitLab CI configuration in ``tests/contrib/suitespec.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
 - A release note for your addition generated with ``riot run reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.

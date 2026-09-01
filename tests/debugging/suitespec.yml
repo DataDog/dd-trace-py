@@ -14,3 +14,8 @@ suites:
       - '@remoteconfig'
       - '@tracing'
       - tests/debugging/*
+    matrix:
+      command: pytest {cmdargs} tests/debugging/
+      variants:
+        - name: debugger
+          dependencies: [msgpack, httpretty, typing-extensions, pytest-asyncio, pytest-benchmark, pytest-memray, numpy]

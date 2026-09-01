@@ -17,6 +17,7 @@ markupsafe==3.0.2
 mock==5.2.0
 opentracing==2.4.0
 packaging==25.0
+pip==26.2.1
 pluggy==1.6.0
 pytest==8.3.5
 pytest-cov==6.1.1

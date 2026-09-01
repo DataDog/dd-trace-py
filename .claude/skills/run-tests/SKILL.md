@@ -88,7 +88,7 @@ When you modify `tests/` files (but not test infrastructure):
 
 #### For Test Infrastructure Changes
 When you modify:
-- `tests/conftest.py`, `tests/suitespec.yml`, `riotfile.py`, `.riot/requirements/`, or `scripts/run-tests`
+- `tests/conftest.py`, suite or environment definitions, dependency locks, or `scripts/run-tests`
 
 **Strategy:** Run a quick smoke test suite
 - Example: `internal` suite with 1 venv as a sanity check
@@ -117,7 +117,7 @@ scripts/run-tests -s --venv <hash1> --venv <hash2>
 - After merging or rebasing from main (dependencies or native code may have changed)
 - C extensions, Cython (`.pyx`, `.pxd`), or CMake files were modified (e.g., under `ddtrace/internal/`, `ddtrace/appsec/_iast/_taint_tracking/`, `src/native/`)
 - `setup.py`, `pyproject.toml`, or `setup.cfg` were modified
-- `riotfile.py` or `.riot/requirements/` files were modified
+- Test environment definitions or dependency locks were modified
 
 This will:
 - Start required Docker services (redis, postgres, etc.)

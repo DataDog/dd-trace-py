@@ -19,6 +19,33 @@ suites:
       - tests/profiling/*
     pattern: profile$
     retry: 2
+    matrix:
+      command: >-
+        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py'
+        {cmdargs} tests/profiling
+      env:
+        CPUCOUNT: '12'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        PYTHONWARNINGS: ignore::UserWarning:gevent.events
+      variants:
+        - name: profile
+          python: ['3.9', '3.10']
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==3.19.0']
+        - name: profile
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
+        - name: profile
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'gunicorn[gevent]', gevent, protobuf]
+          env:
+            DD_PROFILE_TEST_GEVENT: '1'
+        - name: profile
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, uvloop, protobuf]
+          env:
+            USE_UVLOOP: '1'
+        - name: profile
+          python: ['3.11', '3.12', '3.13']
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==4.22.0']
   profile-uwsgi:
     env:
       DD_TRACE_AGENT_URL: ''
@@ -32,6 +59,19 @@ suites:
       - tests/profiling/*
     pattern: profile-uwsgi
     retry: 2
+    matrix:
+      command: >-
+        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        {cmdargs} tests/profiling/test_uwsgi.py
+      env:
+        CPUCOUNT: '12'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        PYTHONWARNINGS: ignore::UserWarning:gevent.events
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+      variants:
+        - name: profile-uwsgi
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, 'uwsgi<2.0.30', protobuf]
   profile-memalloc:
     env:
       DD_TRACE_AGENT_URL: ''
@@ -45,3 +85,24 @@ suites:
       - tests/profiling/*
     pattern: profile-memalloc
     retry: 2
+    matrix:
+      command: >-
+        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
+      env:
+        CPUCOUNT: '12'
+        DD_PROFILING_ENABLE_ASSERTS: '1'
+        DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
+        PYTHONWARNINGS: ignore::UserWarning:gevent.events
+      runs:
+        - env:
+            PYTHONMALLOC: malloc
+        - env:
+            PYTHONMALLOC: pymalloc
+        - env:
+            PYTHONMALLOC: malloc_debug
+        - env:
+            PYTHONMALLOC: pymalloc_debug
+      variants:
+        - name: profile-memalloc
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, protobuf]

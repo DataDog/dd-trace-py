@@ -1,0 +1,281 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "ruamel.yaml>=0.17.21",
+# ]
+# ///
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Mapping
+from collections.abc import Sequence
+import concurrent.futures
+from contextlib import redirect_stdout
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+from typing import TYPE_CHECKING
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
+from scripts.check_lockfile_cooldown import main as check_lockfile_cooldown  # noqa: E402
+
+
+if TYPE_CHECKING:
+    from tests.suitespec import TestEnvironment
+
+
+class LockError(RuntimeError):
+    """Raised when concrete test-environment locks cannot be generated."""
+
+
+def _resolve_suites(matrices: Mapping[str, tuple[TestEnvironment, ...]], requested: Sequence[str]) -> tuple[str, ...]:
+    if not requested:
+        return tuple(sorted(matrices))
+
+    resolved = []
+    for name in requested:
+        if name in matrices:
+            resolved.append(name)
+            continue
+        candidates = [suite for suite in matrices if suite.rsplit("::", 1)[-1] == name]
+        if not candidates:
+            raise LockError(f"suite has no declarative matrix: {name}")
+        if len(candidates) > 1:
+            choices = ", ".join(sorted(candidates))
+            raise LockError(f"ambiguous suite {name!r}; choose one of: {choices}")
+        resolved.append(candidates[0])
+    return tuple(dict.fromkeys(resolved))
+
+
+def select_environments(requested: Sequence[str] = ()) -> tuple[TestEnvironment, ...]:
+    from tests.suitespec import get_test_environments
+
+    matrices = get_test_environments(nightly=False)
+    selected_suites = _resolve_suites(matrices, requested)
+    return tuple(environment for suite in selected_suites for environment in matrices[suite])
+
+
+def list_hashes(name: str, python_version: str | None = None) -> tuple[str, ...]:
+    environments = select_environments((name,))
+    matches = [
+        environment for environment in environments if python_version is None or environment.python == python_version
+    ]
+    if not matches:
+        raise LockError(f"no uv environments found for suite: {name}")
+    return tuple(environment.hash for environment in matches)
+
+
+def compile_environment(
+    environment: TestEnvironment,
+    *,
+    exclude_newer: str,
+    upgrade: bool,
+) -> str:
+    from tests.suitespec import LOCK_PLATFORM
+
+    if not environment.direct_dependencies:
+        raise LockError(f"environment has no dependencies: {environment.hash}")
+
+    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.hash}-") as temporary:
+        temporary_path = Path(temporary)
+        requirements = temporary_path / "requirements.in"
+        output = temporary_path / "requirements.txt"
+        requirements.write_text("\n".join(sorted(environment.direct_dependencies, key=str.casefold)) + "\n")
+        existing_lock = PROJECT_ROOT / environment.lockfile
+        if existing_lock.is_file():
+            output.write_text(existing_lock.read_text())
+        command = [
+            "uv",
+            "pip",
+            "compile",
+            "--python-version",
+            environment.python,
+            "--python-platform",
+            LOCK_PLATFORM,
+            "--exclude-newer",
+            exclude_newer,
+            "--no-annotate",
+            "--no-header",
+            "--no-strip-extras",
+            "--no-progress",
+            "--no-python-downloads",
+            "--no-sources",
+            "--output-file",
+            str(output),
+        ]
+        if upgrade:
+            command.append("--upgrade")
+        command.append(str(requirements))
+        try:
+            subprocess.run(command, cwd=PROJECT_ROOT, check=True, text=True, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.stdout or "").strip()
+            suffix = f"\n{details}" if details else ""
+            raise LockError(f"failed to lock {environment.suite}/{environment.hash}{suffix}") from error
+        return output.read_text()
+
+
+def _write_lock(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        header = []
+        for line in path.read_text().splitlines(keepends=True):
+            if line.strip() and not line.startswith("#"):
+                break
+            header.append(line)
+        content = "".join(header) + content
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
+        temporary.write(content)
+        temporary_path = Path(temporary.name)
+    temporary_path.replace(path)
+
+
+def _unique_lock_environments(environments: Sequence[TestEnvironment]) -> dict[Path, TestEnvironment]:
+    unique: dict[Path, TestEnvironment] = {}
+    for environment in environments:
+        existing = unique.setdefault(environment.lockfile, environment)
+        if (existing.python, existing.direct_dependencies) != (environment.python, environment.direct_dependencies):
+            raise LockError(f"incompatible test environments share {environment.lockfile}")
+    return unique
+
+
+def generate_locks(
+    requested: Sequence[str] = (),
+    *,
+    jobs: int = 4,
+    upgrade: bool = False,
+) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
+    environments = select_environments(requested)
+    if not environments:
+        raise LockError("no concrete test environments selected")
+
+    lock_environments = _unique_lock_environments(environments)
+    compiled: dict[Path, str] = {}
+    cutoff = cooldown_cutoff()
+    errors = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
+        futures = {
+            executor.submit(compile_environment, environment, exclude_newer=cutoff, upgrade=upgrade): (
+                lockfile,
+                environment,
+            )
+            for lockfile, environment in lock_environments.items()
+        }
+        for future in concurrent.futures.as_completed(futures):
+            lockfile, environment = futures[future]
+            try:
+                compiled[lockfile] = future.result()
+            except LockError as error:
+                errors.append(error)
+    if errors:
+        raise LockError("\n\n".join(str(error) for error in errors))
+
+    written = []
+    for lockfile in lock_environments:
+        _write_lock(PROJECT_ROOT / lockfile, compiled[lockfile])
+        written.append(lockfile)
+    return tuple(written), ()
+
+
+def refresh_locks(requested: str | None = None, *, jobs: int = 4) -> tuple[str, tuple[Path, ...], tuple[Path, ...]]:
+    from tests.suitespec import get_test_environments
+
+    matrices = get_test_environments(nightly=False)
+    candidates: tuple[str, ...]
+    if requested:
+        candidates = (requested,)
+    else:
+        try:
+            result = subprocess.run(
+                [str(PROJECT_ROOT / "scripts" / "freshvenvs.py"), "output"],
+                cwd=PROJECT_ROOT,
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.stdout or "").strip()
+            raise LockError(f"failed to find outdated test environments: {details}") from error
+        candidates = tuple(result.stdout.split())
+
+    if not candidates:
+        print("No outdated test environments found.", file=sys.stderr)
+        return "", (), ()
+
+    print(f"Outdated test environments: {' '.join(candidates)}", file=sys.stderr)
+    for candidate in candidates:
+        try:
+            suite = _resolve_suites(matrices, (candidate,))[0]
+        except LockError:
+            print(f"No test environments found for {candidate}", file=sys.stderr)
+            continue
+
+        written, pruned = generate_locks((suite,), jobs=jobs, upgrade=True)
+        with redirect_stdout(sys.stderr):
+            cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
+        if cooldown_status:
+            raise LockError(f"cooldown validation failed for {candidate}")
+        return candidate, written, pruned
+
+    return "", (), ()
+
+
+def check_locks() -> int:
+    environments = select_environments()
+    expected_paths = set(_unique_lock_environments(environments))
+    missing = sorted(path for path in expected_paths if not (PROJECT_ROOT / path).is_file())
+    if missing:
+        raise LockError("missing test locks:\n" + "\n".join(f"  {path}" for path in missing))
+    return len(expected_paths)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Manage concrete locks for test environments.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    list_parser = subparsers.add_parser("list", help="List environment hashes for a suite.")
+    list_parser.add_argument("suite", help="Full or short suite name.")
+    list_parser.add_argument("--python", help="Only list hashes for this Python version.")
+    subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
+    lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
+    lock_parser.add_argument("suites", nargs="*", help="Full or unambiguous short suite names; defaults to all.")
+    lock_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
+    refresh_parser = subparsers.add_parser("refresh", help="Refresh one explicit or outdated test environment.")
+    refresh_parser.add_argument("suite", nargs="?", help="Full or unambiguous short suite name.")
+    refresh_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
+    args = parser.parse_args(argv)
+
+    try:
+        if args.command == "check":
+            count = check_locks()
+            print(f"Validated {count} concrete test locks.")
+            return 0
+        if args.command == "list":
+            for environment_hash in list_hashes(args.suite, args.python):
+                print(environment_hash)
+            return 0
+        if args.command == "refresh":
+            suite, written, pruned = refresh_locks(args.suite, jobs=args.jobs)
+            if suite:
+                print(
+                    f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s).",
+                    file=sys.stderr,
+                )
+                print(suite)
+            return 0
+        written, pruned = generate_locks(args.suites, jobs=args.jobs)
+    except LockError as error:
+        parser.error(str(error))
+    print(f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s).")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

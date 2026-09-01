@@ -5,15 +5,17 @@ components:
     - docker-compose.base.yml
     - docker-compose.podman.yml
     - docker-compose.yml
-    - riotfile.py
-    - .riot/requirements/*
     - scripts/ddtest
+    - scripts/run-tests
+    - scripts/test-env
     - pyproject.toml
     - tests/conftest.py
     - tests/utils.py
     - tests/__init__.py
     - tests/suitespec.yml
     - tests/suitespec.py
+    - .riot/requirements/*.txt
+    - .uv/*.txt
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py
@@ -151,6 +153,14 @@ components:
   vendor:
     - ddtrace/vendor/*
 suites:
+  smoke_test:
+    type: helper
+    paths:
+      - '@core'
+      - tests/smoke_test.py
+    matrix:
+      command: python tests/smoke_test.py {cmdargs}
+      variants: [{name: smoke_test}]
   crashtracker:
     venvs_per_job: 6
     paths:
@@ -158,6 +168,20 @@ suites:
       - '@core'
       - '@profiling'
     snapshot: true
+    matrix:
+      command: pytest -v {cmdargs} tests/crashtracker/
+      env:
+        DD_CIVISIBILITY_ITR_ENABLED: '0'
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+      variants:
+        - name: crashtracker
+          dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82']
+          python: ['3.9', '3.10', '3.11']
+        - name: crashtracker
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [pytest-randomly, 'python-json-logger==2.0.7', pyfakefs, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
+          env:
+            PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
   conftest:
     parallelism: 1
     paths:
@@ -165,6 +189,12 @@ suites:
       - '**/conftest.py'
     pattern: meta-testing
     snapshot: false
+    matrix:
+      command: pytest {cmdargs} tests/meta
+      env:
+        DD_CIVISIBILITY_FLAKY_RETRY_ENABLED: '0'
+      python: ['3.10']
+      variants: [{name: meta-testing}]
   ddtracerun:
     parallelism: 3
     paths:
@@ -175,6 +205,11 @@ suites:
       - tests/ddtrace_run.py
     services:
       - redis
+    matrix:
+      command: pytest {cmdargs} --no-cov tests/commands/test_runner.py
+      variants:
+        - name: ddtracerun
+          dependencies: [redis, gevent, pytest-randomly]
   detect_global_locks:
     venvs_per_job: 1
     paths:
@@ -184,6 +219,20 @@ suites:
       - 'pyproject.toml'
       - 'src/native/*'
       - 'scripts/global-lock-detection.py'
+    matrix:
+      command: python -X importtime scripts/global-lock-detection.py
+      env:
+        DD_APPSEC_ENABLED: '1'
+        DD_APPSEC_SCA_ENABLED: '1'
+        DD_CODE_ORIGIN_FOR_SPANS_ENABLED: '1'
+        DD_DYNAMIC_INSTRUMENTATION_ENABLED: '1'
+        DD_EXCEPTION_REPLAY_ENABLED: '1'
+        DD_IAST_ENABLED: '1'
+        DD_PROFILING_ENABLED: '1'
+        DD_PROFILING_LOCK_ENABLED: '0'
+        DD_REMOTE_CONFIGURATION_ENABLED: '1'
+        DD_RUNTIME_METRICS_ENABLED: '1'
+      variants: [{name: detect_global_locks}]
   integration_agent:
     parallelism: 2
     paths:
@@ -195,6 +244,16 @@ suites:
       - tests/integration/*
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
+    matrix:
+      env:
+        AGENT_VERSION: latest
+      variants:
+        - name: integration-latest
+          dependencies: [msgpack, pytest-randomly]
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
+        - name: integration-latest-civisibility
+          dependencies: [msgpack, pytest-randomly]
+          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   integration_testagent:
     venvs_per_job: 3
     paths:
@@ -207,11 +266,28 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
     snapshot: true
+    matrix:
+      env:
+        AGENT_VERSION: testagent
+      variants:
+        - name: integration-snapshot
+          dependencies: [msgpack, pytest-randomly]
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
+        - name: integration-snapshot-civisibility
+          dependencies: [msgpack, pytest-randomly]
+          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
   integration_registry:
     parallelism: 1
     paths:
       - '@contrib'
       - scripts/integration_registry/*
+    matrix:
+      command: pytest {cmdargs} tests/contrib/integration_registry
+      python: ['3.13']
+      variants:
+        - name: integration_registry
+          dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema]
+          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', 'riot==0.22.0', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema]
   internal:
     retry: 2
     venvs_per_job: 2
@@ -228,6 +304,31 @@ suites:
       - tests/cache/*
       - tests/snapshots/tests.internal.*
     snapshot: true
+    matrix:
+      command: pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/
+      env:
+        DD_CIVISIBILITY_ITR_ENABLED: '0'
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # Disable that cache only for internal-suite environment construction.
+        UV_NO_CACHE: '1'
+      variants:
+        - name: internal
+          python: ['3.9', '3.10', '3.11']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
+        - name: internal
+          python: ['3.9', '3.10', '3.11']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
+        - name: internal
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
+          env:
+            PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
+        - name: internal
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
+          env:
+            PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
   wrapping:
     venvs_per_job: 6
     paths:
@@ -236,6 +337,15 @@ suites:
       - ddtrace/internal/wrapping/*
       - ddtrace/_trace/tracer.py
       - tests/wrapping/*
+    matrix:
+      command: pytest -v -n auto --dist=worksteal {cmdargs} tests/wrapping/
+      env:
+        DD_TRACE_WRAP_SPAN_NAME_INCLUDE_CLASS: 'true'
+      variants:
+        - name: wrapping
+          dependencies: [pytest-xdist, wrapt]
+        - name: wrapping
+          dependencies: [pytest-xdist, 'wrapt<2.0.0']
   lib_injection:
     paths:
       - '@bootstrap'
@@ -245,6 +355,12 @@ suites:
       - '@lib_injection'
     parallelism: 2
     pattern: ^lib_injection$
+    matrix:
+      command: pytest {cmdargs} tests/lib_injection/
+      variants:
+        - name: lib_injection
+          dependencies: [PyYAML, 'pip==26.0.1; python_version < ''3.10''', 'pip==26.2.1; python_version >= ''3.10''', pytest-randomly]
+          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', PyYAML, pytest-randomly]
   runtime:
     paths:
       - '@bootstrap'
@@ -253,6 +369,11 @@ suites:
       - '@vendor'
       - tests/runtime/*
     skip: true
+    matrix:
+      command: pytest {cmdargs} tests/runtime/
+      variants:
+        - name: runtime
+          dependencies: [msgpack, pytest-randomly]
   openfeature:
     parallelism: 1
     paths:
@@ -260,6 +381,13 @@ suites:
       - '@remoteconfig'
       - '@core'
     pattern: ^openfeature$
+    matrix:
+      command: pytest {cmdargs} tests/openfeature
+      variants:
+        - name: openfeature
+          dependencies: [pytest-randomly, 'openfeature-sdk~=0.8.0']
+        - name: openfeature
+          dependencies: [pytest-randomly, openfeature-sdk]
   telemetry:
     parallelism: 1
     paths:
@@ -277,6 +405,15 @@ suites:
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     snapshot: true
+    matrix:
+      command: pytest {cmdargs} tests/telemetry/
+      variants:
+        - name: telemetry
+          python: ['3.14']
+          dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask>=3.1.2']
+        - name: telemetry
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
@@ -297,19 +434,54 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     venvs_per_job: 1
-  tracer-uwsgi:
-    venvs_per_job: 1
+    matrix:
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
+      env:
+        DD_CIVISIBILITY_LOG_LEVEL: none
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+      variants:
+        - name: tracer
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+        - name: tracer-python-optimize
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          env:
+            PYTHONOPTIMIZE: '1'
+        - name: tracer-legacy-attrs
+          python: ['3.9']
+          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
+        - name: tracer-uwsgi
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
+          command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+        - name: tracer-128-bit-traceid-disabled
+          python: ['3.14']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          env:
+            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
+  wait:
+    type: helper
     paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@vendor'
-      - tests/tracer/test_uwsgi_shutdown.py
-      - tests/tracer/uwsgi-app.py
-      - tests/contrib/uwsgi/__init__.py
-    pattern: tracer-uwsgi
+      - tests/wait-for-services.py
+    matrix:
+      # Python 3.10 is incompatible with the pinned kombu and vertica clients.
+      command: python tests/wait-for-services.py {cmdargs}
+      env:
+        AGENT_VERSION: testagent
+        DD_TRACE_AGENT_URL: http://testagent:9126
+      python: ['3.9']
+      variants:
+        - name: wait
+          dependencies: [azure-data-tables, azure-storage-blob, azure-storage-queue, cassandra-driver, psycopg2-binary, 'mysql-connector-python!=8.0.18', 'vertica-python>=0.6.0,<0.7.0', 'kombu>=4.2.0,<4.3.0', pymssql, pytest-randomly, redis, requests]
   vendor:
     parallelism: 1
     paths:
       - '@vendor'
       - tests/vendor/*
+    matrix:
+      command: pytest {cmdargs} tests/vendor/
+      variants:
+        - name: vendor
+          dependencies: ['msgpack~=1.0.0', pytest-randomly]
+        - name: vendor
+          dependencies: [msgpack, pytest-randomly]

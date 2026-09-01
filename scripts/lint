@@ -55,7 +55,6 @@ case "$cmd" in
     "$SCRIPT_DIR/lint" style
     "$SCRIPT_DIR/lint" typing
     "$SCRIPT_DIR/lint" spelling
-    "$SCRIPT_DIR/lint" riot
     "$SCRIPT_DIR/lint" security
     "$SCRIPT_DIR/lint" suitespec-check
     "$SCRIPT_DIR/lint" profiling-native-check
@@ -86,9 +85,6 @@ case "$cmd" in
     else
       uv_lint bandit -c pyproject.toml -r ddtrace/
     fi
-    ;;
-  riot)
-    uv_lint python -m doctest "${@:-riotfile.py}"
     ;;
   fmt-snapshots)
     uv_lint ddapm-test-agent-fmt "${@:-tests/snapshots/}"
@@ -174,7 +170,6 @@ Subcommands:
   typing [args]             mypy
   spelling [paths]          codespell
   security [args]           bandit -c pyproject.toml
-  riot [args]               python -m doctest riotfile.py
   fmt-snapshots [path]      ddapm-test-agent-fmt
   suitespec-check           Check suitespec coverage
   profiling-native-check    Check profiling native coverage

@@ -17,6 +17,11 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 1
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/api/
+      variants:
+        - name: ai_guard_api
+          dependencies: [requests]
   ai_guard_langchain:
     paths:
       - '@bootstrap'
@@ -30,6 +35,18 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/langchain/
+      variants:
+        - name: ai_guard_langchain
+          python: ['3.9', '3.10', '3.11']
+          dependencies: ['pytest-asyncio==0.23.7', 'langchain==0.1.20', 'langchain-core==0.1.53', 'langchain-openai==0.1.6', 'openai==1.102.0']
+        - name: ai_guard_langchain
+          python: ['3.9', '3.10', '3.11', '3.12']
+          dependencies: ['pytest-asyncio==0.23.7', 'langchain==0.2.17', 'langchain-core==0.2.43', 'langchain-openai==0.1.7', 'openai==1.102.0']
+        - name: ai_guard_langchain
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: ['pytest-asyncio==0.23.7', langchain, langchain-core, langchain-openai, openai]
   ai_guard_openai:
     paths:
       - '@bootstrap'
@@ -42,6 +59,17 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/openai/
+      variants:
+        - name: ai_guard_openai
+          python: ['3.9', '3.10', '3.11', '3.12']
+          dependencies: ['pytest-asyncio==0.23.7', 'openai==1.3.0', 'httpx<0.28']
+        - name: ai_guard_openai
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: ['pytest-asyncio==0.23.7', 'openai==1.102.0']
+        - name: ai_guard_openai
+          dependencies: ['pytest-asyncio==0.23.7', openai]
   ai_guard_anthropic:
     paths:
       - '@bootstrap'
@@ -54,6 +82,13 @@ suites:
     services:
       - testagent
     venvs_per_job: 2
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/anthropic/
+      variants:
+        - name: ai_guard_anthropic
+          dependencies: ['pytest-asyncio==0.23.7', pyyaml, 'anthropic==0.28.0', 'httpx~=0.27.0']
+        - name: ai_guard_anthropic
+          dependencies: ['pytest-asyncio==0.23.7', pyyaml, anthropic, 'httpx<0.28.0']
   ai_guard_strands:
     paths:
       - '@bootstrap'
@@ -65,6 +100,12 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 1
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/strands_hooks/
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+      variants:
+        - name: ai_guard_strands
+          dependencies: ['strands-agents>=1.29.0']
   ai_guard_litellm_guardrail:
     paths:
       - '@bootstrap'
@@ -76,3 +117,12 @@ suites:
       - tests/aiguard/suitespec.yml
     retry: 2
     venvs_per_job: 2
+    matrix:
+      command: pytest {cmdargs} tests/aiguard/litellm_guardrail/
+      variants:
+        - name: ai_guard_litellm_guardrail
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, 'litellm[proxy]==1.78.5']
+        - name: ai_guard_litellm_guardrail
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, 'litellm[proxy]==1.82.6']

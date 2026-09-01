@@ -82,22 +82,6 @@ def collect_global_attributes(record_testsuite_property, pytestconfig):
     # This is useful to reproduce test failures.
     record_testsuite_property("randomly.seed", f"{randomly_seed or -1}")
 
-    # Convert all RIOT_* variables to `riot.*` attributes in the test suite.
-    # https://github.com/DataDog/riot/blob/a412e98fe6194284b97235942a6e3eff7e8d0a0b/riot/riot.py#L786-L797
-    for env, value in os.environ.items():
-        if not env.startswith("RIOT_"):
-            continue
-
-        # Convert:
-        #   - RIOT_NAME into `riot.name`
-        #   - RIOT_VENV_PKGS into `riot.venv.pkgs`
-        #   - RIOT_VENV_FULL_PKGS into `riot.venv.full_pkgs`
-        #   - RIOT_PYTHON_VERSION into `riot.python.version`
-        env = env[5:]  # Remove "RIOT_" prefix
-        prefix, _, name = env.partition("_")
-        if prefix and name:
-            # Convert `RIOT_VENV_PKGS` to `riot.venv.pkgs`
-            env = f"riot.{prefix.lower()}.{name.lower()}"
-        else:
-            env = f"riot.{prefix.lower()}"
-        record_testsuite_property(env, value)
+    if virtual_env := os.environ.get("VIRTUAL_ENV"):
+        record_testsuite_property("test.environment.id", os.path.basename(virtual_env))
+    record_testsuite_property("test.python.version", f"{sys.version_info.major}.{sys.version_info.minor}")

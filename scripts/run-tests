@@ -3,7 +3,6 @@
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
-#     "riot>=0.22.0",
 #     "ruamel.yaml>=0.17.21",
 # ]
 # ///
@@ -16,24 +15,28 @@ over which specific test environments to run.
 Note: This runs entire test suites, not individual test files.
 """
 
+from __future__ import annotations
+
 import argparse
+from contextlib import contextmanager
+from dataclasses import dataclass
 import fcntl
 import fnmatch
 import hashlib
+from importlib import metadata as importlib_metadata
 import json
 import os
 from pathlib import Path
-import re
+import shlex
 import subprocess
 import sys
-from typing import NamedTuple
-from typing import Optional
+import tempfile
+from typing import Iterator
 
 
-# Add the project root and tests to the import path for test definitions.
+# Add the project root to import the test configuration.
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "tests"))
 
 
 def _ensure_compose_project_name():
@@ -49,9 +52,11 @@ def _ensure_compose_project_name():
 
 _ensure_compose_project_name()
 
-import riotfile  # noqa: E402
+from tests.suitespec import TestEnvironment  # noqa: E402
+from tests.suitespec import TestRun  # noqa: E402
 from tests.suitespec import get_patterns  # noqa: E402
 from tests.suitespec import get_suites  # noqa: E402
+from tests.suitespec import get_test_environments  # noqa: E402
 
 
 # Constants
@@ -60,96 +65,51 @@ PODMAN_COMPAT_ENV_VAR = "DD_TEST_PODMAN_COMPAT"
 BASE_COMPOSE_FILE = ROOT / "docker-compose.base.yml"
 DOCKER_COMPOSE_FILE = ROOT / "docker-compose.yml"
 PODMAN_COMPOSE_FILE = ROOT / "docker-compose.podman.yml"
+CONTAINER_PROJECT_ROOT = Path("/home/bits/project")
+TEST_CONTAINER_PATH = (
+    "/home/bits/.cargo/bin:/home/bits/.local/bin:/home/bits/.pyenv/shims:/home/bits/.pyenv/bin:"
+    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+)
+SHELL_OPERATORS = frozenset({"&&", "||", ";", "|"})
+DDTRACE_TEST_WHEEL_ROOT = Path(".cache/ddtrace-test-wheels")
+UV_ENVIRONMENT_ROOT = Path(".cache/uv-test-environments")
+UV_ENVIRONMENT_STATE = ".ddtrace-test-environment.json"
+UV_ENVIRONMENT_STATE_VERSION = 1
 
 
-class RiotVenv(NamedTuple):
-    """Represents a test environment and its metadata."""
+class UvTestEnvironmentError(RuntimeError):
+    """Raised when a uv test environment cannot be prepared."""
 
-    number: int
-    hash: str
-    name: str
-    python_version: str
-    packages: str
-    suite_name: str = ""  # Track which suite this venv belongs to
-    command: str = ""  # The actual test command (e.g., pytest tests/contrib/flask/)
 
-    def _normalize_package_name(self, name: str) -> list[str]:
-        """Generate possible package name variations from venv name component.
+@dataclass(frozen=True)
+class PreparedEnvironment:
+    path: Path
+    requirements: Path
+    project_hash: str
+    editable_mode: str
 
-        Examples:
-            'django' -> ['django']
-            'django_hosts' -> ['django-hosts', 'django_hosts']
-            'psycopg2' -> ['psycopg2', 'psycopg2-binary']
-        """
-        variants = [name]
 
-        # Try underscore to dash conversion (common in PyPI)
-        if "_" in name:
-            variants.append(name.replace("_", "-"))
-
-        # Common package variations
-        variations = {
-            "psycopg2": ["psycopg2-binary"],
-            "mysql": ["mysqlclient", "mysql-connector-python"],
-            "redis": ["redis-py"],
-        }
-
-        if name in variations:
-            variants.extend(variations[name])
-
-        return variants
-
-    def _extract_package_versions_for_venv_name(self, venv_name: str, packages: str) -> list[str]:
-        """Extract package versions that match the venv name components.
-
-        Args:
-            venv_name: e.g. 'django', 'django:celery', 'flask:redis'
-            packages: Package info string with 'pkg: version' entries
-        """
-        if not packages or packages == "standard packages":
-            return []
-
-        # Split venv name by ':' to get components (django:celery -> django, celery)
-        name_components = [comp.strip() for comp in venv_name.split(":")]
-
-        found_versions = []
-        packages_lower = packages.lower()
-
-        for component in name_components:
-            # Get all possible package name variants
-            variants = self._normalize_package_name(component)
-
-            for variant in variants:
-                # Look for 'variant: version' pattern in packages string
-                pattern = rf"\b{re.escape(variant)}:\s*([^,]+)"
-                match = re.search(pattern, packages_lower, re.IGNORECASE)
-                if match:
-                    version = match.group(1).strip()
-                    found_versions.append(f"{variant} {version}")
-                    break  # Found a match for this component, move to next
-
-        return found_versions
-
-    @property
-    def display_name(self) -> str:
-        """Generate a user-friendly display name showing Python version and relevant packages."""
-        # Extract package versions based on venv name
-        package_versions = self._extract_package_versions_for_venv_name(self.name, self.packages)
-
-        if package_versions:
-            packages_str = ", ".join(package_versions)
-            return f"Python {self.python_version}, {packages_str}"
-
-        return f"Python {self.python_version}"
+def _atomic_write(path: Path, contents: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
+        temporary.write(contents)
+        temporary_path = Path(temporary.name)
+    temporary_path.replace(path)
 
 
 class TestRunner:
     def __init__(self):
         self.root = ROOT
-        self.changed_files: set[str] = set()
-        self.matching_suites: dict[str, dict] = {}
-        self.required_services: set[str] = set()
         self.podman_compat = os.environ.get(PODMAN_COMPAT_ENV_VAR, "0") == "1"
+        self.in_ci = os.environ.get("GITLAB_CI", "").lower() == "true"
+        self.suites = get_suites()
+        self.environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
+        self.environments_by_hash: dict[str, TestEnvironment] = {}
+        for environments in self.environments.values():
+            for environment in environments:
+                if environment.hash in self.environments_by_hash:
+                    raise ValueError(f"environment hash collision: {environment.hash}")
+                self.environments_by_hash[environment.hash] = environment
 
     def _compose_command(self, *args: str) -> list[str]:
         """Return the Compose command for the selected container backend."""
@@ -163,7 +123,7 @@ class TestRunner:
 
     def _run_git_command(self, cmd: list[str]) -> set[str]:
         """Helper to run a git command and return set of file paths."""
-        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root)
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=self.root, check=True)
         return set(result.stdout.strip().split()) if result.stdout.strip() else set()
 
     def get_git_changed_files(self, base_ref: str = "HEAD") -> set[str]:
@@ -186,9 +146,8 @@ class TestRunner:
             print("Warning: Failed to get git changes, using all suites")
             return set()
 
-    def find_matching_suites(self, files: set[str]) -> dict[str, dict]:
+    def find_matching_suites(self, files: set[str]) -> dict[str, list[str]]:
         """Find test suites that match the given files."""
-        suites = get_suites()
         matching = {}
 
         # Expand directory paths to include glob patterns
@@ -203,102 +162,13 @@ class TestRunner:
                 expanded_files.add(f"{base}/*")
                 expanded_files.add(f"{base}/**/*")
 
-        for suite_name, suite_config in suites.items():
-            try:
-                patterns = get_patterns(suite_name)
-                if not patterns:
-                    continue
-
-                # Check if any changed files match the suite patterns
-                matches = []
-                for pattern in patterns:
-                    matches.extend(fnmatch.filter(expanded_files, pattern))
-
-                if matches:
-                    matching[suite_name] = suite_config.copy()
-                    matching[suite_name]["matched_files"] = matches
-
-            except Exception as e:
-                print(f"Warning: Error processing suite {suite_name}: {e}")
+        for suite_name in self.suites:
+            patterns = get_patterns(suite_name)
+            matches = sorted({match for pattern in patterns for match in fnmatch.filter(expanded_files, pattern)})
+            if matches:
+                matching[suite_name] = matches
 
         return matching
-
-    def extract_required_services(self, suites: dict[str, dict]) -> set[str]:
-        """Extract all required services from selected suites."""
-        services = set()
-        needs_testagent = False
-
-        for suite_config in suites.values():
-            suite_services = suite_config.get("services", [])
-            services.update(suite_services)
-
-            # Check if any suite needs testagent (has snapshot: true)
-            if suite_config.get("snapshot", False):
-                needs_testagent = True
-
-        # Add testagent if any suite needs snapshots
-        if needs_testagent:
-            services.add("testagent")
-
-        return services
-
-    def get_riot_venvs(self, pattern: str, suite_name: str = "") -> list[RiotVenv]:
-        """Get available test environments for a pattern, deduplicated by hash.
-
-        Multiple variants may share the same hash, so return only the first instance
-        for each hash to avoid duplicate entries during interactive selection.
-        """
-        try:
-            venvs = []
-            seen_hashes = set()
-            pattern_regex = re.compile(pattern)
-
-            # Expand every defined test environment variant.
-            for n, inst in enumerate(riotfile.venv.instances()):
-                # Use the environment's matcher so selection stays consistent.
-                if not inst.name or not inst.matches_pattern(pattern_regex):
-                    continue
-
-                venv_hash = inst.short_hash if hasattr(inst, "short_hash") else f"hash{n}"
-
-                # Skip if we've already seen this hash (deduplication)
-                if venv_hash in seen_hashes:
-                    continue
-                seen_hashes.add(venv_hash)
-
-                # Extract package information from the instance
-                packages_info = ""
-                if hasattr(inst, "pkgs") and inst.pkgs:
-                    # Include all packages - we'll filter in display_name based on venv name
-                    all_packages = [f"{pkg}: {version}" for pkg, version in inst.pkgs.items()]
-                    packages_info = ", ".join(all_packages) if all_packages else "standard packages"
-
-                # Extract command from the instance
-                command = ""
-                if hasattr(inst, "cmd"):
-                    command = str(inst.cmd)
-                elif hasattr(inst, "command"):
-                    command = str(inst.command)
-
-                venvs.append(
-                    RiotVenv(
-                        number=n,
-                        hash=venv_hash,
-                        name=inst.name,
-                        python_version=str(inst.py._hint)
-                        if hasattr(inst, "py") and hasattr(inst.py, "_hint")
-                        else "3.10",
-                        packages=packages_info,
-                        suite_name=suite_name,
-                        command=command,
-                    )
-                )
-
-            return venvs
-
-        except Exception as e:
-            print(f"Warning: Failed to get test environments for pattern '{pattern}': {e}")
-            return []
 
     def start_services(self, services: set[str]) -> bool:
         """Start required Docker services.
@@ -426,8 +296,6 @@ class TestRunner:
                     return []
                 elif selection == "all":
                     return items
-                elif selection == "latest" and item_type == "venvs":
-                    return [items[-1]]  # Last item is usually latest version
 
                 indices = self._parse_selection(selection, len(items))
                 if indices:
@@ -439,7 +307,7 @@ class TestRunner:
             except (ValueError, IndexError):
                 print("❌ Invalid selection. Please use format like '1,3', 'all', or 'none'")
 
-    def select_riot_suites(self, matching_suites: dict[str, dict]) -> dict[str, dict]:
+    def select_suites(self, matching_suites: dict[str, list[str]]) -> dict[str, list[str]]:
         """Let the user select which test suites to run."""
         if not matching_suites:
             print("❌ No test suites found in matching suites")
@@ -454,119 +322,379 @@ class TestRunner:
             return {name: matching_suites[name] for name in selected}
         return {}
 
-    def select_venvs_for_suites(self, selected_suites: dict[str, dict]) -> list[RiotVenv]:
-        """Let user select specific venvs for each suite."""
-        selected_venvs = []
+    def select_environments_for_suites(self, selected_suites: dict[str, list[str]]) -> list[TestEnvironment]:
+        """Let the user select concrete environments for each suite."""
+        selected_environments = []
 
-        for suite_name, suite_config in selected_suites.items():
+        for suite_name in selected_suites:
+            suite_config = self.suites[suite_name]
             pattern = suite_config.get("pattern", suite_name)
-            print(f"\n🔍 Getting available venvs for suite '{suite_name}' (pattern: '{pattern}')...")
-            venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
+            print(f"\n🔍 Getting available environments for suite '{suite_name}' (pattern: '{pattern}')...")
+            environments = list(self.environments.get(suite_name, ()))
 
-            if not venvs:
-                print(f"   ⚠️  No venvs found for suite '{suite_name}'")
+            if not environments:
+                print(f"   ⚠️  No environments found for suite '{suite_name}'")
                 continue
 
-            print(f"\n📋 Available venvs for suite '{suite_name}' ({len(venvs)} unique hash(es)):")
+            print(f"\n📋 Available environments for suite '{suite_name}' ({len(environments)} total):")
             print("=" * 80)
 
-            # Custom format function for venvs
-            def format_venv(v):
-                return f"#{v.number:3d}  {v.hash}  {v.name}  {v.display_name}"
+            def format_environment(environment):
+                return f"{environment.hash}  {environment.integration_name}/{environment.name}"
 
-            selected = self._interactive_select(venvs, "venvs", format_venv)
+            selected = self._interactive_select(environments, "environments", format_environment)
 
             if selected:
-                selected_venvs.extend(selected)
-                print(f"   Selected {len(selected)} hash(es) for suite '{suite_name}':")
-                for venv in selected:
-                    print(f"     • {venv.hash}: {venv.name} - {venv.display_name}")
+                selected_environments.extend(selected)
+                print(f"   Selected {len(selected)} environment(s) for suite '{suite_name}':")
+                for environment in selected:
+                    print(f"     • {environment.hash}: {environment.name}")
 
-        return selected_venvs
+        return selected_environments
 
-    def interactive_venv_selection(self, matching_suites: dict[str, dict]) -> list[RiotVenv]:
-        """Provide interactive venv selection with granular control."""
+    def interactive_environment_selection(self, matching_suites: dict[str, list[str]]) -> list[TestEnvironment]:
+        """Provide interactive test environment selection."""
         if not matching_suites:
             print("❌ No matching test suites found for the changed files.")
             return []
 
-        # Step 1: Select test suites
-        selected_suites = self.select_riot_suites(matching_suites)
+        selected_suites = self.select_suites(matching_suites)
         if not selected_suites:
             return []
 
-        # Step 2: Select specific venvs for each suite
-        return self.select_venvs_for_suites(selected_suites)
+        return self.select_environments_for_suites(selected_suites)
+
+    def _prepare_uv_environment(
+        self, environment: TestEnvironment, project_artifact: Path | None
+    ) -> PreparedEnvironment:
+        lockfile = self.root / environment.lockfile
+        if not lockfile.is_file():
+            raise UvTestEnvironmentError(f"uv lockfile does not exist: {environment.lockfile}")
+
+        contents = lockfile.read_text()
+        package_hash = hashlib.sha256(contents.encode()).hexdigest()[:12]
+        if project_artifact is None:
+            project_file = self.root / "pyproject.toml"
+            if not project_file.is_file():
+                raise UvTestEnvironmentError(f"project metadata does not exist: {project_file}")
+            project_hash = hashlib.sha256(project_file.read_bytes()).hexdigest()[:12]
+            project_requirement = "-e ."
+            editable_mode = "compat"
+        else:
+            artifact = self.root / project_artifact
+            if not artifact.is_file():
+                raise UvTestEnvironmentError(f"project artifact does not exist: {artifact}")
+            artifact = artifact.resolve()
+            artifact_stat = artifact.stat()
+            identity = f"{artifact.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
+            project_hash = hashlib.sha256(identity.encode()).hexdigest()[:12]
+            project_requirement = str(artifact)
+            editable_mode = "prebuilt-editable"
+
+        requirements = UV_ENVIRONMENT_ROOT / ".requirements" / (f"{lockfile.stem}-{package_hash}-{project_hash}.txt")
+        filtered = "".join(
+            line
+            for line in contents.splitlines(keepends=True)
+            if line.partition("==")[0].strip().casefold() != "ddtrace"
+        )
+        if filtered and not filtered.endswith("\n"):
+            filtered += "\n"
+        _atomic_write(self.root / requirements, f"{filtered}{project_requirement}\n")
+        return PreparedEnvironment(
+            path=UV_ENVIRONMENT_ROOT / f"{environment.hash}-{package_hash}",
+            requirements=requirements,
+            project_hash=project_hash,
+            editable_mode=editable_mode,
+        )
+
+    def _installed_distributions(self, prepared: PreparedEnvironment) -> tuple[tuple[str, str], ...] | None:
+        site_packages = list((self.root / prepared.path).glob("lib/python*/site-packages"))
+        if len(site_packages) != 1:
+            return None
+
+        distributions = []
+        for metadata_path in site_packages[0].glob("*.dist-info/METADATA"):
+            try:
+                distribution = importlib_metadata.Distribution.at(metadata_path.parent)
+                name = distribution.metadata.get("Name")
+                version = distribution.version
+                if not name or not version:
+                    return None
+                distributions.append((name.casefold(), version))
+            except (KeyError, OSError):
+                return None
+        return tuple(sorted(distributions))
+
+    def _environment_is_current(self, prepared: PreparedEnvironment, python: str) -> bool:
+        venv = self.root / prepared.path
+        venv_python = venv / "bin/python"
+        if not (venv / "pyvenv.cfg").is_file() or not (venv_python.exists() or venv_python.is_symlink()):
+            return False
+        try:
+            state = json.loads((venv / UV_ENVIRONMENT_STATE).read_text())
+        except (OSError, json.JSONDecodeError):
+            return False
+        expected = {
+            "state_version": UV_ENVIRONMENT_STATE_VERSION,
+            "project_hash": prepared.project_hash,
+            "python": python,
+            "editable_mode": prepared.editable_mode,
+        }
+        if not isinstance(state, dict) or any(state.get(key) != value for key, value in expected.items()):
+            return False
+        distributions = self._installed_distributions(prepared)
+        return distributions is not None and state.get("distributions") == [list(item) for item in distributions]
+
+    def _mark_environment_current(self, prepared: PreparedEnvironment, python: str) -> None:
+        venv = self.root / prepared.path
+        venv_python = venv / "bin/python"
+        if not (venv / "pyvenv.cfg").is_file() or not (venv_python.exists() or venv_python.is_symlink()):
+            raise UvTestEnvironmentError(f"uv created an incomplete environment: {prepared.path}")
+        distributions = self._installed_distributions(prepared)
+        if distributions is None:
+            raise UvTestEnvironmentError(f"uv created an invalid environment: {prepared.path}")
+        state = {
+            "state_version": UV_ENVIRONMENT_STATE_VERSION,
+            "project_hash": prepared.project_hash,
+            "python": python,
+            "editable_mode": prepared.editable_mode,
+            "distributions": [list(item) for item in distributions],
+        }
+        _atomic_write(self.root / prepared.path / UV_ENVIRONMENT_STATE, json.dumps(state, sort_keys=True) + "\n")
+
+    @contextmanager
+    def _environment_lock(self, prepared: PreparedEnvironment) -> Iterator[None]:
+        venv = self.root / prepared.path
+        lock_path = venv.with_name(f".{venv.name}.lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        with lock_path.open("w") as lock_file:
+            fcntl.flock(lock_file, fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file, fcntl.LOCK_UN)
+
+    def _sync_uv_environment(
+        self,
+        environment: TestEnvironment,
+        prepared: PreparedEnvironment,
+        command_env: dict[str, str],
+        reuse_current: bool,
+    ) -> bool:
+        with self._environment_lock(prepared):
+            if reuse_current and self._environment_is_current(prepared, environment.python):
+                return False
+
+            (self.root / prepared.path / UV_ENVIRONMENT_STATE).unlink(missing_ok=True)
+            venv_python = prepared.path / "bin/python"
+            install = [
+                "uv",
+                "pip",
+                "install",
+                "--exact",
+                "--python",
+                str(venv_python),
+                "--requirements",
+                str(prepared.requirements),
+                "--strict",
+                "--no-progress",
+            ]
+            if prepared.editable_mode == "compat":
+                install.extend(["--config-settings-package", "ddtrace:editable_mode=compat"])
+            commands = (
+                [
+                    "uv",
+                    "venv",
+                    "--clear",
+                    "--relocatable",
+                    "--python",
+                    environment.python,
+                    "--no-python-downloads",
+                    str(prepared.path),
+                ],
+                install,
+            )
+            for command in commands:
+                wrapped = self._ddtest_command(command, command_env)
+                result = subprocess.run(wrapped, env=os.environ.copy(), cwd=self.root)
+                if result.returncode != 0:
+                    raise UvTestEnvironmentError(f"build failed for {environment.hash} (exit code {result.returncode})")
+
+            # AIDEV-NOTE: Record current state only after exact sync and environment inspection.
+            # This marker is the guard against reusing partial or failed builds.
+            self._mark_environment_current(prepared, environment.python)
+            return True
+
+    def _prebuilt_ddtrace_wheel(self, python: str) -> Path:
+        wheel_directory = self.root / DDTRACE_TEST_WHEEL_ROOT / python
+        wheels = tuple(wheel_directory.glob("ddtrace-*.whl"))
+        if len(wheels) != 1:
+            raise UvTestEnvironmentError(
+                f"expected one prebuilt ddtrace wheel for Python {python} in {wheel_directory}, found {len(wheels)}"
+            )
+        return wheels[0].relative_to(self.root)
+
+    def _uv_execution_path(self, prepared: PreparedEnvironment) -> Path:
+        return self.root / prepared.path if self.in_ci else prepared.path
+
+    def _ddtest_command(self, command: list[str], environment: dict[str, str]) -> list[str]:
+        assignments = [f"{key}={value}" for key, value in sorted(environment.items())]
+        if self.in_ci:
+            return ["env", *assignments, *command]
+        return [str(self.root / "scripts" / "ddtest"), "env", *assignments, *command]
+
+    def _uv_command_environment(self, prepared: PreparedEnvironment, forwarded_env: dict[str, str]) -> dict[str, str]:
+        command_env = dict(forwarded_env)
+        execution_root = self.root if self.in_ci else CONTAINER_PROJECT_ROOT
+        venv = execution_root / prepared.path
+        default_path = os.environ.get("PATH", TEST_CONTAINER_PATH) if self.in_ci else TEST_CONTAINER_PATH
+        command_env["PATH"] = f"{venv}/bin:{command_env.get('PATH', default_path)}"
+        command_env["VIRTUAL_ENV"] = str(venv)
+        return command_env
+
+    def _uv_test_command(
+        self,
+        environment: TestEnvironment,
+        prepared: PreparedEnvironment,
+        run: TestRun,
+        pytest_args: list[str],
+        forwarded_env: dict[str, str],
+    ) -> list[str]:
+        command = shlex.split(run.command)
+        expanded = []
+        for argument in command:
+            if argument == "{cmdargs}":
+                expanded.extend(pytest_args)
+            else:
+                expanded.append(argument)
+
+        if not expanded:
+            raise ValueError(f"empty uv test command for {environment.hash}")
+
+        environment_bin = self._uv_execution_path(prepared) / "bin"
+        if any(argument in SHELL_OPERATORS for argument in expanded):
+            shell_command = " ".join(
+                argument if argument in SHELL_OPERATORS else shlex.quote(argument) for argument in expanded
+            )
+            expanded = ["bash", "-c", shell_command]
+        elif expanded[0] == "pytest":
+            expanded[0] = str(environment_bin / "pytest")
+        elif expanded[0] in ("python", "python3"):
+            expanded[0] = str(environment_bin / "python")
+
+        run_env = dict(forwarded_env)
+        run_env.update(run.environment)
+        return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
+
+    def _run_uv_suite(
+        self,
+        environments: list[TestEnvironment],
+        forwarded_env: dict[str, str],
+        test_args: list[str],
+        skip_ddtrace_install: bool,
+    ) -> bool:
+        pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
+
+        if skip_ddtrace_install:
+            print("\n⚡ Reusing prebuilt or current ddtrace installations (-s)")
+
+        for environment in environments:
+            try:
+                build_env = dict(forwarded_env)
+                if environment.runs:
+                    build_env.update(environment.runs[0].environment)
+                if self.in_ci and environment.suite != "smoke_test":
+                    if not skip_ddtrace_install:
+                        raise UvTestEnvironmentError(
+                            "CI test environments must pass -s/--skip-ddtrace-install to reuse base build artifacts"
+                        )
+                    project_artifact = self._prebuilt_ddtrace_wheel(environment.python)
+                else:
+                    project_artifact = None
+                prepared = self._prepare_uv_environment(environment, project_artifact)
+                command_env = self._uv_command_environment(prepared, build_env)
+            except UvTestEnvironmentError as error:
+                print(f"❌ {error}")
+                return False
+
+            print(f"\n🔨 Preparing uv environment {environment.hash} (Python {environment.python})")
+            try:
+                rebuilt = self._sync_uv_environment(
+                    environment,
+                    prepared,
+                    command_env,
+                    reuse_current=skip_ddtrace_install,
+                )
+            except UvTestEnvironmentError as error:
+                print(f"❌ {error}")
+                return False
+            if rebuilt:
+                print("   ✅ uv environment synchronized successfully")
+            elif skip_ddtrace_install:
+                print("   ✅ Reusing current uv environment; ddtrace install skipped")
+            else:
+                print("   ✅ Reusing current uv environment")
+
+            for run in environment.runs:
+                try:
+                    command = self._uv_test_command(environment, prepared, run, pytest_args, forwarded_env)
+                except ValueError as error:
+                    print(f"❌ {error}")
+                    return False
+
+                print(f"\n▶️  Executing with uv ({environment.hash}): {' '.join(command)}")
+                result = subprocess.run(command, env=os.environ.copy(), cwd=self.root)
+                if result.returncode != 0:
+                    print(f"❌ {environment.hash} failed with exit code {result.returncode}")
+                    return False
+                print(f"✅ {environment.hash} completed successfully")
+        return True
 
     def run_tests(
         self,
-        selected_venvs: list[RiotVenv],
-        matching_suites: dict[str, dict],
-        riot_args: Optional[list[str]] = None,
-        test_args: Optional[list[str]] = None,
+        selected_environments: list[TestEnvironment],
+        test_args: list[str] | None = None,
         skip_ddtrace_install: bool = False,
-        dry_run: bool = False,
     ) -> bool:
-        """Execute the selected venvs, grouped by suite with per-suite service management."""
-        if not selected_venvs:
-            print("ℹ️  No venvs selected for execution.")
+        """Execute the selected environments with per-suite service management."""
+        if not selected_environments:
+            print("ℹ️  No environments selected for execution.")
             return True
 
-        # Group environments by suite, then deduplicate by hash within each suite.
-        venvs_by_suite: dict[str, list[RiotVenv]] = {}
-        all_venvs_by_suite: dict[str, list[RiotVenv]] = {}  # Track all variants for display
+        environments_by_suite: dict[str, list[TestEnvironment]] = {}
+        for environment in selected_environments:
+            suite_environments = environments_by_suite.setdefault(environment.suite, [])
+            if not any(item.hash == environment.hash for item in suite_environments):
+                suite_environments.append(environment)
 
-        for venv in selected_venvs:
-            suite_name = venv.suite_name
-
-            # Track all venvs for display
-            if suite_name not in all_venvs_by_suite:
-                all_venvs_by_suite[suite_name] = []
-            all_venvs_by_suite[suite_name].append(venv)
-
-            # Deduplicate by hash for execution
-            if suite_name not in venvs_by_suite:
-                venvs_by_suite[suite_name] = []
-
-            # Only add if we haven't seen this hash in this suite yet
-            if not any(v.hash == venv.hash for v in venvs_by_suite[suite_name]):
-                venvs_by_suite[suite_name].append(venv)
-
-        # Count total unique hashes to execute
-        total_unique_hashes = sum(len(venvs) for venvs in venvs_by_suite.values())
-
-        print(f"\n🧪 Running {total_unique_hashes} unique venv hash(es) across {len(venvs_by_suite)} suite(s):")
-        for suite_name, venvs in venvs_by_suite.items():
-            all_variants = all_venvs_by_suite[suite_name]
-            if len(all_variants) > len(venvs):
-                msg = (
-                    f"   • Suite '{suite_name}': {len(venvs)} hash(es) "
-                    f"({len(all_variants)} total instances including env var expansions)"
-                )
-                print(msg)
+        total_environments = sum(len(environments) for environments in environments_by_suite.values())
+        print(f"\n🧪 Running {total_environments} environment(s) across {len(environments_by_suite)} suite(s):")
+        for suite_name, environments in environments_by_suite.items():
+            run_count = sum(len(environment.runs) for environment in environments)
+            if run_count > len(environments):
+                print(f"   • Suite '{suite_name}': {len(environments)} environment(s), {run_count} command variants")
             else:
-                print(f"   • Suite '{suite_name}': {len(venvs)} venv(s)")
+                print(f"   • Suite '{suite_name}': {len(environments)} environment(s)")
 
         # Execute each suite with its own service lifecycle
-        for suite_name, venvs in venvs_by_suite.items():
+        for suite_name, environments in environments_by_suite.items():
             print(f"\n{'=' * 80}")
             print(f"🎯 Suite: {suite_name}")
             print(f"{'=' * 80}")
 
-            # Get suite config
-            suite_config = matching_suites.get(suite_name, {})
-
-            # Extract services for this suite only
-            suite_services = set(suite_config.get("services", []))
-            needs_testagent = suite_config.get("snapshot", False)
+            suite_config = self.suites[suite_name]
+            suite_services = set(suite_config.get("services", ()))
+            needs_testagent = bool(suite_config.get("snapshot", False))
             if needs_testagent:
                 suite_services.add("testagent")
 
             # Start services for this suite
-            if suite_services:
+            if suite_services and not self.in_ci:
                 if not self.start_services(suite_services):
                     print(f"❌ Failed to start services for suite '{suite_name}'")
                     return False
+            elif suite_services:
+                print(f"ℹ️  Using CI-provisioned services: {', '.join(sorted(suite_services))}")
             else:
                 print(f"ℹ️  No services required for suite '{suite_name}'")
 
@@ -574,7 +702,7 @@ class TestRunner:
             env = os.environ.copy()
 
             # Apply suite-specific environment variables
-            suite_env = suite_config.get("env", {})
+            suite_env = {str(key): str(value) for key, value in suite_config.get("env", {}).items()}
             if suite_env:
                 for key, value in suite_env.items():
                     value = str(value)
@@ -589,113 +717,25 @@ class TestRunner:
 
             # Override with testagent URL if needed
             if needs_testagent:
-                testagent_url = self.get_testagent_url()
+                testagent_url = env.get("DD_TRACE_AGENT_URL") if self.in_ci else self.get_testagent_url()
+                if not testagent_url:
+                    print("❌ DD_TRACE_AGENT_URL is required for snapshot tests in CI")
+                    return False
                 env["DD_TRACE_AGENT_URL"] = testagent_url
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
 
-            # Execute each unique environment hash in this suite. Each hash may
-            # represent multiple commands or environment-variable variants.
-            suite_success = True
-
-            # Build/verify environments sequentially under a file lock. With -s,
-            # suite dependencies refresh without reinstalling ddtrace.
-            lock_path = self.root / ".riot" / ".build.lock"
-            lock_path.parent.mkdir(parents=True, exist_ok=True)
-
-            for venv in venvs:
-                build_cmd = [
-                    str(self.root / "scripts" / "ddtest"),
-                    "riot",
-                    "-v",
-                    "run",
-                    "--pass-env",
-                ]
-                if skip_ddtrace_install:
-                    build_cmd.append("-s")
-                build_cmd.extend([venv.hash, "--", "--collect-only", "-q"])
-
-                if dry_run:
-                    print(f"[DRY RUN] Would build venv (under lock): {' '.join(build_cmd)}")
-                else:
-                    print(f"\n🔨 Building venv ({venv.display_name}): {venv.hash}")
-                    lock_file = open(lock_path, "w")
-                    try:
-                        fcntl.flock(lock_file, fcntl.LOCK_EX)
-                        print("   🔒 Acquired build lock")
-                        result = subprocess.run(build_cmd, env=env, cwd=self.root)
-                        if result.returncode != 0:
-                            print(f"❌ Build failed for {venv.display_name} (exit code {result.returncode})")
-                            suite_success = False
-                            break
-                        print("   ✅ Venv built successfully")
-                    finally:
-                        fcntl.flock(lock_file, fcntl.LOCK_UN)
-                        lock_file.close()
-                        print("   🔓 Released build lock")
-
-            if not suite_success:
-                # Stop services and bail out
-                if suite_services:
-                    self.stop_services(suite_services)
-                print(f"\n❌ Suite '{suite_name}' failed during build phase. Stopping execution.")
-                return False
-
-            # Phase 2: Run tests with --skip-base-install (venvs are already built).
-            for venv in venvs:
-                # Count how many instances share this hash in this suite
-                instances_with_same_hash = [v for v in all_venvs_by_suite[suite_name] if v.hash == venv.hash]
-                num_instances = len(instances_with_same_hash)
-
-                # Execute using ddtest with the specific venv hash
-                cmd = [
-                    str(self.root / "scripts" / "ddtest"),
-                    "riot",
-                    "-v",
-                    "run",
-                    "--pass-env",
-                    "-s",
-                    venv.hash,
-                ]
-
-                if riot_args:
-                    cmd.extend(arg for arg in riot_args if arg not in ("-s", "--skip-base-install"))
-                if test_args:
-                    cmd.append("--")
-                    cmd.extend(test_args)
-
-                if dry_run:
-                    print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
-                    if num_instances > 1:
-                        print(
-                            f"[DRY RUN] Note: This will run {num_instances} instance(s) "
-                            f"for hash {venv.hash} (different commands, env vars, etc.)"
-                        )
-                    env_vars_to_show = []
-                    if suite_env:
-                        for key, value in sorted(suite_env.items()):
-                            env_vars_to_show.append(f"{key}={env[key]}")
-                    if needs_testagent:
-                        env_vars_to_show.append(f"DD_TRACE_AGENT_URL={env.get('DD_TRACE_AGENT_URL')}")
-                    if env_vars_to_show:
-                        print(f"[DRY RUN] With env: {', '.join(env_vars_to_show)}")
-                else:
-                    instance_info = f" [{num_instances} instance(s)]" if num_instances > 1 else ""
-                    print(f"\n▶️  Executing ({venv.display_name}){instance_info}: {' '.join(cmd)}")
-                    try:
-                        result = subprocess.run(cmd, env=env, cwd=self.root)
-                        if result.returncode != 0:
-                            print(f"❌ {venv.display_name} failed with exit code {result.returncode}")
-                            suite_success = False
-                            break  # Stop running venvs for this suite on first failure
-                        else:
-                            print(f"✅ {venv.display_name} completed successfully")
-                    except subprocess.CalledProcessError as e:
-                        print(f"❌ Failed to run {venv.display_name}: {e}")
-                        suite_success = False
-                        break
+            forwarded_env = {key: env[key] for key in suite_env}
+            if needs_testagent:
+                forwarded_env["DD_TRACE_AGENT_URL"] = env["DD_TRACE_AGENT_URL"]
+            suite_success = self._run_uv_suite(
+                environments,
+                forwarded_env,
+                test_args or [],
+                skip_ddtrace_install,
+            )
 
             # Stop services for this suite
-            if suite_services:
+            if suite_services and not self.in_ci:
                 self.stop_services(suite_services)
 
             # If this suite failed, stop processing further suites
@@ -708,30 +748,27 @@ class TestRunner:
         print("\n🎉 All selected suites completed successfully!")
         return True
 
-    def output_suites_json(self, matching_suites: dict[str, dict]) -> None:
+    def output_suites_json(self, matching_suites: dict[str, list[str]]) -> None:
         """Output matching suites and venvs as JSON for AI agent consumption."""
         suites_data = []
 
-        for suite_name, suite_config in matching_suites.items():
-            pattern = suite_config.get("pattern", suite_name)
-            venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
-
+        for suite_name, matched_files in matching_suites.items():
             venvs_data = []
-            for venv in venvs:
+            for number, environment in enumerate(self.environments.get(suite_name, ())):
                 venvs_data.append(
                     {
-                        "hash": venv.hash,
-                        "number": venv.number,
-                        "python_version": venv.python_version,
-                        "packages": venv.packages,
-                        "command": venv.command,
+                        "hash": environment.hash,
+                        "number": number,
+                        "python_version": environment.python,
+                        "packages": ", ".join(environment.direct_dependencies),
+                        "command": environment.runs[0].command,
                     }
                 )
 
             suites_data.append(
                 {
                     "name": suite_name,
-                    "matched_files": suite_config.get("matched_files", []),
+                    "matched_files": matched_files,
                     "venvs": venvs_data,
                 }
             )
@@ -740,72 +777,34 @@ class TestRunner:
         output = {"suites": suites_data}
         print(json.dumps(output, indent=2))
 
-    def select_venvs_by_hash(self, matching_suites: dict[str, dict], venv_hashes: list[str]) -> list[RiotVenv]:
-        """Select specific venvs by their hashes from matching suites."""
-        selected_venvs = []
-        venv_hashes_set = set(venv_hashes)
+    def get_environments_by_hash_direct(
+        self,
+        environment_hashes: list[str],
+    ) -> list[TestEnvironment]:
+        """Resolve specific environment hashes, preserving the requested order."""
+        unique_hashes = tuple(dict.fromkeys(environment_hashes))
+        if len(unique_hashes) < len(environment_hashes):
+            print(f"ℹ️  Deduplicated {len(environment_hashes)} hash(es) to {len(unique_hashes)} unique hash(es)")
+        print(f"📌 Using {len(unique_hashes)} unique environment hash(es): {', '.join(unique_hashes)}")
 
-        for suite_name, suite_config in matching_suites.items():
-            pattern = suite_config.get("pattern", suite_name)
-            venvs = self.get_riot_venvs(pattern, suite_name=suite_name)
-
-            for venv in venvs:
-                if venv.hash in venv_hashes_set:
-                    selected_venvs.append(venv)
-
-        return selected_venvs
-
-    def get_venvs_by_hash_direct(self, venv_hashes: list[str]) -> list[RiotVenv]:
-        """Get specific venvs by their hashes, deduplicated (consistent with CI approach).
-
-        This follows the CI behavior in .gitlab/tests.yml: each unique hash runs once,
-        even when multiple variants share it.
-        """
-        # Deduplicate hashes while preserving order (same as CI behavior)
-        seen = set()
-        unique_hashes = []
-        for venv_hash in venv_hashes:
-            if venv_hash not in seen:
-                seen.add(venv_hash)
-                unique_hashes.append(venv_hash)
-
-        if len(unique_hashes) < len(venv_hashes):
-            print(f"ℹ️  Deduplicated {len(venv_hashes)} hash(es) to {len(unique_hashes)} unique hash(es)")
-
-        print(f"📌 Using {len(unique_hashes)} unique hash(es): {', '.join(unique_hashes)}")
-
-        # Create the minimal metadata needed for hash-based execution. The test
-        # environment backend validates hashes and expands their variants.
-        selected_venvs = []
-        for venv_hash in unique_hashes:
-            selected_venvs.append(
-                RiotVenv(
-                    number=0,  # Not needed for hash-based execution
-                    hash=venv_hash,
-                    name=venv_hash,  # Use hash as name for display
-                    python_version="",  # Not needed for hash-based execution
-                    packages="",  # Not needed for hash-based execution
-                    suite_name="",  # Will be determined later
-                    command="",
-                )
-            )
-
-        return selected_venvs
+        missing = [
+            environment_hash for environment_hash in unique_hashes if environment_hash not in self.environments_by_hash
+        ]
+        if missing:
+            raise ValueError(f"unknown environment hash: {', '.join(missing)}")
+        return [self.environments_by_hash[environment_hash] for environment_hash in unique_hashes]
 
 
-def _parse_forwarded_args(arguments: list[str]) -> tuple[list[str], list[str], bool]:
-    """Split legacy runner arguments from test-command arguments."""
-    if not arguments:
-        return [], [], False
+def _parse_forwarded_args(arguments: list[str]) -> tuple[list[str], bool]:
+    """Preserve the legacy backend/test-command separator form."""
+    if "--" not in arguments:
+        return arguments, False
 
-    if "--" in arguments:
-        separator = arguments.index("--")
-        riot_args = arguments[:separator]
-        test_args = arguments[separator + 1 :]
-        skip_ddtrace_install = any(arg in ("-s", "--skip-base-install") for arg in riot_args)
-        return riot_args, test_args, skip_ddtrace_install
-
-    return [], arguments, False
+    separator = arguments.index("--")
+    backend_args = arguments[:separator]
+    test_args = arguments[separator + 1 :]
+    legacy_skip = any(argument in ("-s", "--skip-base-install") for argument in backend_args)
+    return test_args, legacy_skip
 
 
 def main():
@@ -823,13 +822,10 @@ Examples:
   # Run tests for changes since main branch
   scripts/run-tests --git-base=main
 
-  # Show what would be run without executing
-  scripts/run-tests --dry-run
-
-  # Reuse an existing ddtrace installation while refreshing suite dependencies
+  # Reuse a current ddtrace installation for faster reruns
   scripts/run-tests -s --venv <hash>
 
-  # Pass additional arguments to the test command
+  # Pass additional arguments to pytest
   scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
         """,
     )
@@ -840,13 +836,11 @@ Examples:
         "--git-base", default="HEAD", help="Git ref to compare against for changes (default: HEAD for local changes)"
     )
 
-    parser.add_argument("--dry-run", action="store_true", help="Show what would be run without executing")
-
     parser.add_argument(
         "-s",
         "--skip-ddtrace-install",
         action="store_true",
-        help="Reuse the selected environment's existing ddtrace installation",
+        help="Reuse a current ddtrace installation instead of reinstalling it",
     )
 
     parser.add_argument(
@@ -861,22 +855,22 @@ Examples:
         "--venv",
         action="append",
         help=(
-            "Run specific venvs (by hash) without interactive prompts. "
+            "Run specific environments by hash without interactive prompts. "
             "Can be used multiple times (e.g., --venv hash1 --venv hash2)"
         ),
     )
 
-    # Parse script arguments before the separator and forward the rest.
+    # Parse args before the separator and forward everything after it to the test command.
     if "--" in sys.argv:
         separator_idx = sys.argv.index("--")
         script_args = sys.argv[1:separator_idx]
-        forwarded_args = sys.argv[separator_idx + 1 :]
+        test_args = sys.argv[separator_idx + 1 :]
     else:
         script_args = sys.argv[1:]
-        forwarded_args = []
+        test_args = []
 
     args = parser.parse_args(script_args)
-    riot_args, test_args, legacy_skip = _parse_forwarded_args(forwarded_args)
+    test_args, legacy_skip = _parse_forwarded_args(test_args)
     skip_ddtrace_install = args.skip_ddtrace_install or legacy_skip
 
     runner = TestRunner()
@@ -884,46 +878,16 @@ Examples:
     # Special handling for --venv: skip all file discovery but still need suite info for services
     if args.venv:
         print("🎯 Using directly specified venvs (skipping file/suite analysis)")
-        selected_venvs = runner.get_venvs_by_hash_direct(args.venv)
-        if not selected_venvs:
-            print(f"❌ No venvs found matching hashes: {', '.join(args.venv)}")
+        try:
+            environments_with_suite = runner.get_environments_by_hash_direct(args.venv)
+        except ValueError as error:
+            print(f"❌ {error}")
             return 1
 
-        # Get all suites to determine service requirements for selected venvs
-        all_suites = get_suites()
-        matching_suites = {}
-        venvs_with_suite = []
-
-        for venv in selected_venvs:
-            # Try to find which suite this venv belongs to by pattern matching
-            for suite_name, suite_config in all_suites.items():
-                pattern = suite_config.get("pattern", suite_name)
-
-                try:
-                    venvs_in_suite = runner.get_riot_venvs(pattern, suite_name=suite_name)
-                    if any(v.hash == venv.hash for v in venvs_in_suite):
-                        # Found the suite for this venv - update venv with suite_name and add to suites
-                        venv_with_suite = venv._replace(suite_name=suite_name)
-                        venvs_with_suite.append(venv_with_suite)
-
-                        if suite_name not in matching_suites:
-                            matching_suites[suite_name] = suite_config.copy()
-                            matching_suites[suite_name]["matched_files"] = []
-                        break
-                except Exception:
-                    continue
-
-        if not matching_suites:
-            print("⚠️  Could not determine suite information for venvs, running without service management")
-            matching_suites = {}
-
         success = runner.run_tests(
-            venvs_with_suite,
-            matching_suites,
-            riot_args=riot_args,
+            environments_with_suite,
             test_args=test_args,
             skip_ddtrace_install=skip_ddtrace_install,
-            dry_run=args.dry_run,
         )
         return 0 if success else 1
 
@@ -951,36 +915,27 @@ Examples:
                 print(f"    ... and {len(files) - 5} more", file=status_out)
 
     # Find matching suites
+    matching_suites: dict[str, list[str]]
     if args.all_suites:
-        # Get all suites
-        matching_suites = get_suites()
-        # Add empty matched_files for consistency
-        for suite_config in matching_suites.values():
-            suite_config["matched_files"] = []
+        matching_suites = {suite: [] for suite in runner.suites}
     else:
         matching_suites = runner.find_matching_suites(files)
         if not matching_suites:
             print("ℹ️  No matching test suites for the changed files. Showing all available suites.", file=status_out)
-            matching_suites = get_suites()
-            for suite_config in matching_suites.values():
-                suite_config["matched_files"] = []
+            matching_suites = {suite: [] for suite in runner.suites}
 
     # Handle --list flag (output JSON for AI agents)
     if args.list:
         runner.output_suites_json(matching_suites)
         return 0
 
-    # Interactive venv selection
-    selected_venvs = runner.interactive_venv_selection(matching_suites)
+    selected_environments = runner.interactive_environment_selection(matching_suites)
 
     # Execute tests
     success = runner.run_tests(
-        selected_venvs,
-        matching_suites,
-        riot_args=riot_args,
+        selected_environments,
         test_args=test_args,
         skip_ddtrace_install=skip_ddtrace_install,
-        dry_run=args.dry_run,
     )
 
     return 0 if success else 1

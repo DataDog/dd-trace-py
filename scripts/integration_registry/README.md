@@ -89,7 +89,7 @@ When adding a new integration:
 
 1. Create the integration directory and implementation in `ddtrace/contrib/internal/`
     - Ensure the patched module has `_datadog_patch=True`. The integration registry test code uses this attribute to determine which dependencies are patched, and that within the `patch()` function, the integration uses `getattr(module, '_datadog_patch') is True`.
-2. Add tests and a corresponding riot test suite in [`riotfile.py`](../../../riotfile.py)
+2. Add tests and a corresponding test environment definition
 3. Run the test suite - this will automatically:
    * Add the integration to the registry
    * Record its dependency information
@@ -118,16 +118,6 @@ The registry has a test suite in [`tests/contrib/integration_registry/`](../../.
     * Reports detailed errors for missing or invalid packages
   * Ensures non-external integrations don't have dependency-related fields
 
-* [`test_riotfile.py`](../../../tests/contrib/integration_registry/test_riotfile.py):
-  * Verifies every integration has corresponding test environments in `riotfile.py`:
-    * Checks that each integration directory has a matching test environment
-    * Excludes explicitly untested integrations
-    * Reports missing test environment definitions
-  * Validates test paths in test environments:
-    * Ensures test paths under `tests/contrib` correspond to actual integrations
-    * Handles special cases for utility test environments
-    * Verifies proper organization of integration-specific tests
-
 ## Troubleshooting
 
 ### Running the Integration Registry Updater Locally
@@ -136,7 +126,7 @@ If you need to debug or manually run the integration registry update process, th
 
 1.  Navigate to the [code section containing the local run logic](tests/contrib/integration_registry/registry_update_helpers/integration_update_orchestrator.py#L175-L183).
 2.  Uncomment the Python code block as indicated and comment out the the lines previous that run the updater in a subprocess.
-3. Ensure the required dependencies (`filelock`, `pyyaml`) are installed in the test environment you are running. Add them temporarily to the relevant `Venv` in `riotfile.py`.
+3. Ensure the required dependencies (`filelock`, `pyyaml`) are installed in the test environment you are running. Add them temporarily to the relevant environment definition.
 4.  Execute the test suite, and place a breakpoint in your choice of code for the `IntegrationRegistryUpdater`.
 
 ## Related Files
@@ -155,7 +145,7 @@ If you need to debug or manually run the integration registry update process, th
   the tested version is outside the currently listed tested range.
   - Updates `registry.yaml` if necessary
 * [`IntegrationUpdateOrchestrator`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_update_orchestrator.py)
-  - Builds a virtual environment to allow the integration registry updater process to run in another thread. Installs `riot` and `pyyaml` dependencies necessary for update.
+  - Builds a virtual environment to allow the integration registry updater process to run in another thread. Installs the dependencies necessary for the update.
   - Runs `IntegrationRegistryUpdater`
   - Runs [`update_and_format_registry.py`](../../../scripts/integration_registry/update_and_format_registry.py) script if updates are deemed necessary.
 * Update Scripts:

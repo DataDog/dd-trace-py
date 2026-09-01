@@ -65,7 +65,7 @@ def update_dependencies_to_allow_prereleases():
     """
     Updates the pyproject.toml file in-place, adding pre-release markers like "rc0"
     to the libraries listed in the `dependencies` block. Combined with the `PIP_PRE`
-    environment variable configuration, this tells pip, and thus riot, to include
+    environment variable configuration, this tells the test resolver to include
     pre-release versions of dependencies in its package search.
     """
     updated_specifiers: list[str] = []

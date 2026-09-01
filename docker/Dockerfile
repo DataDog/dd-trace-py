@@ -5,7 +5,6 @@
 FROM debian:trixie-slim@sha256:4ffb3a1511099754cddc70eb1b12e50ffdb67619aa0ab6c13fcd800a78ef7c7a
 
 ARG TARGETARCH
-ARG RIOT_VERSION=0.23.0
 ARG UV_VERSION=0.11.14
 
 # http://bugs.python.org/issue19846
@@ -96,13 +95,6 @@ RUN apt-get update \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
 
-# Install ddtest (pre-built binary from GitHub releases)
-# Must run as root before USER bits (below) — /usr/local/bin is root-owned.
-ARG DDTEST_VERSION=1.7.0
-RUN curl -fsSL "https://github.com/DataDog/ddtest/releases/download/v${DDTEST_VERSION}/ddtest-linux-${TARGETARCH}" -o /usr/local/bin/ddtest \
-  && chmod +x /usr/local/bin/ddtest
-
-
 USER bits
 WORKDIR /home/bits/
 
@@ -130,11 +122,6 @@ RUN git clone --depth 1 --branch "v2.6.31" https://github.com/pyenv/pyenv "${PYE
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
-RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "uv==${UV_VERSION}"
-
-# TODO(py-315): Remove or revisit once the GA 3.15 testrunner image provides
-# pip-tools for every target interpreter. Lock generation runs pip-tools with
-# the target interpreter, while Python 3.15 is not the image's default.
-RUN PYENV_VERSION=3.15-dev python -m pip install --no-cache-dir "pip<25.3" "pip-tools==7.5.2"
+RUN pip install --no-cache-dir -U "uv==${UV_VERSION}"
 
 CMD ["/bin/bash"]

@@ -1,10 +1,9 @@
 stages:
   - setup
-  - riot
+  - test
   - exploration
 
 variables:
-  RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   REPO_LANG: python # "python" is used everywhere rather than "py"
   # CI_DEBUG_SERVICES: "true"
 
@@ -13,55 +12,47 @@ include:
   - local: ".gitlab/testrunner.yml"
 
 
-# Do not define a `needs:` in order to depend on the whole `precheck` stage
-.test_base_riot:
+.test_base:
   extends: .testrunner
-  stage: riot
-  needs: [ build_base_venvs, prechecks ]
-  parallel: 4
+  stage: test
+  needs: [prechecks]
   services:
     - !reference [.services, ddagent]
-  # DEV: This is the max retries that GitLab currently allows for
   before_script:
     - !reference [.testrunner, before_script]
+    # Artifact extraction preserves build timestamps, so refresh native outputs after checkout.
+    - find ddtrace -type f -name '*.so*' -exec touch {} +
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
     - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
   script:
     - |
-      hashes=( $(.gitlab/scripts/get-riot-hashes.sh "${SUITE_NAME}") )
-      echo "NIGHTLY_BUILD: ${NIGHTLY_BUILD}"
-      if [[ ${#hashes[@]} -eq 0 ]]; then
-        echo "No riot hashes found for ${SUITE_NAME}"
+      shard_variable="TEST_ENVIRONMENTS_${CI_NODE_INDEX:-1}"
+      read -ra environment_hashes <<< "${!shard_variable:-}"
+      if [[ ${#environment_hashes[@]} -eq 0 ]]; then
+        echo "No uv environments found for ${TEST_SUITE}"
         exit 1
       fi
-      for hash in "${hashes[@]}"
+      for environment_hash in "${environment_hashes[@]}"
       do
-        echo "Running riot hash: ${hash}"
-        riot list "${hash}"
-        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
+        echo "Running uv environment: ${environment_hash}"
+        scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
-        "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
-      ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
-        "Registry YAML file (scripts/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
+        "Changes detected in uv locks. Run scripts/test-env lock and commit the result."
 
-
-.test_base_riot_snapshot:
-  extends: .test_base_riot
+.test_base_snapshot:
+  extends: .test_base
   services:
-    - !reference [.test_base_riot, services]
+    - !reference [.test_base, services]
     - !reference [.services, testagent]
   before_script:
-    - !reference [.test_base_riot, before_script]
-    # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
-    # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
+    - !reference [.test_base, before_script]
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
-    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
-.test_base_riot_gpu:
-  extends: .test_base_riot
+.test_base_gpu:
+  extends: .test_base
   image: !reference [.testrunner_gpu, image]
   tags: !reference [.testrunner_gpu, tags]
   timeout: 40m
@@ -73,16 +64,15 @@ include:
     KUBERNETES_CPU_LIMIT: "2"
   before_script:
     - !reference [.testrunner_gpu, before_script]
-    - !reference [.test_base_riot, before_script]
+    - !reference [.test_base, before_script]
 
-.test_base_riot_gpu_snapshot:
-  extends: .test_base_riot_gpu
+.test_base_gpu_snapshot:
+  extends: .test_base_gpu
   services:
-    - !reference [.test_base_riot_gpu, services]
+    - !reference [.test_base_gpu, services]
     - !reference [.services, testagent]
   before_script:
-    - !reference [.test_base_riot_gpu, before_script]
+    - !reference [.test_base_gpu, before_script]
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
-    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
 # Required jobs will appear here
