@@ -377,11 +377,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
     def _auth_headers(self) -> dict[str, str]:
-        """Credentials for a direct intake call, or the headers that make the agent supply them.
+        """Our credentials for a direct call, or the headers that make the agent supply them.
 
-        These endpoints authenticate with an app key on top of the api key. The agent's EVP proxy
-        only attaches one when asked via the needs-app-key header, so omitting it would proxy an
-        unauthenticated request and look like the proxy itself was unsupported.
+        The proxy only attaches an app key when asked, so omitting that header proxies an
+        unauthenticated request and looks like the route is unsupported.
         """
         if self._agentless:
             return {"DD-API-KEY": self._api_key, "DD-APPLICATION-KEY": self._app_key}

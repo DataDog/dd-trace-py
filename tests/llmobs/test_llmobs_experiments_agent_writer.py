@@ -98,10 +98,7 @@ def test_experiments_client_mode_selection(app_key, proxy_available, expected_ag
 
 
 def test_override_origin_stays_direct(monkeypatch):
-    """An override origin replaces intake, not the agent.
-
-    Proxying it would send /evp_proxy/v2-prefixed paths to a server that supplies no credentials.
-    """
+    """An override origin replaces intake, not the agent, so proxying it would drop credentials."""
     from ddtrace.llmobs._llmobs import LLMObs
 
     monkeypatch.setenv("DD_LLMOBS_OVERRIDE_ORIGIN", "http://localhost:1234")
