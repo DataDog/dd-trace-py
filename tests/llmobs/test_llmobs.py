@@ -1376,7 +1376,7 @@ def test_decision_survives_a_registry_miss(llmobs, llmobs_events):
 
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules="not-valid-json")])
 def test_invalid_sampling_rules_fall_back_to_global_rate(llmobs, llmobs_events):
-    """Unparseable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""
+    """Unparsable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""
     assert llmobs._instance._sampler.rules == []
     with llmobs.workflow("w") as span:
         llmobs.annotate(span, tags={"tier": "gold"})
