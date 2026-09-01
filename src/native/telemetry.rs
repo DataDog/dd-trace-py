@@ -537,9 +537,9 @@ impl TelemetryWorkerPy {
         ensure_after_fork_child(&self.shared_runtime)
     }
 
-    pub(crate) fn clone_handle(&self) -> TelemetryWorkerHandle<NativeCapabilities> {
-        let _ = self.ensure_runtime_after_fork();
-        self.handle.clone()
+    pub(crate) fn clone_handle(&self) -> PyResult<TelemetryWorkerHandle<NativeCapabilities>> {
+        self.ensure_runtime_after_fork()?;
+        Ok(self.handle.clone())
     }
 }
 

@@ -263,6 +263,37 @@ for _ in range(64):
     assert stderr == b"", stderr
 
 
+def test_trace_exporter_propagates_telemetry_runtime_restart_errors(run_python_code_in_subprocess):
+    """An exporter must not retain a telemetry handle when its runtime cannot restart."""
+    code = """
+import ddtrace
+from ddtrace.internal.native_runtime import get_native_runtime
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+runtime = get_native_runtime()
+worker = telemetry_writer._worker
+assert worker is not None
+exporter = ddtrace.tracer._span_aggregator.writer._exporter
+
+runtime.defer_after_fork_child()
+try:
+    try:
+        exporter.set_telemetry_handle(worker)
+    except RuntimeError as error:
+        assert "native runtime restart is deferred" in str(error)
+    else:
+        raise AssertionError("expected the telemetry runtime restart error")
+finally:
+    runtime.allow_after_fork_child()
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert stderr == b"", stderr
+
+
 def _subprocess_lineage(test_agent_session):
     """Return {runtime_id: dd-parent-session-id} from the recorded request headers.
 

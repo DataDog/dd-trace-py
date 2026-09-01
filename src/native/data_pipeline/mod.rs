@@ -317,12 +317,11 @@ impl TraceExporterPy {
         &self,
         worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
     ) -> PyResult<()> {
-        self.inner
-            .as_ref()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
+            "TraceExporter has already been consumed",
+        ))?;
+        let telemetry_handle = worker.map(|worker| worker.clone_handle()).transpose()?;
+        exporter.set_telemetry_handle(telemetry_handle);
         Ok(())
     }
 

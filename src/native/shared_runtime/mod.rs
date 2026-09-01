@@ -1,12 +1,12 @@
 use libdd_shared_runtime::{ForkSafeRuntime, SharedRuntime};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
+use once_cell::sync::OnceCell;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicU32, Ordering};
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
@@ -15,7 +15,7 @@ mod exceptions;
 use exceptions::shared_runtime_error_to_pyerr;
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-static ATFORK_RUNTIME: OnceLock<Result<Arc<SharedRuntimeState>, String>> = OnceLock::new();
+static ATFORK_RUNTIME: OnceCell<Arc<SharedRuntimeState>> = OnceCell::new();
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 static CHILD_RESTART_PENDING: AtomicBool = AtomicBool::new(false);
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -37,7 +37,7 @@ impl SharedRuntimeState {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 fn atfork_runtime() -> Option<&'static Arc<SharedRuntimeState>> {
-    ATFORK_RUNTIME.get().and_then(|result| result.as_ref().ok())
+    ATFORK_RUNTIME.get()
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -150,7 +150,7 @@ impl SharedRuntimePy {
     fn new() -> PyResult<Self> {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
-            let result = ATFORK_RUNTIME.get_or_init(|| {
+            let result = ATFORK_RUNTIME.get_or_try_init(|| {
                 let runtime = ForkSafeRuntime::new().map_err(|e| e.to_string())?;
                 let state = Arc::new(SharedRuntimeState {
                     runtime: RwLock::new(Arc::new(runtime)),
@@ -160,6 +160,7 @@ impl SharedRuntimePy {
                 // callbacks. pthread_atfork pauses the runtime around every native fork. The child
                 // callback only marks the runtime for lazy restart because it also runs in transient
                 // fork+exec children, where starting threads would race with exec closing descriptors.
+                // Failed hook registration leaves this cell uninitialized so a later call can retry.
                 let result = unsafe {
                     libc::pthread_atfork(
                         Some(before_fork),
@@ -178,7 +179,7 @@ impl SharedRuntimePy {
                 Ok(state) => Ok(Self {
                     inner: state.clone(),
                 }),
-                Err(error) => Err(PyRuntimeError::new_err(error.clone())),
+                Err(error) => Err(PyRuntimeError::new_err(error)),
             };
         }
 
@@ -231,13 +232,12 @@ impl SharedRuntimePy {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
             match ATFORK_RUNTIME.get() {
-                Some(Ok(state)) if Arc::ptr_eq(state, &self.inner) => return Ok(()),
-                Some(Ok(_)) => {
+                Some(state) if Arc::ptr_eq(state, &self.inner) => return Ok(()),
+                Some(_) => {
                     return Err(PyRuntimeError::new_err(
                         "native fork handlers are already registered to another shared runtime",
                     ));
                 }
-                Some(Err(error)) => return Err(PyRuntimeError::new_err(error.clone())),
                 None => {
                     return Err(PyRuntimeError::new_err(
                         "native fork handlers were not registered during runtime creation",
