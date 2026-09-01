@@ -277,6 +277,36 @@ def test_uvloop_timer_callbacks_publish_the_captured_context(asyncio_patch_state
         loop.close()
 
 
+def test_uvloop_uninstall_in_callback_stops_publication(asyncio_patch_state, monkeypatch):
+    """Do not publish callback restoration or loop exit after uninstalling in a callback."""
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
+    marker = ContextVar("uninstall_callback_marker", default=None)
+    switches = []
+
+    def record_context_switch(_event):
+        switches.append(marker.get())
+
+    monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
+    patch()
+    loop = _new_uvloop_event_loop()
+    try:
+        marker.set("callback")
+        callback_context = copy_context()
+
+        def callback():
+            assert switches == ["callback"]
+            unpatch()
+            loop.stop()
+
+        loop.call_soon(callback, context=callback_context)
+        marker.set("ambient")
+        loop.run_forever()
+
+        assert switches == ["callback"]
+    finally:
+        loop.close()
+
+
 def test_uvloop_nested_run_keeps_publishing_the_ambient_context(asyncio_patch_state, monkeypatch):
     """Keep the ambient context of a running loop when a nested run is rejected."""
     monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
@@ -321,8 +351,8 @@ def test_uvloop_nested_run_keeps_publishing_the_ambient_context(asyncio_patch_st
         loop.close()
 
 
-def test_uvloop_late_patch_restores_context(asyncio_patch_state, monkeypatch):
-    """Capture the ambient context from _patch when the uvloop loop is already running."""
+def test_uvloop_late_patch_skips_current_run(asyncio_patch_state, monkeypatch):
+    """Skip an active run and begin instrumentation on the next one."""
     monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
     marker = ContextVar("late_patch_marker", default=None)
     switches = []
@@ -331,11 +361,11 @@ def test_uvloop_late_patch_restores_context(asyncio_patch_state, monkeypatch):
         switches.append(marker.get())
 
     async def main(loop):
-        # run_forever is already in flight, and therefore unwrapped, so this snapshot can
-        # only come from _patch itself.
+        # run_forever is already in flight and unwrapped, so this run has no known ambient
+        # context. It must not emit partial, incorrectly restored context-switch events.
         marker.set("ambient")
         patch()
-        assert hasattr(loop, _context_switch_uvloop._AMBIENT_CONTEXT_ATTR)
+        assert not hasattr(loop, _context_switch_uvloop._AMBIENT_CONTEXT_ATTR)
         switches.clear()
 
         marker.set("callback")
@@ -351,15 +381,25 @@ def test_uvloop_late_patch_restores_context(asyncio_patch_state, monkeypatch):
         loop.call_soon(callback, context=callback_context)
         await done
 
-        assert observed == [("callback", "callback")]
-        # Entry, restore, then the task step woken by done.set_result. There is no
-        # loop-exit publication because this run_forever is unwrapped.
-        assert switches == ["callback", "ambient", "ambient"]
+        assert observed == [("callback", None)]
+        assert switches == []
 
     monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
     loop = _new_uvloop_event_loop()
     try:
         loop.run_until_complete(main(loop))
+
+        marker.set("next_callback")
+        callback_context = copy_context()
+        marker.set("next_ambient")
+
+        def callback():
+            loop.stop()
+
+        loop.call_soon(callback, context=callback_context)
+        loop.run_forever()
+
+        assert switches == ["next_callback", "next_ambient", "next_ambient"]
     finally:
         loop.close()
 
