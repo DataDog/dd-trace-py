@@ -82,6 +82,12 @@ impl SharedRuntimePy {
 pub(crate) fn ensure_after_fork_child(runtime: &Arc<ForkSafeRuntime>) -> PyResult<()> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
+        // AIDEV-NOTE: Telemetry calls this for every metric point. Keep the normal path to one
+        // read-only load; an unconditional swap and PID check caused a substantial hot-path
+        // regression even when the process had never forked.
+        if !CHILD_RESTART_PENDING.load(Ordering::Acquire) {
+            return Ok(());
+        }
         if CHILD_RESTART_DEFERRED.load(Ordering::Acquire) {
             return Err(PyRuntimeError::new_err(
                 "native runtime restart is deferred until child fork hooks complete",
@@ -220,7 +226,12 @@ impl SharedRuntimePy {
 
     fn defer_after_fork_child(&self) {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
-        CHILD_RESTART_DEFERRED.store(true, Ordering::Release);
+        {
+            // Python fork hooks can run without pthread_atfork on some runtimes. Mark the restart
+            // pending here too so ensure_after_fork_child can keep its no-fork fast path.
+            CHILD_RESTART_DEFERRED.store(true, Ordering::Release);
+            CHILD_RESTART_PENDING.store(true, Ordering::Release);
+        }
     }
 
     fn allow_after_fork_child(&self) {
