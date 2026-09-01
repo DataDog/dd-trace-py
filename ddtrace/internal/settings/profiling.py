@@ -540,10 +540,8 @@ class ProfilingConfigMemory(DDConfig):
         default=True,
         help_type="Boolean",
         help=(
-            "Hook PyMem_Malloc/Calloc/Realloc in the heap profiler to capture C-level "
-            "Python allocations (list internal buffers, array.array data) in addition "
-            "to PyObject_Malloc allocations. Requires Python 3.12 or later. Enabled "
-            "by default; set DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED=false to disable."
+            "Profile PyMem_Malloc/Calloc/Realloc events (allocations in the MEM-domain). "
+            "Requires Python 3.12 or later. Enabled by default."
         ),
     )
 
