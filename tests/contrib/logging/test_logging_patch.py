@@ -10,16 +10,16 @@ from ddtrace.contrib.internal.logging.patch import patch
 try:
     from ddtrace.contrib.internal.logging.patch import unpatch
 except ImportError:
-    unpatch = None
+    unpatch = None  # type: ignore[assignment]
 from tests.contrib.patch import PatchTestCase
 
 
 class TestLoggingPatch(PatchTestCase.Base):
-    __integration_name__ = "logging"
-    __module_name__ = "logging"
-    __patch_func__ = patch
-    __unpatch_func__ = unpatch
-    __get_version__ = get_version
+    __integration_name__ = "logging"  # type: ignore[assignment]
+    __module_name__ = "logging"  # type: ignore[assignment]
+    __patch_func__ = patch  # type: ignore[assignment]
+    __unpatch_func__ = unpatch  # type: ignore[assignment]
+    __get_version__ = get_version  # type: ignore[assignment]
 
     def assert_module_patched(self, logging):
         pass
@@ -29,3 +29,8 @@ class TestLoggingPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, logging):
         pass
+
+    def test_and_emit_get_version(self):
+        version = get_version()
+        assert type(version) == str
+        assert version == ""
