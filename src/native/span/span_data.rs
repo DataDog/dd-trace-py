@@ -293,6 +293,21 @@ impl SpanData {
         span.span_api = span_api
             .map(|obj| extract_backed_string_or_default(obj))
             .unwrap_or_else(|| PyBackedString::from_static_str("datadog"));
+        // `context` is the parent Context, or None for a root span.
+        span._parent_context = context
+            .filter(|obj| !obj.is_none())
+            .and_then(|obj| obj.extract::<Py<crate::context::Context>>().ok());
+        if span._parent_context.is_none() {
+            // PERF/CORRECTNESS: a root span owns fresh, unshared trace-level state.
+            // Build its Context inline now, before the span can be published, so
+            // concurrent first-readers can't race and build divergent state — no
+            // lock required. Mirrors the `context` getter's root branch.
+            if let Ok(ctx) =
+                crate::context::Context::new_root(py, span.trace_id, span.span_id as u128)
+            {
+                span._context = Some(ctx);
+            }
+        }
         span
     }
 

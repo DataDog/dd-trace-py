@@ -108,15 +108,8 @@ class Span(SpanData):
         """
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._parent_context: Optional[Context] = context
-        if context is None:
-            # PERF/CORRECTNESS: a root span owns fresh, unshared trace-level state.
-            # Build its Context inline now, in the creating thread before the span can
-            # be published, so concurrent first-readers can't race and build divergent
-            # state — no lock required. Built inline (not via the `context` getter) to
-            # keep root-span creation off the getter call overhead on the hot path; this
-            # mirrors the native `context` getter's root branch. Child spans stay lazy.
-            self.context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+        # `_parent_context` and, for a root span, `context` are set natively in
+        # `SpanData.__new__` from the `context` argument above.
 
         if links:
             for link in links:
