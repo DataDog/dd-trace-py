@@ -303,9 +303,10 @@ def test_sampling_processor_discard_persists_across_partial_flush_chunks():
     assert aggr.writer.pop() == [], "later chunk of the same trace must also be dropped"
 
 
-def test_sampling_processor_discard_short_circuits_llmobs_processor():
-    """A discarded chunk never reaches llmobs_processor: discard means no Datadog product,
-    including LLMObs, is influenced by the chunk.
+def test_sampling_processor_discard_still_reaches_llmobs_processor():
+    """A discarded chunk still reaches llmobs_processor: LLMObs is sampled independently of the
+    APM trace and must handle a discarded chunk the same way it handles an ordinary (non-discard)
+    rejected one -- discard only means the chunk never reaches stats or the writer.
     """
     aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
     aggr.writer = DummyWriter()
@@ -316,8 +317,8 @@ def test_sampling_processor_discard_short_circuits_llmobs_processor():
         aggr.on_span_start(span)
         span.finish()
 
-    mock_llmobs.assert_not_called()
-    assert aggr.writer.pop() == []
+    mock_llmobs.assert_called_once_with([span])
+    assert aggr.writer.pop() == [], "the chunk itself is still fully dropped from the writer"
 
 
 def test_aggregator_reset_default_args():

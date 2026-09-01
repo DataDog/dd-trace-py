@@ -427,6 +427,7 @@ class SpanAggregator(SpanProcessor):
             spans: list[Span] = []
         else:
             spans = finished
+            sampling_discarded = False
             for tp in chain(
                 self.dd_processors,
                 self.user_processors,
@@ -438,16 +439,25 @@ class SpanAggregator(SpanProcessor):
                 ],
             ):
                 try:
-                    spans = tp.process_trace(spans) or []
-                    if not spans:
-                        # TraceSamplingProcessor only ever returns an empty result for a discard=True
-                        # rule rejecting the chunk; remember that so later partial-flush chunks of this
-                        # trace are dropped too instead of being kept with the (already-set) reject priority.
-                        if tp is self.sampling_processor and not is_trace_complete:
-                            trace.discarded = True
-                        break
+                    result = tp.process_trace(spans) or []
                 except Exception:
                     log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
+                    continue
+                if not result and tp is self.sampling_processor:
+                    # TraceSamplingProcessor only ever returns an empty result for a discard=True
+                    # rule rejecting the chunk. However, we must not actually discard them until the
+                    # llmobs_processor has run to allow them to rescue spans.
+                    sampling_discarded = True
+                    if not is_trace_complete:
+                        # Remember this so later partial-flush chunks of the same trace are dropped
+                        # too, instead of being kept with the (already-set) reject priority.
+                        trace.discarded = True
+                    continue
+                spans = result
+                if not spans or (tp is self.llmobs_processor and sampling_discarded):
+                    # If llmobs does not rescue the span, we still discard it.
+                    spans = []
+                    break
 
         num_dropped = len(finished) - len(spans)
         if num_dropped > 0:

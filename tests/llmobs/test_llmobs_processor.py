@@ -171,13 +171,14 @@ class TestRescuePath:
         mock_writer.enqueue.assert_called_once()
 
 
-class TestDiscardSuppressesRealLLMObsProcessor:
-    """Discard means the trace must not influence any Datadog product, including LLMObs: a
-    discarded chunk must never reach the real LLMObsProcessor, so its fallback enqueue() to
-    the LLMObs writer never fires.
+class TestDiscardStillReachesRealLLMObsProcessor:
+    """LLMObs is sampled independently of the APM trace: discard only means the chunk never
+    reaches stats or the writer, not that LLMObs's own sampling/rescue logic is skipped. A
+    discarded chunk must reach the real LLMObsProcessor exactly like an ordinary (non-discard)
+    rejected one, so its fallback enqueue() to the LLMObs writer still fires.
     """
 
-    def test_discarded_chunk_never_reaches_llmobs_processor(self, llmobs_agent_proxy, tracer):
+    def test_discarded_chunk_still_reaches_llmobs_processor(self, llmobs_agent_proxy, tracer):
         _llmobs, mock_writer = llmobs_agent_proxy
         tracer._span_aggregator.sampling_processor.sampler = DatadogSampler(
             rules=[SamplingRule(sample_rate=0.0, discard=True)]
@@ -189,12 +190,12 @@ class TestDiscardSuppressesRealLLMObsProcessor:
         ) as mock_process_trace:
             with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
                 _annotate_llm_span(span)
-        mock_process_trace.assert_not_called()
-        mock_writer.enqueue.assert_not_called()
-        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) is None
+        mock_process_trace.assert_called_once()
+        mock_writer.enqueue.assert_called_once()
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
 
     def test_non_discarded_reject_still_reaches_llmobs_processor(self, llmobs_agent_proxy, tracer):
-        """Sanity check: without discard, the existing rescue path is unaffected."""
+        """Sanity check: discard behaves the same as an ordinary reject for LLMObs purposes."""
         _llmobs, mock_writer = llmobs_agent_proxy
         tracer._span_aggregator.sampling_processor.sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0)])
         with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
