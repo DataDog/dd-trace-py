@@ -122,8 +122,8 @@ else:
     assert len(app_started) == 1
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
 def test_metric_collection_after_fork(test_agent_session, run_python_code_in_subprocess):
-    """A regular Python fork rebuilds the worker and reports metrics from the child."""
     code = """
 import warnings
 
