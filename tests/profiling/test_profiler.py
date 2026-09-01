@@ -157,6 +157,22 @@ def test_failed_start_collector(caplog, monkeypatch):
     ]
 
 
+def test_unavailable_collector_skipped_without_error(caplog: pytest.LogCaptureFixture) -> None:
+    """ImportError stubs raise CollectorUnavailable; profiler must skip them, not fail."""
+
+    class TestProfiler(profiler._ProfilerInstance):
+        def _build_default_exporters(self, *args: object, **kwargs: object) -> None:
+            return None
+
+    stub: collector.UnavailableCollector = collector.UnavailableCollector(tracer=None)
+    p: profiler._ProfilerInstance = TestProfiler()
+    p._collectors = [stub]
+    p.start()
+    assert stub not in p._collectors
+    assert all(t[1] != logging.ERROR for t in caplog.record_tuples if t[0].startswith("ddtrace.profiling"))
+    p.stop()
+
+
 def test_default_collectors():
     p = profiler.Profiler()
     assert any(isinstance(c, stack.StackCollector) for c in p._profiler._collectors)
