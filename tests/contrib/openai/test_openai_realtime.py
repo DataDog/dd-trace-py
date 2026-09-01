@@ -1,8 +1,8 @@
 """Tests for OpenAI Realtime API LLMObs instrumentation.
 
 The Realtime API is a bidirectional WebSocket event stream, so there are no VCR cassettes. Instead
-we drive the ``_RealtimeState`` machine directly with scripted events (unit tests), and drive a real
-patched ``RealtimeConnection`` backed by a fake websocket (integration test).
+we drive the `_RealtimeState` machine directly with scripted events (unit tests), and drive a real
+patched `RealtimeConnection` backed by a fake websocket (integration test).
 """
 
 import base64
@@ -613,7 +613,7 @@ _BLOCK_BYTES = 480
 
 
 class _Clock:
-    """Fake ``time.time_ns`` that only moves when the test says so, so wall-clock assertions on the
+    """Fake `time.time_ns` that only moves when the test says so, so wall-clock assertions on the
     span boundaries are exact.
     """
 
@@ -638,10 +638,10 @@ class _Mic:
         self.clock = clock
         self.blocks = []  # every raw block appended this session, in order
         self.buffer_ms = 0  # offset on the session's input-audio-buffer timeline
-        self.onset_index = 0  # index into ``blocks`` of the first block after the last speech onset
+        self.onset_index = 0  # index into `blocks` of the first block after the last speech onset
 
     def stream(self, ms):
-        """Append ``ms`` of mic audio, advancing the clock in lockstep (real-time streaming)."""
+        """Append `ms` of mic audio, advancing the clock in lockstep (real-time streaming)."""
         for _ in range(ms // _BLOCK_MS):
             block = bytes([len(self.blocks) % 256, 0]) * (_BLOCK_BYTES // 2)
             self.blocks.append(block)
@@ -662,7 +662,7 @@ class _Mic:
 
 
 def _agent_pcm(ms):
-    """``ms`` of agent audio as PCM16 mono @ 24 kHz (48 bytes per ms)."""
+    """`ms` of agent audio as PCM16 mono @ 24 kHz (48 bytes per ms)."""
     return b"\x02\x00" * (24 * ms)
 
 
@@ -682,8 +682,8 @@ def _truncate(state, response_id, audio_end_ms):
 
 def _respond(state, mic, response_id, agent_audio_ms, playback_ms=None, transcript="ok"):
     """Commit the pending input and drive a full response: 100 ms of model latency, then the agent's
-    audio streamed down fast and played out over ``agent_audio_ms``. The mic keeps streaming
-    throughout, as it would for a continuous client. ``playback_ms`` cuts the wall clock short of the
+    audio streamed down fast and played out over `agent_audio_ms`. The mic keeps streaming
+    throughout, as it would for a continuous client. `playback_ms` cuts the wall clock short of the
     full playback (an interruption).
     """
     item_id = "item_" + response_id
@@ -718,8 +718,8 @@ def _windows(integration):
 def _assert_ns(actual, expected, tolerance_ns=1_000):
     """Compare two ns timestamps loosely.
 
-    Span starts are set as integer ns, but ends go through ``Span.finish(finish_time=<epoch
-    seconds>)`` - and a float64 can only resolve ~256 ns at unix-epoch magnitudes. That rounding is
+    Span starts are set as integer ns, but ends go through `Span.finish(finish_time=<epoch
+    seconds>)` - and a float64 can only resolve ~256 ns at unix-epoch magnitudes. That rounding is
     immaterial next to audio timings measured in milliseconds, so don't assert on it.
     """
     assert abs(actual - expected) <= tolerance_ns, "{} != {} (within {} ns)".format(actual, expected, tolerance_ns)
@@ -827,7 +827,7 @@ def test_realtime_state_barge_in_windows_still_overlap(monkeypatch):
 def test_realtime_state_truncation_caps_agent_speech_to_what_was_heard(monkeypatch):
     """A barge-in truncation caps the agent segment - window and stored audio - at what was played.
 
-    The truncation lands after ``response.done`` (the model streams faster than it plays), so it can
+    The truncation lands after `response.done` (the model streams faster than it plays), so it can
     only apply to a turn we are still holding. Holding is enabled by having seen this client truncate
     before, which is why the first interruption of a connection is still reported untruncated.
     """
@@ -917,6 +917,40 @@ def test_realtime_state_no_hold_for_clients_that_never_truncate(monkeypatch):
     assert state._playing == []
 
 
+def test_realtime_state_park_deadline_is_capped(monkeypatch):
+    """Holding a turn is bounded by _PARK_MAX_NS rather than by the full playback length.
+
+    Flushing is event-driven, so a connection that goes idle right after a long response would leave
+    the held turn unsubmitted for as long as its audio would have played. A listener who interrupts
+    does it early, so capping the wait costs almost no real truncations.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    monkeypatch.setattr(_realtime, "_PARK_MAX_NS", 2 * 1_000_000_000)  # 2 s, vs a 30 s response
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+    state._client_truncates = True  # a barge-in was seen earlier on this connection
+
+    mic.stream(100)
+    mic.speech_started()
+    mic.stream(200)
+    # 30 s of agent audio, but the clock only advances 100 ms of it, so playback is still "in flight".
+    _respond(state, mic, "r1", agent_audio_ms=30_000, playback_ms=100)
+
+    assert len(state._playing) == 1, "the turn should be held"
+    held = state._playing[0]
+    parked_at = held.response_done_ns
+    assert held.playback_end_ns - parked_at <= 2 * 1_000_000_000, "the wait must be capped"
+    assert held.playback_end_ns < held.audio.start_ns + 30 * 1_000_000_000, "not the full playback"
+
+    # Once the capped deadline passes, the next event submits it - no 30 s wait.
+    clock.advance_ms(2_100)
+    mic.stream(10)
+    assert state._playing == []
+    assert len(integration.responses) == 1
+
+
 def test_realtime_state_user_speech_falls_back_to_first_append_without_vad(monkeypatch):
     """With client-side turn detection there are no VAD events and the client only appends while the
     user talks, so the first buffered chunk is the onset and nothing is trimmed.
@@ -940,11 +974,11 @@ def test_realtime_state_user_speech_falls_back_to_first_append_without_vad(monke
 
 
 def _vad_onset(state, mic, prefix_padding_ms):
-    """Fire the VAD onset with the offset pointing ``prefix_padding_ms`` *behind* the buffer head.
+    """Fire the VAD onset with the offset pointing `prefix_padding_ms` *behind* the buffer head.
 
-    Real server VAD reports ``audio_start_ms`` including the session's ``prefix_padding_ms``, so some
-    speech is already buffered when the event lands. ``_Mic.speech_started`` instead points at the
-    head exactly, which makes the pre-onset run cover everything buffered and sends ``trim_leading``
+    Real server VAD reports `audio_start_ms` including the session's `prefix_padding_ms`, so some
+    speech is already buffered when the event lands. `_Mic.speech_started` instead points at the
+    head exactly, which makes the pre-onset run cover everything buffered and sends `trim_leading`
     down its reset-outright branch - so it cannot exercise the partial trim that the padding causes in
     practice.
     """
@@ -958,10 +992,10 @@ def test_realtime_state_long_lead_in_does_not_discard_the_users_speech(monkeypat
     """A pre-speech lead-in that spends the byte cap must not cost the turn its actual speech.
 
     A continuously-streaming client holds the buffer open across the whole previous agent response, so
-    on a long one the lead-in alone can exceed the accumulation cap - and ``append`` frees the buffered
+    on a long one the lead-in alone can exceed the accumulation cap - and `append` frees the buffered
     chunks when it trips. Trimming that lead-in at the onset has to reopen the accumulator, or every
     chunk of the speech that follows is rejected by a cap the discarded audio filled and the turn
-    surfaces nothing but an ``[audio]`` marker.
+    surfaces nothing but an `[audio]` marker.
     """
     clock = _Clock()
     monkeypatch.setattr(_realtime.time, "time_ns", clock)
@@ -978,9 +1012,9 @@ def test_realtime_state_long_lead_in_does_not_discard_the_users_speech(monkeypat
     assert not state._pending_input.audio.oversize, "the trim must reopen the accumulator"
     speech_index = len(mic.blocks)
     mic.stream(200)  # the user speaks
-    # The 50 ms of padding ahead of the onset is gone for good - ``append`` dropped it when the cap
+    # The 50 ms of padding ahead of the onset is gone for good - `append` dropped it when the cap
     # tripped - but everything from the onset on is captured, which is what the window reports.
-    # Snapshot before ``_respond``, which keeps streaming into the *next* turn's buffer.
+    # Snapshot before `_respond`, which keeps streaming into the *next* turn's buffer.
     spoken = b"".join(mic.blocks[speech_index:])
     _respond(state, mic, "r1", agent_audio_ms=100)
 
@@ -1005,7 +1039,7 @@ def test_realtime_state_trim_leading_keeps_the_byte_cap_consistent():
     """After a partial trim the running cap must equal what is still buffered.
 
     The trim drops whole chunks, so a cap tracked by subtraction drifts from the surviving chunks
-    whenever ``append`` has already freed them.
+    whenever `append` has already freed them.
     """
     accumulator = _realtime._AudioAccumulator()
     for _ in range(10):
@@ -1020,7 +1054,7 @@ def test_realtime_state_trim_leading_keeps_the_byte_cap_consistent():
 def test_realtime_state_input_buffer_clock_survives_a_late_session_format(monkeypatch):
     """Audio appended before the session's audio format is known must not cost the whole session.
 
-    Client sends are observed as they happen, but ``session.created`` is only seen when the app parses
+    Client sends are observed as they happen, but `session.created` is only seen when the app parses
     it - a client streaming from its own thread routinely wins that race. Writing the buffer origin off
     at that point disabled the VAD-offset projection, and with it the lead-in trimming, for every turn
     that followed rather than just the first.
@@ -1045,7 +1079,7 @@ def test_realtime_state_input_buffer_clock_survives_a_late_session_format(monkey
     _vad_onset(state, mic, prefix_padding_ms=50)
     mic.stream(200)  # the user speaks
     # The onset offset lands on a chunk boundary here, so the 50 ms of padding survives the
-    # whole-chunk trim alongside the speech. Snapshot before ``_respond`` streams into the next turn.
+    # whole-chunk trim alongside the speech. Snapshot before `_respond` streams into the next turn.
     kept = mic.speech_blocks()
     _respond(state, mic, "r2", agent_audio_ms=100)
 
@@ -1268,8 +1302,8 @@ def test_realtime_recv_close_finalizes_without_explicit_close(openai, openai_llm
 def test_realtime_dropped_connection_finalizes_held_turn(openai, openai_llmobs, test_spans):
     """A turn held for playback is still submitted when the caller drops the connection.
 
-    ``with`` blocks and a socket that closes are already covered (the SDK's ``__exit__`` closes, and
-    ``recv`` raises), so this is the un-managed case: without the connection's finalizer nothing
+    `with` blocks and a socket that closes are already covered (the SDK's `__exit__` closes, and
+    `recv` raises), so this is the un-managed case: without the connection's finalizer nothing
     would ever flush the hold and the whole turn would be lost.
     """
     conn = RealtimeConnection(_FakeWebSocket([]))

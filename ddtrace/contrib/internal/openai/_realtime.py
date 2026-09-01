@@ -15,7 +15,7 @@ human spent talking, and time-to-first-agent-audio falls out of the span boundar
 window is anchored on the VAD speech-onset event rather than on the first audio the client appended,
 since a server-VAD client streams the microphone continuously and the buffer is therefore open from
 the moment the previous turn was committed; the pre-speech lead-in is trimmed off the captured audio
-to match (see ``_on_speech_started``). Every span is annotated with a per-connection session_id so
+to match (see `_on_speech_started`). Every span is annotated with a per-connection session_id so
 the UI groups all of a connection's turns into one conversation; there is no parent "session" span
 across turns, which keeps each trace one turn small (no accumulation toward the per-event size
 budget) and renders cleanly. (If the caller wraps the connection in their own LLMObs context, the
@@ -102,8 +102,8 @@ def _event_type(event: Any) -> str:
 
 
 def _normalize_response_event_type(event_type: str) -> str:
-    """Collapse SDK naming drift so ``response.output_audio.*``/``response.output_text.*`` match
-    their older ``response.audio.*``/``response.text.*`` equivalents.
+    """Collapse SDK naming drift so `response.output_audio.*`/`response.output_text.*` match
+    their older `response.audio.*`/`response.text.*` equivalents.
     """
     return (
         event_type.replace(".output_audio_transcript", ".audio_transcript")
@@ -117,12 +117,17 @@ def _normalize_response_event_type(event_type: str) -> str:
 # of audio in memory only to discard it at finalize.
 _AUDIO_ACCUM_MAX_BYTES = LLMOBS_AUDIO_INLINE_MAX_BYTES
 
+# Longest we will hold a finished turn waiting for its audio to finish playing, so a late barge-in
+# truncation can still cap it (see `_park_for_playback`). Flushing is event-driven, so this bounds
+# both the submission delay and the window in which a connection going idle leaves a turn unflushed.
+_PARK_MAX_NS = 5 * 1_000_000_000
+
 
 class _AudioAccumulator:
     """Collects base64 audio chunks with a running decoded-byte cap.
 
-    ``present`` records that audio was seen at all (so a turn can still surface an ``[audio]`` marker
-    even when the bytes were dropped), and ``oversize`` marks that the cap was hit.
+    `present` records that audio was seen at all (so a turn can still surface an `[audio]` marker
+    even when the bytes were dropped), and `oversize` marks that the cap was hit.
     """
 
     def __init__(self) -> None:
@@ -130,12 +135,12 @@ class _AudioAccumulator:
         self.present: bool = False
         self.oversize: bool = False
         self._bytes: int = 0
-        # Decoded byte length of each buffered chunk, parallel to ``chunks``, so a leading run of
-        # them can be identified by byte offset and trimmed (see ``trim_leading``).
+        # Decoded byte length of each buffered chunk, parallel to `chunks`, so a leading run of
+        # them can be identified by byte offset and trimmed (see `trim_leading`).
         self._chunk_bytes: list[int] = []
         # Wall-clock (unix ns) when the first chunk of this segment was observed. Anchors the segment
         # on the shared session timeline for full-conversation playback. Set even when bytes are later
-        # dropped (oversize), since ``present`` still surfaces a marker.
+        # dropped (oversize), since `present` still surfaces a marker.
         self.start_ns: Optional[int] = None
         # Total decoded bytes seen for this segment, never capped, used only to derive playback
         # duration (the speaking window) even when the byte cap dropped the buffered chunks.
@@ -161,7 +166,7 @@ class _AudioAccumulator:
         self._chunk_bytes.append(decoded)
 
     def trim_leading(self, decoded_bytes: int) -> None:
-        """Drop the buffered chunks that lie entirely within this segment's first ``decoded_bytes``.
+        """Drop the buffered chunks that lie entirely within this segment's first `decoded_bytes`.
 
         Used to cut the pre-speech audio a continuously-streaming client appends (the microphone
         keeps sending while the agent talks) off the front of a user turn, so the captured audio
@@ -175,7 +180,7 @@ class _AudioAccumulator:
             # Everything seen so far precedes the onset, so the segment starts empty: reset outright,
             # byte cap included. Otherwise a long silent lead-in (the buffer stays open across the
             # whole previous agent response) could spend the cap before the speech even starts and
-            # leave the turn with nothing but an ``[audio]`` marker.
+            # leave the turn with nothing but an `[audio]` marker.
             self.clear()
             return
         dropped = 0
@@ -196,15 +201,15 @@ class _AudioAccumulator:
         # turn. That is the outcome trimming exists to prevent, not to cause.
         self._bytes = sum(self._chunk_bytes)
         self.oversize = self._bytes > _AUDIO_ACCUM_MAX_BYTES
-        # ``total_decoded_bytes`` measures the playback window rather than what we kept, so it sheds
+        # `total_decoded_bytes` measures the playback window rather than what we kept, so it sheds
         # the whole lead-in (not just the whole chunks), including when the byte cap already dropped
         # the chunks themselves.
         self.total_decoded_bytes = max(0, self.total_decoded_bytes - decoded_bytes)
 
     def cap_to(self, decoded_bytes: int) -> None:
-        """Shrink this segment to its first ``decoded_bytes``, dropping whole trailing chunks.
+        """Shrink this segment to its first `decoded_bytes`, dropping whole trailing chunks.
 
-        The mirror of ``trim_leading``, for audio that was delivered but never heard: when the
+        The mirror of `trim_leading`, for audio that was delivered but never heard: when the
         listener cuts the agent off, everything past that point is generated-but-unplayed. Absolute
         and shrink-only, so a truncation and its server acknowledgement apply once between them.
         """
@@ -223,7 +228,7 @@ class _AudioAccumulator:
                 sizes.append(size)
                 kept += size
                 continue
-            # The cut lands inside this chunk. Unlike ``trim_leading`` - where whole-chunk granularity
+            # The cut lands inside this chunk. Unlike `trim_leading` - where whole-chunk granularity
             # only costs a little extra lead-in - stopping short here would drop heard audio, and a
             # response delivered as one big delta would lose all of it, so split the chunk exactly.
             partial, partial_size = _slice_b64(chunk, decoded_bytes - kept)
@@ -257,13 +262,13 @@ class _InputTurn:
         self.item_id: Optional[str] = None
         # Wall-clock (unix ns) when the user actually started speaking, from the VAD speech-onset
         # event. This is the start of the user-speech window; the first buffered chunk is not, since
-        # a server-VAD client streams the microphone continuously (see ``_on_speech_started``).
+        # a server-VAD client streams the microphone continuously (see `_on_speech_started`).
         self.speech_start_ns: Optional[int] = None
         # Wall-clock (unix ns) when the user's input audio was committed (~ end of user speech). Used
         # to measure response latency from real speech-end rather than the padded buffer end.
         self.speech_end_ns: Optional[int] = None
         # Offset (ms) on the session's input-audio-buffer timeline of the first chunk buffered for
-        # this turn, so a VAD offset can be converted into a byte offset into ``audio``.
+        # this turn, so a VAD offset can be converted into a byte offset into `audio`.
         self.audio_base_ms: Optional[float] = None
         # Tool results the app fed back (function_call_output) before the next response.
         self.tool_results: list[ToolResult] = []
@@ -279,7 +284,7 @@ class _InputTurn:
 
 
 class _ResponseTurn:
-    """Accumulated assistant output for a single ``response.*`` lifecycle."""
+    """Accumulated assistant output for a single `response.*` lifecycle."""
 
     def __init__(self, input_turn: _InputTurn) -> None:
         self.input = input_turn
@@ -289,18 +294,18 @@ class _ResponseTurn:
         self.usage: Any = None
         self.model: Optional[str] = None
         self.status: Optional[str] = None
-        # ``root_span`` is the turn's workflow root (parents the user-speech, llm, and agent-speech
-        # spans); ``span`` is the llm (generation) span, kept as the tool-span parent.
+        # `root_span` is the turn's workflow root (parents the user-speech, llm, and agent-speech
+        # spans); `span` is the llm (generation) span, kept as the tool-span parent.
         self.root_span: Any = None
         self.span: Any = None
         # Wall-clock (unix ns) when response.done arrived; the llm span ends here (generation
         # complete), not when the agent finishes speaking.
         self.response_done_ns: Optional[int] = None
-        # Byte offset into ``audio`` at which each output item's audio begins, so a truncation (which
+        # Byte offset into `audio` at which each output item's audio begins, so a truncation (which
         # is reported per item) maps onto this turn's segment.
         self.audio_item_starts: dict[str, int] = {}
         # Wall-clock (unix ns) the agent's audio would finish playing; set while the turn is held open
-        # waiting for playback to end (see ``_park_for_playback``).
+        # waiting for playback to end (see `_park_for_playback`).
         self.playback_end_ns: Optional[int] = None
         # Function/MCP calls the model made this turn (+ inline MCP results).
         self.tool_calls: list[ToolCall] = []
@@ -342,7 +347,7 @@ class _RealtimeState:
         # Turns whose response is done but whose input transcription hasn't arrived yet.
         self._awaiting: list[Any] = []
         # Finished turns held open while their audio is still playing, so a barge-in truncation can
-        # still cap them (see ``_park_for_playback``), and whether this connection's client has ever
+        # still cap them (see `_park_for_playback`), and whether this connection's client has ever
         # truncated - which is what makes holding worth its cost.
         self._playing: list[Any] = []
         self._client_truncates = False
@@ -379,7 +384,7 @@ class _RealtimeState:
                 self._update_session_config(_get_attr(event, "session", None))
                 return
             if event_type == "conversation.item.truncated":
-                # The server's acknowledgement of a client truncation; ``cap_to`` is absolute, so
+                # The server's acknowledgement of a client truncation; `cap_to` is absolute, so
                 # handling both it and the client event applies the cap once.
                 self._on_truncate(_get_attr(event, "item_id", None), _get_attr(event, "audio_end_ms", None))
                 return
@@ -482,7 +487,7 @@ class _RealtimeState:
         observed only when the app parses it - a client streaming from its own thread routinely beats
         it - and losing the origin to that race disabled the projection, and with it the lead-in
         trimming, for the whole session. A format we can never rate (an unknown codec) still leaves
-        the projection unavailable: the backlog simply never converts and ``_input_buffer_ms_at_ns``
+        the projection unavailable: the backlog simply never converts and `_input_buffer_ms_at_ns`
         stays None, which is what marks the clock dead.
         """
         self._pending_input_bytes += decoded_bytes
@@ -500,8 +505,8 @@ class _RealtimeState:
         lands the instant the *previous* turn was committed: it marks when we started listening, not
         when the human started speaking. Left at that, every user-speech window swallows the whole
         preceding agent response and consecutive turns overlap on the session timeline.
-        ``input_audio_buffer.speech_started`` is the real onset, and the audio it points at
-        (``audio_start_ms``, which already includes the session's ``prefix_padding_ms``) is the audio
+        `input_audio_buffer.speech_started` is the real onset, and the audio it points at
+        (`audio_start_ms`, which already includes the session's `prefix_padding_ms`) is the audio
         worth keeping, so the buffered lead-in is trimmed off the front to keep the captured audio and
         the reported window in step.
 
@@ -529,7 +534,7 @@ class _RealtimeState:
         return max(0, int((onset_ms - base_ms) / 1000 * bytes_per_second))
 
     def _buffer_offset_to_wall_ns(self, offset_ms: Any, observed_ns: int) -> int:
-        """Project an input-buffer offset (the VAD events' ``audio_start_ms``/``audio_end_ms``,
+        """Project an input-buffer offset (the VAD events' `audio_start_ms`/`audio_end_ms`,
         measured from the start of all audio written to the buffer this session) onto the wall clock.
 
         AIDEV-NOTE: this assumes the client appends audio roughly in real time - true for a live
@@ -560,12 +565,12 @@ class _RealtimeState:
 
         Over a WebSocket the client owns playback, and the model streams audio faster than it plays,
         so on a barge-in the client stops its speaker and reports how far it got
-        (``conversation.item.truncate``'s ``audio_end_ms``). Audio delivered past that point was never
+        (`conversation.item.truncate`'s `audio_end_ms`). Audio delivered past that point was never
         heard. Without this the stored agent audio - and the agent-speech window derived from it -
         covers the whole generated response and runs past the interruption into the next user turn.
 
         Seeing a truncation also marks this connection's client as one that cuts playback short, which
-        is what makes holding its turns open worthwhile (see ``_park_for_playback``).
+        is what makes holding its turns open worthwhile (see `_park_for_playback`).
         """
         self._client_truncates = True
         item = str(item_id) if item_id is not None else None
@@ -589,12 +594,12 @@ class _RealtimeState:
         """Hold a finished turn while its audio is still playing, so a late truncation can still cap
         it. Returns whether the turn was parked.
 
-        ``response.done`` normally lands mid-playback (generation outruns playback), and a barge-in
+        `response.done` normally lands mid-playback (generation outruns playback), and a barge-in
         truncation arrives after that - too late for a turn we already submitted, and the audio bytes
         ride on the llm span. Holding costs submission latency and a wider window to lose the turn if
         the process dies, so we only hold on connections whose client has actually truncated before: a
         client either implements barge-in or it doesn't, so one observed truncation predicts the rest.
-        Clients that never truncate hear every byte we captured and finalize at ``response.done``
+        Clients that never truncate hear every byte we captured and finalize at `response.done`
         exactly as before, paying nothing. The cost of that trade is that the first interruption on a
         connection is still reported untruncated.
         """
@@ -605,10 +610,16 @@ class _RealtimeState:
         )
         if playback_ns is None:
             return False
+        now = time.time_ns()
         end_ns = turn.audio.start_ns + playback_ns
-        if end_ns <= time.time_ns():
+        if end_ns <= now:
             return False
-        turn.playback_end_ns = end_ns
+        # Wait for playback to end, but never longer than `_PARK_MAX_NS`. A listener who interrupts
+        # does it early - that is what interrupting is - so the cap costs almost no real truncations,
+        # while holding a turn for the full playback of a long answer would delay submission by that
+        # whole time and widen the window where an idle connection leaves the turn unflushed (nothing
+        # is timed; see `_flush_playing`).
+        turn.playback_end_ns = min(end_ns, now + _PARK_MAX_NS)
         self._playing.append(turn)
         return True
 
@@ -617,7 +628,13 @@ class _RealtimeState:
 
         Event-driven rather than timed: a realtime connection is chatty - a streaming client appends
         microphone audio continuously - so this runs often enough to submit a turn shortly after its
-        playback ends, and the next turn and connection close both force it so a turn can't leak.
+        playback ends, and the next turn and connection close both force it.
+
+        A connection that goes idle immediately after a response is the gap: nothing fires, so the
+        held turn waits for the next event, for close, or for the connection to be dropped
+        (`_finish_session_on_gc`). `_PARK_MAX_NS` bounds how long that can be, and a timed flush is
+        deliberately avoided - it would finalize turns off-thread, and this state machine is only
+        safe because every path runs on the caller's own thread.
         """
         if not self._playing:
             return
@@ -657,7 +674,7 @@ class _RealtimeState:
             turn.root_span = None
         # LLM span (generation): child of the turn root, back-dated to the end of user speech (buffer
         # commit) so its duration is model work rather than the human's speaking time. Kept as
-        # ``turn.span`` so any child spans nest under it.
+        # `turn.span` so any child spans nest under it.
         try:
             turn.span = self._integration.trace(
                 "createRealtimeResponse",
@@ -709,7 +726,7 @@ class _RealtimeState:
             return
         self._closed = True
         # Finalize anything still open: turns awaiting a transcription or playback, plus in-flight
-        # turns that never saw ``response.done`` (closed mid-turn). Whatever partial data we have is
+        # turns that never saw `response.done` (closed mid-turn). Whatever partial data we have is
         # submitted.
         self._flush_awaiting()
         self._flush_playing(force=True)
@@ -728,7 +745,7 @@ class _RealtimeState:
             return
         # The turn's data is complete, but on a barge-in-capable client the agent's audio may still be
         # playing and a truncation may yet cut it short - hold the turn rather than submit audio the
-        # listener might never hear. ``force`` is for the paths that must not wait (close, next turn).
+        # listener might never hear. `force` is for the paths that must not wait (close, next turn).
         if not force and self._park_for_playback(turn):
             return
         # Drop the cached transcript for this turn's input item so the map can't grow across a long
@@ -766,8 +783,8 @@ class _RealtimeState:
         """Tag the turn's workflow root (no parent; it is the root of this turn's trace). Carries the
         turn's user/assistant transcripts as its input/output for a readable waterfall row.
 
-        The name carries the ``audio turn`` marker (provider-agnostic: ``realtime audio turn`` here,
-        ``<provider> audio turn`` for future integrations) so the web-ui player and the backend TTFA
+        The name carries the `audio turn` marker (provider-agnostic: `realtime audio turn` here,
+        `<provider> audio turn` for future integrations) so the web-ui player and the backend TTFA
         metric can gate on "is this a voice turn?" by name. This is a FE/BE consumer contract - keep
         it in lockstep with them.
         """
@@ -859,7 +876,7 @@ class _RealtimeState:
             self._finish_span_at(span, end_ns)
 
     def _finish_span_at(self, span: Any, end_ns: Optional[int]) -> None:
-        """Finish ``span`` at an absolute unix-ns time when it is a valid end (after the span's start),
+        """Finish `span` at an absolute unix-ns time when it is a valid end (after the span's start),
         else finish at now. Never lets a bad timestamp raise out of finalize.
         """
         try:
@@ -1129,7 +1146,7 @@ def _decoded_b64_len(b64: str) -> int:
 
 
 def _slice_b64(b64: str, decoded_bytes: int) -> tuple[str, int]:
-    """Re-encode the first ``decoded_bytes`` of a base64 chunk, with the size actually taken.
+    """Re-encode the first `decoded_bytes` of a base64 chunk, with the size actually taken.
 
     Base64 can only be sliced directly on 3-byte boundaries, so cutting at an arbitrary offset means
     decoding and re-encoding. Only runs when a truncation lands inside a chunk.
@@ -1202,7 +1219,7 @@ def patched_connect(func: Callable[..., Any], instance: Any, args: tuple[Any, ..
 def _finish_session_on_gc(state: "_RealtimeState") -> None:
     """Last-resort finalizer: submit whatever the session still holds when the connection is dropped.
 
-    Runs from a ``weakref.finalize`` callback (garbage collection, or interpreter exit), so it must
+    Runs from a `weakref.finalize` callback (garbage collection, or interpreter exit), so it must
     never raise - by then there is no caller left to handle it.
     """
     try:
@@ -1220,11 +1237,11 @@ def _attach_session(instance: Any, connection: Any) -> None:
             integration, getattr(instance, "_dd_client", None), getattr(instance, "_dd_model", None)
         )
         connection._dd_realtime_state = state
-        # A turn held for playback (see ``_park_for_playback``) is only submitted by a later event or
-        # by ``finish_session``, so a caller that drops the connection without ``close()`` - and
-        # without ``recv()`` raising ConnectionClosed - would lose that turn entirely. ``with`` blocks
-        # are already covered (the SDK's ``__exit__`` closes), so this catches the un-managed case and
-        # process exit. ``finish_session`` is idempotent, so it is safe alongside the close paths.
+        # A turn held for playback (see `_park_for_playback`) is only submitted by a later event or
+        # by `finish_session`, so a caller that drops the connection without `close()` - and
+        # without `recv()` raising ConnectionClosed - would lose that turn entirely. `with` blocks
+        # are already covered (the SDK's `__exit__` closes), so this catches the un-managed case and
+        # process exit. `finish_session` is idempotent, so it is safe alongside the close paths.
         # The state does not reference the connection, so this creates no cycle that would keep the
         # connection alive.
         weakref.finalize(connection, _finish_session_on_gc, state)
@@ -1247,8 +1264,8 @@ async def patched_async_enter(
 
 
 def patched_parse_event(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    # ``parse_event`` is the single sync observation point for server events: ``recv()``,
-    # connection iteration, and the manual ``recv_bytes()`` + ``parse_event()`` path all funnel
+    # `parse_event` is the single sync observation point for server events: `recv()`,
+    # connection iteration, and the manual `recv_bytes()` + `parse_event()` path all funnel
     # through it (it is synchronous on both the sync and async connection classes).
     event = func(*args, **kwargs)
     state = getattr(instance, "_dd_realtime_state", None)
