@@ -7,12 +7,14 @@ from ddtrace._trace.http_semantics import OTHER_HTTP_METHOD
 from ddtrace._trace.http_semantics import OTelHTTPSpanAttributes
 from ddtrace._trace.http_semantics import http_block_metadata
 from ddtrace._trace.http_semantics import normalize_http_method
+from ddtrace._trace.http_semantics import set_client_address_tags
 from ddtrace._trace.http_semantics import set_method_tag
 from ddtrace._trace.http_semantics import set_query_string_tag
 from ddtrace._trace.http_semantics import set_status_code_tag
 from ddtrace._trace.http_semantics import set_url_tags_otel_client
 from ddtrace._trace.http_semantics import set_url_tags_otel_server
 from ddtrace._trace.http_semantics import set_url_tags_server
+from ddtrace._trace.http_semantics import set_user_agent_tag
 from ddtrace._trace.http_semantics import user_agent_tag
 from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
 from ddtrace._trace.otel_http_naming import RESOURCE_SET_BY_USER
@@ -217,6 +219,26 @@ def test_set_query_string_tag_uses_active_semantics():
 
     assert legacy_span.get_tag(http.QUERY_STRING) == "token=secret"
     assert otel_span.get_tag(http.OTEL_URL_QUERY) == "token=redacted"
+
+
+def test_standalone_request_identity_tags_use_active_semantics():
+    legacy_span = Span("web.request")
+    otel_span = Span("web.request")
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
+        set_user_agent_tag(legacy_span, "legacy-agent")
+        set_client_address_tags(legacy_span, "192.0.2.1")
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        set_user_agent_tag(otel_span, "otel-agent")
+        set_client_address_tags(otel_span, "192.0.2.2")
+
+    assert legacy_span.get_tag(http.USER_AGENT) == "legacy-agent"
+    assert legacy_span.get_tag(http.CLIENT_IP) == "192.0.2.1"
+    assert legacy_span.get_tag("network.client.ip") == "192.0.2.1"
+    assert otel_span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == "otel-agent"
+    assert otel_span.get_tag(http.OTEL_CLIENT_ADDRESS) == "192.0.2.2"
+    assert otel_span.get_tag(net.NETWORK_PEER_ADDRESS) == "192.0.2.2"
 
 
 def test_http_block_metadata_uses_active_semantics():
