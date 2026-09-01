@@ -585,15 +585,15 @@ class SessionManager:
         is no longer needed. Should be called only from the controller
         process (not xdist workers) so we don't race with a slow-starting peer.
 
-        The lock file (``dd-trace-py.upload.lock``) is intentionally **not**
-        removed.  If multiple pytest controllers share the same workspace
+        The lock file (dd-trace-py.upload.lock) is intentionally not
+        removed. If multiple pytest controllers share the same workspace
         (e.g. a CI matrix that reuses a checkout), deleting the lock file while
-        another controller's worker still holds an ``flock`` on it causes the
-        next opener to get a **new inode**.  Locks on the old and new inodes are
+        another controller's worker still holds an flock on it causes the next
+        opener to get a new inode. Locks on the old and new inodes are
         independent, so two workers can each believe they hold the exclusive
         lock and unshallow concurrently — reintroducing the very race the lock
-        is meant to prevent.  The lock file is a zero-byte placeholder; leaving
-        it in ``.git/`` is harmless.
+        is meant to prevent. The lock file is a zero-byte placeholder; leaving
+        it in .git/ is harmless.
         """
         sentinel = self._upload_sentinel_path()
         if sentinel is not None:

@@ -319,9 +319,12 @@ class TestGetGitTags:
         mock_git.get_branch.return_value = "main"
         mock_git.get_commit_message.side_effect = lambda sha=None: "Parent commit" if sha else "Test commit"
         mock_git.get_user_info.side_effect = lambda sha=None: mock_parent_user if sha else mock_user
+        mock_git.has_commit.return_value = False
         mock_git_class.return_value = mock_git
 
         result = get_git_head_tags_from_git_command("parent-sha")
+
+        mock_git.unshallow_repository.assert_called_once_with(parent_only=True, required_commit="parent-sha")
 
         expected = {
             GitTag.COMMIT_HEAD_MESSAGE: "Parent commit",
@@ -343,6 +346,7 @@ class TestGetGitTags:
         mock_git.get_branch.return_value = "main"
         mock_git.get_commit_message.side_effect = lambda sha=None: "Parent commit" if sha else "Test commit"
         mock_git.get_user_info.return_value = None
+        mock_git.has_commit.return_value = False
         mock_git_class.return_value = mock_git
 
         result = get_git_head_tags_from_git_command("parent-sha")
@@ -351,6 +355,19 @@ class TestGetGitTags:
             GitTag.COMMIT_HEAD_MESSAGE: "Parent commit",
         }
         assert result == expected
+
+    @patch("ddtrace.testing.internal.git.Git")
+    def test_get_git_head_tags_skips_unshallow_when_head_commit_is_available(self, mock_git_class: Mock) -> None:
+        mock_git = Mock()
+        mock_git.has_commit.return_value = True
+        mock_git.get_commit_message.return_value = "Head commit"
+        mock_git.get_user_info.return_value = None
+        mock_git_class.return_value = mock_git
+
+        result = get_git_head_tags_from_git_command("head-sha")
+
+        assert result == {GitTag.COMMIT_HEAD_MESSAGE: "Head commit"}
+        mock_git.unshallow_repository.assert_not_called()
 
 
 class TestGitUnshallow:
@@ -671,6 +688,21 @@ class TestGitUnshallow:
             ],
         ]
 
+    def test_git_try_all_unshallow_methods_stops_after_lock_timeout(self) -> None:
+        timeout = _GitSubprocessDetails(stdout="", stderr="unshallow lock timeout", return_code=1, elapsed_seconds=0.0)
+
+        with (
+            patch.object(Git, "unshallow_repository_to_local_head", return_value=timeout) as local_head,
+            patch.object(Git, "unshallow_repository_to_upstream") as upstream,
+            patch.object(Git, "unshallow_repository_to_default") as default,
+        ):
+            result = Git().try_all_unshallow_repository_methods()
+
+        assert not result
+        local_head.assert_called_once()
+        upstream.assert_not_called()
+        default.assert_not_called()
+
 
 class TestGitLockRetry:
     """Tests for _call_git_with_lock_retry and the commands that use it."""
@@ -919,6 +951,17 @@ class TestGitUnshallowLock:
     """Tests for the cross-process unshallow lock in Git.unshallow_repository."""
 
     @patch("shutil.which")
+    def test_unshallow_lock_path_uses_actual_git_directory(self, mock_which: Mock, tmp_path) -> None:
+        mock_which.return_value = "/usr/bin/git"
+        git_dir = tmp_path / "git-dir" / "worktrees" / "checkout"
+        git = Git(cwd=str(tmp_path / "checkout"))
+
+        with patch.object(git, "_git_output", return_value=str(git_dir)) as mock_git_output:
+            assert git._unshallow_lock_path() == git_dir / "dd-trace-py.unshallow.lock"
+
+        mock_git_output.assert_called_once_with(["rev-parse", "--git-dir"])
+
+    @patch("shutil.which")
     def test_unshallow_lock_acquired_before_fetch(self, mock_which: Mock, tmp_path) -> None:
         """unshallow_repository acquires the unshallow lock before issuing git fetch."""
         mock_which.return_value = "/usr/bin/git"
@@ -981,6 +1024,29 @@ class TestGitUnshallowLock:
             result = Git().unshallow_repository("some-sha")
 
         assert result.return_code == 0, "should return success if peer unshallowed during lock wait"
+        mock_call.assert_not_called()
+
+    @patch("shutil.which")
+    def test_unshallow_lock_rechecks_required_commit_under_lock(self, mock_which: Mock) -> None:
+        """A waiting worker skips fetching when the requested commit is now available."""
+        mock_which.return_value = "/usr/bin/git"
+
+        @contextlib.contextmanager
+        def fake_lock():
+            yield True
+
+        with (
+            patch("ddtrace.testing.internal.git.Git._call_git") as mock_call,
+            patch(
+                "ddtrace.testing.internal.git.Git.has_commit",
+                side_effect=[False, True],  # missing before lock; available after peer finishes
+            ),
+            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("ddtrace.testing.internal.git.Git._unshallow_lock", side_effect=fake_lock),
+        ):
+            result = Git().unshallow_repository(required_commit="head-sha")
+
+        assert result.return_code == 0
         mock_call.assert_not_called()
 
     @patch("shutil.which")
