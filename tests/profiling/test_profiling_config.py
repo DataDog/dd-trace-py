@@ -273,6 +273,7 @@ class TestMemDomainConfig:
     """Config plumbing for PYMEM_DOMAIN_MEM heap-profiler hooks."""
 
     def test_default_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # Unset env already pins True on the base; this asserts that pin only.
         monkeypatch.delenv("DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED", raising=False)
         config: ProfilingConfig = ProfilingConfig()
         assert config.memory.mem_domain_enabled is True
