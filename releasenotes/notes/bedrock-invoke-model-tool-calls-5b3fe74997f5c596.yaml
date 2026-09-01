@@ -1,7 +1,8 @@
 features:
   - |
-    LLM Observability: botocore: The Amazon Bedrock integration now captures tool calls from
-    ``InvokeModel`` responses for Anthropic models, matching the ``Converse`` API.
+    LLM Observability: botocore: The Amazon Bedrock integration now captures tool
+    definitions, tool calls, and tool results on ``InvokeModel`` spans for Anthropic
+    models, matching the ``Converse`` API.
 fixes:
   - |
     LLM Observability: botocore: This fix resolves an issue where the Amazon Bedrock

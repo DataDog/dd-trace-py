@@ -1504,6 +1504,15 @@ class TestBedrockInvokeModelInputMessages:
 
         assert extract(prompt) == [{"content": "considering", "role": "reasoning"}]
 
+    def test_unknown_block_type_is_stringified_not_dropped(self, extract):
+        """A block type we do not model yet must still be visible on the span."""
+        prompt = [{"role": "user", "content": [{"type": "some_future_type", "payload": 1}]}]
+
+        messages = extract(prompt)
+
+        assert len(messages) == 1
+        assert "some_future_type" in messages[0]["content"]
+
 
 class TestAnthropicToolDefinitions:
     """Bedrock `InvokeModel` sends Anthropic-format tool definitions, not the Converse shape."""

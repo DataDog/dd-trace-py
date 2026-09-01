@@ -413,6 +413,10 @@ class BedrockIntegration(BaseLLMIntegration):
                                 tool_results=[anthropic_tool_result_from_block(entry)],
                             )
                         )
+                    else:
+                        # Unrecognized block types are stringified rather than dropped, so a
+                        # provider adding a new one degrades visibly instead of silently.
+                        input_messages.append(Message(content=str(entry), role=role))
             else:
                 input_messages.append(Message(content=str(content), role=str(p.get("role", ""))))
         return input_messages
