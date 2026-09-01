@@ -46,14 +46,14 @@ def async_run(coro: Coroutine[Any, Any, T]) -> T:
 
 
 def wait_for_fast_copy_state(stack_module: Any, want_active: bool, timeout: float = 10.0) -> bool:
-    """Poll the native fast-copy flag until it reports ``want_active``.
+    """Poll the native fast-copy flag until it reports want_active.
 
-    ``stack_module`` is the ``_stack`` submodule, which is where the underscore-prefixed
-    test introspection lives. Returns False if the state was not observed in time.
+    stack_module is the _stack submodule, which is where the underscore-prefixed test
+    introspection lives. Returns False if the state was not observed in time.
 
     Waiting for False is how a test lands inside the startup warmup window: the library
     constructor activates safe_memcpy, then the sampling thread drops to the syscall copy
-    for ``fast_copy_warmup_seconds`` before deciding whether to upgrade.
+    for the warmup duration before deciding whether to upgrade.
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
