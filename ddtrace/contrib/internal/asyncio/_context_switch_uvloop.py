@@ -9,6 +9,10 @@ the callback's Context until the wrapper returns.
 That covers Loop.call_soon, Loop.call_soon_threadsafe, Loop.call_later and Loop.call_at.
 It does not cover callbacks uvloop schedules from Cython: add_reader, add_writer and
 add_signal_handler build their Handle directly, capturing the Context once at registration.
+
+If this shim is installed while a loop is running, its callbacks are skipped until that
+loop enters a later run_forever invocation. The active invocation's ambient Context is
+not available from Python, so publishing its restoration would be incorrect.
 """
 
 import asyncio
@@ -19,12 +23,12 @@ from types import ModuleType
 from typing import Any
 from typing import Callable
 from typing import Optional
-from weakref import WeakSet
 
 import wrapt
 
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -35,12 +39,11 @@ _installed = False
 _AMBIENT_CONTEXT_ATTR = "_dd_context_switch_ambient_context"
 _PATCH_MARKER = "_dd_context_switch_patch"
 _MISSING = object()
-# Loops whose ambient Context was captured by _patch rather than by _wrapped_run_forever.
-# Their run_forever is already in flight and unwrapped, so only uninstalling drops these.
-_late_patched_loops: "WeakSet[Any]" = WeakSet()
+log = get_logger(__name__)
 
 
 def install() -> None:
+    """Register hooks for uvloop imports while the asyncio fallback is active."""
     global _installed
     if _installed:
         return
@@ -50,6 +53,7 @@ def install() -> None:
 
 
 def uninstall() -> None:
+    """Remove hooks installed by install."""
     global _installed
     if not _installed:
         return
@@ -62,6 +66,7 @@ def uninstall() -> None:
 
 
 def _patch(uvloop: ModuleType) -> None:
+    """Wrap uvloop scheduling boundaries after its module has been imported."""
     if getattr(uvloop.Loop, _PATCH_MARKER, False):
         return
 
@@ -74,19 +79,20 @@ def _patch(uvloop: ModuleType) -> None:
     wrapt.wrap_function_wrapper(uvloop, "Loop.run_forever", _wrapped_run_forever)
     setattr(uvloop.Loop, _PATCH_MARKER, True)
 
-    # Patching cannot reach the run_forever frame of a loop that is already running, so
-    # capture its ambient Context here to cover the rest of that run.
+    # Patching cannot reach the run_forever frame of a loop that is already running.
+    # Do not guess its ambient Context from the current callback; callbacks are skipped
+    # until the loop enters a subsequent run_forever invocation that we can observe.
     try:
         running_loop = asyncio.get_running_loop()
     except RuntimeError:
         return
 
     if isinstance(running_loop, uvloop.Loop):
-        setattr(running_loop, _AMBIENT_CONTEXT_ATTR, copy_context())
-        _late_patched_loops.add(running_loop)
+        log.debug("uvloop context-switch instrumentation will start on the next loop run")
 
 
 def _unpatch(uvloop: ModuleType) -> None:
+    """Restore the original uvloop scheduling methods."""
     if not getattr(uvloop.Loop, _PATCH_MARKER, False):
         return
 
@@ -95,10 +101,6 @@ def _unpatch(uvloop: ModuleType) -> None:
     unwrap(uvloop.Loop, "call_soon_threadsafe")
     unwrap(uvloop.Loop, "call_soon")
     delattr(uvloop.Loop, _PATCH_MARKER)
-
-    for loop in list(_late_patched_loops):
-        _drop_ambient_context(loop)
-    _late_patched_loops.clear()
 
 
 def _drop_ambient_context(loop: Any) -> None:
@@ -111,6 +113,7 @@ def _drop_ambient_context(loop: Any) -> None:
 def _wrapped_run_forever(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
+    """Capture and restore the loop's ambient Context for a single run."""
     # A nested run_forever raises before running anything, so restore what was already there
     # instead of dropping the snapshot the outer, still-running frame depends on.
     previous = getattr(instance, _AMBIENT_CONTEXT_ATTR, _MISSING)
@@ -124,7 +127,8 @@ def _wrapped_run_forever(
             else:
                 setattr(instance, _AMBIENT_CONTEXT_ATTR, previous)
         finally:
-            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+            if _installed:
+                core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
 
 
 def _wrapped_schedule_callback(
@@ -148,6 +152,7 @@ def _wrap_scheduled_callback(
     kwargs: dict[str, Any],
     callback_position: int,
 ) -> Any:
+    """Wrap a scheduled callback when its loop has an observable ambient Context."""
     # Leave malformed calls alone so uvloop still raises its own TypeError.
     callback = get_argument_value(args, kwargs, callback_position, "callback", optional=True)
     if not callable(callback):
@@ -162,14 +167,19 @@ def _wrap_scheduled_callback(
         # Callbacks scheduled before uninstall() still run afterwards; they must not publish.
         if not _installed:
             return wrapped_callback(*callback_args, **callback_kwargs)
+
+        # A loop already running when this shim was installed has no known ambient Context,
+        # so its callbacks must wait for the next observed run_forever invocation as well.
+        ambient_context: Optional[Context] = getattr(instance, _AMBIENT_CONTEXT_ATTR, None)
+        if ambient_context is None:
+            return wrapped_callback(*callback_args, **callback_kwargs)
         try:
             core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
             return wrapped_callback(*callback_args, **callback_kwargs)
         finally:
             # uvloop leaves the callback's Context only after this wrapper returns, so the
             # restore has to be published from inside the loop's ambient Context.
-            ambient_context: Optional[Context] = getattr(instance, _AMBIENT_CONTEXT_ATTR, None)
-            if ambient_context is not None:
+            if _installed:
                 ambient_context.run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
 
     callback = wrapt.FunctionWrapper(callback, context_switched_callback)
