@@ -375,6 +375,28 @@ def distributed_tracing_enabled(int_config: IntegrationConfig, default: bool = F
     return default
 
 
+def _should_collect_client_ip() -> bool:
+    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
+    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
+    return asm_config._asm_enabled or config._retrieve_client_ip
+
+
+def _resolve_client_ip(
+    request_headers: Optional[Mapping[str, str]], peer_ip: Optional[str], headers_are_case_sensitive: bool
+) -> Optional[str]:
+    """Resolve the client IP the same way in both semantics modes.
+
+    AppSec depends on this resolution, so the OTel path reuses it verbatim and only changes
+    the key the result is written under.
+    """
+    # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
+    request_ip = core.find_item("http.request.remote_ip")
+    if not request_ip:
+        # Not calculated: framework does not support IP blocking or testing env
+        request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
+    return request_ip
+
+
 def set_http_meta(
     span: Span,
     integration_config: IntegrationConfig,
@@ -415,39 +437,53 @@ def set_http_meta(
         ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
         ``resolver_match.args``, Tornado ``path_args``).
+
+    Both the Datadog and the OpenTelemetry HTTP conventions are written from here, so the
+    shared work (headers, cookies, client IP, the AppSec dispatch) exists once and only the
+    attribute names and value shapes differ between them.
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
-    if otel_http is not None and otel_http.is_client:
+    request_ip = peer_ip
+    client_ip = network_peer_ip = None
+    if _should_collect_client_ip():
+        request_ip = client_ip = _resolve_client_ip(request_headers, peer_ip, headers_are_case_sensitive)
+        network_peer_ip = peer_ip
+
+    if otel_http is not None:
         _set_http_meta_otel(
             otel_http,
-            method,
-            url,
-            target_host,
-            server_address,
-            status_code,
-            query,
-            request_headers,
-            headers_are_case_sensitive,
-            route,
+            method=method,
+            url=url,
+            raw_uri=raw_uri,
+            target_host=target_host,
+            server_address=server_address,
+            status_code=status_code,
+            query=query,
+            request_headers=request_headers,
+            headers_are_case_sensitive=headers_are_case_sensitive,
+            client_ip=client_ip,
+            network_peer_ip=network_peer_ip,
+            route=route,
         )
     else:
         _set_http_meta(
             span,
             integration_config,
-            method,
-            url,
-            target_host,
-            server_address,
-            status_code,
-            query,
-            request_headers,
-            headers_are_case_sensitive,
+            method=method,
+            url=url,
+            target_host=target_host,
+            server_address=server_address,
+            status_code=status_code,
+            query=query,
+            request_headers=request_headers,
+            headers_are_case_sensitive=headers_are_case_sensitive,
+            client_ip=client_ip,
+            network_peer_ip=network_peer_ip,
         )
 
     if status_msg is not None:
         span._set_attribute(http.STATUS_MSG, status_msg)
 
-    request_ip = peer_ip
     if request_headers:
         # Extract referrer host if referer header is present
         referrer_host = _get_request_header_referrer_host(request_headers, headers_are_case_sensitive)
@@ -461,22 +497,6 @@ def set_http_meta(
             http.<key>. The last one
             is the DD standardized tag for user-agent"""
             _store_request_headers(dict(request_headers), span, integration_config)
-
-    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
-    if asm_config._asm_enabled or config._retrieve_client_ip:
-        # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-        request_ip = core.find_item("http.request.remote_ip")
-
-        if not request_ip:
-            # Not calculated: framework does not support IP blocking or testing env
-            request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
-
-        if request_ip:
-            span._set_attribute(http.CLIENT_IP, request_ip)
-
-        if peer_ip:
-            span._set_attribute("network.client.ip", peer_ip)
 
     if response_headers is not None and integration_config.is_header_tracing_configured:
         _store_response_headers(response_headers, span, integration_config)
@@ -506,6 +526,7 @@ def set_http_meta(
     )
 
     if route is not None:
+        # http.route is spelled the same in both conventions
         span._set_attribute(http.ROUTE, route)
 
 
@@ -520,6 +541,8 @@ def _set_http_meta(
     query: Optional[str],
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
+    client_ip: Optional[str],
+    network_peer_ip: Optional[str],
 ) -> None:
     """Set the tags whose names or semantics differ from OTel's, using the Datadog conventions."""
     if method is not None:
@@ -553,25 +576,37 @@ def _set_http_meta(
         if user_agent:
             span._set_attribute(http.USER_AGENT, user_agent)
 
+    if client_ip:
+        span._set_attribute(http.CLIENT_IP, client_ip)
+
+    if network_peer_ip:
+        span._set_attribute("network.client.ip", network_peer_ip)
+
 
 def _set_http_meta_otel(
     otel_http: OTelHTTPSpanAttributes,
     method: Optional[str],
     url: Optional[str],
+    raw_uri: Optional[str],
     target_host: Optional[str],
     server_address: Optional[str],
     status_code: Optional[Union[int, str]],
     query: Optional[str],
     request_headers: Optional[Mapping[str, str]],
     headers_are_case_sensitive: bool,
+    client_ip: Optional[str],
+    network_peer_ip: Optional[str],
     route: Optional[str],
 ) -> None:
     """Set the tags whose names or semantics differ between conventions, using the OTel conventions."""
     otel_http.set_method(method)
-    otel_http.set_url(url, query=query, server_address=server_address, fallback_server_address=target_host)
+    otel_http.set_url(
+        url, query=query, raw_uri=raw_uri, server_address=server_address, fallback_server_address=target_host
+    )
     otel_http.set_status_code(status_code)
     if request_headers:
         otel_http.set_user_agent(_get_request_header_user_agent(request_headers, headers_are_case_sensitive))
+    otel_http.set_client_addresses(client_ip, network_peer_ip)
     otel_http.set_resource(route)
 
 

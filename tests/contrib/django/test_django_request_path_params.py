@@ -1,8 +1,7 @@
 """Unit tests for ``_request_path_params``.
 
-Covers the polymorphic ``kwargs or args or None`` resolution and the no-resolver-match fallback used by the Django
-``set_http_meta`` callsites. Tests run against ``SimpleNamespace`` mocks so the helper's logic is exercised without
-spinning up a real Django app — the fresh-resolve fallback is integration-tested via the contrib_appsec suite.
+Covers the polymorphic ``kwargs or args or None`` extraction used by the Django ``set_http_meta`` callsites. Tests run
+against ``SimpleNamespace`` mocks so the helper's logic is exercised without spinning up a real Django app.
 """
 
 from types import SimpleNamespace
@@ -20,8 +19,7 @@ def _request(resolver_match):
 @pytest.mark.parametrize(
     ("resolver_match", "expected"),
     [
-        # No resolver match yet — pre-view dispatches fall here. The fallback resolve only fires when the helper
-        # can re-import Django; in this unit-test context the fallback raises and the helper returns None.
+        # No resolver match yet — Django has not resolved the route.
         (None, None),
         # Both empty — route with no captures (static-only path or ``^$``).
         (SimpleNamespace(kwargs={}, args=()), None),
