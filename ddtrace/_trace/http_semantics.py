@@ -128,6 +128,7 @@ def set_url_tags_otel_server(
             # raw_uri is also forwarded unchanged to ASM. A malformed optional value must
             # not prevent the remaining request metadata from being reported.
             pass
+    # url.path is required; an empty origin-form path is "/".
     span._set_attribute(http.OTEL_URL_PATH, raw_path or parsed.path or "/")
 
     address, port = _split_netloc(parsed.netloc, parsed.scheme)
