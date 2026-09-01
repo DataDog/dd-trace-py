@@ -285,25 +285,31 @@ def llmobs(
         llmobs_service._instance._llmobs_span_writer.start()
         llmobs_service._instance._dne_client._intake = llmobs_api_proxy_url
         tracer._span_aggregator.llmobs_processor = LLMObsProcessor(llmobs_span_writer, tracer, keep_meta_struct=True)
-        yield llmobs_service
-    tracer.shutdown()
-    llmobs_service.disable()
+        try:
+            yield llmobs_service
+        finally:
+            tracer.shutdown()
+            llmobs_service.disable()
 
 
 @pytest.fixture
 def llmobs_no_ml_app(tracer):
     with override_global_config(dict(_llmobs_ml_app=None)):
         llmobs_service.enable(_tracer=tracer)
-        yield llmobs_service
-        llmobs_service.disable()
+        try:
+            yield llmobs_service
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.fixture
 def llmobs_empty_ml_app(tracer):
     with override_global_config(dict(_llmobs_ml_app="")):
         llmobs_service.enable(_tracer=tracer)
-        yield llmobs_service
-        llmobs_service.disable()
+        try:
+            yield llmobs_service
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.fixture

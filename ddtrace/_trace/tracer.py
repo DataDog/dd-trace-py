@@ -245,14 +245,16 @@ class Tracer(object):
             self.sample(span)
 
     @contextmanager
-    def _activate_context(self, context: Context):
+    def _activate_context(self, context: Optional[Context]):
         prev_active = self.context_provider.active()
-        context._reactivate = True
+        if context is not None:
+            context._reactivate = True
         self.context_provider.activate(context)
         try:
             yield
         finally:
-            context._reactivate = False
+            if context is not None:
+                context._reactivate = False
             self.context_provider.activate(prev_active)
 
     @property

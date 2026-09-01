@@ -2149,7 +2149,8 @@ def test_activate_context_nesting_and_restoration(tracer):
     1. A context can be activated and its values are accessible
     2. A nested context can be activated and its values override the outer context
     3. When the nested context exits, the outer context is properly restored
-    4. When all contexts exit, the active context is None
+    4. An empty nested context clears and then restores the outer context
+    5. When all contexts exit, the active context is None
     """
 
     with tracer._activate_context(Context(trace_id=1, span_id=1)):
@@ -2165,5 +2166,10 @@ def test_activate_context_nesting_and_restoration(tracer):
         active = tracer.context_provider.active()
         assert active.trace_id == 1
         assert active.span_id == 1
+
+        with tracer._activate_context(None):
+            assert tracer.context_provider.active() is None
+
+        assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None

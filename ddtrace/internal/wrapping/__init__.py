@@ -389,6 +389,7 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     wrapped_code.posonlyargcount = code.co_posonlyargcount
     if PY >= (3, 11):
         wrapped_code.cellvars = list(code.co_cellvars)
+        wrapped_code.qualname = code.co_qualname  # type: ignore[attr-defined]
 
     # Replace the function code with the trampoline bytecode
     f.__code__ = wrapped_code.to_code()
