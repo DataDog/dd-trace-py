@@ -1,5 +1,4 @@
 import logging
-import warnings
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -25,14 +24,7 @@ config._add(
 
 
 def get_version() -> str:
-    # logging.__version__ still exists as the reported integration version, but on
-    # Python 3.15+ accessing it emits a DeprecationWarning (scheduled for removal in 3.20).
-    # Suppress that warning so it does not leak to stderr (see
-    # test_module_watchdog_namespace_import_no_warnings) while still returning the value.
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        version: str = getattr(logging, "__version__", "")
-        return version
+    return ""
 
 
 def _supported_versions() -> dict[str, str]:
