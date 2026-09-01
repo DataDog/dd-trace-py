@@ -4,7 +4,12 @@ from typing import Union
 from typing import cast
 from urllib import parse
 
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.span import Span
+from ddtrace.constants import ERROR_TYPE
+from ddtrace.constants import SPAN_KIND
+from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.internal.constants import DEFAULT_SCHEME_PORTS
@@ -27,6 +32,9 @@ _KNOWN_HTTP_METHODS = frozenset(
     ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "QUERY")
 )
 OTHER_HTTP_METHOD = "_OTHER"
+
+# The value DD_TRACE_HTTP_SERVER_ERROR_STATUSES carries when the user has not set it.
+_DEFAULT_SERVER_ERROR_STATUSES = "500-599"
 
 
 def otel_number(value: int) -> Union[int, str]:
@@ -185,6 +193,112 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
         span._set_attribute(net.SERVER_ADDRESS, address)
         if port is not None:
             span._set_attribute(net.SERVER_PORT, otel_number(port))
+
+
+# AIDEV-NOTE: This writer deliberately does not read the OTel semantics feature flag. Callers
+# instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
+class OTelHTTPSpanAttributes:
+    """Write the OTel HTTP attributes and resource owned by set_http_meta."""
+
+    __slots__ = ("_integration_config", "_normalized_method", "_original_method", "_span", "is_client")
+
+    def __init__(self, span: Span, integration_config: IntegrationConfig) -> None:
+        self._span = span
+        self._integration_config = integration_config
+        self._normalized_method: Optional[str] = None
+        self._original_method: Optional[str] = None
+
+        kind = span.get_tag(SPAN_KIND)
+        self.is_client = kind == SpanKind.CLIENT if kind is not None else span.span_type == SpanTypes.HTTP
+
+    def set_method(self, method: Optional[str]) -> None:
+        """Write the normalized method and retain it for final resource naming."""
+        if method is None:
+            return
+
+        normalized_method, original_method = normalize_http_method(method)
+        self._normalized_method = normalized_method
+        self._original_method = original_method
+        self._span._set_attribute(http.OTEL_REQUEST_METHOD, normalized_method)
+        if original_method is not None:
+            self._span._set_attribute(http.OTEL_REQUEST_METHOD_ORIGINAL, original_method)
+
+    def set_url(
+        self,
+        url: Optional[str],
+        query: Optional[str] = None,
+        raw_uri: Optional[str] = None,
+        server_address: Optional[str] = None,
+        fallback_server_address: Optional[str] = None,
+    ) -> None:
+        """Write URL attributes and server.address using URL, explicit, then fallback precedence."""
+        if url is not None:
+            if self.is_client:
+                set_url_tags_otel_client(self._integration_config, self._span, url, query)
+            else:
+                set_url_tags_otel_server(self._integration_config, self._span, url, query, raw_uri)
+
+        if self._span.get_tag(net.SERVER_ADDRESS) is not None:
+            return
+        if server_address is not None:
+            self._span._set_attribute(net.SERVER_ADDRESS, server_address)
+        elif fallback_server_address is not None:
+            self._span._set_attribute(net.SERVER_ADDRESS, fallback_server_address)
+
+    def set_status_code(self, status_code: Optional[Union[int, str]]) -> None:
+        """Write the typed status code and apply OTel client or server error semantics."""
+        if status_code is None:
+            return
+        try:
+            int_status_code = int(status_code)
+        except (TypeError, ValueError):
+            log.debug("failed to convert http status code %r to int", status_code)
+            return
+
+        self._span._set_attribute(http.OTEL_RESPONSE_STATUS_CODE, otel_number(int_status_code))
+        if not self._is_error_status(int_status_code):
+            return
+
+        self._span.error = 1
+        # An exception carries more information than a status code, so the status code must
+        # never overwrite an error.type that came from one.
+        if self._span.get_tag(ERROR_TYPE) is None:
+            self._span._set_attribute(ERROR_TYPE, str(int_status_code))
+
+    def _is_error_status(self, status_code: int) -> bool:
+        if self.is_client:
+            return status_code >= 400
+        if config._http_server.error_statuses == _DEFAULT_SERVER_ERROR_STATUSES:
+            # OTel also treats an uninterpretable code above the standard 5xx range as an error.
+            return status_code >= 500
+        return bool(config._http_server.is_error_code(status_code))
+
+    def set_user_agent(self, user_agent: Optional[str]) -> None:
+        """Write user_agent.original when a request supplied one."""
+        if user_agent:
+            self._span._set_attribute(http.OTEL_USER_AGENT_ORIGINAL, user_agent)
+
+    def set_client_addresses(
+        self,
+        client_address: Optional[str],
+        network_peer_address: Optional[str],
+    ) -> None:
+        """Write the resolved client and direct network peer addresses."""
+        if client_address:
+            self._span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
+        if network_peer_address:
+            self._span._set_attribute(net.NETWORK_PEER_ADDRESS, network_peer_address)
+
+    def set_resource(self, route: Optional[str]) -> None:
+        """Finalize the OTel resource, allowing a later server route to refine it."""
+        if self._normalized_method is None:
+            return
+        set_otel_http_resource(
+            self._span,
+            self._normalized_method,
+            self._original_method,
+            None if self.is_client else route,
+        )
 
 
 def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
