@@ -17,6 +17,7 @@ class TELEMETRY_NAMESPACE(Enum):
     IAST = "iast"
     CIVISIBILITY = "civisibility"
     MLOBS = "mlobs"
+    AI_GUARD = "ai_guard"
     DD_TRACE_API = "ddtraceapi"
     PROFILER = "profilers"
     DEBUGGER = "live_debugger"

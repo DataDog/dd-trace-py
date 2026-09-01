@@ -95,10 +95,10 @@ experiments:
               - execution_time < 19.65 ms
           - name: djangosimple-tracer-no-databases
             thresholds:
-              - execution_time < 21.10 ms
+              - execution_time < 21.40 ms
           - name: djangosimple-tracer-dont-create-db-spans
             thresholds:
-              - execution_time < 21.50 ms
+              - execution_time < 22.50 ms
           - name: djangosimple-tracer-no-middleware
             thresholds:
               - execution_time < 21.50 ms

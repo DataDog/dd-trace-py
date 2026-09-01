@@ -1,5 +1,6 @@
 #include "cast_to_pyfunc.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
+#include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
 #include "python_headers.hpp"
 #include "sampler.hpp"
@@ -27,6 +28,11 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
     }
 
     Sampler::get().set_interval(min_interval_s);
+
+    if (Sampler::get().gc_enabled() && !GCFrameTracker::get().install_current_interpreter()) {
+        return nullptr;
+    }
+
     if (Sampler::get().start()) {
         // Enable only after start() succeeds so one_time_setup() has completed
         // before executor work can mutate the origin-task map.
@@ -36,6 +42,12 @@ stack_start_impl(PyObject* self, PyObject* args, PyObject* kwargs)
         seed_fast_copy_profiler_stats();
         Py_RETURN_TRUE;
     }
+
+    if (Sampler::get().gc_enabled() && !GCFrameTracker::get().uninstall_current_interpreter()) {
+        // Do not surface the error, start() should return False in this case.
+        PyErr_Clear();
+    }
+
     Py_RETURN_FALSE;
 }
 
@@ -73,6 +85,10 @@ stack_stop(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     ProfilerState::get().native_call_registry.reset();
 
     Py_END_ALLOW_THREADS; // Re-acquire GIL
+
+    if (Sampler::get().gc_enabled() && !GCFrameTracker::get().uninstall_current_interpreter()) {
+        return nullptr;
+    }
 
     Py_RETURN_NONE;
 }
@@ -478,6 +494,23 @@ stack_set_max_tasks(PyObject* Py_UNUSED(self), PyObject* args)
 
     Sampler::get().set_max_tasks_per_sample(max_tasks);
 
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_set_gc_enabled(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    int enabled = 0;
+
+    if (!PyArg_ParseTuple(args, "p", &enabled)) {
+        return nullptr;
+    }
+    if (Sampler::get().is_running()) {
+        PyErr_SetString(PyExc_RuntimeError, "set_gc_enabled must be called before the sampler is started");
+        return nullptr;
+    }
+
+    Sampler::get().set_gc_enabled(static_cast<bool>(enabled));
     Py_RETURN_NONE;
 }
 
@@ -1034,6 +1067,19 @@ stack_set_fast_copy_warmup_seconds(PyObject* Py_UNUSED(self), PyObject* args)
     Py_RETURN_NONE;
 }
 
+static PyObject*
+stack_take_sampling_thread_error(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    std::optional<SamplingThreadError> error;
+    Py_BEGIN_ALLOW_THREADS;
+    error = Sampler::get().take_sampling_thread_error();
+    Py_END_ALLOW_THREADS;
+    if (!error.has_value()) {
+        Py_RETURN_NONE;
+    }
+    return Py_BuildValue("(ss)", error->type_name.c_str(), error->message.c_str());
+}
+
 static PyMethodDef stack_methods[] = {
     { "start", reinterpret_cast<PyCFunction>(stack_start), METH_VARARGS | METH_KEYWORDS, "Start the sampler" },
     { "stop", stack_stop, METH_VARARGS, "Stop the sampler" },
@@ -1102,6 +1148,7 @@ static PyMethodDef stack_methods[] = {
       stack_set_max_tasks,
       METH_VARARGS,
       "Set max leaf tasks/greenlets to sample per cycle (0 = unlimited)" },
+    { "set_gc_enabled", stack_set_gc_enabled, METH_VARARGS, "Enable synthetic garbage-collection frames" },
     { "set_uvloop_mode", stack_set_uvloop_mode, METH_VARARGS, "Enable uvloop-specific stack unwinding for a thread" },
     // Memory copy strategy
     { "set_fast_copy", stack_set_fast_copy, METH_VARARGS, "Enable or disable fast memory copying (safe_memcpy)" },
@@ -1117,6 +1164,10 @@ static PyMethodDef stack_methods[] = {
       stack_set_fast_copy_warmup_seconds,
       METH_VARARGS,
       "Test-only: set the fast-copy startup warmup duration in seconds (before start)" },
+    { "take_sampling_thread_error",
+      stack_take_sampling_thread_error,
+      METH_NOARGS,
+      "Return and clear the (error_type, message) that terminated the sampling thread, or None" },
     { "uninstall_segv_handler",
       stack_uninstall_segv_handler,
       METH_NOARGS,
