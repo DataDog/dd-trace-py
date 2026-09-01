@@ -109,6 +109,16 @@ class TestResourceRenaming:
         processor.on_span_finish(span)
         assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
 
+    def test_processor_route_less_404(self):
+        processor = ResourceRenamingProcessor()
+        span = Span("test", context=Context(), span_type=SpanTypes.WEB)
+        span.set_tag(http.URL, "https://example.com/missing")
+        span.set_tag(http.STATUS_CODE, 404)
+
+        processor.on_span_finish(span)
+
+        assert span.get_tag(http.ENDPOINT) is None
+
     def test_processor_always_simplified_endpoint(self):
         processor = ResourceRenamingProcessor()
         with override_global_config(dict(_trace_resource_renaming_always_simplified_endpoint=True)):
@@ -119,3 +129,27 @@ class TestResourceRenaming:
             processor.on_span_finish(span)
         # Should use simplified endpoint even when route exists
         assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_processor_reads_the_otel_tag_names():
+    from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
+    from ddtrace.ext import SpanTypes
+    from ddtrace.ext import http
+    from ddtrace.trace import Span
+
+    processor = ResourceRenamingProcessor()
+
+    # The path and the status come from the OTel names once the Datadog ones are gone.
+    span = Span("test", span_type=SpanTypes.WEB)
+    span.set_tag(http.OTEL_URL_PATH, "/api/users/123")
+    span.set_tag(http.OTEL_RESPONSE_STATUS_CODE, 200)
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
+
+    # A route-less 404 is still left alone, exactly as with the flag off.
+    span = Span("test", span_type=SpanTypes.WEB)
+    span.set_tag(http.OTEL_URL_PATH, "/missing")
+    span.set_tag(http.OTEL_RESPONSE_STATUS_CODE, 404)
+    processor.on_span_finish(span)
+    assert span.get_tag(http.ENDPOINT) is None

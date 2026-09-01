@@ -10,6 +10,7 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpResponse
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal import trace_utils
@@ -19,9 +20,9 @@ from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
+from ddtrace.contrib.internal.trace_utils_base import http_block_metadata
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
@@ -51,17 +52,21 @@ config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     url: Optional[str] = None
-    metadata: dict[str, str] = {}
+    metadata: dict[str, Any] = {}
     query: str = ""
     try:
-        metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
+        # The dispatch below applies these to the request span as-is, so they are already
+        # spelled and shaped for whichever semantics mode is active. Built from the method and
+        # status alone first, so a failure in the calls below still leaves those on the span.
+        metadata = http_block_metadata(request.method, 403)
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        if query and config_django.trace_query_string:
-            metadata[http.QUERY_STRING] = query
-        user_agent = trace_utils._get_request_header_user_agent(request_headers)
-        if user_agent:
-            metadata[http.USER_AGENT] = user_agent
+        metadata = http_block_metadata(
+            request.method,
+            403,
+            query=query if config_django.trace_query_string else None,
+            user_agent=trace_utils._get_request_header_user_agent(request_headers),
+        )
     except Exception as e:
         log.warning("Could not gather some metadata on blocked request: %s", str(e))
     core.dispatch("django.block_request_callback", (ctx, metadata, config_django, url, query))
@@ -73,6 +78,13 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
     set_blocked()
     _gather_block_metadata(request, request_headers, ctx)
     raise PermissionDenied()
+
+
+def traced_resolve_request(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Publish Django's resolved route before view middleware and application code run."""
+    resolver_match = func(*args, **kwargs)
+    core.dispatch("django.resolve_request", (resolver_match,), allow_raise=True)
+    return resolver_match
 
 
 def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -92,6 +104,8 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
     request_headers = utils._get_request_headers(request)
 
     pin = Pin.get_from(instance)
+    otel_resource = utils._initial_otel_resource(request)
+    span_tags = {COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER}
 
     with core.context_with_data(
         "django.traced_get_response",
@@ -99,14 +113,16 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         headers=request_headers,
         headers_case_sensitive=True,
         span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
-        resource=utils.REQUEST_DEFAULT_RESOURCE,
+        resource=otel_resource or utils.REQUEST_DEFAULT_RESOURCE,
         service=trace_utils.int_service(pin, config_django),
         span_type=SpanTypes.WEB,
-        tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
+        tags=span_tags,
         integration_config=config_django,
         distributed_headers=request_headers,
         activate_distributed_headers=True,
     ) as ctx:
+        if otel_resource is not None:
+            record_initial_instrumentation_resource(span_from_context(ctx), otel_resource)
         core.dispatch(
             "django.traced_get_response.pre",
             (
@@ -199,8 +215,10 @@ async def traced_get_response_async(
     if span is None:
         return await func(*args, **kwargs)
 
-    # Reset the span resource so we can know if it was modified during the request or not
-    span.resource = REQUEST_DEFAULT_RESOURCE
+    # The ASGI subscriber already published the OTel method resource. Keep it stable while
+    # application code runs so nested propagation samples the same name that will be exported.
+    if not config._otel_trace_semantics_enabled:
+        span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)
     response = None
     try:
@@ -222,6 +240,12 @@ def instrument_module(django: ModuleType, django_core_handlers_base: ModuleType)
         )
 
     if django.VERSION >= (3, 1):
+        if not is_wrapped_with(django_core_handlers_base.BaseHandler.resolve_request, traced_resolve_request):
+            wrap(
+                django_core_handlers_base.BaseHandler.resolve_request,
+                traced_resolve_request,
+            )
+
         # DEV: We cannot use bytecode wrappers here, otherwise in Python 3.13+ we'll trigger:
         #      `ValueError: coroutine already executing`
         if not trace_utils.iswrapped(django_core_handlers_base.BaseHandler, "get_response_async"):
@@ -236,6 +260,12 @@ def uninstrument_module(django: ModuleType, django_core_handlers_base: ModuleTyp
         )
 
     if django.VERSION >= (3, 1):
+        if is_wrapped_with(django_core_handlers_base.BaseHandler.resolve_request, traced_resolve_request):
+            unwrap(
+                django_core_handlers_base.BaseHandler.resolve_request,
+                traced_resolve_request,
+            )
+
         # DEV: We cannot use bytecode wrappers here, otherwise in Python 3.13+ we'll trigger:
         #      `ValueError: coroutine already executing`
         if trace_utils.iswrapped(django_core_handlers_base.BaseHandler, "get_response_async"):

@@ -3,13 +3,17 @@ from types import TracebackType
 from typing import Optional
 from typing import cast
 
+from ddtrace import config
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
+from ddtrace.contrib.internal.trace_utils_base import normalize_http_method
+from ddtrace.contrib.internal.trace_utils_base import set_method_tag
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings._config import config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -37,7 +41,15 @@ class HttpClientTracingSubscriber(TracingSubscriber):
         event: HttpClientRequestEvent = ctx.event
 
         if config._otel_trace_semantics_enabled and event.request_method:
-            span_from_context(ctx).resource = event.request_method.upper()
+            span = span_from_context(ctx)
+            set_method_tag(span, event.request_method)
+            # Through the shared helper so an unaccepted method reads HTTP here as well as at
+            # export; naming it PROPFIND now would show sampling a resource the span never ships.
+            # Span-start callbacks have already run. Record ownership only if they left the
+            # event-supplied resource untouched, so their custom names remain user-owned.
+            record_initial_instrumentation_resource(span, event.resource)
+            normalized_method, original_method = normalize_http_method(event.request_method)
+            set_otel_http_resource(span, normalized_method, original_method)
 
         if _http_propagation_suppressed.get():
             return

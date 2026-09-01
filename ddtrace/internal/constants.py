@@ -211,3 +211,8 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
+
+
+# server.port is required whenever server.address is set, so a URL that omits the port falls
+# back to the port its scheme implies.
+DEFAULT_SCHEME_PORTS = {"http": 80, "https": 443, "ws": 80, "wss": 443}

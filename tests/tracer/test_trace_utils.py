@@ -1294,3 +1294,360 @@ def test_set_flattened_tags_exclude_policy():
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
     assert span.get_metrics() == e
+
+
+# ---------------------------------------------------------------------------------------
+# OpenTelemetry HTTP semantic conventions (DD_TRACE_OTEL_SEMANTICS_ENABLED)
+# ---------------------------------------------------------------------------------------
+
+_OTEL_SEMANTICS_SUBPROCESS_ENV = {
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+    "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": None,
+}
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_server_attributes():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            method="GET",
+            url="http://localhost:8080/users/1?q=1",
+            query="q=1",
+            status_code=200,
+            request_headers={"user-agent": "curl/8.0"},
+            route="/users/<id>",
+        )
+
+        assert span.get_tag("http.request.method") == "GET"
+        assert span.get_tag("http.request.method_original") is None
+        assert span.get_tag("url.scheme") == "http"
+        assert span.get_tag("url.path") == "/users/1"
+        assert span.get_tag("url.query") == "q=1"
+        assert span.get_tag("server.address") == "localhost"
+        assert span.get_metric("server.port") == 8080
+        assert span.get_tag("user_agent.original") == "curl/8.0"
+        assert span.get_metric("http.response.status_code") == 200
+        assert span.get_tag("http.route") == "/users/<id>"
+        assert span.get_tag("error.type") is None
+        assert span.error == 0
+
+        # the Datadog names they replace must be gone
+        for legacy in ("http.method", "http.url", "http.query.string", "http.useragent", "http.status_code"):
+            assert span.get_tag(legacy) is None, legacy
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_server_prefers_encoded_raw_uri_path():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            url="http://localhost/users/a/b?token=leaked&page=2",
+            raw_uri="/users/a%2Fb?token=leaked&page=2",
+            query="token=leaked&page=2",
+        )
+
+        assert span.get_tag("url.path") == "/users/a%2Fb"
+        assert span.get_tag("url.query") == "<redacted>&page=2"
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_attributes():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            method="POST",
+            url="https://user:pass@api.example.com:8443/v1/items",
+            target_host="api.example.com",
+            status_code=201,
+        )
+
+        assert span.get_tag("http.request.method") == "POST"
+        # url.full keeps redacted credentials rather than dropping them, unlike http.url
+        assert span.get_tag("url.full") == "https://REDACTED:REDACTED@api.example.com:8443/v1/items"
+        assert span.get_tag("server.address") == "api.example.com"
+        assert span.get_metric("server.port") == 8443
+        assert span.get_metric("http.response.status_code") == 201
+        assert span.error == 0
+
+        for legacy in ("http.method", "http.url", "http.status_code", "out.host"):
+            assert span.get_tag(legacy) is None, legacy
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_trace_query_string_keeps_obfuscated_query():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    cfg.myint.http_tag_query_string = False
+    cfg.myint.http.trace_query_string = True
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            url="https://api.example.com/search?token=leaked&page=2",
+            query="token=leaked&page=2",
+        )
+
+        assert span.get_tag("url.full") == "https://api.example.com/search?<redacted>&page=2"
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_url_redacts_password_containing_at_sign():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(span, cfg.myint, url="https://user:p@ssword@api.example.com/v1/items")
+
+        assert span.get_tag("url.full") == "https://REDACTED:REDACTED@api.example.com/v1/items"
+        assert span.get_tag("server.address") == "api.example.com"
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_default_port_from_scheme():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(span, cfg.myint, url="https://api.example.com/v1/items")
+
+        assert span.get_tag("server.address") == "api.example.com"
+        assert span.get_metric("server.port") == 443
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_method_normalization():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    # (raw, http.request.method, http.request.method_original)
+    cases = [
+        ("GET", "GET", None),
+        ("get", "GET", "get"),
+        ("Patch", "PATCH", "Patch"),
+        ("QUERY", "QUERY", None),
+        ("FOO", "_OTHER", "FOO"),
+        ("", "_OTHER", ""),
+    ]
+    for raw, expected, expected_original in cases:
+        with (
+            scoped_tracer() as tracer,
+            tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span,
+        ):
+            set_http_meta(span, cfg.myint, method=raw)
+            assert span.get_tag("http.request.method") == expected, raw
+            assert span.get_tag("http.request.method_original") == expected_original, raw
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_error_statuses_defaults():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+
+    def tag(span_type, status_code):
+        with scoped_tracer() as tracer, tracer.start_span("request", span_type=span_type, activate=False) as span:
+            set_http_meta(span, cfg.myint, status_code=status_code)
+            return span.error, span.get_tag("error.type")
+
+    # server: only 5xx
+    assert tag(SpanTypes.WEB, 404) == (0, None)
+    assert tag(SpanTypes.WEB, 499) == (0, None)
+    assert tag(SpanTypes.WEB, 500) == (1, "500")
+    # client: 4xx and 5xx, which is where OTel diverges from the Datadog default
+    assert tag(SpanTypes.HTTP, 399) == (0, None)
+    assert tag(SpanTypes.HTTP, 404) == (1, "404")
+    assert tag(SpanTypes.HTTP, 503) == (1, "503")
+    assert tag(SpanTypes.HTTP, 302) == (0, None)
+    # "any other code the client failed to interpret" is an error for both kinds, so neither
+    # range closes at 599.
+    for status_code in (599, 600, 999):
+        assert tag(SpanTypes.WEB, status_code) == (1, str(status_code))
+        assert tag(SpanTypes.HTTP, status_code) == (1, str(status_code))
+
+
+@pytest.mark.subprocess(env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "404-412"})
+def test_otel_semantics_server_error_statuses_configured():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    for status_code, expected_error, expected_type in ((405, 1, "405"), (500, 0, None), (600, 0, None)):
+        with (
+            scoped_tracer() as tracer,
+            tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span,
+        ):
+            set_http_meta(span, cfg.myint, status_code=status_code)
+            assert span.error == expected_error
+            assert span.get_tag("error.type") == expected_type
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_status_code_does_not_overwrite_exception_error_type():
+    import sys
+
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            span.set_exc_info(*sys.exc_info())
+        set_http_meta(span, cfg.myint, status_code=500)
+
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_url_query_is_obfuscated():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            url="http://localhost/login?token=leaked&page=2",
+            query="token=leaked&page=2",
+        )
+        # the default obfuscation pattern is shared with http.url, so only the key moved
+        assert span.get_tag("url.query") == "<redacted>&page=2"
+        assert span.get_tag("url.path") == "/login"
+
+
+@pytest.mark.subprocess(env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "DD_TRACE_CLIENT_IP_ENABLED": "true"})
+def test_otel_semantics_client_ip_attributes():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            request_headers={"x-forwarded-for": "8.8.8.8"},
+            peer_ip="10.0.0.1",
+        )
+
+        assert span.get_tag("client.address") == "8.8.8.8"
+        assert span.get_tag("network.peer.address") == "10.0.0.1"
+        assert span.get_tag("http.client_ip") is None
+        assert span.get_tag("network.client.ip") is None
+
+
+@pytest.mark.subprocess(
+    env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "OTEL_TRACES_EXPORTER": "otlp"},
+)
+def test_otel_semantics_numeric_attributes_typed_for_otlp():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("web.request", span_type=SpanTypes.WEB, activate=False) as span:
+        set_http_meta(span, cfg.myint, url="http://localhost:8080/x", status_code=200)
+
+        # OTLP preserves value types, so these are written as numbers instead of meta strings
+        assert span.get_tag("http.response.status_code") is None
+        assert span.get_metric("http.response.status_code") == 200
+        assert span.get_tag("server.port") is None
+        assert span.get_metric("server.port") == 8080
+
+
+def test_otel_semantics_disabled_by_default(span, int_config):
+    """With the flag off nothing changes: the Datadog names are written and no OTel names."""
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        method="GET",
+        url="http://localhost:8080/users/1",
+        status_code=500,
+    )
+    assert span.get_tag("http.method") == "GET"
+    assert span.get_tag("http.url") == "http://localhost:8080/users/1"
+    assert span.get_tag("http.status_code") == "500"
+    for otel_name in (
+        "http.request.method",
+        "url.path",
+        "url.full",
+        "http.response.status_code",
+        "server.port",
+        "error.type",
+    ):
+        assert span.get_tag(otel_name) is None, otel_name
