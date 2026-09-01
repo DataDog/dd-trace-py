@@ -609,7 +609,9 @@ class LLMObs(Service):
         # These endpoints need an app key on top of the api key. With one configured locally, keep
         # going straight to intake; without one, fall back to the agent's EVP proxy, which can supply
         # both credentials, rather than failing outright. Agentless still wins when it is requested.
-        dne_agentless = bool(self._app_key) or agentless_enabled
+        # An override origin stands in for intake rather than for an agent, so it stays direct too:
+        # proxying it would prefix /evp_proxy/v2 onto a server that cannot supply either credential.
+        dne_agentless = bool(self._app_key) or agentless_enabled or bool(_env.get("DD_LLMOBS_OVERRIDE_ORIGIN", ""))
         self._dne_client = LLMObsExperimentsClient(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),

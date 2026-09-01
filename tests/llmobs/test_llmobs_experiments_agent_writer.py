@@ -95,3 +95,24 @@ def test_experiments_client_mode_selection(app_key, proxy_available, expected_ag
         assert instance._dne_client._agentless is expected_agentless
     finally:
         LLMObs._app_key = original_app_key
+
+
+def test_override_origin_stays_direct(monkeypatch):
+    """An override origin replaces intake, not the agent.
+
+    Proxying it would send /evp_proxy/v2-prefixed paths to a server that supplies no credentials.
+    """
+    from ddtrace.llmobs._llmobs import LLMObs
+
+    monkeypatch.setenv("DD_LLMOBS_OVERRIDE_ORIGIN", "http://localhost:1234")
+    original_app_key = LLMObs._app_key
+    LLMObs._app_key = ""
+    try:
+        with mock.patch("ddtrace.llmobs._llmobs.should_use_agentless", return_value=False):
+            client = LLMObs()._dne_client
+        assert client._agentless is True
+        assert client._intake == "http://localhost:1234"
+        assert EVP_PROXY_AGENT_BASE_PATH not in client._endpoint
+        assert "DD-API-KEY" in client._auth_headers()
+    finally:
+        LLMObs._app_key = original_app_key
