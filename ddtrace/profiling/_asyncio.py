@@ -119,19 +119,22 @@ def _(asyncio: ModuleType) -> None:
 
         @partial(wrap, sys.modules["asyncio"].tasks._GatheringFuture.__init__)
         def _(f: typing.Callable[..., None], args: tuple[typing.Any, ...], kwargs: dict[str, typing.Any]) -> None:
-            try:
-                return f(*args, **kwargs)
-            finally:
-                children: list[aio.Future[typing.Any]] = typing.cast(
-                    "list[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 1, "children")
-                )
-                assert children is not None  # nosec: assert is used for typing
+            f(*args, **kwargs)
+            children: list[aio.Future[typing.Any]] = typing.cast(
+                "list[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 1, "children")
+            )
+            assert children is not None  # nosec: assert is used for typing
 
-                if globals()["get_running_loop"]() is not None:
-                    parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
-                    if parent is not None:
-                        for child in children:
-                            stack.link_tasks(parent, child)
+            # current_task() uses get_running_loop() and raises RuntimeError when
+            # there is no running event loop (e.g. asyncio.gather() called outside
+            # an async context). There is then no parent task to link from.
+            try:
+                parent: typing.Optional[aio.Task[typing.Any]] = globals()["current_task"]()
+            except RuntimeError:
+                return
+            if parent is not None:
+                for child in children:
+                    stack.link_tasks(parent, child)
 
         @partial(wrap, sys.modules["asyncio"].tasks._wait)
         def _(
@@ -139,15 +142,23 @@ def _(asyncio: ModuleType) -> None:
             args: tuple[typing.Any, ...],
             kwargs: dict[str, typing.Any],
         ) -> typing.Any:
-            try:
-                return f(*args, **kwargs)
-            finally:
-                futures = typing.cast("set[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs"))
+            result: tuple[set[aio.Future[typing.Any]], set[aio.Future[typing.Any]]] = f(*args, **kwargs)
+            futures: set[aio.Future[typing.Any]] = typing.cast(
+                "set[aio.Future[typing.Any]]", get_argument_value(args, kwargs, 0, "fs")
+            )
 
-                if globals()["get_running_loop"]() is not None:
-                    parent = typing.cast("aio.Task[typing.Any]", globals()["current_task"]())
-                    for future in futures:
-                        stack.link_tasks(parent, future)
+            # Same guard as the _GatheringFuture wrapper: _wait may run outside a
+            # running loop. Skip link_tasks when current_task() raises.
+            try:
+                parent: typing.Optional[aio.Task[typing.Any]] = typing.cast(
+                    "aio.Task[typing.Any]", globals()["current_task"]()
+                )
+            except RuntimeError:
+                return result
+            if parent is not None:
+                for future in futures:
+                    stack.link_tasks(parent, future)
+            return result
 
         @partial(wrap, sys.modules["asyncio"].tasks.as_completed)
         def _(
