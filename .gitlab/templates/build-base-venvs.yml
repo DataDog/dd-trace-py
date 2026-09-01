@@ -41,6 +41,15 @@ build_base_venvs:
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
+    # Build editable metadata once per Python for uv jobs; Riot jobs keep using the base venv above.
+    wheel_dir="$(pwd)/.cache/ddtrace-test-wheels/$PYTHON_VERSION"
+    mkdir -p "$wheel_dir"
+    find "$wheel_dir" -maxdepth 1 -type f -name 'ddtrace-*.whl' -delete
+    uv run --isolated --no-project --python "python$PYTHON_VERSION" --no-python-downloads \
+      --with setuptools --with cython --with 'cmake>=3.24.2,<3.28' --with 'setuptools-rust<2' \
+      --with "patchelf>=0.17.0.0; sys_platform == 'linux'" \
+      python -c 'import sys; from setuptools.build_meta import build_editable; build_editable(sys.argv[1], {{"editable_mode": "compat"}})' \
+      "$wheel_dir"
     sccache --show-stats || true
   artifacts:
     name: venv_$PYTHON_VERSION
@@ -49,3 +58,4 @@ build_base_venvs:
       - core.*
       - ddtrace/**/*.so*
       - .riot/venv_*
+      - .cache/ddtrace-test-wheels/
