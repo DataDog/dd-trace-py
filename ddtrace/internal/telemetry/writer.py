@@ -199,9 +199,9 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in Python-managed forked children. The native runtime's
-            # pthread_atfork child handler runs before Python's callbacks, so the shared runtime
-            # is already restarted when this callback runs.
+            # Rebuild the native worker in Python-managed forked children. The NativeRuntime
+            # after_fork_child callback runs before this callback, ensuring the shared runtime
+            # has been restarted before we drop and lazily rebuild the telemetry worker.
             forksafe.register(self._fork_writer)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
