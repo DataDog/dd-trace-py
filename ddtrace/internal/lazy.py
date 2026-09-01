@@ -1,4 +1,5 @@
 import sys
+from types import FrameType
 from types import FunctionType
 import typing as t
 
@@ -24,7 +25,7 @@ def _exec_lazy_init(f: FunctionType, module_globals: dict[str, t.Any]) -> None:
 
     old_trace = sys.gettrace()
 
-    def _trace(frame, event, arg):
+    def _trace(frame: FrameType, event: str, arg: t.Any) -> t.Optional[t.Callable[[FrameType, str, t.Any], t.Any]]:
         if frame.f_code is code and event in ("line", "return"):
             # Materialize a snapshot (PEP 667) so locals survive under pytest/coverage.
             frame_locals.update(dict(frame.f_locals))
