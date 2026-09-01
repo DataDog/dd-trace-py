@@ -175,6 +175,10 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
+    ddtest: true
+    ddtest_nodes: 2
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.appsec.integrations.django_tests
     venvs_per_job: 1
     paths:
       - '@bootstrap'
@@ -262,7 +266,13 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
   appsec_threats_fastapi_iast:
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.appsec.contrib_appsec
+    ddtest_nodes: 2
     venvs_per_job: 1
+    services:
+      - testagent
     paths:
       - '@bootstrap'
       - '@core'

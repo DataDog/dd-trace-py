@@ -296,6 +296,8 @@ venv = Venv(
                 "psutil": "==7.1.3",
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/appsec/integrations/django_tests",
+                "DDTEST_TESTS_LOCATION": "tests/appsec/integrations/django_tests/**/test*.py",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
@@ -3318,9 +3320,11 @@ venv = Venv(
         Venv(
             name="mistralai",
             env={
+                "DDTEST_SUITE_PATH": "tests/contrib/mistralai",
+                "DDTEST_TESTS_LOCATION": "tests/contrib/mistralai/**/test*.py",
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
-            command="pytest {cmdargs} tests/contrib/mistralai",
+            command="pytest {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
@@ -3811,8 +3815,10 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} tests/profiling",  # noqa: E501
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py' {cmdargs} ${{DDTEST_SUITE_PATH}}",  # noqa: E501
             env={
+                "DDTEST_SUITE_PATH": "tests/profiling",
+                "DDTEST_TESTS_LOCATION": "tests/profiling/**/test*.py",
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
                 "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
                 "CPUCOUNT": "12",
@@ -4428,7 +4434,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest ${{DDTEST_SUITE_PATH}} {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
@@ -4437,6 +4443,9 @@ venv = Venv(
                 "httpx": "<0.28.0",
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI",
+                "DDTEST_TESTS_LOCATION": "tests/appsec/contrib_appsec/test_fastapi.py",
+                "DDTEST_PYTEST_ADDOPTS": "-k 'Test_FastAPI and not Test_FastAPI_RC'",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
