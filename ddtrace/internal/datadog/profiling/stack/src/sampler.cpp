@@ -375,9 +375,6 @@ Sampler::take_sampling_thread_error()
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
-    // Mark thread as running
-    thread_running.store(true);
-
     seed_fast_copy_profiler_stats();
 
     // (Re)install our SIGSEGV/SIGBUS handlers once, but ONLY if we still own them.
@@ -799,6 +796,10 @@ Sampler::start()
 
     sampler_active_.store(true);
 
+    // Mark the thread as running before it is launched, not from the thread itself: otherwise an
+    // immediate stop() would early exit and the sampling thread would keep running indefinitely.
+    thread_running.store(true);
+
     // Launch the sampling thread.
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
     // launched with, the thread will exit.
@@ -813,6 +814,7 @@ Sampler::start()
     auto thread_id = create_thread_with_stack(stack_size, this, ++thread_seq_num);
     if (thread_id == 0) {
         sampler_active_.store(false);
+        thread_running.store(false);
         return false;
     }
 
@@ -823,6 +825,7 @@ Sampler::start()
         t.detach();
     } catch (const std::exception& e) {
         sampler_active_.store(false);
+        thread_running.store(false);
         return false;
     }
 #endif
