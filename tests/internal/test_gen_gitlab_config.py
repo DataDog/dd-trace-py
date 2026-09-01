@@ -113,6 +113,14 @@ def test_migrated_jobs_use_uv_environments(gen_gitlab_config_mod):
     assert configured_hashes == set(environment_hashes)
 
 
+def test_migrated_jobs_allow_prerelease_dependencies_when_unpinned(gen_gitlab_config_mod, monkeypatch):
+    monkeypatch.setenv("UNPIN_DEPENDENCIES", "true")
+
+    config = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer", uses_uv=True))
+
+    assert "    UV_PRERELEASE: allow" in config
+
+
 def test_unmigrated_jobs_keep_using_riot(gen_gitlab_config_mod):
     with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
         config = str(gen_gitlab_config_mod.JobSpec(name="requests", stage="contrib", suite="requests"))
