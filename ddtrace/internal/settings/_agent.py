@@ -71,8 +71,7 @@ def _derive_stats_url(config: "AgentConfig") -> str:
 
 
 def _derive_trace_otlp_export_enabled(config: "AgentConfig") -> bool:
-    # The OTel semantics flag forces OTLP export and takes precedence over the legacy
-    # agent-protocol override. Outside semantics mode, preserve the existing precedence.
+    # OTel semantics force OTLP export ahead of the agent-protocol override.
     if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
         return True
     return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp" and not config._trace_agent_protocol_version

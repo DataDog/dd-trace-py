@@ -96,7 +96,7 @@ def test_set_instrumentation_resource_reads_semantics_flag_per_call():
     span = Span("http.request")
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        set_instrumentation_resource(span, "legacy resource")
+        set_instrumentation_resource(span, "Datadog resource")
         assert span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE) is None
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
@@ -181,13 +181,13 @@ def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
 
 def test_semantics_dependent_helpers_read_flag_per_call():
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
-    legacy_span = Span("web.request")
+    datadog_span = Span("web.request")
     otel_span = Span("web.request")
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        set_url_tags_server(integration_config, legacy_span, "https://example.com/path?secret=true", "secret=true")
-        set_method_tag(legacy_span, "get")
-        set_status_code_tag(legacy_span, 204)
+        set_url_tags_server(integration_config, datadog_span, "https://example.com/path?secret=true", "secret=true")
+        set_method_tag(datadog_span, "get")
+        set_status_code_tag(datadog_span, 204)
         assert user_agent_tag() == http.USER_AGENT
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
@@ -197,9 +197,9 @@ def test_semantics_dependent_helpers_read_flag_per_call():
             set_status_code_tag(otel_span, 204)
         assert user_agent_tag() == http.OTEL_USER_AGENT_ORIGINAL
 
-    assert legacy_span.get_tag(http.URL) == "https://example.com/path"
-    assert legacy_span.get_tag(http.METHOD) == "get"
-    assert legacy_span.get_tag(http.STATUS_CODE) == "204"
+    assert datadog_span.get_tag(http.URL) == "https://example.com/path"
+    assert datadog_span.get_tag(http.METHOD) == "get"
+    assert datadog_span.get_tag(http.STATUS_CODE) == "204"
     assert otel_span.get_tag(http.OTEL_URL_PATH) == "/path"
     assert otel_span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
     assert otel_span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "get"
@@ -207,35 +207,35 @@ def test_semantics_dependent_helpers_read_flag_per_call():
 
 
 def test_set_query_string_tag_uses_active_semantics():
-    legacy_span = Span("web.request")
+    datadog_span = Span("web.request")
     otel_span = Span("web.request")
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        set_query_string_tag(legacy_span, "token=secret")
+        set_query_string_tag(datadog_span, "token=secret")
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
         with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
             set_query_string_tag(otel_span, "token=secret")
 
-    assert legacy_span.get_tag(http.QUERY_STRING) == "token=secret"
+    assert datadog_span.get_tag(http.QUERY_STRING) == "token=secret"
     assert otel_span.get_tag(http.OTEL_URL_QUERY) == "token=redacted"
 
 
 def test_standalone_request_identity_tags_use_active_semantics():
-    legacy_span = Span("web.request")
+    datadog_span = Span("web.request")
     otel_span = Span("web.request")
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
-        set_user_agent_tag(legacy_span, "legacy-agent")
-        set_client_address_tags(legacy_span, "192.0.2.1")
+        set_user_agent_tag(datadog_span, "datadog-agent")
+        set_client_address_tags(datadog_span, "192.0.2.1")
 
     with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
         set_user_agent_tag(otel_span, "otel-agent")
         set_client_address_tags(otel_span, "192.0.2.2")
 
-    assert legacy_span.get_tag(http.USER_AGENT) == "legacy-agent"
-    assert legacy_span.get_tag(http.CLIENT_IP) == "192.0.2.1"
-    assert legacy_span.get_tag("network.client.ip") == "192.0.2.1"
+    assert datadog_span.get_tag(http.USER_AGENT) == "datadog-agent"
+    assert datadog_span.get_tag(http.CLIENT_IP) == "192.0.2.1"
+    assert datadog_span.get_tag("network.client.ip") == "192.0.2.1"
     assert otel_span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == "otel-agent"
     assert otel_span.get_tag(http.OTEL_CLIENT_ADDRESS) == "192.0.2.2"
     assert otel_span.get_tag(net.NETWORK_PEER_ADDRESS) == "192.0.2.2"
