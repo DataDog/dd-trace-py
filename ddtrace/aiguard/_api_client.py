@@ -395,12 +395,7 @@ class AIGuardClient:
                     client_ip = core.find_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     core.discard_item(AI_GUARD.CLIENT_IP_CORE_KEY)
                     if client_ip:
-                        root_span._set_attribute(
-                            http.OTEL_CLIENT_ADDRESS if otel_semantics else http.CLIENT_IP, client_ip
-                        )
-                        root_span._set_attribute(
-                            net.NETWORK_PEER_ADDRESS if otel_semantics else "network.client.ip", client_ip
-                        )
+                        core.dispatch("http.set_client_address", (root_span, client_ip))
                     # Copy anomaly-detection attributes from the root span onto the
                     # ai_guard span with the `ai_guard.` prefix, so intake processing has them
                     # even when the root span arrives in a later trace chunk.

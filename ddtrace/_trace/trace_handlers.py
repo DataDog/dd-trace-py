@@ -20,6 +20,7 @@ from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace._span_pointer import _SpanPointerDirectionName
+from ddtrace._trace.http_semantics import set_client_address_tags
 from ddtrace._trace.http_semantics import set_url_tags_server
 from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
 from ddtrace._trace.otel_http_naming import set_instrumentation_resource
@@ -755,6 +756,10 @@ def _on_django_block_request(ctx: core.ExecutionContext, metadata: dict[str, str
     for tk, tv in metadata.items():
         span_from_context(ctx)._set_attribute(tk, tv)
     set_url_tags_server(django_config, span_from_context(ctx), url, query)
+
+
+def _on_http_set_client_address(span: Span, client_address: str) -> None:
+    set_client_address_tags(span, client_address)
 
 
 def _on_django_after_request_headers_post(
@@ -1957,6 +1962,7 @@ def listen():
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
+    core.on("http.set_client_address", _on_http_set_client_address)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
     core.on("botocore.patched_api_call.success", _on_botocore_patched_api_call_success)
     core.on("botocore.patched_kinesis_api_call.success", _on_botocore_patched_api_call_success)
