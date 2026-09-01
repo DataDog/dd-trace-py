@@ -43,8 +43,7 @@ class HttpClientTracingSubscriber(TracingSubscriber):
         if config._otel_trace_semantics_enabled and event.request_method:
             span = span_from_context(ctx)
             set_method_tag(span, event.request_method)
-            # Span-start callbacks have already run. Record ownership only if they left the
-            # integration-supplied resource untouched.
+            # Preserve resources replaced by span-start callbacks.
             record_initial_instrumentation_resource(span, event.resource)
             normalized_method, original_method = normalize_http_method(event.request_method)
             set_otel_http_resource(span, normalized_method, original_method)

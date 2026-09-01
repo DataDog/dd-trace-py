@@ -1363,8 +1363,8 @@ def test_otel_semantics_client_attributes():
         assert span.get_tag("user_agent.original") == "client/1.0"
         assert span.error == 0
 
-        for legacy in ("http.method", "http.url", "http.status_code", "http.useragent", "out.host"):
-            assert span.get_tag(legacy) is None, legacy
+        for datadog_tag in ("http.method", "http.url", "http.status_code", "http.useragent", "out.host"):
+            assert span.get_tag(datadog_tag) is None, datadog_tag
 
 
 @pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
