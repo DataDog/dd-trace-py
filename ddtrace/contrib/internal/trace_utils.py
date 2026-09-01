@@ -426,6 +426,7 @@ def _should_collect_client_ip() -> bool:
 def _resolve_client_ip(
     request_headers: Optional[Mapping[str, str]], peer_ip: Optional[str], headers_are_case_sensitive: bool
 ) -> Optional[str]:
+    # Both semantics modes reuse AppSec resolution; only the emitted attribute names differ.
     request_ip = core.find_item("http.request.remote_ip")
     if not request_ip:
         request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip

@@ -55,6 +55,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
     metadata: dict[str, Any] = {}
     query: str = ""
     try:
+        # Preserve method and status if later request extraction fails.
         metadata = http_block_metadata(request.method, 403)
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
@@ -211,7 +212,7 @@ async def traced_get_response_async(
     if span is None:
         return await func(*args, **kwargs)
 
-    # Preserve the final resource while application code can trigger sampling.
+    # Preserve the method-only OTel resource while application code can trigger sampling.
     if not config._otel_trace_semantics_enabled:
         span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)

@@ -270,6 +270,7 @@ def _on_web_framework_finish_request(
 def _set_inferred_proxy_tags(span: Span, status_code):
     if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
         inferred_span = span._parent
+        # Proxy spans keep Datadog status attributes; only the source lookup follows active semantics.
         status_code = status_code or span._get_attribute(
             http.OTEL_RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
         )

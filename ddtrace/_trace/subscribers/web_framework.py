@@ -37,8 +37,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         if config._otel_trace_semantics_enabled and event.request_method:
             span = span_from_context(ctx)
             set_method_tag(span, event.request_method)
-            # Set the final resource before propagation can trigger sampling, while preserving
-            # resources changed by span-start instrumentation.
+            # Set the currently known resource before sampling; preserve span-start callback replacements.
             record_initial_instrumentation_resource(span, event.resource)
             normalized_method, original_method = normalize_http_method(event.request_method)
             if event.request_route:
