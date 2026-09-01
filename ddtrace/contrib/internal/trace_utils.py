@@ -420,23 +420,14 @@ def set_service_and_source(
 
 
 def _should_collect_client_ip() -> bool:
-    # We always collect the IP if appsec is enabled to report it on potential vulnerabilities.
-    # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
     return asm_config._asm_enabled or config._retrieve_client_ip
 
 
 def _resolve_client_ip(
     request_headers: Optional[Mapping[str, str]], peer_ip: Optional[str], headers_are_case_sensitive: bool
 ) -> Optional[str]:
-    """Resolve the client IP the same way in both semantics modes.
-
-    AppSec depends on this resolution, so the OTel path reuses it verbatim and only changes
-    the key the result is written under.
-    """
-    # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
     request_ip = core.find_item("http.request.remote_ip")
     if not request_ip:
-        # Not calculated: framework does not support IP blocking or testing env
         request_ip = _get_request_header_client_ip(request_headers, peer_ip, headers_are_case_sensitive) or peer_ip
     return request_ip
 
@@ -482,9 +473,6 @@ def set_http_meta(
         ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
         ``resolver_match.args``, Tornado ``path_args``).
 
-    Both the Datadog and the OpenTelemetry HTTP conventions are written from here, so the
-    shared work (headers, cookies, client IP, the AppSec dispatch) exists once and only the
-    attribute names and value shapes differ between them.
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None
 
@@ -590,7 +578,6 @@ def set_http_meta(
     )
 
     if route is not None:
-        # http.route is spelled the same in both conventions
         span._set_attribute(http.ROUTE, route)
 
     if otel_http is not None:

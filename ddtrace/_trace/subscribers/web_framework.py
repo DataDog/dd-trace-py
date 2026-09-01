@@ -37,10 +37,8 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         if config._otel_trace_semantics_enabled and event.request_method:
             span = span_from_context(ctx)
             set_method_tag(span, event.request_method)
-            # Named here, not just tagged: propagation can force a sampling decision before the
-            # request finishes, and a rule must not match the integration's Datadog resource.
-            # Span-start callbacks have already run. Record ownership only if they left the
-            # event-supplied resource untouched, so their custom names remain user-owned.
+            # Set the final resource before propagation can trigger sampling, while preserving
+            # resources changed by span-start instrumentation.
             record_initial_instrumentation_resource(span, event.resource)
             normalized_method, original_method = normalize_http_method(event.request_method)
             if event.request_route:

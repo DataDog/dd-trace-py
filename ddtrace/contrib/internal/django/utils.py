@@ -189,8 +189,7 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
-            # Preserve the result for downstream consumers such as AppSec. In particular,
-            # an early blocked request never reaches Django's own resolver assignment.
+            # Early AppSec blocking bypasses Django's resolver assignment.
             request.resolver_match = resolver_match
 
         if hasattr(resolver_match[0], "view_class"):
@@ -252,13 +251,11 @@ def _set_resolver_tags(pin, span, request):
             if config._otel_trace_semantics_enabled:
                 span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
         else:
-            # set_http_meta otherwise renames the span from its attributes and would undo
-            # the user's choice.
+            # Prevent final HTTP tagging from replacing a user-owned resource.
             span._set_ctx_item(RESOURCE_SET_BY_USER, True)
 
 
 def _initial_otel_resource(request: Any) -> Optional[str]:
-    """Return the method-only resource used until Django resolves the application route."""
     if not config._otel_trace_semantics_enabled:
         return None
 

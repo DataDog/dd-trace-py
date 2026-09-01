@@ -270,8 +270,6 @@ def _on_web_framework_finish_request(
 def _set_inferred_proxy_tags(span: Span, status_code):
     if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
         inferred_span = span._parent
-        # The inferred proxy span is a Datadog-only construct, so it keeps the Datadog
-        # attribute name. Only the read from the web span follows the semantics mode.
         status_code = status_code or span._get_attribute(
             http.OTEL_RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
         )
@@ -1918,10 +1916,7 @@ def _on_proxy_request_end(
 
         if request_type == "http":
             if config._otel_trace_semantics_enabled:
-                # This is an inbound request, but the span carries the http span type and no
-                # kind, which the OTel path would otherwise read as a client span and give
-                # client error semantics to. Only set under the flag so the default output
-                # stays unchanged.
+                # Ray omits span.kind for inbound HTTP, which would otherwise be classified as client.
                 span._set_attribute(SPAN_KIND, SpanKind.SERVER)
             trace_utils.set_http_meta(
                 span,

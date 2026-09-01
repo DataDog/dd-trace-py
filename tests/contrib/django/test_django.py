@@ -45,7 +45,6 @@ from tests.utils import override_http_config
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
 def test_otel_semantics_names_the_request_span_from_the_route():
-    """A real request names the root span {method} {http.route}, not the URI path."""
     from django.test import Client
 
     from tests.contrib.django.utils import setup_django_test_spans
@@ -62,7 +61,6 @@ def test_otel_semantics_names_the_request_span_from_the_route():
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
 def test_otel_semantics_substitutes_an_unaccepted_method_in_the_span_name():
-    """_OTHER is reported in http.request.method, but the span name uses HTTP."""
     from django.test import Client
 
     from tests.contrib.django.utils import setup_django_test_spans
@@ -163,7 +161,6 @@ def test_otel_semantics_keeps_async_request_resource_stable_during_application()
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "false"})
 def test_default_semantics_keep_the_datadog_request_span_name():
-    """Flag off, the resource and attribute names are unchanged."""
     from django.test import Client
 
     from tests.contrib.django.utils import setup_django_test_spans

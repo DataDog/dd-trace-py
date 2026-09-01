@@ -55,9 +55,6 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
     metadata: dict[str, Any] = {}
     query: str = ""
     try:
-        # The dispatch below applies these to the request span as-is, so they are already
-        # spelled and shaped for whichever semantics mode is active. Built from the method and
-        # status alone first, so a failure in the calls below still leaves those on the span.
         metadata = http_block_metadata(request.method, 403)
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
@@ -81,7 +78,6 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
 
 
 def traced_resolve_request(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Publish Django's resolved route before view middleware and application code run."""
     resolver_match = func(*args, **kwargs)
     core.dispatch("django.resolve_request", (resolver_match,), allow_raise=True)
     return resolver_match
@@ -215,8 +211,7 @@ async def traced_get_response_async(
     if span is None:
         return await func(*args, **kwargs)
 
-    # The ASGI subscriber already published the OTel method resource. Keep it stable while
-    # application code runs so nested propagation samples the same name that will be exported.
+    # Preserve the final resource while application code can trigger sampling.
     if not config._otel_trace_semantics_enabled:
         span.resource = REQUEST_DEFAULT_RESOURCE
     _before_request_tags(pin, span, request)

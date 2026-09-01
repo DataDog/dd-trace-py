@@ -1369,8 +1369,8 @@ def test_otel_semantics_server_attributes():
         assert span.get_tag("error.type") is None
         assert span.error == 0
 
-        for legacy in ("http.method", "http.url", "http.query.string", "http.useragent", "http.status_code"):
-            assert span.get_tag(legacy) is None, legacy
+        for datadog_tag in ("http.method", "http.url", "http.query.string", "http.useragent", "http.status_code"):
+            assert span.get_tag(datadog_tag) is None, datadog_tag
 
 
 @pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)

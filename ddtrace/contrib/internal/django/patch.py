@@ -44,7 +44,7 @@ from ddtrace.vendor.packaging.version import parse as parse_version
 
 log = get_logger(__name__)
 
-_legacy_resolve_request_enabled = False
+_pre_31_resolve_request_enabled = False
 
 DJANGO_TRACING_MINIMAL = asbool(_get_config("DD_DJANGO_TRACING_MINIMAL", default=True))
 
@@ -239,8 +239,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     ret = func(*args, **kwargs)
 
     if django.VERSION < (3, 1):
-        # AIDEV-NOTE: Django <3.1 resolves routes inline in _get_response. A first-position view middleware is the
-        # only post-resolution, pre-application hook that avoids invoking custom path converters a second time.
+        # AIDEV-NOTE: This post-resolution hook avoids rerunning custom converters on Django <3.1.
         instance._view_middleware.insert(0, _dispatch_resolved_request)
 
     # Building a BaseHandler is the earliest reliable signal that this process serves HTTP, so the URLconf import
@@ -258,7 +257,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
 def _dispatch_resolved_request(
     request: Any, _callback: Any, _callback_args: tuple[Any, ...], _callback_kwargs: dict[str, Any]
 ) -> None:
-    if not _legacy_resolve_request_enabled:
+    if not _pre_31_resolve_request_enabled:
         return
     resolver_match = getattr(request, "resolver_match", None)
     if resolver_match is not None:
@@ -545,7 +544,7 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
 
 
 def patch():
-    global _legacy_resolve_request_enabled
+    global _pre_31_resolve_request_enabled
 
     import django
 
@@ -553,7 +552,7 @@ def patch():
         return
     _patch(django)
 
-    _legacy_resolve_request_enabled = True
+    _pre_31_resolve_request_enabled = True
     django._datadog_patch = True
 
 
@@ -587,14 +586,14 @@ def _unpatch(django):
 
 
 def unpatch():
-    global _legacy_resolve_request_enabled
+    global _pre_31_resolve_request_enabled
 
     import django
 
     if not getattr(django, "_datadog_patch", False):
         return
 
-    _legacy_resolve_request_enabled = False
+    _pre_31_resolve_request_enabled = False
     _unpatch(django)
 
     django._datadog_patch = False

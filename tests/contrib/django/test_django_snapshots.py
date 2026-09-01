@@ -309,7 +309,6 @@ def test_djangoq_dd_trace_methods(dd_trace_methods, error_expected):
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
 @snapshot(ignores=SNAPSHOT_IGNORES)
 def test_otel_semantics_request(client):
-    """A request under OTel semantics: the whole span, not just the tags a unit test picks."""
     from unittest import mock
 
     from ddtrace.internal.settings._config import config
@@ -321,7 +320,6 @@ def test_otel_semantics_request(client):
 @pytest.mark.skipif(django.VERSION < (2, 0), reason="")
 @snapshot(ignores=SNAPSHOT_IGNORES)
 def test_otel_semantics_request_unaccepted_method(client):
-    """An unaccepted method is reported as _OTHER but named HTTP."""
     from unittest import mock
 
     from ddtrace.internal.settings._config import config

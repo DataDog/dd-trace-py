@@ -127,9 +127,9 @@ class TestResourceRenaming:
 
         with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
             span = Span("test", context=Context(), span_type=SpanTypes.WEB)
-            span.set_tag(http.URL, "https://example.com/legacy/123")
+            span.set_tag(http.URL, "https://example.com/datadog/123")
             processor.on_span_finish(span)
-            assert span.get_tag(http.ENDPOINT) == "/legacy/{param:int}"
+            assert span.get_tag(http.ENDPOINT) == "/datadog/{param:int}"
 
         with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
             span = Span("test", context=Context(), span_type=SpanTypes.WEB)
@@ -158,14 +158,12 @@ def test_processor_reads_the_otel_tag_names():
 
     processor = ResourceRenamingProcessor()
 
-    # The path and the status come from the OTel names once the Datadog ones are gone.
     span = Span("test", span_type=SpanTypes.WEB)
     span.set_tag(http.OTEL_URL_PATH, "/api/users/123")
     span.set_tag(http.OTEL_RESPONSE_STATUS_CODE, 200)
     processor.on_span_finish(span)
     assert span.get_tag(http.ENDPOINT) == "/api/users/{param:int}"
 
-    # A route-less 404 is still left alone, exactly as with the flag off.
     span = Span("test", span_type=SpanTypes.WEB)
     span.set_tag(http.OTEL_URL_PATH, "/missing")
     span.set_tag(http.OTEL_RESPONSE_STATUS_CODE, 404)
