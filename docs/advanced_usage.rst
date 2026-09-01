@@ -496,7 +496,7 @@ uWSGI
 
 **Note:** ``ddtrace-run`` is not supported with uWSGI.
 
-Single Step Instrumentation supports prefork uWSGI and initializes tracing in each worker process.
+Single Step Instrumentation supports pre-fork uWSGI and initializes tracing in each worker process.
 Enable the uWSGI master process and threads as described below. The ``lazy-apps`` option is not
 required when using Single Step Instrumentation. When using ``lazy-apps`` with uWSGI versions before
 2.0.30, also enable ``skip-atexit`` to avoid crashes when worker processes terminate.

@@ -70,6 +70,26 @@ def test_defer_injection_ignores_uwsgi_script_name(monkeypatch):
     inject.assert_not_called()
 
 
+def test_defer_injection_ignores_importable_uwsgi_module_outside_uwsgi(monkeypatch, tmp_path):
+    (tmp_path / "uwsgi.py").write_text("")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.delitem(sys.modules, "uwsgi", raising=False)
+    monkeypatch.setattr(sys, "executable", "/usr/bin/python")
+    monkeypatch.setattr(sys, "argv", ["/usr/bin/python"])
+    monkeypatch.setattr(os, "readlink", lambda path: "/usr/bin/python")
+    monkeypatch.setattr(sys, "gettrace", lambda: None)
+    settrace = MagicMock()
+    monkeypatch.setattr(sys, "settrace", settrace)
+    inject = MagicMock()
+
+    try:
+        assert _load_helper().defer_injection(inject) is False
+    finally:
+        sys.modules.pop("uwsgi", None)
+    settrace.assert_not_called()
+    inject.assert_not_called()
+
+
 def test_defer_injection_when_uwsgi_is_ready(monkeypatch):
     uwsgi = ModuleType("uwsgi")
     uwsgi.masterpid = lambda: 123

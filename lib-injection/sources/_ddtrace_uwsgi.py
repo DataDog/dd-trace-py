@@ -30,8 +30,7 @@ def _defer_in_master(uwsgi, inject):
     return prefork_master
 
 
-# AIDEV-NOTE: Some uWSGI/Python combinations run sitecustomize before the C extension publishes the uwsgi module.
-# A temporary trace or profile callback waits for the module without importing ddtrace or replacing an active hook.
+# AIDEV-NOTE: Some uWSGI/Python combinations publish the uwsgi module after sitecustomize runs.
 def _wait_for_uwsgi_module(inject):
     if sys.gettrace() is None:
         set_hook = sys.settrace
@@ -73,13 +72,16 @@ def _is_uwsgi_process():
 
 
 def defer_injection(inject):
-    try:
-        import uwsgi
-    except ImportError:
-        if not _is_uwsgi_process():
-            return False
-        _wait_for_uwsgi_module(inject)
-        return True
+    uwsgi = sys.modules.get("uwsgi")
+    if (uwsgi is None or not hasattr(uwsgi, "masterpid")) and not _is_uwsgi_process():
+        return False
+
+    if uwsgi is None:
+        try:
+            import uwsgi
+        except ImportError:
+            _wait_for_uwsgi_module(inject)
+            return True
 
     if not hasattr(uwsgi, "masterpid"):
         _wait_for_uwsgi_module(inject)
