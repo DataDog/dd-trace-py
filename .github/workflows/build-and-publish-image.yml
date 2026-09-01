@@ -87,14 +87,14 @@ jobs:
       # https://github.com/DataDog/images/pull/11290): a non-numeric USER (e.g. a
       # named user) fails Kubernetes' runAsNonRoot verification even when the
       # named user isn't root, so the last USER directive in the Dockerfile must
-      # resolve to a numeric UID.
+      # resolve to a numeric UID. Kubelet parses Config.User's UID as a signed
+      # 64-bit int when enforcing runAsNonRoot; a value beyond this range
+      # fails that parse and is treated as username-style even though it's
+      # all-digit, so it must be rejected here too.
+      # See k8s.io/apimachinery/pkg/util/validation.IsValidUserID.
       run: |
         set -euo pipefail
         tag="${{ steps.staging.outputs.tag }}"
-        # Kubelet parses Config.User's UID as a signed 64-bit int when enforcing
-        # runAsNonRoot; a value beyond this range fails that parse and is treated
-        # as username-style even though it's all-digit, so it must be rejected
-        # here too. See k8s.io/apimachinery/pkg/util/validation.IsValidUserID.
         max_kubelet_uid="9223372036854775807" # 2**63 - 1
         IFS=',' read -ra platforms <<< "${{ inputs.platforms }}"
         for platform in "${platforms[@]}"; do
