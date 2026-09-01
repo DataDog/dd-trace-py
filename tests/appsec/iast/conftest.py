@@ -93,6 +93,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         # map, causing api_taint_pyobject to silently return untainted objects.
         _iast_finish_request()
         _start_iast_context_and_oce(span)
+        weak_hash_unpatch()
         weak_hash_patch()
         weak_cipher_patch()
         unstrusted_serialization_patch()
