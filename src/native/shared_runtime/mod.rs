@@ -175,12 +175,12 @@ impl SharedRuntimePy {
                 }
                 Ok(state)
             });
-            return match result {
+            match result {
                 Ok(state) => Ok(Self {
                     inner: state.clone(),
                 }),
                 Err(error) => Err(PyRuntimeError::new_err(error)),
-            };
+            }
         }
 
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
@@ -232,17 +232,13 @@ impl SharedRuntimePy {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
             match ATFORK_RUNTIME.get() {
-                Some(state) if Arc::ptr_eq(state, &self.inner) => return Ok(()),
-                Some(_) => {
-                    return Err(PyRuntimeError::new_err(
-                        "native fork handlers are already registered to another shared runtime",
-                    ));
-                }
-                None => {
-                    return Err(PyRuntimeError::new_err(
-                        "native fork handlers were not registered during runtime creation",
-                    ));
-                }
+                Some(state) if Arc::ptr_eq(state, &self.inner) => Ok(()),
+                Some(_) => Err(PyRuntimeError::new_err(
+                    "native fork handlers are already registered to another shared runtime",
+                )),
+                None => Err(PyRuntimeError::new_err(
+                    "native fork handlers were not registered during runtime creation",
+                )),
             }
         }
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
