@@ -33,9 +33,6 @@ _KNOWN_HTTP_METHODS = frozenset(
 )
 OTHER_HTTP_METHOD = "_OTHER"
 
-# The value DD_TRACE_HTTP_SERVER_ERROR_STATUSES carries when the user has not set it.
-_DEFAULT_SERVER_ERROR_STATUSES = "500-599"
-
 
 def otel_number(value: int) -> Union[int, str]:
     """Represent an integer-typed OTel attribute for the exporter this process uses.
@@ -233,10 +230,14 @@ class OTelHTTPSpanAttributes:
     ) -> None:
         """Write URL attributes and server.address using URL, explicit, then fallback precedence."""
         if url is not None:
-            if self.is_client:
-                set_url_tags_otel_client(self._integration_config, self._span, url, query)
-            else:
-                set_url_tags_otel_server(self._integration_config, self._span, url, query, raw_uri)
+            try:
+                if self.is_client:
+                    set_url_tags_otel_client(self._integration_config, self._span, url, query)
+                else:
+                    set_url_tags_otel_server(self._integration_config, self._span, url, query, raw_uri)
+            except ValueError:
+                # A malformed optional URL must not suppress metadata supplied separately.
+                log.debug("failed to parse http url %r", url)
 
         if self._span.get_tag(net.SERVER_ADDRESS) is not None:
             return
@@ -268,7 +269,7 @@ class OTelHTTPSpanAttributes:
     def _is_error_status(self, status_code: int) -> bool:
         if self.is_client:
             return status_code >= 400
-        if config._http_server.error_statuses == _DEFAULT_SERVER_ERROR_STATUSES:
+        if not config._http_server.error_statuses_configured:
             # OTel also treats an uninterpretable code above the standard 5xx range as an error.
             return status_code >= 500
         return bool(config._http_server.is_error_code(status_code))
