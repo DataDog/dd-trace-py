@@ -146,14 +146,14 @@ class AIGuardClient:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _add_error_to_telemetry(error_type: str, call_path_tags: tuple[tuple[str, str], ...] = ()) -> None:
+    def _add_error_to_telemetry(error_type: str, call_path_tags: tuple[tuple[str, str], ...]) -> None:
         telemetry.telemetry_writer.add_count_metric(
             TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, 1, (("type", error_type),) + call_path_tags
         )
 
     @staticmethod
     def _messages_for_meta_struct(
-        messages: list[Message], call_path_tags: tuple[tuple[str, str], ...] = ()
+        messages: list[Message], call_path_tags: tuple[tuple[str, str], ...]
     ) -> list[Message]:
         max_messages_length = aiguard_config._ai_guard_max_messages_length
         if len(messages) > max_messages_length:
