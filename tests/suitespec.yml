@@ -304,6 +304,7 @@ suites:
       - '@core'
       - '@tracing'
       - '@vendor'
+      - '@lib_injection'
       - tests/tracer/*uwsgi*
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi

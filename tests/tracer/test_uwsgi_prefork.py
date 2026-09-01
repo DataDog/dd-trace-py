@@ -3,6 +3,9 @@ from http.client import HTTPException
 from http.server import BaseHTTPRequestHandler
 from http.server import ThreadingHTTPServer
 import os
+import platform
+import shlex
+import shutil
 import signal
 import socket
 import subprocess
@@ -19,6 +22,8 @@ if sys.platform == "win32":
 
 
 UWSGI_APP = os.path.join(os.path.dirname(__file__), "uwsgi-prefork-app.py")
+INJECTION_SOURCES = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "lib-injection", "sources"))
+DDTRACE_PACKAGE = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "ddtrace"))
 SPAN_NAME = b"test.uwsgi.prefork"
 TIMEOUT = 10
 
@@ -33,7 +38,7 @@ def _trace_ids_for_span(payload, span_name):
 
 @pytest.fixture
 def trace_agent():
-    trace_received = threading.Event()
+    trace_available = threading.Condition()
     trace_ids = set()
 
     class Handler(BaseHTTPRequestHandler):
@@ -51,9 +56,9 @@ def trace_agent():
             content_length = int(self.headers.get("Content-Length", "0"))
             body = self.rfile.read(content_length)
             if self.path.endswith("/traces"):
-                trace_ids.update(_trace_ids_for_span(body, SPAN_NAME))
-                if trace_ids:
-                    trace_received.set()
+                with trace_available:
+                    trace_ids.update(_trace_ids_for_span(body, SPAN_NAME))
+                    trace_available.notify_all()
             self._respond(b'{"rate_by_service":{}}')
 
         do_POST = do_PUT
@@ -66,7 +71,7 @@ def trace_agent():
     thread.start()
 
     host, port = server.server_address
-    yield "http://%s:%d" % (host, port), trace_received, trace_ids
+    yield "http://%s:%d" % (host, port), trace_available, trace_ids
 
     server.shutdown()
     server.server_close()
@@ -110,7 +115,41 @@ def _request_when_ready(proc, socket_path):
             time.sleep(0.1)
         finally:
             connection.close()
-    raise AssertionError("uWSGI did not serve a request: %r" % last_error)
+    output = _terminate(proc)
+    raise AssertionError("uWSGI did not serve a request (%r): %r" % (last_error, output))
+
+
+def _prepare_injection_sources(tmp_path):
+    sources = tmp_path / "ssi"
+    shutil.copytree(INJECTION_SOURCES, sources)
+    architecture = "aarch64" if platform.machine() in ("aarch64", "arm64") else "x86_64"
+    package_root = (
+        sources
+        / "ddtrace_pkgs"
+        / ("site-packages-ddtrace-py%d.%d-manylinux2014-%s" % (*sys.version_info[:2], architecture))
+    )
+    package_root.mkdir(parents=True)
+    (package_root / "ddtrace").symlink_to(DDTRACE_PACKAGE, target_is_directory=True)
+    (sources / "version").write_text("test")
+    return sources
+
+
+def _prepare_telemetry_forwarder(tmp_path):
+    telemetry_pids = tmp_path / "ssi-pids"
+    forwarder = tmp_path / "telemetry-forwarder"
+    forwarder_code = (
+        "import json, os, sys; "
+        "payload = json.load(sys.stdin); "
+        "fd = os.open(os.environ['DD_TEST_SSI_PIDS'], os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600); "
+        "metadata = payload['metadata']; "
+        "os.write(fd, ('%s:%s\\n' % (metadata['pid'], metadata['result_class'])).encode()); "
+        "os.close(fd)"
+    )
+    forwarder.write_text(
+        "#!/bin/sh\nPYTHONPATH= exec %s -c %s\n" % (shlex.quote(sys.executable), shlex.quote(forwarder_code))
+    )
+    forwarder.chmod(0o755)
+    return forwarder, telemetry_pids
 
 
 @pytest.mark.parametrize(
@@ -137,27 +176,27 @@ def test_trace_ids_for_span_returns_matching_trace(payload):
     assert _trace_ids_for_span(payload, SPAN_NAME) == {42}
 
 
-def test_ssi_traces_are_sent_from_prefork_workers(tmp_path, trace_agent):
-    agent_url, trace_received, received_trace_ids = trace_agent
-    sitecustomize_dir = tmp_path / "ssi"
-    sitecustomize_dir.mkdir()
-    bootstrap_marker = tmp_path / "ssi-bootstrap"
-    (sitecustomize_dir / "sitecustomize.py").write_text(
-        "from pathlib import Path\n"
-        "import uwsgi\n"
-        'assert not hasattr(uwsgi, "opt")\n'
-        "import ddtrace.auto\n"
-        "Path(%r).write_text('loaded-before-uwsgi-options')\n" % str(bootstrap_marker)
-    )
+@pytest.mark.parametrize("extra_args", [(), ("--lazy-apps", "--skip-atexit")], ids=["default", "lazy-apps"])
+def test_ssi_traces_are_sent_from_prefork_workers(tmp_path, trace_agent, extra_args):
+    agent_url, trace_available, received_trace_ids = trace_agent
+    sitecustomize_dir = _prepare_injection_sources(tmp_path)
+    telemetry_forwarder, telemetry_pids = _prepare_telemetry_forwarder(tmp_path)
+    application_postfork_pids = tmp_path / "application-postfork-pids"
 
     env = os.environ.copy()
     env.pop("OTEL_TRACES_EXPORTER", None)
+    env.pop("_DD_PY_SSI_INJECT", None)
     env.update(
         {
-            "_DD_PY_SSI_INJECT": "1",
             "_DD_APM_TRACING_AGENTLESS_ENABLED": "false",
+            "DD_INJECT_EXPERIMENTAL_OVERRIDE_USER_DDTRACE": "true",
+            "DD_INJECT_FORCE": "true",
+            "DD_INJECTION_ENABLED": "tracer",
             "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
             "DD_REMOTE_CONFIGURATION_ENABLED": "false",
+            "DD_TELEMETRY_FORWARDER_PATH": str(telemetry_forwarder),
+            "DD_TEST_SSI_PIDS": str(telemetry_pids),
+            "DD_TEST_UWSGI_POSTFORK_PIDS": str(application_postfork_pids),
             "DD_TRACE_AGENT_URL": agent_url,
             "DD_TRACE_ENABLED": "true",
             "DD_TRACE_WRITER_INTERVAL_SECONDS": "0.1",
@@ -172,6 +211,8 @@ def test_ssi_traces_are_sent_from_prefork_workers(tmp_path, trace_agent):
             "--master",
             "--processes",
             "2",
+            "--py-programname",
+            sys.executable,
             "--enable-threads",
             "--die-on-term",
             "--need-app",
@@ -179,6 +220,7 @@ def test_ssi_traces_are_sent_from_prefork_workers(tmp_path, trace_agent):
             str(http_socket),
             "--wsgi-file",
             UWSGI_APP,
+            *extra_args,
         ],
         env=env,
         stdout=subprocess.PIPE,
@@ -188,12 +230,38 @@ def test_ssi_traces_are_sent_from_prefork_workers(tmp_path, trace_agent):
 
     try:
         body = _request_when_ready(proc, str(http_socket))
-        assert body.startswith(b"trace-id=")
-        expected_trace_id = int(body.removeprefix(b"trace-id=")) & ((1 << 64) - 1)
-        assert bootstrap_marker.read_text() == "loaded-before-uwsgi-options"
-        if not trace_received.wait(TIMEOUT):
+        fields = dict(field.split(b"=", 1) for field in body.split(b";"))
+        worker_pids = {int(pid) for pid in fields[b"workers"].split(b",")}
+        expected_trace_id = int(fields[b"trace-id"]) & ((1 << 64) - 1)
+        assert int(fields[b"pid"]) in worker_pids
+        assert len(worker_pids) == 2
+        if fields[b"ssi"] != b"1":
             output = _terminate(proc)
-            raise AssertionError("uWSGI worker created a span, but the trace agent received nothing: %r" % output)
-        assert expected_trace_id in received_trace_ids
+            raise AssertionError("SSI did not initialize in the uWSGI worker: %r" % output)
+        with trace_available:
+            if not trace_available.wait_for(lambda: expected_trace_id in received_trace_ids, timeout=TIMEOUT):
+                output = _terminate(proc)
+                raise AssertionError("uWSGI worker traces did not reach the trace agent: %r" % output)
+
+        deadline = time.monotonic() + TIMEOUT
+        injection_results = {}
+        while not worker_pids <= injection_results.keys() and time.monotonic() < deadline:
+            if telemetry_pids.exists():
+                injection_results = {
+                    int(pid): result
+                    for pid, result in (line.split(":", 1) for line in telemetry_pids.read_text().splitlines())
+                }
+            time.sleep(0.1)
+        if not worker_pids <= injection_results.keys():
+            output = _terminate(proc)
+            raise AssertionError(
+                "SSI telemetry did not report both workers: %r; output: %r" % (injection_results, output)
+            )
+        assert all(injection_results[pid] in ("success", "success_forced") for pid in worker_pids)
+        assert proc.pid not in injection_results
+
+        if not extra_args:
+            postfork_pids = {int(pid) for pid in application_postfork_pids.read_text().splitlines()}
+            assert postfork_pids == worker_pids
     finally:
         _terminate(proc)

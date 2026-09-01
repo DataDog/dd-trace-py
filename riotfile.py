@@ -473,8 +473,13 @@ venv = Venv(
                     command=(
                         "pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_prefork.py"
                     ),
-                    pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
-                    pkgs={"uwsgi": latest},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
+                            pkgs={"uwsgi": latest},
+                        ),
+                        Venv(pys=MIN_PYTHON_VERSION, pkgs={"uwsgi": "==2.0.18"}),
+                    ],
                 ),
             ],
         ),

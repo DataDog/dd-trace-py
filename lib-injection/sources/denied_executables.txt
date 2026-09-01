@@ -1201,8 +1201,6 @@ usr/libexec/grepconf.sh
 /usr/bin/sepolgen-ifgen
 /usr/bin/sepolicy
 /usr/bin/sesearch
-# Python tools
-uwsgi
 # crashtracker receiver
 _dd_crashtracker_receiver
 # Google cloud cli

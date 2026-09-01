@@ -122,6 +122,7 @@ def test_binary_not_in_denylist_allowed(mock_sitecustomize):
         "/usr/bin/wget",
         "/usr/bin/vim",
         "/usr/bin/nano",
+        "/usr/bin/uwsgi",
         "/usr/local/bin/custom_app",
     ]
 
