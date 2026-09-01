@@ -31,6 +31,7 @@ def _read_gc_collections(gc_mod: ModuleType) -> list[int]:
     """Return per-generation collections counts from gc.get_stats()."""
     stats: list[dict[str, int]] = gc_mod.get_stats()
     collections: list[int] = []
+    i: int
     for i in range(GEN_COUNT):
         row: dict[str, int] = stats[i] if i < len(stats) else {}
         collections.append(int(row.get("collections", 0)))

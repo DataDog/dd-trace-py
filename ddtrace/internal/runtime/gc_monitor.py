@@ -35,6 +35,14 @@ class GCPauseSnapshot(NamedTuple):
 class GCPauseMonitor:
     """Single gc.callbacks subscriber with refcounted install."""
 
+    _lock: threading_RLock
+    _refcount: int
+    _fork_registered: bool
+    _start_ns: list[int]
+    _count: int
+    _total_ns: int
+    _max_ns: int
+
     def __init__(self) -> None:
         # RLock: snapshot_and_reset allocates and can reenter _on_gc. ResetObject
         # replaces the lock after fork so the child does not inherit a held one.
