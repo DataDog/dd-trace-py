@@ -1326,3 +1326,227 @@ def test_set_flattened_tags_exclude_policy():
 
     trace_utils.set_flattened_tags(span, d.items(), sep="_", exclude_policy=lambda tag: tag in {"C_A", "C_C"})
     assert span.get_metrics() == e
+
+
+_OTEL_SEMANTICS_SUBPROCESS_ENV = {
+    "DD_TRACE_OTEL_SEMANTICS_ENABLED": "true",
+    "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": None,
+}
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_attributes():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            method="POST",
+            url="https://user:pass@api.example.com:8443/v1/items",
+            target_host="fallback.example.com",
+            status_code=201,
+            request_headers={"user-agent": "client/1.0"},
+        )
+
+        assert span.get_tag("http.request.method") == "POST"
+        assert span.get_tag("url.full") == "https://REDACTED:REDACTED@api.example.com:8443/v1/items"
+        assert span.get_tag("server.address") == "api.example.com"
+        assert span.get_metric("server.port") == 8443
+        assert span.get_metric("http.response.status_code") == 201
+        assert span.get_tag("user_agent.original") == "client/1.0"
+        assert span.error == 0
+
+        for legacy in ("http.method", "http.url", "http.status_code", "http.useragent", "out.host"):
+            assert span.get_tag(legacy) is None, legacy
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_trace_query_string_keeps_obfuscated_query():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    cfg.myint.http_tag_query_string = False
+    cfg.myint.http.trace_query_string = True
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(
+            span,
+            cfg.myint,
+            url="https://api.example.com/search?token=leaked&page=2",
+            query="token=leaked&page=2",
+        )
+
+        assert span.get_tag("url.full") == "https://api.example.com/search?<redacted>&page=2"
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_url_redacts_password_containing_at_sign():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(span, cfg.myint, url="https://user:p@ssword@api.example.com/v1/items")
+
+        assert span.get_tag("url.full") == "https://REDACTED:REDACTED@api.example.com/v1/items"
+        assert span.get_tag("server.address") == "api.example.com"
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_default_port_from_scheme():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(span, cfg.myint, url="https://api.example.com/v1/items")
+
+        assert span.get_tag("server.address") == "api.example.com"
+        assert span.get_metric("server.port") == 443
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_method_normalization():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    cases = [
+        ("GET", "GET", None),
+        ("get", "GET", "get"),
+        ("Patch", "PATCH", "Patch"),
+        ("QUERY", "QUERY", None),
+        ("FOO", "_OTHER", "FOO"),
+        ("", "_OTHER", ""),
+    ]
+    for raw, expected, expected_original in cases:
+        with (
+            scoped_tracer() as tracer,
+            tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span,
+        ):
+            set_http_meta(span, cfg.myint, method=raw)
+            assert span.get_tag("http.request.method") == expected, raw
+            assert span.get_tag("http.request.method_original") == expected_original, raw
+
+
+@pytest.mark.subprocess(
+    env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "500-501"},
+)
+def test_otel_semantics_client_uses_fixed_error_statuses():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    for status_code, expected in ((399, (0, None)), (400, (1, "400")), (599, (1, "599")), (600, (1, "600"))):
+        with (
+            scoped_tracer() as tracer,
+            tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span,
+        ):
+            set_http_meta(span, cfg.myint, status_code=status_code)
+            assert (span.error, span.get_tag("error.type")) == expected
+
+
+@pytest.mark.subprocess(env=_OTEL_SEMANTICS_SUBPROCESS_ENV)
+def test_otel_semantics_client_status_does_not_overwrite_exception_error_type():
+    import sys
+
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        try:
+            raise ValueError("boom")
+        except ValueError:
+            span.set_exc_info(*sys.exc_info())
+        set_http_meta(span, cfg.myint, status_code=500)
+
+        assert span.error == 1
+        assert span.get_tag("error.type") == "builtins.ValueError"
+
+
+@pytest.mark.subprocess(
+    env={**_OTEL_SEMANTICS_SUBPROCESS_ENV, "OTEL_TRACES_EXPORTER": "otlp"},
+)
+def test_otel_semantics_client_numeric_attributes_typed_for_otlp():
+    from ddtrace.contrib.internal.trace_utils import set_http_meta
+    from ddtrace.ext import SpanTypes
+    from ddtrace.internal.settings._config import Config
+    from ddtrace.internal.settings.integration import IntegrationConfig
+    from tests.utils import scoped_tracer
+
+    cfg = Config()
+    cfg.myint = IntegrationConfig(cfg, "myint")
+    with scoped_tracer() as tracer, tracer.start_span("http.request", span_type=SpanTypes.HTTP, activate=False) as span:
+        set_http_meta(span, cfg.myint, url="http://localhost:8080/x", status_code=200)
+
+        assert span.get_tag("http.response.status_code") is None
+        assert span.get_metric("http.response.status_code") == 200
+        assert span.get_tag("server.port") is None
+        assert span.get_metric("server.port") == 8080
+
+
+def test_otel_client_semantics_flag_is_read_per_call(int_config):
+    span = Span("http.request", span_type="http")
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", False):
+        trace_utils.set_http_meta(span, int_config.myint, method="get")
+        assert span.get_tag("http.method") == "get"
+
+    span = Span("http.request", span_type="http")
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        trace_utils.set_http_meta(span, int_config.myint, method="get")
+        assert span.get_tag("http.request.method") == "GET"
+
+
+def test_otel_client_semantics_disabled_by_default(int_config):
+    span = Span("http.request", span_type="http")
+    trace_utils.set_http_meta(
+        span,
+        int_config.myint,
+        method="GET",
+        url="http://localhost:8080/users/1",
+        status_code=500,
+    )
+    assert span.get_tag("http.method") == "GET"
+    assert span.get_tag("http.url") == "http://localhost:8080/users/1"
+    assert span.get_tag("http.status_code") == "500"
+    for otel_name in (
+        "http.request.method",
+        "url.full",
+        "http.response.status_code",
+        "server.port",
+        "error.type",
+    ):
+        assert span.get_tag(otel_name) is None, otel_name
