@@ -6,7 +6,8 @@ loop's Python API is wrapped instead, publishing on entry and again on the way o
 second time through a snapshot of the loop's ambient Context because uvloop does not leave
 the callback's Context until the wrapper returns.
 
-That covers Loop.call_soon, Loop.call_soon_threadsafe, Loop.call_later and Loop.call_at.
+That covers Loop.call_soon, Loop.call_soon_threadsafe and Loop.call_later. Loop.call_at
+delegates to call_later, so it reaches the same timer wrapper without another layer.
 It does not cover callbacks uvloop schedules from Cython: add_reader, add_writer and
 add_signal_handler build their Handle directly, capturing the Context once at registration.
 
@@ -43,7 +44,7 @@ log = get_logger(__name__)
 
 
 def install() -> None:
-    """Register hooks for uvloop imports while the asyncio fallback is active."""
+    """Track uvloop imports so fallback runtimes can observe its scheduling boundaries."""
     global _installed
     if _installed:
         return
@@ -53,7 +54,7 @@ def install() -> None:
 
 
 def uninstall() -> None:
-    """Remove hooks installed by install."""
+    """Undo this module's process-wide wrappers before fallback shutdown."""
     global _installed
     if not _installed:
         return
@@ -66,7 +67,7 @@ def uninstall() -> None:
 
 
 def _patch(uvloop: ModuleType) -> None:
-    """Wrap uvloop scheduling boundaries after its module has been imported."""
+    """Install wrappers after uvloop imports without importing it proactively."""
     if getattr(uvloop.Loop, _PATCH_MARKER, False):
         return
 
@@ -92,7 +93,7 @@ def _patch(uvloop: ModuleType) -> None:
 
 
 def _unpatch(uvloop: ModuleType) -> None:
-    """Restore the original uvloop scheduling methods."""
+    """Remove only the wrappers identified by this module's patch marker."""
     if not getattr(uvloop.Loop, _PATCH_MARKER, False):
         return
 
@@ -113,7 +114,7 @@ def _drop_ambient_context(loop: Any) -> None:
 def _wrapped_run_forever(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
-    """Capture and restore the loop's ambient Context for a single run."""
+    """Keep the loop's pre-callback Context available until the run returns."""
     # A nested run_forever raises before running anything, so restore what was already there
     # instead of dropping the snapshot the outer, still-running frame depends on.
     previous = getattr(instance, _AMBIENT_CONTEXT_ATTR, _MISSING)
@@ -152,7 +153,7 @@ def _wrap_scheduled_callback(
     kwargs: dict[str, Any],
     callback_position: int,
 ) -> Any:
-    """Wrap a scheduled callback when its loop has an observable ambient Context."""
+    """Preserve argument validation while replacing a callable scheduled callback."""
     # Leave malformed calls alone so uvloop still raises its own TypeError.
     callback = get_argument_value(args, kwargs, callback_position, "callback", optional=True)
     if not callable(callback):
