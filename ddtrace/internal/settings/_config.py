@@ -535,7 +535,9 @@ class Config(object):
         # (v0 vs v1) without importing that package, which would recreate the
         # _config -> schema -> span_attribute_schema -> _config circular import.
         _span_service_name_schema_version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
-        if _span_service_name_schema_version not in ("v0", "v1"):
+        if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+            _span_service_name_schema_version = "v0"
+        elif _span_service_name_schema_version not in ("v0", "v1"):
             _span_service_name_schema_version = "v0"
         if _span_service_name_schema_version == "v0" and not asbool(
             env.get("DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED", default=False)
@@ -713,6 +715,17 @@ class Config(object):
         )
         self._otel_trace_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         self._otel_trace_semantics_enabled = _get_config("DD_TRACE_OTEL_SEMANTICS_ENABLED", False, asbool)
+        if self._otel_trace_semantics_enabled:
+            if asbool(env.get("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", default=False)):
+                log.warning(
+                    "DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED is set to true, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Peer service defaults stay disabled."
+                )
+            if env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0") != "v0":
+                log.warning(
+                    "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA is set to a version other than v0, but "
+                    "DD_TRACE_OTEL_SEMANTICS_ENABLED is enabled. Schema v0 is used instead."
+                )
         self._otel_metrics_enabled = (
             _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
             and validate_and_report_otel_metrics_exporter_enabled()
