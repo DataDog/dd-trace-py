@@ -7,13 +7,15 @@ asyncio scheduling points covered by this fallback:
   Context run and exit after _run restores the loop's ambient Context.
 * BaseEventLoop.call_exception_handler on Python before 3.12: publish the
   restored ambient Context before invoking the exception handler.
-* uvloop callbacks: scheduling wrappers publish entry and restore the loop's
-  ambient Context after each callback.
+* uvloop callbacks scheduled through Loop.call_soon, Loop.call_soon_threadsafe,
+  Loop.call_later or Loop.call_at: see _context_switch_uvloop, which covers those
+  scheduling points but not the callbacks uvloop schedules from Cython.
 * Eager task construction through the event loop or asyncio.eager_task_factory:
   the coroutine is instrumented to publish if its first step runs inline, before
   task construction returns.
 
-Thread offloads are handled by the default-on futures integration.
+Thread offloads are handled by the default-on futures integration. Beyond uvloop, no
+other third-party event loop is covered.
 """
 
 import asyncio
@@ -45,11 +47,11 @@ def install() -> None:
     if _installed or not context_switches_require_fallback():
         return
 
-    _context_switch_uvloop.install()
     wrap(asyncio.Handle._run, _wrapped_run_handle)  # type: ignore[arg-type]
     if PYTHON_VERSION_INFO < (3, 12):
         wrap(asyncio.BaseEventLoop.call_exception_handler, _wrapped_call_exception_handler)  # type: ignore[arg-type]
     _installed = True
+    _context_switch_uvloop.install()
     if _eager_task_factory_code is not None:
         wrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
         wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)  # type: ignore[arg-type]
@@ -61,13 +63,13 @@ def uninstall() -> None:
     if not _installed:
         return
 
-    _context_switch_uvloop.uninstall()
     if _eager_task_factory_code is not None:
         unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
         unwrap(asyncio.eager_task_factory, _wrapped_eager_task_factory)  # type: ignore[attr-defined]
     if PYTHON_VERSION_INFO < (3, 12):
         unwrap(asyncio.BaseEventLoop.call_exception_handler, _wrapped_call_exception_handler)
     unwrap(asyncio.Handle._run, _wrapped_run_handle)
+    _context_switch_uvloop.uninstall()
     _installed = False
 
 
