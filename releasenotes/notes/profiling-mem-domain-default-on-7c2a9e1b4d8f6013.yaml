@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    profiling: ``DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED`` now defaults to
+    ``true``, so the heap profiler also tracks ``PyMem_Malloc`` /
+    ``Calloc`` / ``Realloc`` allocations on Python 3.12+. Set it to
+    ``false`` to opt out.
