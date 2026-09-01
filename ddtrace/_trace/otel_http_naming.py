@@ -25,7 +25,7 @@ def set_otel_http_resource(
     original_method: Optional[str] = None,
     target: Optional[str] = None,
 ) -> None:
-    """Name the span before sampling observes it; a later route may refine the name."""
+    """Name the span from emitted low-cardinality attributes, never a raw URI path."""
     if original_method == _WEBSOCKET_METHOD:
         return
 
