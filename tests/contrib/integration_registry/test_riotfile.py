@@ -1,5 +1,6 @@
 import importlib
 import pathlib
+import re
 import shlex
 import sys
 import types
@@ -32,9 +33,8 @@ def _load_suitespec():
         return importlib.import_module("tests.suitespec")
 
 
-def test_uv_suitespec_matches_riot():
+def test_suitespec_matches_riot():
     suitespec_module = _load_suitespec()
-    uv_test_suites = suitespec_module.UV_TEST_SUITES
     riot_generated_env = {
         "_CI_DD_TAGS",
         "DD_CIVISIBILITY_ITR_ENABLED",
@@ -42,32 +42,40 @@ def test_uv_suitespec_matches_riot():
         "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
     }
     suitespec = suitespec_module.get_test_environments(nightly=False)
+    declared_suites = set(suitespec)
+    assert declared_suites == {
+        suite for suite in declared_suites if suite in suitespec_module.UV_TEST_SUITES or suite.startswith("contrib::")
+    }
+    suite_patterns = tuple(
+        re.compile(suitespec_module.get_suites()[suite].get("pattern", suite)) for suite in declared_suites
+    )
 
-    riot_environments = {}
+    riot_environments = set()
     for environment in riotfile.venv.instances():
-        riot_suite = environment
-        while riot_suite.parent is not None and riot_suite.parent.parent is not None:
-            riot_suite = riot_suite.parent
-        if riot_suite.name not in uv_test_suites:
+        if not any(environment.matches_pattern(pattern) for pattern in suite_patterns):
             continue
-        riot_environments[(environment.name, environment.py._hint)] = {
-            "command": environment.command,
-            "dependencies": tuple(shlex.split(environment.full_pkg_str)),
-            "environment": {key: value for key, value in environment.env.items() if key not in riot_generated_env},
-            "lock_hash": environment.short_hash,
-        }
+        riot_environments.add(
+            (
+                environment.short_hash,
+                tuple(shlex.split(environment.command)),
+                tuple(shlex.split(environment.full_pkg_str)),
+                tuple(sorted((key, value) for key, value in environment.env.items() if key not in riot_generated_env)),
+            )
+        )
 
-    declared_environments = {}
-    for suite in uv_test_suites:
-        for environment in suitespec[suite]:
-            declared_environments[(environment.name, environment.python)] = {
-                "command": environment.runs[0].command,
-                "dependencies": environment.direct_dependencies,
-                "environment": environment.runs[0].environment,
-                "lock_hash": environment.lock_hash,
-            }
+    declared_environments = {
+        (
+            environment.lock_hash,
+            tuple(shlex.split(run.command)),
+            environment.riot_lock_dependencies,
+            run.env,
+        )
+        for environments in suitespec.values()
+        for environment in environments
+        for run in environment.runs
+    }
 
-    assert len(declared_environments) == 19
+    assert all(environment.lockfile.is_file() for environments in suitespec.values() for environment in environments)
     assert declared_environments == riot_environments
 
 
