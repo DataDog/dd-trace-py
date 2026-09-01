@@ -388,3 +388,18 @@ def http_block_metadata(
 def user_agent_tag() -> str:
     """Return the active HTTP request user-agent attribute."""
     return http.OTEL_USER_AGENT_ORIGINAL if config._otel_trace_semantics_enabled else http.USER_AGENT
+
+
+def set_user_agent_tag(span: Span, user_agent: str) -> None:
+    """Write the HTTP request user-agent attribute for the active semantics."""
+    span._set_attribute(user_agent_tag(), user_agent)
+
+
+def set_client_address_tags(span: Span, client_address: str) -> None:
+    """Write service-entry client address attributes for the active semantics."""
+    if config._otel_trace_semantics_enabled:
+        span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
+        span._set_attribute(net.NETWORK_PEER_ADDRESS, client_address)
+    else:
+        span._set_attribute(http.CLIENT_IP, client_address)
+        span._set_attribute("network.client.ip", client_address)
