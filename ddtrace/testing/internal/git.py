@@ -1,3 +1,4 @@
+import contextlib
 from dataclasses import dataclass
 import logging
 import os
@@ -10,6 +11,14 @@ import tempfile
 import time
 import typing as t
 
+
+try:
+    import fcntl
+
+    _FCNTL_AVAILABLE = True
+except ImportError:  # pragma: no cover — Windows / restricted environments
+    _FCNTL_AVAILABLE = False
+
 from ddtrace.testing.internal.telemetry import GitTelemetry
 from ddtrace.testing.internal.telemetry import TelemetryAPI
 from ddtrace.testing.internal.tracer_api import StopWatch
@@ -17,11 +26,29 @@ from ddtrace.testing.internal.tracer_api import StopWatch
 
 log = logging.getLogger(__name__)
 
-# Matches git lock-contention errors, e.g.:
+# Matches git lock-contention and shallow-file race errors that can occur when
+# multiple processes (e.g. pytest-xdist workers) issue git fetch --update-shallow
+# concurrently against the same repository:
 #   fatal: Unable to create '/path/.git/shallow.lock': File exists.
-_LOCK_ERROR_RE = re.compile(r"Unable to create .+\.lock.+File exists", re.DOTALL)
+#   error: cannot lock ref 'refs/remotes/origin/foo': is at <sha> but expected <sha>
+#   fatal: shallow file has changed since we read it
+_LOCK_ERROR_RE = re.compile(
+    r"(?:Unable to create .+\.lock.+File exists)"
+    r"|(?:cannot lock ref .+ but expected)"
+    r"|(?:shallow file has changed since we read it)",
+    re.DOTALL,
+)
 _LOCK_MAX_RETRIES = 5
 _LOCK_BASE_DELAY_SECONDS = 0.5
+
+# Dedicated cross-process lock for unshallow operations.  Every call to
+# ``unshallow_repository`` acquires an exclusive ``flock`` on this file before
+# issuing ``git fetch --update-shallow``, so concurrent xdist workers (or
+# multiple pytest controllers sharing a workspace) never race on
+# ``.git/shallow`` and remote refs.
+_UNSHALLOW_LOCK_FILENAME = "dd-trace-py.unshallow.lock"
+_UNSHALLOW_LOCK_TIMEOUT_SECONDS = 120.0
+_UNSHALLOW_LOCK_RETRY_INTERVAL_SECONDS = 0.5
 
 
 class GitTag:
@@ -283,6 +310,77 @@ class Git:
         output = self._git_output(["rev-parse", "--is-shallow-repository"], GitTelemetry.CHECK_SHALLOW)
         return output == "true"
 
+    def _unshallow_lock_path(self) -> t.Optional[Path]:
+        """Return the path to the cross-process unshallow lock, or None if unavailable."""
+        try:
+            workspace = self.get_workspace_path()
+        except Exception:
+            return None
+        if not workspace:
+            return None
+        return Path(workspace) / ".git" / _UNSHALLOW_LOCK_FILENAME
+
+    @contextlib.contextmanager
+    def _unshallow_lock(self) -> t.Iterator[bool]:
+        """Acquire a cross-process exclusive lock around unshallow operations.
+
+        Yields ``True`` if the lock was acquired or if locking is unavailable
+        (no fcntl, no writable .git directory).  Yields ``False`` only on
+        timeout, meaning a peer is still unshallowing; the caller should skip
+        the fetch in that case.
+        """
+        if not _FCNTL_AVAILABLE:
+            yield True
+            return
+
+        lock_path = self._unshallow_lock_path()
+        if lock_path is None:
+            yield True
+            return
+
+        try:
+            lock_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            log.debug("Could not create directory for unshallow lock %s: %s", lock_path, e)
+            yield True
+            return
+
+        try:
+            lock_file = open(lock_path, "w")
+        except OSError as e:
+            log.debug("Could not open unshallow lock %s: %s", lock_path, e)
+            yield True
+            return
+
+        try:
+            deadline = time.monotonic() + _UNSHALLOW_LOCK_TIMEOUT_SECONDS
+            while True:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        log.debug(
+                            "Unshallow lock timeout after %ss, skipping unshallow (peer is unshallowing)",
+                            _UNSHALLOW_LOCK_TIMEOUT_SECONDS,
+                        )
+                        yield False
+                        return
+                    time.sleep(_UNSHALLOW_LOCK_RETRY_INTERVAL_SECONDS)
+                except OSError as e:
+                    log.debug("flock on %s failed: %s", lock_path, e)
+                    yield True
+                    return
+            try:
+                yield True
+            finally:
+                try:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+                except OSError:
+                    pass
+        finally:
+            lock_file.close()
+
     def unshallow_repository(self, refspec: t.Optional[str] = None, parent_only: bool = False) -> _GitSubprocessDetails:
         # If another process (e.g. a parallel xdist worker) has already unshallowed the
         # repository, skip the redundant fetch.
@@ -290,28 +388,45 @@ class Git:
             log.debug("Repository is no longer shallow, skipping unshallow")
             return _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
 
-        remote_name = self.get_remote_name()
-        command = [
-            "fetch",
-            "--deepen=1" if parent_only else '--shallow-since="1 month ago"',
-            "--update-shallow",
-            "--filter=blob:none",
-            "--recurse-submodules=no",
-            "--no-tags",
-            remote_name,
-        ]
-        if refspec:
-            command.append(refspec)
+        with self._unshallow_lock() as lock_acquired:
+            if not lock_acquired:
+                # A peer is still unshallowing; re-check whether the repo is
+                # still shallow and treat as success if it's been unshallowed.
+                if not self.is_shallow_repository():
+                    log.debug("Repository was unshallowed by peer while waiting for lock")
+                    return _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
+                log.debug("Unshallow lock timed out, repo is still shallow — returning failure")
+                return _GitSubprocessDetails(
+                    stdout="", stderr="unshallow lock timeout", return_code=1, elapsed_seconds=0.0
+                )
 
-        result = self._call_git_with_lock_retry(command, should_retry=self.is_shallow_repository)
-        if result.return_code != 0:
-            # The retry loop may have aborted because a sibling worker finished
-            # unshallowing in the meantime; in that case treat the operation as a success.
+            # Re-check shallowness under the lock to avoid a TOCTOU race.
             if not self.is_shallow_repository():
-                log.debug("Repository was unshallowed by another process during retry")
+                log.debug("Repository is no longer shallow (checked under lock), skipping unshallow")
                 return _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
-            log.warning("Error unshallowing repo for refspec %s: %s", refspec, result.stderr)
-        return result
+
+            remote_name = self.get_remote_name()
+            command = [
+                "fetch",
+                "--deepen=1" if parent_only else '--shallow-since="1 month ago"',
+                "--update-shallow",
+                "--filter=blob:none",
+                "--recurse-submodules=no",
+                "--no-tags",
+                remote_name,
+            ]
+            if refspec:
+                command.append(refspec)
+
+            result = self._call_git_with_lock_retry(command, should_retry=self.is_shallow_repository)
+            if result.return_code != 0:
+                # The retry loop may have aborted because a sibling worker finished
+                # unshallowing in the meantime; in that case treat the operation as a success.
+                if not self.is_shallow_repository():
+                    log.debug("Repository was unshallowed by another process during retry")
+                    return _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
+                log.warning("Error unshallowing repo for refspec %s: %s", refspec, result.stderr)
+            return result
 
     def unshallow_repository_to_local_head(self) -> _GitSubprocessDetails:
         return self.unshallow_repository(self.get_commit_sha())
