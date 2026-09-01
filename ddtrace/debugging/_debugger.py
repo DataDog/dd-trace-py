@@ -220,6 +220,8 @@ class Debugger(Service):
         if di_config.metrics:
             metrics.enable()
 
+        cls.__watchdog__.install()
+
         cls._instance = debugger = cls()
 
         debugger.start()
@@ -259,6 +261,8 @@ class Debugger(Service):
 
         cls._instance.stop(join=join)
         cls._instance = None
+
+        cls.__watchdog__.uninstall()
 
         if di_config.metrics:
             metrics.disable()
