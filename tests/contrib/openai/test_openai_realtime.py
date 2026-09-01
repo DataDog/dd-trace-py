@@ -280,12 +280,18 @@ def test_realtime_state_renderable_audio_emits_audio_parts():
 
 
 def test_realtime_state_failed_response_marks_error():
-    """A failed response status flags the child span as an error."""
+    """A failed response status flags both the llm span and the turn root as errors.
+
+    The root is the trace root, so flagging only the llm child surfaces a successful turn containing a
+    failed generation, and error filters and error-rate metrics keyed on the root miss the failure.
+    """
     integration, state = _new_state(model="gpt-realtime")
     state.on_server_event(_ns(type="response.created", response=_ns(id="resp_err")))
     state.on_server_event(_ns(type="response.done", response=_ns(id="resp_err", status="failed")))
 
     assert integration.responses[0]["span"].error == 1
+    root = {w["name"]: w for w in integration.workflows}["realtime audio turn"]
+    assert root["span"].error == 1, "the turn root must report the failure too"
 
 
 def test_realtime_state_close_is_idempotent():
@@ -931,6 +937,121 @@ def test_realtime_state_user_speech_falls_back_to_first_append_without_vad(monke
     assert integration.responses[0]["input_messages"][0]["audio_parts"] == [
         {"mime_type": "audio/wav", "content": _wav_b64(spoken)}
     ]
+
+
+def _vad_onset(state, mic, prefix_padding_ms):
+    """Fire the VAD onset with the offset pointing ``prefix_padding_ms`` *behind* the buffer head.
+
+    Real server VAD reports ``audio_start_ms`` including the session's ``prefix_padding_ms``, so some
+    speech is already buffered when the event lands. ``_Mic.speech_started`` instead points at the
+    head exactly, which makes the pre-onset run cover everything buffered and sends ``trim_leading``
+    down its reset-outright branch - so it cannot exercise the partial trim that the padding causes in
+    practice.
+    """
+    mic.onset_index = len(mic.blocks) - prefix_padding_ms // _BLOCK_MS
+    state.on_server_event(
+        _ns(type="input_audio_buffer.speech_started", audio_start_ms=mic.buffer_ms - prefix_padding_ms)
+    )
+
+
+def test_realtime_state_long_lead_in_does_not_discard_the_users_speech(monkeypatch):
+    """A pre-speech lead-in that spends the byte cap must not cost the turn its actual speech.
+
+    A continuously-streaming client holds the buffer open across the whole previous agent response, so
+    on a long one the lead-in alone can exceed the accumulation cap - and ``append`` frees the buffered
+    chunks when it trips. Trimming that lead-in at the onset has to reopen the accumulator, or every
+    chunk of the speech that follows is rejected by a cap the discarded audio filled and the turn
+    surfaces nothing but an ``[audio]`` marker.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    # 300 ms of lead-in is 14400 bytes at 48 B/ms, so a 12000-byte cap trips before the onset while
+    # still leaving room for the 200 ms of speech (9600 bytes) that follows.
+    monkeypatch.setattr(_realtime, "_AUDIO_ACCUM_MAX_BYTES", 12_000)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+
+    mic.stream(300)  # mic open through the previous agent response; nobody speaking
+    assert state._pending_input.audio.oversize, "test needs the cap to trip during the lead-in"
+    _vad_onset(state, mic, prefix_padding_ms=50)
+    assert not state._pending_input.audio.oversize, "the trim must reopen the accumulator"
+    speech_index = len(mic.blocks)
+    mic.stream(200)  # the user speaks
+    # The 50 ms of padding ahead of the onset is gone for good - ``append`` dropped it when the cap
+    # tripped - but everything from the onset on is captured, which is what the window reports.
+    # Snapshot before ``_respond``, which keeps streaming into the *next* turn's buffer.
+    spoken = b"".join(mic.blocks[speech_index:])
+    _respond(state, mic, "r1", agent_audio_ms=100)
+
+    assert integration.responses[0]["input_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": _wav_b64(spoken)}
+    ], "the user's speech must survive a lead-in that spent the cap"
+
+
+@pytest.mark.parametrize("raw_len", [0, 1, 2, 3, 4, 159, 160, 161, 1920, 3199])
+def test_realtime_decoded_b64_len_is_exact(raw_len):
+    """The decoded-length estimate has to be exact, padding included.
+
+    It sizes the speech windows, the per-item audio offsets and the barge-in cut point. PCM16 chunks
+    are even-length, so most of them encode with padding; counting that padding as data drifts the
+    timeline and lands the cut on an odd byte, splitting a sample.
+    """
+    raw = b"\x01\x02" * (raw_len // 2) + b"\x03" * (raw_len % 2)
+    assert _realtime._decoded_b64_len(_b64(raw)) == raw_len
+
+
+def test_realtime_state_trim_leading_keeps_the_byte_cap_consistent():
+    """After a partial trim the running cap must equal what is still buffered.
+
+    The trim drops whole chunks, so a cap tracked by subtraction drifts from the surviving chunks
+    whenever ``append`` has already freed them.
+    """
+    accumulator = _realtime._AudioAccumulator()
+    for _ in range(10):
+        accumulator.append(_b64(b"\x01\x02" * 240))  # 480 bytes each
+    accumulator.trim_leading(480 * 3)
+
+    assert len(accumulator.chunks) == 7
+    assert accumulator._bytes == sum(_realtime._decoded_b64_len(c) for c in accumulator.chunks)
+    assert not accumulator.oversize
+
+
+def test_realtime_state_input_buffer_clock_survives_a_late_session_format(monkeypatch):
+    """Audio appended before the session's audio format is known must not cost the whole session.
+
+    Client sends are observed as they happen, but ``session.created`` is only seen when the app parses
+    it - a client streaming from its own thread routinely wins that race. Writing the buffer origin off
+    at that point disabled the VAD-offset projection, and with it the lead-in trimming, for every turn
+    that followed rather than just the first.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    mic = _Mic(state, clock)
+
+    mic.stream(100)  # streaming before session.created: the format, and so the byte rate, is unknown
+    assert state._input_buffer_ms_at_ns is None, "the clock cannot be live yet"
+    state.on_server_event(_session_created())
+    mic.stream(100)  # a rate is known now, so the backlog converts and the clock goes live
+    assert state._input_buffer_ms_at_ns is not None, "the origin must survive the race"
+    _assert_ns(state._input_buffer_ms, 200, tolerance_ns=1)  # ms: both streams are on the timeline
+
+    # First turn: consume the pre-format audio so the next turn starts with a live clock throughout.
+    _respond(state, mic, "r1", agent_audio_ms=100)
+
+    # Second turn: the lead-in is trimmed, which the lost origin used to prevent for the whole session.
+    mic.stream(300)  # mic open through r1's response; nobody speaking
+    _vad_onset(state, mic, prefix_padding_ms=50)
+    mic.stream(200)  # the user speaks
+    # The onset offset lands on a chunk boundary here, so the 50 ms of padding survives the
+    # whole-chunk trim alongside the speech. Snapshot before ``_respond`` streams into the next turn.
+    kept = mic.speech_blocks()
+    _respond(state, mic, "r2", agent_audio_ms=100)
+
+    assert integration.responses[1]["input_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": _wav_b64(kept)}
+    ], "the pre-speech lead-in must still be trimmed after a late session format"
 
 
 # ---- integration test: real patched RealtimeConnection over a fake websocket ----

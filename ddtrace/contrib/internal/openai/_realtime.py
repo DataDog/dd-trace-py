@@ -188,7 +188,14 @@ class _AudioAccumulator:
         if count:
             del self.chunks[:count]
             del self._chunk_bytes[:count]
-            self._bytes -= dropped
+        # Re-derive the cap from what actually survived, which also reopens a segment the lead-in had
+        # closed. On a continuously-streaming client the lead-in is what spends the cap (the buffer
+        # stays open across the whole previous agent response), and `append` drops `_chunk_bytes`
+        # when it trips - so the loop above finds nothing to subtract and, without this, the cap the
+        # trimmed-away audio filled would go on rejecting the user's actual speech for the rest of the
+        # turn. That is the outcome trimming exists to prevent, not to cause.
+        self._bytes = sum(self._chunk_bytes)
+        self.oversize = self._bytes > _AUDIO_ACCUM_MAX_BYTES
         # ``total_decoded_bytes`` measures the playback window rather than what we kept, so it sheds
         # the whole lead-in (not just the whole chunks), including when the byte cap already dropped
         # the chunks themselves.
@@ -320,10 +327,13 @@ class _RealtimeState:
         self._input_transcription_enabled: bool = False
         # Offset (ms) of the end of all input audio appended to the buffer this session, and the wall
         # clock (unix ns) when we reached it. Together they place the VAD events' buffer offsets on
-        # the wall clock (see ``_buffer_offset_to_wall_ns``). ``None`` means we lost the origin and
-        # the projection is unavailable.
-        self._input_buffer_ms: Optional[float] = 0.0
+        # the wall clock (see `_buffer_offset_to_wall_ns`). `_input_buffer_ms_at_ns` is None until
+        # the first append we could rate, and that is what marks the projection unavailable.
+        self._input_buffer_ms: float = 0.0
         self._input_buffer_ms_at_ns: Optional[int] = None
+        # Decoded input bytes seen before the session's audio format was known, held until a rate
+        # arrives to convert them (see `_advance_input_buffer_clock`).
+        self._pending_input_bytes: int = 0
         self._pending_input = _InputTurn()
         self._responses: dict[str, Any] = {}
         self._input_transcripts: dict[str, str] = {}
@@ -452,25 +462,35 @@ class _RealtimeState:
     def _append_input_audio(self, b64: str) -> None:
         """Buffer a client audio append for the pending turn and advance the input-buffer clock."""
         pending = self._pending_input
-        if pending.audio.start_ns is None:
-            # First chunk of this turn: remember where it sits on the session's input-buffer
-            # timeline, so a VAD offset can be turned into a byte offset into what we buffer here.
+        # Fold in anything buffered before the format was known first, so the base offset captured
+        # below sits on the same timeline the VAD offsets are later projected against.
+        self._advance_input_buffer_clock(0)
+        if pending.audio.start_ns is None and self._input_buffer_ms_at_ns is not None:
+            # First chunk of this turn and the clock is live: remember where it sits on the session's
+            # input-buffer timeline, so a VAD offset can be turned into a byte offset into what we
+            # buffer here. Left at None while the clock is dead, since a base of 0 would read as
+            # "this turn starts at the session origin" and over-trim the front of the segment.
             pending.audio_base_ms = self._input_buffer_ms
         pending.audio.append(b64)
         self._advance_input_buffer_clock(_decoded_b64_len(b64))
 
     def _advance_input_buffer_clock(self, decoded_bytes: int) -> None:
-        """Track how far into the session's input audio the buffer now extends, and when we got
-        there. Audio in a format whose duration we can't compute loses the origin, which disables
-        the projection rather than silently skewing it.
+        """Track how far into the session's input audio the buffer now extends, and when we got there.
+
+        Audio we cannot yet rate is held as a raw byte count and converted the moment a rate is known,
+        rather than written off. The session's format arrives on session.created/updated, which is
+        observed only when the app parses it - a client streaming from its own thread routinely beats
+        it - and losing the origin to that race disabled the projection, and with it the lead-in
+        trimming, for the whole session. A format we can never rate (an unknown codec) still leaves
+        the projection unavailable: the backlog simply never converts and ``_input_buffer_ms_at_ns``
+        stays None, which is what marks the clock dead.
         """
-        if self._input_buffer_ms is None:
-            return
+        self._pending_input_bytes += decoded_bytes
         bytes_per_second = _bytes_per_second(self._input_audio_mime, self._input_audio_rate)
         if not bytes_per_second:
-            self._input_buffer_ms = None
             return
-        self._input_buffer_ms += decoded_bytes / bytes_per_second * 1000
+        self._input_buffer_ms += self._pending_input_bytes / bytes_per_second * 1000
+        self._pending_input_bytes = 0
         self._input_buffer_ms_at_ns = time.time_ns()
 
     def _on_speech_started(self, audio_start_ms: Any) -> None:
@@ -521,7 +541,7 @@ class _RealtimeState:
         the observation time when the projection is unavailable.
         """
         offset_ms = _as_float(offset_ms)
-        if offset_ms is None or self._input_buffer_ms is None or self._input_buffer_ms_at_ns is None:
+        if offset_ms is None or self._input_buffer_ms_at_ns is None:
             return observed_ns
         projected = self._input_buffer_ms_at_ns - int((self._input_buffer_ms - offset_ms) * 1_000_000)
         earliest = self._pending_input.audio.start_ns
@@ -715,9 +735,15 @@ class _RealtimeState:
         # session (every finalize path goes through here).
         if turn.input.item_id is not None:
             self._input_transcripts.pop(turn.input.item_id, None)
+        if turn.status == "failed":
+            # Flag the whole turn, not just the generation: the root is the trace root, so leaving it
+            # clean surfaces a successful turn containing a failed llm span, and error filters and
+            # error-rate metrics that key on the root miss the failure entirely. Outside the tagging
+            # guards below so neither one can skip it.
+            for span in (turn.span, turn.root_span):
+                if span is not None:
+                    span.error = 1
         try:
-            if turn.status == "failed" and turn.span is not None:
-                turn.span.error = 1
             self._tag_response(turn)
         except Exception:
             log.debug("error tagging realtime response span", exc_info=True)
@@ -1088,8 +1114,18 @@ def _usage_metrics(usage: Any) -> Optional[dict[str, Any]]:
 
 
 def _decoded_b64_len(b64: str) -> int:
-    """Decoded byte count of a base64 string (~3/4 of its length), without decoding it."""
-    return (len(b64) * 3) // 4
+    """Decoded byte count of a base64 string, without decoding it.
+
+    Three quarters of the encoded length, less one byte per trailing "=". The padding has to come off:
+    these counts now drive the speech windows, the per-item offsets and the barge-in cut point, and
+    PCM16 chunks are even-length so most of them encode with padding - counted as data it would drift
+    the timeline and land the cut on an odd byte, splitting a sample.
+    """
+    length = len(b64)
+    if not length:
+        return 0
+    padding = 2 if b64.endswith("==") else 1 if b64.endswith("=") else 0
+    return (length * 3) // 4 - padding
 
 
 def _slice_b64(b64: str, decoded_bytes: int) -> tuple[str, int]:
