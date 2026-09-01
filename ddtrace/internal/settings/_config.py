@@ -428,7 +428,10 @@ class Config(object):
     """
 
     class _HTTPServerConfig(object):
-        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", "500-599")
+        _default_error_statuses = "500-599"
+        _error_statuses_from_env = env.get("DD_TRACE_HTTP_SERVER_ERROR_STATUSES") is not None
+        _error_statuses: str = _get_config("DD_TRACE_HTTP_SERVER_ERROR_STATUSES", _default_error_statuses)
+        _error_statuses_configured = _error_statuses_from_env
         _error_ranges: list[tuple[int, int]] = get_error_ranges(_error_statuses)
 
         @property
@@ -438,9 +441,15 @@ class Config(object):
         @error_statuses.setter
         def error_statuses(self, value: str) -> None:
             self._error_statuses = value
+            # Restoring the implicit default must also restore implicit OTel semantics.
+            self._error_statuses_configured = self._error_statuses_from_env or value != self._default_error_statuses
             self._error_ranges = get_error_ranges(value)
             # Mypy can't catch cached method's invalidate()
             self.is_error_code.cache_clear()  # type: ignore[attr-defined]
+
+        @property
+        def error_statuses_configured(self) -> bool:
+            return self._error_statuses_configured
 
         @property
         def error_ranges(self) -> list[tuple[int, int]]:
