@@ -1,5 +1,6 @@
 import re
 from typing import Optional
+from typing import Union
 from urllib.parse import urlparse
 
 from ddtrace._trace.processor import SpanProcessor
@@ -11,6 +12,16 @@ from ddtrace.internal.settings._config import config
 
 
 log = get_logger(__name__)
+
+
+def path_source_tag_value(span: Span) -> Optional[str]:
+    """The URL-ish tag an endpoint is computed from, in the active semantics mode.
+
+    Server spans carry url.path and client spans carry url.full under the flag, and
+    SimplifiedEndpointComputer.from_url parses either shape.
+    """
+    path_source_tags = (http.OTEL_URL_PATH, http.OTEL_URL_FULL) if config._otel_trace_semantics_enabled else (http.URL,)
+    return next((value for value in map(span.get_tag, path_source_tags) if value), None)
 
 
 class SimplifiedEndpointComputer:
@@ -74,12 +85,16 @@ class ResourceRenamingProcessor(SpanProcessor):
         if not span._is_top_level or span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.SERVERLESS):
             return
 
-        status = span.get_tag(http.STATUS_CODE)
+        status_code_tag = http.OTEL_RESPONSE_STATUS_CODE if config._otel_trace_semantics_enabled else http.STATUS_CODE
+        status: Union[str, int, float, None] = span.get_tag(status_code_tag)
+        if status is None:
+            # under OTLP export the status code is written with its integer type
+            status = span.get_metric(status_code_tag)
         is_404 = status == "404" or status == 404
 
         route = span.get_tag(http.ROUTE)
 
         if not is_404 and (not route or config._trace_resource_renaming_always_simplified_endpoint):
-            url = span.get_tag(http.URL)
+            url = path_source_tag_value(span)
             endpoint = self.simplified_endpoint_computer.from_url(url)
             span._set_attribute(http.ENDPOINT, endpoint)

@@ -35,6 +35,7 @@ def isolated_database(tmp_path_factory):
         from django.db import connections
 
         connections.close_all()
+        importlib.import_module(_FLAT_URLCONF).DB.close()
         settings.DATABASES["default"]["NAME"] = original_database_name
 
 
@@ -64,7 +65,10 @@ class _Test_Django_Base:
         settings.ROOT_URLCONF = request.param
         clear_url_caches()
         endpoint_collection.reset()
-        importlib.reload(importlib.import_module(request.param))
+        urlconf = importlib.import_module(request.param)
+        if request.param == _FLAT_URLCONF:
+            urlconf.DB.close()
+        importlib.reload(urlconf)
 
         client = Client(
             f"http://localhost:{self.SERVER_PORT}",
@@ -162,6 +166,44 @@ class Test_Django(_Test_Django_Base, utils.Contrib_TestClass_For_Threats):
         # `<path:name>` matches one or more URL segments; substitute a non-empty multi-segment value so it resolves.
         path = re.sub(r"<path:[a-z_]+>", "a/b/c", path)
         return path if path.startswith("/") else ("/" + path)
+
+    def test_path_params_block_before_view(self, interface):
+        from django.http import HttpResponse
+        from django.urls import path
+
+        from tests.utils import override_global_config
+
+        view_calls = []
+        view_middleware_calls = []
+
+        def blocked_view(_request, value):
+            view_calls.append(value)
+            return HttpResponse("view ran")
+
+        def process_view(_request, _view_func, _view_args, _view_kwargs):
+            view_middleware_calls.append(True)
+
+        if django.VERSION >= (3, 1):
+            interface.client.handler.load_middleware(is_async=False)
+        else:
+            interface.client.handler.load_middleware()
+        interface.client.handler._view_middleware.append(process_view)
+
+        urlconf = importlib.import_module(settings.ROOT_URLCONF)
+        pattern = path("block-before-view/<str:value>/", blocked_view)
+        urlconf.urlpatterns.insert(0, pattern)
+        clear_url_caches()
+        try:
+            with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=utils.rules.RULES_SRB)):
+                self.update_tracer(interface)
+                response = interface.client.get("/block-before-view/AiKfOeRcvG45/")
+
+            assert self.status(response) == 403
+            assert view_middleware_calls == []
+            assert view_calls == []
+        finally:
+            urlconf.urlpatterns.remove(pattern)
+            clear_url_caches()
 
     @pytest.mark.skipif(django.VERSION < (3, 1, 0), reason="Django ASGI requires Django 3.1+")
     def test_normalized_route_asgi(self, interface: utils.Interface, get_entry_span_tag):
