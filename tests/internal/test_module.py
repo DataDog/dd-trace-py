@@ -9,6 +9,7 @@ import pytest
 
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.module import _UniversalModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
 from tests.utils import DDTRACE_PATH
@@ -38,6 +39,24 @@ def ensure_no_module_watchdog():
                 )
             else:
                 ModuleWatchdog.install()
+
+
+@pytest.fixture(autouse=True)
+def _reset_universal_module_watchdog():
+    # Safety net: if a test installs a BaseModuleWatchdog subclass and fails
+    # before it can uninstall it, the participant is otherwise stuck forever
+    # in the shared _UniversalModuleWatchdog singleton, breaking every
+    # subsequent test in the process (see the teardown tests below).
+    before = list(_UniversalModuleWatchdog._instance._watchdogs) if _UniversalModuleWatchdog._instance else []
+
+    yield
+
+    instance = _UniversalModuleWatchdog._instance
+    leaked = [w for w in instance._watchdogs if w not in before] if instance else []
+    if leaked:
+        warn(f"Test leaked {len(leaked)} module watchdog(s) that were never uninstalled: {leaked}")
+        for watchdog in leaked:
+            _UniversalModuleWatchdog._unregister(watchdog)
 
 
 @pytest.fixture
@@ -255,14 +274,16 @@ def test_module_unregister_module_hook(module_watchdog):
 
 
 def test_module_watchdog_multiple_install():
-    ModuleWatchdog.install()
-    assert ModuleWatchdog.is_installed()
-    ModuleWatchdog.install()
-    assert ModuleWatchdog.is_installed()
+    try:
+        ModuleWatchdog.install()
+        assert ModuleWatchdog.is_installed()
+        ModuleWatchdog.install()
+        assert ModuleWatchdog.is_installed()
 
-    ModuleWatchdog.uninstall()
-    assert not ModuleWatchdog.is_installed()
-    ModuleWatchdog.uninstall()
+        ModuleWatchdog.uninstall()
+        assert not ModuleWatchdog.is_installed()
+    finally:
+        ModuleWatchdog.uninstall()
     assert not ModuleWatchdog.is_installed()
 
 
@@ -271,14 +292,17 @@ def test_module_watchdog_subclasses():
         pass
 
     ModuleWatchdog.install()
-    MyWatchdog.install()
+    try:
+        MyWatchdog.install()
+        try:
+            ModuleWatchdog.uninstall()
+            assert not ModuleWatchdog.is_installed()
+        finally:
+            MyWatchdog.uninstall()
+    finally:
+        ModuleWatchdog.uninstall()
 
-    ModuleWatchdog.uninstall()
-    assert not ModuleWatchdog.is_installed()
-
-    MyWatchdog.uninstall()
     assert not MyWatchdog.is_installed()
-
     assert not isinstance(sys.modules, ModuleWatchdog)
 
 
@@ -689,8 +713,6 @@ def test_module_watchdog_find_spec_no_cross_thread_deadlock():
 
 
 def test_universal_module_watchdog_single_finder_invariant():
-    from ddtrace.internal.module import _UniversalModuleWatchdog
-
     classes = [type(f"Watchdog{i}", (ModuleWatchdog,), {}) for i in range(5)]
     for cls in classes:
         cls.install()
@@ -704,8 +726,6 @@ def test_universal_module_watchdog_single_finder_invariant():
 
 
 def test_universal_module_watchdog_constant_find_spec_calls():
-    from ddtrace.internal.module import _UniversalModuleWatchdog
-
     # Ensure the parent package is already imported so that importing the
     # child module below triggers exactly one find_spec call, rather than one
     # per not-yet-imported ancestor package.
@@ -768,8 +788,6 @@ def test_universal_module_watchdog_first_registered_wins():
 
 
 def test_universal_module_watchdog_teardown():
-    from ddtrace.internal.module import _UniversalModuleWatchdog
-
     classes = [type(f"Watchdog{i}", (ModuleWatchdog,), {}) for i in range(3)]
     for cls in classes:
         cls.install()
