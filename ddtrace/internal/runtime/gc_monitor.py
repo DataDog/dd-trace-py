@@ -90,6 +90,10 @@ class GCPauseMonitor:
                 except ValueError:
                     pass
 
+                if self._fork_registered:
+                    forksafe.unregister(self.reset)
+                    self._fork_registered = False
+
                 # Drop in-flight starts so a later re-acquire cannot pair a
                 # new stop with a stale timestamp from before uninstall.
                 self._clear_starts()

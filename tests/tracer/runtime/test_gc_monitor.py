@@ -20,6 +20,29 @@ def test_callback_installed_only_while_acquired() -> None:
     assert monitor._on_gc not in gc.callbacks
 
 
+def test_last_release_unregisters_fork_hook() -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    assert monitor.reset not in forksafe._registry
+    monitor.acquire()
+    try:
+        assert monitor.reset in forksafe._registry
+        monitor.acquire()
+        assert forksafe._registry.count(monitor.reset) == 1
+        monitor.release()
+        assert monitor.reset in forksafe._registry
+    finally:
+        monitor.release()
+    assert monitor.reset not in forksafe._registry
+
+    monitor.acquire()
+    try:
+        assert monitor.reset in forksafe._registry
+        assert forksafe._registry.count(monitor.reset) == 1
+    finally:
+        monitor.release()
+    assert monitor.reset not in forksafe._registry
+
+
 def test_snapshot_records_real_collection() -> None:
     monitor: GCPauseMonitor = GCPauseMonitor()
     monitor.acquire()
