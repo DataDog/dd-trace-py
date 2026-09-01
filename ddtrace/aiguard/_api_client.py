@@ -135,9 +135,12 @@ class AIGuardClient:
     def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
         """Tags identifying the call path that reached the evaluation, required on every metric.
 
-        Normalized here because the spec pins integration to none for direct SDK calls.
+        Clamped to the declared values: the spec pins integration to none for direct SDK calls,
+        and evaluate is public API, so an off-spec value must not reach telemetry as a new series.
         """
-        if source != AI_GUARD.SOURCE_AUTO:
+        if source not in AI_GUARD.SOURCES:
+            source = AI_GUARD.SOURCE_SDK
+        if source != AI_GUARD.SOURCE_AUTO or integration not in AI_GUARD.INTEGRATIONS:
             integration = AI_GUARD.INTEGRATION_NONE
         return (("source", source), ("integration", integration))
 

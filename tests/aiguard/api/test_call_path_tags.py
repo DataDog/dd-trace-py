@@ -12,6 +12,7 @@ import pathlib
 
 import pytest
 
+from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._common import evaluate_auto
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.settings.aiguard import aiguard_config
@@ -46,6 +47,22 @@ def test_evaluate_auto_reports_the_package_as_the_call_path():
             "integration": AI_GUARD.INTEGRATION_OPENAI,
         }
     ]
+
+
+@pytest.mark.parametrize(
+    "source,integration,expected",
+    [
+        (AI_GUARD.SOURCE_AUTO, AI_GUARD.INTEGRATION_OPENAI, (AI_GUARD.SOURCE_AUTO, AI_GUARD.INTEGRATION_OPENAI)),
+        (AI_GUARD.SOURCE_SDK, AI_GUARD.INTEGRATION_OPENAI, (AI_GUARD.SOURCE_SDK, AI_GUARD.INTEGRATION_NONE)),
+        ("req-42", "openai", (AI_GUARD.SOURCE_SDK, AI_GUARD.INTEGRATION_NONE)),
+        (AI_GUARD.SOURCE_AUTO, "openaii", (AI_GUARD.SOURCE_AUTO, AI_GUARD.INTEGRATION_NONE)),
+    ],
+)
+def test_call_path_tags_clamped_to_declared_values(source, integration, expected):
+    assert AIGuardClient._call_path_tags(source, integration) == (
+        ("source", expected[0]),
+        ("integration", expected[1]),
+    )
 
 
 @pytest.mark.parametrize("path", sorted(INTEGRATIONS_DIR.glob("*.py")), ids=lambda path: path.name)

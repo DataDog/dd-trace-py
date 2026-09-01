@@ -64,6 +64,18 @@ class AI_GUARD(metaclass=Constant_Class):
     INTEGRATION_LITELLM: Literal["litellm"] = "litellm"
     INTEGRATION_STRANDS: Literal["strands"] = "strands"
 
+    # Closed tag sets: anything else reaching the metrics is clamped back to these defaults,
+    # so a bad value from a caller cannot invent telemetry series.
+    SOURCES: tuple[str, ...] = (SOURCE_SDK, SOURCE_AUTO)
+    INTEGRATIONS: tuple[str, ...] = (
+        INTEGRATION_NONE,
+        INTEGRATION_OPENAI,
+        INTEGRATION_ANTHROPIC,
+        INTEGRATION_LANGCHAIN,
+        INTEGRATION_LITELLM,
+        INTEGRATION_STRANDS,
+    )
+
     # environment variables
     ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
     ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
