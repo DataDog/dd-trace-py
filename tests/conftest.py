@@ -22,6 +22,7 @@ from tempfile import NamedTemporaryFile
 from tempfile import mkdtemp
 import time
 from typing import Any  # noqa:F401
+from typing import Callable  # noqa:F401
 from typing import Generator  # noqa:F401
 from unittest import TestCase
 from unittest import mock
@@ -394,19 +395,18 @@ class FunctionDefFinder(ast.NodeVisitor):
         return t
 
 
-def is_stream_ok(stream, expected):
+def is_stream_ok(stream: bytes | str | None, expected: bytes | str | Callable[[str | bytes | None], bool] | None):
     if expected is None:
         return True
 
-    if isinstance(expected, str):
-        ex = expected.encode("utf-8")
-    elif isinstance(expected, bytes):
-        ex = expected
-    else:
-        # Assume it's a callable condition
-        return expected(stream.decode("utf-8"))
+    stream_str = stream.decode("utf-8") if isinstance(stream, bytes) else stream
 
-    return stream == ex
+    if callable(expected):
+        return expected(stream_str)
+
+    expected_str = expected.decode("utf-8") if isinstance(expected, bytes) else expected
+
+    return stream_str == expected_str
 
 
 def run_function_from_file(item, params=None):
@@ -471,7 +471,7 @@ def run_function_from_file(item, params=None):
             # Add any extra requested args
             args.extend(marker.kwargs.get("args", []))
 
-            def _subprocess_wrapper():
+            def _subprocess_wrapper() -> None:
                 out_b, err_b, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
                 out = out_b.decode("utf-8") if isinstance(out_b, bytes) else out_b
                 err = err_b.decode("utf-8") if isinstance(err_b, bytes) else err_b
