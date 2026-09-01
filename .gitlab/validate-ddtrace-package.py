@@ -50,7 +50,6 @@ OPTIONAL_WHEELS: set[tuple[str, str]] = {("cp315", p) for p in BASE_PLATFORMS if
 
 
 def required_platforms(py_tag: str, platforms: list[str]) -> list[str]:
-    """Restrict platforms for Python versions that are not built everywhere."""
     allowed: list[str] | None = REQUIRED_PLATFORMS.get(py_tag)
     if allowed is None:
         return platforms
