@@ -94,17 +94,16 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
             pause = None
 
         gc_mod: ModuleType = self.modules["gc"]
-        counts: tuple[int, int, int] = gc_mod.get_count()
         collections: list[int] = _read_gc_collections(gc_mod)
-        deltas: list[int] = _delta(collections, self._prev_collections)
+        prev: list[int] = self._prev_collections
         self._prev_collections: list[int] = collections
 
         metrics: list[tuple[str, int]] = []
         name: str
         n: int
-        for name, n in zip(GC_COUNT_GENS, counts):
+        for name, n in zip(GC_COUNT_GENS, gc_mod.get_count()):
             metrics.append((name, n))
-        for name, n in zip(GC_COLLECTIONS_GENS, deltas):
+        for name, n in zip(GC_COLLECTIONS_GENS, _delta(collections, prev)):
             metrics.append((name, n))
         metrics.append((GC_PAUSE_TIME, 0 if pause is None else pause.total_ns))
         metrics.append((GC_PAUSE_MAX, 0 if pause is None else pause.max_ns))
