@@ -282,7 +282,6 @@ def test_gc_monitor_reference_chains_1() -> None:
     import json
     import os
     import random
-    import sys
     import time
 
     from ddtrace.profiling.profiler import Profiler
@@ -343,24 +342,13 @@ def test_gc_monitor_reference_chains_1() -> None:
     p.stop()
 
     gc_files = sorted(glob.glob(output_prefix + ".*.gc-stats.json"))
-    print(f"[test debug] gc-stats.json candidates for {output_prefix}: {gc_files}", file=sys.stderr)
     assert len(gc_files) > 0, f"No gc-stats.json files found under {output_prefix}"
 
     latest = gc_files[-1]
     with open(latest) as f:
         raw = f.read()
-    print(f"[test debug] using {latest} ({len(raw)} bytes)", file=sys.stderr)
-    print(f"[test debug] contents:\n{raw}", file=sys.stderr)
 
     data = json.loads(raw)
-    print(
-        "[test debug] top-level keys={} tt_len={} rt_len={}".format(
-            sorted(data.keys()),
-            len(data.get("tt", [])),
-            len(data.get("rt", [])),
-        ),
-        file=sys.stderr,
-    )
 
     tt = data["tt"]
     assert isinstance(data["rt"], list)
