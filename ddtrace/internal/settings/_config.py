@@ -38,9 +38,9 @@ from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
@@ -166,6 +166,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dogpile_cache",
         "pylibmc",
         "httpx",
+        "httpx2",
         "httplib",
         "rq",
         "jinja2",
@@ -635,6 +636,13 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+
+        self._propagation_as_span_links = _get_config(
+            "DD_TRACE_PROPAGATION_AS_SPAN_LINKS",
+            set(),
+            # Expected format: comma-separated integration names (e.g. "kafka,google_cloud_pubsub").
+            lambda x: {name.strip() for name in x.split(",") if name.strip()},
+        )
         self._baggage_tag_keys = _get_config(
             "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
         )

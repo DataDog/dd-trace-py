@@ -26,6 +26,7 @@ from ddtrace.appsec._iast import ddtrace_iast_flask_patch
 from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.internal.utils.formats import asbool
+from tests.appsec._shutdown import bounded_tracer_shutdown
 from tests.appsec.iast_packages.packages.pkg_aiohttp import pkg_aiohttp
 from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
 from tests.appsec.iast_packages.packages.pkg_annotated_types import pkg_annotated_types
@@ -337,7 +338,8 @@ def iast_code_injection_vulnerability():
 
 @app.route("/shutdown", methods=["GET"])
 def shutdown_view():
-    tracer.shutdown(timeout=10)
+    # Was timeout=10, the same budget the caller allows for the whole response.
+    bounded_tracer_shutdown()
     sys.exit(0)
 
 
@@ -1038,7 +1040,7 @@ def return_headers(*args, **kwargs):
 @app.route("/vulnerablerequestdownstream", methods=["GET"])
 def vulnerable_request_downstream():
     _weak_hash_vulnerability()
-    port = str(request.args.get("port", "8050"))
+    port = str(request.args.get("port", os.getenv("FLASK_RUN_PORT", "8050")))
     # Propagate the received headers to the downstream service
     http_poolmanager = urllib3.PoolManager(num_pools=1)
     # Sending a GET request and getting back response as HTTPResponse object.

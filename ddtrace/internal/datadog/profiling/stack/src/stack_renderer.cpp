@@ -9,7 +9,6 @@
 
 #include "echion/echion_sampler.h"
 #include "echion/strings.h"
-#include <ddup_interface.hpp>
 #include <unordered_map>
 
 using namespace Datadog;
@@ -208,6 +207,17 @@ StackRenderer::render_frame(Frame& frame)
     }
 
     sample->push_frame(function_id, 0, line);
+}
+
+void
+StackRenderer::render_gc_frame()
+{
+    if (sample == nullptr) {
+        std::cerr << "Received a GC frame without sample storage. Some profiling data has been lost." << std::endl;
+        return;
+    }
+
+    sample->push_frame("Garbage collection", "<runtime>", 0, 0);
 }
 
 void

@@ -8,7 +8,7 @@ re-exports the public symbols from their new home and emits a
 import typing
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
-from ddtrace.vendor.debtcollector import deprecate
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 # AIDEV-NOTE: lazy re-export shim. Accessing any public symbol here warns once
@@ -41,7 +41,7 @@ _STRANDS = frozenset({"AIGuardStrandsPlugin", "AIGuardStrandsHookProvider"})
 
 def __getattr__(name: str) -> typing.Any:
     if name in _PUBLIC or name in _STRANDS:
-        deprecate(  # type: ignore[no-untyped-call]
+        deprecate(
             prefix="ddtrace.appsec.ai_guard is deprecated",
             message="Import from ddtrace.aiguard instead.",
             removal_version="5.0.0",

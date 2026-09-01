@@ -79,9 +79,10 @@ from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
+from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils import deprecations as deprecation_utils
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import _utils as deprecation_utils
-from ddtrace.vendor.debtcollector import deprecate
 
 
 if _pytest_version_supports_retries():
