@@ -34,7 +34,9 @@ tokio = "1"
 libdd-ffe = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", optional = true, features = ["pyo3"] }
 libdd-ipc = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", features = ["one_way_shm_futex"] }
 datadog-live-debugger = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
-libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
+libdd-remote-config = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", features = [
+  "agentless",
+] }
 libdd-telemetry = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
 libdd-tracer-flare = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
 libdd-crashtracker = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", optional = true }
