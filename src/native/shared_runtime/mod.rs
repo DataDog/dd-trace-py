@@ -3,10 +3,11 @@ use libdd_shared_runtime::{ForkSafeRuntime, SharedRuntime};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicU32, Ordering};
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 use std::sync::OnceLock;
+use std::sync::{Arc, RwLock};
 use std::thread;
 use std::time::Duration;
 
@@ -14,13 +15,35 @@ mod exceptions;
 use exceptions::shared_runtime_error_to_pyerr;
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
-static ATFORK_RUNTIME: OnceLock<Arc<ForkSafeRuntime>> = OnceLock::new();
+static ATFORK_RUNTIME: OnceLock<Result<Arc<SharedRuntimeState>, String>> = OnceLock::new();
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 static CHILD_RESTART_PENDING: AtomicBool = AtomicBool::new(false);
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+static CHILD_RESTART_DEFERRED: AtomicBool = AtomicBool::new(false);
+
+struct SharedRuntimeState {
+    runtime: RwLock<Arc<ForkSafeRuntime>>,
+    pid: AtomicU32,
+}
+
+impl SharedRuntimeState {
+    fn current(&self) -> Arc<ForkSafeRuntime> {
+        self.runtime
+            .read()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn atfork_runtime() -> Option<&'static Arc<SharedRuntimeState>> {
+    ATFORK_RUNTIME.get().and_then(|result| result.as_ref().ok())
+}
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn before_fork() {
-    if let Some(runtime) = ATFORK_RUNTIME.get() {
+    if let Some(state) = atfork_runtime() {
+        let runtime = state.current();
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             runtime.before_fork();
         }));
@@ -29,7 +52,8 @@ unsafe extern "C" fn before_fork() {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn after_fork_parent() {
-    if let Some(runtime) = ATFORK_RUNTIME.get() {
+    if let Some(state) = atfork_runtime() {
+        let runtime = state.current();
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let _ = runtime.after_fork_parent();
         }));
@@ -46,102 +70,189 @@ unsafe extern "C" fn after_fork_child() {
 
 #[pyclass(name = "SharedRuntime", subclass)]
 pub struct SharedRuntimePy {
-    inner: Arc<ForkSafeRuntime>,
+    inner: Arc<SharedRuntimeState>,
 }
 
 impl SharedRuntimePy {
-    pub(crate) fn as_arc(&self) -> PyResult<&Arc<ForkSafeRuntime>> {
-        ensure_after_fork_child(&self.inner)?;
-        Ok(&self.inner)
+    pub(crate) fn as_arc(&self) -> PyResult<Arc<ForkSafeRuntime>> {
+        ensure_shared_runtime_after_fork(&self.inner)
     }
 }
 
 pub(crate) fn ensure_after_fork_child(runtime: &Arc<ForkSafeRuntime>) -> PyResult<()> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        if CHILD_RESTART_PENDING.load(Ordering::Acquire) {
-            runtime
-                .after_fork_child()
-                .map_err(shared_runtime_error_to_pyerr)?;
-            CHILD_RESTART_PENDING.store(false, Ordering::Release);
+        if CHILD_RESTART_DEFERRED.load(Ordering::Acquire) {
+            return Err(PyRuntimeError::new_err(
+                "native runtime restart is deferred until child fork hooks complete",
+            ));
+        }
+        if CHILD_RESTART_PENDING.swap(false, Ordering::AcqRel) {
+            if let Err(e) = runtime.after_fork_child() {
+                CHILD_RESTART_PENDING.store(true, Ordering::Release);
+                return Err(shared_runtime_error_to_pyerr(e));
+            }
+            if let Some(state) = atfork_runtime() {
+                state.pid.store(std::process::id(), Ordering::Release);
+            }
+        } else if let Some(state) = atfork_runtime() {
+            if state.pid.load(Ordering::Acquire) != std::process::id() {
+                return Err(PyRuntimeError::new_err(
+                    "native worker was inherited by a child without native fork handlers; rebuild the worker",
+                ));
+            }
         }
     }
     Ok(())
+}
+
+fn ensure_shared_runtime_after_fork(
+    state: &Arc<SharedRuntimeState>,
+) -> PyResult<Arc<ForkSafeRuntime>> {
+    let current_pid = std::process::id();
+    if state.pid.load(Ordering::Acquire) == current_pid {
+        return Ok(state.current());
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if CHILD_RESTART_DEFERRED.load(Ordering::Acquire) {
+        return Err(PyRuntimeError::new_err(
+            "native runtime restart is deferred until child fork hooks complete",
+        ));
+    }
+
+    let mut runtime = state.runtime.write().unwrap_or_else(|e| e.into_inner());
+    if state.pid.load(Ordering::Acquire) == current_pid {
+        return Ok(runtime.clone());
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    if CHILD_RESTART_PENDING.swap(false, Ordering::AcqRel) {
+        if let Err(e) = runtime.after_fork_child() {
+            CHILD_RESTART_PENDING.store(true, Ordering::Release);
+            return Err(shared_runtime_error_to_pyerr(e));
+        }
+        state.pid.store(current_pid, Ordering::Release);
+        return Ok(runtime.clone());
+    }
+
+    // A Python-managed fork can run without invoking pthread_atfork on some runtimes.
+    // The inherited Tokio runtime cannot be repaired because its worker threads are gone,
+    // so replace it without polling or shutting it down.
+    *runtime = Arc::new(ForkSafeRuntime::new().map_err(shared_runtime_error_to_pyerr)?);
+    state.pid.store(current_pid, Ordering::Release);
+    Ok(runtime.clone())
 }
 
 #[pymethods]
 impl SharedRuntimePy {
     #[new]
     fn new() -> PyResult<Self> {
-        let inner = ForkSafeRuntime::new().map_err(shared_runtime_error_to_pyerr)?;
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        {
+            let result = ATFORK_RUNTIME.get_or_init(|| {
+                let runtime = ForkSafeRuntime::new().map_err(|e| e.to_string())?;
+                let state = Arc::new(SharedRuntimeState {
+                    runtime: RwLock::new(Arc::new(runtime)),
+                    pid: AtomicU32::new(std::process::id()),
+                });
+                // AIDEV-NOTE: uWSGI forks in native code and bypasses Python's os.register_at_fork
+                // callbacks. pthread_atfork pauses the runtime around every native fork. The child
+                // callback only marks the runtime for lazy restart because it also runs in transient
+                // fork+exec children, where starting threads would race with exec closing descriptors.
+                let result = unsafe {
+                    libc::pthread_atfork(
+                        Some(before_fork),
+                        Some(after_fork_parent),
+                        Some(after_fork_child),
+                    )
+                };
+                if result != 0 {
+                    return Err(format!(
+                        "failed to register native fork handlers: error {result}"
+                    ));
+                }
+                Ok(state)
+            });
+            return match result {
+                Ok(state) => Ok(Self {
+                    inner: state.clone(),
+                }),
+                Err(error) => Err(PyRuntimeError::new_err(error.clone())),
+            };
+        }
+
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+        let runtime = ForkSafeRuntime::new().map_err(shared_runtime_error_to_pyerr)?;
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         Ok(Self {
-            inner: Arc::new(inner),
+            inner: Arc::new(SharedRuntimeState {
+                runtime: RwLock::new(Arc::new(runtime)),
+                pid: AtomicU32::new(std::process::id()),
+            }),
         })
     }
 
     fn before_fork(&self) {
-        self.inner.before_fork();
+        self.inner.current().before_fork();
     }
 
     fn after_fork_parent(&self) -> PyResult<()> {
         self.inner
+            .current()
             .after_fork_parent()
             .map_err(shared_runtime_error_to_pyerr)
     }
 
     fn after_fork_child(&self) -> PyResult<()> {
-        let result = self
-            .inner
+        let runtime = self.inner.current();
+        let result = runtime
             .after_fork_child()
             .map_err(shared_runtime_error_to_pyerr);
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         if result.is_ok() {
             CHILD_RESTART_PENDING.store(false, Ordering::Release);
+            self.inner.pid.store(std::process::id(), Ordering::Release);
         }
         result
+    }
+
+    fn defer_after_fork_child(&self) {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        CHILD_RESTART_DEFERRED.store(true, Ordering::Release);
+    }
+
+    fn allow_after_fork_child(&self) {
+        #[cfg(any(target_os = "linux", target_os = "macos"))]
+        CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
     }
 
     fn register_at_fork(&self) -> PyResult<()> {
         #[cfg(any(target_os = "linux", target_os = "macos"))]
         {
-            if let Some(runtime) = ATFORK_RUNTIME.get() {
-                if Arc::ptr_eq(runtime, &self.inner) {
-                    return Ok(());
+            match ATFORK_RUNTIME.get() {
+                Some(Ok(state)) if Arc::ptr_eq(state, &self.inner) => return Ok(()),
+                Some(Ok(_)) => {
+                    return Err(PyRuntimeError::new_err(
+                        "native fork handlers are already registered to another shared runtime",
+                    ));
                 }
-                return Err(PyRuntimeError::new_err(
-                    "native fork handlers are already registered to another shared runtime",
-                ));
-            }
-
-            // AIDEV-NOTE: uWSGI forks in native code and bypasses Python's os.register_at_fork
-            // callbacks. pthread_atfork pauses the runtime around every native fork. The child
-            // callback only marks the runtime for lazy restart because it also runs in transient
-            // fork+exec children, where starting threads would race with exec closing descriptors.
-            ATFORK_RUNTIME.set(self.inner.clone()).map_err(|_| {
-                PyRuntimeError::new_err(
-                    "failed to register shared runtime for native fork handlers",
-                )
-            })?;
-            let result = unsafe {
-                libc::pthread_atfork(
-                    Some(before_fork),
-                    Some(after_fork_parent),
-                    Some(after_fork_child),
-                )
-            };
-            if result != 0 {
-                return Err(PyRuntimeError::new_err(format!(
-                    "failed to register native fork handlers: error {result}"
-                )));
+                Some(Err(error)) => return Err(PyRuntimeError::new_err(error.clone())),
+                None => {
+                    return Err(PyRuntimeError::new_err(
+                        "native fork handlers were not registered during runtime creation",
+                    ));
+                }
             }
         }
+        #[cfg(not(any(target_os = "linux", target_os = "macos")))]
         Ok(())
     }
 
     fn shutdown(&self, timeout_ms: Option<u64>) -> PyResult<()> {
         let timeout = timeout_ms.map(Duration::from_millis);
         self.inner
-            .clone()
+            .current()
             .shutdown(timeout)
             .map_err(shared_runtime_error_to_pyerr)
     }
@@ -150,7 +261,7 @@ impl SharedRuntimePy {
     /// This is can be used when thread local storage have been destroyed.
     fn shutdown_in_thread(&self, timeout_ms: Option<u64>) -> PyResult<()> {
         let timeout = timeout_ms.map(Duration::from_millis);
-        let inner = self.inner.clone();
+        let inner = self.inner.current();
         thread::Builder::new()
             .spawn(move || inner.shutdown(timeout))
             .map_err(|_| {
@@ -164,7 +275,7 @@ impl SharedRuntimePy {
     }
 
     fn debug(&self) -> String {
-        format!("{:?}", self.inner)
+        format!("{:?}", self.inner.current())
     }
 }
 

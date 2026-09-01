@@ -162,7 +162,7 @@ impl TelemetryWorkerPy {
         install_type: Option<String>,
         install_time: Option<String>,
     ) -> PyResult<Self> {
-        let shared_runtime = runtime.as_arc()?.clone();
+        let shared_runtime = runtime.as_arc()?;
 
         let mut builder = TelemetryWorkerBuilder::new(
             hostname.clone(),

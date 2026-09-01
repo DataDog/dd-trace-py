@@ -274,7 +274,7 @@ class TelemetryWriter:
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if not self._enabled:
+        if not self._enabled or forksafe.in_child_hook():
             return False
 
         if self._worker is not None:
@@ -894,13 +894,12 @@ class TelemetryWriter:
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
     def _fork_writer(self) -> None:
-        # Runs in the child after a Python-managed fork. The native atfork handler has already
-        # reset and restarted the inherited worker. Drop it and rebuild lazily on the child's
-        # next telemetry call (enable()), bound to the child's own runtime and session ids
-        # (get_runtime_id()/get_parent_runtime_id() now reflect the child), heartbeating without
-        # re-emitting app-started.
-        # NOTE: rebuilding here, inside the fork-hook chain, trips a tokio IO-safety abort
-        # (spawning on the just-restarted runtime from within the after-fork callbacks).
+        # Runs in the child after a Python-managed fork. Drop the inherited worker and rebuild
+        # lazily on the child's next telemetry call (enable()), bound to the child's own runtime
+        # and session ids (get_runtime_id()/get_parent_runtime_id() now reflect the child),
+        # heartbeating without re-emitting app-started.
+        # NOTE: rebuilding here, inside the fork-hook chain, starts Tokio before process managers
+        # such as Celery finish closing inherited file descriptors.
         #
         # This hook is registered before the tracer's _child_after_fork (TelemetryWriter is
         # constructed before the tracer), so it always runs before the trace-exporter rebuild

@@ -415,7 +415,10 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate(reset_buffer=True)
+        # Celery and other process managers close inherited file descriptors after Python's
+        # at-fork callbacks return. Recreating the native writer here would start Tokio early
+        # enough for those descriptor sweeps to invalidate its I/O driver.
+        self._span_aggregator.reset_trace_buffer_after_fork()
         self._new_process = True
         self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
@@ -493,6 +496,7 @@ class Tracer(object):
         parenting of spans.
         """
         if self._new_process:
+            self._recreate(reset_buffer=True)
             self._new_process = False
 
             # The spans remaining in the context can not and will not be
@@ -995,6 +999,9 @@ class Tracer(object):
             # Already shutting down from this or another thread — skip re-entrant call
             return
         try:
+            if self._new_process:
+                self._recreate(reset_buffer=True)
+                self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)

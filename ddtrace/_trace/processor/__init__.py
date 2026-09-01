@@ -574,4 +574,8 @@ class SpanAggregator(SpanProcessor):
         # Reset the trace buffer.
         # Useful when forking to prevent sending duplicate spans from parent and child processes.
         if reset_buffer:
-            self._traces = defaultdict(lambda: _Trace())
+            self.reset_trace_buffer_after_fork()
+
+    def reset_trace_buffer_after_fork(self) -> None:
+        """Discard inherited traces without touching the fork-unsafe writer."""
+        self._traces = defaultdict(lambda: _Trace())

@@ -740,6 +740,16 @@ class TracerTestCases(TracerTestCase):
         # After shutdown, the wrap executor should be reset
         assert self.tracer._wrap_executor is None
 
+    def test_tracer_defers_writer_recreation_after_fork(self):
+        with mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate:
+            self.tracer._child_after_fork()
+            recreate.assert_not_called()
+
+            with self.trace("child-span"):
+                pass
+
+            recreate.assert_called_once_with(reset_buffer=True)
+
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
         self.tracer.context_provider.activate(context)

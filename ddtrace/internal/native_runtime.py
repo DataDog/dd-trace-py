@@ -24,10 +24,8 @@ class NativeRuntime(SharedRuntime):
     def __init__(self) -> None:
         super().__init__()
         self.register_at_fork()
-        # The native child handler cannot start threads because it also runs in fork+exec
-        # children. Python-managed forks and uWSGI postfork callbacks complete the restart here;
-        # native forks without a Python callback restart lazily on the first runtime operation.
-        forksafe.register(self.after_fork_child)
+        forksafe.register_before_child_hooks(self.defer_after_fork_child)
+        forksafe.register_after_child_hooks(self.allow_after_fork_child)
         atexit.register(self._atexit)
         atexit.register_on_exit_signal(self._atexit)
 
@@ -50,7 +48,8 @@ class NativeRuntime(SharedRuntime):
         else:
             super().shutdown(timeout_ms=timeout_ms)
         atexit.unregister(self._atexit)
-        forksafe.unregister(self.after_fork_child)
+        forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
+        forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
 
 
 @cache
