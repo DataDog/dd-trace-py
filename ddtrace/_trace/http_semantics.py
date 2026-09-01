@@ -357,9 +357,11 @@ def set_user_agent_tag(span: Span, user_agent: str) -> None:
     span._set_attribute(user_agent_tag(), user_agent)
 
 
-def set_client_address_tags(span: Span, client_address: str) -> None:
+def set_client_address_tags(span: Span, client_address: str, network_peer_address: Optional[str] = None) -> None:
     if config._otel_trace_semantics_enabled:
         span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
+        if network_peer_address:
+            span._set_attribute(net.NETWORK_PEER_ADDRESS, network_peer_address)
     else:
         span._set_attribute(http.CLIENT_IP, client_address)
-        span._set_attribute("network.client.ip", client_address)
+        span._set_attribute("network.client.ip", network_peer_address or client_address)
