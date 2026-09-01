@@ -52,7 +52,6 @@ def _ensure_compose_project_name():
 
 _ensure_compose_project_name()
 
-from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
 from tests.suitespec import TestEnvironment  # noqa: E402
 from tests.suitespec import TestRun  # noqa: E402
 from tests.suitespec import get_patterns  # noqa: E402
@@ -497,8 +496,6 @@ class TestRunner:
                 str(venv_python),
                 "--requirements",
                 str(prepared.requirements),
-                "--exclude-newer",
-                cooldown_cutoff(),
                 "--strict",
                 "--no-progress",
             ]
