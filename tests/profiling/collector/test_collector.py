@@ -1,6 +1,8 @@
+from contextlib import contextmanager
 import importlib
 import sys
 import types
+from typing import Iterator
 
 import pytest
 
@@ -67,3 +69,68 @@ def test_capture_sampler_pure_python_fallback() -> None:
             sys.modules[mod_name] = saved_module
         sys.modules.pop(collector_mod, None)
         importlib.import_module(collector_mod)
+
+
+@contextmanager
+def _collector_wrapper_without_extension(wrapper_mod: str, extension_mod: str) -> Iterator[types.ModuleType]:
+    """Re-import a collector wrapper while its Cython extension is missing (ImportError path)."""
+    saved_ext: types.ModuleType | None = sys.modules.pop(extension_mod, None)
+    saved_wrapper: types.ModuleType | None = sys.modules.pop(wrapper_mod, None)
+    sys.modules[extension_mod] = None  # type: ignore[assignment]
+    try:
+        yield importlib.import_module(wrapper_mod)
+    finally:
+        del sys.modules[extension_mod]
+        if saved_ext is not None:
+            sys.modules[extension_mod] = saved_ext
+        sys.modules.pop(wrapper_mod, None)
+        if saved_wrapper is not None:
+            sys.modules[wrapper_mod] = saved_wrapper
+        else:
+            importlib.import_module(wrapper_mod)
+
+
+@pytest.mark.parametrize(
+    ("wrapper_mod", "extension_mod", "class_name", "ctor_kwargs"),
+    (
+        (
+            "ddtrace.profiling.collector.threading",
+            "ddtrace.profiling.collector._lock",
+            "ThreadingLockCollector",
+            {"tracer": None},
+        ),
+        (
+            "ddtrace.profiling.collector.asyncio",
+            "ddtrace.profiling.collector._lock",
+            "AsyncioLockCollector",
+            {"tracer": None},
+        ),
+        (
+            "ddtrace.profiling.collector.exception",
+            "ddtrace.profiling.collector._exception",
+            "ExceptionCollector",
+            {},
+        ),
+    ),
+)
+def test_collector_stubs_construct_and_raise_unavailable(
+    wrapper_mod: str,
+    extension_mod: str,
+    class_name: str,
+    ctor_kwargs: dict[str, object],
+) -> None:
+    """ImportError of the Cython extension must yield a constructible CollectorUnavailable stub.
+
+    profiler.py instantiates lock collectors as ``Collector(tracer=...)`` outside the
+    try that catches CollectorUnavailable; stubs that cannot be constructed crash
+    the profiler instead of being skipped.
+    """
+    with _collector_wrapper_without_extension(wrapper_mod, extension_mod) as mod:
+        stub_cls: type[collector.Collector] = getattr(mod, class_name)
+        col: collector.Collector = stub_cls(**ctor_kwargs)
+        # Use the live module: earlier tests may have re-imported
+        # ddtrace.profiling.collector, so the test-module binding can be stale.
+        live_collector: types.ModuleType = sys.modules["ddtrace.profiling.collector"]
+        unavailable_cls: type[BaseException] = live_collector.CollectorUnavailable
+        with pytest.raises(unavailable_cls):
+            col.start()

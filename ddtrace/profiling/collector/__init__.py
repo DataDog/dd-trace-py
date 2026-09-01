@@ -57,6 +57,24 @@ class Collector(service.Service):
         """Take a snapshot of collected data, to be exported."""
 
 
+class UnavailableCollector(Collector):
+    """Stand-in when a Cython collector extension failed to import.
+
+    Accepts the same constructor kwargs as the real collectors (for example
+    ``tracer=``) so ``profiler.py`` can instantiate us, then raises
+    ``CollectorUnavailable`` on start so the profiler skips the collector.
+    """
+
+    def __init__(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        super().__init__()
+
+    def _start_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        raise CollectorUnavailable
+
+    def _stop_service(self, *args: typing.Any, **kwargs: typing.Any) -> None:
+        return None
+
+
 class CaptureSamplerCollector(Collector):
     def __init__(self, capture_pct: float = config.capture_pct, *args: typing.Any, **kwargs: typing.Any) -> None:
         super().__init__(*args, **kwargs)
