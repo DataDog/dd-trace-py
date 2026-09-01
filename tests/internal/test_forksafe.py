@@ -252,14 +252,15 @@ def test_rlock_fork() -> None:
     fresh unlocked RLock; a regular threading.RLock would stay held.
     """
     import os
+    import threading
 
     from ddtrace.internal import forksafe
 
-    lock = forksafe.RLock()
+    lock: threading.RLock = forksafe.RLock()
     assert lock.acquire(blocking=False) is True
     assert lock.acquire(blocking=False) is True
 
-    pid = os.fork()
+    pid: int = os.fork()
 
     if pid == 0:
         # child: ResetObject replaced the held lock
@@ -273,8 +274,10 @@ def test_rlock_fork() -> None:
     lock.release()
     lock.release()
 
+    _: int
+    status: int
     _, status = os.waitpid(pid, 0)
-    exit_code = os.WEXITSTATUS(status)
+    exit_code: int = os.WEXITSTATUS(status)
     assert exit_code == 12
 
 
