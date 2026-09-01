@@ -96,7 +96,7 @@ impl PyBackedString {
             Tag::Rust => {
                 // Allocate a new Box from thr string view
                 Self::from_box(Box::<str>::from(self.deref()))
-            },
+            }
             Tag::PyObject => Self {
                 view_ptr: self.view_ptr,
                 view_len: self.view_len,
