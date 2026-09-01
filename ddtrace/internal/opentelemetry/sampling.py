@@ -98,6 +98,20 @@ def resolve_otel_sampling_decision(
     # AIDEV-NOTE: Valid inherited sampling fields remain authoritative because the
     # tracer follows the upstream sampled bit. Only a non-probabilistic decision
     # invalidates an inherited threshold.
+    if ot_value is None:
+        if not probabilistic_decision or sample_rate <= 0.0 or trace_id is None:
+            return ""
+
+        threshold_value = _threshold(sample_rate)
+        random_value_int = _random_value(trace_id)
+        if sampled and random_value_int < threshold_value:
+            random_value_int = threshold_value
+        elif not sampled and random_value_int >= threshold_value:
+            random_value_int = max(0, threshold_value - 1)
+        if threshold_value == 0:
+            return "rv:{:014x};th:0".format(random_value_int)
+        return "rv:{:014x};th:{}".format(random_value_int, _format_threshold(threshold_value))
+
     random_value, threshold, unknown_fields = _parse_otel_fields(ot_value)
 
     # A zero probability cannot be represented by OTel's 56-bit rejection threshold.

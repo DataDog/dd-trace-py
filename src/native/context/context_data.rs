@@ -23,6 +23,10 @@ pub struct ContextData {
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
     pub reactivate: bool,
+    #[pyo3(get, set, name = "_otel_sampling_state_data")]
+    pub otel_sampling_state_data: Option<f64>,
+    #[pyo3(get, set, name = "_otel_sampling_state_owner")]
+    pub otel_sampling_state_owner: Option<Py<ContextData>>,
 }
 
 #[pyo3::pymethods]
@@ -84,6 +88,8 @@ impl ContextData {
             ),
             is_remote,
             reactivate: false,
+            otel_sampling_state_data: None,
+            otel_sampling_state_owner: None,
         }
     }
 
@@ -215,6 +221,9 @@ impl ContextData {
         }
         if let Some(l) = &self.span_links {
             visit.call(l)?;
+        }
+        if let Some(owner) = &self.otel_sampling_state_owner {
+            visit.call(owner)?;
         }
         Ok(())
     }

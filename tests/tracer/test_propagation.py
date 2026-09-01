@@ -1347,6 +1347,18 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
                 assert expected_log in caplog.text
 
 
+@pytest.mark.parametrize("leading_ows", [" ", "\t", "\t "])
+@pytest.mark.parametrize("trailing_ows", [" ", "\t", " \t"])
+def test_extract_traceparent_normalizes_ows(leading_ows, trailing_ows):
+    traceparent = "00-%s-00f067aa0ba902b7-01" % TRACE_ID_HEX
+
+    context = _TraceContext._extract({_HTTP_HEADER_TRACEPARENT: leading_ows + traceparent + trailing_ows})
+
+    assert context is not None
+    assert context._meta["traceparent"] == traceparent
+    assert context._traceparent == traceparent
+
+
 @pytest.mark.parametrize(
     "ts_string,expected_tuple,expected_logging,expected_exception",
     [

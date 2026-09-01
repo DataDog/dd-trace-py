@@ -1024,6 +1024,8 @@ class ContextData:
     _span_links: list[Any]
     _is_remote: bool
     _reactivate: bool
+    _otel_sampling_state_data: Optional[float]
+    _otel_sampling_state_owner: Optional[ContextData]
 
     def __new__(
         cls: type[_ContextDataT],
@@ -1111,8 +1113,11 @@ class SpanData:
     def _get_attributes(self) -> Mapping[str, Union[str, int, float]]: ...
     def _get_str_attributes(self) -> Mapping[str, str]: ...
     def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
-    def _set_default_attributes(
-        self, values: Mapping[str, Union[str, int, float]], excluded_key: Optional[str] = None
+    def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+    def _set_default_context_attributes(
+        self,
+        meta: dict[str, str],
+        metrics: dict[str, Union[int, float]],
     ) -> None: ...
 
 class SpanEvent:

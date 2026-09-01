@@ -777,18 +777,15 @@ impl SpanData {
     /// (routing str→meta, numeric→metrics). Keys that already exist are skipped.
     ///
     /// Accepts any Python dict (fast path) or mapping. Bails silently on bad input.
-    /// `excluded_key` allows propagation-only context state to be omitted without
-    /// allocating a filtered dict. Callers handle any locking on the source dict.
+    /// Callers handle any locking on the source dict.
     #[pyo3(name = "_set_default_attributes")]
-    #[pyo3(signature = (values, excluded_key=None))]
     fn set_default_attributes(
         slf: &Bound<'_, Self>,
         values: &Bound<'_, PyAny>,
-        excluded_key: Option<&str>,
     ) -> pyo3::PyResult<()> {
         if let Ok(d) = values.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
-                set_default_attribute(slf, &k, &v, excluded_key);
+                set_default_attribute(slf, &k, &v, None);
             }
         } else if let Ok(m) = values.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
@@ -802,12 +799,27 @@ impl SpanData {
                     let Ok(v) = pair.get_item(1) else {
                         continue;
                     };
-                    set_default_attribute(slf, &k, &v, excluded_key);
+                    set_default_attribute(slf, &k, &v, None);
                 }
             }
         }
         // Not a dict or mapping — bail silently.
         Ok(())
+    }
+
+    /// Copy shared Context state while excluding propagation-only tracestate.
+    #[pyo3(name = "_set_default_context_attributes")]
+    fn set_default_context_attributes(
+        slf: &Bound<'_, Self>,
+        meta: &Bound<'_, PyDict>,
+        metrics: &Bound<'_, PyDict>,
+    ) {
+        for (k, v) in meta.iter() {
+            set_default_attribute(slf, &k, &v, Some("tracestate"));
+        }
+        for (k, v) in metrics.iter() {
+            set_default_attribute(slf, &k, &v, None);
+        }
     }
     // meta_struct methods
 

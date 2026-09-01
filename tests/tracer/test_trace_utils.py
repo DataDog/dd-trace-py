@@ -60,6 +60,7 @@ def test_copy_trace_level_tags_copies_independent_otel_tracestate():
     with target.context:
         _update_otel_sampling_decision(target.context, True, 0.0, False)
 
+    _ = target.context._tracestate
     assert ";th:" not in target.context._meta[W3C_TRACESTATE_KEY]
     assert ";th:" in parent.context._meta[W3C_TRACESTATE_KEY]
 

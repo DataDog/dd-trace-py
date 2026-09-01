@@ -826,6 +826,10 @@ class _TraceContext:
             if tp is None:
                 log.debug("no traceparent header")
                 return None
+            # Keep the canonical value in Context metadata. The parser accepts HTTP
+            # optional whitespace, but Context later uses fixed traceparent offsets
+            # when preserving the upstream trace ID and flags during injection.
+            tp = tp.strip()
             trace_id, span_id, trace_flag = _TraceContext._get_traceparent_values(tp)
         except (ValueError, AssertionError):
             log.exception("received invalid w3c traceparent: %s ", tp, extra={"send_to_telemetry": False})

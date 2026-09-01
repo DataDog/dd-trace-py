@@ -620,6 +620,8 @@ def _copy_trace_level_tags(target_span: Span, parent: Span):
     if parent.context.sampling_priority is not None:
         target_span.context.sampling_priority = parent.context.sampling_priority
 
+    # Materialize a deferred local decision before detaching it from the parent trace.
+    _ = parent.context._tracestate
     raw_tracestate = parent.context._meta.get(W3C_TRACESTATE_KEY, "")
     ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot")
     if ot_value is not None:

@@ -3,12 +3,13 @@ from threading import Event
 
 import pytest
 
-from ddtrace._trace import context as context_module
 from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.internal import sampling as sampling_module
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
@@ -24,18 +25,18 @@ def _ot_fields(tracestate):
     return {}
 
 
-def test_sampling_priority_is_published_after_otel_tracestate(monkeypatch):
+def test_sampling_priority_is_published_after_otel_sampling_state(monkeypatch):
     span = Span("test", trace_id=1, span_id=1)
     state_update_started = Event()
     allow_state_update = Event()
-    original_resolve = context_module.resolve_otel_sampling_decision
+    original_update = sampling_module._update_otel_sampling_decision
 
-    def blocking_resolve(*args, **kwargs):
+    def blocking_update(*args, **kwargs):
         state_update_started.set()
         assert allow_state_update.wait(2)
-        return original_resolve(*args, **kwargs)
+        return original_update(*args, **kwargs)
 
-    monkeypatch.setattr(context_module, "resolve_otel_sampling_decision", blocking_resolve)
+    monkeypatch.setattr(sampling_module, "_update_otel_sampling_decision", blocking_update)
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         sampling = executor.submit(
@@ -57,7 +58,20 @@ def test_sampling_priority_is_published_after_otel_tracestate(monkeypatch):
         sampling.result()
 
     assert span.context.sampling_priority == USER_KEEP
-    assert _ot_fields(span.context._meta["tracestate"])["th"] == "e6666666666668"
+    assert _ot_fields(span.context._tracestate)["th"] == "e6666666666668"
+
+
+def test_local_sampling_decision_is_serialized_lazily():
+    span = Span("test", trace_id=1, span_id=1)
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.1)], rate_limit=-1)
+
+    sampler.sample(span)
+
+    assert "tracestate" not in span.context._meta
+    assert span.context._metrics == {_SAMPLING_PRIORITY_KEY: USER_KEEP}
+    assert span.context._otel_sampling_state_data == 0.1
+    assert _ot_fields(span.context._tracestate)["th"] == "e6666666666668"
+    assert span.context._otel_sampling_state_data is None
 
 
 @pytest.mark.parametrize(

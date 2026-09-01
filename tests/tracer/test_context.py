@@ -129,6 +129,28 @@ def test_context_serializable_reactivate():
     assert context._reactivate == serialized_context._reactivate
 
 
+def test_context_accepts_legacy_pickle_state():
+    context = Context(trace_id=123, span_id=321, sampling_priority=1, meta={"meta": "value"})
+    legacy_state = context.__getstate__()[:-1]
+    restored = Context.__new__(Context)
+
+    restored.__setstate__(legacy_state)
+
+    assert restored == context
+    assert restored._otel_sampling_state_data is None
+    assert restored._otel_sampling_state_owner is None
+
+
+def test_context_pickle_preserves_pending_otel_sampling_state():
+    context = Context(trace_id=123, span_id=321, sampling_priority=1)
+    context._otel_sampling_state_data = 0.1
+
+    restored = pickle.loads(pickle.dumps(context))
+
+    assert restored._otel_sampling_state_data == 0.1
+    assert restored._otel_sampling_state_owner is None
+
+
 def test_copy_populates_every_getstate_slot(tracer):
     """Guard against a future state-field drop in Context.copy().
 
@@ -157,6 +179,8 @@ def test_copy_populates_every_getstate_slot(tracer):
         "_baggage",
         "_is_remote",
         "_reactivate",
+        "_otel_sampling_state_data",
+        "_otel_sampling_state_owner",
     ):
         assert hasattr(child_ctx, slot), f"copy() must set slot {slot!r}"
     # __getstate__ itself must not raise (reads all of the above at once).

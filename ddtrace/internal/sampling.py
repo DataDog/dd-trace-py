@@ -279,8 +279,8 @@ def _set_sampling_tags(
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
     # AIDEV-NOTE: Injection treats a non-None sampling priority as the publication marker for the
-    # complete decision. Materialize canonical ot= first and publish priority last under
-    # the shared trace-level lock so concurrent branches cannot propagate a partial decision.
+    # complete decision. Record lazy ot= state on the shared owning Context first and publish
+    # priority last under the trace-level lock so concurrent branches cannot propagate a partial decision.
     with span.context:
         _update_otel_sampling_decision(span.context, sampled, sample_rate, probabilistic_decision)
         span.context._metrics[_SAMPLING_PRIORITY_KEY] = priorities[priority_index]
