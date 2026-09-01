@@ -239,7 +239,8 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     ret = func(*args, **kwargs)
 
     if django.VERSION < (3, 1):
-        # AIDEV-NOTE: This post-resolution hook avoids rerunning custom converters on Django <3.1.
+        # AIDEV-NOTE: First-position view middleware is Django <3.1's only post-resolution,
+        # pre-application hook that does not rerun custom converters.
         instance._view_middleware.insert(0, _dispatch_resolved_request)
 
     # Building a BaseHandler is the earliest reliable signal that this process serves HTTP, so the URLconf import
