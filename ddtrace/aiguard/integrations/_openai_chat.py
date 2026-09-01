@@ -15,6 +15,7 @@ from ddtrace.aiguard._api_client import Message
 from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
@@ -179,7 +180,12 @@ def _openai_chat_completion_before(client: AIGuardClient, kwargs: dict[str, Any]
 
     logger.debug("AI Guard openai before-hook evaluating %d message(s)", len(ai_guard_messages))
     try:
-        client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
+        client.evaluate(
+            ai_guard_messages,
+            Options(block=aiguard_config._ai_guard_block),
+            source=AI_GUARD.SOURCE_AUTO,
+            integration=AI_GUARD.INTEGRATION_OPENAI,
+        )
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
@@ -212,7 +218,12 @@ def _openai_chat_completion_after(client: AIGuardClient, kwargs: dict[str, Any],
     all_messages = request_messages + response_messages
 
     try:
-        client.evaluate(all_messages, Options(block=aiguard_config._ai_guard_block))
+        client.evaluate(
+            all_messages,
+            Options(block=aiguard_config._ai_guard_block),
+            source=AI_GUARD.SOURCE_AUTO,
+            integration=AI_GUARD.INTEGRATION_OPENAI,
+        )
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:

@@ -11,6 +11,7 @@ from ddtrace.aiguard import Function
 from ddtrace.aiguard import Message
 from ddtrace.aiguard import Options
 from ddtrace.aiguard import ToolCall
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import reset_aiguard_context_active_current
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
@@ -239,7 +240,12 @@ def _handle_agent_action_result(client: AIGuardClient, result: Any, args: Any, k
                         ],
                     )
                 )
-                client.evaluate(messages, Options(block=aiguard_config._ai_guard_block))
+                client.evaluate(
+                    messages,
+                    Options(block=aiguard_config._ai_guard_block),
+                    source=AI_GUARD.SOURCE_AUTO,
+                    integration=AI_GUARD.INTEGRATION_LANGCHAIN,
+                )
             except AIGuardAbortError:
                 raise
             except Exception:
@@ -302,7 +308,12 @@ def _evaluate_langchain_tool_call(client: AIGuardClient, args: Any, kwargs: Any)
                 ],
             )
         )
-        client.evaluate(messages, Options(block=aiguard_config._ai_guard_block))
+        client.evaluate(
+            messages,
+            Options(block=aiguard_config._ai_guard_block),
+            source=AI_GUARD.SOURCE_AUTO,
+            integration=AI_GUARD.INTEGRATION_LANGCHAIN,
+        )
     except AIGuardAbortError:
         raise
     except Exception:
@@ -400,7 +411,12 @@ def _evaluate_langchain_messages(client: AIGuardClient, messages: list[Any]) -> 
 
     if len(messages) > 0 and isinstance(messages[-1], (HumanMessage, ToolMessage)):
         try:
-            client.evaluate(_convert_messages(messages), Options(block=aiguard_config._ai_guard_block))
+            client.evaluate(
+                _convert_messages(messages),
+                Options(block=aiguard_config._ai_guard_block),
+                source=AI_GUARD.SOURCE_AUTO,
+                integration=AI_GUARD.INTEGRATION_LANGCHAIN,
+            )
         except AIGuardAbortError:
             raise
         except Exception:
