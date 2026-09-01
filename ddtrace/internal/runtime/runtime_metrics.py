@@ -1,5 +1,4 @@
 import itertools
-from typing import Callable
 from typing import ClassVar  # noqa:F401
 from typing import Optional  # noqa:F401
 
@@ -39,11 +38,7 @@ class RuntimeCollectorsIterable(object):
 
     def stop(self) -> None:
         for collector in self._collectors:
-            stop: Optional[Callable[[], None]] = getattr(collector, "stop", None)
-
-            # some collectors may not define a `stop()` method
-            if callable(stop):
-                stop()
+            collector.stop()
 
     def __repr__(self):
         return "{}(enabled={})".format(

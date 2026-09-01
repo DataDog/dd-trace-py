@@ -8,13 +8,13 @@ from __future__ import annotations
 
 from enum import Enum
 import gc
-import threading
 import time
 from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
+from ddtrace.internal._unpatched import threading_RLock
 
 
 GEN_COUNT: int = 3
@@ -36,8 +36,9 @@ class GCPauseMonitor:
     """Single gc.callbacks subscriber with refcounted install."""
 
     def __init__(self) -> None:
-        # RLock: snapshot_and_reset allocates, which can reenter GC in this thread.
-        self._lock: threading.RLock = threading.RLock()
+        # RLock: snapshot_and_reset allocates and can reenter _on_gc. ResetObject
+        # replaces the lock after fork so the child does not inherit a held one.
+        self._lock: threading_RLock = forksafe.RLock()
         self._refcount: int = 0
         self._fork_registered: bool = False
         self._start_ns: list[int] = [0] * GEN_COUNT
