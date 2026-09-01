@@ -190,9 +190,9 @@ class OpenAIIntegration(BaseLLMIntegration):
     ) -> None:
         """Tag a per-turn Realtime llm span (the model's generation work) built by the state machine.
 
-        Nested under its turn root (a workflow span) via explicit ``parent_id``/``trace_id`` when
-        ``parent_span`` is given, the same way the tool span nests (the active context has moved on by
-        finalize). ``session_id`` groups all turns of one connection into a single conversation in the
+        Nested under its turn root (a workflow span) via explicit `parent_id`/`trace_id` when
+        `parent_span` is given, the same way the tool span nests (the active context has moved on by
+        finalize). `session_id` groups all turns of one connection into a single conversation in the
         UI. The turn's timing lives on the span boundaries (the user-speech, llm, and agent-speech
         spans), so there is no separate timing metadata to merge here.
         """
@@ -237,8 +237,8 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Tag a workflow-kind span in the realtime turn tree.
 
         Used for the turn root (the whole perceived turn), the user-speech window, and the agent-speech
-        window. Nested under ``parent_span`` via explicit ``parent_id``/``trace_id`` when a parent is
-        given; the turn root has none (it is the root of the turn's trace, grouped by ``session_id``).
+        window. Nested under `parent_span` via explicit `parent_id`/`trace_id` when a parent is
+        given; the turn root has none (it is the root of the turn's trace, grouped by `session_id`).
         These are timing regions, so the audio bytes ride on the llm span, not here.
         """
         parent_id = None
