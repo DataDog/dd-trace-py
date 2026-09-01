@@ -233,6 +233,51 @@ def test_event_fork():
     assert exit_code == 12
 
 
+def test_rlock_reentry() -> None:
+    """A forksafe.RLock can be acquired twice on the same thread."""
+    lock: threading.RLock = forksafe.RLock()
+    acquired_first: bool = lock.acquire(blocking=False)
+    acquired_second: bool = lock.acquire(blocking=False)
+    assert acquired_first is True
+    assert acquired_second is True
+    lock.release()
+    lock.release()
+
+
+@pytest.mark.subprocess
+def test_rlock_fork() -> None:
+    """Check that a forksafe.RLock is reset after a fork().
+
+    Parent holds the lock reentrantly. After fork the child gets a
+    fresh unlocked RLock; a regular threading.RLock would stay held.
+    """
+    import os
+
+    from ddtrace.internal import forksafe
+
+    lock = forksafe.RLock()
+    assert lock.acquire(blocking=False) is True
+    assert lock.acquire(blocking=False) is True
+
+    pid = os.fork()
+
+    if pid == 0:
+        # child: ResetObject replaced the held lock
+        assert lock.acquire(blocking=False) is True
+        lock.release()
+        os._exit(12)
+
+    # parent still owns it (reentrant)
+    assert lock.acquire(blocking=False) is True
+    lock.release()
+    lock.release()
+    lock.release()
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
 @pytest.mark.subprocess
 def test_double_fork():
     import os
@@ -371,6 +416,21 @@ def test_lock_pickle_roundtrip(serializer: ModuleType) -> None:
 
     data: bytes = serializer.dumps(lock)
     restored: threading.Lock = serializer.loads(data)
+
+    assert isinstance(restored, forksafe.ResetObject)
+    assert restored.acquire(blocking=False) is True
+    restored.release()
+    assert restored in forksafe._resetable_objects
+
+
+@pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
+def test_rlock_pickle_roundtrip(serializer: ModuleType) -> None:
+    """A forksafe.RLock must survive (cloud)pickle as a fresh, unlocked RLock."""
+    lock: threading.RLock = forksafe.RLock()
+    lock.acquire()
+
+    data: bytes = serializer.dumps(lock)
+    restored: threading.RLock = serializer.loads(data)
 
     assert isinstance(restored, forksafe.ResetObject)
     assert restored.acquire(blocking=False) is True
