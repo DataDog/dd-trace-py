@@ -95,7 +95,6 @@ RUN apt-get update \
     # Cleaning up apt cache space
     && rm -rf /var/lib/apt/lists/*
 
-
 USER bits
 WORKDIR /home/bits/
 

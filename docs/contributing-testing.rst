@@ -83,23 +83,16 @@ List the matching environments before selecting one by hash. The runner starts a
     $ scripts/run-tests --list tests/contrib/django/
     $ scripts/run-tests --venv <environment-hash> -- -k test_specific_function
 
-After a successful first run, pass ``-s`` before ``--`` to reuse the current ddtrace installation. Omit it after
-changing native code or project metadata, or after updating from main.
+After a successful first run, pass ``-s`` before ``--`` to reuse the selected environment's existing ddtrace
+installation while refreshing its suite dependencies. Omit it after changing native code or project metadata, or
+after updating from main.
 
 .. code-block:: bash
 
     $ scripts/run-tests -s --venv <environment-hash> -- -k test_specific_function
 
-An ``-s`` after ``--`` belongs to the test command and disables output capture.
-
-When using ``scripts/run-tests``, pass ``-s`` or ``--skip-ddtrace-install`` before the first ``--`` to reuse the
-selected environment's existing ddtrace installation while still refreshing its suite dependencies:
-
-.. code-block:: bash
-
-    scripts/run-tests -s --venv <hash> -- -- -k test_name
-
-An ``-s`` after the second ``--`` is a pytest option that disables output capture.
+An ``-s`` after ``--`` belongs to the test command and disables output capture. The legacy double-separator form
+remains supported for existing workflows.
 
 Why are my tests failing with 404 errors?
 -----------------------------------------
@@ -167,7 +160,7 @@ the locks and commit both changes:
 
 .. code-block:: bash
 
-  $ scripts/ddtest scripts/compile-and-prune-test-requirements
+  $ scripts/test-env lock <suite>
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -206,14 +199,14 @@ The library includes automated SLO checks that monitor performance thresholds fo
 How do I add a new test suite?
 ------------------------------
 
-Add a suite definition and dependency environments alongside a similar suite, then regenerate the dependency locks.
-See ``tests/README.md`` for the CI suite schema and use ``scripts/run-tests`` for local validation.
+Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
+locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
 
 How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------
 
-Update the dependency constraint in the environment definition, run
-``scripts/ddtest scripts/compile-and-prune-test-requirements``, and commit the resulting lock changes.
+Update the dependency constraint in the suite's ``suitespec.yml`` matrix, run
+``scripts/test-env lock <suite>``, and commit the definition and resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------

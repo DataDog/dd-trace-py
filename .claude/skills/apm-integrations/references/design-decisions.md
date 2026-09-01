@@ -62,4 +62,5 @@ workflow; LLMObs lifecycle and extraction details belong in that skill.
 | `ddtrace/_trace/subscribers/_base.py` | TracingSubscriber base (NEW events API) |
 | `ddtrace/internal/core/__init__.py` | Core API (context_with_data, context_with_event) |
 | `ddtrace/internal/core/events.py` | Event + event_field() primitives |
+| `tests/*/suitespec.yml` | Test environment matrix |
 | `scripts/run-tests` | Test execution interface |

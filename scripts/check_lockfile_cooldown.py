@@ -71,7 +71,7 @@ _PYPI_SKIP = {
 
 
 def _default_lockfiles() -> list[pathlib.Path]:
-    return sorted(pathlib.Path(".uv").glob("*.txt"))
+    return sorted(pathlib.Path(".riot/requirements").glob("*.txt"))
 
 
 def _http_get_json(url: str, timeout: float = 30.0) -> Optional[dict]:

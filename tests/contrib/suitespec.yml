@@ -1131,7 +1131,7 @@ suites:
           python: ['3.9']
           dependencies: ['dramatiq~=1.10.0', redis, pika]
         - name: dramatiq
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [dramatiq, redis]
   elasticsearch:
     pattern: ^elasticsearch(?!:opensearch)
@@ -2247,6 +2247,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
+      - '@ray_serve'
       - tests/contrib/ray_serve/*
       - tests/contrib/ray_serve/multi_app/*
       - tests/snapshots/tests.contrib.ray_serve.*

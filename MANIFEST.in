@@ -2,6 +2,7 @@ graft cmake
 graft ddtrace
 graft src
 
+recursive-exclude ddtrace *.manifest.yaml
 recursive-exclude * **/__pycache__/*
 prune benchmarks/
 prune releasenotes/

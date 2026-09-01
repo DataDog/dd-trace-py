@@ -133,6 +133,7 @@ suites:
       - tests/appsec/iast_packages/*
       - tests/appsec/app.py
       - tests/appsec/appsec_utils.py
+      - tests/appsec/ports.py
     timeout: 50m
     matrix:
       command: pytest -n auto --dist=worksteal {cmdargs}  -vvv -rxf tests/appsec/iast_packages/
@@ -157,6 +158,7 @@ suites:
       - tests/appsec/iast_tdd_propagation/*
       - tests/appsec/app.py
       - tests/appsec/appsec_utils.py
+      - tests/appsec/ports.py
     retry: 2
     snapshot: true
     matrix:
@@ -288,6 +290,7 @@ suites:
       - tests/appsec/integrations/flask_tests/test_appsec_flask_telemetry.py
       - tests/appsec/app.py
       - tests/appsec/appsec_utils.py
+      - tests/appsec/ports.py
     retry: 2
     # test_appsec_flask_telemetry.py asserts on payloads received by the test agent.
     snapshot: true
@@ -322,6 +325,7 @@ suites:
       - tests/appsec/integrations/flask_tests/*
       - tests/appsec/app.py
       - tests/appsec/appsec_utils.py
+      - tests/appsec/ports.py
     retry: 2
     services:
       - testagent
@@ -354,6 +358,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
       - tests/appsec/appsec_utils.py
+      - tests/appsec/ports.py
     retry: 2
     services:
       - testagent
@@ -401,6 +406,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
       - tests/appsec/appsec_utils.py
+      - tests/appsec/ports.py
     retry: 2
     services:
       - testagent
@@ -451,22 +457,40 @@ suites:
       variants:
         - name: appsec_threats_django_no_iast
           python: ['3.9']
-          dependencies: [requests, httpx, 'django~=2.2']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=2.2']
+        - name: appsec_threats_django_no_iast
+          python: ['3.9']
+          dependencies: [requests, httpx, httpx2, 'django~=2.2']
         - name: appsec_threats_django_no_iast
           python: ['3.9', '3.10']
-          dependencies: [requests, httpx, 'django~=3.2']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=3.2']
+        - name: appsec_threats_django_no_iast
+          python: ['3.9', '3.10']
+          dependencies: [requests, httpx, httpx2, 'django~=3.2']
         - name: appsec_threats_django_no_iast
           python: ['3.10']
-          dependencies: [requests, httpx, 'django==4.0.10']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django==4.0.10']
+        - name: appsec_threats_django_no_iast
+          python: ['3.10']
+          dependencies: [requests, httpx, httpx2, 'django==4.0.10']
         - name: appsec_threats_django_no_iast
           python: ['3.11', '3.13']
-          dependencies: [requests, httpx, 'django~=4.2']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=4.2']
+        - name: appsec_threats_django_no_iast
+          python: ['3.11', '3.13']
+          dependencies: [requests, httpx, httpx2, 'django~=4.2']
         - name: appsec_threats_django_no_iast
           python: ['3.10', '3.13']
-          dependencies: [requests, httpx, 'django~=5.1']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
+        - name: appsec_threats_django_no_iast
+          python: ['3.10', '3.13']
+          dependencies: [requests, httpx, httpx2, 'django~=5.1']
         - name: appsec_threats_django_no_iast
           python: ['3.12', '3.14']
-          dependencies: [requests, httpx, 'django~=6.0']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=6.0']
+        - name: appsec_threats_django_no_iast
+          python: ['3.12', '3.14']
+          dependencies: [requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_iast:
     venvs_per_job: 1
     paths:
@@ -496,22 +520,40 @@ suites:
       variants:
         - name: appsec_threats_django_iast
           python: ['3.9']
-          dependencies: [requests, httpx, 'django~=2.2']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=2.2']
+        - name: appsec_threats_django_iast
+          python: ['3.9']
+          dependencies: [requests, httpx, httpx2, 'django~=2.2']
         - name: appsec_threats_django_iast
           python: ['3.9', '3.10']
-          dependencies: [requests, httpx, 'django~=3.2']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=3.2']
+        - name: appsec_threats_django_iast
+          python: ['3.9', '3.10']
+          dependencies: [requests, httpx, httpx2, 'django~=3.2']
         - name: appsec_threats_django_iast
           python: ['3.10']
-          dependencies: [requests, httpx, 'django==4.0.10']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django==4.0.10']
+        - name: appsec_threats_django_iast
+          python: ['3.10']
+          dependencies: [requests, httpx, httpx2, 'django==4.0.10']
         - name: appsec_threats_django_iast
           python: ['3.11', '3.13']
-          dependencies: [requests, httpx, 'django~=4.2']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=4.2']
+        - name: appsec_threats_django_iast
+          python: ['3.11', '3.13']
+          dependencies: [requests, httpx, httpx2, 'django~=4.2']
         - name: appsec_threats_django_iast
           python: ['3.10', '3.13']
-          dependencies: [requests, httpx, 'django~=5.1']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
+        - name: appsec_threats_django_iast
+          python: ['3.10', '3.13']
+          dependencies: [requests, httpx, httpx2, 'django~=5.1']
         - name: appsec_threats_django_iast
           python: ['3.12', '3.14']
-          dependencies: [requests, httpx, 'django~=6.0']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=6.0']
+        - name: appsec_threats_django_iast
+          python: ['3.12', '3.14']
+          dependencies: [requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_rc:
     venvs_per_job: 1
     paths:
@@ -537,7 +579,9 @@ suites:
       python: ['3.10', '3.13']
       variants:
         - name: appsec_threats_django_rc
-          dependencies: [requests, httpx, 'django~=5.1']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
+        - name: appsec_threats_django_rc
+          dependencies: [requests, httpx, httpx2, 'django~=5.1']
   appsec_threats_fastapi_no_iast:
     venvs_per_job: 1
     paths:
@@ -565,16 +609,26 @@ suites:
       variants:
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1']
+          # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', httpx2]
+        - name: appsec_threats_fastapi_no_iast
+          python: ['3.10', '3.13']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', 'httpx2~=2.0.0']
+        - name: appsec_threats_fastapi_no_iast
+          python: ['3.10', '3.13']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', httpx2]
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.14']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', 'httpx2~=2.0.0']
+        - name: appsec_threats_fastapi_no_iast
+          python: ['3.10', '3.14']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_iast:
     venvs_per_job: 1
     paths:
@@ -605,16 +659,26 @@ suites:
       variants:
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1']
+          # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', httpx2]
+        - name: appsec_threats_fastapi_iast
+          python: ['3.10', '3.13']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', 'httpx2~=2.0.0']
+        - name: appsec_threats_fastapi_iast
+          python: ['3.10', '3.13']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', httpx2]
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.14']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', 'httpx2~=2.0.0']
+        - name: appsec_threats_fastapi_iast
+          python: ['3.10', '3.14']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_rc:
     venvs_per_job: 1
     paths:
@@ -642,7 +706,9 @@ suites:
       python: ['3.10', '3.13']
       variants:
         - name: appsec_threats_fastapi_rc
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2']
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'httpx2~=2.0.0', 'fastapi~=0.114.2']
+        - name: appsec_threats_fastapi_rc
+          dependencies: [hypothesis, requests, 'httpx<0.28.0', httpx2, 'fastapi~=0.114.2']
   appsec_threats_flask_no_iast:
     venvs_per_job: 1
     paths:
@@ -668,16 +734,28 @@ suites:
       variants:
         - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'flask~=1.1', 'MarkupSafe~=1.1']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=1.1', 'MarkupSafe~=1.1']
         - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'flask==2.1.3', 'Werkzeug<3.0']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=1.1', 'MarkupSafe~=1.1']
+        - name: appsec_threats_flask_no_iast
+          python: ['3.9']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask==2.1.3', 'Werkzeug<3.0']
+        - name: appsec_threats_flask_no_iast
+          python: ['3.9']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'flask~=2.3']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
+        - name: appsec_threats_flask_no_iast
+          python: ['3.10', '3.13']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_no_iast
           python: ['3.11', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'flask~=3.0']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
+        - name: appsec_threats_flask_no_iast
+          python: ['3.11', '3.13']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_iast:
     venvs_per_job: 1
     paths:
@@ -707,16 +785,28 @@ suites:
       variants:
         - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'flask~=1.1', 'MarkupSafe~=1.1']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=1.1', 'MarkupSafe~=1.1']
         - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'flask==2.1.3', 'Werkzeug<3.0']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=1.1', 'MarkupSafe~=1.1']
+        - name: appsec_threats_flask_iast
+          python: ['3.9']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask==2.1.3', 'Werkzeug<3.0']
+        - name: appsec_threats_flask_iast
+          python: ['3.9']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'flask~=2.3']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
+        - name: appsec_threats_flask_iast
+          python: ['3.10', '3.13']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_iast
           python: ['3.11', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'flask~=3.0']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
+        - name: appsec_threats_flask_iast
+          python: ['3.11', '3.13']
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_rc:
     venvs_per_job: 1
     paths:
@@ -743,7 +833,9 @@ suites:
       python: ['3.11', '3.13']
       variants:
         - name: appsec_threats_flask_rc
-          dependencies: [hypothesis, requests, httpx, 'flask~=3.0']
+          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
+        - name: appsec_threats_flask_rc
+          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=3.0']
   appsec_threats_tornado_no_iast:
     venvs_per_job: 1
     paths:
@@ -769,13 +861,22 @@ suites:
       variants:
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'tornado~=6.3']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.3']
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'tornado~=6.4']
+          dependencies: [requests, httpx, httpx2, 'tornado~=6.3']
+        - name: appsec_threats_tornado_no_iast
+          python: ['3.9', '3.12']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.4']
+        - name: appsec_threats_tornado_no_iast
+          python: ['3.9', '3.12']
+          dependencies: [requests, httpx, httpx2, 'tornado~=6.4']
         - name: appsec_threats_tornado_no_iast
           python: ['3.10', '3.14']
-          dependencies: [requests, httpx, 'tornado~=6.5']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
+        - name: appsec_threats_tornado_no_iast
+          python: ['3.10', '3.14']
+          dependencies: [requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_iast:
     venvs_per_job: 1
     paths:
@@ -805,13 +906,22 @@ suites:
       variants:
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'tornado~=6.3']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.3']
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'tornado~=6.4']
+          dependencies: [requests, httpx, httpx2, 'tornado~=6.3']
+        - name: appsec_threats_tornado_iast
+          python: ['3.9', '3.12']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.4']
+        - name: appsec_threats_tornado_iast
+          python: ['3.9', '3.12']
+          dependencies: [requests, httpx, httpx2, 'tornado~=6.4']
         - name: appsec_threats_tornado_iast
           python: ['3.10', '3.14']
-          dependencies: [requests, httpx, 'tornado~=6.5']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
+        - name: appsec_threats_tornado_iast
+          python: ['3.10', '3.14']
+          dependencies: [requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_rc:
     venvs_per_job: 1
     paths:
@@ -838,7 +948,9 @@ suites:
       python: ['3.10', '3.14']
       variants:
         - name: appsec_threats_tornado_rc
-          dependencies: [requests, httpx, 'tornado~=6.5']
+          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
+        - name: appsec_threats_tornado_rc
+          dependencies: [requests, httpx, httpx2, 'tornado~=6.5']
   urllib:
     paths:
       - '@bootstrap'

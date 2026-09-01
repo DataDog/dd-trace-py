@@ -145,7 +145,7 @@ If you need to debug or manually run the integration registry update process, th
   the tested version is outside the currently listed tested range.
   - Updates `registry.yaml` if necessary
 * [`IntegrationUpdateOrchestrator`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_update_orchestrator.py)
-  - Builds a virtual environment for the integration registry updater and installs its `filelock` and `pyyaml` dependencies.
+  - Builds a virtual environment to allow the integration registry updater process to run in another thread. Installs the dependencies necessary for the update.
   - Runs `IntegrationRegistryUpdater`
   - Runs [`update_and_format_registry.py`](../../../scripts/integration_registry/update_and_format_registry.py) script if updates are deemed necessary.
 * Update Scripts:

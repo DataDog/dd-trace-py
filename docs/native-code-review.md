@@ -469,7 +469,6 @@ CPython internal struct pointer (e.g., `PyFrameObject*`) without an
 cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
 ```
 
-
 **String lifetime (correct):**
 ```cython
 # _ddup.pyx — keeps source strings alive while string_views exist

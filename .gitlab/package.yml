@@ -338,6 +338,8 @@ variables:
 "build windows":
   stage: package
   tags: ["windows-v2:2022"]
+  # Windows runners are prone to flaky infra failures
+  retry: 2
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]

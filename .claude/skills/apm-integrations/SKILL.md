@@ -84,7 +84,7 @@ sanitization, LLMObs assertions, and VCR cassette setup.
 2. **Create patch module** -- `ddtrace/contrib/internal/{name}/patch.py` with `patch()`, `unpatch()`, `get_version()`
 3. **Register** -- Add to `PATCH_MODULES`, `scripts/integration_registry/registry.yaml`, and `INTEGRATION_CONFIGS`
 4. **LLM only: Create integration class** -- Subclass `BaseLLMIntegration` in `ddtrace/llmobs/_integrations/`. See the **llmobs-integrations** skill's [Implementation Guide](../llmobs-integrations/references/implementation-guide.md) for full patterns.
-5. **Write tests** -- Add test environments and suitespec entries alongside a similar integration, then add test files
+5. **Write tests** -- Add a suitespec environment and test files
 6. **Run tests** -- Use the **run-tests** skill
 7. **Lint** -- Use the **lint** skill
 

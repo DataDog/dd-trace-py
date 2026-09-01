@@ -32,4 +32,4 @@ See: `.claude/skills/run-tests/SKILL.md`
 ## Related
 
 - Official testing guide: `docs/contributing-testing.rst`
-- Test interface: `scripts/run-tests`; suite selection: `tests/suitespec.yml`
+- Test interface: `scripts/run-tests`; environments and suite selection: `tests/*/suitespec.yml`

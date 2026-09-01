@@ -224,7 +224,7 @@ def _variant_settings(
 
     command = variant.get("command", matrix.get("command"))
     run_specs = variant.get("runs", matrix.get("runs"))
-    integration = variant.get("integration", suite_config.get("integration", suite.split("::", 1)[-1]))
+    integration = variant.get("integration", suite_config.get("integration", variant["name"].split(":", 1)[0]))
     riot_lock_dependencies = tuple(variant.get("riot_lock_dependencies", dependencies))
     return dependencies, riot_lock_dependencies, integration, _runs(command, environment, run_specs)
 

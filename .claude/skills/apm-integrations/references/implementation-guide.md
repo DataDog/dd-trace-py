@@ -70,9 +70,14 @@ See the **llmobs-integrations** skill for the full LLM-specific implementation g
 
 ## 4. Add test environment
 
-Add dependency environments alongside a similar integration. Cover the oldest supported and latest compatible
-dependency versions, use only supported Python versions, and include helper packages such as `vcrpy` only when the
-suite needs them. Regenerate the committed dependency locks after changing an environment definition.
+Add a matrix entry to the nearest `suitespec.yml` file. Follow a similar integration's dependency and Python-version combinations.
+
+Key rules:
+- `name` must match the integration name used in `PATCH_MODULES`
+- `command` points to the test directory
+- Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
+- Cover the oldest supported and latest compatible dependency versions
+- Regenerate the committed locks with `scripts/test-env lock <suite>`
 
 ### suitespec.yml
 
@@ -105,7 +110,7 @@ Use the **releasenote** skill.
 
 ## Verification
 
-Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest` or `scripts/ddtest` directly.
+Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest` directly.
 
 ## Recent PRs as Examples
 
@@ -135,8 +140,7 @@ Every new integration must complete ALL applicable items:
 - [ ] `_llmobs_set_tags()` implemented with all required LLMObs fields (LLM only)
 
 ### Test Environment
-- [ ] Test environments cover pinned + latest package versions
-- [ ] Suitespec entry -- component + suite in correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
+- [ ] Suitespec entry -- component, suite, and dependency variants in the correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
 - [ ] Compile and prune test requirements if needed -- follow `docs/contributing-testing.rst` and existing repo workflow
 
 ### Tests

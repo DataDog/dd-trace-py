@@ -798,6 +798,18 @@ class TestRunner:
         return [self.environments_by_hash[environment_hash] for environment_hash in unique_hashes]
 
 
+def _parse_forwarded_args(arguments: list[str]) -> tuple[list[str], bool]:
+    """Preserve the legacy backend/test-command separator form."""
+    if "--" not in arguments:
+        return arguments, False
+
+    separator = arguments.index("--")
+    backend_args = arguments[:separator]
+    test_args = arguments[separator + 1 :]
+    legacy_skip = any(argument in ("-s", "--skip-base-install") for argument in backend_args)
+    return test_args, legacy_skip
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Run test suites based on changed files",
@@ -861,6 +873,8 @@ Examples:
         test_args = []
 
     args = parser.parse_args(script_args)
+    test_args, legacy_skip = _parse_forwarded_args(test_args)
+    skip_ddtrace_install = args.skip_ddtrace_install or legacy_skip
 
     runner = TestRunner()
 
@@ -876,7 +890,7 @@ Examples:
         success = runner.run_tests(
             environments_with_suite,
             test_args=test_args,
-            skip_ddtrace_install=args.skip_ddtrace_install,
+            skip_ddtrace_install=skip_ddtrace_install,
         )
         return 0 if success else 1
 
@@ -924,7 +938,7 @@ Examples:
     success = runner.run_tests(
         selected_environments,
         test_args=test_args,
-        skip_ddtrace_install=args.skip_ddtrace_install,
+        skip_ddtrace_install=skip_ddtrace_install,
     )
 
     return 0 if success else 1
