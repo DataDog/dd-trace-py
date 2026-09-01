@@ -63,3 +63,4 @@ workflow; LLMObs lifecycle and extraction details belong in that skill.
 | `ddtrace/internal/core/__init__.py` | Core API (context_with_data, context_with_event) |
 | `ddtrace/internal/core/events.py` | Event + event_field() primitives |
 | `riotfile.py` | Test environment matrix |
+| `scripts/run-tests` | Test execution interface |
