@@ -1297,31 +1297,62 @@ class TestUploadLock:
         mock_git_cls.assert_not_called()
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
 
-    def test_cleanup_removes_sentinel_and_lock(self, tmp_path) -> None:
-        """cleanup_upload_artifacts() deletes both files when present."""
-        (tmp_path / ".git").mkdir()
+    def test_cleanup_upload_artifacts_removed(self, tmp_path) -> None:
+        """Regression guard: SessionManager must not re-grow a method that deletes the
+        stable lock or sentinel files. See test_lock_and_sentinel_survive_session_lifecycle
+        for why: unlinking either file while a peer process references it is unsafe.
+        """
         sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sentinel = tmp_path / ".git" / "dd-trace-py.upload-done"
-        lock = tmp_path / ".git" / "dd-trace-py.upload.lock"
-        sentinel.write_text("{}")
-        lock.write_text("")
+        assert not hasattr(sm, "cleanup_upload_artifacts")
 
-        sm.cleanup_upload_artifacts()
+    def test_lock_and_sentinel_survive_session_lifecycle(self, tmp_path) -> None:
+        """Regression test for the split-lock-inode race.
 
-        assert not sentinel.exists()
-        assert not lock.exists()
+        A peer holds a real ``flock()`` on the stable lock path (standing in for another
+        pytest controller mid-``upload_git_data``) and has written a sentinel for its own
+        commit. This session then goes through the normal lock-timeout path — ``_upload_lock()``
+        must time out rather than break the peer's lock — and reads the sentinel, without
+        ever becoming the elected uploader (so it never legitimately writes to either file).
 
-    def test_cleanup_is_noop_when_files_absent(self, tmp_path) -> None:
-        """cleanup_upload_artifacts() does not raise when files are already gone."""
+        ``flock()`` locks an inode, not a path, so unlinking the lock file out from under
+        the peer would let a later opener create an unrelated inode at the same path and
+        silently defeat mutual exclusion. Neither file is ever unlinked by SessionManager,
+        so the peer's lock, its inode, and its sentinel must all remain exactly as it left
+        them, regardless of what this session does.
+        """
+        fcntl = pytest.importorskip("fcntl")
+
         (tmp_path / ".git").mkdir()
-        sm = self._make_sm(tmp_path, head_sha="head-sha")
-        sm.cleanup_upload_artifacts()  # no files present — must not raise
+        lock_path = tmp_path / ".git" / "dd-trace-py.upload.lock"
+        sentinel_path = tmp_path / ".git" / "dd-trace-py.upload-done"
+        lock_path.write_text("")
+        sentinel_path.write_text('{"head_sha": "peer-head-sha"}')
+        inode_before = lock_path.stat().st_ino
 
-    def test_cleanup_is_noop_without_workspace_path(self) -> None:
-        """cleanup_upload_artifacts() does not raise when workspace_path is unset."""
-        sm = SessionManager.__new__(SessionManager)
-        sm.env_tags = {}
-        sm.cleanup_upload_artifacts()  # no workspace_path — must not raise
+        peer_fd = open(lock_path, "w")
+        fcntl.flock(peer_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        try:
+            sm = self._make_sm(tmp_path, head_sha="our-head-sha")
+            with (
+                patch("ddtrace.testing.internal.session_manager.time.monotonic", side_effect=[0.0, 9999.0]),
+                patch("ddtrace.testing.internal.session_manager.time.sleep"),
+            ):
+                with sm._upload_lock() as acquired:
+                    assert acquired is False  # peer holds it; we must not force our way in
+            sm._read_upload_sentinel()
+
+            assert lock_path.exists()
+            assert lock_path.stat().st_ino == inode_before
+            assert sentinel_path.read_text() == '{"head_sha": "peer-head-sha"}'
+
+            # A fresh open+flock on the (unchanged) lock path must still contend with the
+            # peer's lock — proving nothing severed the path from the peer's fd.
+            with open(lock_path, "w") as third_party_fd:
+                with pytest.raises(BlockingIOError):
+                    fcntl.flock(third_party_fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        finally:
+            fcntl.flock(peer_fd.fileno(), fcntl.LOCK_UN)
+            peer_fd.close()
 
 
 class TestParallelInit:

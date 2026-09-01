@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes a race where concurrent or nested pytest controllers sharing a
+    workspace could break each other's git-metadata-upload mutual exclusion. The shared
+    ``.git/dd-trace-py.upload.lock`` file was unlinked at session finish; since
+    ``flock()`` locks an inode rather than a path, this could let a new controller open
+    an unrelated inode at the same path while a peer still held the old one, silently
+    defeating the lock. The lock and upload-completion sentinel files are no longer
+    deleted. Also, git command retries now cover ``shallow file has changed since we
+    read it``, a second transient error from concurrent ``git fetch --update-shallow``
+    calls that was previously not retried.

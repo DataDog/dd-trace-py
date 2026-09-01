@@ -15,6 +15,7 @@ from ddtrace.testing.internal.telemetry import GitTelemetry
 
 
 _LOCK_STDERR = "fatal: Unable to create '/repo/.git/shallow.lock': File exists."
+_SHALLOW_CHANGED_STDERR = "fatal: shallow file has changed since we read it"
 
 
 class TestGitTag:
@@ -711,6 +712,57 @@ class TestGitLockRetry:
         assert result.return_code == 0
         assert mock_call.call_count == 2
         mock_sleep.assert_called_once()
+
+    @patch("shutil.which")
+    def test_retry_on_shallow_changed_error_then_succeed(self, mock_which: Mock) -> None:
+        """A 'shallow file has changed since we read it' race is retried and succeeds next attempt.
+
+        Regression test: this error is distinct from the '.lock: File exists' message
+        (it fires after the lock was acquired, when a sibling committed a new
+        .git/shallow between our read and write of it) and previously fell through
+        _LOCK_ERROR_RE unmatched, so it was never retried.
+        """
+        mock_which.return_value = "/usr/bin/git"
+        shallow_changed_failure = _GitSubprocessDetails(
+            stdout="", stderr=_SHALLOW_CHANGED_STDERR, return_code=128, elapsed_seconds=0.0
+        )
+        success = _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
+
+        with (
+            patch(
+                "ddtrace.testing.internal.git.Git._call_git",
+                side_effect=[shallow_changed_failure, success],
+            ) as mock_call,
+            patch("time.sleep") as mock_sleep,
+        ):
+            result = Git()._call_git_with_lock_retry(["fetch", "--update-shallow"])
+
+        assert result.return_code == 0
+        assert mock_call.call_count == 2
+        mock_sleep.assert_called_once()
+
+    @patch("shutil.which")
+    def test_unshallow_repository_retries_on_shallow_changed_error(self, mock_which: Mock) -> None:
+        """unshallow_repository retries when git reports the shallow-file-changed race."""
+        mock_which.return_value = "/usr/bin/git"
+        shallow_changed_failure = _GitSubprocessDetails(
+            stdout="", stderr=_SHALLOW_CHANGED_STDERR, return_code=128, elapsed_seconds=0.0
+        )
+        success = _GitSubprocessDetails(stdout="", stderr="", return_code=0, elapsed_seconds=0.0)
+
+        with (
+            patch(
+                "ddtrace.testing.internal.git.Git._call_git",
+                side_effect=[shallow_changed_failure, success],
+            ) as mock_call,
+            patch("ddtrace.testing.internal.git.Git.get_remote_name", return_value="origin"),
+            patch("ddtrace.testing.internal.git.Git.is_shallow_repository", return_value=True),
+            patch("time.sleep"),
+        ):
+            result = Git().unshallow_repository("some-sha")
+
+        assert result.return_code == 0
+        assert mock_call.call_count == 2
 
     @patch("shutil.which")
     def test_retry_exhausted_returns_last_failure(self, mock_which: Mock) -> None:

@@ -17,9 +17,13 @@ from ddtrace.testing.internal.tracer_api import StopWatch
 
 log = logging.getLogger(__name__)
 
-# Matches git lock-contention errors, e.g.:
+# Matches transient git errors from another process racing us for the same repo
+# state, where retrying (re-reading that state) resolves it, e.g.:
 #   fatal: Unable to create '/path/.git/shallow.lock': File exists.
-_LOCK_ERROR_RE = re.compile(r"Unable to create .+\.lock.+File exists", re.DOTALL)
+#   fatal: shallow file has changed since we read it
+_LOCK_ERROR_RE = re.compile(
+    r"Unable to create .+\.lock.+File exists|shallow file has changed since we read it", re.DOTALL
+)
 _LOCK_MAX_RETRIES = 5
 _LOCK_BASE_DELAY_SECONDS = 0.5
 
@@ -128,8 +132,8 @@ class Git:
         git_cmd = [self.git_command, *args]
         log.debug("Running git command: %r", git_cmd)
 
-        # Force C locale so git's error messages are predictable; the lock-contention
-        # regex in _call_git_with_lock_retry matches the English "File exists" string.
+        # Force C locale so git's error messages are predictable; the retryable-error
+        # regex in _call_git_with_lock_retry matches specific English error strings.
         git_env = {**os.environ, "LC_ALL": "C", "LANG": "C"}
 
         with StopWatch() as sw:
@@ -169,13 +173,15 @@ class Git:
         input_string: t.Optional[str] = None,
         should_retry: t.Optional[t.Callable[[], bool]] = None,
     ) -> _GitSubprocessDetails:
-        """Call git with automatic retry on lock-file contention errors.
+        """Call git with automatic retry on transient contention errors.
 
-        In multi-process test environments several workers may issue git
-        commands simultaneously.  Commands that write a lock file (e.g.
-        ``git fetch --update-shallow``) fail with "File exists" when another
-        process holds the lock.  This helper retries such transient failures
-        with exponential back-off so callers never need to handle the retry
+        In multi-process test environments several workers may issue git commands
+        simultaneously. Commands that write a lock file (e.g. ``git fetch
+        --update-shallow``) fail with "File exists" when another process holds the
+        lock, or with "shallow file has changed since we read it" when a sibling
+        commits an updated ``.git/shallow`` between our read and write of it even
+        though we acquired the lock ourselves. This helper retries both transient
+        failures with exponential back-off so callers never need to handle the retry
         logic themselves.
 
         ``should_retry`` is called after each back-off sleep; returning False
