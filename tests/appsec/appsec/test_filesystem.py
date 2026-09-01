@@ -160,7 +160,7 @@ def test_lfi_normal_exception() -> None:
             with open("/unknown/do_not_exist_test.txt", "w"):
                 pass
         assert raised.type is FileNotFoundError
-        assert raised.traceback[-1].path.as_posix() == __file__
+        assert raised.traceback[0].path.as_posix() == __file__
         line_number = getframeinfo(currentframe()).lineno
         try:
             with open("/unknown/do_not_exist_test.txt", "w"):
@@ -169,9 +169,13 @@ def test_lfi_normal_exception() -> None:
             assert exc.__class__.__name__ == "FileNotFoundError"
             assert exc.__traceback__.tb_frame.f_code.co_filename == __file__
             assert traceback.format_exc(limit=1).startswith(exception_repr.format(__file__, line_number + 2))
-            assert "_raise_without_wrapper_frame" not in (
-                frame.name for frame in traceback.extract_tb(exc.__traceback__)
-            )
+            frames = traceback.extract_tb(exc.__traceback__)
+            # The caller must appear exactly once: the removed _raise_without_wrapper_frame used to
+            # append a synthetic duplicate of it on top of the wrapper frame.
+            assert [frame.filename for frame in frames].count(__file__) == 1
+            # builtins.open is a C function and leaves no frame, so the RASP wrapper is necessarily
+            # the innermost Python frame here. Removing it needs APPSEC-69877.
+            assert frames[-1].name == "wrapped_builtin_open"
     finally:
         cmp.unpatch_common_modules()
 
@@ -188,7 +192,7 @@ def test_lfi_normal_exception_pathlib() -> None:
             with Path("/unknown/do_not_exist_test.txt").open("w"):
                 pass
         assert raised.type is FileNotFoundError
-        assert raised.traceback[-1].path.as_posix() == __file__
+        assert raised.traceback[0].path.as_posix() == __file__
         line_number = getframeinfo(currentframe()).lineno
         try:
             with Path("/unknown/do_not_exist_test.txt").open("w"):
@@ -197,8 +201,13 @@ def test_lfi_normal_exception_pathlib() -> None:
             assert exc.__class__.__name__ == "FileNotFoundError"
             assert exc.__traceback__.tb_frame.f_code.co_filename == __file__
             assert traceback.format_exc(limit=1).startswith(exception_repr.format(__file__, line_number + 2))
-            assert "_raise_without_wrapper_frame" not in (
-                frame.name for frame in traceback.extract_tb(exc.__traceback__)
-            )
+            frames = traceback.extract_tb(exc.__traceback__)
+            # The caller must appear exactly once: the removed _raise_without_wrapper_frame used to
+            # append a synthetic duplicate of it on top of the wrapper frame.
+            assert [frame.filename for frame in frames].count(__file__) == 1
+            # Path.open is pure Python, so the frame that actually raised is now reported again.
+            # _raise_without_wrapper_frame used to discard it.
+            assert frames[-1].name == "open"
+            assert frames[-1].filename != __file__
     finally:
         cmp.unpatch_common_modules()
