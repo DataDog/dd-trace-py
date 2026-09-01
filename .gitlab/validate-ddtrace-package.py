@@ -229,10 +229,12 @@ def main(args: argparse.Namespace) -> None:
     print("[Phase 4] Building Expected Set")
     expected_set = build_expected_set(package_version, args)
     unrestricted_tags: list[str] = [t for t in PYTHON_TAGS if t not in REQUIRED_PLATFORMS]
+    summary_platforms: list[str] = SERVERLESS_PLATFORMS if args.mode == "serverless" else BASE_PLATFORMS
+    summary_kind: str = "serverless platforms" if args.mode == "serverless" else "base platforms"
     print(f"Expected {len(expected_set)} wheels:")
     print(
         f"  - {len(unrestricted_tags)} Python versions ({unrestricted_tags[0]}-{unrestricted_tags[-1]})"
-        f" on {len(BASE_PLATFORMS)} base platforms"
+        f" on {len(summary_platforms)} {summary_kind}"
     )
     print(f"  - {len(WIN_ARM64_PYTHON_TAGS)} Python versions with win_arm64")
     for py_tag, platforms in sorted(REQUIRED_PLATFORMS.items()):
