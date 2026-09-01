@@ -42,11 +42,13 @@ def test_uv_suitespec_matches_riot():
         "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
     }
     suitespec = suitespec_module.get_test_environments(nightly=False)
-    uv_environment_names = {environment.name for suite in uv_test_suites for environment in suitespec[suite]}
 
     riot_environments = {}
     for environment in riotfile.venv.instances():
-        if environment.name not in uv_environment_names:
+        riot_suite = environment
+        while riot_suite.parent is not None and riot_suite.parent.parent is not None:
+            riot_suite = riot_suite.parent
+        if riot_suite.name not in uv_test_suites:
             continue
         riot_environments[(environment.name, environment.py._hint)] = {
             "command": environment.command,
