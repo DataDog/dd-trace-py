@@ -144,12 +144,6 @@ class GCCollector(collector.Collector):
             pause_handle.push_monotonic_ns(time.monotonic_ns())
             pause_handle.flush_sample()
 
-        thresholds: tuple[int, int, int] = gc.get_threshold()
-        enabled: bool = gc.isenabled()
-        freeze_count: int = gc.get_freeze_count() if hasattr(gc, "get_freeze_count") else 0
-        stats: list[dict[str, int]] = gc.get_stats()
-        total_collections: int = sum(int(s.get("collections", 0)) for s in stats)
-
         config_handle: ddup.SampleHandle = ddup.SampleHandle()
         # Count field carries this interval's explicit gc.collect() tally.
         # push_walltime(0, n) adds n to wall_count and 0 ns.
@@ -158,11 +152,17 @@ class GCCollector(collector.Collector):
         config_handle.push_monotonic_ns(time.monotonic_ns())
         config_handle.flush_sample()
 
-        LOG.debug(
-            "GCCollector snapshot: enabled=%s thresholds=%s freeze=%d total_collections=%d explicit_collect=%d",
-            enabled,
-            thresholds,
-            freeze_count,
-            total_collections,
-            explicit,
-        )
+        if LOG.isEnabledFor(logging.DEBUG):
+            thresholds: tuple[int, int, int] = gc.get_threshold()
+            enabled: bool = gc.isenabled()
+            freeze_count: int = gc.get_freeze_count() if hasattr(gc, "get_freeze_count") else 0
+            stats: list[dict[str, int]] = gc.get_stats()
+            total_collections: int = sum(int(s.get("collections", 0)) for s in stats)
+            LOG.debug(
+                "GCCollector snapshot: enabled=%s thresholds=%s freeze=%d total_collections=%d explicit_collect=%d",
+                enabled,
+                thresholds,
+                freeze_count,
+                total_collections,
+                explicit,
+            )
