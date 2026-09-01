@@ -9,6 +9,7 @@ from greenlet import gettrace
 from greenlet import settrace
 
 from ddtrace.internal import core
+from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal.settings._config import config
 from ddtrace.trace import tracer
 
@@ -29,7 +30,7 @@ class _GreenletTrace:
             # A displaced watcher can remain in another callback's chain, so only
             # the current watcher publishes the context switch.
             if getattr(_state, "trace", None) is self:
-                core.dispatch("python.context.switch")
+                core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
         elif gettrace() is self:
             settrace(self.previous)
             _state.trace = None
