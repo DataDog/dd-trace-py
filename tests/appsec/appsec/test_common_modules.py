@@ -6,12 +6,15 @@ import types
 import pytest
 from wrapt import FunctionWrapper
 
+from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionGetresponse
+from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionRequest
 from ddtrace.appsec._common_module_patches import _SsrfOpenerDirectorOpen
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
+from ddtrace.appsec._patch_utils import _DD_WRAPPING_CONTEXTS
 from ddtrace.internal import core
 from ddtrace.internal.module import ModuleWatchdog
 
@@ -153,6 +156,107 @@ def test_opener_director_open_leaves_no_core_context_behind():
         assert core.find_item("full_url") is None
     finally:
         unpatch_common_modules()
+
+
+@pytest.mark.parametrize("appsec_first", [True, False])
+def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
+    """appsec bytecode-wraps the same HTTPConnection attributes that the httplib integration
+    wrapt-wraps, so both mechanisms must survive either patch order.
+    """
+    unpatch_common_modules()
+    import http.client
+
+    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    httplib_unpatch()
+    try:
+        if appsec_first:
+            patch_common_modules()
+            httplib_patch()
+        else:
+            httplib_patch()
+            patch_common_modules()
+
+        request_ctx = _DD_WRAPPING_CONTEXTS.get(("http.client", "HTTPConnection.request"))
+        assert isinstance(request_ctx, _SsrfHttpConnectionRequest)
+        assert isinstance(
+            _DD_WRAPPING_CONTEXTS.get(("http.client", "HTTPConnection.getresponse")),
+            _SsrfHttpConnectionGetresponse,
+        )
+
+        # Being registered is not enough: the hook must actually run under both orders, or
+        # RASP silently stops inspecting downstream requests.
+        entered = []
+        request_fn = request_ctx.__wrapped__
+        request_ctx.unwrap()
+        probe = type("_Probe", (_SsrfHttpConnectionRequest,), {"__enter__": _recording_enter(entered)})(request_fn)
+        probe.wrap()
+
+        # Both layers still deliver a working client: a refused connection must surface as
+        # OSError, not as an instrumentation error.
+        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
+        with pytest.raises(OSError):
+            conn.request("GET", "/")
+
+        assert entered == [("GET", "/")]
+    finally:
+        with contextlib.suppress(Exception):
+            probe.unwrap()
+        httplib_unpatch()
+        unpatch_common_modules()
+
+
+def _code_sizes():
+    import http.client
+    import urllib.request
+
+    return {
+        "request": len(http.client.HTTPConnection.__dict__["request"].__code__.co_code),
+        "getresponse": len(http.client.HTTPConnection.__dict__["getresponse"].__code__.co_code),
+        "open": len(urllib.request.OpenerDirector.__dict__["open"].__code__.co_code),
+    }
+
+
+def test_context_unpatch_restores_the_original_bytecode():
+    """Unpatching must really release the function, whatever else is wrapped on the attribute.
+
+    Resolving the attribute at unwrap time returns a contrib wrapt proxy rather than the object
+    that was wrapped, so unwrap silently no-ops and leaves the rewritten code in place. The next
+    patch then rewrites on top of it, growing the code object every cycle until the bytecode
+    library can no longer parse it, which surfaces far away as a KeyError from an unrelated test.
+    """
+    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    unpatch_common_modules()
+    httplib_unpatch()
+    baseline = _code_sizes()
+
+    try:
+        for cycle in range(6):
+            # Alternate the order so both interleavings with the httplib integration are covered.
+            if cycle % 2:
+                httplib_patch()
+                patch_common_modules()
+            else:
+                patch_common_modules()
+                httplib_patch()
+            httplib_unpatch()
+            unpatch_common_modules()
+            assert _code_sizes() == baseline, f"bytecode grew on cycle {cycle}"
+    finally:
+        httplib_unpatch()
+        unpatch_common_modules()
+
+
+def _recording_enter(sink):
+    def __enter__(self):
+        result = super(type(self), self).__enter__()
+        sink.append((self._arg("method"), self._arg("url")))
+        return result
+
+    return __enter__
 
 
 @pytest.mark.parametrize(

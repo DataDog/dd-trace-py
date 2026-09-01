@@ -45,8 +45,8 @@ def patch_common_modules() -> None:
     try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_context("urllib.request", "OpenerDirector.open", _SsrfOpenerDirectorOpen)
-    try_wrap_function_wrapper("http.client", "HTTPConnection.request", wrapped_request_A7F2C6E4D3B10958)
-    try_wrap_function_wrapper("http.client", "HTTPConnection.getresponse", wrapped_response)
+    try_wrap_context("http.client", "HTTPConnection.request", _SsrfHttpConnectionRequest)
+    try_wrap_context("http.client", "HTTPConnection.getresponse", _SsrfHttpConnectionGetresponse)
 
     patch_filesystem_for_appsec()
     patch_stripe_for_appsec()
@@ -65,9 +65,9 @@ def unpatch_common_modules():
     try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
     try_unwrap("urllib3._request_methods", "RequestMethods.request")
     try_unwrap("urllib3.request", "RequestMethods.request")
-    try_unwrap_context("urllib.request", "OpenerDirector.open", _SsrfOpenerDirectorOpen)
-    try_unwrap("http.client", "HTTPConnection.request")
-    try_unwrap("http.client", "HTTPConnection.getresponse")
+    try_unwrap_context("urllib.request", "OpenerDirector.open")
+    try_unwrap_context("http.client", "HTTPConnection.request")
+    try_unwrap_context("http.client", "HTTPConnection.getresponse")
     unpatch_filesystem_for_appsec()
     unpatch_stripe_for_appsec()
     unpatch_subprocess_for_appsec()
@@ -88,51 +88,6 @@ def _build_headers(lst: Iterable[tuple[str, str]]) -> dict[str, Union[str, list[
         else:
             res[a] = b
     return res
-
-
-def wrapped_request_A7F2C6E4D3B10958(original_request_callable, instance, args, kwargs):
-    full_url = core.find_item("full_url")
-    env = _get_asm_context()
-    if get_rasp_capability("ssrf") and full_url is not None and env is not None:
-        use_body = core.find_item("use_body", False)
-        method = args[0] if len(args) > 0 else kwargs.get("method", None)
-        body = args[2] if len(args) > 2 else kwargs.get("body", None)
-        headers = args[3] if len(args) > 3 else kwargs.get("headers", {})
-        addresses = {EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url, "DOWN_REQ_METHOD": method, "DOWN_REQ_HEADERS": headers}
-        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
-        if use_body and content_type == "application/json":
-            try:
-                addresses["DOWN_REQ_BODY"] = json.loads(body)
-            except Exception:
-                pass  # nosec
-        res = call_waf_callback(
-            addresses,
-            crop_trace="wrapped_request_A7F2C6E4D3B10958",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
-        )
-        env.downstream_requests += 1
-        core.discard_item("full_url")
-        if res and _must_block(res.actions):
-            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-    return original_request_callable(*args, **kwargs)
-
-
-def wrapped_response(original_response_callable, instance, args, kwargs):
-    response = original_response_callable(*args, *kwargs)
-    env = _get_asm_context()
-    try:
-        if get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
-            status = response.getcode()
-            if 300 <= status < 400:
-                # api10 for redirected response status and headers in urllib
-                addresses = {
-                    "DOWN_RES_STATUS": str(status),
-                    "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
-                }
-                call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-    except Exception:
-        pass  # nosec
-    return response
 
 
 def _parse_http_response_body(response):
@@ -267,6 +222,63 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
             )
 
 
+class _SsrfHttpConnectionRequest(_RaspContext):
+    """RASP SSRF + API10 downstream-request analysis around http.client.HTTPConnection.request."""
+
+    def __enter__(self) -> "_SsrfHttpConnectionRequest":
+        super().__enter__()
+        full_url = core.find_item("full_url")
+        env = _get_asm_context()
+        if not (get_rasp_capability("ssrf") and full_url is not None and env is not None):
+            return self
+
+        use_body = core.find_item("use_body", False)
+        headers = self._arg("headers", {})
+        addresses = {
+            EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url,
+            "DOWN_REQ_METHOD": self._arg("method"),
+            "DOWN_REQ_HEADERS": headers,
+        }
+        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
+        if use_body and content_type == "application/json":
+            try:
+                addresses["DOWN_REQ_BODY"] = json.loads(self._arg("body"))
+            except Exception:
+                pass  # nosec
+        res = call_waf_callback(
+            addresses,
+            # Anchored on the wrapped function, not on a wrapper: a wrapping context runs inside
+            # the target's own frame, so there is no wrapper frame left to crop at.
+            crop_trace=self.__wrapped__.__name__,
+            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+        )
+        env.downstream_requests += 1
+        core.discard_item("full_url")
+        if res and _must_block(res.actions):
+            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
+        return self
+
+
+class _SsrfHttpConnectionGetresponse(_RaspContext):
+    """API10 analysis of redirect responses around http.client.HTTPConnection.getresponse."""
+
+    def __return__(self, response):
+        env = _get_asm_context()
+        try:
+            if get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
+                status = response.getcode()
+                if 300 <= status < 400:
+                    # api10 for redirected response status and headers in urllib
+                    addresses = {
+                        "DOWN_RES_STATUS": str(status),
+                        "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
+                    }
+                    call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+        except Exception:
+            pass  # nosec
+        return super().__return__(response)
+
+
 def _parse_headers_urllib3(headers):
     try:
         return dict(headers)
@@ -307,7 +319,7 @@ def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, ins
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
         # api10 redirect (3xx) response analysis is intentionally NOT done here: urllib3 bottoms
-        # out in http.client.HTTPConnection.getresponse (wrapped by `wrapped_response`), which
+        # out in http.client.HTTPConnection.getresponse (_SsrfHttpConnectionGetresponse), which
         # already sends DOWN_RES_STATUS/DOWN_RES_HEADERS for 3xx responses within this same SSRF
         # subcontext. Re-inspecting here would double-call the WAF.
         return original_request_callable(*args, **kwargs)

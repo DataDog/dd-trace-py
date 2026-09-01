@@ -1,6 +1,7 @@
 import ctypes
 import os
 import sysconfig
+from types import FunctionType
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -77,8 +78,14 @@ def get_caller_frame_info() -> tuple[Optional[str], Optional[int], Optional[str]
     return file_name, line_number, function_name, class_name
 
 
+# Depth cap when peeling wrapt proxies off a patched attribute.
+_MAX_PROXY_DEPTH = 10
+
 _DD_ORIGINAL_ATTRIBUTES: dict[Any, Any] = {}
 _MODULE_HOOKS: dict[tuple[str, str], list[Callable[[Any], None]]] = {}
+# Wrapping contexts currently installed, keyed by (module_name, name), so unwrap can use the
+# instance that did the wrapping instead of re-resolving a possibly re-patched attribute.
+_DD_WRAPPING_CONTEXTS: dict[tuple[str, str], WrappingContext] = {}
 
 
 def _module_name(module: Any) -> str:
@@ -114,6 +121,30 @@ def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable[...
     ModuleWatchdog.register_module_hook(module_name, _)
 
 
+def _target_function(module: Any, name: str) -> Any:
+    """Resolve module.name to the plain function a wrapping context can bind to.
+
+    A contrib integration may already hold a wrapt wrapper on the attribute, and binding to that
+    proxy is not recoverable: getattr returns a fresh BoundFunctionWrapper on every access, so the
+    registration can never be found again and unwrap silently leaves the code object rewritten.
+    """
+    (parent, attribute, original) = resolve_path(module, name)
+    # Read what the owner actually holds; getattr would run the descriptor protocol.
+    try:
+        original = parent.__dict__[attribute]
+    except (AttributeError, KeyError, TypeError):
+        pass
+    for _ in range(_MAX_PROXY_DEPTH):
+        # type(), not isinstance(): a wrapt proxy forwards __class__ and passes as a function.
+        if type(original) is FunctionType:
+            break
+        wrapped = getattr(original, "__wrapped__", None)
+        if wrapped is None:
+            break
+        original = wrapped
+    return original
+
+
 def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingContext]) -> None:
     """Lazily bytecode-wrap module_name.name with a wrapping context.
 
@@ -122,25 +153,40 @@ def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingCont
     """
 
     def _(module: Any) -> None:
+        key = (module_name, name)
+        if key in _DD_WRAPPING_CONTEXTS:
+            # Already wrapped. Re-registering the same context type raises, so stay a no-op
+            # like apply_patch does for a repeated wrapt patch.
+            return
         try:
-            (_, _, original) = resolve_path(module, name)
-            # Re-registering the same context type raises; stay a no-op like apply_patch does.
-            if not context_cls.is_wrapped(original):
-                context_cls(original).wrap()
-        except (ImportError, AttributeError, TypeError, ValueError):
-            log.debug("Cannot wrap %s.%s with a wrapping context", module_name, name)
+            context = context_cls(_target_function(module, name))
+            context.wrap()
+            _DD_WRAPPING_CONTEXTS[key] = context
+        except Exception:
+            # Bytecode rewriting can fail on shapes the bytecode library cannot round-trip.
+            # Losing a RASP hook is acceptable; breaking the customer's patching is not.
+            log.debug("Cannot wrap %s.%s with a wrapping context", module_name, name, exc_info=True)
 
     _MODULE_HOOKS.setdefault((module_name, name), []).append(_)
     ModuleWatchdog.register_module_hook(module_name, _)
 
 
-def try_unwrap_context(module: Any, name: str, context_cls: type[WrappingContext]) -> None:
+def try_unwrap_context(module: Any, name: str) -> None:
+    """Release the wrapping context installed on module.name by try_wrap_context.
+
+    Unwraps the retained context instance rather than re-resolving the attribute: a contrib
+    integration may have installed a wrapt wrapper over it meanwhile, and resolving that proxy
+    yields a different object, so unwrap would silently no-op and leave the code object rewritten.
+    The next patch would then rewrite on top of it until the bytecode library fails to parse it.
+    """
     _unregister_module_hooks(module, name)
+    context = _DD_WRAPPING_CONTEXTS.pop((_module_name(module), name), None)
+    if context is None:
+        return
     try:
-        (_, _, original) = resolve_path(module, name)
-        context_cls.extract(original).unwrap()
-    except (ModuleNotFoundError, ImportError, AttributeError, TypeError, ValueError):
-        log.debug("ERROR unwrapping context %s.%s ", module, name)
+        context.unwrap()
+    except Exception:
+        log.debug("ERROR unwrapping context %s.%s ", module, name, exc_info=True)
 
 
 def wrap_object(
