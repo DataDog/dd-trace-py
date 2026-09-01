@@ -4,13 +4,13 @@ description: |
   dd-trace-py integration development guide. Use when creating, modifying, or
   debugging contrib integrations in the Python tracer. Covers the patch module
   system, context_with_data, context_with_event (new), registration, testing
-  with riot, and common anti-patterns. LLM/AI integrations should use this
+  through the repository test runner, and common anti-patterns. LLM/AI integrations should use this
   skill for APM-side workflow only; use llmobs-integrations for LLMObs-specific
   lifecycle, extraction, streaming, and VCR guidance. Pin is DEPRECATED.
   Triggers: "dd-trace-py", "ddtrace", "contrib", "integration", "patch.py",
   "trace_handlers", "PATCH_MODULES", "context_with_data", "context_with_event",
   "TracingEvent", "VCR", "cassette", "generative-ai", "LLM integration",
-  "riot", "riotfile", "suitespec", "new integration", "wrap", "unwrap".
+  "run-tests", "suitespec", "new integration", "wrap", "unwrap".
 ---
 
 # dd-trace-py APM Integrations
@@ -84,7 +84,7 @@ sanitization, LLMObs assertions, and VCR cassette setup.
 2. **Create patch module** -- `ddtrace/contrib/internal/{name}/patch.py` with `patch()`, `unpatch()`, `get_version()`
 3. **Register** -- Add to `PATCH_MODULES`, `scripts/integration_registry/registry.yaml`, and `INTEGRATION_CONFIGS`
 4. **LLM only: Create integration class** -- Subclass `BaseLLMIntegration` in `ddtrace/llmobs/_integrations/`. See the **llmobs-integrations** skill's [Implementation Guide](../llmobs-integrations/references/implementation-guide.md) for full patterns.
-5. **Write tests** -- Add `Venv()` to `riotfile.py`, entries to suitespec, test files
+5. **Write tests** -- Add a `Venv()` to `riotfile.py`, suitespec entries, and test files
 6. **Run tests** -- Use the **run-tests** skill
 7. **Lint** -- Use the **lint** skill
 
