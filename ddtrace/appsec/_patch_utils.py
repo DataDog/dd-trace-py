@@ -11,6 +11,7 @@ from wrapt import resolve_path
 from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.wrapping.context import WrappingContext
 
 
 log = get_logger(__name__)
@@ -111,6 +112,35 @@ def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable[...
 
     _MODULE_HOOKS.setdefault((module_name, name), []).append(_)
     ModuleWatchdog.register_module_hook(module_name, _)
+
+
+def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingContext]) -> None:
+    """Lazily bytecode-wrap module_name.name with a wrapping context.
+
+    Unlike try_wrap_function_wrapper this leaves no wrapper frame in the traceback of an
+    exception that merely passes through the hook.
+    """
+
+    def _(module: Any) -> None:
+        try:
+            (_, _, original) = resolve_path(module, name)
+            # Re-registering the same context type raises; stay a no-op like apply_patch does.
+            if not context_cls.is_wrapped(original):
+                context_cls(original).wrap()
+        except (ImportError, AttributeError, TypeError, ValueError):
+            log.debug("Cannot wrap %s.%s with a wrapping context", module_name, name)
+
+    _MODULE_HOOKS.setdefault((module_name, name), []).append(_)
+    ModuleWatchdog.register_module_hook(module_name, _)
+
+
+def try_unwrap_context(module: Any, name: str, context_cls: type[WrappingContext]) -> None:
+    _unregister_module_hooks(module, name)
+    try:
+        (_, _, original) = resolve_path(module, name)
+        context_cls.extract(original).unwrap()
+    except (ModuleNotFoundError, ImportError, AttributeError, TypeError, ValueError):
+        log.debug("ERROR unwrapping context %s.%s ", module, name)
 
 
 def wrap_object(

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ASM: Fixes an issue where exceptions raised by ``urllib.request.urlopen`` include an internal
+    Datadog frame in their traceback when Exploit Prevention is enabled, which caused ordinary
+    application errors to be misattributed to the tracer.

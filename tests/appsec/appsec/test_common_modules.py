@@ -1,10 +1,12 @@
 import builtins
+import contextlib
 import copy
 import types
 
 import pytest
 from wrapt import FunctionWrapper
 
+from ddtrace.appsec._common_module_patches import _SsrfOpenerDirectorOpen
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
@@ -59,6 +61,98 @@ def test_patch_common_modules_unregisters_module_hooks():
 
     remaining_hooks = {module: tuple(hooks) for module, hooks in watchdog._hook_map.items() if hooks}
     assert remaining_hooks == initial_hooks
+
+
+def test_opener_director_open_is_wrapped_with_a_context():
+    """The urllib.request hook is a wrapping context, not a wrapt wrapper."""
+    unpatch_common_modules()
+    import urllib.request
+
+    try:
+        patch_common_modules()
+        assert _SsrfOpenerDirectorOpen.is_wrapped(urllib.request.OpenerDirector.open)
+        # No wrapt wrapper is installed on the attribute.
+        assert not isinstance(urllib.request.OpenerDirector.open, FunctionWrapper)
+
+        # Re-patching must stay a no-op rather than registering the context twice.
+        patch_common_modules()
+        assert _SsrfOpenerDirectorOpen.is_wrapped(urllib.request.OpenerDirector.open)
+    finally:
+        unpatch_common_modules()
+
+    assert not _SsrfOpenerDirectorOpen.is_wrapped(urllib.request.OpenerDirector.open)
+
+
+def test_opener_director_open_traceback_has_no_ddtrace_frames():
+    """A connection error passing through the SSRF hook must not be attributed to ddtrace.
+
+    A wrapt wrapper leaves its own frame in the traceback of every ordinary application
+    error, which makes crash intake blame Datadog for customer bugs.
+    """
+    unpatch_common_modules()
+    import traceback
+    import urllib.request
+
+    try:
+        patch_common_modules()
+        with pytest.raises(Exception) as raised:
+            # Nothing listens on port 1, so this fails inside urllib, below our hook.
+            urllib.request.urlopen("http://127.0.0.1:1/", timeout=1)
+
+        frames = traceback.extract_tb(raised.value.__traceback__)
+        ddtrace_frames = [frame.filename for frame in frames if "ddtrace" in frame.filename]
+        assert not ddtrace_frames, ddtrace_frames
+        assert any(frame.filename == __file__ for frame in frames)
+    finally:
+        unpatch_common_modules()
+
+
+def test_opener_director_open_reads_fullurl_by_name():
+    """The context reads the target's argument by name, replacing the old args/kwargs juggling.
+
+    This is the riskiest part of the wrapt -> WrappingContext move: get the name wrong and RASP
+    silently stops inspecting outgoing requests.
+    """
+    unpatch_common_modules()
+    import urllib.request
+
+    seen = []
+
+    class _Recorder(_SsrfOpenerDirectorOpen):
+        def __enter__(self):
+            seen.append(self._arg("fullurl"))
+            return super().__enter__()
+
+    try:
+        patch_common_modules()
+        context = _SsrfOpenerDirectorOpen.extract(urllib.request.OpenerDirector.open)
+        context.unwrap()
+        _Recorder(urllib.request.OpenerDirector.open).wrap()
+
+        with pytest.raises(Exception):
+            urllib.request.urlopen("http://127.0.0.1:1/probe", timeout=1)
+    finally:
+        unpatch_common_modules()
+        with contextlib.suppress(ValueError):
+            _Recorder.extract(urllib.request.OpenerDirector.open).unwrap()
+
+    assert seen == ["http://127.0.0.1:1/probe"]
+
+
+def test_opener_director_open_leaves_no_core_context_behind():
+    """The core context opened in __enter__ must be released on both the return and error paths."""
+    unpatch_common_modules()
+    import urllib.request
+
+    try:
+        patch_common_modules()
+        # RASP is inactive here, so __enter__ returns before opening a core context; the
+        # request still has to leave no full_url item behind.
+        with pytest.raises(Exception):
+            urllib.request.urlopen("http://127.0.0.1:1/", timeout=1)
+        assert core.find_item("full_url") is None
+    finally:
+        unpatch_common_modules()
 
 
 @pytest.mark.parametrize(
