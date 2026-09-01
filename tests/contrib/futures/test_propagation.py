@@ -507,6 +507,20 @@ def test_submit_propagates_context_copy_with_profiler_meta(tracer):
     assert context_meta.PROFILING_LOCAL_ROOT_SPAN_ID_KEY not in parent_ctx._meta
 
 
+def test_submit_propagates_empty_context(tracer):
+    """Hide stale context left on a reused worker when the submitting thread has none."""
+    ambient_worker = tracer.start_span("ambient-worker")
+    try:
+        with concurrent.futures.ThreadPoolExecutor(
+            max_workers=1,
+            initializer=tracer.context_provider.activate,
+            initargs=(ambient_worker,),
+        ) as executor:
+            assert executor.submit(tracer.context_provider.active).result() is None
+    finally:
+        ambient_worker.finish()
+
+
 def test_submit_no_wait(tracer, test_spans):
     executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
