@@ -80,7 +80,7 @@ class APMTracingCallback(RCCallback):
                 continue
 
             # The Agent may target configs using an environment configured only at the Agent level.
-            if env is not None and env != "*" and config.env not in ("", None) and env != config.env:
+            if env is not None and env != "*" and config.env and env != config.env:
                 log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
                 continue
 
