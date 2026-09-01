@@ -312,3 +312,57 @@ def set_method_tag(span: Span, method: str) -> None:
         span._set_attribute(otel_http.REQUEST_METHOD_ORIGINAL, original_method)
     else:
         span.remove_tag(otel_http.REQUEST_METHOD_ORIGINAL)
+
+
+def server_url_tag() -> str:
+    return otel_http.URL_PATH if config._otel_trace_semantics_enabled else http.URL
+
+
+def http_block_metadata(
+    method: Optional[str],
+    status_code: Union[int, str],
+    query: Optional[str] = None,
+    user_agent: Optional[str] = None,
+) -> dict[str, Any]:
+    metadata: dict[str, Any] = {}
+    if not config._otel_trace_semantics_enabled:
+        metadata[http.STATUS_CODE] = str(status_code)
+        if method is not None:
+            metadata[http.METHOD] = method
+        if query:
+            metadata[http.QUERY_STRING] = query
+        if user_agent:
+            metadata[http.USER_AGENT] = user_agent
+        return metadata
+
+    metadata[otel_http.RESPONSE_STATUS_CODE] = int(status_code)
+    if method is not None:
+        normalized_method, original_method = normalize_http_method(method)
+        metadata[otel_http.REQUEST_METHOD] = normalized_method
+        if original_method is not None:
+            metadata[otel_http.REQUEST_METHOD_ORIGINAL] = original_method
+    if query:
+        obfuscated = _obfuscated_query(query)
+        if obfuscated:
+            metadata[otel_http.URL_QUERY] = cast(Any, obfuscated)
+    if user_agent:
+        metadata[otel_http.USER_AGENT_ORIGINAL] = user_agent
+    return metadata
+
+
+def user_agent_tag() -> str:
+    return otel_http.USER_AGENT_ORIGINAL if config._otel_trace_semantics_enabled else http.USER_AGENT
+
+
+def set_user_agent_tag(span: Span, user_agent: str) -> None:
+    span._set_attribute(user_agent_tag(), user_agent)
+
+
+def set_client_address_tags(span: Span, client_address: str, network_peer_address: Optional[str] = None) -> None:
+    if config._otel_trace_semantics_enabled:
+        span._set_attribute(otel_http.CLIENT_ADDRESS, client_address)
+        if network_peer_address:
+            span._set_attribute(otel_http.NETWORK_PEER_ADDRESS, network_peer_address)
+    else:
+        span._set_attribute(http.CLIENT_IP, client_address)
+        span._set_attribute("network.client.ip", network_peer_address or client_address)

@@ -26,7 +26,7 @@ from ddtrace.contrib.internal.trace_utils_base import set_method_tag
 from ddtrace.contrib.internal.trace_utils_base import set_query_string_tag
 from ddtrace.contrib.internal.trace_utils_base import set_status_code_tag
 from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
-from ddtrace.contrib.internal.trace_utils_base import user_agent_tag
+from ddtrace.contrib.internal.trace_utils_base import set_user_agent_tag
 from ddtrace.internal import core
 from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import REQUEST_PATH_PARAMS
@@ -143,7 +143,7 @@ def _on_flask_blocked_request(span: SpanProtocol) -> None:
             set_method_tag(span, request.method)
         user_agent = _get_request_header_user_agent(request.headers)
         if user_agent:
-            span._set_attribute(user_agent_tag(), user_agent)
+            set_user_agent_tag(span, user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
 
@@ -263,7 +263,7 @@ def _wsgi_make_block_content(
             set_method_tag(req_span, method)
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
         if user_agent:
-            req_span._set_attribute(user_agent_tag(), user_agent)
+            set_user_agent_tag(req_span, user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
