@@ -2,6 +2,7 @@ import asyncio
 from contextvars import ContextVar
 from contextvars import copy_context
 import sys
+import threading
 from types import SimpleNamespace
 
 import pytest
@@ -18,7 +19,7 @@ from ddtrace.internal.wrapping import is_wrapped_with
 
 
 def _new_uvloop_event_loop():
-    import uvloop
+    uvloop = pytest.importorskip("uvloop")
 
     return uvloop.new_event_loop()
 
@@ -234,6 +235,9 @@ def test_callback_failure_resynchronizes_before_exception_handler(context_switch
     assert handled == [("ambient", "ambient")]
 
 
+# call_at is only covered because uvloop implements it by calling call_later. Keep it
+# parametrized: it catches both a lost publication if uvloop stops delegating and a
+# duplicate one if call_at is ever wrapped too.
 @pytest.mark.parametrize("schedule_method", ["call_later", "call_at"])
 def test_uvloop_timer_callbacks_publish_the_captured_context(asyncio_patch_state, monkeypatch, schedule_method):
     """Publish timer callback entry and restore the loop's ambient context."""
@@ -250,7 +254,6 @@ def test_uvloop_timer_callbacks_publish_the_captured_context(asyncio_patch_state
     try:
         marker.set("callback")
         callback_context = copy_context()
-        marker.set("ambient")
         observed = []
 
         def callback():
@@ -261,17 +264,65 @@ def test_uvloop_timer_callbacks_publish_the_captured_context(asyncio_patch_state
             loop.call_later(0.05, callback, context=callback_context)
         else:
             loop.call_at(loop.time() + 0.05, callback, context=callback_context)
+        # Set after scheduling, so only a snapshot taken as run_forever is entered sees it.
+        # A capture at schedule or patch time would report "callback" instead.
+        marker.set("ambient")
         loop.run_forever()
 
         assert observed == [("callback", "callback")]
-        # The final ambient publication belongs to the run_forever wrapper.
+        # Callback entry, its restore, then the restore the run_forever wrapper publishes
+        # as the loop exits.
         assert switches == ["callback", "ambient", "ambient"]
     finally:
         loop.close()
 
 
+def test_uvloop_nested_run_keeps_publishing_the_ambient_context(asyncio_patch_state, monkeypatch):
+    """Keep the ambient context of a running loop when a nested run is rejected."""
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
+    marker = ContextVar("nested_run_marker", default=None)
+    switches = []
+
+    def record_context_switch(_event):
+        switches.append(marker.get())
+
+    monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
+    patch()
+    loop = _new_uvloop_event_loop()
+
+    def nested_run():
+        # A sync bridge reaching back into the loop gets a RuntimeError it can handle. That
+        # must not cost the outer run the ambient context snapshot it still needs.
+        with pytest.raises(RuntimeError):
+            loop.run_forever()
+
+    def schedule_probe():
+        switches.clear()
+        loop.call_soon(callback, context=callback_context)
+
+    observed = []
+
+    def callback():
+        observed.append(marker.get())
+        loop.stop()
+
+    try:
+        marker.set("callback")
+        callback_context = copy_context()
+        loop.call_soon(nested_run)
+        loop.call_soon(schedule_probe)
+        marker.set("ambient")
+        loop.run_forever()
+
+        assert observed == ["callback"]
+        # The middle entry is the restore that the rejected nested run used to suppress.
+        assert switches[-3:] == ["callback", "ambient", "ambient"]
+    finally:
+        loop.close()
+
+
 def test_uvloop_late_patch_restores_context(asyncio_patch_state, monkeypatch):
-    """Establish restoration state when patching from an already-running uvloop."""
+    """Capture the ambient context from _patch when the uvloop loop is already running."""
     monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
     marker = ContextVar("late_patch_marker", default=None)
     switches = []
@@ -280,8 +331,11 @@ def test_uvloop_late_patch_restores_context(asyncio_patch_state, monkeypatch):
         switches.append(marker.get())
 
     async def main(loop):
+        # run_forever is already in flight, and therefore unwrapped, so this snapshot can
+        # only come from _patch itself.
         marker.set("ambient")
         patch()
+        assert hasattr(loop, _context_switch_uvloop._AMBIENT_CONTEXT_ATTR)
         switches.clear()
 
         marker.set("callback")
@@ -298,12 +352,103 @@ def test_uvloop_late_patch_restores_context(asyncio_patch_state, monkeypatch):
         await done
 
         assert observed == [("callback", "callback")]
-        assert switches[:3] == ["callback", "ambient", "ambient"]
+        # Entry, restore, then the task step woken by done.set_result. There is no
+        # loop-exit publication because this run_forever is unwrapped.
+        assert switches == ["callback", "ambient", "ambient"]
 
     monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
     loop = _new_uvloop_event_loop()
     try:
         loop.run_until_complete(main(loop))
+    finally:
+        loop.close()
+
+
+def test_uvloop_threadsafe_callbacks_publish_the_captured_context(asyncio_patch_state, monkeypatch):
+    """Publish entry and restore for a callback scheduled from another thread."""
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
+    marker = ContextVar("threadsafe_marker", default=None)
+    switches = []
+
+    def record_context_switch(_event):
+        switches.append(marker.get())
+
+    monkeypatch.setattr(_context_switch_uvloop, "core", SimpleNamespace(dispatch=record_context_switch))
+    patch()
+    loop = _new_uvloop_event_loop()
+    try:
+        marker.set("callback")
+        callback_context = copy_context()
+        observed = []
+
+        def callback():
+            observed.append(marker.get())
+            loop.stop()
+
+        # call_soon_threadsafe has its own wrapper, so it needs its own coverage.
+        scheduler = threading.Thread(target=lambda: loop.call_soon_threadsafe(callback, context=callback_context))
+        scheduler.start()
+        scheduler.join()
+        marker.set("ambient")
+        loop.run_forever()
+
+        assert observed == ["callback"]
+        assert switches == ["callback", "ambient", "ambient"]
+    finally:
+        loop.close()
+
+
+@pytest.mark.parametrize("fallback_required", [False, True])
+def test_uvloop_scheduling_hooks_follow_install_state(asyncio_patch_state, monkeypatch, fallback_required):
+    """Wrap the uvloop scheduling methods only while the fallback is installed."""
+    uvloop = pytest.importorskip("uvloop")
+    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: fallback_required)
+    wrapped_methods = ("call_soon", "call_soon_threadsafe", "call_later", "run_forever")
+
+    def wrapped_state():
+        return [hasattr(getattr(uvloop.Loop, name), "__wrapped__") for name in wrapped_methods]
+
+    unwrapped = [False] * len(wrapped_methods)
+    installed = [fallback_required] * len(wrapped_methods)
+
+    assert wrapped_state() == unwrapped
+
+    patch()
+    assert wrapped_state() == installed
+    assert getattr(uvloop.Loop, _context_switch_uvloop._PATCH_MARKER, False) is fallback_required
+
+    unpatch()
+    assert wrapped_state() == unwrapped
+    assert not hasattr(uvloop.Loop, _context_switch_uvloop._PATCH_MARKER)
+
+    # Re-installing has to wrap again rather than assume the marker survived.
+    patch()
+    assert wrapped_state() == installed
+
+
+def test_uvloop_callbacks_publish_the_active_trace_context(tracer, context_switches):
+    """Publish the callback's own trace context through the real listener chain."""
+    loop = _new_uvloop_event_loop()
+    try:
+        with tracer.trace("ambient") as ambient:
+            # active() ignores finished spans, so keep this one open and put the ambient
+            # span back as the active one for the scheduling side.
+            callback_span = tracer.trace("callback")
+            callback_context = copy_context()
+            tracer.context_provider.activate(ambient)
+
+            observed = []
+
+            def callback():
+                observed.append(tracer.context_provider.active())
+                loop.stop()
+
+            loop.call_later(0.01, callback, context=callback_context)
+            loop.run_forever()
+            callback_span.finish()
+
+            assert observed == [callback_span]
+            assert context_switches[-1] is ambient
     finally:
         loop.close()
 
