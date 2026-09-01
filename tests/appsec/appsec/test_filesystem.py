@@ -205,9 +205,9 @@ def test_lfi_normal_exception_pathlib() -> None:
             # The caller must appear exactly once: the removed _raise_without_wrapper_frame used to
             # append a synthetic duplicate of it on top of the wrapper frame.
             assert [frame.filename for frame in frames].count(__file__) == 1
-            # Path.open is pure Python, so the frame that actually raised is now reported again.
-            # _raise_without_wrapper_frame used to discard it.
-            assert frames[-1].name == "open"
-            assert frames[-1].filename != __file__
+            # Path.open is pure Python, so the frames below our wrapper are reported again; the
+            # removed helper discarded them, leaving wrapped_path_open last.
+            assert [frame.name for frame in frames].index("wrapped_path_open") < len(frames) - 1
+            assert "pathlib" in frames[-1].filename
     finally:
         cmp.unpatch_common_modules()
