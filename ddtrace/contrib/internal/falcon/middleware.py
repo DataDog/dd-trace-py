@@ -1,6 +1,7 @@
 import sys
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
@@ -66,7 +67,7 @@ class TraceMiddleware:
             return
 
         # Set the resource on the live span before handler execution.
-        span.resource = "%s %s" % (req.method, _name(resource))
+        set_instrumentation_resource(span, "%s %s" % (req.method, _name(resource)))
 
         # Prevent the subscriber from replacing a resource customized by the
         # resource handler.
@@ -92,7 +93,7 @@ class TraceMiddleware:
             # proper status code, so retain the existing inference.
             if resource is None:
                 status = "404"
-                span.resource = "%s 404" % req.method
+                set_instrumentation_resource(span, "%s 404" % req.method)
             else:
                 err_type = sys.exc_info()[0]
                 if err_type is not None:
