@@ -2,7 +2,5 @@
 features:
   - |
     LLM Observability: Datasets, experiments, and custom evaluator publishing no longer require
-    ``DD_APP_KEY`` to be set on the application. When it is unset and a Datadog Agent exposing the
-    EVP proxy is reachable, these requests are sent through the Agent, which supplies the API and
-    application keys. Setting ``DD_APP_KEY``, or setting ``DD_LLMOBS_AGENTLESS_ENABLED`` to
-    ``true``, sends them directly to Datadog as before.
+    ``DD_APP_KEY`` on the application. When it is unset, these requests are sent through a Datadog
+    Agent exposing the EVP proxy, which supplies both keys.
