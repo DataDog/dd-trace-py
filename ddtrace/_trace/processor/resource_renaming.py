@@ -49,7 +49,7 @@ class SimplifiedEndpointComputer:
         try:
             parsed_url = urlparse(url)
         except ValueError as e:
-            log.error("Failed to parse http.url tag when processing span for resource renaming: %s", e)
+            log.error("Failed to parse HTTP URL attribute when processing span for resource renaming: %s", e)
             return "/"
         path = parsed_url.path
         if not path or path == "/":
