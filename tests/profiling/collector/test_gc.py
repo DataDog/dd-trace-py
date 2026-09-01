@@ -165,6 +165,33 @@ def test_on_gc_records_pause_walltime() -> None:
     config_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
 
 
+def test_snapshot_walltime_equals_total_pause_ns() -> None:
+    """Emitted wall-time must be the window sum, not sum * pause count."""
+    col: GCCollector = _make_isolated_collector()
+    total_ns: int = 1_000_000
+    pause_count: int = 5
+    col._pause_count[0] = pause_count
+    col._pause_total_ns[0] = total_ns
+
+    handles: list[mock.MagicMock] = []
+
+    def make_handle() -> mock.MagicMock:
+        h: mock.MagicMock = mock.MagicMock()
+        handles.append(h)
+        return h
+
+    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
+        mock_ddup.SampleHandle.side_effect = make_handle
+        col.snapshot()
+
+    pause_handle: mock.MagicMock = handles[0]
+    pause_ns: int
+    count: int
+    pause_ns, count = pause_handle.push_walltime.call_args[0]
+    assert pause_ns == total_ns
+    assert count == 1
+
+
 def test_on_gc_stop_without_start_is_noop() -> None:
     col = _make_isolated_collector()
     with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:

@@ -139,7 +139,7 @@ class GCCollector(collector.Collector):
             if n == 0:
                 continue
             pause_handle: ddup.SampleHandle = ddup.SampleHandle()
-            pause_handle.push_walltime(pause_total_ns[gen], n)
+            pause_handle.push_walltime(pause_total_ns[gen], 1)
             pause_handle.push_frame(_GEN_NAMES[gen], _GC_FILE, 0, gen)
             pause_handle.push_monotonic_ns(time.monotonic_ns())
             pause_handle.flush_sample()
