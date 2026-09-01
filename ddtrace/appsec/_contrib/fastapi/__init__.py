@@ -5,6 +5,11 @@ import json
 from typing import Any
 from typing import Optional
 
+from ddtrace._trace.http_semantics import set_method_tag
+from ddtrace._trace.http_semantics import set_query_string_tag
+from ddtrace._trace.http_semantics import set_status_code_tag
+from ddtrace._trace.http_semantics import set_url_tags_server
+from ddtrace._trace.http_semantics import user_agent_tag
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import _on_context_ended
@@ -13,8 +18,6 @@ from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._utils import Block_config
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
-from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
-from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
@@ -101,17 +104,17 @@ def _asgi_make_block_content(ctx: ExecutionContext[Event], url: str) -> tuple[in
     status = block_config.status_code
     try:
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        req_span._set_attribute(http.STATUS_CODE, str(status))
+        set_status_code_tag(req_span, status)
         query_string = environ.get("QUERY_STRING")
-        _set_url_tag(middleware.integration_config, req_span, url, query_string)
+        set_url_tags_server(middleware.integration_config, req_span, url, query_string)
         if query_string and middleware._config.trace_query_string:
-            req_span._set_attribute(http.QUERY_STRING, query_string)
+            set_query_string_tag(req_span, query_string)
         method = environ.get("REQUEST_METHOD")
         if method:
-            req_span._set_attribute(http.METHOD, method)
+            set_method_tag(req_span, method)
         user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
         if user_agent:
-            req_span._set_attribute(http.USER_AGENT, user_agent)
+            req_span._set_attribute(user_agent_tag(), user_agent)
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
