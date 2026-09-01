@@ -64,12 +64,6 @@ class TestLLMObsSamplingRule:
         span = _span(trace_id=1234567890)
         assert rule.sample(span) == rule.sample(span) == rule.sample(_span(trace_id=1234567890))
 
-    def test_sampling_follows_configured_rate(self):
-        """Across 2000 trace IDs the kept fraction should land close to the rule's rate."""
-        rule = LLMObsSamplingRule(sample_rate=0.3)
-        kept = sum(1 for trace_id in range(1, 2001) if rule.sample(_span(trace_id=trace_id)))
-        assert 0.25 <= kept / 2000 <= 0.35
-
 
 class TestLLMObsSamplerRuleParsing:
     def test_no_rules(self):
@@ -135,18 +129,20 @@ class TestLLMObsSamplerSampling:
         assert sampler.sample(_span(), {"env": "staging"}) == (False, "0")
 
     def test_env_specific_rates(self):
-        """The motivating case: sample prod at 50% and staging at 10%."""
+        """The motivating case: sample prod at 50% and staging at 10%.
+
+        Asserts which rule each env selects and the rate it reports, not the resulting
+        distribution -- the keep/drop maths is APM's and is covered by APM's own tests.
+        """
         sampler = LLMObsSampler(
             sample_rate=1.0,
             rules='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]',
         )
-        rates = {}
-        for env in ("prod", "staging", "dev"):
-            kept = sum(1 for tid in range(1, 2001) if sampler.sample(_span(trace_id=tid), {"env": env})[0])
-            rates[env] = kept / 2000
-        assert 0.45 <= rates["prod"] <= 0.55
-        assert 0.05 <= rates["staging"] <= 0.15
-        assert rates["dev"] == 1.0
+        assert sampler.match({"env": "prod"}).sample_rate == 0.5
+        assert sampler.match({"env": "staging"}).sample_rate == 0.1
+        assert sampler.match({"env": "dev"}) is None
+        # An env matching no rule falls through to the global rate.
+        assert sampler.sample(_span(), {"env": "dev"}) == (True, "1")
 
 
 class TestLLMObsSamplingRegistry:
