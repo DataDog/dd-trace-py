@@ -26,8 +26,7 @@ from ddtrace.internal.utils.http import strip_query_string
 
 log = get_logger(__name__)
 
-# RFC 9110 methods plus PATCH and QUERY, which is the accepted set in the OTel HTTP
-# semantic conventions. Anything else is reported as _OTHER.
+# Methods recognized by the OTel HTTP semantic conventions; all others become _OTHER.
 _KNOWN_HTTP_METHODS = frozenset(
     ("GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH", "QUERY")
 )
@@ -35,22 +34,13 @@ OTHER_HTTP_METHOD = "_OTHER"
 
 
 def otel_number(value: int) -> Union[int, str]:
-    """Represent an integer-typed OTel attribute for the exporter this process uses.
-
-    The RFC requires server.port and http.response.status_code as integers over OTLP and
-    strings in the MsgPack meta map, and a span carries one value both encoders read.
-    """
+    """Preserve typed OTLP values while supporting the MsgPack string meta map."""
     return value if _is_otlp_traces_exporter_enabled(otel_config.exporter) else str(value)
 
 
 @cached()
 def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
-    """Split a raw HTTP method into (http.request.method, http.request.method_original).
-
-    The second element is None when it would duplicate the first, which is the only case
-    the semantic conventions allow http.request.method_original to be omitted. Case
-    normalization counts as a difference, so "get" yields ("GET", "get").
-    """
+    """Return the normalized method and its original spelling when they differ."""
     upper = method.upper()
     if upper in _KNOWN_HTTP_METHODS:
         return upper, (None if upper == method else method)
@@ -58,18 +48,14 @@ def normalize_http_method(method: str) -> tuple[str, Optional[str]]:
 
 
 def _credentials_redacted_url(url: str) -> str:
-    """Replace URL userinfo with REDACTED:REDACTED, as url.full requires.
-
-    The Datadog path drops userinfo entirely. The OTel HTTP semantic conventions instead
-    require the userinfo to survive in redacted form, so credentials are substituted.
-    """
+    """Redact URL credentials without dropping the userinfo required by url.full."""
     if "@" not in url:
         return url
 
     parsed = parse.urlparse(url)
     netloc = parsed.netloc
     if "@" not in netloc:
-        # userinfo is not what the "@" belongs to, for example a path or query containing it
+        # The "@" belongs to the path or query, not userinfo.
         return url
 
     host = netloc[netloc.rindex("@") + 1 :]
@@ -77,11 +63,9 @@ def _credentials_redacted_url(url: str) -> str:
 
 
 def _split_netloc(netloc: str, scheme: str) -> tuple[Optional[str], Optional[int]]:
-    """Return (server.address, server.port) for a URL netloc."""
     host = netloc.rsplit("@", 1)[-1]
     port: Optional[int] = None
     if host.startswith("["):
-        # IPv6 literal: [::1]:8080
         close = host.find("]")
         if close == -1:
             return host or None, None
@@ -106,7 +90,6 @@ def _split_netloc(netloc: str, scheme: str) -> tuple[Optional[str], Optional[int
 
 
 def _obfuscated_query(query: Optional[str]) -> Optional[Union[str, bytes]]:
-    """Apply query obfuscation, or return None when the query must not be reported."""
     if not query:
         return None
     if config._global_query_string_obfuscation_disabled:
@@ -119,7 +102,6 @@ def _obfuscated_query(query: Optional[str]) -> Optional[Union[str, bytes]]:
 
 
 def set_query_string_tag(span: Span, query: str) -> None:
-    """Tag a query string an integration opted into outside of integration_config."""
     if not config._otel_trace_semantics_enabled:
         span._set_attribute(http.QUERY_STRING, query)
         return
@@ -135,7 +117,6 @@ def set_url_tags_otel_server(
     query: Optional[str],
     raw_uri: Optional[str] = None,
 ) -> None:
-    """Emit url.path, url.scheme, url.query, server.address and server.port for a server span."""
     parsed = parse.urlparse(url)
     if parsed.scheme:
         span._set_attribute(http.OTEL_URL_SCHEME, parsed.scheme)
@@ -147,7 +128,6 @@ def set_url_tags_otel_server(
             # raw_uri is also forwarded unchanged to ASM. A malformed optional value must
             # not prevent the remaining request metadata from being reported.
             pass
-    # url.path is required, and the empty path of an origin-form request is "/".
     span._set_attribute(http.OTEL_URL_PATH, raw_path or parsed.path or "/")
 
     address, port = _split_netloc(parsed.netloc, parsed.scheme)
@@ -156,8 +136,7 @@ def set_url_tags_otel_server(
         if port is not None:
             span._set_attribute(net.SERVER_PORT, otel_number(port))
 
-    # With http.url gone, url.query is the only place a server query string can live, so either
-    # knob that used to permit capture still permits it.
+    # Either existing query-string option enables url.query capture.
     if not (integration_config.http_tag_query_string or integration_config.trace_query_string):
         return
     obfuscated = _obfuscated_query(query if query is not None else parsed.query)
@@ -166,7 +145,6 @@ def set_url_tags_otel_server(
 
 
 def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
-    """Emit url.full, server.address and server.port for a client span."""
     url = _credentials_redacted_url(url)
     parsed = parse.urlparse(url)
 
@@ -195,8 +173,6 @@ def set_url_tags_otel_client(integration_config: IntegrationConfig, span: Span, 
 # AIDEV-NOTE: This writer deliberately does not read the OTel semantics feature flag. Callers
 # instantiate it only for the enabled path, keeping the decision at the per-call dispatch site.
 class OTelHTTPSpanAttributes:
-    """Write the OTel HTTP attributes and resource owned by set_http_meta."""
-
     __slots__ = ("_integration_config", "_normalized_method", "_original_method", "_span", "is_client")
 
     def __init__(self, span: Span, integration_config: IntegrationConfig) -> None:
@@ -209,7 +185,6 @@ class OTelHTTPSpanAttributes:
         self.is_client = kind == SpanKind.CLIENT if kind is not None else span.span_type == SpanTypes.HTTP
 
     def set_method(self, method: Optional[str]) -> None:
-        """Write the normalized method and retain it for final resource naming."""
         if method is None:
             return
 
@@ -228,7 +203,6 @@ class OTelHTTPSpanAttributes:
         server_address: Optional[str] = None,
         fallback_server_address: Optional[str] = None,
     ) -> None:
-        """Write URL attributes and server.address using URL, explicit, then fallback precedence."""
         if url is not None:
             try:
                 if self.is_client:
@@ -247,7 +221,6 @@ class OTelHTTPSpanAttributes:
             self._span._set_attribute(net.SERVER_ADDRESS, fallback_server_address)
 
     def set_status_code(self, status_code: Optional[Union[int, str]]) -> None:
-        """Write the typed status code and apply OTel client or server error semantics."""
         if status_code is None:
             return
         try:
@@ -270,12 +243,11 @@ class OTelHTTPSpanAttributes:
         if self.is_client:
             return status_code >= 400
         if not config._http_server.error_statuses_configured:
-            # OTel also treats an uninterpretable code above the standard 5xx range as an error.
+            # OTel treats any code at or above 500 as an error.
             return status_code >= 500
         return bool(config._http_server.is_error_code(status_code))
 
     def set_user_agent(self, user_agent: Optional[str]) -> None:
-        """Write user_agent.original when a request supplied one."""
         if user_agent:
             self._span._set_attribute(http.OTEL_USER_AGENT_ORIGINAL, user_agent)
 
@@ -284,14 +256,12 @@ class OTelHTTPSpanAttributes:
         client_address: Optional[str],
         network_peer_address: Optional[str],
     ) -> None:
-        """Write the resolved client and direct network peer addresses."""
         if client_address:
             self._span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
         if network_peer_address:
             self._span._set_attribute(net.NETWORK_PEER_ADDRESS, network_peer_address)
 
     def set_resource(self, route: Optional[str]) -> None:
-        """Finalize the OTel resource, allowing a later server route to refine it."""
         if self._normalized_method is None:
             return
         set_otel_http_resource(
@@ -303,7 +273,6 @@ class OTelHTTPSpanAttributes:
 
 
 def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: str, query: Optional[str]) -> None:
-    """Tag a server request URL in whichever semantics mode is active."""
     if config._otel_trace_semantics_enabled:
         set_url_tags_otel_server(integration_config, span, url, query)
     else:
@@ -324,7 +293,6 @@ def set_url_tags_server(integration_config: IntegrationConfig, span: Span, url: 
 
 
 def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
-    """Tag an HTTP status code outside set_http_meta, without touching span.error."""
     if not config._otel_trace_semantics_enabled:
         span._set_attribute(http.STATUS_CODE, str(status_code))
         return
@@ -337,7 +305,6 @@ def set_status_code_tag(span: Span, status_code: Union[int, str]) -> None:
 
 
 def set_method_tag(span: Span, method: str) -> None:
-    """Tag an HTTP request method outside set_http_meta."""
     if not config._otel_trace_semantics_enabled:
         span._set_attribute(http.METHOD, method)
         return
@@ -348,7 +315,6 @@ def set_method_tag(span: Span, method: str) -> None:
 
 
 def server_url_tag() -> str:
-    """Return the active attribute for recovering a server request path."""
     return http.OTEL_URL_PATH if config._otel_trace_semantics_enabled else http.URL
 
 
@@ -358,7 +324,6 @@ def http_block_metadata(
     query: Optional[str] = None,
     user_agent: Optional[str] = None,
 ) -> dict[str, Any]:
-    """Return blocked-request attributes in the active semantics mode."""
     metadata: dict[str, Any] = {}
     if not config._otel_trace_semantics_enabled:
         metadata[http.STATUS_CODE] = str(status_code)
@@ -386,17 +351,14 @@ def http_block_metadata(
 
 
 def user_agent_tag() -> str:
-    """Return the active HTTP request user-agent attribute."""
     return http.OTEL_USER_AGENT_ORIGINAL if config._otel_trace_semantics_enabled else http.USER_AGENT
 
 
 def set_user_agent_tag(span: Span, user_agent: str) -> None:
-    """Write the HTTP request user-agent attribute for the active semantics."""
     span._set_attribute(user_agent_tag(), user_agent)
 
 
 def set_client_address_tags(span: Span, client_address: str) -> None:
-    """Write service-entry client address attributes for the active semantics."""
     if config._otel_trace_semantics_enabled:
         span._set_attribute(http.OTEL_CLIENT_ADDRESS, client_address)
         span._set_attribute(net.NETWORK_PEER_ADDRESS, client_address)
