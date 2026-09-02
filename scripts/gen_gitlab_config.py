@@ -216,6 +216,7 @@ class SuiteVenvInfo:
     # migrated suites whose regular CI jobs use uv.
     riot_venvs: tuple[tuple[str, str], ...] = ()
     uv_venvs: tuple[tuple[str, str], ...] = ()
+    uv_lockfiles: t.Optional[dict[str, str]] = None
     venv_test_locations: t.Optional[dict[str, str]] = None
 
 
@@ -302,6 +303,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
             environment_hashes=tuple(environment.hash for environment in environments),
             riot_venvs=riot_info.riot_venvs if riot_info else (),
             uv_venvs=tuple((environment.hash, environment.python) for environment in environments),
+            uv_lockfiles={environment.hash: environment.lockfile for environment in environments},
             venv_test_locations={
                 **((riot_info.venv_test_locations or {}) if riot_info else {}),
                 **{
@@ -646,7 +648,17 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 k = _ddtest_module().ddtest_k(suite_config)
                 LOGGER.info("Suite %s: ddtest %s runner (venvs=%d, nodes/venv=%d)", suite, runner, len(venvs), k)
                 _ddtest_module().emit_ddtest_jobs(
-                    f, suite, stage, clean_name, suite_config, list(venvs), k, TESTRUNNER_IMAGE_HASH, runner
+                    f,
+                    suite,
+                    stage,
+                    clean_name,
+                    suite_config,
+                    list(venvs),
+                    k,
+                    TESTRUNNER_IMAGE_HASH,
+                    runner,
+                    info.uv_lockfiles if runner == "uv" else None,
+                    info.venv_test_locations if runner == "uv" else None,
                 )
                 continue
 

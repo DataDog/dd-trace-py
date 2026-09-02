@@ -137,8 +137,15 @@ include:
     - |
       set -euo pipefail
       for hash_py in ${TEST_ENVIRONMENT_HASH_PYTHON}; do
-        environment_hash="${hash_py%%:*}"
-        scripts/run-tests -s --venv "${environment_hash}" --ddtest-mode plan --ddtest-nodes "${DDTEST_NODES}"
+        IFS=: read -r environment_hash python_version lockfile tests_location <<< "${hash_py}"
+        requirements="$(mktemp)"
+        grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
+        wheel="$(find ".cache/ddtrace-test-wheels/${python_version}" -name 'ddtrace-*.whl' -print -quit)"
+        uv run --isolated --no-project --python "python${python_version}" --no-python-downloads \
+          --with-requirements "${requirements}" --with "${wheel}" \
+          ddtest plan --platform python --framework pytest --tests-location "${tests_location}" \
+          --min-parallelism "${DDTEST_NODES}" --max-parallelism "${DDTEST_NODES}"
+        rm -f "${requirements}"
         mv .testoptimization ".testoptimization-${environment_hash}"
       done
   artifacts:
@@ -154,7 +161,14 @@ include:
       rm -rf .testoptimization
       mv ".testoptimization-${TEST_ENVIRONMENT_HASH}" .testoptimization
       export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
-      scripts/run-tests -s --venv "${TEST_ENVIRONMENT_HASH}" --ddtest-mode run --ddtest-ci-node "${CI_NODE_INDEX}" --ddtest-ci-node-workers 4
+      requirements="$(mktemp)"
+      grep -vi '^ddtrace==' "${TEST_ENVIRONMENT_LOCKFILE}" > "${requirements}"
+      wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
+      uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
+        --with-requirements "${requirements}" --with "${wheel}" \
+        ddtest run --platform python --framework pytest --ci-node "${CI_NODE_INDEX}" --ci-node-workers 4
+      rm -f "${requirements}"
+      coverage combine || true
 
 .ddtest_run_uv_snapshot:
   extends: .ddtest_base_uv_snapshot
@@ -163,7 +177,14 @@ include:
       rm -rf .testoptimization
       mv ".testoptimization-${TEST_ENVIRONMENT_HASH}" .testoptimization
       export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
-      scripts/run-tests -s --venv "${TEST_ENVIRONMENT_HASH}" --ddtest-mode run --ddtest-ci-node "${CI_NODE_INDEX}" --ddtest-ci-node-workers 1
+      requirements="$(mktemp)"
+      grep -vi '^ddtrace==' "${TEST_ENVIRONMENT_LOCKFILE}" > "${requirements}"
+      wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
+      uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
+        --with-requirements "${requirements}" --with "${wheel}" \
+        ddtest run --platform python --framework pytest --ci-node "${CI_NODE_INDEX}" --ci-node-workers 1
+      rm -f "${requirements}"
+      coverage combine || true
 
 # ---------------------------------------------------------------------------
 # ddtest job templates. Used by gen_gitlab_config.py for suites with

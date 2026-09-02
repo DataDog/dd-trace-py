@@ -135,13 +135,23 @@ def test_ddtest_uv_jobs_use_generic_environment_hashes(gen_gitlab_config_mod):
 
     with mock.patch.object(ddtest_jobs.subprocess, "check_output", return_value=b"pip-key\n"):
         ddtest_jobs.emit_ddtest_jobs(
-            output, "tracer", "core", "tracer", {"env": {}}, [("uv123", "3.12")], 2, "image-hash", "uv"
+            output,
+            "tracer",
+            "core",
+            "tracer",
+            {"env": {}},
+            [("uv123", "3.12")],
+            2,
+            "image-hash",
+            "uv",
+            {"uv123": ".riot/requirements/uv123.txt"},
+            {"uv123": "tests/tracer/**/test*.py"},
         )
 
     content = output.getvalue()
     assert "extends: .ddtest_plan_uv" in content
     assert "extends: .ddtest_run_uv" in content
-    assert "TEST_ENVIRONMENT_HASH_PYTHON: uv123:3.12" in content
+    assert "TEST_ENVIRONMENT_HASH_PYTHON: uv123:3.12:.riot/requirements/uv123.txt:tests/tracer/**/test*.py" in content
     assert 'TEST_ENVIRONMENT_HASH: "uv123"' in content
 
 

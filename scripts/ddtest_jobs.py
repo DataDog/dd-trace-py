@@ -100,6 +100,8 @@ def emit_ddtest_jobs(
     k: int,
     testrunner_image_hash: str,
     runner: str,
+    uv_lockfiles: t.Optional[dict[str, str]] = None,
+    test_locations: t.Optional[dict[str, str]] = None,
 ) -> None:
     """Emit ddtest-plan and ddtest-run jobs for one suite.
 
@@ -200,12 +202,15 @@ def emit_ddtest_jobs(
     emit_before_script(plan=True)
     environment_hashes = " ".join(h for h, _ in venvs)
     hash_prefix = "TEST_ENVIRONMENT" if runner == "uv" else "RIOT"
+    hash_python = " ".join(
+        f"{h}:{py}:{uv_lockfiles[h]}:{test_locations[h]}" if runner == "uv" else f"{h}:{py}" for h, py in venvs
+    )
     emit_variables(
         {
             "DDTEST_EXECUTION_RUNNER": runner,
             "DDTEST_NODES": str(k),
             f"{hash_prefix}_HASHES": environment_hashes,
-            f"{hash_prefix}_HASH_PYTHON": " ".join(f"{h}:{py}" for h, py in venvs),
+            f"{hash_prefix}_HASH_PYTHON": hash_python,
             "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
         }
     )
@@ -248,6 +253,8 @@ def emit_ddtest_jobs(
             for node in range(k):
                 print(f'      - {hash_prefix}_HASH: "{h}"', file=f)
                 print(f'        PYTHON_VERSION: "{py}"', file=f)
+                if runner == "uv":
+                    print(f'        TEST_ENVIRONMENT_LOCKFILE: "{uv_lockfiles[h]}"', file=f)
                 print(f"        CI_NODE_INDEX: {node}", file=f)
         if retry is not None:
             print(f"  retry: {retry}", file=f)
