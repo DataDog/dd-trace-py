@@ -111,7 +111,7 @@ def test_lazy_module_decorator_without_bytecode_wrap():
 
 
 def test_exec_lazy_init_without_source():
-    from ddtrace.internal.module import _exec_lazy_init
+    from ddtrace.internal.lazy import _exec_lazy_init
 
     ns: dict[str, object] = {}
     exec(compile("def init():\n    exported = 123\n", "<test>", "exec"), ns)
