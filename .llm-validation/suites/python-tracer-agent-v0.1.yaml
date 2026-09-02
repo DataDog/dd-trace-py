@@ -1,0 +1,156 @@
+name: python-tracer-agent
+version: "0.1"
+
+# Seed suite (Phase 1). Two kinds of cases:
+#  - CONTENT cases — grounded in facts AGENTS.md asserts, so a regression in that file is observable.
+#    Tagged `files:` with the file whose content they exercise.
+#  - CONTROL cases — out-of-scope questions AGENTS.md does NOT cover (general Python, answered from the
+#    agent's own knowledge). Tagged `files: [AGENTS.md]` because AGENTS.md is ALWAYS in the agent's context,
+#    so a bloated (even correct) AGENTS.md can degrade these unrelated answers (context saturation) — that's
+#    what they catch. Control cases are `only_warn` while calibrating.
+# Scale to 25-40 in Phase 4.
+cases:
+  - id: python-tracer-testing-mandate-001
+    files: [AGENTS.md]
+    input: |
+      I want to verify a change I made to the tracer actually works. What command should I run,
+      and is it OK to just run pytest directly against the affected test file?
+    expected_criteria:
+      - Says to use the run-tests skill (scripts/run-tests), never pytest directly.
+      - References docs/contributing-testing.rst for details.
+    bad_signals:
+      - Recommends invoking pytest directly as an acceptable shortcut.
+      - Invents a test runner or script that does not exist.
+
+  - id: python-tracer-lint-mandate-002
+    files: [AGENTS.md]
+    only_warn: true
+    input: |
+      I just edited a few files under ddtrace/contrib/internal/. How should I format and lint
+      them before committing, and is it fine to just run black/flake8 myself?
+    expected_criteria:
+      - Use the lint skill (scripts/lint), not raw linting tools directly.
+      - Notes lint should be run to format after editing and to check before committing.
+    bad_signals:
+      - Recommends running black, flake8, or mypy directly instead of the lint skill.
+
+  - id: python-tracer-docstring-convention-003
+    files: [AGENTS.md]
+    input: |
+      I'm adding a new public method `enable()` under ddtrace/trace/ whose docstring Sphinx
+      renders via an automodule directive, and separately a private `_flush()` helper next to
+      it. What docstring/comment style should each use, and why do they differ?
+    expected_criteria:
+      - Rendered (Sphinx-reachable) docstrings use reStructuredText, e.g. :param:/:raises: fields.
+      - Non-rendered docstrings/comments (private `_`-prefixed helpers, inline comments) use plain
+        prose with no rST markup — no emphasis around parameter names, no double-backtick literals.
+      - Frames the split as "does Sphinx render this," not "is the module private."
+    bad_signals:
+      - Applies the same rST-heavy style to the private helper's docstring.
+      - Wraps a plain-prose parameter name in *emphasis* or ``double backticks``.
+
+  - id: python-tracer-aidev-comments-004
+    files: [AGENTS.md]
+    input: |
+      I'm refactoring a function that has an AIDEV-NOTE comment explaining a workaround for an
+      old bug. The workaround looks unnecessary now. What should I do with the comment?
+    expected_criteria:
+      - Never remove an AIDEV-NOTE/TODO/QUESTION comment without explicit human instruction.
+      - If the surrounding code changes, update the anchor rather than deleting it unilaterally.
+    bad_signals:
+      - Says to just delete the outdated AIDEV comment as part of the refactor.
+
+  - id: python-tracer-pr-title-convention-005
+    files: [AGENTS.md]
+    only_warn: true
+    input: |
+      I'm opening a PR that fixes a bug in span-link propagation during tracing. What should
+      the PR title look like?
+    expected_criteria:
+      - "Conventional Commits format: type(scope): description."
+      - Uses type `fix` for a bug fix, with an optional scope like `tracing`.
+    bad_signals:
+      - "Proposes a free-form title that doesn't follow type(scope): description."
+
+  - id: python-tracer-release-notes-006
+    files: [AGENTS.md]
+    input: |
+      I finished a small internal refactor of a private helper with no user-visible behavior
+      change. Do I need to write a release note before opening my PR?
+    expected_criteria:
+      - Use the releasenote skill to decide whether one is needed, rather than guessing.
+      - If a release note isn't needed, add the changelog/no-changelog label instead of doing nothing.
+    bad_signals:
+      - Says release notes are categorically unnecessary without invoking the releasenote skill.
+      - Skips the no-changelog label decision entirely.
+
+  - id: python-tracer-circular-import-007
+    files: [AGENTS.md]
+    input: |
+      I'm hitting a circular import between two internal modules while adding a new feature.
+      A teammate suggests just moving the import inside the function body to fix it. Is that OK?
+    expected_criteria:
+      - No — deferred/local imports used to paper over circular imports are explicitly banned.
+      - Use the circular-import-analysis skill to find the real architectural fix (extract shared
+        types, invert the dependency, or move the code to the module that owns it).
+    bad_signals:
+      - Endorses moving the import inside the function as an acceptable permanent fix.
+
+  - id: python-tracer-domain-guide-iast-008
+    files: [AGENTS.md]
+    only_warn: true
+    input: |
+      I need to add a new taint-tracking check under ddtrace/appsec/_iast/. What should I do
+      before writing the code?
+    expected_criteria:
+      - Read the IAST domain guide (.cursor/rules/iast.mdc) before modifying code under
+        ddtrace/appsec/_iast/.
+    bad_signals:
+      - Jumps straight to writing code with no mention of consulting the domain guide first.
+
+  # ---- Control / out-of-scope cases (detect AGENTS.md context saturation) ----
+  # General Python questions AGENTS.md does NOT cover. They should not benefit from AGENTS.md content, but
+  # a bloated AGENTS.md (always in context) can degrade them — so a drop here flags collateral, global
+  # degradation. Tagged files:[AGENTS.md]; only_warn while calibrating.
+  - id: python-tracer-control-asyncio-cancellation-009
+    files: [AGENTS.md]
+    only_warn: true
+    input: |
+      In general Python, when an asyncio.Task is cancelled while awaiting something inside a
+      try/finally, what actually happens, and what's the common mistake people make handling it?
+    expected_criteria:
+      - Explains CancelledError is raised at the current await point inside the task.
+      - Notes finally blocks still run, but shouldn't swallow CancelledError (re-raise it).
+      - Mentions that catching bare Exception without re-raising CancelledError breaks cancellation.
+    bad_signals:
+      - Claims cancellation silently stops the task with no exception involved.
+      - Recommends catching and discarding CancelledError as a normal pattern.
+
+  - id: python-tracer-control-decorator-wraps-010
+    files: [AGENTS.md]
+    only_warn: true
+    input: |
+      Show a correct Python decorator that measures a function's execution time, and explain
+      why functools.wraps matters. General Python — not specific to this repo.
+    expected_criteria:
+      - Uses functools.wraps(func) on the wrapper to preserve __name__/__doc__/metadata.
+      - Explains that without it, introspection tools and other decorators see the wrapper's
+        identity instead of the wrapped function's.
+    bad_signals:
+      - Omits functools.wraps and calls the decorator correct/complete.
+      - Claims functools.wraps changes runtime behavior rather than metadata/introspection.
+
+  - id: python-tracer-control-gil-threading-011
+    files: [AGENTS.md]
+    only_warn: true
+    input: |
+      In general CPython (not this repo specifically), why doesn't a CPU-bound multi-threaded
+      Python program get faster from adding more threads, and what would actually help?
+    expected_criteria:
+      - Attributes it to the GIL serializing bytecode execution across threads on CPython.
+      - Notes threads still help for I/O-bound work (GIL is released during blocking I/O).
+      - Suggests multiprocessing, native extensions releasing the GIL, or a free-threaded build
+        as ways to get real CPU parallelism.
+    bad_signals:
+      - Claims Python threads run CPU-bound work fully in parallel on CPython.
+      - Invents a non-existent GIL-removal flag as the standard fix.

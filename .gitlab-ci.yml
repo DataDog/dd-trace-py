@@ -8,7 +8,6 @@ stages:
   - benchmarks
   - release
   - shared-pipeline-publish
-
 variables:
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
@@ -19,29 +18,23 @@ variables:
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
   SYSTEM_TESTS_REF: "72ed6ee7d6b33d2d3a080b939c10a6d3d9077746"
-
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
   # Repository URL for CI Visibility
   DD_GIT_REPOSITORY_URL: "https://github.com/DataDog/dd-trace-py.git"
   # General purpose CI image (built from dd/images/dd-trace-py/ci-utils)
   CI_UTILS_IMAGE: "registry.ddbuild.io/dd-trace-py:v130207166-153cbe2-ci-utils@sha256:816d1defebb9f049f3bc2e9987ce90d47f7a6c0316b7fc720c30f56376be63ed"
-
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
-
 default:
   interruptible: true
-
-
 .is_main: $CI_COMMIT_REF_NAME == "main"
 .is_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
 .is_non_rc_release: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
 .is_release_branch: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
 .is_gh_merge_queue: $CI_COMMIT_BRANCH =~ /^gh-readonly-queue\/.*$/
 .is_devflow_merge_queue: $CI_COMMIT_BRANCH =~ /^mq-working-branch-.*$/
-
 # trigger new commit cancel
 workflow:
   auto_cancel:
@@ -56,8 +49,10 @@ workflow:
       auto_cancel:
         on_new_commit: none
     - when: always
-
 include:
+  - project: 'DataDog/llm-validation-platform'
+    ref: main
+    file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
@@ -71,10 +66,9 @@ include:
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
-
 "pipeline variables":
   stage: .pre
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   script:
     - |
       echo "CURRENT_YEAR=$(date +%Y)" >> pipeline_variables.env
@@ -85,7 +79,6 @@ include:
   artifacts:
     reports:
       dotenv: pipeline_variables.env
-
 tests-gen:
   stage: tests
   extends: .testrunner
@@ -112,24 +105,22 @@ tests-gen:
       - .gitlab/tests-gen.yml
       - .gitlab/benchmarks/microbenchmarks-gen.yml
       - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
-
 run-tests-trigger:
- stage: tests
- needs: [ tests-gen ]
- variables:
-   UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
-   NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
- # Allow the child job to fail if explicitly asked
- rules:
-   - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
-     allow_failure: true
-   - allow_failure: false
- trigger:
-   include:
-     - artifact: .gitlab/tests-gen.yml
-       job: tests-gen
-   strategy: depend
-
+  stage: tests
+  needs: [tests-gen]
+  variables:
+    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
+    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
+  # Allow the child job to fail if explicitly asked
+  rules:
+    - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
+      allow_failure: true
+    - allow_failure: false
+  trigger:
+    include:
+      - artifact: .gitlab/tests-gen.yml
+        job: tests-gen
+    strategy: depend
 serverless lambda tests:
   stage: tests
   trigger:
@@ -149,7 +140,6 @@ serverless lambda tests:
     UPSTREAM_GITLAB_USER_LOGIN: $GITLAB_USER_LOGIN
     UPSTREAM_GITLAB_USER_EMAIL: $GITLAB_USER_EMAIL
     SKIP_E2E_TESTS: "true"
-
 # Validate the ast-grep rule's test suite in .sg/tests
 "ast-grep rules":
   extends: .testrunner
@@ -165,7 +155,6 @@ serverless lambda tests:
       echo -e "\e[0Ksection_start:`date +%s`:sg_scan[collapsed=true]\r\e[0Kast-grep scan"
       scripts/lint sg
       echo -e "\e[0Ksection_end:`date +%s`:sg_scan\r\e[0K"
-
 microbenchmarks:
   stage: benchmarks
   needs:
@@ -195,7 +184,6 @@ microbenchmarks:
     # When the orchestrator leaves it unset, GitLab forwards the literal '$BP_EXTERNAL_S3_URL' (not empty),
     # so downstream code must treat that literal as unset.
     BP_EXTERNAL_S3_URL: $BP_EXTERNAL_S3_URL
-
 apm-sdk-benchmarks:
   stage: benchmarks
   when: manual
@@ -207,7 +195,6 @@ apm-sdk-benchmarks:
     branch: main
   variables:
     TARGET_REF: $CI_PIPELINE_ID
-
 macrobenchmarks:
   stage: benchmarks
   needs:
@@ -244,7 +231,6 @@ macrobenchmarks:
     # Otherwise, run manually
     - when: manual
       allow_failure: true
-
 check_new_flaky_tests:
   stage: tests
   needs: ["run-tests-trigger"]
@@ -266,14 +252,13 @@ check_new_flaky_tests:
     - if: !reference [.is_devflow_merge_queue]
       when: never
     - when: on_success
-
 codeql-scan:
   timeout: 30m
   stage: tests
   needs: []
   image:
     name: registry.ddbuild.io/images/code-scanning:v76675231-865a08a-default
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
@@ -300,14 +285,12 @@ codeql-scan:
     UPLOAD_CONFIGS: -upload_sarif=true
   script:
     - ./scripts/codeql_scan.sh
-
 requirements_json_test:
   rules:
     - when: on_success
   variables:
     REQUIREMENTS_BLOCK_JSON_PATH: ".gitlab/requirements_block.json"
     REQUIREMENTS_ALLOW_JSON_PATH: ".gitlab/requirements_allow.json"
-
 check_requirements_lockfiles:
   stage: tests
   needs: []
@@ -328,14 +311,12 @@ check_requirements_lockfiles:
     - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
-
 check_ci_dependencies:
   stage: tests
   needs: []
   extends: .testrunner
   script:
     - scripts/check-ci-dependencies
-
 codeowners:
   stage: tests
   needs: []
@@ -354,25 +335,25 @@ codeowners:
     #   - Remove leading ./ (./path and path are equivalent)
     #   - Collapse multiple consecutive slashes (path//file becomes path/file)
     - |
-        # All non-comment/empty lines from .github/CODEOWNERS
-        awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
-          # Remove any leading `./` in the line
-          sed 's|^\./||' | \
-          # Remove any duplicate `/`, e.g. `//` -> `/`
-          sed -E 's|/+|/|g' | \
-          # Remove any trailing `/`
-          sed 's:/*$::' | \
-          # Sort and return only duplicate entries
-          sort | uniq -d > /tmp/duplicate_codeowners.txt
-        if [ -s /tmp/duplicate_codeowners.txt ]; then
-            echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
-            cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
-            echo ""
-            echo "Each file pattern should only be listed once to ensure clear ownership."
-            echo "Normalization applied: removed trailing slashes, leading './', and collapsed multiple slashes."
-            echo "Please remove duplicates from .github/CODEOWNERS."
-            exit 1
-        fi
+      # All non-comment/empty lines from .github/CODEOWNERS
+      awk '!/^#|^$/ {print $1}' .github/CODEOWNERS | \
+        # Remove any leading `./` in the line
+        sed 's|^\./||' | \
+        # Remove any duplicate `/`, e.g. `//` -> `/`
+        sed -E 's|/+|/|g' | \
+        # Remove any trailing `/`
+        sed 's:/*$::' | \
+        # Sort and return only duplicate entries
+        sort | uniq -d > /tmp/duplicate_codeowners.txt
+      if [ -s /tmp/duplicate_codeowners.txt ]; then
+          echo "Duplicate entries found in .github/CODEOWNERS for patterns (after normalization):"
+          cat /tmp/duplicate_codeowners.txt | sed 's/^/  - /'
+          echo ""
+          echo "Each file pattern should only be listed once to ensure clear ownership."
+          echo "Normalization applied: removed trailing slashes, leading './', and collapsed multiple slashes."
+          echo "Please remove duplicates from .github/CODEOWNERS."
+          exit 1
+      fi
     - |
       if [ -z "${GH_TOKEN:-}" ]; then
         export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
@@ -395,7 +376,6 @@ codeowners:
         fi
       } | tee codeowners.txt
     - .gitlab/scripts/post-pr-comment.sh "Codeowners resolved as" codeowners.txt
-
 detect_circular_imports:
   stage: tests
   needs: []
@@ -436,7 +416,6 @@ detect_circular_imports:
     - cat cycles_report.txt
     - ./post-pr-comment.sh "Circular import analysis" cycles_report.txt
     - exit $COMPARE_EXIT
-
 detect_layering_violations:
   stage: tests
   needs: []
@@ -478,7 +457,6 @@ detect_layering_violations:
     - cat layers_report.txt
     - ./post-pr-comment.sh "Dependency direction analysis" layers_report.txt
     - exit $COMPARE_EXIT
-
 check_added_file_size:
   stage: tests
   needs: []
@@ -511,8 +489,6 @@ check_added_file_size:
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
       git fetch origin "${BASE_BRANCH}"
     - python3 scripts/check_added_file_size.py --base-ref FETCH_HEAD
-
-
 "summarize failures":
   stage: .post
   extends: .testrunner
@@ -551,7 +527,6 @@ check_added_file_size:
       - summary.md
       - claude.stdout.log
     expire_in: 1 month
-
 deploy_to_di_backend:manual:
   stage: tests
   rules:
@@ -568,7 +543,6 @@ deploy_to_di_backend:manual:
     UPSTREAM_COMMIT_AUTHOR: $CI_COMMIT_AUTHOR
     UPSTREAM_TAG: $CI_COMMIT_TAG
     UPSTREAM_PACKAGE_JOB: build
-
 # Trigger profiling correctness tests with just-built wheels.
 # Runs the prof-correctness test suite (Python scenarios) against the wheels
 # uploaded to S3 for this commit.
@@ -603,12 +577,11 @@ prof-correctness:
       gh workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}"
-
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
   needs: []
   stage: tests
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
   script: |
     echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
@@ -623,7 +596,6 @@ lib_injection_tests:
       pyenv exec python lib-injection/sources/sitecustomize.py
       echo -e "\e[0Ksection_end:`date +%s`:test_${python_version}\r\e[0K"
     done
-
 # Profiling native tests with sanitizers
 # Uses dedicated profiling-native image with Python, Rust, valgrind, and clang pre-installed
 # Image built from: dd/images/dd-trace-py/profiling_native
@@ -631,7 +603,7 @@ lib_injection_tests:
 .profiling_native_base:
   needs: []
   stage: tests
-  tags: [ "arch:amd64" ]
+  tags: ["arch:amd64"]
   image: ${PROFILING_NATIVE_IMAGE}
   timeout: 15m
   variables:
@@ -648,7 +620,6 @@ lib_injection_tests:
     # Disable leak detection for "safety" - Valgrind jobs already cover leak detection.
     - if [ "${SANITIZER}" == "safety" ]; then export ASAN_OPTIONS=detect_leaks=0; fi
     - ./ddtrace/internal/datadog/profiling/build_standalone.sh --${SANITIZER} RelWithDebInfo stack_test
-
 # Run on PRs where files in the native Profiling build graph changed.
 # build_standalone.sh compiles Rust (setup.py build_rust) then builds C++ tests
 # via CMake, so Rust, C/C++, Cython, and CMake files should all trigger it.
@@ -702,7 +673,6 @@ profiling_native:
       # If needed, please add more versions to the list.
       - PYTHON_VERSION: ["3.12", "3.14"]
         SANITIZER: ["valgrind"]
-
 test-dd-sts:
   stage: tests
   needs: []
@@ -717,7 +687,6 @@ test-dd-sts:
     - apt-get update && apt-get install -y curl
     - 'curl -s -o /dev/null -w "API key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab"'
     - 'curl -s -o /dev/null -w "APP key request http status code: %{http_code}\n" -H "Authorization: Bearer ${DD_STS_OIDC_TOKEN}" "https://dd-sts.us1.ddbuild.io/sts/datadog/exchange?policy=dd-trace-py-gitlab-app-key"'
-
 package-oci:
   needs:
     - job: "package version"
@@ -726,20 +695,16 @@ package-oci:
       artifacts: true
     - job: "download_dependency_wheels"
       artifacts: true
-
 configure_system_tests:
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
-
 system_tests:
   needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]
-
 # The reliability environment installs commit-scoped wheels from the CI index.
 deploy_to_reliability_env:
   needs:
     - job: "upload all"
       artifacts: false
-
 # Clear the one-pipeline publishing-gate's `needs: []` so it falls back to
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
