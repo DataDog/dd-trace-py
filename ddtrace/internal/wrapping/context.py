@@ -709,6 +709,12 @@ else:
     _UWC_BASES = (BaseWrappingContext,)
 
 
+# Below 3.11 the wrapped function enters through a real `with` statement, and Python does not call
+# __exit__ when __enter__ raises, so a propagating __enter__ is the only place left to clean up.
+# From 3.11 the injected exception handler reaches _exit() instead, which does it.
+_ENTER_MUST_RELEASE_ON_RAISE = sys.version_info < (3, 11)
+
+
 def _held_storage(contexts: "list[WrappingContext]") -> dict[int, t.Any]:
     """Snapshot the storage each context currently holds, to detect which ones still hold it."""
     return {id(context): context._storage.get() for context in contexts}
@@ -790,6 +796,11 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                 if context._storage.get() is not before:
                     context._pop_storage()
                 if not isinstance(exc, Exception):
+                    if _ENTER_MUST_RELEASE_ON_RAISE:
+                        # Nothing downstream will run, so release what this call pushed: the
+                        # contexts that did enter, and this universal context itself.
+                        _release_storage(entered, _held_storage(entered))
+                        self._pop_storage()
                     # A BaseException (e.g. a deliberate blocking decision) is the caller's to see.
                     raise
                 log.debug("Failed to enter wrapping context %r", context, exc_info=True)
