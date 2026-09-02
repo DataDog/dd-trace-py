@@ -7,6 +7,7 @@ from ddtrace.llmobs._sampler import MAX_PENDING_DECISIONS
 from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._sampler import LLMObsSamplingRegistry
 from ddtrace.llmobs._sampler import LLMObsSamplingRule
+from ddtrace.llmobs._utils import get_llmobs_tags
 
 
 def _span(trace_id=None, tags=None):
@@ -147,7 +148,7 @@ class TestLLMObsSamplerSampling:
 
 class TestLLMObsSamplingRegistry:
     def _registry(self, sample_rate=1.0, rules=None):
-        return LLMObsSamplingRegistry(LLMObsSampler(sample_rate=sample_rate, rules=rules))
+        return LLMObsSamplingRegistry(LLMObsSampler(sample_rate=sample_rate, rules=rules), get_llmobs_tags)
 
     def test_unknown_trace_resolves_to_nothing(self):
         registry = self._registry()

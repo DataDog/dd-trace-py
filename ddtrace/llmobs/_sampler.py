@@ -26,6 +26,7 @@ The registry below decides the sampling decision as late as it safely can and th
 import json
 from json.decoder import JSONDecodeError
 from typing import Any
+from typing import Callable
 from typing import Optional
 from typing import Protocol
 import weakref
@@ -38,7 +39,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
-from ddtrace.llmobs._utils import get_llmobs_tags
 
 
 log = get_logger(__name__)
@@ -197,8 +197,9 @@ class _PendingDecision:
 class LLMObsSamplingRegistry:
     """Tracks in-flight LLMObs traces and resolves each one's decision exactly once."""
 
-    def __init__(self, sampler: LLMObsSampler) -> None:
+    def __init__(self, sampler: LLMObsSampler, tags_getter: Callable[[Any], Optional[dict[str, str]]]) -> None:
         self._sampler = sampler
+        self._tags_getter = tags_getter
         self._pending: dict[str, _PendingDecision] = {}
         self._lock = RLock()
 
@@ -246,7 +247,7 @@ class LLMObsSamplingRegistry:
             if root is None:
                 # Root was garbage collected before anything needed the decision.
                 return None, None
-            sampled, sample_rate = self._sampler.sample(root, get_llmobs_tags(root) or {})
+            sampled, sample_rate = self._sampler.sample(root, self._tags_getter(root) or {})
             pending.sample_rate = sample_rate
             pending.sampling_decision = self._as_decision(sampled)
             return pending.sample_rate, pending.sampling_decision

@@ -622,7 +622,7 @@ class LLMObs(Service):
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
         self._sampler = LLMObsSampler(sample_rate=config._llmobs_sample_rate, rules=config._llmobs_sampling_rules)
-        self._sampling_registry = LLMObsSamplingRegistry(self._sampler)
+        self._sampling_registry = LLMObsSamplingRegistry(self._sampler, get_llmobs_tags)
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
