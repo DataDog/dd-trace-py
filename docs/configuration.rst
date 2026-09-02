@@ -470,10 +470,7 @@ Traces
          ``DD_LLMOBS_SAMPLE_RATE``. Traces matching no rule fall back to that global rate. One decision
          applies to the whole trace and is propagated across distributed boundaries.
 
-         For example, to keep 50% of production traces and 10% of staging traces::
-
-             DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5},
-                                        {"tags": {"env": "staging"}, "sample_rate": 0.1}]'
+         For example, ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
 
      version_added:
         v4.15.0:
