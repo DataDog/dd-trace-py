@@ -1,6 +1,7 @@
 ---
 features:
   - |
-    kafka: When distributed tracing is enabled, the ``kafka.consume`` span now relates to
-    every consumed message's producer trace via span links, instead of continuing a single
-    producer's trace.
+    kafka: Adds support for ``kafka`` in the ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS`` environment
+    variable. When enabled together with distributed tracing, the ``kafka.consume`` span starts a
+    new trace and relates to every consumed message's producer via span links, instead of
+    continuing a single producer's trace. This is disabled by default.
