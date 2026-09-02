@@ -2500,7 +2500,7 @@
     ],
     "DD_LLMOBS_SAMPLING_RULES": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "string",
         "default": ""
       }
