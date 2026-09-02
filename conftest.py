@@ -26,6 +26,105 @@ hypothesis.settings.register_profile("default", suppress_health_check=(hypothesi
 hypothesis.settings.load_profile("default")
 
 
+def _cgroup(path):
+    """Read a cgroup file, or a marker naming the failure.
+
+    These paths are cgroup v2. On a cgroup v1 host the same values live under per-controller
+    directories with different names, so they come back as <FileNotFoundError> and only the
+    benchmarks stay meaningful. Non-Linux never reaches here, see _env_probe.
+    """
+    try:
+        with open(path) as f:
+            return f.read().strip().replace("\n", " | ")
+    except Exception as exc:
+        return f"<{exc.__class__.__name__}>"
+
+
+def _env_probe(label):
+    """Report what the machine gave this job, so a slow run can be attributed rather than guessed at.
+
+    Called at session start and end; most of the value is in diffing the two. Skipped entirely off
+    Linux, where neither the cgroup files nor sched_getaffinity exist; these suites always run in
+    the Linux testrunner container, locally and in CI alike.
+
+    affinity / cpu_count
+        How many CPUs the process may actually use. Separates "few cores" from "throttled": a job
+        pinned to one core and a job throttled to a fraction of 96 both look slow but need
+        different fixes. affinity needs sched_getaffinity, which is Linux only.
+
+    cpu.max
+        The CFS quota and period, e.g. "25000 100000" for a quarter core. A literal "max" means no
+        quota at all, which also means quota throttling cannot be happening, so the counters below
+        will stay at zero however contended the node is.
+
+    cpu.stat
+        usage_usec is the CPU time the container has consumed. Diffing it between the two probes and
+        comparing against wall clock gives utilisation, which is the one number that separates
+        "computing hard" from "sitting in a blocking call". A job at 24% is waiting on something;
+        a job near 100% is genuinely compute bound. nr_throttled and throttled_usec attribute any
+        stalling to quota enforcement, and are only ever non-zero when cpu.max sets a quota.
+
+    memory.max / memory.current
+        The limit this pod was given, against what it actually used. Worth watching where limits are
+        autoscaled rather than declared: a peak sitting close to the limit predicts intermittent
+        OOM kills, which surface as flaky infrastructure failures rather than test failures.
+
+    BENCH cpu_loop_5M
+        Pure-Python arithmetic throughput, no syscalls or allocation. The baseline for comparing one
+        runner against another, or against a laptop. Expect it to vary by more than 2x between
+        runners in the same pipeline, so read single-shard timings with that in mind.
+
+    BENCH syscall_getpid_200k
+        The cost of entering the kernel, using about the cheapest syscall there is. Isolates syscall
+        overhead from the work done in a syscall, which matters under seccomp or gVisor style
+        sandboxing.
+
+    BENCH stat_20k
+        Filesystem metadata cost. Sensitive to how many overlay and bind mount layers the checkout
+        sits behind, which is usually the difference between a container and a host filesystem.
+    """
+    if not sys.platform.startswith("linux"):
+        return
+
+    import time as _time
+
+    lines = [f"===== RUNTIME PROBE [{label}] ====="]
+    lines.append(f"affinity={len(os.sched_getaffinity(0))} cpu_count={os.cpu_count()}")
+    for path in (
+        "/sys/fs/cgroup/cpu.max",
+        "/sys/fs/cgroup/cpu.stat",
+        "/sys/fs/cgroup/memory.max",
+        "/sys/fs/cgroup/memory.current",
+    ):
+        lines.append(f"{path} = {_cgroup(path)}")
+
+    t0 = _time.perf_counter()
+    acc = 0
+    for i in range(5_000_000):
+        acc += i * i
+    lines.append(f"BENCH cpu_loop_5M = {_time.perf_counter() - t0:.3f}s")
+
+    t0 = _time.perf_counter()
+    for _ in range(200_000):
+        os.getpid()
+    lines.append(f"BENCH syscall_getpid_200k = {_time.perf_counter() - t0:.3f}s")
+
+    t0 = _time.perf_counter()
+    for _ in range(20_000):
+        os.stat(__file__)
+    lines.append(f"BENCH stat_20k = {_time.perf_counter() - t0:.3f}s")
+
+    lines.append("===== END RUNTIME PROBE =====")
+    print("\n" + "\n".join(lines), flush=True)
+
+
+def _probe_enabled(config):
+    """Probe once per session on the xdist controller only, in CI or when explicitly asked."""
+    if hasattr(config, "workerinput"):
+        return False
+    return os.getenv("CI") == "true" or os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
+
+
 # Hook for dynamic configuration of pytest in CI
 # https://docs.pytest.org/en/6.2.1/reference.html#pytest.hookspec.pytest_configure
 def pytest_configure(config):
@@ -47,6 +146,9 @@ def pytest_configure(config):
                 ddtrace_run: whether to run the test using ddtrace-run.
         """,
     )
+
+    if _probe_enabled(config):
+        _env_probe("session start")
 
     if os.getenv("CI") != "true":
         return
@@ -101,3 +203,8 @@ def collect_global_attributes(record_testsuite_property, pytestconfig):
         else:
             env = f"riot.{prefix.lower()}"
         record_testsuite_property(env, value)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    if _probe_enabled(session.config):
+        _env_probe("session end")
