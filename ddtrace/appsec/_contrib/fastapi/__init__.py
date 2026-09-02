@@ -12,12 +12,7 @@ from ddtrace.appsec._asm_request_context import _set_headers_and_response
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._utils import Block_config
-from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
-from ddtrace.contrib.internal.trace_utils_base import set_method_tag
-from ddtrace.contrib.internal.trace_utils_base import set_query_string_tag
-from ddtrace.contrib.internal.trace_utils_base import set_status_code_tag
-from ddtrace.contrib.internal.trace_utils_base import set_url_tags_server
-from ddtrace.contrib.internal.trace_utils_base import set_user_agent_tag
+from ddtrace.contrib import trace_utils
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
@@ -104,17 +99,17 @@ def _asgi_make_block_content(ctx: ExecutionContext[Event], url: str) -> tuple[in
     status = block_config.status_code
     try:
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        set_status_code_tag(req_span, status)
         query_string = environ.get("QUERY_STRING")
-        set_url_tags_server(middleware.integration_config, req_span, url, query_string)
-        if query_string and middleware._config.trace_query_string:
-            set_query_string_tag(req_span, query_string)
-        method = environ.get("REQUEST_METHOD")
-        if method:
-            set_method_tag(req_span, method)
-        user_agent = _get_request_header_user_agent(headers, headers_are_case_sensitive=True)
-        if user_agent:
-            set_user_agent_tag(req_span, user_agent)
+        trace_utils.set_http_meta(
+            req_span,
+            middleware.integration_config,
+            method=environ.get("REQUEST_METHOD"),
+            url=url,
+            query=query_string,
+            status_code=status,
+            request_headers=headers,
+            headers_are_case_sensitive=True,
+        )
     except Exception as e:
         logger.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
