@@ -71,6 +71,7 @@ components:
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
+    - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
