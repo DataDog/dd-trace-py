@@ -709,6 +709,26 @@ else:
     _UWC_BASES = (BaseWrappingContext,)
 
 
+def _held_storage(contexts: "list[WrappingContext]") -> dict[int, t.Any]:
+    """Snapshot the storage each context currently holds, to detect which ones still hold it."""
+    return {id(context): context._storage.get() for context in contexts}
+
+
+def _release_storage(contexts: "list[WrappingContext]", held: dict[int, t.Any]) -> None:
+    """Pop the storage of contexts that never got to pop their own.
+
+    Identity comparison against the snapshot is what makes this safe: a context that already
+    popped now holds a different object, so popping again would discard an outer re-entrant
+    call's storage.
+    """
+    for context in contexts:
+        if context._storage.get() is held.get(id(context)):
+            try:
+                context._pop_storage()
+            except Exception:  # nosec: cleanup must not mask the original exception
+                log.debug("Failed to release storage for wrapping context %r", context, exc_info=True)
+
+
 # This class provides an interface between single bytecode wrapping and multiple
 # logical context wrapping
 class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
@@ -759,9 +779,19 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         entered: list[WrappingContext] = []
         storage["__contexts__"] = entered
         for context in self._contexts:
+            # A context that raises is left out of `entered`, so its __exit__ never runs. If its
+            # __enter__ pushed storage before failing, nothing else would ever pop it and the
+            # ContextVar would chain one dict per call. Compare identity to pop only what this
+            # call pushed, leaving an outer re-entrant call's storage alone.
+            before = context._storage.get()
             try:
                 context.__enter__()
-            except Exception:
+            except BaseException as exc:
+                if context._storage.get() is not before:
+                    context._pop_storage()
+                if not isinstance(exc, Exception):
+                    # A BaseException (e.g. a deliberate blocking decision) is the caller's to see.
+                    raise
                 log.debug("Failed to enter wrapping context %r", context, exc_info=True)
                 continue
             entered.append(context)
@@ -793,8 +823,14 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             log.debug("Universal wrapping context exited without entering")
             return
 
-        for context in contexts[::-1]:
-            context.__exit__(exc_type, exc_value, traceback)
+        held = _held_storage(contexts)
+        try:
+            for context in contexts[::-1]:
+                context.__exit__(exc_type, exc_value, traceback)
+        except BaseException:
+            _release_storage(contexts, held)
+            super().__exit__(exc_type, exc_value, traceback)
+            raise
 
         super().__exit__(exc_type, exc_value, traceback)
 
@@ -806,6 +842,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             log.debug("Universal wrapping context returned without entering")
             return t.cast(T, super().__return__(value))
 
+        held = _held_storage(contexts)
         try:
             for context in contexts[::-1]:
                 context.__return__(value)
@@ -815,6 +852,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             # not run for it either. See _exit and on_py_unwind, which consume
             # this flag on the bytecode and sys.monitoring paths respectively.
             storage[_SKIP_EXIT_KEY] = True
+            # __exit__ is suppressed by that flag, so release here or every raising __return__
+            # chains a storage dict per call, the universal one still holding __frame__.
+            _release_storage(contexts, held)
+            super().__return__(value)
             raise
 
         return t.cast(T, super().__return__(value))
