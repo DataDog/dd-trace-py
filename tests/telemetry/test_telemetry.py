@@ -122,6 +122,178 @@ else:
     assert len(app_started) == 1
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_metric_collection_after_fork(test_agent_session, run_python_code_in_subprocess):
+    code = """
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import os
+
+import ddtrace  # enables telemetry
+from ddtrace.internal.runtime import get_runtime_id
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+
+pid = os.fork()
+if pid == 0:
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "fork_child_metric", 1)
+    telemetry_writer.periodic(force_flush=True)
+    print(get_runtime_id(), flush=True)
+    os._exit(0)
+
+os.waitpid(pid, 0)
+"""
+
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert stderr == b"", stderr
+
+    child_runtime_id = stdout.strip().decode("utf-8")
+    child_metric_events = [
+        event for event in test_agent_session.get_events("generate-metrics") if event["runtime_id"] == child_runtime_id
+    ]
+    child_metrics = [
+        metric
+        for event in child_metric_events
+        for metric in event["payload"]["series"]
+        if metric["metric"] == "fork_child_metric"
+    ]
+
+    assert len(child_metrics) == 1, child_metrics
+    assert child_metrics[0]["type"] == "count"
+    assert child_metrics[0]["points"][0][1] == 1
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
+def test_metric_collection_after_native_fork(test_agent_session, run_python_code_in_subprocess):
+    """Native forks that bypass Python hooks restart metric collection in the child."""
+    code = """
+import ctypes
+import os
+import signal
+import sys
+import time
+import types
+
+# Reproduce ddtrace-run loading ddtrace before uWSGI has populated uwsgi.opt.
+sys.modules["uwsgi"] = types.SimpleNamespace()
+import ddtrace
+from ddtrace.internal.native import MetricNamespace
+from ddtrace.internal.native import MetricType
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+worker = telemetry_writer._worker
+assert worker is not None
+context = worker.register_metric_context(
+    MetricNamespace.tracers,
+    "native_fork",
+    MetricType.count,
+    [],
+    True,
+)
+
+libc = ctypes.CDLL(None)
+libc.fork.restype = ctypes.c_int
+pid = libc.fork()
+if pid == 0:
+    for _ in range(4096):
+        worker.add_point(context, 1)
+        worker.add_point_with_tags(context, 1, ["fork:child"])
+    telemetry_writer.periodic(force_flush=True)
+    os._exit(0)
+
+deadline = time.monotonic() + 5
+while True:
+    waited, status = os.waitpid(pid, os.WNOHANG)
+    if waited:
+        break
+    if time.monotonic() >= deadline:
+        os.kill(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+        raise AssertionError("metric producer blocked on the inherited ring buffer")
+    time.sleep(0.01)
+
+assert os.waitstatus_to_exitcode(status) == 0
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    child_metrics = [
+        metric
+        for event in test_agent_session.get_events("generate-metrics")
+        for metric in event["payload"]["series"]
+        if metric["metric"] == "native_fork" and metric["tags"] == ["fork:child"]
+    ]
+    assert len(child_metrics) == 1, child_metrics
+    assert child_metrics[0]["type"] == "count"
+    assert child_metrics[0]["points"][0][1] == 4096
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires native atfork handlers")
+def test_native_atfork_does_not_start_runtime_before_exec(run_python_code_in_subprocess):
+    """Fork-exec children must not start Tokio before exec closes inherited descriptors."""
+    code = """
+import subprocess
+import sys
+
+import ddtrace  # enables telemetry and registers native atfork handlers
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+assert telemetry_writer._worker is not None
+for _ in range(64):
+    result = subprocess.run(
+        [sys.executable, "-c", "pass"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    assert result.stderr == b"", result.stderr
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert stderr == b"", stderr
+
+
+def test_trace_exporter_propagates_telemetry_runtime_restart_errors(run_python_code_in_subprocess):
+    """An exporter must not retain a telemetry handle when its runtime cannot restart."""
+    code = """
+import ddtrace
+from ddtrace.internal.native_runtime import get_native_runtime
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+runtime = get_native_runtime()
+worker = telemetry_writer._worker
+assert worker is not None
+exporter = ddtrace.tracer._span_aggregator.writer._exporter
+
+runtime.defer_after_fork_child()
+try:
+    try:
+        exporter.set_telemetry_handle(worker)
+    except RuntimeError as error:
+        assert "native runtime restart is deferred" in str(error)
+    else:
+        raise AssertionError("expected the telemetry runtime restart error")
+finally:
+    runtime.allow_after_fork_child()
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert stderr == b"", stderr
+
+
 def _subprocess_lineage(test_agent_session):
     """Return {runtime_id: dd-parent-session-id} from the recorded request headers.
 
@@ -568,13 +740,24 @@ def test_session_id_headers_across_forks(test_agent_session, ddtrace_run_python_
 import os
 import sys
 
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+
+def emit_child_telemetry():
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "fork_lineage", 1)
+    telemetry_writer.periodic(force_flush=True)
+
+
 pid1 = os.fork()
 if pid1 == 0:
     pid2 = os.fork()
     if pid2 == 0:
+        emit_child_telemetry()
         sys.exit(0)
     else:
         os.waitpid(pid2, 0)
+        emit_child_telemetry()
         sys.exit(0)
 else:
     os.waitpid(pid1, 0)
