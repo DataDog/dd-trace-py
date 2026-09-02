@@ -29,7 +29,7 @@ ANTHROPIC_VERSION = parse_version(get_version())
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"anthropic": ">=0.28.0,<2.0.0"}
+    return {"anthropic": ">=0.28.0"}
 
 
 config._add("anthropic", {})
