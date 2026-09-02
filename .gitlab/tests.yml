@@ -166,7 +166,7 @@ include:
       wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
       uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
         --with-requirements "${requirements}" --with "${wheel}" \
-        ddtest run --platform python --framework pytest --ci-node "${CI_NODE_INDEX}" --ci-node-workers 4
+        ddtest run --platform python --framework pytest --ci-node "${CI_NODE_INDEX}" --ci-node-workers "${DDTEST_CI_NODE_WORKERS}"
       rm -f "${requirements}"
       coverage combine || true
 
@@ -182,7 +182,7 @@ include:
       wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
       uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
         --with-requirements "${requirements}" --with "${wheel}" \
-        ddtest run --platform python --framework pytest --ci-node "${CI_NODE_INDEX}" --ci-node-workers 1
+        ddtest run --platform python --framework pytest --ci-node "${CI_NODE_INDEX}" --ci-node-workers "${DDTEST_CI_NODE_WORKERS}"
       rm -f "${requirements}"
       coverage combine || true
 
@@ -359,7 +359,7 @@ include:
       # Keep CI Visibility session names tied to the CI job and test command;
       # ddtest expands these placeholders for each local worker.
       "${riot_cmd[@]}" --command \
-        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; export DD_TEST_SESSION_NAME="${{CI_JOB_NAME}}-pytest ${{DDTEST_SUITE_PATH}} ${{DDTEST_PYTEST_ADDOPTS}} node-{{{{nodeIndex}}}}-worker-{{{{workerIndex}}}}"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 4; coverage_files=(.coverage.*); if [[ -e "${{coverage_files[0]}}" ]]; then coverage combine; fi' \
+        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; export DD_TEST_SESSION_NAME="${{CI_JOB_NAME}}-pytest ${{DDTEST_SUITE_PATH}} ${{DDTEST_PYTEST_ADDOPTS}} node-{{{{nodeIndex}}}}-worker-{{{{workerIndex}}}}"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers "$DDTEST_CI_NODE_WORKERS"; coverage_files=(.coverage.*); if [[ -e "${{coverage_files[0]}}" ]]; then coverage combine; fi' \
         "${RIOT_HASH}"
 
 .ddtest_run_snapshot:
@@ -374,7 +374,7 @@ include:
       # is session-token-keyed, and parallel xdist workers cause cross-session
       # contamination (wrong stats, '400: list index out of range').
       "${riot_cmd[@]}" --command \
-        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; export DD_TEST_SESSION_NAME="${{CI_JOB_NAME}}-pytest ${{DDTEST_SUITE_PATH}} ${{DDTEST_PYTEST_ADDOPTS}} node-{{{{nodeIndex}}}}-worker-{{{{workerIndex}}}}"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; export DD_TRACE_AGENT_URL="http://testagent:9126"; ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 1; coverage_files=(.coverage.*); if [[ -e "${{coverage_files[0]}}" ]]; then coverage combine; fi' \
+        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; export DD_TEST_SESSION_NAME="${{CI_JOB_NAME}}-pytest ${{DDTEST_SUITE_PATH}} ${{DDTEST_PYTEST_ADDOPTS}} node-{{{{nodeIndex}}}}-worker-{{{{workerIndex}}}}"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; export DD_TRACE_AGENT_URL="http://testagent:9126"; ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers "$DDTEST_CI_NODE_WORKERS"; coverage_files=(.coverage.*); if [[ -e "${{coverage_files[0]}}" ]]; then coverage combine; fi' \
         "${RIOT_HASH}"
 
 # Required jobs will appear here

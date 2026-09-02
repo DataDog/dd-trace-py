@@ -60,6 +60,14 @@ def ddtest_k(config: dict) -> int:
     return int(k)
 
 
+def ddtest_workers(config: dict) -> int:
+    """Return DDTest worker processes per CI node for a suite."""
+    workers = config.get("ddtest_workers", 1 if config.get("snapshot") else 4)
+    if workers < 1:
+        raise ValueError("ddtest_workers must be at least 1")
+    return int(workers)
+
+
 def _ddtest_base(snapshot: bool, gpu: bool, runner: str) -> str:
     """Return the hidden base template a ddtest suite's before_script references."""
     base = ".ddtest_base_uv" if runner == "uv" else ".ddtest_base"
@@ -112,6 +120,7 @@ def emit_ddtest_jobs(
     """
     snapshot = config.get("snapshot", False)
     gpu = config.get("gpu", False)
+    workers = ddtest_workers(config)
     services = list(dict.fromkeys(config.get("services") or []))
     env = dict(config.get("env") or {})
     retry = config.get("retry")
@@ -209,6 +218,7 @@ def emit_ddtest_jobs(
         {
             "DDTEST_EXECUTION_RUNNER": runner,
             "DDTEST_NODES": str(k),
+            "DDTEST_CI_NODE_WORKERS": str(workers),
             f"{hash_prefix}_HASHES": environment_hashes,
             f"{hash_prefix}_HASH_PYTHON": hash_python,
             "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",

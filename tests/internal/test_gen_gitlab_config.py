@@ -121,12 +121,17 @@ def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
     assert "PIP_CACHE_KEY: pip-key" in content
     assert "key: v1-pip-${PIP_CACHE_KEY}-image-hash-cache" in content
     assert "RIOT_HASH_PYTHON: abc1234:3.13 def5678:3.14" in content
+    assert "DDTEST_CI_NODE_WORKERS: 4" in content
     run_313_needs = content.split("core/internal::ddtest-run-3.13:", 1)[1].split("\n  parallel:\n", 1)[0]
     run_314_needs = content.split("core/internal::ddtest-run-3.14:", 1)[1].split("\n  parallel:\n", 1)[0]
     assert 'PYTHON_VERSION: "3.13"' in run_313_needs
     assert 'PYTHON_VERSION: "3.14"' in run_314_needs
     assert 'PYTHON_VERSION: "3.14"' not in run_313_needs
     assert 'PYTHON_VERSION: "3.13"' not in run_314_needs
+
+
+def test_ddtest_workers_can_disable_per_node_parallelism(gen_gitlab_config_mod):
+    assert gen_gitlab_config_mod._ddtest_module().ddtest_workers({"ddtest_workers": 1}) == 1
 
 
 def test_ddtest_uv_jobs_use_generic_environment_hashes(gen_gitlab_config_mod):

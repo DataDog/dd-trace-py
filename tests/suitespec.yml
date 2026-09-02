@@ -291,6 +291,8 @@ suites:
   tracer:
     ddtest: true
     ddtest_nodes: 2
+    # Keep each DDTest CI node single-process while UV environments stabilize.
+    ddtest_workers: 1
     # Match tracer variants, but keep the uwsgi-only venv on its legacy job.
     pattern: ^tracer(?!-uwsgi(?:$|-))
     env:
