@@ -257,6 +257,9 @@ def _make_env(mock_server_url: str, extra: t.Optional[dict[str, str]] = None) ->
         DD_TEST_OPTIMIZATION_MANIFEST_FILE,
         DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES,
         TEST_UNDECLARED_OUTPUTS_DIR,
+        # The outer test process may set kill switches that override the backend settings we configure per test;
+        # drop them so the mock backend's response is authoritative.
+        "DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED",
     ):
         env.pop(name, None)
     env.update(
@@ -1212,3 +1215,39 @@ def test_mock_settings_payload_is_parseable() -> None:
     assert settings.early_flake_detection.slow_test_retries_5s == 10
     assert settings.early_flake_detection.faulty_session_threshold == 30
     assert settings.test_management.attempt_to_fix_retries == 20
+
+
+class TestXdistCoverageUpload:
+    """Under xdist the controller holds the merged coverage report; workers should not also upload.
+
+    pytest-cov ships every worker's coverage data to the controller and merges it there
+    (``DistMaster.finish`` -> ``cov.combine``) before ``pytest_sessionfinish`` runs, so the controller's
+    report is complete.  Workers therefore skip the upload and the controller uploads once -- N+1 partial
+    uploads become one complete upload.  This is the clean, low-risk case; without pytest-cov nothing merges
+    across processes and every process must still upload its own partial report.
+    """
+
+    def test_coverage_uploaded_once_with_pytest_cov(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        pytest.importorskip("pytest_cov")
+
+        settings = _settings_attributes()
+        settings["coverage_report_upload_enabled"] = True
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        (test_project / "test_a.py").write_text("def test_one():\n    assert True\n")
+        (test_project / "test_b.py").write_text("def test_two():\n    assert True\n")
+        _git_commit(test_project)
+
+        env = _make_env(mock_server.url)
+        result = _run_pytest_subprocess(test_project, "-n", "2", "--cov", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+        # The controller uploads one merged report; workers skip. Exactly one upload, not one per process.
+        assert mock_server.count_requests("/api/v2/cicovreprt") == 1, (
+            f"expected a single coverage upload from the controller, "
+            f"got {mock_server.count_requests('/api/v2/cicovreprt')}"
+        )
