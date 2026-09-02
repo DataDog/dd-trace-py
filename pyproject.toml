@@ -1,6 +1,9 @@
 [build-system]
 requires = [
-    "cython",
+    # Cython 3.3 cp315 manylinux wheels SIGSEGV on the current 3.15 interpreter; <3.3 pins 3.2.x.
+    # TODO(py-315): drop this pin once IMAGE_TAG is on the 2026.08.04-1 images.
+    "cython<3.3; python_version >= '3.15'",
+    "cython; python_version < '3.15'",
     "cmake>=3.24.2,<3.28",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
@@ -33,6 +36,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
+    "bytecode>=0.19.0,<1; python_version>='3.15.0'",
     "bytecode>=0.17.0,<1; python_version>='3.14.0'",
     "bytecode>=0.16.0,<1; python_version>='3.13.0'",
     "bytecode>=0.15.1,<1; python_version~='3.12.0'",
@@ -125,7 +129,10 @@ lint = [
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
     "ast-grep-cli==0.39.4",
-    "bytecode==0.17.0",
+    # Lint extra; 0.19.0 matches the runtime lower bound so uv can resolve
+    # both extras when requires-python includes 3.15.
+    "bytecode==0.19.0; python_version >= '3.15'",
+    "bytecode==0.17.0; python_version < '3.15'",
 ]
 clean = [
     "cython",
