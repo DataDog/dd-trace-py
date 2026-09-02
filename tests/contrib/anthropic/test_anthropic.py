@@ -12,6 +12,10 @@ from .utils import tools
 ANTHROPIC_VERSION = parse_version(anthropic_module.__version__)
 
 
+def _temp(t):
+    return {"temperature": t} if ANTHROPIC_VERSION < (1, 0) else {}
+
+
 def test_global_tags(anthropic, request_vcr, test_spans):
     """
     When the global config UST tags are set
@@ -99,7 +103,7 @@ def test_anthropic_llm_sync_multiple_prompts(anthropic, request_vcr):
             model="claude-3-opus-20240229",
             max_tokens=15,
             system="Respond only in all caps.",
-            temperature=0.8,
+            **_temp(0.8),
             messages=[
                 {
                     "role": "user",
@@ -336,7 +340,7 @@ async def test_anthropic_llm_async_multiple_prompts(anthropic, request_vcr, snap
                 model="claude-3-opus-20240229",
                 max_tokens=15,
                 system="Respond only in all caps.",
-                temperature=0.8,
+                **_temp(0.8),
                 messages=[
                     {
                         "role": "user",
