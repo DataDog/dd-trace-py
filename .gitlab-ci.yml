@@ -709,3 +709,6 @@ deploy_to_reliability_env:
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
   needs: null
+"llm validation":
+  variables:
+    LLMVAL_BASE_REF: "main"
