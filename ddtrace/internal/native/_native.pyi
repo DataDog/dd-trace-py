@@ -1073,6 +1073,7 @@ class Context:
     def remove_all_baggage_items(self) -> None: ...
     def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
     def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
+    def _set_sampling_decision_maker(self, sampling_mechanism: int) -> str: ...
 
 class SpanData:
     name: str
@@ -1091,6 +1092,8 @@ class SpanData:
     _span_api: str
     _parent: Optional[Any]  # parent Span, or None for a root span
     _parent_context: Optional[Any]  # parent Context, or None
+    _context: Optional[Context]  # this span's own cached Context, or None until first read
+    context: Context  # this span's trace Context; lazily built from `_parent_context` and cached
 
     def __new__(
         cls: type[_SpanDataT],

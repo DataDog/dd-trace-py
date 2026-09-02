@@ -64,6 +64,9 @@ pub struct SpanData {
     pub _parent: Option<Py<PyAny>>,
     /// The parent `Context` this span was created under, or `None`.
     pub _parent_context: Option<Py<crate::context::Context>>,
+    /// This span's own trace `Context`, lazily built and cached by the `context`
+    /// property. `None` until first read (or until set explicitly).
+    pub _context: Option<Py<crate::context::Context>>,
 }
 
 impl SpanData {
@@ -565,6 +568,60 @@ impl SpanData {
         };
     }
 
+    // _context property — this span's own cached Context, or None if not yet built.
+    #[getter(_context)]
+    #[inline(always)]
+    fn get_own_context<'py>(&self, py: Python<'py>) -> Option<Bound<'py, crate::context::Context>> {
+        self._context.as_ref().map(|c| c.bind(py).clone())
+    }
+
+    #[setter(_context)]
+    #[inline(always)]
+    fn set_own_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+        let new_value = if value.is_none() {
+            None
+        } else {
+            value.extract::<Py<crate::context::Context>>().ok()
+        };
+        let old = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._context, new_value)
+        };
+        drop(old);
+    }
+
+    /// context property — this span's trace Context.
+    ///
+    /// Lazily built and cached in `_context` on first read: a child span's context is a
+    /// copy of `_parent_context` (sharing the parent's trace-level `_meta`/`_metrics`/
+    /// `_baggage`), while a root span (no `_parent_context`) gets fresh local trace state.
+    /// Mirrors the eager root-context construction done in `Span.__init__`.
+    #[getter(context)]
+    fn get_context<'py>(
+        &mut self,
+        py: Python<'py>,
+    ) -> PyResult<Bound<'py, crate::context::Context>> {
+        if let Some(ctx) = &self._context {
+            return Ok(ctx.bind(py).clone());
+        }
+        let trace_id = self.trace_id;
+        let span_id = self.span_id as u128;
+        let new_ctx = if let Some(parent) = &self._parent_context {
+            crate::context::Context::copy_native(parent.bind(py), Some(trace_id), Some(span_id))?
+        } else {
+            crate::context::Context::new_root(py, trace_id, span_id)?
+        }
+        .into_bound(py);
+        self._context = Some(new_ctx.clone().unbind());
+        Ok(new_ctx)
+    }
+
+    #[setter(context)]
+    #[inline(always)]
+    fn set_context(slf: &Bound<'_, Self>, value: &Bound<'_, PyAny>) {
+        Self::set_own_context(slf, value);
+    }
+
     // _is_top_level property (native for performance - avoids Python property hop).
     // A span is top-level if it has no parent, or if its own service is set
     // and differs from its parent's service.
@@ -998,6 +1055,9 @@ impl SpanData {
             visit.call(p)?;
         }
         if let Some(c) = &self._parent_context {
+            visit.call(c)?;
+        }
+        if let Some(c) = &self._context {
             visit.call(c)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.

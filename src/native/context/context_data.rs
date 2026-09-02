@@ -10,6 +10,7 @@ use pyo3::{
 const ORIGIN_KEY: &str = "_dd.origin";
 const SAMPLING_PRIORITY_KEY: &str = "_sampling_priority_v1";
 const USER_ID_KEY: &str = "_dd.p.usr.id";
+const SAMPLING_DECISION_TRACE_TAG_KEY: &str = "_dd.p.dm";
 const W3C_TRACEPARENT_KEY: &str = "traceparent";
 const W3C_TRACESTATE_KEY: &str = "tracestate";
 const MAX_UINT_64BITS: u128 = (1u128 << 64) - 1;
@@ -67,7 +68,7 @@ fn extract_span_id(v: Option<&Bound<'_, PyAny>>) -> Option<u128> {
         .and_then(|s| s.parse::<u128>().ok())
 }
 
-#[pyo3::pyclass(name = "Context", module = "ddtrace._trace.context", weakref, subclass)]
+#[pyo3::pyclass(name = "Context", module = "ddtrace._trace.context", weakref)]
 pub struct Context {
     pub trace_id: Option<u128>,
     pub span_id: Option<u128>,
@@ -103,6 +104,56 @@ impl Context {
             Some(v) => Ok(Some(v.extract::<f64>()?)),
             None => Ok(None),
         }
+    }
+
+    /// Native-typed counterpart to the `copy` pymethod: takes `trace_id`/`span_id`
+    /// as already-extracted `u128`s so callers holding native ids (e.g. `SpanData`)
+    /// never have to round-trip them through a Python object first.
+    pub(crate) fn copy_native<'py>(
+        slf: &Bound<'py, Self>,
+        trace_id: Option<u128>,
+        span_id: Option<u128>,
+    ) -> PyResult<Py<Self>> {
+        let py = slf.py();
+        let (meta, metrics, baggage);
+        {
+            let mut this = slf.borrow_mut();
+            meta = this.get_meta(py);
+            metrics = this.get_metrics(py);
+            baggage = this.get_baggage(py);
+        }
+        Py::new(
+            py,
+            Self {
+                trace_id,
+                span_id,
+                meta: meta.unbind(),
+                metrics: metrics.unbind(),
+                baggage: Some(baggage.unbind()),
+                span_links: Some(PyList::empty(py).unbind()),
+                is_remote: false,
+                reactivate: false,
+            },
+        )
+    }
+
+    /// Native-typed counterpart to `__new__` for a fresh root context (no parent):
+    /// builds the struct directly from already-native ids, bypassing `__new__`'s
+    /// Python-facing arg extraction entirely.
+    pub(crate) fn new_root(py: Python<'_>, trace_id: u128, span_id: u128) -> PyResult<Py<Self>> {
+        Py::new(
+            py,
+            Self {
+                trace_id: Some(trace_id),
+                span_id: Some(span_id),
+                meta: PyDict::new(py).unbind(),
+                metrics: PyDict::new(py).unbind(),
+                baggage: Some(PyDict::new(py).unbind()),
+                span_links: Some(PyList::empty(py).unbind()),
+                is_remote: false,
+                reactivate: false,
+            },
+        )
     }
 }
 
@@ -426,36 +477,37 @@ impl Context {
         Ok(())
     }
 
+    /// Record which sampling mechanism decided this trace's priority, as the `_dd.p.dm`
+    /// propagation tag (e.g. "-3"). Never overwrites an existing value; callers check for
+    /// that themselves. Returns the tag value that was set.
+    fn _set_sampling_decision_maker(
+        slf: &Bound<'_, Self>,
+        sampling_mechanism: i64,
+    ) -> PyResult<String> {
+        let py = slf.py();
+        let value = format!("-{}", sampling_mechanism);
+        let meta = slf.borrow_mut().get_meta(py);
+        meta.set_item(SAMPLING_DECISION_TRACE_TAG_KEY, &value)?;
+        Ok(value)
+    }
+
     /// PERF: run once per child span. Constructs a plain `Context` directly via
     /// the Rust struct, bypassing any subclass `__new__`/`__init__`, and reuses
     /// the shared `_meta`/`_metrics`/`_baggage` references, trusting that this
     /// data has already been validated. This mirrors the previous Python
     /// implementation's `Context.__new__(Context)` behavior.
     #[pyo3(signature = (trace_id, span_id))]
-    fn copy<'py>(
+    pub(crate) fn copy<'py>(
         slf: &Bound<'py, Self>,
         trace_id: &Bound<'py, PyAny>,
         span_id: &Bound<'py, PyAny>,
     ) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let (meta, metrics, baggage);
-        {
-            let mut this = slf.borrow_mut();
-            meta = this.get_meta(py);
-            metrics = this.get_metrics(py);
-            baggage = this.get_baggage(py);
-        }
-        let new_ctx = Self {
-            trace_id: extract_trace_id(Some(trace_id)),
-            span_id: extract_span_id(Some(span_id)),
-            meta: meta.unbind(),
-            metrics: metrics.unbind(),
-            baggage: Some(baggage.unbind()),
-            span_links: Some(PyList::empty(py).unbind()),
-            is_remote: false,
-            reactivate: false,
-        };
-        Ok(Py::new(py, new_ctx)?.into_any())
+        Ok(Self::copy_native(
+            slf,
+            extract_trace_id(Some(trace_id)),
+            extract_span_id(Some(span_id)),
+        )?
+        .into_any())
     }
 
     fn _with_baggage_item<'py>(
