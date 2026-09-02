@@ -502,11 +502,6 @@ class LibraryDownload:
             shutil.rmtree(download_dir)
             download_dir.mkdir(parents=True, exist_ok=True)
 
-        # If the directory is nonempty (beyond the sentinel), assume we're done
-        non_sentinel = [p for p in download_dir.iterdir() if p.name != ".version"]
-        if non_sentinel:
-            return
-
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
@@ -530,8 +525,10 @@ class LibraryDownload:
 
             arch_dir = download_dir / arch
 
-            # If the directory for the architecture exists and is nonempty, assume we're done
-            if arch_dir.is_dir() and any(arch_dir.iterdir()):
+            # A source checkout can be shared between host and container builds.
+            # Only the library for this OS/architecture makes an existing directory complete.
+            lib_dir = arch_dir / "lib"
+            if all((lib_dir / f"lib{cls.name}{suffix}").is_file() for suffix in suffixes):
                 continue
 
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
