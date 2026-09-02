@@ -15,11 +15,9 @@ from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
-from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.types import _AttributeValueType
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -138,7 +136,7 @@ class Span(SpanData):
         """The trace context for this span.
 
         For a child span this is a copy of the parent context that shares the
-        trace-level ``_meta``/``_metrics``/``_baggage``/lock while carrying this
+        trace-level ``_meta``/``_metrics``/``_baggage`` while carrying this
         span's own ``trace_id``/``span_id``; for a root span it is fresh
         trace-level state. Child contexts are built lazily on first read; root
         contexts are forced eagerly in ``__init__`` (before the span is published)
@@ -164,7 +162,7 @@ class Span(SpanData):
         """Return the context a child span should inherit trace-level state from.
 
         Reuses a context that already holds this trace's shared
-        ``_meta``/``_metrics``/``_baggage``/lock — this span's own context if it
+        ``_meta``/``_metrics``/``_baggage`` — this span's own context if it
         was built, otherwise its (local) parent-context — so a deep local trace
         materializes a single Context instead of one per span. A remote
         parent-context is never handed down: a local child's parent-context must
@@ -229,13 +227,8 @@ class Span(SpanData):
             cb(self)
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
-        with self.context:
-            _update_otel_sampling_decision(self.context, bool(decision and decision > 0), 0.0, False)
-            if decision is None:
-                self.context._metrics.pop(_SAMPLING_PRIORITY_KEY, None)
-            else:
-                self.context._metrics[_SAMPLING_PRIORITY_KEY] = decision
-            self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
+        self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
+        self.context._publish_sampling_decision(decision, 0.0, False)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 self._local_root._remove_attribute(key)

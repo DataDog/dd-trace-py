@@ -569,12 +569,12 @@ impl Context {
             .collect())
     }
 
-    fn _update_otel_sampling_decision(
+    fn _publish_sampling_decision(
         slf: &Bound<'_, Self>,
-        _sampled: bool,
+        sampling_priority: Option<&Bound<'_, PyAny>>,
         sample_rate: f64,
         probabilistic_decision: bool,
-    ) {
+    ) -> PyResult<()> {
         Self::set_otel_sampling_state(
             slf,
             Some(if probabilistic_decision && sample_rate > 0.0 {
@@ -583,6 +583,13 @@ impl Context {
                 -1.0
             }),
         );
+        let py = slf.py();
+        let metrics = slf.borrow_mut().get_metrics(py);
+        match sampling_priority {
+            Some(priority) => metrics.set_item(SAMPLING_PRIORITY_KEY, priority)?,
+            None => del_item_if_present(&metrics, SAMPLING_PRIORITY_KEY)?,
+        }
+        Ok(())
     }
 
     fn set_baggage_item(

@@ -4,11 +4,9 @@ from typing import Any
 from typing import Optional
 from typing import TypedDict
 
-from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
@@ -279,11 +277,9 @@ def _set_sampling_tags(
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
     # AIDEV-NOTE: Injection treats a non-None sampling priority as the publication marker for the
-    # complete decision. Record lazy ot= state on the shared owning Context first and publish
-    # priority last under the trace-level lock so concurrent branches cannot propagate a partial decision.
-    with span.context:
-        _update_otel_sampling_decision(span.context, sampled, sample_rate, probabilistic_decision)
-        span.context._metrics[_SAMPLING_PRIORITY_KEY] = priorities[priority_index]
+    # complete decision. Publish the deferred ot= state and priority together in one native call,
+    # which does not release the GIL, so concurrent branches cannot observe a partial decision.
+    span.context._publish_sampling_decision(priorities[priority_index], sample_rate, probabilistic_decision)
 
 
 def add_trace_source(span: Span, source: int) -> None:

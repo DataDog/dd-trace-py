@@ -3,13 +3,11 @@ from threading import Event
 
 import pytest
 
-from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
-from ddtrace.internal import sampling as sampling_module
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
@@ -25,18 +23,18 @@ def _ot_fields(tracestate):
     return {}
 
 
-def test_sampling_priority_is_published_after_otel_sampling_state(monkeypatch):
-    span = Span("test", trace_id=1, span_id=1)
+def test_sampling_priority_is_published_with_otel_sampling_state():
     state_update_started = Event()
     allow_state_update = Event()
-    original_update = sampling_module._update_otel_sampling_decision
 
-    def blocking_update(*args, **kwargs):
-        state_update_started.set()
-        assert allow_state_update.wait(2)
-        return original_update(*args, **kwargs)
+    class BlockingContext(Context):
+        def _publish_sampling_decision(self, *args, **kwargs):
+            state_update_started.set()
+            assert allow_state_update.wait(2)
+            return super()._publish_sampling_decision(*args, **kwargs)
 
-    monkeypatch.setattr(sampling_module, "_update_otel_sampling_decision", blocking_update)
+    span = Span("test", trace_id=1, span_id=1)
+    span.context = BlockingContext(trace_id=1, span_id=1)
 
     with ThreadPoolExecutor(max_workers=1) as executor:
         sampling = executor.submit(
@@ -48,10 +46,8 @@ def test_sampling_priority_is_published_after_otel_sampling_state(monkeypatch):
         )
         assert state_update_started.wait(2)
         try:
-            # The native Context no longer exposes a Python lock. Blocking the
-            # state update still verifies that sampling priority is not visible
-            # before the OTel sampling state update completes.
             assert span.context.sampling_priority is None
+            assert span.context._otel_sampling_state_data is None
         finally:
             allow_state_update.set()
         sampling.result()
@@ -186,8 +182,7 @@ def test_non_probabilistic_decision_clears_threshold_and_preserves_inbound_rando
             "tracestate": "ot=rv:1234567890abcd;th:e6666666666668;future:value",
         },
     )
-    with context:
-        _update_otel_sampling_decision(context, True, 0.0, False)
+    context._publish_sampling_decision(USER_KEEP, 0.0, False)
 
     assert context._tracestate == "dd=s:2,ot=rv:1234567890abcd;future:value"
 
@@ -245,8 +240,7 @@ def test_datadog_and_otel_members_are_kept_leftmost_under_member_cap():
             SAMPLING_DECISION_TRACE_TAG_KEY: "-{}".format(SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE),
         },
     )
-    with context:
-        _update_otel_sampling_decision(context, True, 0.1, True)
+    context._publish_sampling_decision(USER_KEEP, 0.1, True)
 
     members = context._tracestate.split(",")
 
@@ -273,8 +267,7 @@ def test_inherited_otel_fields_remain_authoritative_over_local_sampling_state():
         sampling_priority=USER_KEEP,
         meta={"tracestate": "ot=rv:1234567890abcd;th:8;future:value"},
     )
-    with context:
-        _update_otel_sampling_decision(context, True, 0.1, True)
+    context._publish_sampling_decision(USER_KEEP, 0.1, True)
 
     assert context._tracestate == "dd=s:2,ot=rv:1234567890abcd;th:8;future:value"
 
@@ -288,8 +281,7 @@ def test_rebuilt_otel_member_drops_whole_unknown_fields_to_stay_within_value_cap
         meta={"tracestate": "ot={};next:value".format(oversized_future_field)},
     )
     assert len(context._meta["tracestate"]) <= 256
-    with context:
-        _update_otel_sampling_decision(context, True, 0.1, True)
+    context._publish_sampling_decision(USER_KEEP, 0.1, True)
 
     ot_member = context._tracestate.split(",")[1]
 
@@ -320,8 +312,7 @@ def test_probability_sampling_tracestate_is_shared_with_existing_child_contexts(
     )
     child = root.copy(trace_id=1, span_id=2)
 
-    with root:
-        _update_otel_sampling_decision(root, True, 0.1, True)
+    root._publish_sampling_decision(USER_KEEP, 0.1, True)
 
     assert _ot_fields(child._tracestate) == {
         "rv": "f0948a54d43b8e",
@@ -338,7 +329,6 @@ def test_non_probability_sampling_tracestate_is_shared_with_existing_child_conte
     )
     child = root.copy(trace_id=1, span_id=2)
 
-    with root:
-        _update_otel_sampling_decision(root, True, 0.0, False)
+    root._publish_sampling_decision(USER_KEEP, 0.0, False)
 
     assert child._tracestate == "dd=s:2,ot=rv:1234567890abcd"

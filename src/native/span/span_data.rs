@@ -778,7 +778,7 @@ impl SpanData {
     /// (routing str→meta, numeric→metrics). Keys that already exist are skipped.
     ///
     /// Accepts any Python dict (fast path) or mapping. Bails silently on bad input.
-    /// Callers handle any locking on the source dict.
+    /// The source dictionaries are shared trace-level state.
     #[pyo3(name = "_set_default_attributes")]
     fn set_default_attributes(
         slf: &Bound<'_, Self>,

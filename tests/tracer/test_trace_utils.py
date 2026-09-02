@@ -14,7 +14,6 @@ import mock
 import pytest
 
 from ddtrace import config
-from ddtrace._trace.context import _update_otel_sampling_decision
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
@@ -48,8 +47,7 @@ def test_copy_trace_level_tags_copies_independent_otel_tracestate():
     parent = Span("parent", trace_id=1, span_id=1)
     target = Span("target", trace_id=2, span_id=2)
     parent.context.sampling_priority = 1
-    with parent.context:
-        _update_otel_sampling_decision(parent.context, True, 0.1, True)
+    parent.context._publish_sampling_decision(1, 0.1, True)
 
     trace_utils._copy_trace_level_tags(target, parent)
 
@@ -57,8 +55,7 @@ def test_copy_trace_level_tags_copies_independent_otel_tracestate():
     assert target.context._meta[W3C_TRACESTATE_KEY] == parent.context._meta[W3C_TRACESTATE_KEY]
     assert target.context._meta is not parent.context._meta
 
-    with target.context:
-        _update_otel_sampling_decision(target.context, True, 0.0, False)
+    target.context._publish_sampling_decision(1, 0.0, False)
 
     _ = target.context._tracestate
     assert ";th:" not in target.context._meta[W3C_TRACESTATE_KEY]
