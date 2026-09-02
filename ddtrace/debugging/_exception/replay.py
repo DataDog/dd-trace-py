@@ -194,7 +194,7 @@ class SpanExceptionProbe(LogLineProbe):
         message = f"exception info for {name}, in {filename}, line {line} (exception ID {_exc_id})"
 
         return cls(
-            probe_id=_exc_id,
+            probe_id=str(uuid.uuid4()),
             version=0,
             tags={},
             source_file=filename,

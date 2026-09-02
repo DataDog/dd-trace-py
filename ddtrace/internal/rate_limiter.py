@@ -209,20 +209,58 @@ class BudgetRateLimiterWithJitter:
             self.budget = self.max_budget = 1.0
         self._on_exceed_called = False
 
+    def _accrue(self) -> None:
+        """Add the budget that has become available since the last look.
+
+        The caller is expected to hold the lock.
+        """
+        now = time.monotonic()
+        self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+        self.last_time = now
+
+    def _cap(self) -> None:
+        """Discard any budget beyond the maximum."""
+        if self.budget > self.max_budget:
+            self.budget = self.max_budget
+
+    def has_budget(self) -> bool:
+        """Whether a call would be allowed, without consuming any budget.
+
+        For callers that decide something up front and account for it later,
+        rather than at the point of the check.
+        """
+        with self._lock:
+            self._accrue()
+            available = self.budget >= 1.0
+            self._cap()
+
+            return available
+
+    def consume(self, amount: float = 1.0) -> None:
+        """Spend budget whether or not there is any left.
+
+        For callers that have already incurred the cost by the time they get
+        here, so refusing is not an option. The budget is allowed to go into
+        deficit, and the overspend is repaid before anything is let through
+        again.
+        """
+        with self._lock:
+            self._accrue()
+            self._cap()
+            self.budget -= amount
+
     def limit(self, f: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any) -> Any:
         """Make rate-limited calls to a function with the given arguments."""
         should_call = False
         with self._lock:
-            now = time.monotonic()
-            self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+            self._accrue()
             should_call = self.budget >= 1.0
-            if self.budget > self.max_budget:
-                self.budget = self.max_budget
-            self.last_time = now
+            self._cap()
+            if should_call:
+                self.budget -= 1.0
 
         if should_call:
             self._on_exceed_called = False
-            self.budget -= 1.0
             return f(*args, **kwargs) if f is not None else None
 
         if self.on_exceed is not None:
