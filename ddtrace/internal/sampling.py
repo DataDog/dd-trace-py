@@ -2,7 +2,9 @@ import json
 import math
 from typing import Any
 from typing import Optional
+from typing import Protocol
 from typing import TypedDict
+from typing import Union
 
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
@@ -12,6 +14,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
 from ddtrace.internal.constants import MAX_UINT_64BITS
@@ -26,12 +29,28 @@ from ddtrace.internal.constants import TRACE_SOURCE_PROPAGATION_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings._config import config
 
 from .rate_limiter import RateLimiter
 
 
 log = get_logger(__name__)
+
+
+class SpanTraceSourceProtocol(Protocol):
+    """Structural span interface for manual-keep/trace-source helpers that don't need the full Span class.
+
+    Lets products outside ``ddtrace._trace`` (e.g. aiguard, appsec) type-annotate spans without a
+    runtime dependency on the concrete ``ddtrace._trace.span.Span`` class.
+    """
+
+    @property
+    def context(self) -> Context: ...
+
+    def _set_attribute(self, key: str, value: Union[str, int, float]) -> None: ...
+
+    def _override_sampling_decision(self, decision: Optional[NumericType]) -> None: ...
 
 
 class PriorityCategory(object):
@@ -273,7 +292,7 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     span.context.sampling_priority = priorities[priority_index]
 
 
-def add_trace_source(span: Span, source: int) -> None:
+def add_trace_source(span: SpanTraceSourceProtocol, source: int) -> None:
     """OR source (a TraceSource bit) into the span's _dd.p.ts trace-source mask.
 
     Marks that an enabled product originated or retained the trace so it is kept when APM

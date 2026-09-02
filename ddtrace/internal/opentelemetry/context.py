@@ -1,7 +1,10 @@
+from typing import Any
+from typing import cast
+
 from ddtrace._trace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
-from ddtrace._trace.span import Span as DDSpan
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native._native import Context as DDContext
+from ddtrace.internal.native._native import SpanData as DDSpanData
 from ddtrace.trace import tracer as ddtracer
 
 
@@ -29,7 +32,7 @@ class DDRuntimeContext:
 
         otel_span = get_current_span(otel_context)
         if isinstance(otel_span, Span):
-            self._ddcontext_provider.activate(otel_span._ddspan)
+            self._ddcontext_provider.activate(cast(Any, otel_span._ddspan))
             ddcontext = otel_span._ddspan.context
         elif otel_span is not INVALID_SPAN:
             ddcontext = _otel_to_dd_span_context(otel_span)
@@ -68,8 +71,8 @@ class DDRuntimeContext:
 
         ddactive = self._ddcontext_provider.active()
         context = OtelContext()
-        if isinstance(ddactive, DDSpan):
-            span = Span(ddactive)
+        if isinstance(ddactive, DDSpanData):
+            span = Span(cast(Any, ddactive))
             context = set_span_in_context(span, context)
         elif isinstance(ddactive, DDContext):
             ts = TraceState.from_header([ddactive._tracestate])
@@ -78,8 +81,8 @@ class DDRuntimeContext:
             span = OtelNonRecordingSpan(sc)
             context = set_span_in_context(span, context)
 
-        if isinstance(ddactive, DDSpan):
-            dd_baggage = ddactive.context._baggage
+        if isinstance(ddactive, DDSpanData):
+            dd_baggage = cast(Any, ddactive).context._baggage
         elif isinstance(ddactive, DDContext):
             dd_baggage = ddactive._baggage
         else:
