@@ -30,7 +30,7 @@ class TestLoggingPatch(PatchTestCase.Base):
     def assert_not_module_double_patched(self, logging):
         pass
 
-    def test_and_emit_get_version(self):
-        version = get_version()
+    def test_and_emit_get_version(self) -> None:
+        version: str = get_version()
         assert type(version) == str
         assert version == ""
