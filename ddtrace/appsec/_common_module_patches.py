@@ -108,37 +108,32 @@ class _RaspContext(WrappingContext):
     open across the wrapped call.
     """
 
-    # urllib3 v1 keeps body/headers in a **kwargs bag rather than as named parameters.
-    _VARKWARGS = ("httplib_request_kw", "urlopen_kw", "response_kw")
-
     def __enter__(self) -> "_RaspContext":
         super().__enter__()
-        self.set("rasp_active", False)
         self.set("core_ctx", None)
         return self
 
     def _arg(self, name: str, default=None):
-        """Read a parameter of the wrapped call by name."""
-        frame_locals = self.__frame__.f_locals
-        if name in frame_locals:
-            return frame_locals[name]
-        for bag in self._VARKWARGS:
-            kwargs = frame_locals.get(bag)
-            if isinstance(kwargs, dict) and name in kwargs:
-                return kwargs[name]
-        return default
+        """Read a parameter of the wrapped call by name.
+
+        Unlike get_local this tolerates an unbound name: a KeyError raised here would be
+        swallowed by the universal context and silently disable the hook.
+        """
+        return self.__frame__.f_locals.get(name, default)
+
+    def _rasp_active(self) -> bool:
+        """True between _open_core_context and _close_core_context, i.e. RASP inspected this call."""
+        return self.get("core_ctx") is not None
 
     def _open_core_context(self, name: str, **kwargs) -> None:
         core_ctx = core.context_with_data(name, **kwargs)
         core_ctx.__enter__()
         self.set("core_ctx", core_ctx)
-        self.set("rasp_active", True)
 
     def _close_core_context(self) -> None:
         core_ctx = self.get("core_ctx")
         if core_ctx is not None:
             self.set("core_ctx", None)
-            self.set("rasp_active", False)
             core_ctx.__exit__(None, None, None)
 
 
@@ -175,51 +170,44 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
         open_rasp_subcontext_scope()
         return self
 
-    def __return__(self, value):
-        if self.get("rasp_active"):
+    def __return__(self, response):
+        if self._rasp_active():
             try:
-                self._analyze_response(value)
+                # api10 response handler for regular responses
+                if response.__class__.__name__ == "HTTPResponse" and not (300 <= response.status < 400):
+                    addresses = {
+                        "DOWN_RES_STATUS": str(response.status),
+                        "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
+                    }
+                    if self.get("use_body"):
+                        addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
+                    call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
             finally:
                 # Must run before a block raises: a raising __return__ suppresses __exit__.
                 self._close_core_context()
-        return super().__return__(value)
+        return super().__return__(response)
 
     def __exit__(self, exc_type, exc_value, exc_tb) -> None:
-        if self.get("rasp_active"):
+        if self._rasp_active():
             try:
+                # api10 response handler for error responses
                 if exc_value is not None and exc_value.__class__.__name__ == "HTTPError":
-                    self._analyze_http_error(exc_value)
+                    try:
+                        status_code = exc_value.code
+                    except Exception:
+                        status_code = None
+                    try:
+                        response_headers = _build_headers(exc_value.headers.items())
+                    except Exception:
+                        response_headers = None
+                    if status_code is not None or response_headers is not None:
+                        call_waf_callback(
+                            {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
+                            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+                        )
             finally:
                 self._close_core_context()
         super().__exit__(exc_type, exc_value, exc_tb)
-
-    def _analyze_response(self, response) -> None:
-        """API10 response handler for regular responses."""
-        if response.__class__.__name__ != "HTTPResponse" or 300 <= response.status < 400:
-            return
-        addresses = {
-            "DOWN_RES_STATUS": str(response.status),
-            "DOWN_RES_HEADERS": _build_headers(response.getheaders()),
-        }
-        if self.get("use_body"):
-            addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
-        call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
-
-    def _analyze_http_error(self, exc: BaseException) -> None:
-        """API10 response handler for error responses."""
-        try:
-            status_code = exc.code  # type: ignore[attr-defined]
-        except Exception:
-            status_code = None
-        try:
-            response_headers = _build_headers(exc.headers.items())  # type: ignore[attr-defined]
-        except Exception:
-            response_headers = None
-        if status_code is not None or response_headers is not None:
-            call_waf_callback(
-                {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
-                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
-            )
 
 
 class _SsrfHttpConnectionRequest(_RaspContext):
@@ -229,38 +217,43 @@ class _SsrfHttpConnectionRequest(_RaspContext):
         super().__enter__()
         full_url = core.find_item("full_url")
         env = _get_asm_context()
-        if not (get_rasp_capability("ssrf") and full_url is not None and env is not None):
-            return self
-
-        use_body = core.find_item("use_body", False)
-        headers = self._arg("headers", {})
-        addresses = {
-            EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url,
-            "DOWN_REQ_METHOD": self._arg("method"),
-            "DOWN_REQ_HEADERS": headers,
-        }
-        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
-        if use_body and content_type == "application/json":
-            try:
-                addresses["DOWN_REQ_BODY"] = json.loads(self._arg("body"))
-            except Exception:
-                pass  # nosec
-        res = call_waf_callback(
-            addresses,
-            # Anchored on the wrapped function, not on a wrapper: a wrapping context runs inside
-            # the target's own frame, so there is no wrapper frame left to crop at.
-            crop_trace=self.__wrapped__.__name__,
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
-        )
-        env.downstream_requests += 1
-        core.discard_item("full_url")
-        if res and _must_block(res.actions):
-            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
+        if get_rasp_capability("ssrf") and full_url is not None and env is not None:
+            use_body = core.find_item("use_body", False)
+            method = self._arg("method")
+            body = self._arg("body")
+            headers = self._arg("headers", {})
+            addresses = {
+                EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url,
+                "DOWN_REQ_METHOD": method,
+                "DOWN_REQ_HEADERS": headers,
+            }
+            content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
+            if use_body and content_type == "application/json":
+                try:
+                    addresses["DOWN_REQ_BODY"] = json.loads(body)
+                except Exception:
+                    pass  # nosec
+            res = call_waf_callback(
+                addresses,
+                # A wrapping context runs inside the target's own frame, so the crop anchor is the
+                # wrapped function rather than a wrapper.
+                crop_trace=self.__wrapped__.__name__,
+                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
+            )
+            env.downstream_requests += 1
+            core.discard_item("full_url")
+            if res and _must_block(res.actions):
+                raise BlockingException(
+                    get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url
+                )
         return self
 
 
-class _SsrfHttpConnectionGetresponse(_RaspContext):
-    """API10 analysis of redirect responses around http.client.HTTPConnection.getresponse."""
+class _SsrfHttpConnectionGetresponse(WrappingContext):
+    """API10 analysis of redirect responses around http.client.HTTPConnection.getresponse.
+
+    Inspects only the return value, so it needs neither argument access nor a core context.
+    """
 
     def __return__(self, response):
         env = _get_asm_context()

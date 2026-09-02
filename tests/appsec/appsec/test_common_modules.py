@@ -6,6 +6,7 @@ import types
 import pytest
 from wrapt import FunctionWrapper
 
+from ddtrace.appsec._common_module_patches import _RaspContext
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionGetresponse
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionRequest
 from ddtrace.appsec._common_module_patches import _SsrfOpenerDirectorOpen
@@ -142,20 +143,29 @@ def test_opener_director_open_reads_fullurl_by_name():
     assert seen == ["http://127.0.0.1:1/probe"]
 
 
-def test_opener_director_open_leaves_no_core_context_behind():
-    """The core context opened in __enter__ must be released on both the return and error paths."""
-    unpatch_common_modules()
+@pytest.mark.parametrize("path", ["return", "error"])
+def test_rasp_context_releases_its_core_context(path):
+    """The core context opened in __enter__ must be released on the return and the error path.
+
+    A leak would pin the context, and its full_url item, for the rest of the request.
+    """
     import urllib.request
 
-    try:
-        patch_common_modules()
-        # RASP is inactive here, so __enter__ returns before opening a core context; the
-        # request still has to leave no full_url item behind.
-        with pytest.raises(Exception):
-            urllib.request.urlopen("http://127.0.0.1:1/", timeout=1)
-        assert core.find_item("full_url") is None
-    finally:
-        unpatch_common_modules()
+    context = _SsrfOpenerDirectorOpen(urllib.request.OpenerDirector.open)
+    # Drive the lifecycle directly: RASP is inactive in this suite, so __enter__ would return
+    # before opening a core context and the release paths would never be reached.
+    _RaspContext.__enter__(context)
+    context.set("use_body", False)
+    context._open_core_context("url_open_analysis", full_url="http://127.0.0.1:1/", use_body=False)
+    assert core.find_item("full_url") == "http://127.0.0.1:1/"
+
+    if path == "return":
+        # A plain object is not an HTTPResponse, so no WAF call is attempted.
+        context.__return__(object())
+    else:
+        context.__exit__(ValueError, ValueError("boom"), None)
+
+    assert core.find_item("full_url") is None
 
 
 @pytest.mark.parametrize("appsec_first", [True, False])
@@ -188,9 +198,16 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         # Being registered is not enough: the hook must actually run under both orders, or
         # RASP silently stops inspecting downstream requests.
         entered = []
+
+        class _Probe(_SsrfHttpConnectionRequest):
+            def __enter__(self):
+                result = super().__enter__()
+                entered.append((self._arg("method"), self._arg("url")))
+                return result
+
         request_fn = request_ctx.__wrapped__
         request_ctx.unwrap()
-        probe = type("_Probe", (_SsrfHttpConnectionRequest,), {"__enter__": _recording_enter(entered)})(request_fn)
+        probe = _Probe(request_fn)
         probe.wrap()
 
         # Both layers still deliver a working client: a refused connection must surface as
@@ -248,15 +265,6 @@ def test_context_unpatch_restores_the_original_bytecode():
     finally:
         httplib_unpatch()
         unpatch_common_modules()
-
-
-def _recording_enter(sink):
-    def __enter__(self):
-        result = super(type(self), self).__enter__()
-        sink.append((self._arg("method"), self._arg("url")))
-        return result
-
-    return __enter__
 
 
 @pytest.mark.parametrize(
