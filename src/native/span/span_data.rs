@@ -649,10 +649,6 @@ impl SpanData {
     /// one per span. A remote parent-context is never handed down: a local child's
     /// parent-context must stay local so `_is_remote`/reactivation keep their meaning, so
     /// a distributed entry span materializes its (local) context once here.
-    ///
-    /// Implemented natively, with direct access to the private `_context` field, rather
-    /// than peeking at a public `_context` attribute from Python — the only way to read
-    /// "not yet built" without forcing a build is to have this method own that check.
     fn _context_for_child<'py>(
         &mut self,
         py: Python<'py>,
