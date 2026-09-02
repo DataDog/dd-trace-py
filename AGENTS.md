@@ -8,17 +8,17 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
 2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`scripts/lint <subcommand>`).
 3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
-4. **No public API breakage** — Never change public API contracts; real applications depend on them.
-5. **No secrets** — Never commit secrets; use environment variables.
-6. **Don't assume business logic** — Ask when unsure about implementation details.
-7. **AIDEV comments are protected** — Never remove `AIDEV-` comments without explicit human instruction. Update them when modifying related code.
-8. **Test before committing** — Run relevant tests to validate changes before committing.
-9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-10. **Update docs** — Add/update documentation when changing internal or public APIs.
-11. **No stray prints** — Check for and remove unexpected `print()` calls.
-12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
-13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
-14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
+5. **No public API breakage** — Never change public API contracts; real applications depend on them.
+6. **No secrets** — Never commit secrets; use environment variables.
+7. **Don't assume business logic** — Ask when unsure about implementation details.
+8. **AIDEV comments are protected** — Never remove `AIDEV-` comments without explicit human instruction. Update them when modifying related code.
+9. **Test before committing** — Run relevant tests to validate changes before committing.
+10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
+11. **Update docs** — Add/update documentation when changing internal or public APIs.
+12. **No stray prints** — Check for and remove unexpected `print()` calls.
+13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
+14. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
+15. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
 
 ## Docstrings and Comments
 
@@ -98,7 +98,6 @@ Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches an
 ## Troubleshooting
 
 See `docs/troubleshooting.rst`. Covers common issues including:
-
 - Installation failures and missing native extensions
 - Traces not appearing in the Datadog app
 - Connection errors sending to the agent
@@ -108,34 +107,34 @@ See `docs/troubleshooting.rst`. Covers common issues including:
 
 Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 
-| Skill                           | Trigger                                                                                                                                                                                                                                                                                |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run-tests`                     | Running any tests or validating code changes. **Never run pytest directly.**                                                                                                                                                                                                           |
-| `lint`                          | Formatting, style/type/security checks, or before committing. **Never skip before commits.**                                                                                                                                                                                           |
-| `releasenote`                   | Creating or updating release notes for the current branch.                                                                                                                                                                                                                             |
-| `find-cpython-usage`            | Investigating CPython API dependencies or adding a new Python version.                                                                                                                                                                                                                 |
-| `compare-cpython-versions`      | Comparing CPython source between two Python versions.                                                                                                                                                                                                                                  |
-| `circular-import-analysis`      | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules.                                                                                                                                       |
-| `dependency-direction-analysis` | Detecting `ddtrace.internal`/`ddtrace.contrib` depending on product code, or products depending on each other, and proposing fixes. Use when the `detect_layering_violations` CI job reports new violations, or proactively when adding/moving modules across those boundaries.        |
-| `review-ci`                     | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP.                                                                                                                                          |
-| `run-benchmarks`                | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact.                                                                                                                                         |
-| `debug-build-times`             | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow.                                                                                                                                       |
-| `apm-integrations`              | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration.                                     |
-| `llmobs-integrations`           | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
+| Skill | Trigger |
+|-------|---------|
+| `run-tests` | Running any tests or validating code changes. **Never run pytest directly.** |
+| `lint` | Formatting, style/type/security checks, or before committing. **Never skip before commits.** |
+| `releasenote` | Creating or updating release notes for the current branch. |
+| `find-cpython-usage` | Investigating CPython API dependencies or adding a new Python version. |
+| `compare-cpython-versions` | Comparing CPython source between two Python versions. |
+| `circular-import-analysis` | Detecting circular imports and proposing architectural fixes. Use when the CI job reports new cycles, or proactively when adding/moving modules. |
+| `dependency-direction-analysis` | Detecting `ddtrace.internal`/`ddtrace.contrib` depending on product code, or products depending on each other, and proposing fixes. Use when the `detect_layering_violations` CI job reports new violations, or proactively when adding/moving modules across those boundaries. |
+| `review-ci` | Reviewing CI results for a branch/commit/PR. Use when CI is failing or to understand what's blocking a PR from merging. Requires Datadog MCP. |
+| `run-benchmarks` | Running performance benchmarks to measure the impact of code changes. Use when touching performance-sensitive code or asked about perf impact. |
+| `debug-build-times` | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow. |
+| `apm-integrations` | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration. |
+| `llmobs-integrations` | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
 
 ## Domain Guides
 
 **Read the corresponding guide before modifying code in these domains:**
 
-| Domain                                                          | Guide                                                                   | Paths                                                                                                                                               |
-| --------------------------------------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Application Security (AppSec)                                   | `.cursor/rules/appsec.mdc`                                              | `ddtrace/appsec/`, `tests/appsec/`                                                                                                                  |
-| IAST                                                            | `.cursor/rules/iast.mdc`                                                | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/`                                                                                                      |
-| AI Guard                                                        | `.cursor/rules/ai-guard.mdc`                                            | `ddtrace/aiguard/`, `tests/aiguard/`                                                                                                                |
-| Isolated Responsibility (security vs. shared integrations)      | `.cursor/rules/isolated-responsibility.mdc`                             | `ddtrace/contrib/`, `ddtrace/appsec/`                                                                                                               |
-| Native Code (C/C++/Rust/Cython)                                 | `.cursor/rules/native-code.mdc`                                         | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd`                                                                            |
-| Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md`                                            | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
-| Benchmarking CI (microbenchmarks, SLO gates, flaky benchmarks)  | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` | `.gitlab/benchmarks/`, `benchmarks/suitespec.yml`                                                                                                   |
-| Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
-| Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
-| Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+| Domain | Guide | Paths |
+|--------|-------|-------|
+| Application Security (AppSec) | `.cursor/rules/appsec.mdc` | `ddtrace/appsec/`, `tests/appsec/` |
+| IAST | `.cursor/rules/iast.mdc` | `ddtrace/appsec/_iast/`, `tests/appsec/iast*/` |
+| AI Guard | `.cursor/rules/ai-guard.mdc` | `ddtrace/aiguard/`, `tests/aiguard/` |
+| Isolated Responsibility (security vs. shared integrations) | `.cursor/rules/isolated-responsibility.mdc` | `ddtrace/contrib/`, `ddtrace/appsec/` |
+| Native Code (C/C++/Rust/Cython) | `.cursor/rules/native-code.mdc` | `*.c`, `*.cc`, `*.cpp`, `*.h`, `*.hh`, `*.hpp`, `*.rs`, `*.pyx`, `*.pxd` |
+| Internal module (fork safety, periodic threads, forksafe hooks) | `ddtrace/internal/README.md` | `ddtrace/internal/`, `ddtrace/internal/periodic.py`, `ddtrace/internal/threads.py`, `ddtrace/internal/forksafe.py`, `ddtrace/internal/_threads.cpp` |
+| Benchmarking CI (microbenchmarks, SLO gates, flaky benchmarks) | `.gitlab/benchmarks/README.md`, `.gitlab/benchmarks/microbenchmarks.md` | `.gitlab/benchmarks/`, `benchmarks/suitespec.yml` |
+| Repository Structure | `.cursor/rules/repo-structure.mdc` | — |
+| Linting | `.cursor/rules/linting.mdc` | — |
+| Testing | `.cursor/rules/testing.mdc` | — |
