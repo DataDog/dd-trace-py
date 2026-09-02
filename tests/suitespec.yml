@@ -290,6 +290,8 @@ suites:
   tracer:
     ddtest: true
     ddtest_nodes: 2
+    # Match tracer variants, but keep the uwsgi-only venv on its legacy job.
+    pattern: ^tracer(?!-uwsgi(?:$|-))
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       DD_TRACE_AGENT_URL: http://localhost:8126

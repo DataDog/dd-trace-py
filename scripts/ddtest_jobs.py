@@ -11,6 +11,7 @@ Functions:
   - emit_ddtest_jobs: emit plan + run jobs for one ddtest suite
 """
 
+import subprocess
 import typing as t
 
 
@@ -95,6 +96,7 @@ def emit_ddtest_jobs(
     config: dict,
     venvs: list[tuple[str, str]],
     k: int,
+    testrunner_image_hash: str,
 ) -> None:
     """Emit ddtest-plan and ddtest-run jobs for one suite.
 
@@ -110,6 +112,12 @@ def emit_ddtest_jobs(
     retry = config.get("retry")
     timeout = config.get("timeout")
     allow_failure = config.get("allow_failure", False)
+    skip_pip_cache = config.get("skip_pip_cache", False)
+    suite_name = config.get("pattern") or clean_name
+    env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
+    env["PIP_CACHE_KEY"] = (
+        subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+    )
     base = _ddtest_base(snapshot, gpu)
     plan_base = _ddtest_base(False, gpu)  # plan never needs the testagent
     plan_tpl = _ddtest_plan_template(gpu)
@@ -117,7 +125,6 @@ def emit_ddtest_jobs(
     job_prefix = f"{stage}/{clean_name.replace('::', '/')}"
     plan_name = f"{job_prefix}::ddtest-plan"
     run_name = f"{job_prefix}::ddtest-run"
-    suite_name = config.get("pattern") or clean_name
     wait_for = list(services)
     if snapshot:
         wait_for.append("testagent")
@@ -153,6 +160,14 @@ def emit_ddtest_jobs(
             for key, value in extra.items():
                 print(f"    {key}: {value}", file=f)
 
+    def emit_cache() -> None:
+        if skip_pip_cache:
+            return
+        print("  cache:", file=f)
+        print(f"    key: v1-pip-${{PIP_CACHE_KEY}}-{testrunner_image_hash}-cache", file=f)
+        print("    paths:", file=f)
+        print("      - .cache", file=f)
+
     def emit_needs_build_base_venvs(needed_venvs: list[tuple[str, str]]) -> None:
         print("    - job: build_base_venvs", file=f)
         print("      artifacts: true", file=f)
@@ -174,6 +189,7 @@ def emit_ddtest_jobs(
     print(f"{plan_name}:", file=f)
     print(f"  extends: {plan_tpl}", file=f)
     print(f"  stage: {stage}", file=f)
+    emit_cache()
     print("  needs:", file=f)
     print("    - prechecks", file=f)
     emit_needs_build_base_venvs(venvs)
@@ -210,6 +226,7 @@ def emit_ddtest_jobs(
         print(f"{py_run_name}:", file=f)
         print(f"  extends: {run_tpl}", file=f)
         print(f"  stage: {stage}", file=f)
+        emit_cache()
         print("  needs:", file=f)
         print("    - prechecks", file=f)
         emit_needs_build_base_venvs(py_venvs)

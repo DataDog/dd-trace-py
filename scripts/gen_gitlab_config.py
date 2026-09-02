@@ -590,7 +590,9 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                     continue
                 k = _ddtest_module().ddtest_k(suite_config)
                 LOGGER.info("Suite %s: ddtest (venvs=%d, nodes/venv=%d)", suite, len(venvs), k)
-                _ddtest_module().emit_ddtest_jobs(f, suite, stage, clean_name, suite_config, venvs, k)
+                _ddtest_module().emit_ddtest_jobs(
+                    f, suite, stage, clean_name, suite_config, venvs, k, TESTRUNNER_IMAGE_HASH
+                )
                 continue
 
             jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)

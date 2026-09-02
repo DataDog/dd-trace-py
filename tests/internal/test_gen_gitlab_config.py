@@ -87,19 +87,25 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
 
 def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
     output = io.StringIO()
+    ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
 
-    gen_gitlab_config_mod._ddtest_module().emit_ddtest_jobs(
-        output,
-        suite="internal",
-        stage="core",
-        clean_name="internal",
-        config={"env": {"_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.internal"}},
-        venvs=[("abc1234", "3.13"), ("def5678", "3.14")],
-        k=1,
-    )
+    with mock.patch.object(ddtest_jobs.subprocess, "check_output", return_value=b"pip-key\n"):
+        ddtest_jobs.emit_ddtest_jobs(
+            output,
+            suite="internal",
+            stage="core",
+            clean_name="internal",
+            config={"env": {"_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.internal"}},
+            venvs=[("abc1234", "3.13"), ("def5678", "3.14")],
+            k=1,
+            testrunner_image_hash="image-hash",
+        )
 
     content = output.getvalue()
     assert "_DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal" in content
+    assert "PIP_CACHE_DIR: ${CI_PROJECT_DIR}/.cache/pip" in content
+    assert "PIP_CACHE_KEY: pip-key" in content
+    assert "key: v1-pip-${PIP_CACHE_KEY}-image-hash-cache" in content
     assert "RIOT_HASH_PYTHON: abc1234:3.13 def5678:3.14" in content
     run_313_needs = content.split("core/internal::ddtest-run-3.13:", 1)[1].split("\n  parallel:\n", 1)[0]
     run_314_needs = content.split("core/internal::ddtest-run-3.14:", 1)[1].split("\n  parallel:\n", 1)[0]
