@@ -29,7 +29,7 @@ def _get_bool_env(name: str) -> str:
 
 def validate_ddtest_venv_test_locations(suite: str, info) -> None:
     """Reject ddtest suites whose matched venvs do not declare a test location."""
-    missing = [h for h, _py in (info.venvs or []) if not (info.venv_test_locations or {}).get(h)]
+    missing = [h for h, _py in info.riot_venvs if not (info.venv_test_locations or {}).get(h)]
     if missing:
         raise ValueError(f"ddtest suite {suite} has venvs without DDTEST_TESTS_LOCATION: {', '.join(missing)}")
 

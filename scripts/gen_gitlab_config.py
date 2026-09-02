@@ -21,24 +21,21 @@ from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import hashlib
-
-# ddtest job emission is encapsulated in ddtest_jobs.py (same directory).
-# This script runs via uv-run-script; scripts/ is added to sys.path later
-# (line 884), so use a deferred import to avoid ModuleNotFoundError at top level.
-import importlib as _importlib
+import importlib
 import os
 import re
 import subprocess
 import typing as t
 
 
-def _ddtest_module():
-    return _importlib.import_module("ddtest_jobs")
-
-
 MAX_BENCHMARKS_PER_GROUP = 2
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
+
+
+def _ddtest_module():
+    """Load the optional ddtest job emitter after scripts/ is on sys.path."""
+    return importlib.import_module("ddtest_jobs")
 
 
 def _get_bool_env(name: str) -> str:
@@ -83,12 +80,15 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False
+    suite: t.Optional[str] = None
+    uses_uv: bool = False
 
     python_versions: t.Optional[set[str]] = None
+    environment_hashes: t.Optional[tuple[str, ...]] = None
 
     def __str__(self) -> str:
         lines = []
-        base = ".test_base_riot"
+        base = ".test_base_uv" if self.uses_uv else ".test_base_riot"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -137,22 +137,28 @@ class JobSpec:
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
-        lines.append("    - pip cache info")
+        if not self.uses_uv:
+            lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
-        env = self.env
+        env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
-            env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
 
+        if self.uses_uv:
+            env["TEST_SUITE"] = self.suite or self.name
+            if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
+                env["UV_PRERELEASE"] = "allow"
+
         suite_name = env["SUITE_NAME"]
-        env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-        )
-        if not self.skip_pip_cache:
+        if not self.uses_uv:
+            env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
+            env["PIP_CACHE_KEY"] = (
+                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+            )
+        if not self.uses_uv and not self.skip_pip_cache:
             lines.append("  cache:")
             lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
             lines.append("    paths:")
@@ -161,6 +167,11 @@ class JobSpec:
         lines.append("  variables:")
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
+        if self.environment_hashes:
+            shard_count = self.parallelism or 1
+            for index in range(shard_count):
+                shard = " ".join(self.environment_hashes[index::shard_count])
+                lines.append(f'    TEST_ENVIRONMENTS_{index + 1}: "{shard}"')
 
         if self.only:
             lines.append("  only:")
@@ -186,14 +197,10 @@ class JobSpec:
 class SuiteVenvInfo:
     venv_count: int
     python_versions: set[str]
-    # Per-venv (short_hash, python_hint) pairs, sorted by hash. Used by the
-    # ddtest emission to fan out one run job per venv via a parallel matrix.
-    # python_hint is the riot interpreter hint (e.g. "3.10") used to match
-    # the build_base_venvs artifact for that venv.
-    venvs: t.Optional[list[tuple[str, str]]] = None
-    # Effective DDTEST_TESTS_LOCATION values, keyed by short hash. Keeping
-    # this metadata during collection lets ddtest suites validate their venvs
-    # before emitting a pipeline that cannot discover any tests.
+    environment_hashes: tuple[str, ...] = ()
+    # Riot metadata remains available for ddtest fallback jobs, including
+    # migrated suites whose regular CI jobs use uv.
+    riot_venvs: tuple[tuple[str, str], ...] = ()
     venv_test_locations: t.Optional[dict[str, str]] = None
 
 
@@ -207,23 +214,28 @@ TARGET_JOBS = 200
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
-def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
+def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
     """Collect venv count and Python versions for multiple suites in a single pass.
 
     Iterates riotfile.venv.instances() once and matches each instance against all
     suite patterns simultaneously, which is much more efficient than per-suite iteration.
 
     Args:
-        suite_patterns: mapping of suite name -> regex pattern string
+        suite_configs: mapping of suite name -> suite configuration
 
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    # Importing will load/evaluate the whole riotfile.py
+    # Importing will load/evaluate the whole riotfile.py for suites that still use Riot.
     import riotfile
+    from tests.suitespec import UV_TEST_SUITES
+    from tests.suitespec import get_test_environments
 
     compiled: dict[str, re.Pattern] = {}
-    for suite, pattern in suite_patterns.items():
+    for suite, config in suite_configs.items():
+        if suite in UV_TEST_SUITES and not config.get("ddtest"):
+            continue
+        pattern = config.get("pattern", suite)
         try:
             compiled[suite] = re.compile(pattern)
         except re.error:
@@ -231,8 +243,6 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
 
     venv_hashes: dict[str, set] = {s: set() for s in compiled}
     python_versions: dict[str, set] = {s: set() for s in compiled}
-    # hash -> python hint/path, per suite (deduplicated). Preserved as
-    # ordered lists for the ddtest parallel matrix and validation.
     venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
     venv_test_locations: dict[str, dict[str, str]] = {s: {} for s in compiled}
 
@@ -243,7 +253,7 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
         for suite, regex in compiled.items():
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
                 venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
-                venv_hash_hint[suite][inst.short_hash] = hint  # type: ignore[attr-defined]
+                venv_hash_hint[suite][inst.short_hash] = hint
                 venv_test_locations[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_LOCATION", "")
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
@@ -252,15 +262,32 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     result: dict[str, SuiteVenvInfo] = {}
     for suite in compiled:
         if venv_hashes[suite]:
-            venvs = sorted(venv_hash_hint[suite].items())
             result[suite] = SuiteVenvInfo(
                 venv_count=len(venv_hashes[suite]),
                 python_versions=python_versions[suite],
-                venvs=venvs,
+                riot_venvs=tuple(sorted(venv_hash_hint[suite].items())),
                 venv_test_locations=venv_test_locations[suite],
             )
         else:
-            LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
+            LOGGER.warning(
+                "No riot venvs found for suite %s with pattern %s",
+                suite,
+                suite_configs[suite].get("pattern", suite),
+            )
+
+    uv_environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
+    for suite in UV_TEST_SUITES:
+        if suite not in suite_configs:
+            continue
+        environments = uv_environments[suite]
+        riot_info = result.get(suite)
+        result[suite] = SuiteVenvInfo(
+            venv_count=len(environments),
+            python_versions={environment.python for environment in environments},
+            environment_hashes=tuple(environment.hash for environment in environments),
+            riot_venvs=riot_info.riot_venvs if riot_info else (),
+            venv_test_locations=riot_info.venv_test_locations if riot_info else None,
+        )
     return result
 
 
@@ -484,6 +511,8 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
 
+    from tests.suitespec import UV_TEST_SUITES
+
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
@@ -518,12 +547,9 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     # === PASS 1: Collect venv info for all non-skipped required suites ===
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
-    suite_patterns = {s: suites[s].get("pattern", s) for s in non_skipped}
-    suite_venv_info = collect_all_suite_venv_info(suite_patterns)
+    suite_configs = {s: suites[s] for s in non_skipped}
+    suite_venv_info = collect_all_suite_venv_info(suite_configs)
 
-    # A ddtest job must have a file-based location for every matching riot
-    # venv. Fail during generation instead of creating a job that silently
-    # plans the repository root or an invalid pytest node ID.
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
@@ -534,15 +560,13 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     for info in suite_venv_info.values():
         _global_python_versions.update(info.python_versions)
 
-    # Compute baseline parallelism only for legacy riot suites. ddtest owns
-    # its run matrix, so including ddtest suites here only calculates values
-    # that are never emitted.
-    legacy_non_skipped = [s for s in non_skipped if not suites[s].get("ddtest")]
+    # Compute baseline parallelism. Track scalable suites (those with venv info, eligible
+    # for scaling up) and the vpj map for dynamic suites.
     baseline_jobs: dict[str, int] = {}
-    scalable_suites: list[str] = []  # all legacy suites eligible for scaling
+    scalable_suites: list[str] = []  # all suites with venv info (both static and dynamic)
     venvs_per_job_map: dict[str, int] = {}  # only for venvs_per_job suites
 
-    for suite in legacy_non_skipped:
+    for suite in non_skipped:
         config = suites[suite]
         static_parallelism = config.get("parallelism")
         venvs_per_job = config.get("venvs_per_job")
@@ -580,23 +604,31 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
             suite_config.pop("matrix", None)
+            suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
 
-            # ddtest suites: emit plan/run jobs instead of the legacy riot job.
             if suite_config.get("ddtest"):
-                venvs = (suite_venv_info[suite].venvs or []) if suite in suite_venv_info else []
-                if not venvs:
-                    LOGGER.warning("Suite %s opted into ddtest but has no riot venvs; skipping", suite)
+                riot_venvs = suite_venv_info[suite].riot_venvs if suite in suite_venv_info else ()
+                if not riot_venvs:
+                    LOGGER.warning("Suite %s opted into ddtest but has no Riot fallback environments; skipping", suite)
                     continue
                 k = _ddtest_module().ddtest_k(suite_config)
-                LOGGER.info("Suite %s: ddtest (venvs=%d, nodes/venv=%d)", suite, len(venvs), k)
+                LOGGER.info("Suite %s: ddtest Riot fallback (venvs=%d, nodes/venv=%d)", suite, len(riot_venvs), k)
                 _ddtest_module().emit_ddtest_jobs(
-                    f, suite, stage, clean_name, suite_config, venvs, k, TESTRUNNER_IMAGE_HASH
+                    f, suite, stage, clean_name, suite_config, list(riot_venvs), k, TESTRUNNER_IMAGE_HASH
                 )
                 continue
 
-            jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
+            environment_hashes = suite_venv_info[suite].environment_hashes if suite in suite_venv_info else None
+            jobspec = JobSpec(
+                clean_name,
+                stage=stage,
+                python_versions=py_versions,
+                environment_hashes=environment_hashes,
+                uses_uv=suite in UV_TEST_SUITES,
+                **suite_config,
+            )
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
