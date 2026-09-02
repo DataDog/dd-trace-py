@@ -744,13 +744,24 @@ def test_session_id_headers_across_forks(test_agent_session, ddtrace_run_python_
 import os
 import sys
 
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+
+
+def emit_child_telemetry():
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "fork_lineage", 1)
+    telemetry_writer.periodic(force_flush=True)
+
+
 pid1 = os.fork()
 if pid1 == 0:
     pid2 = os.fork()
     if pid2 == 0:
+        emit_child_telemetry()
         sys.exit(0)
     else:
         os.waitpid(pid2, 0)
+        emit_child_telemetry()
         sys.exit(0)
 else:
     os.waitpid(pid1, 0)
