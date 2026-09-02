@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI visibility: Fixes an issue where test sessions running with pytest-xdist on shallow Git checkouts can spend excessive time unshallowing the repository and may fail or time out during collection.
