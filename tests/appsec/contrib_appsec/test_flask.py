@@ -162,12 +162,12 @@ class Test_Flask(_Test_Flask_Base, utils.Contrib_TestClass_For_Threats):
         import os
 
         import ddtrace.auto  # noqa: F401
-        from ddtrace.contrib._events.dbapi import DbApiEvent
+        from ddtrace.contrib._events.dbapi import DbQueryEvent
         from ddtrace.internal import core
         from tests.appsec.contrib_appsec.flask_app.app import app
 
         rasp_enabled = os.environ["DD_APPSEC_RASP_ENABLED"] == "true"
-        assert core.has_listeners(DbApiEvent.event_name) is rasp_enabled
+        assert core.has_listeners(DbQueryEvent.event_name) is rasp_enabled
 
         response = app.test_client().get("/rasp/sql_injection/?user_id_1=1%20OR%201%3D1")
         assert response.status_code == (403 if rasp_enabled else 200)
