@@ -269,7 +269,7 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "Sets the average number of bytes allocated between samples to\n"
              "heap_sample_interval.\n"
              "If heap_sample_interval is set to 0, it is disabled entirely.\n"
-             "Enables profiling of PyMem_Malloc/Calloc/Realloc events (allocations in the MEM-domain).\n"
+             "Enables profiling of PyMem_Malloc/Calloc/Realloc events (allocations in the Mem domain).\n"
              "Requires Python 3.12 or later.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)

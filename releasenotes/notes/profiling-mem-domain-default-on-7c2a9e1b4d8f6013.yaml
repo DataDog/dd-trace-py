@@ -2,5 +2,4 @@
 features:
   - |
     profiling: ``DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED`` now defaults to
-    ``true``, so the heap profiler also tracks ``PyMem_Malloc`` /
-    ``Calloc`` / ``Realloc`` allocations in MEM-domain on Python 3.12+.
+    ``true``, so the heap profiler also tracks allocations in the Mem domain on Python 3.12+.

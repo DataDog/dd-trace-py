@@ -540,7 +540,7 @@ class ProfilingConfigMemory(DDConfig):
         default=True,
         help_type="Boolean",
         help=(
-            "Profile PyMem_Malloc/Calloc/Realloc events (allocations in the MEM-domain). "
+            "Profile PyMem_Malloc/Calloc/Realloc events (allocations in the Mem domain). "
             "Requires Python 3.12 or later. Enabled by default."
         ),
     )
