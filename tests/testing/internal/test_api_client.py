@@ -13,6 +13,7 @@ from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_cov
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.git import GitTag
+from ddtrace.testing.internal.http import TEST_MANAGEMENT_TESTS_TIMEOUT_SECONDS
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.logging import testing_logger
@@ -813,6 +814,7 @@ class TestAPIClientGetTestManagementTests:
                     }
                 },
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
+                timeout_seconds=TEST_MANAGEMENT_TESTS_TIMEOUT_SECONDS,
             )
         ]
 
@@ -872,6 +874,7 @@ class TestAPIClientGetTestManagementTests:
                     }
                 },
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
+                timeout_seconds=TEST_MANAGEMENT_TESTS_TIMEOUT_SECONDS,
             )
         ]
 
@@ -1042,6 +1045,7 @@ class TestAPIClientGetTestManagementTests:
                     }
                 },
                 telemetry=mock_telemetry.with_request_metric_names.return_value,
+                timeout_seconds=TEST_MANAGEMENT_TESTS_TIMEOUT_SECONDS,
             )
         ]
 

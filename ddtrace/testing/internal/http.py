@@ -37,7 +37,10 @@ _DEFAULT_TIMEOUT_SECONDS = 30.0
 _MAX_TIMEOUT_SECONDS = 300.0  # 5 minutes
 
 
-def _parse_timeout_millis(raw: t.Optional[str]) -> float:
+def _parse_timeout_millis(
+    raw: t.Optional[str],
+    default_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
+) -> float:
     if raw:
         try:
             _parsed = float(raw) / 1000.0
@@ -48,12 +51,18 @@ def _parse_timeout_millis(raw: t.Optional[str]) -> float:
             log.warning(
                 "Invalid value for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS: %r; using default %.1fs",
                 raw,
-                _DEFAULT_TIMEOUT_SECONDS,
+                default_seconds,
             )
-    return _DEFAULT_TIMEOUT_SECONDS
+    return default_seconds
 
 
 DEFAULT_TIMEOUT_SECONDS = _parse_timeout_millis(env.get("DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS"))
+# Per-endpoint timeout for the test-management tests request, which can be slower than the hot-path
+# default. Defaults to the general timeout when unset so behavior is unchanged unless overridden.
+TEST_MANAGEMENT_TESTS_TIMEOUT_SECONDS = _parse_timeout_millis(
+    env.get("_DD_CIVISIBILITY_TEST_MANAGEMENT_TESTS_TIMEOUT_MILLIS"),
+    default_seconds=DEFAULT_TIMEOUT_SECONDS,
+)
 
 MAX_ATTEMPTS = 5
 MAX_RETRY_AFTER_SECONDS = 120.0
@@ -317,12 +326,21 @@ class BackendConnector(threading.local):
         headers: t.Optional[dict[str, str]] = None,
         send_gzip: bool = False,
         is_json_response: bool = False,
+        timeout_seconds: t.Optional[float] = None,
     ) -> BackendResult:
         full_headers = self.default_headers | (headers or {})
 
         if send_gzip and self.use_gzip and data is not None:
             data = gzip.compress(data, compresslevel=6)
             full_headers["Content-Encoding"] = "gzip"
+
+        # Apply a per-call timeout override to both the connection (so a fresh
+        # connect() honors it) and an already-connected socket (so reused
+        # connections honor it). Restored implicitly by the next call's value.
+        if timeout_seconds is not None:
+            self.conn.timeout = timeout_seconds
+            if self.conn.sock is not None:
+                self.conn.sock.settimeout(timeout_seconds)
 
         result = BackendResult()
         result.request_length = len(data) if data is not None else 0
@@ -402,6 +420,7 @@ class BackendConnector(threading.local):
         is_json_response: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        timeout_seconds: t.Optional[float] = None,
     ) -> BackendResult:
         attempts_so_far = 0
 
@@ -414,6 +433,7 @@ class BackendConnector(threading.local):
                 headers=headers,
                 send_gzip=send_gzip,
                 is_json_response=is_json_response,
+                timeout_seconds=timeout_seconds,
             )
 
             if telemetry:
@@ -451,6 +471,7 @@ class BackendConnector(threading.local):
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        timeout_seconds: t.Optional[float] = None,
     ) -> BackendResult:
         headers = {"Content-Type": "application/json"} | (headers or {})
         return self.request(
@@ -461,6 +482,7 @@ class BackendConnector(threading.local):
             is_json_response=True,
             telemetry=telemetry,
             max_attempts=max_attempts,
+            timeout_seconds=timeout_seconds,
         )
 
     def post_json(
@@ -471,6 +493,7 @@ class BackendConnector(threading.local):
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        timeout_seconds: t.Optional[float] = None,
     ) -> BackendResult:
         headers = {"Content-Type": "application/json"} | (headers or {})
         encoded_data = json.dumps(data).encode("utf-8")
@@ -483,6 +506,7 @@ class BackendConnector(threading.local):
             is_json_response=True,
             telemetry=telemetry,
             max_attempts=max_attempts,
+            timeout_seconds=timeout_seconds,
         )
 
     def post_files(
@@ -493,6 +517,7 @@ class BackendConnector(threading.local):
         send_gzip: bool = False,
         telemetry: t.Optional[TelemetryAPIRequestMetrics] = None,
         max_attempts: int = MAX_ATTEMPTS,
+        timeout_seconds: t.Optional[float] = None,
     ) -> BackendResult:
         boundary = uuid.uuid4().hex
         boundary_bytes = boundary.encode("utf-8")
@@ -520,6 +545,7 @@ class BackendConnector(threading.local):
             send_gzip=send_gzip,
             telemetry=telemetry,
             max_attempts=max_attempts,
+            timeout_seconds=timeout_seconds,
         )
 
 
