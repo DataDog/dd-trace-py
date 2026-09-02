@@ -37,6 +37,13 @@ build_base_venvs:
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
+    # PIP_IGNORE_REQUIRES_PYTHON lets riot's `pip install -e .` install the
+    # dev package despite requires-python = ">=3.9,<3.15". 3.15 only: other
+    # matrix versions already satisfy the bound.
+    # TODO(py-315): drop this once requires-python includes 3.15
+    case "$PYTHON_VERSION" in
+      3.15) export PIP_IGNORE_REQUIRES_PYTHON=1 ;;
+    esac
     riot -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
