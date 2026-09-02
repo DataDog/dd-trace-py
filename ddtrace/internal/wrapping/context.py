@@ -834,14 +834,8 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             log.debug("Universal wrapping context exited without entering")
             return
 
-        held = _held_storage(contexts)
-        try:
-            for context in contexts[::-1]:
-                context.__exit__(exc_type, exc_value, traceback)
-        except BaseException:
-            _release_storage(contexts, held)
-            super().__exit__(exc_type, exc_value, traceback)
-            raise
+        for context in contexts[::-1]:
+            context.__exit__(exc_type, exc_value, traceback)
 
         super().__exit__(exc_type, exc_value, traceback)
 
@@ -853,7 +847,6 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             log.debug("Universal wrapping context returned without entering")
             return t.cast(T, super().__return__(value))
 
-        held = _held_storage(contexts)
         try:
             for context in contexts[::-1]:
                 context.__return__(value)
@@ -862,11 +855,13 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             # wrapped function body -- it never gets to run, so __exit__ must
             # not run for it either. See _exit and on_py_unwind, which consume
             # this flag on the bytecode and sys.monitoring paths respectively.
+            #
+            # NOTE: this path still leaks the storage of this call, including the universal one
+            # holding __frame__, because the suppressed __exit__ was what would have popped it.
+            # Releasing it here is not correct: _exit and on_py_unwind read the flag back off
+            # this same storage, so popping first makes them act on the enclosing call's storage
+            # instead. Tracked in APPSEC-69961.
             storage[_SKIP_EXIT_KEY] = True
-            # __exit__ is suppressed by that flag, so release here or every raising __return__
-            # chains a storage dict per call, the universal one still holding __frame__.
-            _release_storage(contexts, held)
-            super().__return__(value)
             raise
 
         return t.cast(T, super().__return__(value))

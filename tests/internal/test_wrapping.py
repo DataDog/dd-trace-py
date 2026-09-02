@@ -1903,13 +1903,20 @@ def _storage_target(value):
     return value
 
 
-@pytest.mark.parametrize("where", ["enter", "return", "exit"])
+@pytest.mark.parametrize(
+    "where",
+    [
+        "enter",
+        pytest.param("return", marks=pytest.mark.xfail(reason="APPSEC-69961", strict=True)),
+        pytest.param("exit", marks=pytest.mark.xfail(reason="APPSEC-69961", strict=True)),
+    ],
+)
 def test_a_raising_context_releases_its_storage(where):
     """A context that raises is skipped by the machinery that would have popped its storage.
 
-    On __enter__ it never lands in the universal context's `entered` list; on __return__ the
-    resulting __exit__ is suppressed on purpose. Either way the ContextVar would chain one dict
-    per call on a long-lived thread, with the universal one still holding __frame__.
+    On __enter__ it never lands in the universal context's `entered` list, which this fixes. On
+    __return__ and __exit__ the storage leaks too, but releasing it there would make _exit and
+    on_py_unwind read the flag off the enclosing call's storage; tracked in APPSEC-69961.
     """
 
     class _Raiser(WrappingContext):
