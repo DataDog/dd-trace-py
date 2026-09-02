@@ -1,0 +1,13 @@
+_v: 1
+name: django
+display_name: Django
+description: Instruments inbound HTTP requests, views, middleware, template rendering, database queries, and cache operations
+  in Django applications.
+packages:
+- name: django
+category:
+- db.client
+- http.server
+- template.render
+systems: []
+creation_date: '2016-06-28'

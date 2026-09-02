@@ -1,0 +1,11 @@
+_v: 1
+name: sanic
+display_name: Sanic
+description: Instruments inbound HTTP requests handled by Sanic applications, including distributed trace propagation, route
+  metadata, response status, and exceptions.
+packages:
+- name: sanic
+category:
+- http.server
+systems: []
+creation_date: '2020-08-12'
