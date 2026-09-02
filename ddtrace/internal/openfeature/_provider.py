@@ -30,6 +30,7 @@ from ddtrace.internal.native._native import ffe
 from ddtrace.internal.openfeature._config import _get_ffe_config
 from ddtrace.internal.openfeature._config import _register_provider
 from ddtrace.internal.openfeature._config import _unregister_provider
+from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._exposure import build_exposure_event
 from ddtrace.internal.openfeature._flag_eval_evp_hook import FlagEvalEVPHook
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY
@@ -339,6 +340,8 @@ class DataDogProvider(AbstractProvider):
                 logger.debug("FlagEvaluationWriter has already stopped", exc_info=True)
             self._flag_eval_evp_writer = None
             self._flag_eval_evp_hook = None
+
+        reset_feature_flag_evp_route_selector()
 
         # Shutdown flag evaluation metrics
         if self._flag_eval_metrics is not None:

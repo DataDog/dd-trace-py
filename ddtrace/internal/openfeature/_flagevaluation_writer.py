@@ -37,6 +37,10 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.openfeature._evp_transport import EVPRoute
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
+from ddtrace.internal.openfeature._evp_transport import get_evp_connection
+from ddtrace.internal.openfeature._evp_transport import get_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._flageval_metrics import METADATA_ALLOCATION_KEY as METADATA_ALLOCATION_KEY
 from ddtrace.internal.periodic import PeriodicService
 from ddtrace.internal.settings._agent import config as agent_config
@@ -361,9 +365,17 @@ class FlagEvaluationWriter(PeriodicService):
     aggregates, and flushes via HTTP every 10 s.
     """
 
-    def __init__(self, interval: float = DEFAULT_FLUSH_INTERVAL, timeout: float = 2.0) -> None:
+    def __init__(
+        self,
+        interval: float = DEFAULT_FLUSH_INTERVAL,
+        timeout: float = 2.0,
+        route_selector: typing.Optional[FeatureFlagEVPRouteSelector] = None,
+        connection_factory: typing.Optional[typing.Callable[..., typing.Any]] = None,
+    ) -> None:
         super().__init__(interval=interval)
         self._timeout = timeout
+        self._route_selector = route_selector or get_feature_flag_evp_route_selector()
+        self._connection_factory = connection_factory
         self._intake: str = agent_config.trace_agent_url
         self._endpoint: str = FLAGEVALUATIONS_ENDPOINT
         self._headers: dict[str, str] = {
@@ -692,34 +704,45 @@ class FlagEvaluationWriter(PeriodicService):
         )
 
     def _send_payload(self, payload: bytes, num_events: int) -> None:
-        """POST the encoded payload to the EVP proxy."""
-        conn = typing.cast(_FlagEvaluationConnection, get_connection(self._intake, timeout=self._timeout))
-        try:
-            conn.request("POST", self._endpoint, payload, self._headers)
-            resp = conn.getresponse()
-            if resp.status >= 300:
-                logger.debug(
-                    "FlagEvaluationWriter: failed to send %d events to %s, status=%d: %s",
-                    num_events,
-                    self._intake,
-                    resp.status,
-                    resp.read(),
-                )
-            else:
-                logger.debug(
-                    "FlagEvaluationWriter: sent %d flag evaluation events to %s",
-                    num_events,
-                    self._intake,
-                )
-        except Exception:
-            logger.debug(
-                "FlagEvaluationWriter: error sending %d events to %s",
-                num_events,
-                self._intake,
-                exc_info=True,
+        """POST the encoded payload through the selected EVP route."""
+        route = self._route_selector.select()
+        if route is None:
+            return
+
+        def send_once(active_route: EVPRoute) -> httplib.HTTPResponse:
+            endpoint = active_route.endpoint("/api/v2/flagevaluation")
+            headers = {"Content-Type": "application/json", **active_route.headers}
+            connection_factory = self._connection_factory or get_connection
+            conn = typing.cast(
+                _FlagEvaluationConnection,
+                get_evp_connection(active_route, self._timeout, connection_factory),
             )
-        finally:
-            conn.close()
+            try:
+                conn.request("POST", endpoint, payload, headers)
+                resp = conn.getresponse()
+                if resp.status >= 300:
+                    logger.debug(
+                        "FlagEvaluationWriter: failed to send %d events to %s%s, status=%d",
+                        num_events,
+                        active_route.intake,
+                        endpoint,
+                        resp.status,
+                    )
+                else:
+                    logger.debug(
+                        "FlagEvaluationWriter: sent %d flag evaluation events to %s%s",
+                        num_events,
+                        active_route.intake,
+                        endpoint,
+                    )
+                return resp
+            finally:
+                conn.close()
+
+        try:
+            self._route_selector.send(route, send_once)
+        except Exception:
+            logger.debug("FlagEvaluationWriter: error sending %d events", num_events, exc_info=True)
 
 
 # ---------------------------------------------------------------------------
