@@ -127,6 +127,19 @@ class RemoteConfigPoller(periodic.PeriodicService):
             return True
         return False
 
+    def switch_to_agentless(self) -> bool:
+        if self._client.agentless:
+            return True
+        if not ddconfig._dd_api_key:
+            log.debug("Cannot switch remote configuration to agentless mode: no Datadog API key found")
+            return False
+
+        self._client.switch_to_agentless()
+        # There is no agent left to negotiate the v0.7/config endpoint with.
+        self._state = self._online
+        log.debug("Remote configuration switched to the intake")
+        return True
+
     def _before_fork(self) -> None:
         """Origin hook: enable SHM before forking so children inherit the SHM."""
         if self._client._product_callbacks:

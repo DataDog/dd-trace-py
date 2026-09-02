@@ -33,6 +33,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
@@ -1015,6 +1016,10 @@ class LLMObs(Service):
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
                 # we need to force telemetry to use agentless configuration
                 telemetry_writer.enable_agentless_client(True)
+                # Remote configuration resolved its own agentless state from the environment at
+                # import time, so it is still pointed at an agent that may not be there. Send it
+                # to the intake as well, on the key validated just above.
+                remoteconfig_poller.switch_to_agentless()
 
             if integrations_enabled:
                 cls._patch_integrations()

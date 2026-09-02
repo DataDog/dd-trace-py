@@ -150,6 +150,11 @@ class RemoteConfigClient:
                 self._native.add_capabilities(self._capability_values)
         return self._native
 
+    def switch_to_agentless(self) -> None:
+        self.agentless = True
+        self._native = None
+        self._reader = None
+
     def renew_id(self) -> None:
         self.id = str(uuid.uuid4())
 

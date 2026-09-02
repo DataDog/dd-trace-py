@@ -497,3 +497,89 @@ def test_agent_client_is_not_given_intake_credentials(monkeypatch):
     assert "api_key" not in captured
     # Only the agentless fetcher carries a server-recommended interval.
     assert poller._client.refresh_interval() is None
+
+
+def test_switch_to_agentless_rebuilds_the_client_against_the_intake(monkeypatch):
+    """Callers that settle agentless after import need the client repointed, not disabled."""
+    from ddtrace.internal.remoteconfig import client as client_mod
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+    from tests.utils import override_global_config
+
+    captured = []
+
+    def _fake_native(_runtime, **kwargs):
+        captured.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(client_mod, "get_hostname", lambda: "a-host")
+    monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", _fake_native)
+
+    with _agentless_settings(DD_AGENTLESS_ENABLED="false"):
+        poller = worker_mod.RemoteConfigPoller()
+        poller._client.ensure_native()
+        assert poller._client.agentless is False
+        assert "api_key" not in captured[-1]
+
+        with override_global_config(dict(_dd_api_key="a-late-api-key", _dd_site="datad0g.com")):
+            assert poller.switch_to_agentless() is True
+
+            assert poller._client.agentless is True
+            # No agent left to negotiate /v0.7/config with.
+            assert poller._state == poller._online
+
+            poller._client.ensure_native()
+            assert captured[-1]["api_key"] == "a-late-api-key"
+            assert captured[-1]["site"] == "datad0g.com"
+
+
+def test_switch_to_agentless_keeps_products_and_capabilities(monkeypatch):
+    """The rebuild drops only the native client; what the products registered has to survive."""
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+    from tests.utils import override_global_config
+
+    monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", lambda _runtime, **kwargs: object())
+
+    with _agentless_settings(DD_AGENTLESS_ENABLED="false"):
+        poller = worker_mod.RemoteConfigPoller()
+        poller._client.enable_product(RemoteConfigProduct.AsmFeatures)
+        client_id = poller._client.id
+        products = set(poller._client._enabled_products)
+        capabilities = list(poller._client._capability_values)
+
+        with override_global_config(dict(_dd_api_key="a-late-api-key", _dd_site="datad0g.com")):
+            poller.switch_to_agentless()
+
+        assert poller._client.id == client_id
+        assert set(poller._client._enabled_products) == products
+        assert list(poller._client._capability_values) == capabilities
+
+
+def test_switch_to_agentless_is_a_noop_when_already_agentless(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+
+    monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", lambda _runtime, **kwargs: object())
+
+    with _agentless_settings(DD_AGENTLESS_ENABLED="true", DD_API_KEY="an-api-key"):
+        poller = worker_mod.RemoteConfigPoller()
+        native = poller._client.ensure_native()
+
+        assert poller.switch_to_agentless() is True
+        # Already pointed at the intake, so the native client is left alone.
+        assert poller._client.ensure_native() is native
+
+
+def test_switch_to_agentless_refuses_without_an_api_key(monkeypatch):
+    """Nothing to authenticate with, so leave Remote Configuration on the agent."""
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+    from tests.utils import override_global_config
+
+    monkeypatch.setattr("ddtrace.internal.native.RemoteConfigClient", lambda _runtime, **kwargs: object())
+
+    with _agentless_settings(DD_AGENTLESS_ENABLED="false"):
+        poller = worker_mod.RemoteConfigPoller()
+
+        with override_global_config(dict(_dd_api_key=None)):
+            assert poller.switch_to_agentless() is False
+
+        assert poller._client.agentless is False
+        assert poller._state == poller._agent_check
