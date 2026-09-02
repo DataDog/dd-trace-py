@@ -11,6 +11,7 @@ import weakref
 import wrapt
 
 from ddtrace.internal import _unpatched
+from ddtrace.internal.native.exceptions import is_panic_exception
 
 
 log = logging.getLogger(__name__)
@@ -67,6 +68,14 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
             hook()
         except Exception:
             # Mimic the behaviour of Python's fork hooks.
+            log.exception("Exception ignored in forksafe hook %r", hook)
+        except BaseException as e:
+            # A native hook can raise pyo3_runtime.PanicException on a Rust
+            # panic. Left uncaught here, one panicking hook would abort this
+            # loop and silently skip every hook registered after it, so swallow
+            # that specific panic too; anything else still propagates.
+            if not is_panic_exception(e):
+                raise
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 

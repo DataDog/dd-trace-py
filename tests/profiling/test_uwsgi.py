@@ -241,6 +241,7 @@ def test_uwsgi_threads_processes_fork_hooks_no_primary(
 
     try:
         worker_pids = _get_worker_pids(proc.stdout, 2)
+        assert len(worker_pids) == 2, "expected 2 workers, saw %r" % worker_pids
         for pid in worker_pids:
             _wait_for_profile_samples(filename, pid, "wall-time")
     finally:
