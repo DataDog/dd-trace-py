@@ -1,10 +1,12 @@
 {
-  "id": "1-1",
   "createdAt": "2024-04-17T19:40:53.716Z",
   "format": "SERVER",
   "environment": {
-    "name": "Test"
+    "name": "Test",
+    "unknownEnvironmentField": "ignored"
   },
+  "unknownTopLevelField": "ignored",
+  "unknownTopLevelNull": null,
   "flags": {
     "empty_flag": {
       "key": "empty_flag",
@@ -79,9 +81,59 @@
         "test": {
           "key": "test",
           "value": "test"
+        },
+        "capturing-groups": {
+          "key": "capturing-groups",
+          "value": "capturing-groups"
+        },
+        "unicode-word-boundary": {
+          "key": "unicode-word-boundary",
+          "value": "unicode-word-boundary"
         }
       },
       "allocations": [
+        {
+          "key": "capturing-groups",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": "^([[:alnum:]._%+-]+)@capture\\.example$"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "capturing-groups",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "unicode-word-boundary",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "email",
+                  "operator": "MATCHES",
+                  "value": "(?u)\\bmañana\\b"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "unicode-word-boundary",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
         {
           "key": "partial-example",
           "rules": [
@@ -3068,6 +3120,521 @@
           "splits": [
             {
               "variationKey": "string_with_only_multiple_closing_parentheses",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "boolean-false-assignment": {
+      "key": "boolean-false-assignment",
+      "enabled": true,
+      "variationType": "BOOLEAN",
+      "variations": {
+        "false-variation": {
+          "key": "false-variation",
+          "value": false
+        },
+        "true-variation": {
+          "key": "true-variation",
+          "value": true
+        }
+      },
+      "allocations": [
+        {
+          "key": "disable-feature",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "should_disable_feature",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "true"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "false-variation",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "enable-feature",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "should_disable_feature",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "false"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "true-variation",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ],
+      "totalShards": 10000
+    },
+    "empty-string-variation": {
+      "key": "empty-string-variation",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "empty-content": {
+          "key": "empty-content",
+          "value": ""
+        },
+        "detailed-content": {
+          "key": "detailed-content",
+          "value": "detailed_content"
+        }
+      },
+      "allocations": [
+        {
+          "key": "minimal-content",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "content_type",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "minimal"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "empty-content",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "full-content",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "content_type",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "full"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "detailed-content",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ],
+      "totalShards": 10000
+    },
+    "falsy-value-assignments": {
+      "key": "falsy-value-assignments",
+      "enabled": true,
+      "variationType": "INTEGER",
+      "variations": {
+        "zero-limit": {
+          "key": "zero-limit",
+          "value": 0
+        },
+        "premium-limit": {
+          "key": "premium-limit",
+          "value": 100
+        }
+      },
+      "allocations": [
+        {
+          "key": "free-tier-limit",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "plan_tier",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "free"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "zero-limit",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "premium-tier-limit",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "plan_tier",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "premium"
+                  ]
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "premium-limit",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ],
+      "totalShards": 10000
+    },
+    "empty-targeting-key-flag": {
+      "key": "empty-targeting-key-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": "on-value"
+        },
+        "off": {
+          "key": "off",
+          "value": "off-value"
+        }
+      },
+      "allocations": [
+        {
+          "key": "default-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "on",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "microsecond-date-test": {
+      "key": "microsecond-date-test",
+      "enabled": true,
+      "variationType": "STRING",
+      "variations": {
+        "expired": {
+          "key": "expired",
+          "value": "expired"
+        },
+        "active": {
+          "key": "active",
+          "value": "active"
+        },
+        "future": {
+          "key": "future",
+          "value": "future"
+        }
+      },
+      "allocations": [
+        {
+          "key": "expired-allocation",
+          "splits": [
+            {
+              "variationKey": "expired",
+              "shards": []
+            }
+          ],
+          "endAt": "2002-10-31T09:00:00.594321Z",
+          "doLog": true
+        },
+        {
+          "key": "future-allocation",
+          "splits": [
+            {
+              "variationKey": "future",
+              "shards": []
+            }
+          ],
+          "startAt": "2052-10-31T09:00:00.123456Z",
+          "doLog": true
+        },
+        {
+          "key": "active-allocation",
+          "splits": [
+            {
+              "variationKey": "active",
+              "shards": []
+            }
+          ],
+          "startAt": "2022-10-31T09:00:00.235982Z",
+          "endAt": "2050-10-31T09:00:00.987654Z",
+          "doLog": true
+        }
+      ]
+    },
+    "unknown-fields-tolerance-flag": {
+      "key": "unknown-fields-tolerance-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately contains unknown fields at every fixed-schema UFC level. SDKs must ignore those fields and evaluate the flag normally.",
+      "unknownFlagField": "ignored",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": "on",
+          "unknownVariationField": "ignored"
+        }
+      },
+      "allocations": [
+        {
+          "key": "unknown-fields-allocation",
+          "unknownAllocationField": "ignored",
+          "rules": [
+            {
+              "unknownRuleField": "ignored",
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "ONE_OF",
+                  "value": [
+                    "US"
+                  ],
+                  "unknownConditionField": "ignored"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "on",
+              "unknownSplitField": "ignored",
+              "shards": [
+                {
+                  "salt": "unknown-fields-tolerance-flag",
+                  "totalShards": 10000,
+                  "unknownShardField": "ignored",
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 10000,
+                      "unknownRangeField": "ignored"
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "operator-grease-flag": {
+      "key": "operator-grease-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag deliberately uses an unknown condition operator. SDKs must ignore this flag rather than falling through to the catch-all allocation or rejecting the whole config.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        },
+        "on": {
+          "key": "on",
+          "value": "on"
+        }
+      },
+      "allocations": [
+        {
+          "key": "grease-allocation",
+          "rules": [
+            {
+              "conditions": [
+                {
+                  "attribute": "country",
+                  "operator": "NOT_A_REAL_OPERATOR",
+                  "value": "anything"
+                }
+              ]
+            }
+          ],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        },
+        {
+          "key": "default-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "on",
+              "shards": []
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "malformed-allocations-flag": {
+      "key": "malformed-allocations-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: allocations must be an array, but this fixture uses a string to verify per-flag parse error isolation.",
+      "variations": {
+        "on": {
+          "key": "on",
+          "value": "on"
+        }
+      },
+      "allocations": "this-is-not-a-list"
+    },
+    "missing-split-shards-flag": {
+      "key": "missing-split-shards-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: split.shards is required even when the intended split is unsharded. SDKs must treat omitted shards differently from an explicit empty shards array.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        }
+      },
+      "allocations": [
+        {
+          "key": "malformed-split-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "trap"
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "overflow-total-shards-flag": {
+      "key": "overflow-total-shards-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: split.shards[].totalShards must fit in an unsigned 32-bit integer. SDKs must ignore this flag rather than overflowing or poisoning the whole config.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        }
+      },
+      "allocations": [
+        {
+          "key": "malformed-shard-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": [
+                {
+                  "salt": "overflow-total-shards-flag",
+                  "totalShards": 4294967296,
+                  "ranges": [
+                    {
+                      "start": 0,
+                      "end": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "negative-shard-range-start-flag": {
+      "key": "negative-shard-range-start-flag",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This flag is intentionally UFC-schema-invalid: split.shards[].ranges[].start must be an unsigned integer. SDKs must ignore this flag rather than treating a negative range as matching traffic.",
+      "variations": {
+        "trap": {
+          "key": "trap",
+          "value": "trap"
+        }
+      },
+      "allocations": [
+        {
+          "key": "malformed-shard-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "trap",
+              "shards": [
+                {
+                  "salt": "negative-shard-range-start-flag",
+                  "totalShards": 100,
+                  "ranges": [
+                    {
+                      "start": -1,
+                      "end": 1
+                    }
+                  ]
+                }
+              ]
+            }
+          ],
+          "doLog": true
+        }
+      ]
+    },
+    "valid-flag-after-invalid-config": {
+      "key": "valid-flag-after-invalid-config",
+      "enabled": true,
+      "variationType": "STRING",
+      "comment": "This valid neighbor proves malformed or unsupported flags do not poison the rest of the remote config.",
+      "variations": {
+        "expected": {
+          "key": "expected",
+          "value": "expected"
+        }
+      },
+      "allocations": [
+        {
+          "key": "default-allocation",
+          "rules": [],
+          "splits": [
+            {
+              "variationKey": "expected",
               "shards": []
             }
           ],
