@@ -376,6 +376,32 @@ def test_app_closing_event(telemetry_writer, test_agent_session, mock_time):
     validate_request_body(events[0], {}, "app-closing")
 
 
+def test_app_shutdown_sends_a_single_closing_flush(telemetry_writer, test_agent_session, mock_time):
+    """asserts the full lifecycle of an empty app sends exactly two telemetry requests
+
+    Regression test for the shutdown double-flush: app_shutdown() used to force a data flush
+    before stopping the worker, which emitted a spurious heartbeat batch
+    (["app-dependencies-loaded", "app-heartbeat"]) ahead of a separate ["app-closing"] batch.
+    The native stop() drains the buffered events itself, so an empty app must send only:
+      1. ["app-started"], emitted eagerly on start()
+      2. ["app-dependencies-loaded", "app-closing"], drained by stop()
+    """
+    telemetry_writer.app_started()
+    telemetry_writer.app_shutdown()
+
+    # get_requests() returns requests in reverse seq_id order. Restore
+    # chronological order and collapse each request into the list of the event
+    # types it carried.
+    requests = list(reversed(test_agent_session.get_requests(filter_heartbeats=False)))
+    batches = [
+        [payload["request_type"] for payload in req["body"]["payload"]]
+        if req["body"]["request_type"] == "message-batch"
+        else [req["body"]["request_type"]]
+        for req in requests
+    ]
+    assert batches == [["app-started"], ["app-dependencies-loaded", "app-closing"]], batches
+
+
 def test_add_integration(telemetry_writer, test_agent_session, mock_time):
     """asserts that add_integration() queues a valid telemetry request"""
     with override_global_config(dict(_telemetry_dependency_collection=False)):
