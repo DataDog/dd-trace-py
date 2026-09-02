@@ -382,6 +382,9 @@ class TelemetryWriter:
             self._deps_collector = None
         if self._worker is not None:
             try:
+                # NOTE: send_app_closing is currently ignored by the native worker
+                # (it always emits app-closing in the origin process); see
+                # TelemetryWorker.stop in ddtrace/internal/native/_native.pyi.
                 self._worker.stop(send_app_closing=get_parent_runtime_id() is None)
             except Exception:
                 log.debug("Failed to stop the native telemetry worker", exc_info=True)
@@ -853,11 +856,11 @@ class TelemetryWriter:
 
     def app_shutdown(self) -> None:
         if self._worker is not None:
-            # Final dependency/endpoint discovery + FLUSH. force_flush=True is required:
-            # the native Stop lifecycle only emits the observability batch (logs/metrics),
-            # not the app-events batch (dependencies/integrations/configs/endpoints), so the
-            # deps/endpoints discovered here must be flushed before stop() runs.
-            self.periodic(force_flush=True)
+            # The native stop() unconditionally drains the buffer and sends an
+            # app-closing event, so there's no need for an additional flush
+            # here (which would incur a hearbeat and an additional separate
+            # request for the final stop).
+            self.periodic(force_flush=False)
         self.disable()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
