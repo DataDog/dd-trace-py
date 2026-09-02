@@ -7,7 +7,7 @@ import pytest
 
 # project
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.aiopg.connection import AIOTracedCursor
 from ddtrace.contrib.internal.aiopg.patch import patch
 from ddtrace.contrib.internal.aiopg.patch import unpatch
@@ -47,7 +47,7 @@ class AiopgTestCase(AsyncioTestCase):
                 with pytest.raises(BlockingException):
                     await getattr(traced_cursor, method)("SELECT 1")
 
-            dispatch_event.assert_called_once_with(DbApiEvent(query="SELECT 1", span_name_prefix="postgres"))
+            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
             getattr(cursor, method).assert_not_awaited()
 
     @pytest.mark.asyncio

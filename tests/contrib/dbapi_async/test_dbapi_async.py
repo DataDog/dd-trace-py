@@ -1,7 +1,7 @@
 import mock
 import pytest
 
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.dbapi_async import FetchTracedAsyncCursor
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncCursor
@@ -42,7 +42,7 @@ class TestTracedAsyncCursor(AsyncioTestCase):
                         "SELECT 1"
                     )
 
-            dispatch_event.assert_called_once_with(DbApiEvent(query="SELECT 1", span_name_prefix="postgres"))
+            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
             getattr(self.cursor, method).assert_not_awaited()
 
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))

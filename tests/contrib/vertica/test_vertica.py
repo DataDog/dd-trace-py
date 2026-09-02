@@ -5,7 +5,7 @@ from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.vertica.patch import _dispatch_query_event
 from ddtrace.contrib.internal.vertica.patch import patch
 from ddtrace.contrib.internal.vertica.patch import unpatch
@@ -68,7 +68,7 @@ class TestVerticaPatching(TracerTestCase):
                 with pytest.raises(BlockingException):
                     _dispatch_query_event(method, args, {})
 
-            dispatch_event.assert_called_once_with(DbApiEvent(query=args[0], span_name_prefix="vertica"))
+            dispatch_event.assert_called_once_with(DbQueryEvent(query=args[0], span_name_prefix="vertica"))
 
     def test_non_string_query_does_not_dispatch_event(self):
         with mock.patch.object(core, "dispatch_event") as dispatch_event:

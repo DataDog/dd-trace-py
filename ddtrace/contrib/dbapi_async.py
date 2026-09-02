@@ -1,7 +1,7 @@
 import inspect
 
 from ddtrace import config
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -99,7 +99,7 @@ class TracedAsyncCursor(TracedCursor):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
         if isinstance(query, str):
-            core.dispatch_event(DbApiEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -120,7 +120,7 @@ class TracedAsyncCursor(TracedCursor):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
         if isinstance(query, str):
-            core.dispatch_event(DbApiEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects

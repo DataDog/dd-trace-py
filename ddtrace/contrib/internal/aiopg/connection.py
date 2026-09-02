@@ -8,7 +8,7 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -64,7 +64,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
         if isinstance(query, str):
-            core.dispatch_event(DbApiEvent(query=query, span_name_prefix="postgres"))
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
         result = await self._trace_method(
             self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
         )
@@ -72,7 +72,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
     async def execute(self, query, *args, **kwargs):
         if isinstance(query, str):
-            core.dispatch_event(DbApiEvent(query=query, span_name_prefix="postgres"))
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
         result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
         return result
 

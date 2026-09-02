@@ -6,7 +6,7 @@ import pymysql
 import pytest
 
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.aiomysql.patch import AIOTracedCursor
 from ddtrace.contrib.internal.aiomysql.patch import patch
 from ddtrace.contrib.internal.aiomysql.patch import unpatch
@@ -73,7 +73,7 @@ async def test_query_is_blocked_before_execution() -> None:
             with pytest.raises(BlockingException):
                 await getattr(traced_cursor, method)("SELECT 1")
 
-        dispatch_event.assert_called_once_with(DbApiEvent(query="SELECT 1", span_name_prefix="mysql"))
+        dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="mysql"))
         getattr(cursor, method).assert_not_awaited()
 
 

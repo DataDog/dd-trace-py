@@ -7,7 +7,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -37,7 +37,7 @@ def _dispatch_query_event(patch_routine, args, kwargs):
         return
 
     if isinstance(query, str):
-        core.dispatch_event(DbApiEvent(query=query, span_name_prefix="vertica"))
+        core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="vertica"))
 
 
 _PATCHED = False
