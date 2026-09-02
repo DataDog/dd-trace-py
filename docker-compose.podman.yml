@@ -78,6 +78,20 @@ services:
           # sccache intermittently loses temporary compiler files in the Bits Podman environment.
           # TODO(dubloom): Re-enable it after upgrading sccache in the testrunner image and validating the fix.
           DD_USE_SCCACHE: "${DD_USE_SCCACHE:-0}"
+          # Podman Compose is invoked with --http-proxy=false, so explicitly pass
+          # the remote runner's proxy settings to Riot's dependency installer.
+          HTTP_PROXY: "${HTTP_PROXY:-}"
+          HTTPS_PROXY: "${HTTPS_PROXY:-}"
+          NO_PROXY: "${NO_PROXY:-}"
+          # The remote proxy's issuing CA lives on the host. Mount it at a stable
+          # path inside the testrunner so Python, pip, and uv can verify TLS.
+          SSL_CERT_FILE: "/etc/ssl/certs/ddtrace-test-runner-ca.pem"
+          REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ddtrace-test-runner-ca.pem"
+          PIP_CERT: "/etc/ssl/certs/ddtrace-test-runner-ca.pem"
+          CURL_CA_BUNDLE: "/etc/ssl/certs/ddtrace-test-runner-ca.pem"
+          GIT_SSL_CAINFO: "/etc/ssl/certs/ddtrace-test-runner-ca.pem"
+        volumes:
+          - "${REQUESTS_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}:/etc/ssl/certs/ddtrace-test-runner-ca.pem:ro"
         network_mode: host
     localstack:
         network_mode: host
