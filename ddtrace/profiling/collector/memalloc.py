@@ -29,6 +29,13 @@ from ddtrace.profiling import collector
 
 LOG = logging.getLogger(__name__)
 
+# AIDEV-NOTE: Exact text of the RuntimeError _memalloc.stop() raises when the module was never
+# started (see PyErr_SetString(PyExc_RuntimeError, ...) in
+# ddtrace/profiling/collector/_memalloc.cpp). _rollback_start() below matches on this string to
+# tell "already stopped" apart from a real failure; keep both in sync if the native message
+# changes.
+_NOT_STARTED_ERROR = "the memalloc module was not started"
+
 
 class MemoryCollector:
     """Memory allocation collector."""
@@ -84,6 +91,14 @@ class MemoryCollector:
                 _memalloc.stop()
             except RuntimeError:
                 LOG.debug("Failed to stop memalloc profiling on shutdown", exc_info=True)
+
+    def _rollback_start(self) -> None:
+        if _memalloc is not None:
+            try:
+                _memalloc.stop()
+            except RuntimeError as error:
+                if str(error) != _NOT_STARTED_ERROR:
+                    raise
 
     def snapshot(self) -> None:
         """Take a snapshot of collected data, to be exported."""

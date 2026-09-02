@@ -98,8 +98,7 @@ class StackCollector(collector.Collector):
         # TODO take the `threading` import out of here and just handle it in v2 startup
         threading.init_stack()
 
-        # Register only after every fallible initialization step. A failed collector is dropped without
-        # _stop_service(), so registering earlier could leave process-wide tracing listeners behind.
+        # Register only after every fallible initialization step so rollback can remove every listener.
         if self.tracer is not None:
             try:
                 core.on("ddtrace.context_provider.activate", self._link_span)

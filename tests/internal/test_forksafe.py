@@ -233,6 +233,192 @@ def test_event_fork():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess(timeout=15)
+def test_service_lock_is_reset_after_fork():
+    import os
+    import threading
+
+    from ddtrace.internal import service
+
+    class TestService(service.Service):
+        def _start_service(self):
+            pass
+
+        def _stop_service(self):
+            pass
+
+    test_service = TestService()
+    lock_acquired = threading.Event()
+    release_lock = threading.Event()
+
+    def hold_service_lock():
+        with test_service._service_lock:
+            lock_acquired.set()
+            release_lock.wait()
+
+    owner = threading.Thread(target=hold_service_lock)
+    owner.start()
+    assert lock_acquired.wait(1)
+
+    child = os.fork()
+    if child == 0:
+        acquired_in_child = test_service._service_lock.acquire(timeout=1)
+        os._exit(0 if acquired_in_child else 1)
+
+    release_lock.set()
+    owner.join(1)
+    assert not owner.is_alive()
+    _, status = os.waitpid(child, 0)
+    assert os.WIFEXITED(status)
+    assert os.WEXITSTATUS(status) == 0
+
+
+@pytest.mark.subprocess(timeout=15)
+def test_service_lock_held_by_forking_thread_unwinds_in_child():
+    import os
+    import threading
+
+    from ddtrace.internal import forksafe
+    from ddtrace.internal import service
+
+    class TestService(service.Service):
+        child_pid = None
+        start_count = 0
+
+        def _start_service(self):
+            self.start_count += 1
+            if self.start_count == 1:
+                self.child_pid = os.fork()
+
+        def _stop_service(self):
+            pass
+
+    test_service = TestService()
+    parent_pid = os.getpid()
+
+    def competing_acquire():
+        acquired = test_service._service_lock.acquire(blocking=False)
+        test_service.competing_thread_acquired_lock = acquired
+        if acquired:
+            test_service._service_lock.release()
+
+    def acquire_after_unwind():
+        acquired = test_service._service_lock.acquire(blocking=False)
+        test_service.post_unwind_thread_acquired_lock = acquired
+        if acquired:
+            test_service._service_lock.release()
+
+    @forksafe.register
+    def acquire_service_lock_in_child():
+        if os.getpid() == parent_pid:
+            return
+        acquired = test_service._service_lock.acquire(timeout=1)
+        if acquired:
+            test_service._service_lock.release()
+        test_service.child_hook_acquired_lock = acquired
+        test_service.competing_thread = threading.Thread(target=competing_acquire)
+        test_service.competing_thread.start()
+        test_service.competing_thread.join(1)
+
+    try:
+        test_service.start()
+    except RuntimeError:
+        if test_service.child_pid == 0:
+            os._exit(1)
+        raise
+
+    if test_service.child_pid == 0:
+        post_unwind_thread = threading.Thread(target=acquire_after_unwind)
+        post_unwind_thread.start()
+        post_unwind_thread.join(1)
+        child_ok = (
+            test_service.child_hook_acquired_lock
+            and not test_service.competing_thread.is_alive()
+            and not test_service.competing_thread_acquired_lock
+            and not post_unwind_thread.is_alive()
+            and test_service.post_unwind_thread_acquired_lock
+            and test_service.start_count == 1
+        )
+        os._exit(0 if child_ok else 1)
+
+    _, status = os.waitpid(test_service.child_pid, 0)
+    assert os.WIFEXITED(status)
+    assert os.WEXITSTATUS(status) == 0
+
+
+@pytest.mark.subprocess(timeout=15)
+def test_reset_lock_raw_acquire_held_by_forking_thread_unwinds_in_child():
+    import os
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    lock = forksafe.ResetLock()
+    lock.acquire()
+    child = os.fork()
+
+    if child == 0:
+        acquired_before_release = []
+        contender = threading.Thread(target=lambda: acquired_before_release.append(lock.acquire(blocking=False)))
+        contender.start()
+        contender.join(1)
+
+        lock.release()
+
+        acquired_after_release = []
+
+        def acquire_after_release():
+            acquired = lock.acquire(blocking=False)
+            acquired_after_release.append(acquired)
+            if acquired:
+                lock.release()
+
+        contender = threading.Thread(target=acquire_after_release)
+        contender.start()
+        contender.join(1)
+        child_ok = acquired_before_release == [False] and acquired_after_release == [True]
+        os._exit(0 if child_ok else 1)
+
+    lock.release()
+    _, status = os.waitpid(child, 0)
+    assert os.WIFEXITED(status)
+    assert os.WEXITSTATUS(status) == 0
+
+
+@pytest.mark.subprocess(timeout=15)
+def test_reset_lock_cross_thread_release_clears_fork_owner():
+    import os
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    lock = forksafe.ResetLock()
+    lock.acquire()
+    releaser = threading.Thread(target=lock.release)
+    releaser.start()
+    releaser.join(1)
+    assert not releaser.is_alive()
+
+    child = os.fork()
+    if child == 0:
+        acquired = []
+
+        def acquire_in_child():
+            did_acquire = lock.acquire(blocking=False)
+            acquired.append(did_acquire)
+            if did_acquire:
+                lock.release()
+
+        contender = threading.Thread(target=acquire_in_child)
+        contender.start()
+        contender.join(1)
+        os._exit(0 if acquired == [True] else 1)
+
+    _, status = os.waitpid(child, 0)
+    assert os.WIFEXITED(status)
+    assert os.WEXITSTATUS(status) == 0
+
+
 @pytest.mark.subprocess
 def test_double_fork():
     import os
@@ -373,6 +559,21 @@ def test_lock_pickle_roundtrip(serializer: ModuleType) -> None:
     restored: threading.Lock = serializer.loads(data)
 
     assert isinstance(restored, forksafe.ResetObject)
+    assert not isinstance(restored, forksafe.ResetLock)
+    assert restored.acquire(blocking=False) is True
+    restored.release()
+    assert restored in forksafe._resetable_objects
+
+
+@pytest.mark.parametrize("serializer", [pickle, cloudpickle], ids=["pickle", "cloudpickle"])
+def test_reset_lock_pickle_roundtrip(serializer: ModuleType) -> None:
+    lock = forksafe.ResetLock()
+    lock.acquire()
+
+    data = serializer.dumps(lock)
+    restored = serializer.loads(data)
+
+    assert isinstance(restored, forksafe.ResetLock)
     assert restored.acquire(blocking=False) is True
     restored.release()
     assert restored in forksafe._resetable_objects

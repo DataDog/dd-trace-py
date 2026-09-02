@@ -2,6 +2,7 @@
 An API to provide fork-safe functions.
 """
 
+from _thread import get_ident
 import functools
 import logging
 import os
@@ -152,6 +153,66 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     # unpicklable for locks; override it so the picklers use __reduce__ above.
     def __reduce_ex__(self, protocol: "typing.SupportsIndex") -> "typing.Tuple[type, typing.Tuple[type[_T]]]":  # noqa: UP006
         return self.__reduce__()
+
+
+class ResetLock(ResetObject[_unpatched.threading_Lock]):
+    """A lock that resets after fork while active contexts unwind safely."""
+
+    def __init__(self) -> None:
+        super().__init__(_unpatched.threading_Lock)
+        # AIDEV-NOTE: A primitive Lock can be released by a thread other than its acquirer, so
+        # ownership is a single value that every successful release clears. The separate fork
+        # depth only makes the inherited acquisition reentrant for the forking thread while
+        # child hooks and the pre-fork call stack unwind.
+        self._self_owner: typing.Optional[int] = None
+        self._self_fork_owner: typing.Optional[int] = None
+        self._self_fork_depth = 0
+
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+        thread_id = get_ident()
+        if self._self_fork_owner == thread_id:
+            self._self_fork_depth += 1
+            return True
+        acquired = self.__wrapped__.acquire(blocking, timeout)
+        if acquired:
+            self._self_owner = thread_id
+        return acquired
+
+    def release(self) -> None:
+        self._self_owner = None
+        if self._self_fork_owner is not None:
+            self._self_fork_depth -= 1
+            if self._self_fork_depth == 0:
+                self._self_fork_owner = None
+                self.__wrapped__.release()
+            return
+        self.__wrapped__.release()
+
+    def __enter__(self) -> typing.Any:
+        return self.acquire()
+
+    def __exit__(self, *args: typing.Any) -> typing.Any:
+        self.release()
+        return None
+
+    def __reduce__(self) -> typing.Any:
+        return (ResetLock, ())
+
+    def _reset_object(self) -> None:
+        thread_id = get_ident()
+        if self._self_fork_owner == thread_id:
+            fork_depth = self._self_fork_depth
+        else:
+            fork_depth = int(self._self_owner == thread_id)
+        super()._reset_object()
+        self._self_owner = None
+        self._self_fork_owner = None
+        self._self_fork_depth = 0
+        if fork_depth:
+            self.__wrapped__.acquire()
+            self._self_owner = thread_id
+            self._self_fork_owner = thread_id
+            self._self_fork_depth = fork_depth
 
 
 _resetable_objects: weakref.WeakSet[ResetObject] = weakref.WeakSet()

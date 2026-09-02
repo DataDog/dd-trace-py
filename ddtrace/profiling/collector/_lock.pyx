@@ -607,6 +607,15 @@ class LockCollector(collector.CaptureSamplerCollector):
             ModuleWatchdog.unregister_module_hook(self.MODULE.__name__, self._reimport_hook)
             self._reimport_hook = None
 
+    def _rollback_start(self) -> None:
+        # AIDEV-NOTE: unpatch() sets the module attribute to self._original_lock. If _start_service
+        # failed before patch() ever ran (e.g. _c_initialize_gevent_support() raised), that field is
+        # still None, so the default Collector._rollback_start()'s _stop_service() -> unpatch() call
+        # would clobber the module attribute with None instead of leaving it untouched.
+        if self._original_lock is None:
+            return
+        super()._rollback_start()
+
     def patch(self) -> None:
         """Patch the module for tracking lock allocation."""
         original_lock: Callable[..., Any] = self._get_patch_target()

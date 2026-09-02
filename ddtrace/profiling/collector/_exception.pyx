@@ -147,6 +147,7 @@ cpdef void _on_exception(object code, int instruction_offset, object exception):
     finally:
         _collecting = False
 
+
 class ExceptionCollector(collector.Collector):
     """Collects exception samples using sys.monitoring (Python 3.12+)."""
 
@@ -167,22 +168,33 @@ class ExceptionCollector(collector.Collector):
             return
 
         if HAS_MONITORING:
+            state = _SamplerState(self._sampling_interval, self._collect_message)
+            monitoring_claimed = False
             try:
                 # Claim the tool ID *before* writing _state so that a ValueError
                 # (tool ID already in use) leaves the existing _state untouched.
                 sys.monitoring.use_tool_id(_MONITORING_TOOL_ID, "dd-trace-exception-profiler")
+                monitoring_claimed = True
+                self._monitoring_registered = True
                 sys.monitoring.set_events(_MONITORING_TOOL_ID, sys.monitoring.events.RAISE)
                 sys.monitoring.register_callback(
                     _MONITORING_TOOL_ID,
                     sys.monitoring.events.RAISE,
                     _on_exception,
                 )
-            except ValueError:
+            except ValueError as e:
                 LOG.exception("Failed to set up exception monitoring")
-                return
+                if monitoring_claimed:
+                    self._stop_service()
+                # AIDEV-NOTE: Raise instead of returning so Service.start() does not mark this
+                # collector RUNNING when monitoring was never actually installed (e.g. the tool ID
+                # is still held by a previous instance that failed to free it on stop).
+                raise collector.CollectorUnavailable from e
+            except BaseException:
+                self._stop_service()
+                raise
 
-            _state = _SamplerState(self._sampling_interval, self._collect_message)
-            self._monitoring_registered = True
+            _state = state
         else:
             LOG.debug("Exception profiling only supports Python 3.12+, skipping")
             return
@@ -219,6 +231,8 @@ class ExceptionCollector(collector.Collector):
             sys.monitoring.free_tool_id(_MONITORING_TOOL_ID)
         except Exception:
             LOG.debug("Failed to free exception monitoring tool_id", exc_info=True)
-
-        self._monitoring_registered = False
-        _state = None
+            raise
+        else:
+            self._monitoring_registered = False
+        finally:
+            _state = None
