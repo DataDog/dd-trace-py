@@ -12,7 +12,8 @@ rule matches, the global ``DD_LLMOBS_SAMPLE_RATE`` is applied.
 Timing is the hard part. Tags land on the root span over its whole lifetime, but the decision must
 exist before anything leaves the process.
 
-The registry below decides the sampling decision as late as it safely can and then freezes:
+The resolver below decides the sampling decision as late as it safely can and then freezes it on
+the trace's root span:
 
 * At root start, only a floor is stamped -- the global rate, since no tag exists yet to match a
   rule on. This guarantees no span can ever ship without a decision.
@@ -29,7 +30,6 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Protocol
-import weakref
 
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
@@ -38,14 +38,12 @@ from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.threads import RLock
+from ddtrace.llmobs._constants import LLMOBS_ROOT_SPAN
+from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
 
 
 log = get_logger(__name__)
-
-# Ceiling on concurrently in-flight LLMObs traces awaiting a sampling decision. Once the cap is
-# reached, we stop registering, and those traces keep the default sampling decision from root start.
-MAX_PENDING_DECISIONS = 4096
 
 
 class _Sampleable(Protocol):
@@ -174,33 +172,19 @@ class LLMObsSampler:
         return f"LLMObsSampler(sample_rate={self.sample_rate}, rules={self.rules!r})"
 
 
-class _PendingDecision:
-    """One in-flight LLMObs trace's sampling decision: unresolved, then frozen."""
+class LLMObsSamplingResolver:
+    """Resolves each LLMObs trace's decision once, storing it on the trace's root span.
 
-    __slots__ = ("_root", "sample_rate", "sampling_decision")
-
-    def __init__(self, root: Any) -> None:
-        # Weak, so an abandoned root cannot keep its span graph alive through this registry.
-        self._root = weakref.ref(root)
-        self.sample_rate: Optional[str] = None
-        self.sampling_decision: Optional[str] = None
-
-    @property
-    def root(self) -> Optional[Any]:
-        return self._root()
-
-    @property
-    def resolved(self) -> bool:
-        return self.sampling_decision is not None
-
-
-class LLMObsSamplingRegistry:
-    """Tracks in-flight LLMObs traces and resolves each one's decision exactly once."""
+    The frozen decision lives in a ctx item on the root rather than in its meta_struct, because
+    a partial flush scrubs the meta_struct while later chunks of the same trace still need to
+    read the decision. Ctx items are never serialized and are never scrubbed.
+    """
 
     def __init__(self, sampler: LLMObsSampler, tags_getter: Callable[[Any], Optional[dict[str, str]]]) -> None:
         self._sampler = sampler
         self._tags_getter = tags_getter
-        self._pending: dict[str, _PendingDecision] = {}
+        # resolve() is read-modify-write on the root, and two threads injecting at once must not
+        # produce two different decisions for one trace.
         self._lock = RLock()
 
     @staticmethod
@@ -210,53 +194,27 @@ class LLMObsSamplingRegistry:
     def default_decision(self, root: Any) -> tuple[str, str]:
         """The global-rate decision, stamped at root start.
 
-        Maintains the invariant that every span must carry some decision, so this stands in until ``resolve``
-        can overwrite it with a rule-aware one. It is also what a trace falls back to when the registry
-        cannot answer for it at all.
+        Maintains the invariant that every span must carry some decision, so this stands in until
+        ``resolve`` can overwrite it with a rule-aware one.
         """
         sampled, sample_rate = self._sampler.sample(root)
         return sample_rate, self._as_decision(sampled)
 
-    def register_root(self, llmobs_trace_id: str, root: Any) -> None:
-        """Note that an LLMObs trace has started, without deciding anything yet."""
-        with self._lock:
-            if len(self._pending) >= MAX_PENDING_DECISIONS:
-                log.debug(
-                    "LLMObs sampling registry is full (%d entries); trace %s keeps the global sample rate.",
-                    MAX_PENDING_DECISIONS,
-                    llmobs_trace_id,
-                )
-                return
-            self._pending[llmobs_trace_id] = _PendingDecision(root)
+    def resolve(self, span: Any) -> tuple[Optional[str], Optional[str]]:
+        """Return this trace's frozen ``(sample_rate, sampling_decision)``, computing it once.
 
-    def resolve(self, llmobs_trace_id: Optional[str]) -> tuple[Optional[str], Optional[str]]:
-        """Return this trace's ``(sample_rate, sampling_decision)``, computing it on first call.
-
-        Returns ``(None, None)`` when the trace is unknown here — a trace continued from another
-        process, or one dropped past the registry cap. Callers fall back accordingly.
+        Returns ``(None, None)`` for a span with no local root -- a trace continued from another
+        process, whose decision was frozen there and inherited. Callers fall back accordingly.
         """
-        if llmobs_trace_id is None:
+        root = span._get_ctx_item(LLMOBS_ROOT_SPAN)
+        if root is None:
             return None, None
         with self._lock:
-            pending = self._pending.get(llmobs_trace_id)
-            if pending is None:
-                return None, None
-            if pending.resolved:
-                return pending.sample_rate, pending.sampling_decision
-            root = pending.root
-            if root is None:
-                # Root was garbage collected before anything needed the decision.
-                return None, None
+            frozen: Optional[tuple[str, str]] = root._get_ctx_item(LLMOBS_SAMPLING)
+            if frozen is not None:
+                return frozen
             sampled, sample_rate = self._sampler.sample(root, self._tags_getter(root) or {})
-            pending.sample_rate = sample_rate
-            pending.sampling_decision = self._as_decision(sampled)
-            return pending.sample_rate, pending.sampling_decision
-
-    def discard(self, llmobs_trace_id: str) -> None:
-        """Forget a trace once its spans have been stamped and routed."""
-        with self._lock:
-            self._pending.pop(llmobs_trace_id, None)
-
-    def clear(self) -> None:
-        with self._lock:
-            self._pending.clear()
+            frozen = (sample_rate, self._as_decision(sampled))
+            root._set_ctx_item(LLMOBS_SAMPLING, frozen)
+            log.debug("LLMObs sampling resolved for %s: %s", root, frozen)
+            return frozen

@@ -294,7 +294,7 @@ def llmobs(
             llmobs_span_writer,
             tracer,
             keep_meta_struct=True,
-            sampling_registry=llmobs_service._instance._sampling_registry,
+            sampling_resolver=llmobs_service._instance._sampling_resolver,
         )
         try:
             yield llmobs_service

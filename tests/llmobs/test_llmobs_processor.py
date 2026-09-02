@@ -116,7 +116,7 @@ class TestExportModeKeepsMetaStruct:
             mock_writer = mock.MagicMock()
             llmobs_service._instance._llmobs_span_writer = mock_writer
             tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
-                mock_writer, tracer, sampling_registry=llmobs_service._instance._sampling_registry
+                mock_writer, tracer, sampling_resolver=llmobs_service._instance._sampling_resolver
             )
             with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
                 _annotate_llm_span(span)

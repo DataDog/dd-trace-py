@@ -2,10 +2,10 @@ import mock
 import pytest
 
 from ddtrace._trace.span import Span
+from ddtrace.llmobs._constants import LLMOBS_ROOT_SPAN
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
-from ddtrace.llmobs._sampler import MAX_PENDING_DECISIONS
 from ddtrace.llmobs._sampler import LLMObsSampler
-from ddtrace.llmobs._sampler import LLMObsSamplingRegistry
+from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._sampler import LLMObsSamplingRule
 from ddtrace.llmobs._utils import get_llmobs_tags
 
@@ -146,82 +146,65 @@ class TestLLMObsSamplerSampling:
         assert sampler.sample(_span(), {"env": "dev"}) == (True, "1")
 
 
-class TestLLMObsSamplingRegistry:
-    def _registry(self, sample_rate=1.0, rules=None):
-        return LLMObsSamplingRegistry(LLMObsSampler(sample_rate=sample_rate, rules=rules), get_llmobs_tags)
+class TestLLMObsSamplingResolver:
+    def _resolver(self, sample_rate=1.0, rules=None):
+        return LLMObsSamplingResolver(LLMObsSampler(sample_rate=sample_rate, rules=rules), get_llmobs_tags)
 
-    def test_unknown_trace_resolves_to_nothing(self):
-        registry = self._registry()
-        assert registry.resolve("deadbeef") == (None, None)
-        assert registry.resolve(None) == (None, None)
+    @staticmethod
+    def _rooted(span, root=None):
+        """Give a span the root pointer that _activate_llmobs_span would set."""
+        span._set_ctx_item(LLMOBS_ROOT_SPAN, root if root is not None else span)
+        return span
+
+    def test_span_without_a_local_root_resolves_to_nothing(self):
+        """A trace continued from another process inherits its decision instead."""
+        assert self._resolver().resolve(_span(tags={})) == (None, None)
 
     def test_default_decision_ignores_rules(self):
         """The floor is the global rate: at root start there are no tags to match a rule on."""
-        registry = self._registry(sample_rate=1.0, rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        assert registry.default_decision(_span(tags={"tier": "gold"})) == ("1", "1")
+        resolver = self._resolver(sample_rate=1.0, rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
+        assert resolver.default_decision(_span(tags={"tier": "gold"})) == ("1", "1")
 
     def test_default_decision_follows_the_global_rate(self):
-        assert self._registry(sample_rate=0.0).default_decision(_span()) == ("0", "0")
-        assert self._registry(sample_rate=1.0).default_decision(_span()) == ("1", "1")
+        assert self._resolver(sample_rate=0.0).default_decision(_span()) == ("0", "0")
+        assert self._resolver(sample_rate=1.0).default_decision(_span()) == ("1", "1")
 
     def test_resolve_uses_tags_present_at_resolve_time(self):
         """The whole point: tags set after the root started still affect the decision."""
-        registry = self._registry(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        span = _span(tags={})
-        registry.register_root("t1", span)
-        # Tag lands after registration, as LLMObs.annotate() would do.
-        span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.TAGS]["tier"] = "gold"
-        assert registry.resolve("t1") == ("0", "0")
+        resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
+        root = self._rooted(_span(tags={}))
+        # Tag lands after activation, as LLMObs.annotate() would do.
+        root._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.TAGS]["tier"] = "gold"
+        assert resolver.resolve(root) == ("0", "0")
 
     def test_decision_is_frozen_after_first_resolve(self):
-        registry = self._registry(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        span = _span(tags={})
-        registry.register_root("t1", span)
-        first = registry.resolve("t1")
+        resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
+        root = self._rooted(_span(tags={}))
+        first = resolver.resolve(root)
         assert first == ("1", "1")  # no tag yet, so the global rate applied
-        # A later tag must not revise a decision that may already have shipped.
-        span._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.TAGS]["tier"] = "gold"
-        assert registry.resolve("t1") == first
+        root._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.TAGS]["tier"] = "gold"
+        assert resolver.resolve(root) == first
 
-    def test_discard_forgets_the_trace(self):
-        registry = self._registry()
-        span = _span(tags={})
-        registry.register_root("t1", span)
-        assert registry.resolve("t1") != (None, None)
-        registry.discard("t1")
-        assert registry.resolve("t1") == (None, None)
+    def test_child_resolves_through_its_root_pointer(self):
+        resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
+        root = self._rooted(_span(tags={"tier": "gold"}))
+        child = self._rooted(_span(tags={}), root=root)
+        assert resolver.resolve(child) == ("0", "0")
 
-    def test_clear_forgets_everything(self):
-        registry = self._registry()
-        span = _span(tags={})
-        registry.register_root("t1", span)
-        registry.clear()
-        assert registry.resolve("t1") == (None, None)
+    def test_frozen_decision_survives_the_meta_struct_scrub(self):
+        """A partial flush scrubs the root's meta_struct while later chunks still need the
+        decision, which is why the frozen value lives in a ctx item.
+        """
+        resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
+        root = self._rooted(_span(tags={"tier": "gold"}))
+        child = self._rooted(_span(tags={}), root=root)
+        assert resolver.resolve(root) == ("0", "0")
+        root._remove_struct_tag(LLMOBS_STRUCT.KEY)  # what LLMObsProcessor._scrub does
+        assert resolver.resolve(child) == ("0", "0")
 
     def test_traces_are_independent(self):
-        registry = self._registry(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        gold, free = _span(tags={"tier": "gold"}), _span(tags={"tier": "free"})
-        registry.register_root("t1", gold)
-        registry.register_root("t2", free)
-        assert registry.resolve("t1") == ("0", "0")
-        assert registry.resolve("t2") == ("1", "1")
-
-    def test_registry_is_capped(self):
-        registry = self._registry()
-        spans = [_span(tags={}) for _ in range(MAX_PENDING_DECISIONS + 5)]
-        for i, span in enumerate(spans):
-            registry.register_root(f"t{i}", span)
-        assert registry.resolve(f"t{MAX_PENDING_DECISIONS - 1}") != (None, None)
-        # Past the cap nothing is tracked, so those traces fall back rather than growing the dict.
-        assert registry.resolve(f"t{MAX_PENDING_DECISIONS + 4}") == (None, None)
-
-    def test_collected_root_resolves_to_nothing(self):
-        """An abandoned root must not be kept alive by the registry."""
-        import gc
-
-        registry = self._registry()
-        span = _span(tags={})
-        registry.register_root("t1", span)
-        del span
-        gc.collect()
-        assert registry.resolve("t1") == (None, None)
+        resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
+        gold = self._rooted(_span(tags={"tier": "gold"}))
+        free = self._rooted(_span(tags={"tier": "free"}))
+        assert resolver.resolve(gold) == ("0", "0")
+        assert resolver.resolve(free) == ("1", "1")

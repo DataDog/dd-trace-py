@@ -76,6 +76,7 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LLMOBS_ROOT_SPAN
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -144,7 +145,7 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._sampler import LLMObsSampler
-from ddtrace.llmobs._sampler import LLMObsSamplingRegistry
+from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -625,7 +626,7 @@ class LLMObs(Service):
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
         self._sampler = LLMObsSampler(sample_rate=config._llmobs_sample_rate, rules=config._llmobs_sampling_rules)
-        self._sampling_registry = LLMObsSamplingRegistry(self._sampler, get_llmobs_tags)
+        self._sampling_resolver = LLMObsSamplingResolver(self._sampler, get_llmobs_tags)
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -843,9 +844,6 @@ class LLMObs(Service):
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
         self._llmobs_eval_metric_writer = self._llmobs_eval_metric_writer.recreate()
         self._evaluator_runner = self._evaluator_runner.recreate()
-        # The child inherited a snapshot of the parent's in-flight traces; none of them will ever
-        # finish here, so drop them rather than let them sit until the cap.
-        self._sampling_registry.clear()
         LLMObs._prompt_manager = None
         # The tracer's fork handler keeps whatever writer was active; we didn't swap it here,
         # so clear the flag to stop disable() reverting it in the child.
@@ -854,7 +852,7 @@ class LLMObs(Service):
             # Rebind: the processor holds the pre-fork writer whose worker thread is dead
             # after fork(), so leaving it would silently buffer rescued events in the child.
             self.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
-                self._llmobs_span_writer, self.tracer, sampling_registry=self._sampling_registry
+                self._llmobs_span_writer, self.tracer, sampling_resolver=self._sampling_resolver
             )
             self._start_service()
 
@@ -1050,7 +1048,7 @@ class LLMObs(Service):
             cls._instance.tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
                 cls._instance._llmobs_span_writer,
                 cls._instance.tracer,
-                sampling_registry=cls._instance._sampling_registry,
+                sampling_resolver=cls._instance._sampling_resolver,
             )
             cls._instance.start()
 
@@ -2472,10 +2470,10 @@ class LLMObs(Service):
         Called from the points where the decision is about to leave the process, so that what goes
         out is a real value rather than nothing. Idempotent: the first call freezes the answer.
         """
-        sample_rate, sampling_decision = self._sampling_registry.resolve(get_llmobs_trace_id(span))
+        sample_rate, sampling_decision = self._sampling_resolver.resolve(span)
         if sampling_decision is None:
-            # The registry only tracks traces rooted in this process. For one continued from
-            # upstream the decision was frozen there and inherited onto the span, so forward that.
+            # No local root: the trace was continued from upstream, where the decision was frozen
+            # and inherited onto this span. Forward that.
             return get_llmobs_sample_rate(span), get_llmobs_sampling_decision(span)
         return sample_rate, sampling_decision
 
@@ -2496,6 +2494,7 @@ class LLMObs(Service):
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
                 sample_rate = get_llmobs_sample_rate(llmobs_parent)
                 sampling_decision = get_llmobs_sampling_decision(llmobs_parent)
+                root_span = llmobs_parent._get_ctx_item(LLMOBS_ROOT_SPAN)
             else:
                 parent_ctx = llmobs_parent
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
@@ -2504,12 +2503,16 @@ class LLMObs(Service):
                 session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
+                # Continued from another process: the decision was frozen there and is
+                # inherited above, so there is no local root to resolve against.
+                root_span = None
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
             # Attach the default sampling decision to each span. LLMObsProcessor overwrites it with a
             # rule-aware decision once the tags are in.
-            sample_rate, sampling_decision = self._sampling_registry.default_decision(span)
+            sample_rate, sampling_decision = self._sampling_resolver.default_decision(span)
+            root_span = span
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         # Fall back to the trace-level default session when the parent chain carries none (e.g. a
@@ -2573,9 +2576,9 @@ class LLMObs(Service):
                 else sampling_decision
             ),
         )
-        if not llmobs_parent:
-            # Register root span before activating.
-            self._sampling_registry.register_root(llmobs_trace_id, span)
+        # The root points at itself, which is what distinguishes a locally-rooted trace from one
+        # whose decision arrived from upstream.
+        span._set_ctx_item(LLMOBS_ROOT_SPAN, root_span)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
         if span._local_root.get_tag("llmobs_trace_id") is None:

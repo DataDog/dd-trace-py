@@ -14,7 +14,7 @@ from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import LLMObsExportMode
-from ddtrace.llmobs._sampler import LLMObsSamplingRegistry
+from ddtrace.llmobs._sampler import LLMObsSamplingResolver
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._writer import LLMObsSpanWriter
@@ -25,9 +25,6 @@ if TYPE_CHECKING:
 
 
 log = get_logger(__name__)
-
-# Set by SpanAggregator.on_span_finish on the first span of a partially-flushed chunk.
-_PARTIAL_FLUSH_KEY = "_dd.py.partial_flush"
 
 __all__ = ["LLMObsProcessor"]
 
@@ -47,14 +44,14 @@ class LLMObsProcessor(TraceProcessor):
         llmobs_span_writer: LLMObsSpanWriter,
         tracer: "Tracer",
         keep_meta_struct: bool = False,
-        sampling_registry: Optional[LLMObsSamplingRegistry] = None,
+        sampling_resolver: Optional[LLMObsSamplingResolver] = None,
     ) -> None:
         super().__init__()
         self._llmobs_span_writer = llmobs_span_writer
         self._tracer = tracer
         self._apm_tracing_enabled = asbool(env.get("DD_APM_TRACING_ENABLED", "true"))
         self._keep_meta_struct = keep_meta_struct
-        self._sampling_registry = sampling_registry
+        self._sampling_resolver = sampling_resolver
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         drop_apm_trace = not self._apm_tracing_enabled or not self._tracer.enabled
@@ -77,10 +74,10 @@ class LLMObsProcessor(TraceProcessor):
         """Resolve each LLMObs trace in this chunk and write its decision onto every span.
 
         This is the last point at which the decision can still be influenced by the root's tags.
-        A trace the registry cannot answer for is left as it is, keeping either the
+        A trace the resolver cannot answer for is left as it is, keeping either the
         global-rate floor stamped at activation or a decision inherited from upstream.
         """
-        if self._sampling_registry is None:
+        if self._sampling_resolver is None:
             return
 
         groups: dict[str, list[Span]] = {}
@@ -90,21 +87,12 @@ class LLMObsProcessor(TraceProcessor):
             llmobs_trace_id = get_llmobs_trace_id(span)
             if llmobs_trace_id is not None:
                 groups.setdefault(llmobs_trace_id, []).append(span)
-        if not groups:
-            return
-
-        # A partial flush means more chunks of this APM trace are still coming, so the registry
-        # entries have to survive for them to read the same frozen decision.
-        is_partial_flush = trace[0]._get_numeric_attribute(_PARTIAL_FLUSH_KEY) is not None
-
-        for llmobs_trace_id, spans in groups.items():
-            sample_rate, sampling_decision = self._sampling_registry.resolve(llmobs_trace_id)
+        for spans in groups.values():
+            # Any span in the group carries the pointer to the trace's root.
+            sample_rate, sampling_decision = self._sampling_resolver.resolve(spans[0])
             if sample_rate is not None and sampling_decision is not None:
                 for span in spans:
                     self._write_sampling_decision(span, sample_rate, sampling_decision)
-            if not is_partial_flush:
-                # This APM trace is complete, so nothing more will ask about it.
-                self._sampling_registry.discard(llmobs_trace_id)
 
     @staticmethod
     def _write_sampling_decision(span: Span, sample_rate: str, sampling_decision: str) -> None:
