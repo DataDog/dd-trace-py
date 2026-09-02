@@ -9,12 +9,12 @@ from __future__ import annotations
 from enum import Enum
 import gc
 import time
+from typing import Callable
 from typing import NamedTuple
 from typing import Optional
 
 from ddtrace.internal import forksafe
 from ddtrace.internal._unpatched import threading_Lock
-from ddtrace.internal._unpatched import threading_RLock
 
 
 GEN_COUNT: int = 3
@@ -35,20 +35,28 @@ class GCPauseSnapshot(NamedTuple):
 class GCPauseMonitor:
     """Single gc.callbacks subscriber with refcounted install."""
 
-    _lock: threading_RLock
+    _lock: threading_Lock
     _refcount: int
     _fork_registered: bool
+    _gc_hook: Callable[[str, dict[str, int]], None]
+    _fork_hook: Callable[[], None]
     _start_ns: list[int]
     _count: int
     _total_ns: int
     _max_ns: int
 
     def __init__(self) -> None:
-        # RLock: snapshot_and_reset allocates and can reenter _on_gc. ResetObject
-        # replaces the lock after fork so the child does not inherit a held one.
-        self._lock: threading_RLock = forksafe.RLock()
+        # Forksafe because _on_gc runs on whichever thread triggered the collection,
+        # so a fork can inherit a lock held by a thread the child does not have.
+        # Non-reentrant is sufficient because no critical section below allocates a
+        # GC-tracked object while the callback is installed; see _gc_hook.
+        self._lock: threading_Lock = forksafe.Lock()
         self._refcount: int = 0
         self._fork_registered: bool = False
+        # Bind once. Evaluating self._on_gc builds a bound method, which is a
+        # GC-tracked allocation, and acquire/release must not allocate.
+        self._gc_hook: Callable[[str, dict[str, int]], None] = self._on_gc
+        self._fork_hook: Callable[[], None] = self.reset
         self._start_ns: list[int] = [0] * GEN_COUNT
         self._count: int = 0
         self._total_ns: int = 0
@@ -57,13 +65,18 @@ class GCPauseMonitor:
     def acquire(self) -> None:
         with self._lock:
             self._refcount += 1
-            if self._refcount == 1:
-                if self._on_gc not in gc.callbacks:
-                    gc.callbacks.append(self._on_gc)
+            if self._refcount != 1:
+                return
 
-                if not self._fork_registered:
-                    forksafe.register(self.reset)
-                    self._fork_registered = True
+            # Register first: forksafe.register is a functools.partial, so calling
+            # it builds an args tuple. Allocating after the callback is installed
+            # could start a collection that reenters _on_gc on this thread.
+            if not self._fork_registered:
+                forksafe.register(self._fork_hook)
+                self._fork_registered = True
+
+            if self._gc_hook not in gc.callbacks:
+                gc.callbacks.append(self._gc_hook)
 
     def release(self) -> None:
         with self._lock:
@@ -73,30 +86,35 @@ class GCPauseMonitor:
             self._refcount -= 1
             if self._refcount == 0:
                 try:
-                    gc.callbacks.remove(self._on_gc)
+                    gc.callbacks.remove(self._gc_hook)
                 except ValueError:
                     pass
 
                 # Drop in-flight starts so a later re-acquire cannot pair a
                 # new stop with a stale timestamp from before uninstall.
-                self._start_ns = [0] * GEN_COUNT
+                self._clear_starts()
                 self._clear_window()
 
     def reset(self) -> None:
         """Drop in-flight starts and the current window. Used after fork."""
         with self._lock:
-            self._start_ns = [0] * GEN_COUNT
+            self._clear_starts()
             self._clear_window()
 
     def snapshot_and_reset(self) -> GCPauseSnapshot:
-        # Copy primitives, then clear, then allocate. A reentrant GC callback
-        # during NamedTuple construction must land in the next window.
+        # Copy primitives under the lock and build the tuple outside it. Allocating
+        # can trigger a collection, and _on_gc would then run on this thread.
         with self._lock:
             n_pauses: int = self._count
             total_ns: int = self._total_ns
             max_ns: int = self._max_ns
             self._clear_window()
         return GCPauseSnapshot(n_pauses, total_ns, max_ns)
+
+    def _clear_starts(self) -> None:
+        # In place: rebinding to a fresh list would allocate while holding the lock.
+        for gen in range(GEN_COUNT):
+            self._start_ns[gen] = 0
 
     def _clear_window(self) -> None:
         self._count = 0
