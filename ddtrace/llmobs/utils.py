@@ -183,6 +183,9 @@ def extract_tool_definitions(tool_definitions: list[dict[str, Any]]) -> list[Too
     return validated_tool_definitions
 
 
+_MESSAGE_SCHEMA_KEYS = frozenset(("content", "role", "tool_calls", "tool_results", "audio_parts", "image_parts"))
+
+
 class Messages:
     def __init__(self, messages: Union[list[dict[str, Any]], dict[str, Any], str]):
         self.messages = []
@@ -233,6 +236,28 @@ class Messages:
                     raise TypeError("image_parts must be a list.")
                 formatted_image_parts = [_extract_image_part(image_part) for image_part in image_parts]
                 msg_dict["image_parts"] = formatted_image_parts
+
+            # Rebuilding from a whitelist drops anything else the caller sent. That has always been
+            # true for llm spans, where dropping a provider field like tool_call_id is expected, so
+            # warning there would be noise on every annotation. The case worth surfacing is new: a
+            # media key makes an arbitrary payload look like a message on a non-LLM span, and the
+            # collapsed value is derived from this stripped result, so the rest of it is lost from
+            # both representations at once.
+            #
+            # Wrapped because this is a diagnostic. Messages() sits under annotate's TypeError
+            # handler, so anything raised here would reject an otherwise valid message.
+            try:
+                if any(key in message for key in ("image_parts", "audio_parts")):
+                    unrecognized = [key for key in message if key not in _MESSAGE_SCHEMA_KEYS]
+                    if unrecognized:
+                        log.warning(
+                            "Dropping message keys %s: not part of the LLM Observability message "
+                            "schema. Record additional fields with LLMObs.annotate(metadata=...).",
+                            # Coerced before sorting: a mix of key types would otherwise raise.
+                            sorted(str(key) for key in unrecognized),
+                        )
+            except Exception:
+                log.debug("Failed to report dropped message keys.", exc_info=True)
 
             self.messages.append(msg_dict)
 

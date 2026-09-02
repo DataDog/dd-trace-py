@@ -1160,3 +1160,44 @@ def test_non_agent_decorators_ignore_version(llmobs, test_spans, mock_logs, deco
     assert "only supported on @agent" in mock_logs.warning.call_args[0][0]
     spans = [s for trace in test_spans.pop_traces() for s in trace if get_llmobs_span_kind(s)]
     assert "agent_version" not in get_llmobs_tags(spans[0])
+
+
+@pytest.mark.parametrize("decorator", [agent, workflow, task, tool])
+def test_non_llm_decorator_preserves_manual_media_output(llmobs, test_spans, decorator):
+    """Automatic output annotation must not clobber a manual media annotation.
+
+    Media lands on output.messages and leaves output.value unset, so a value-only guard reads it
+    as unannotated and the automatic value write then clears the messages.
+    """
+    media = [
+        {"content": "described", "role": "assistant", "image_parts": [{"mime_type": "image/png", "content": "QQ=="}]}
+    ]
+
+    @decorator()
+    def f():
+        llmobs.annotate(output_data=media)
+        return "returned"
+
+    f()
+    span = test_spans.pop()[0]
+    output = get_llmobs_output(span)
+    assert output.get("messages") == media
+    assert "QQ==" in str(output)
+
+
+@pytest.mark.parametrize("decorator", [agent, workflow, task, tool])
+@pytest.mark.parametrize("media_key", ["image_parts", "audio_parts"])
+def test_non_llm_decorator_argument_named_like_media_keeps_other_arguments(llmobs, test_spans, decorator, media_key):
+    """A traced function's arguments are a plain dict, not a message.
+
+    A parameter named image_parts or audio_parts must not divert the whole argument dict onto the
+    Messages path, which would drop every argument outside the message schema.
+    """
+
+    @decorator()
+    def f(**kwargs):
+        pass
+
+    f(**{media_key: [{"mime_type": "image/png", "content": "QQ=="}], "user_id": "123"})
+    span = test_spans.pop()[0]
+    assert "user_id" in get_llmobs_input_value(span)
