@@ -1,0 +1,4 @@
+fixes:
+  - |
+    tracing: Fixes missing trace context in synchronous FastAPI handlers that run in
+    AnyIO worker threads.

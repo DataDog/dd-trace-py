@@ -3878,6 +3878,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_ANYIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AIOHTTP_CLIENT_ENABLED": [
       {
         "implementation": "A",
