@@ -29,7 +29,7 @@ includes the `ddtrace/contrib/internal/<integration>/__init__.py` integration do
 `docs/integrations.rst` (required by `docs/contributing-integrations.rst`). When in doubt, grep
 `docs/` for the module.
 
-**Rendered docstrings** — write them in markdown, because they reach customers:
+**Rendered docstrings** — write them in reStructuredText, because they reach customers:
 
 ```python
 def enable(self, flush_interval: float = 1.0) -> None:
@@ -110,7 +110,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 
 | Skill                           | Trigger                                                                                                                                                                                                                                                                                |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `run-tests`                     | Running any tests or validating code changes. **Never run pytest directly.**                                                                                                                                                                                                           |
+| `run-tests`                     | Running any tests or validating code changes. **Always run pytest directly.**                                                                                                                                                                                                          |
 | `lint`                          | Formatting, style/type/security checks, or before committing. **Never skip before commits.**                                                                                                                                                                                           |
 | `releasenote`                   | Creating or updating release notes for the current branch.                                                                                                                                                                                                                             |
 | `find-cpython-usage`            | Investigating CPython API dependencies or adding a new Python version.                                                                                                                                                                                                                 |
