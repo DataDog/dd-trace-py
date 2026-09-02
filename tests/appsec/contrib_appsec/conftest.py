@@ -22,6 +22,7 @@ import threading  # noqa: E402
 import time  # noqa: E402
 
 import pytest  # noqa: E402
+import requests  # noqa: E402,F401
 
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
