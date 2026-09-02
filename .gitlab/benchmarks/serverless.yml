@@ -5,7 +5,7 @@ variables:
 benchmark-serverless:
   stage: benchmarks
   trigger:
-    project: DataDog/serverless-tools
+    project: $EXT_GITLAB_SERVERLESS_TOOLS
     branch: $SLS_CI_BRANCH
     strategy: depend
   needs:
