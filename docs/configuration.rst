@@ -1034,8 +1034,8 @@ Agent
          override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
          specific variants, likewise keeps OpenTelemetry data going to your own collector.
 
-         Health metrics are disabled in agentless mode, since they rely on the Agent. Profiling
-         and tracer flares always require an Agent.
+         Health metrics, profiling and tracer flares require an agent and thus have no effect
+         in agentless mode.
 
      version_added:
         v4.13.0:
