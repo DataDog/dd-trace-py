@@ -40,7 +40,7 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
-        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
+        ./scripts/riot_run_with_install_retry.py ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."

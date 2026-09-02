@@ -23,7 +23,7 @@ import datetime
 import hashlib
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 import typing as t
 
 
@@ -73,6 +73,9 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
+    # Pull the riot pip cache but skip the S3 upload. Torch CUDA wheels are too
+    # large to push; omitting the cache block (the old skip_pip_cache behavior)
+    # also dropped downloads. GitLab policy: pull is download-only.
     skip_pip_cache: bool = False
     suite: t.Optional[str] = None
     uses_uv: bool = False
@@ -150,13 +153,19 @@ class JobSpec:
         if not self.uses_uv:
             env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
             env["PIP_CACHE_KEY"] = (
-                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+                subprocess.check_output(  # nosec B603
+                    [".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]
+                )
+                .decode()
+                .strip()
             )
-        if not self.uses_uv and not self.skip_pip_cache:
+        if not self.uses_uv:
             lines.append("  cache:")
             lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
+            if self.skip_pip_cache:
+                lines.append("    policy: pull")
 
         lines.append("  variables:")
         for key, value in env.items():

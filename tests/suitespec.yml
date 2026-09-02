@@ -224,6 +224,7 @@ suites:
       - '@vendor'
       - ddtrace/internal/*
       - scripts/gen_gitlab_config.py
+      - scripts/riot_run_with_install_retry.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
