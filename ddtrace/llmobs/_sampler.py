@@ -183,8 +183,6 @@ class LLMObsSamplingResolver:
     def __init__(self, sampler: LLMObsSampler, tags_getter: Callable[[Any], Optional[dict[str, str]]]) -> None:
         self._sampler = sampler
         self._tags_getter = tags_getter
-        # resolve() is read-modify-write on the root, and two threads injecting at once must not
-        # produce two different decisions for one trace.
         self._lock = RLock()
 
     @staticmethod

@@ -22,12 +22,7 @@ class LLMObsExportMode(str, Enum):
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
-# Ctx items backing head sampling. Both live in span._store, which is never serialized and
-# survives the meta_struct scrub, so a trace's decision outlives its root span shipping.
-# LLMOBS_ROOT_SPAN is set on every locally-rooted span (the root points at itself); its absence
-# marks a span whose decision was inherited from another process.
 LLMOBS_ROOT_SPAN = "_llmobs.root_span"
-# Set on the root once resolved. Presence is the frozen marker; the value is (rate, decision).
 LLMOBS_SAMPLING = "_llmobs.sampling"
 
 
