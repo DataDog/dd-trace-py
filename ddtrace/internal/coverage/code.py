@@ -25,6 +25,8 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
+from ddtrace.internal.utils.paths import is_contained
+from ddtrace.internal.utils.paths import relative_path
 
 
 log = get_logger(__name__)
@@ -504,9 +506,8 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         for abs_path_str, lines in covered.items():
             abs_path = Path(abs_path_str)
-            path_str = (
-                str(abs_path.relative_to(workspace_path)) if abs_path.is_relative_to(workspace_path) else abs_path_str
-            )
+            relative = relative_path(abs_path, workspace_path)
+            path_str = relative if relative is not None else abs_path_str
 
             sorted_lines = [i for i, v in enumerate(sorted(lines.to_sorted_list())) if v == 1]
 
@@ -528,11 +529,11 @@ class ModuleCodeCollector(ModuleWatchdog):
             # Do not instrument dependencies vendored or installed under the workspace.
             return code
 
-        if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
+        if not any(is_contained(code_path, include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
             return code
 
-        if any(code_path.is_relative_to(exclude_path) for exclude_path in self._exclude_paths):
+        if any(is_contained(code_path, exclude_path) for exclude_path in self._exclude_paths):
             # Don't instrument code from standard library/site packages/etc.
             return code
 

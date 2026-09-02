@@ -12,6 +12,9 @@ import typing as t
 from ddtrace.internal.module import origin
 from ddtrace.internal.settings.third_party import config as tp_config
 from ddtrace.internal.utils.cache import callonce
+from ddtrace.internal.utils.paths import deepest_containing_root
+from ddtrace.internal.utils.paths import is_contained
+from ddtrace.internal.utils.paths import relative_parts
 
 
 LOG = logging.getLogger(__name__)
@@ -127,10 +130,20 @@ def get_version_for_package(name: str) -> str:
         return ""
 
 
-def _effective_root(rel_path: Path, parent: Path) -> str:
-    base = rel_path.parts[0]
+@cached(maxsize=256)
+def _is_regular_package(parent: Path, base: str) -> bool:
+    """Whether ``parent/base`` is a regular package (it ships an ``__init__.py``).
+
+    Keyed on the top-level name, not the caller's full relative path, which would
+    spend a cache entry per source file and almost never hit.
+    """
     root = parent / base
-    return base if root.is_dir() and (root / "__init__.py").exists() else "/".join(rel_path.parts[:2])
+    return root.is_dir() and (root / "__init__.py").exists()
+
+
+def _effective_root(rel_parts: tuple[str, ...], parent: Path) -> str:
+    base = rel_parts[0]
+    return base if _is_regular_package(parent, base) else "/".join(rel_parts[:2])
 
 
 # DEV: Since we can't lock on sys.path, these operations can be racy.
@@ -148,32 +161,21 @@ def resolve_sys_path() -> list[Path]:
     return _RESOLVED_SYS_PATH
 
 
-def _root_module(path: Path) -> str:
-    # Try the most likely prefixes first
+def _root_module(path: Path, resolved: Path) -> str:
+    # Most likely prefixes first, and against the resolved path to get the
+    # shortest relative one. The sys.path probe below keeps the path as given.
     for parent_path in (purelib_path, platlib_path):
-        try:
-            # Resolve the path to use the shortest relative path.
-            return _effective_root(path.resolve().relative_to(parent_path), parent_path)
-        except ValueError:
-            # Not relative to this path
-            pass
+        parts = relative_parts(resolved, parent_path)
+        if parts:
+            return _effective_root(parts, parent_path)
 
     # Try to resolve the root module using sys.path. We keep the shortest
     # relative path as the one more likely to give us the root module.
-    min_relative_path = max_parent_path = None
-    for parent_path in resolve_sys_path():
-        try:
-            relative = path.relative_to(parent_path)
-            if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
-                min_relative_path, max_parent_path = relative, parent_path
-        except ValueError:
-            pass
-
-    if min_relative_path is not None:
-        try:
-            return _effective_root(min_relative_path, t.cast(Path, max_parent_path))
-        except IndexError:
-            pass
+    hit = deepest_containing_root(path, resolve_sys_path())
+    if hit is not None:
+        parent_path, parts = hit
+        if parts:
+            return _effective_root(parts, parent_path)
 
     # Bazel runfiles support: we assume that these paths look like
     # /some/path.runfiles/<distribution_name>/site-packages/<root_module>/...
@@ -186,7 +188,37 @@ def _root_module(path: Path) -> str:
     raise ValueError(msg)
 
 
+def _normalized_dist_name(name: str) -> str:
+    """Normalize a distribution name for comparison (PEP 503-ish).
+
+    ``.dist-info`` / ``.egg-info`` directories escape the project name (dashes
+    become underscores), so fold ``-``, ``_`` and ``.`` to a single form and
+    lowercase before comparing (``google-cloud-storage`` == ``google_cloud_storage``).
+    """
+    return name.replace("-", "_").replace(".", "_").lower()
+
+
 @cached(maxsize=256)
+def _shipped_distributions(directory: Path) -> frozenset[str]:
+    """Normalized names of the distributions whose metadata ``directory`` ships.
+
+    One cached listing serves both callers below. Keying on the directory alone
+    is what allows that, and an install root is routinely large enough that
+    re-walking it per probe is worth avoiding.
+    """
+    try:
+        return frozenset(
+            # ``{name}-{version}.dist-info`` / ``{name}.egg-info``: the name part
+            # (escaped, so it never contains a dash) precedes the first dash.
+            _normalized_dist_name(child.name[: -len(child.suffix)].split("-", 1)[0])
+            for child in directory.iterdir()
+            if child.suffix in (".dist-info", ".egg-info")
+        )
+    except OSError:
+        # Not a directory, missing, or unreadable: ships nothing.
+        return frozenset()
+
+
 def _is_install_root(directory: Path) -> bool:
     """Whether ``directory`` ships any distribution metadata.
 
@@ -199,25 +231,7 @@ def _is_install_root(directory: Path) -> bool:
     unrelated dependency namespaces living in the same tree, so the match is
     additionally gated on distribution ownership in _install_root_owner.
     """
-    try:
-        if not directory.is_dir():
-            return False
-        for child in directory.iterdir():
-            if child.suffix in (".dist-info", ".egg-info"):
-                return True
-    except OSError:
-        return False
-    return False
-
-
-def _normalized_dist_name(name: str) -> str:
-    """Normalize a distribution name for comparison (PEP 503-ish).
-
-    ``.dist-info`` / ``.egg-info`` directories escape the project name (dashes
-    become underscores), so fold ``-``, ``_`` and ``.`` to a single form and
-    lowercase before comparing (``google-cloud-storage`` == ``google_cloud_storage``).
-    """
-    return name.replace("-", "_").replace(".", "_").lower()
+    return bool(_shipped_distributions(directory))
 
 
 def _root_ships_distribution(directory: Path, dist_name: str) -> bool:
@@ -227,20 +241,7 @@ def _root_ships_distribution(directory: Path, dist_name: str) -> bool:
     ``*.dist-info`` / ``*.egg-info`` is present) from an unrelated directory
     that merely happens to carry some other distribution's metadata.
     """
-    target = _normalized_dist_name(dist_name)
-    try:
-        children = list(directory.iterdir())
-    except OSError:
-        return False
-    for child in children:
-        if child.suffix not in (".dist-info", ".egg-info"):
-            continue
-        # ``{name}-{version}.dist-info`` / ``{name}.egg-info``: the name part
-        # (escaped, so it never contains a dash) precedes the first dash.
-        candidate = child.name[: -len(child.suffix)].split("-", 1)[0]
-        if _normalized_dist_name(candidate) == target:
-            return True
-    return False
+    return _normalized_dist_name(dist_name) in _shipped_distributions(directory)
 
 
 def _install_root_owner(path: Path, mapping: dict[str, Distribution]) -> t.Optional[Distribution]:
@@ -256,11 +257,9 @@ def _install_root_owner(path: Path, mapping: dict[str, Distribution]) -> t.Optio
     for parent_path in resolve_sys_path():
         if parent_path.name == "site-packages" or not _is_install_root(parent_path):
             continue
-        try:
-            relative = path.relative_to(parent_path)
-        except ValueError:
+        parts = relative_parts(path, parent_path)
+        if parts is None:
             continue
-        parts = relative.parts
         for end in range(len(parts), 0, -1):
             hit = mapping.get("/".join(parts[:end]))
             if hit is not None:
@@ -270,38 +269,27 @@ def _install_root_owner(path: Path, mapping: dict[str, Distribution]) -> t.Optio
     return None
 
 
-def _relative_to_known_root(path: Path) -> t.Optional[Path]:
-    """Return path relative to the site-packages-like root that contains it.
+def _relative_to_known_root(path: Path, resolved: Path) -> t.Optional[tuple[str, ...]]:
+    """Return path's components relative to the site-packages-like root containing it.
     Only trusted dependency roots are considered (purelib/platlib and
     site-packages dirs). Install roots outside site-packages are handled by
     _install_root_owner, which additionally verifies distribution ownership.
     Returns None when path is not under such a root.
     """
     for parent_path in (purelib_path, platlib_path):
-        try:
-            return path.resolve().relative_to(parent_path)
-        except ValueError:
-            pass
+        parts = relative_parts(resolved, parent_path)
+        if parts is not None:
+            return parts
 
-    min_relative_path: t.Optional[Path] = None
-    for parent_path in resolve_sys_path():
-        if parent_path.name != "site-packages":
-            continue
-        try:
-            relative = path.relative_to(parent_path)
-        except ValueError:
-            continue
-        if min_relative_path is None or len(relative.parents) < len(min_relative_path.parents):
-            min_relative_path = relative
-    if min_relative_path is not None:
-        return min_relative_path
+    hit = deepest_containing_root(path, (p for p in resolve_sys_path() if p.name == "site-packages"))
+    if hit is not None:
+        return hit[1]
 
     for s in path.parents:
         if s.parent.name == "site-packages":
-            try:
-                return path.relative_to(s.parent)
-            except ValueError:
-                pass
+            parts = relative_parts(path, s.parent)
+            if parts is not None:
+                return parts
     return None
 
 
@@ -405,6 +393,12 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
     try:
         path = Path(filename) if isinstance(filename, str) else filename
 
+        # Resolved once and threaded through both probes below, which used to
+        # resolve it each: this dominates the cost of a cache miss. Passed
+        # alongside the original rather than replacing it, because the sys.path
+        # probes must match on the path as given or symlinked entries are missed.
+        resolved = path.resolve()
+
         # Longest-prefix match against the mapping. Namespace distributions can
         # share an intermediate level (google/cloud/storage vs
         # google/cloud/bigquery), so the most specific (deepest) mapped prefix
@@ -412,9 +406,8 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
         # the siblings apart. The probe is anchored at the site-packages-relative
         # root, so a subpackage that happens to share a name with another
         # top-level dist cannot mismatch.
-        relative = _relative_to_known_root(path)
-        if relative is not None:
-            parts = relative.parts
+        parts = _relative_to_known_root(path, resolved)
+        if parts is not None:
             for end in range(len(parts), 0, -1):
                 hit = mapping.get("/".join(parts[:end]))
                 if hit is not None:
@@ -428,8 +421,7 @@ def filename_to_package(filename: t.Union[str, Path]) -> t.Optional[Distribution
         if owner is not None:
             return owner
 
-        # Avoid calling .resolve() on the path here to prevent breaking symlink matching in `_root_module`.
-        root_module_path = _root_module(path)
+        root_module_path = _root_module(path, resolved)
         if root_module_path in mapping:
             return mapping[root_module_path]
 
@@ -463,8 +455,8 @@ def is_stdlib(path: Path) -> bool:
     if not rpath.is_absolute() or rpath.is_symlink():
         rpath = rpath.resolve()
 
-    return (rpath.is_relative_to(stdlib_path) or rpath.is_relative_to(platstdlib_path)) and not (
-        rpath.is_relative_to(purelib_path) or rpath.is_relative_to(platlib_path)
+    return (is_contained(rpath, stdlib_path) or is_contained(rpath, platstdlib_path)) and not (
+        is_contained(rpath, purelib_path) or is_contained(rpath, platlib_path)
     )
 
 
