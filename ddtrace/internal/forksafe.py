@@ -70,10 +70,8 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
             # Mimic the behaviour of Python's fork hooks.
             log.exception("Exception ignored in forksafe hook %r", hook)
         except BaseException as e:
-            # A native hook can raise pyo3_runtime.PanicException on a Rust
-            # panic. Left uncaught here, one panicking hook would abort this
-            # loop and silently skip every hook registered after it, so swallow
-            # that specific panic too; anything else still propagates.
+            # A native hook can raise pyo3_runtime.PanicException. We handle it
+            # to allow other hooks to continue in this expected case.
             if not is_panic_exception(e):
                 raise
             log.exception("Exception ignored in forksafe hook %r", hook)
