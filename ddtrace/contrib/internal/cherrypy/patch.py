@@ -8,8 +8,11 @@ import cherrypy
 from cherrypy.lib.httputil import valid_status
 
 from ddtrace import config
+from ddtrace._trace.http_semantics import normalize_http_method
 from ddtrace._trace.http_semantics import set_method_tag
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
 from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -92,7 +95,10 @@ class TraceTool(cherrypy.Tool):
                 config.cherrypy,
             )
             set_method_tag(req_span, cherrypy.request.method)
-            set_instrumentation_resource(req_span, req_span.resource)
+            record_initial_instrumentation_resource(req_span, SPAN_NAME)
+            if config._otel_trace_semantics_enabled:
+                normalized_method, original_method = normalize_http_method(cherrypy.request.method)
+                set_otel_http_resource(req_span, normalized_method, original_method)
 
             ctx.set_item("req_span", req_span)
             core.dispatch("web.request.start", (ctx, config.cherrypy))

@@ -95,6 +95,7 @@ from ddtrace.trace import tracer
 
 log = get_logger(__name__)
 
+_DJANGO_OTEL_ROUTE_APPLIED = "_dd.django_otel_route_applied"
 _WEBSOCKET_LINK_ATTRS_EXECUTED = {SPAN_LINK_KIND: SpanLinkKind.EXECUTED}
 _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
@@ -746,7 +747,10 @@ def _on_django_func_wrapped(args, _unused2, _unused3, ctx, ignored_excs):
             request_span.span_type == SpanTypes.WEB
             and request_span.get_tag(COMPONENT) == config.django.integration_name
         ):
+            if request_span._get_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED) == route:
+                return
             trace_utils.set_http_meta(request_span, config.django, method=request.method, route=route)
+            request_span._set_ctx_item(_DJANGO_OTEL_ROUTE_APPLIED, route)
             return
         request_span = request_span._parent
 
@@ -788,10 +792,10 @@ def _on_django_after_request_headers_post(
         peer_ip=core.find_item("remote_addr"),
         headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
-        # Forward ``http.route`` so the AppSec normalized-route listener can fire from this hook. ``_set_resolver_tags``
-        # ran earlier inside ``_after_request_tags`` and put the route on the span already. The async path
-        # (``traced_get_response_async``) only reaches this hook — there's no equivalent of the sync
-        # ``django.finalize_response.pre`` dispatch — so without this forward Django/ASGI deployments would miss the
+        # Forward http.route so the AppSec normalized-route listener can fire from this hook. _set_resolver_tags
+        # ran earlier inside _after_request_tags and put the route on the span already. The async path
+        # (traced_get_response_async) only reaches this hook — there's no equivalent of the sync
+        # django.finalize_response.pre dispatch — so without this forward Django/ASGI deployments would miss the
         # tag. Sync requests fire the listener twice (here + finalize_response.pre) with the same value — idempotent.
         route=span.get_tag("http.route"),
     )

@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_wrapted
@@ -272,6 +273,26 @@ def _set_route_resource(span: Span, method: Optional[str], route: str) -> None:
         set_otel_http_resource(span, normalized_method, original_method, route)
 
 
+def _copy_server_url_attributes(source: Span, destination: Span) -> None:
+    if not config._otel_trace_semantics_enabled:
+        url_tag = server_url_tag()
+        destination.set_tag(url_tag, source.get_tag(url_tag))
+        return
+
+    for key in (
+        http.OTEL_URL_SCHEME,
+        http.OTEL_URL_PATH,
+        http.OTEL_URL_QUERY,
+        net.SERVER_ADDRESS,
+        net.SERVER_PORT,
+    ):
+        value = source.get_tag(key)
+        if value is None:
+            value = source.get_metric(key)
+        if value is not None:
+            destination._set_attribute(key, value)
+
+
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
@@ -363,8 +384,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
-        url_tag = server_url_tag()
-        request_spans[-1].set_tag(url_tag, request_spans[0].get_tag(url_tag))
+        _copy_server_url_attributes(request_spans[0], request_spans[-1])
 
     return wrapped(*args, **kwargs)
 

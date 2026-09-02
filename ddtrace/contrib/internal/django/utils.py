@@ -181,6 +181,7 @@ def get_request_uri(request):
 def _set_resolver_tags(pin, span, request):
     # Default to just the HTTP method when we cannot determine a reasonable resource
     resource = request.method
+    route = None
 
     try:
         # Get resolver match result and build resource name pieces
@@ -199,7 +200,6 @@ def _set_resolver_tags(pin, span, request):
         else:
             handler = func_name(resolver_match[0])
 
-        route = None
         # In Django >= 2.2.0 we can access the original route or regex pattern
         # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
         if DJANGO22:
@@ -243,6 +243,10 @@ def _set_resolver_tags(pin, span, request):
             exc_info=True,
         )
     finally:
+        if config._otel_trace_semantics_enabled:
+            normalized_method, _ = normalize_http_method(request.method)
+            resource = otel_http_resource(normalized_method, route)
+
         # Only update the resource name if it was not explicitly set
         # by anyone during the request lifetime
         otel_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)

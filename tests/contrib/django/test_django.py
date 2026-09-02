@@ -26,6 +26,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
+from ddtrace.contrib.internal.django.response import traced_resolve_request
 from ddtrace.contrib.internal.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
@@ -41,6 +42,19 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+
+
+def test_resolver_match_is_stored_before_appsec_dispatch():
+    request = mock.Mock()
+    resolver_match = mock.Mock()
+
+    def assert_match_is_available(*args, **kwargs):
+        assert request.resolver_match is resolver_match
+        raise RuntimeError("blocked")
+
+    with mock.patch("ddtrace.contrib.internal.django.response.core.dispatch", side_effect=assert_match_is_available):
+        with pytest.raises(RuntimeError, match="blocked"):
+            traced_resolve_request(lambda *_args, **_kwargs: resolver_match, (mock.Mock(), request), {})
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
@@ -71,6 +85,25 @@ def test_otel_semantics_substitutes_an_unaccepted_method_in_the_span_name():
         assert root.get_tag("http.request.method") == "_OTHER"
         assert root.get_tag("http.request.method_original") == "PROPFIND"
         assert root.resource == "HTTP ^fn-view/$"
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})
+def test_otel_semantics_normalizes_resource_when_response_creation_aborts():
+    from django.test import Client
+    from django.test import override_settings
+    import pytest
+
+    from tests.contrib.django.utils import setup_django_test_spans
+
+    with setup_django_test_spans() as test_spans:
+        with override_settings(DEBUG_PROPAGATE_EXCEPTIONS=True):
+            with pytest.raises(Exception, match="Error 500"):
+                Client().generic("PROPFIND", "/error-500/")
+
+        root = test_spans.get_root_span()
+        assert root.get_tag("http.request.method") == "_OTHER"
+        assert root.get_tag("http.route") == "^error-500/$"
+        assert root.resource == "HTTP ^error-500/$"
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_OTEL_SEMANTICS_ENABLED": "true"})

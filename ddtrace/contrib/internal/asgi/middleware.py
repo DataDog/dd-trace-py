@@ -297,7 +297,7 @@ class TraceMiddleware:
                     url = f"{url}?{query_string}"
                 if raw_url:
                     raw_url = f"{raw_url}?{query_string}"
-            if not self.integration_config.trace_query_string:
+            if not config._otel_trace_semantics_enabled and not self.integration_config.trace_query_string:
                 query_string = None
             # Body parsing is HTTP-only: sub-apps skip it (parent already handled it),
             # and websocket scopes must not have their receive() consumed here.
@@ -592,7 +592,11 @@ class TraceMiddleware:
         if span and message.get("type") == "http.response.start" and "status" in message:
             cookies = _parse_response_cookies(response_headers)
             status_code = message["status"]
-            if self.integration_config.obfuscate_404_resource and status_code == 404:
+            if (
+                self.integration_config.obfuscate_404_resource
+                and status_code == 404
+                and not config._otel_trace_semantics_enabled
+            ):
                 set_instrumentation_resource(span, " ".join((method, "404")))
 
             trace_utils.set_http_meta(

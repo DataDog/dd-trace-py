@@ -354,6 +354,8 @@ def get_request_headers(environ: Mapping[str, str]) -> Mapping[str, str]:
 
 
 def default_wsgi_span_modifier(span, environ):
+    if config._otel_trace_semantics_enabled:
+        return
     set_instrumentation_resource(span, "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"]))
 
 

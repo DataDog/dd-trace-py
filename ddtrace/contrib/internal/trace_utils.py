@@ -469,10 +469,9 @@ def set_http_meta(
     :param response_headers: the HTTP response headers
     :param raw_uri: the full raw HTTP URI (including ports and query)
     :param request_cookies: the HTTP request cookies as a dict
-    :param request_path_params: the parameters of the HTTP URL as set by the framework. Polymorphic: a mapping of
-        ``{name: value}`` for frameworks that bind named parameters (Django ``resolver_match.kwargs``, Flask
-        ``view_args``, ...), or a positional sequence of values for regex routes with only unnamed captures (Django
-        ``resolver_match.args``, Tornado ``path_args``).
+    request_path_params accepts a mapping of named parameters (for example,
+    Django resolver_match.kwargs or Flask view_args) or a positional sequence
+    for regex routes with unnamed captures.
 
     """
     otel_http = OTelHTTPSpanAttributes(span, integration_config) if config._otel_trace_semantics_enabled else None

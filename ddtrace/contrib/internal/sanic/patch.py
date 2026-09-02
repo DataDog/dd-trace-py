@@ -5,6 +5,7 @@ import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
 from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
@@ -119,7 +120,11 @@ async def patch_run_request_middleware(wrapped, instance, args, kwargs):
     request = args[0]
     span = _get_current_span(request)
     if span is not None:
-        set_instrumentation_resource(span, "{} {}".format(request.method, _get_path(request)))
+        route = _get_path(request)
+        if config._otel_trace_semantics_enabled:
+            trace_utils.set_http_meta(span, config.sanic, method=request.method, route=route)
+        else:
+            set_instrumentation_resource(span, "{} {}".format(request.method, route))
     return await wrapped(*args, **kwargs)
 
 
@@ -219,6 +224,7 @@ def _create_sanic_request_span(request):
         headers_case_sensitive=True,
     ) as ctx:
         req_span = span_from_context(ctx)
+        record_initial_instrumentation_resource(req_span, resource)
 
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.sanic))
@@ -254,7 +260,10 @@ async def sanic_http_routing_after(request, route, kwargs, handler):
     if route.regex:
         pattern = route.pattern
 
-    set_instrumentation_resource(span, "{} {}".format(request.method, pattern))
+    if config._otel_trace_semantics_enabled:
+        trace_utils.set_http_meta(span, config.sanic, method=request.method, route=pattern)
+    else:
+        set_instrumentation_resource(span, "{} {}".format(request.method, pattern))
     span._set_attribute("sanic.route.name", route.name)
 
 
