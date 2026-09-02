@@ -1570,6 +1570,10 @@ def _load_cassette_replay(cassette_name):
             "(streaming or error cassettes should not be in _E2E_REPLAY_CASSETTES)."
         )
     # Re-serialise as plain JSON so the SDK does not have to negotiate gzip.
+    # anthropic>=1.0.0 removed temperature from Messages.create(); strip it so
+    # cassettes recorded with older SDKs still round-trip on the current SDK.
+    if ANTHROPIC_VERSION >= (1, 0):
+        request.pop("temperature", None)
     return request, json.dumps(parsed).encode()
 
 
@@ -1582,7 +1586,10 @@ def anthropic_client_replay(anthropic_sdk):
     response for every request, which is sufficient for single-call cassette
     replays.
     """
-    import httpx
+    try:
+        import httpx
+    except ImportError:
+        import httpx2 as httpx  # anthropic>=1.0.0 ships httpx2 instead of httpx
 
     def _factory(response_bytes):
         class _ReplayTransport(httpx.BaseTransport):
