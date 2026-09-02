@@ -7,7 +7,6 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-import wrapt
 
 from ddtrace.contrib.internal.asyncio import _context_switch
 from ddtrace.contrib.internal.asyncio import _context_switch_uvloop
@@ -482,62 +481,12 @@ def test_uvloop_scheduling_hooks_follow_install_state(asyncio_patch_state, monke
 
     patch()
     assert _wrapper_state(uvloop) == installed
-    assert getattr(uvloop.Loop, _context_switch_uvloop._PATCH_MARKER, False) is fallback_required
 
     unpatch()
     assert _wrapper_state(uvloop) == unwrapped
-    assert not hasattr(uvloop.Loop, _context_switch_uvloop._PATCH_MARKER)
 
-    # Re-installing has to wrap again rather than assume the marker survived.
     patch()
     assert _wrapper_state(uvloop) == installed
-
-
-def test_uvloop_patch_failure_spares_the_asyncio_integration(asyncio_patch_state, monkeypatch):
-    """A uvloop that renamed a method loses its context switches, not the whole integration."""
-    uvloop = pytest.importorskip("uvloop")
-    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
-    real_wrap = wrapt.wrap_function_wrapper
-
-    def wrap_unless_uvloop_renamed_it(module, name, wrapper):
-        if name == "Loop.run_forever":
-            raise AttributeError("no such method, this uvloop calls it something else")
-        return real_wrap(module, name, wrapper)
-
-    monkeypatch.setattr(wrapt, "wrap_function_wrapper", wrap_unless_uvloop_renamed_it)
-
-    patch()
-
-    assert not any(_wrapper_state(uvloop).values())
-    assert not hasattr(uvloop.Loop, _context_switch_uvloop._PATCH_MARKER)
-    assert is_wrapped(asyncio.Handle._run)
-
-
-def test_uvloop_unpatch_keeps_another_librarys_wrapper(asyncio_patch_state, monkeypatch):
-    """Unwrapping whatever sits on top would remove another library's wrapper."""
-    uvloop = pytest.importorskip("uvloop")
-    monkeypatch.setattr(_context_switch, "context_switches_require_fallback", lambda: True)
-    foreign_calls = []
-
-    def foreign_wrapper(wrapped, _instance, args, kwargs):
-        foreign_calls.append(args[0])
-        return wrapped(*args, **kwargs)
-
-    patch()
-    wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon", foreign_wrapper)
-    loop = _new_uvloop_event_loop()
-    try:
-        unpatch()
-        loop.call_soon(loop.stop)
-        _run_uvloop(loop)
-
-        assert foreign_calls == [loop.stop]
-        # Ours stays underneath, so the marker is kept and a later patch must not re-wrap.
-        assert getattr(uvloop.Loop, _context_switch_uvloop._PATCH_MARKER, False)
-    finally:
-        loop.close()
-        uvloop.Loop.call_soon = uvloop.Loop.call_soon.__wrapped__
-        _context_switch_uvloop._unpatch(uvloop)
 
 
 @pytest.mark.parametrize("loop_factory", [asyncio.new_event_loop, _new_uvloop_event_loop], ids=["asyncio", "uvloop"])

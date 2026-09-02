@@ -20,7 +20,6 @@ In loop debug mode, the "created at" line of a Handle repr and of the slow-callb
 points at this module instead of at the code that scheduled the callback.
 """
 
-import asyncio
 from contextvars import Context
 from contextvars import copy_context
 import sys
@@ -33,20 +32,18 @@ import wrapt
 
 from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
-from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
+from ddtrace.internal.utils.wrappers import unwrap
 
 
 _installed = False
 _AMBIENT_CONTEXT_ATTR = "_dd_context_switch_ambient_context"
-_PATCH_MARKER = "_dd_context_switch_patch"
-log = get_logger(__name__)
 
 
 def install() -> None:
-    """Track uvloop imports so fallback runtimes can observe its scheduling boundaries."""
+    """Track uvloop imports when Python-level context-switch hooks are required."""
     global _installed
     if _installed:
         return
@@ -56,86 +53,40 @@ def install() -> None:
 
 
 def uninstall() -> None:
-    """Undo this module's process-wide wrappers before fallback shutdown."""
+    """Remove uvloop context-switch hooks when asyncio instrumentation is unpatched."""
     global _installed
     if not _installed:
         return
 
-    try:
-        ModuleWatchdog.unregister_module_hook("uvloop", _patch)
-        uvloop = sys.modules.get("uvloop")
-        if uvloop is not None:
-            _unpatch(uvloop)
-    finally:
-        # Cleared last, so that a wrapper left in place by a failed removal still stops publishing.
-        _installed = False
+    ModuleWatchdog.unregister_module_hook("uvloop", _patch)
+    uvloop = sys.modules.get("uvloop")
+    if uvloop is not None:
+        _unpatch(uvloop)
+    _installed = False
 
 
 def _patch(uvloop: ModuleType) -> None:
     """Install wrappers after uvloop imports without importing it proactively."""
-    if getattr(uvloop.Loop, _PATCH_MARKER, False):
-        return
-
-    # Marked before wrapping, so that _unpatch can undo a patch that fails halfway through.
-    setattr(uvloop.Loop, _PATCH_MARKER, True)
-    try:
-        wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon", _wrapped_call_soon)
-        wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon_threadsafe", _wrapped_call_soon_threadsafe)
-        wrapt.wrap_function_wrapper(uvloop, "Loop.call_later", _wrapped_call_later)
-        wrapt.wrap_function_wrapper(uvloop, "Loop.add_reader", _wrapped_add_reader)
-        wrapt.wrap_function_wrapper(uvloop, "Loop.add_writer", _wrapped_add_writer)
-        wrapt.wrap_function_wrapper(uvloop, "Loop.add_signal_handler", _wrapped_add_signal_handler)
-        wrapt.wrap_function_wrapper(uvloop, "Loop.call_exception_handler", _wrapped_call_exception_handler)
-        wrapt.wrap_function_wrapper(uvloop, "Loop.run_forever", _wrapped_run_forever)
-    except Exception:
-        # A uvloop that renamed a method loses its context switches, not the whole asyncio
-        # integration: this hook runs without a caller-side guard when uvloop imports first.
-        log.debug("failed to instrument uvloop context switches", exc_info=True)
-        _unpatch(uvloop)
-        return
-
-    try:
-        running_loop = asyncio.get_running_loop()
-    except RuntimeError:
-        return
-
-    if isinstance(running_loop, uvloop.Loop):
-        log.debug("uvloop context-switch instrumentation skips the run in progress; it starts at the next run")
+    wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon", _wrapped_call_soon)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.call_soon_threadsafe", _wrapped_call_soon_threadsafe)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.call_later", _wrapped_call_later)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.add_reader", _wrapped_add_reader)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.add_writer", _wrapped_add_writer)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.add_signal_handler", _wrapped_add_signal_handler)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.call_exception_handler", _wrapped_call_exception_handler)
+    wrapt.wrap_function_wrapper(uvloop, "Loop.run_forever", _wrapped_run_forever)
 
 
 def _unpatch(uvloop: ModuleType) -> None:
-    """Remove this module's wrappers, leaving anything wrapped on top of them alone."""
-    if not getattr(uvloop.Loop, _PATCH_MARKER, False):
-        return
-
-    # Every method is unwrapped before the marker is decided, rather than stopping at the
-    # first refusal. The marker stays behind for whatever could not be removed, so that a
-    # later _patch does not wrap those methods a second time.
-    removed = [
-        _unwrap_own_wrapper(uvloop.Loop, "call_soon", _wrapped_call_soon),
-        _unwrap_own_wrapper(uvloop.Loop, "call_soon_threadsafe", _wrapped_call_soon_threadsafe),
-        _unwrap_own_wrapper(uvloop.Loop, "call_later", _wrapped_call_later),
-        _unwrap_own_wrapper(uvloop.Loop, "add_reader", _wrapped_add_reader),
-        _unwrap_own_wrapper(uvloop.Loop, "add_writer", _wrapped_add_writer),
-        _unwrap_own_wrapper(uvloop.Loop, "add_signal_handler", _wrapped_add_signal_handler),
-        _unwrap_own_wrapper(uvloop.Loop, "call_exception_handler", _wrapped_call_exception_handler),
-        _unwrap_own_wrapper(uvloop.Loop, "run_forever", _wrapped_run_forever),
-    ]
-    if all(removed):
-        delattr(uvloop.Loop, _PATCH_MARKER)
-
-
-def _unwrap_own_wrapper(owner: Any, method: str, wrapper: Callable[..., Any]) -> bool:
-    """Undo one wrapper, reporting whether the attribute is now free of it."""
-    current = getattr(owner, method, None)
-    underlying = getattr(current, "__wrapped__", None)
-    if underlying is not None and getattr(current, "_self_wrapper", None) is wrapper:
-        setattr(owner, method, underlying)
-        return True
-
-    # Either nothing of ours is here, or another library wrapped on top of us. Unwrapping
-    # blindly would remove their wrapper and leave ours in place underneath it.
-    return underlying is None
+    """Remove this module's wrappers."""
+    unwrap(uvloop.Loop, "run_forever")
+    unwrap(uvloop.Loop, "call_exception_handler")
+    unwrap(uvloop.Loop, "add_signal_handler")
+    unwrap(uvloop.Loop, "add_writer")
+    unwrap(uvloop.Loop, "add_reader")
+    unwrap(uvloop.Loop, "call_later")
+    unwrap(uvloop.Loop, "call_soon_threadsafe")
+    unwrap(uvloop.Loop, "call_soon")
 
 
 def _ambient_context(loop: Any) -> Optional[Context]:
