@@ -1,10 +1,10 @@
 from contextvars import ContextVar
+from types import SimpleNamespace
 
 import anyio
 import pytest
 
 from ddtrace.contrib.internal.anyio import patch as anyio_patch
-from ddtrace.internal import core
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal.wrapping import is_wrapped_with
 
@@ -46,7 +46,8 @@ def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, fa
     marker = ContextVar("marker", default=None)
     switches = []
 
-    def record_context_switch():
+    def record_context_switch(event):
+        assert event == PYTHON_CONTEXT_SWITCH_EVENT
         switches.append(marker.get())
 
     def worker():
@@ -64,11 +65,14 @@ def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, fa
             assert await anyio.to_thread.run_sync(func=worker) == "done"
 
     monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", lambda: True)
-    core.on(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+    monkeypatch.setattr(
+        anyio_patch,
+        "core",
+        SimpleNamespace(
+            dispatch=record_context_switch, has_listeners=lambda event: event == PYTHON_CONTEXT_SWITCH_EVENT
+        ),
+    )
     anyio_patch.patch()
-    try:
-        anyio.run(exercise, backend=backend)
-    finally:
-        core.reset_listeners(PYTHON_CONTEXT_SWITCH_EVENT, record_context_switch)
+    anyio.run(exercise, backend=backend)
 
     assert switches == ["caller", None]
