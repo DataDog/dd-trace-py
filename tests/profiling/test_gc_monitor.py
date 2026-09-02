@@ -420,3 +420,106 @@ def test_gc_monitor_reference_chains_1() -> None:
             assert expected in top_order_children, (
                 f"Expected {expected!r} as a child of the Order root; children: {sorted(top_order_children)}"
             )
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_gc_monitor_reference_chains_2",
+        DD_PROFILING_GC_INTERVAL="3",
+        DD_PROFILING_GC_REFERRERS="1",
+    ),
+    timeout=180,
+    out=None,  # allow the timing prints below
+)
+def test_gc_monitor_reference_chains_stress_test() -> None:
+    """Stress test with ~10M objects (10K parents, each with 1000 children).
+
+    Confirms the reference-chain walk still finishes -- and stays reasonably
+    fast -- against a large, wide object graph, and that the resulting
+    gc-stats.json still reflects the graph correctly.
+    """
+    from dataclasses import dataclass
+    from dataclasses import field
+    import glob
+    import json
+    import os
+    import time
+
+    from ddtrace.profiling.profiler import Profiler
+
+    pprof_prefix = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_prefix = pprof_prefix + "." + str(os.getpid())
+
+    NUM_PARENTS = 10_000
+    CHILDREN_PER_PARENT = 1000
+    TOTAL_OBJECTS = NUM_PARENTS * (1 + CHILDREN_PER_PARENT)  # ~10M
+
+    @dataclass
+    class Child:
+        value: int
+
+    @dataclass
+    class Parent:
+        children: list[Child] = field(default_factory=list)
+
+    build_start = time.perf_counter()
+    parents = [Parent(children=[Child(value=i) for i in range(CHILDREN_PER_PARENT)]) for _ in range(NUM_PARENTS)]
+    build_time_s = time.perf_counter() - build_start
+    print(
+        f"Built {TOTAL_OBJECTS} objects ({NUM_PARENTS} parents x {CHILDREN_PER_PARENT} children) in {build_time_s:.2f}s"
+    )
+
+    p = Profiler()
+    p.start()
+
+    snapshot_start = time.perf_counter()
+    time.sleep(8)  # allow >= 2 snapshots at 3s interval to walk the graph
+    p.stop()
+    snapshot_time_s = time.perf_counter() - snapshot_start
+    print(f"Profiler ran for {snapshot_time_s:.2f}s while snapshotting the {TOTAL_OBJECTS}-object graph")
+
+    # Keep the graph alive until after stop() so it is present for the final snapshot.
+    assert len(parents) == NUM_PARENTS
+
+    gc_files = sorted(glob.glob(output_prefix + ".*.gc-stats.json"))
+    assert len(gc_files) > 0, f"No gc-stats.json files found under {output_prefix}"
+
+    with open(gc_files[-1]) as f:
+        data = json.load(f)
+
+    # At this scale the object-graph walk's edge safety valve (a hard cap that
+    # protects against pathologically large heaps) can legitimately truncate
+    # the scan before every object is tallied, so a small undercount is
+    # expected -- assert "most of" the instances were counted rather than an
+    # exact match.
+    MIN_FRACTION = 0.9
+
+    tt = data["tt"]
+    parent_idx = next((i for i, t in enumerate(tt) if t.endswith(".Parent")), None)
+    assert parent_idx is not None, f"Expected Parent type in type table: {[t for t in tt if 'Parent' in t]}"
+    assert data["tc"][parent_idx] >= NUM_PARENTS * MIN_FRACTION, (
+        f"Expected >= {MIN_FRACTION:.0%} of {NUM_PARENTS} Parent instances, got {data['tc'][parent_idx]}"
+    )
+
+    child_idx = next((i for i, t in enumerate(tt) if t.endswith(".Child")), None)
+    assert child_idx is not None, f"Expected Child type in type table: {[t for t in tt if 'Child' in t]}"
+    expected_children = NUM_PARENTS * CHILDREN_PER_PARENT
+    assert data["tc"][child_idx] >= expected_children * MIN_FRACTION, (
+        f"Expected >= {MIN_FRACTION:.0%} of {expected_children} Child instances, got {data['tc'][child_idx]}"
+    )
+
+    meta_files = sorted(glob.glob(output_prefix + ".*.internal_metadata.json"))
+    assert len(meta_files) > 0, f"No internal_metadata.json files matching {output_prefix}"
+    with open(meta_files[-1]) as f:
+        meta = json.load(f)
+
+    wall_time_us = meta["gc_snapshot_wall_time_us"]
+    print(f"GC snapshot wall time: {wall_time_us / 1000:.1f}ms for ~{TOTAL_OBJECTS} objects")
+
+    # A large regression here (e.g. accidental O(n^2) behavior in the
+    # reference-chain walk) would blow past this generous bound.
+    max_wall_time_us = 60_000_000  # 60s
+    assert wall_time_us < max_wall_time_us, (
+        f"GC snapshot took {wall_time_us / 1e6:.1f}s for ~{TOTAL_OBJECTS} objects, "
+        f"expected < {max_wall_time_us / 1e6:.0f}s"
+    )
