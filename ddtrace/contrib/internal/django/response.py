@@ -80,6 +80,11 @@ def _block_request_callable(request, request_headers, ctx: core.ExecutionContext
 
 def traced_resolve_request(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     resolver_match = func(*args, **kwargs)
+    request = get_argument_value(args, kwargs, 1, "request")
+    if request is not None:
+        # The AppSec callback can block during this dispatch. Store Django's resolved
+        # value first so final tagging does not invoke application converters again.
+        request.resolver_match = resolver_match
     core.dispatch("django.resolve_request", (resolver_match,), allow_raise=True)
     return resolver_match
 
@@ -156,7 +161,7 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
                 if uri is not None and query:
                     uri += "?" + query
 
-                # The listener pulls ``request_path_params`` itself via ``utils._request_path_params(request)``.
+                # The listener pulls request_path_params itself via utils._request_path_params(request).
                 core.dispatch(
                     "django.start_response", (ctx, request, utils._extract_body, utils._remake_body, query, uri)
                 )
