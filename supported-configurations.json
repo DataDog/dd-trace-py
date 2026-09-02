@@ -26,6 +26,13 @@
         "default": null
       }
     ],
+    "DD_AGENTLESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": [
       {
         "implementation": "A",
@@ -3334,6 +3341,20 @@
         "aliases": [
           "DD_REDIS_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
       }
     ],
     "DD_REMOTE_CONFIGURATION_ENABLED": [

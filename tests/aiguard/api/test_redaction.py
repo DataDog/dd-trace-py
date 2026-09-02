@@ -51,7 +51,7 @@ def _metrics(add_count_metric: Mock, metric: str) -> list[tuple[Any, Any]]:
     return [
         (args[2], args[3])
         for args, _ in add_count_metric.call_args_list
-        if args[0].value == "appsec" and args[1] == metric
+        if args[0].value == "ai_guard" and args[1] == metric
     ]
 
 
@@ -296,7 +296,9 @@ def test_redaction_survives_message_truncation(
     assert struct_messages[-1]["content"] == "message 19 ssn <REDACTED>"
     assert struct_messages[0]["content"] == "message 4 ssn 123-45-6789"
     # Truncating twice must not be reported twice.
-    assert _metrics(add_count_metric, AI_GUARD.TRUNCATED_METRIC) == [(1, (("type", "messages"),))]
+    assert _metrics(add_count_metric, AI_GUARD.TRUNCATED_METRIC) == [
+        (1, (("type", "messages"), ("source", AI_GUARD.SOURCE_SDK), ("integration", AI_GUARD.INTEGRATION_NONE)))
+    ]
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

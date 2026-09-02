@@ -8,7 +8,6 @@ from ddtrace.ext import http
 from ddtrace.internal import constants
 from ddtrace.internal.utils.http import _format_template
 from tests.appsec.appsec_utils import flask_server
-from tests.appsec.integrations.flask_tests.utils import _PORT
 import tests.appsec.rules as rules
 from tests.contrib.flask import BaseFlaskTestCase
 from tests.utils import override_global_config
@@ -105,9 +104,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
     ["true", "false"],
 )
 @pytest.mark.parametrize("appsec_enabled", ["true", "false"])
-def test_flask_common_modules_patch(function, iast_enabled, appsec_enabled):
+def test_flask_common_modules_patch(function, iast_enabled, appsec_enabled, free_port):
     with flask_server(
-        appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, token=None, port=_PORT, assert_debug=False
+        appsec_enabled=appsec_enabled, iast_enabled=iast_enabled, token=None, port=free_port, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 

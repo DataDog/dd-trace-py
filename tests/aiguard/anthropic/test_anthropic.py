@@ -904,7 +904,7 @@ def test_before_hook_materializes_iterator_messages():
         def __init__(self):
             self.evaluated = None
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.evaluated = list(messages)
             return None
 
@@ -927,7 +927,7 @@ def test_before_hook_materializes_iterator_system():
         def __init__(self):
             self.evaluated = None
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.evaluated = list(messages)
             return None
 
@@ -954,7 +954,7 @@ def test_before_hook_evaluates_final_assistant_prefill():
         def __init__(self):
             self.evaluated = None
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.evaluated = list(messages)
             return None
 
@@ -981,7 +981,7 @@ def test_before_hook_evaluates_document_only_prompt():
         def __init__(self):
             self.evaluated = None
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.evaluated = list(messages)
             return None
 
@@ -1219,7 +1219,7 @@ def test_collision_after_listener_short_circuits(aiguard_active_context):
         def __init__(self):
             self.calls = 0
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.calls += 1
 
     client = _SpyClient()
@@ -1234,7 +1234,7 @@ def test_collision_before_listener_short_circuits(aiguard_active_context):
         def __init__(self):
             self.calls = 0
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.calls += 1
 
     client = _SpyClient()
@@ -1698,7 +1698,7 @@ def test_before_listener_fails_open_on_converter_error():
         def __init__(self):
             self.calls = 0
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.calls += 1
 
     from ddtrace.aiguard.integrations import _anthropic as anthropic_mod
@@ -1724,7 +1724,7 @@ def test_before_listener_empty_messages_emits_telemetry():
         def __init__(self):
             self.calls = 0
 
-        def evaluate(self, messages, options):
+        def evaluate(self, messages, options, **kwargs):
             self.calls += 1
 
     from ddtrace.aiguard.integrations._anthropic import _anthropic_messages_create_before

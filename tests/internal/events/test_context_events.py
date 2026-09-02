@@ -1,7 +1,10 @@
+import contextvars
 from dataclasses import InitVar
 from dataclasses import dataclass
+import gc
 import sys
 from typing import Any
+import weakref
 
 import pytest
 
@@ -42,6 +45,70 @@ def test_basic_context_event():
     assert called == [f"{ContextEvent.event_name}.started", f"{ContextEvent.event_name}.ended"], (
         "event should trigger started then ended handlers in order; got %r" % (called,)
     )
+
+
+def test_context_event_is_released_after_ended_dispatch():
+    """The event remains available to ended listeners but not to retained context snapshots."""
+
+    @dataclass
+    class ContextEvent(Event):
+        event_name = "test.event.release"
+
+        payload: object = event_field()
+
+    ended_event_refs = []
+
+    def on_context_ended(ctx: core.ExecutionContext, err_info: Any):
+        ended_event_refs.append(weakref.ref(ctx.event))
+
+    core.on(f"context.ended.{ContextEvent.event_name}", on_context_ended)
+
+    payload = object()
+    event = ContextEvent(payload=payload)
+    event_ref = weakref.ref(event)
+    with core.context_with_event(event) as ctx:
+        retained_context = contextvars.copy_context()
+        assert ctx._token is not None
+
+    assert ended_event_refs == [event_ref]
+    assert ctx._event is None
+    assert ctx._token is None
+    assert retained_context.run(lambda: core.current) is ctx
+    with pytest.raises(AttributeError):
+        ctx.event
+
+    del event
+    gc.collect()
+    assert event_ref() is None
+
+
+def test_deferred_context_event_is_released_after_manual_end_dispatch():
+    """Deferred contexts keep their event until subscribers receive the manual ended event."""
+
+    @dataclass
+    class ContextEvent(Event):
+        event_name = "test.event.deferred_release"
+
+    ended_events = []
+
+    def on_context_ended(ctx: core.ExecutionContext, err_info: Any):
+        ended_events.append(ctx.event)
+
+    core.on(f"context.ended.{ContextEvent.event_name}", on_context_ended)
+
+    event = ContextEvent()
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        pass
+
+    assert ctx._token is None
+    assert ctx.event is event
+
+    ctx.dispatch_ended_event()
+
+    assert ended_events == [event]
+    assert ctx._event is None
+    with pytest.raises(AttributeError):
+        ctx.event
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="Requires Python 3.10+")

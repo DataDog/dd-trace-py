@@ -19,7 +19,7 @@ pip-tools==7.5.2
 pip<25.3
 reno
 requests
-riot==0.22.0
+riot==0.23.0
 uv==0.9.25
 wrapt==1.16.0
 
