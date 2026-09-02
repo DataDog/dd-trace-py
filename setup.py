@@ -581,7 +581,14 @@ class LibraryDownload:
 
             with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
-                Path(HERE / archive_dir).rename(arch_dir)
+
+            extracted_dir = Path(HERE / archive_dir)
+            if arch_dir.exists():
+                # A host and container can use the same architecture name with different library suffixes.
+                shutil.copytree(extracted_dir, arch_dir, dirs_exist_ok=True)
+                shutil.rmtree(extracted_dir)
+            else:
+                extracted_dir.rename(arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
             lib_dir = arch_dir / "lib"
