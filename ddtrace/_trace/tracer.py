@@ -59,11 +59,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -245,14 +245,16 @@ class Tracer(object):
             self.sample(span)
 
     @contextmanager
-    def _activate_context(self, context: Context):
+    def _activate_context(self, context: Optional[Context]):
         prev_active = self.context_provider.active()
-        context._reactivate = True
+        if context is not None:
+            context._reactivate = True
         self.context_provider.activate(context)
         try:
             yield
         finally:
-            context._reactivate = False
+            if context is not None:
+                context._reactivate = False
             self.context_provider.activate(prev_active)
 
     @property
@@ -786,8 +788,12 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
-            return self._span_aggregator.writer.intake_url
+        writer = self._span_aggregator.writer
+        if isinstance(writer, AgentWriterInterface):
+            # An agentless writer points at the trace intake, which is not an agent..
+            if getattr(writer, "agentless", False):
+                return None
+            return writer.intake_url
 
         return None
 

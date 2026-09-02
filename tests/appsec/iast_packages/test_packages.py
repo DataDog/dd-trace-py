@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from contextlib import contextmanager
 import fcntl
 import json
@@ -42,11 +43,15 @@ TEMPLATE_VENV_DIR = os.path.join(DDTRACE_PATH, "template_venv")
 CLONED_VENVS_DIR = os.path.join(DDTRACE_PATH, "cloned_venvs")
 PIP_EXECUTABLE = os.path.join(TEMPLATE_VENV_DIR, "bin", "pip")
 PIP_CACHE_SHARED_VENVS_DIR = os.path.join(DDTRACE_PATH, "pip_cache_shared_venvs")
+FLASK_SERVER_START_LOCK_PATH = os.path.join(CLONED_VENVS_DIR, "flask_server_start.lock")
 
 # Compute a per-worker port offset so parallel xdist workers don't collide on the flask server port.
 # PYTEST_XDIST_WORKER is e.g. "gw0", "gw1", ... — not set when running without xdist.
 _XDIST_WORKER = os.environ.get("PYTEST_XDIST_WORKER", "")
 _XDIST_WORKER_NUM = int(_XDIST_WORKER[2:]) if _XDIST_WORKER.startswith("gw") else 0
+
+# pip installs into the cloned venvs reach the network, which fails intermittently in CI.
+_PIP_INSTALL_ATTEMPTS = 3
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -97,6 +102,16 @@ def set_pip_cache_dir():
             os.environ["PIP_CACHE_DIR"] = original_value
         else:
             del os.environ["PIP_CACHE_DIR"]
+
+
+@contextmanager
+def synchronized_flask_server(*args, **kwargs):
+    """Start one package Flask subprocess at a time across xdist workers."""
+    with ExitStack() as stack:
+        with open(FLASK_SERVER_START_LOCK_PATH, "w") as _lock:
+            fcntl.flock(_lock, fcntl.LOCK_EX)
+            context = stack.enter_context(flask_server(*args, **kwargs))
+        yield context
 
 
 class PackageForTesting:
@@ -194,8 +209,16 @@ class PackageForTesting:
         env.update(os.environ)
         # CAVEAT: we use subprocess instead of `pip.main(["install", package_fullversion])` due to pip package
         # doesn't work correctly with riot environment and python packages path
-        proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
-        proc.wait()
+        for attempt in range(_PIP_INSTALL_ATTEMPTS):
+            proc = subprocess.Popen(cmd, stdout=sys.stdout, stderr=sys.stderr, close_fds=True, env=env)
+            returncode = proc.wait()
+            if returncode == 0:
+                return
+            print(
+                "pip install %s failed with code %s (attempt %s/%s)"
+                % (package_fullversion, returncode, attempt + 1, _PIP_INSTALL_ATTEMPTS)
+            )
+        raise RuntimeError("pip install %s failed after %s attempts" % (package_fullversion, _PIP_INSTALL_ATTEMPTS))
 
     def install(self, python_cmd, install_extra=True):
         self._install(python_cmd, self.name, self.package_version)
@@ -215,25 +238,31 @@ class PackageForTesting:
         """
         cloned_venv_dir = os.path.join(CLONED_VENVS_DIR, self.name)
         cloned_venv_dir_latest = cloned_venv_dir + "-latest"
+        python_executable = os.path.join(cloned_venv_dir, "bin", "python")
+        python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
+        # Written only once every install succeeded: the directory itself exists from the clone on,
+        # so keying reuse on it caches a venv whose package failed to install.
+        ready_marker = cloned_venv_dir + ".ready"
 
         os.makedirs(CLONED_VENVS_DIR, exist_ok=True)
         lock_path = cloned_venv_dir + ".lock"
         with open(lock_path, "w") as _lock:
             fcntl.flock(_lock, fcntl.LOCK_EX)
-            if not os.path.exists(cloned_venv_dir):
+            if not os.path.exists(ready_marker):
+                shutil.rmtree(cloned_venv_dir, ignore_errors=True)
+                shutil.rmtree(cloned_venv_dir_latest, ignore_errors=True)
+
                 base_venv = template_venv()
 
                 clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir)
                 clonevirtualenv.clone_virtualenv(base_venv, cloned_venv_dir_latest)
 
                 with set_pip_cache_dir():
-                    python_executable = os.path.join(cloned_venv_dir, "bin", "python")
                     self.install(python_executable)
-                    python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
                     self.install_latest(python_executable_latest)
-            else:
-                python_executable = os.path.join(cloned_venv_dir, "bin", "python")
-                python_executable_latest = os.path.join(cloned_venv_dir_latest, "bin", "python")
+
+                with open(ready_marker, "w"):
+                    pass
 
         return python_executable, python_executable_latest
 
@@ -1084,7 +1113,7 @@ def test_packages_not_patched(package):
         )
 
     if package.test_e2e:
-        with flask_server(
+        with synchronized_flask_server(
             python_cmd=python_bin,
             iast_enabled="false",
             tracer_enabled="true",
@@ -1144,7 +1173,7 @@ def test_packages_patched(package):
             )
 
     if package.test_e2e or package.test_propagation:
-        with flask_server(
+        with synchronized_flask_server(
             python_cmd=python_bin,
             iast_enabled="true",
             remote_configuration_enabled="false",

@@ -4,6 +4,9 @@ from typing import Optional
 
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
+from ddtrace.internal.utils.http import w3c_update_tracestate_list_member
 
 
 _MAX_THRESHOLD = 1 << 56
@@ -80,6 +83,48 @@ def _build_otel_member(random_value: Optional[str], threshold: Optional[str], un
 def normalize_otel_member(ot_value: str) -> str:
     """Validate and canonicalize an inherited ot= list-member value."""
     return _build_otel_member(*_parse_otel_fields(ot_value))
+
+
+def normalize_otel_tracestate(meta: dict[str, str]) -> None:
+    """Validate an inherited ot= member in Context metadata."""
+    raw_tracestate = meta.get(W3C_TRACESTATE_KEY, "")
+    ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot")
+    if ot_value is not None:
+        _store_otel_member(meta, normalize_otel_member(ot_value))
+
+
+def materialize_otel_sampling_decision(
+    meta: dict[str, str],
+    trace_id: Optional[int],
+    sampled: bool,
+    sample_rate: float,
+    probabilistic_decision: bool,
+) -> None:
+    """Resolve deferred OTel sampling state into canonical Context tracestate."""
+    raw_tracestate = meta.get(W3C_TRACESTATE_KEY, "")
+    ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot") if raw_tracestate else None
+    resolved = resolve_otel_sampling_decision(
+        ot_value,
+        trace_id,
+        sampled,
+        sample_rate,
+        probabilistic_decision,
+    )
+    _store_otel_member(meta, resolved)
+
+
+def _store_otel_member(meta: dict[str, str], ot_value: str) -> None:
+    current = meta.get(W3C_TRACESTATE_KEY, "")
+    if not current:
+        if ot_value:
+            meta[W3C_TRACESTATE_KEY] = "ot=" + ot_value
+        return
+
+    tracestate = w3c_update_tracestate_list_member(current, "ot", ot_value or None)
+    if tracestate:
+        meta[W3C_TRACESTATE_KEY] = tracestate
+    else:
+        meta.pop(W3C_TRACESTATE_KEY, None)
 
 
 def resolve_otel_sampling_decision(

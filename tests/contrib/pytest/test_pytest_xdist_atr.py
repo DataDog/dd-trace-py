@@ -155,6 +155,7 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT = mock.patch(
 _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 """
         self.testdir.makepyfile(sitecustomize=sitecustomize_content)
+        self.make_xdist_worker_sitecustomize()
 
     def inline_run(self, *args, **kwargs):
         # Add -n 2 to the end of the command line arguments

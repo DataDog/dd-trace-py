@@ -11,7 +11,6 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
@@ -19,7 +18,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
-_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
+_ContextT = TypeVar("_ContextT", bound="Context")
 
 class DDSketch:
     def __init__(self): ...
@@ -192,7 +191,7 @@ if sys.platform == "linux":
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
-    def update_otel_thread_context_from_context(context: ContextData, trace_flags: int) -> None:
+    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
         """Update the OTel thread context from an active trace Context.
 
         Invalid Context identifiers detach the current thread context. The local root span ID is
@@ -754,6 +753,25 @@ class TraceExporterBuilder:
         Enable health metrics in the TraceExporter
         """
         ...
+    def set_agentless_endpoint(self, url: str, api_key: str) -> TraceExporterBuilder:
+        """
+        Send spans straight to the Datadog trace intake instead of to an agent.
+
+        Payloads are always JSON in this mode, so the output format is ignored. Mutually
+        exclusive with :meth:`set_url` and :meth:`set_otlp_endpoint`; ``build`` rejects the
+        combination.
+        :param url: Full intake URL including the path
+            (e.g. "https://public-trace-http-intake.logs.datadoghq.com/v1/input").
+        :param api_key: API key sent as the ``dd-api-key`` header.
+        """
+        ...
+    def set_agentless_timeout(self, timeout_ms: int) -> TraceExporterBuilder:
+        """
+        Request timeout for the agentless intake transport (default 15s).
+
+        Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
+        """
+        ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
         Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
@@ -1015,7 +1033,7 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
-class ContextData:
+class Context:
     trace_id: Optional[int]
     span_id: Optional[int]
     _meta: dict[str, str]
@@ -1025,21 +1043,43 @@ class ContextData:
     _is_remote: bool
     _reactivate: bool
     _otel_sampling_state_data: Optional[float]
-    _otel_sampling_state_owner: Optional[ContextData]
+    _otel_sampling_state_owner: Optional[Context]
+    sampling_priority: Optional[Any]
+    dd_origin: Optional[str]
+    dd_user_id: Optional[str]
+    _trace_id_64bits: Optional[int]
+    _trace_flags: int
+    _traceflags: str
+    _traceparent: str
+    _tracestate: str
 
     def __new__(
-        cls: type[_ContextDataT],
+        cls: type[_ContextT],
         trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
-        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
-        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        dd_origin: Optional[str] = None,
+        sampling_priority: Optional[float] = None,
         meta: Optional[dict[str, str]] = None,
         metrics: Optional[dict[str, Any]] = None,
-        lock: Optional[Any] = None,  # placeholder for Context.__init__
         span_links: Optional[list[Any]] = None,
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
-    ) -> _ContextDataT: ...
+    ) -> _ContextT: ...
+    def __enter__(self: _ContextT) -> _ContextT: ...
+    def __exit__(self, *args: Any) -> None: ...
+    def __getstate__(self) -> tuple: ...
+    def __setstate__(self, state: tuple) -> None: ...
+    def set_baggage_item(self, key: str, value: Any) -> None: ...
+    def get_baggage_item(self, key: str) -> Optional[Any]: ...
+    def get_all_baggage_items(self) -> dict[str, Any]: ...
+    def remove_baggage_item(self, key: str) -> None: ...
+    def remove_all_baggage_items(self) -> None: ...
+    def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
+    def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
+    def _tracestate_entries(self, parent_id: Optional[int] = None) -> list[tuple[str, str]]: ...
+    def _update_otel_sampling_decision(
+        self, sampled: bool, sample_rate: float, probabilistic_decision: bool
+    ) -> None: ...
 
 class SpanData:
     name: str

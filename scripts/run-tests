@@ -11,7 +11,7 @@
 
 This script helps developers run the appropriate test suites based on changed files.
 It maps source files to their corresponding test suites and provides granular control
-over which specific riot venvs to run.
+over which specific test environments to run.
 
 Note: This runs entire test suites, not individual test files.
 """
@@ -27,9 +27,10 @@ import re
 import subprocess
 import sys
 from typing import NamedTuple
+from typing import Optional
 
 
-# Add project root and tests to Python path to import suitespec and riotfile
+# Add the project root and tests to the import path for test definitions.
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
@@ -62,7 +63,7 @@ PODMAN_COMPOSE_FILE = ROOT / "docker-compose.podman.yml"
 
 
 class RiotVenv(NamedTuple):
-    """Represents a riot venv with its metadata."""
+    """Represents a test environment and its metadata."""
 
     number: int
     hash: str
@@ -242,20 +243,19 @@ class TestRunner:
         return services
 
     def get_riot_venvs(self, pattern: str, suite_name: str = "") -> list[RiotVenv]:
-        """Get available riot venvs for a pattern, deduplicated by hash.
+        """Get available test environments for a pattern, deduplicated by hash.
 
-        Returns one venv per unique hash. When riot expands environment variable arrays,
-        multiple instances may share the same hash - we only return the first instance
-        for each unique hash to avoid confusing duplicate entries in interactive selection.
+        Multiple variants may share the same hash, so return only the first instance
+        for each hash to avoid duplicate entries during interactive selection.
         """
         try:
             venvs = []
             seen_hashes = set()
             pattern_regex = re.compile(pattern)
 
-            # Use riot's own instances() method to get all venv instances
+            # Expand every defined test environment variant.
             for n, inst in enumerate(riotfile.venv.instances()):
-                # Check if this instance matches our pattern (same logic as riot)
+                # Use the environment's matcher so selection stays consistent.
                 if not inst.name or not inst.matches_pattern(pattern_regex):
                     continue
 
@@ -297,7 +297,7 @@ class TestRunner:
             return venvs
 
         except Exception as e:
-            print(f"Warning: Failed to get riot venvs for pattern '{pattern}': {e}")
+            print(f"Warning: Failed to get test environments for pattern '{pattern}': {e}")
             return []
 
     def start_services(self, services: set[str]) -> bool:
@@ -440,12 +440,12 @@ class TestRunner:
                 print("❌ Invalid selection. Please use format like '1,3', 'all', or 'none'")
 
     def select_riot_suites(self, matching_suites: dict[str, dict]) -> dict[str, dict]:
-        """Let user select which riot suites to run."""
+        """Let the user select which test suites to run."""
         if not matching_suites:
-            print("❌ No riot suites found in matching suites")
+            print("❌ No test suites found in matching suites")
             return {}
 
-        print(f"\n📋 Found {len(matching_suites)} matching riot suite(s):")
+        print(f"\n📋 Found {len(matching_suites)} matching test suite(s):")
         suite_list = list(matching_suites.keys())
 
         selected = self._interactive_select(suite_list, "suites")
@@ -490,7 +490,7 @@ class TestRunner:
             print("❌ No matching test suites found for the changed files.")
             return []
 
-        # Step 1: Select riot suites
+        # Step 1: Select test suites
         selected_suites = self.select_riot_suites(matching_suites)
         if not selected_suites:
             return []
@@ -502,7 +502,9 @@ class TestRunner:
         self,
         selected_venvs: list[RiotVenv],
         matching_suites: dict[str, dict],
-        riot_args: list[str] = None,
+        riot_args: Optional[list[str]] = None,
+        test_args: Optional[list[str]] = None,
+        skip_ddtrace_install: bool = False,
         dry_run: bool = False,
     ) -> bool:
         """Execute the selected venvs, grouped by suite with per-suite service management."""
@@ -510,8 +512,7 @@ class TestRunner:
             print("ℹ️  No venvs selected for execution.")
             return True
 
-        # Group venvs by suite, then deduplicate by hash within each suite
-        # This prevents running the same hash multiple times when riot expands env var arrays
+        # Group environments by suite, then deduplicate by hash within each suite.
         venvs_by_suite: dict[str, list[RiotVenv]] = {}
         all_venvs_by_suite: dict[str, list[RiotVenv]] = {}  # Track all variants for display
 
@@ -592,15 +593,12 @@ class TestRunner:
                 env["DD_TRACE_AGENT_URL"] = testagent_url
                 print(f"🔧 Setting DD_TRACE_AGENT_URL={testagent_url} for snapshot tests")
 
-            # Execute each unique venv hash in this suite
-            # Note: riot will run all instances for each hash (different commands, env vars, etc.)
+            # Execute each unique environment hash in this suite. Each hash may
+            # represent multiple commands or environment-variable variants.
             suite_success = True
 
-            # Phase 1: Build/verify venvs sequentially under a file lock.
-            # This prevents concurrent builds from fighting over shared resources
-            # (sccache, cargo installs, pip). The first build compiles Rust/C/Cython;
-            # subsequent builds are fast cache hits. If venvs are already built,
-            # riot detects this and the build phase completes near-instantly.
+            # Build/verify environments sequentially under a file lock. With -s,
+            # suite dependencies refresh without reinstalling ddtrace.
             lock_path = self.root / ".riot" / ".build.lock"
             lock_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -611,11 +609,10 @@ class TestRunner:
                     "-v",
                     "run",
                     "--pass-env",
-                    venv.hash,
-                    "--",
-                    "--collect-only",
-                    "-q",
                 ]
+                if skip_ddtrace_install:
+                    build_cmd.append("-s")
+                build_cmd.extend([venv.hash, "--", "--collect-only", "-q"])
 
                 if dry_run:
                     print(f"[DRY RUN] Would build venv (under lock): {' '.join(build_cmd)}")
@@ -660,18 +657,11 @@ class TestRunner:
                     venv.hash,
                 ]
 
-                # Add riot args if provided, filtering out riot's -s/--skip-base-install
-                # (since we already add it) but only before the pytest separator "--".
-                # After "--", args belong to pytest where -s means something different
-                # (disable output capture).
                 if riot_args:
-                    past_pytest_separator = False
-                    for arg in riot_args:
-                        if arg == "--":
-                            past_pytest_separator = True
-                            cmd.append(arg)
-                        elif past_pytest_separator or arg not in ("-s", "--skip-base-install"):
-                            cmd.append(arg)
+                    cmd.extend(arg for arg in riot_args if arg not in ("-s", "--skip-base-install"))
+                if test_args:
+                    cmd.append("--")
+                    cmd.extend(test_args)
 
                 if dry_run:
                     print(f"[DRY RUN] Would execute: {' '.join(cmd)}")
@@ -768,12 +758,8 @@ class TestRunner:
     def get_venvs_by_hash_direct(self, venv_hashes: list[str]) -> list[RiotVenv]:
         """Get specific venvs by their hashes, deduplicated (consistent with CI approach).
 
-        Deduplicates hashes to avoid running the same hash multiple times when riot
-        expands environment variable arrays into multiple instances with the same hash.
-
-        This uses the same deduplication strategy as CI (.gitlab/tests.yml), where
-        'riot list --hash-only' returns each unique hash only once, even if multiple
-        instances share that hash due to env var expansion.
+        This follows the CI behavior in .gitlab/tests.yml: each unique hash runs once,
+        even when multiple variants share it.
         """
         # Deduplicate hashes while preserving order (same as CI behavior)
         seen = set()
@@ -788,8 +774,8 @@ class TestRunner:
 
         print(f"📌 Using {len(unique_hashes)} unique hash(es): {', '.join(unique_hashes)}")
 
-        # Create minimal RiotVenv objects for each unique hash
-        # Riot will validate the hashes and run all env var variants when executed
+        # Create the minimal metadata needed for hash-based execution. The test
+        # environment backend validates hashes and expands their variants.
         selected_venvs = []
         for venv_hash in unique_hashes:
             selected_venvs.append(
@@ -805,6 +791,21 @@ class TestRunner:
             )
 
         return selected_venvs
+
+
+def _parse_forwarded_args(arguments: list[str]) -> tuple[list[str], list[str], bool]:
+    """Split legacy runner arguments from test-command arguments."""
+    if not arguments:
+        return [], [], False
+
+    if "--" in arguments:
+        separator = arguments.index("--")
+        riot_args = arguments[:separator]
+        test_args = arguments[separator + 1 :]
+        skip_ddtrace_install = any(arg in ("-s", "--skip-base-install") for arg in riot_args)
+        return riot_args, test_args, skip_ddtrace_install
+
+    return [], arguments, False
 
 
 def main():
@@ -825,14 +826,11 @@ Examples:
   # Show what would be run without executing
   scripts/run-tests --dry-run
 
-  # Pass additional arguments to riot
-  scripts/run-tests ddtrace/contrib/django/patch.py -- -s
+  # Reuse an existing ddtrace installation while refreshing suite dependencies
+  scripts/run-tests -s --venv <hash>
 
-  # Pass additional arguments to pytest
-  scripts/run-tests ddtrace/contrib/django/patch.py -- -- -vvv -s --tb=short
-
-  # Pass additional arguments to riot (first) and pytest (second)
-  scripts/run-tests ddtrace/contrib/django/patch.py -- -s -- -vvv -k api --tb=short
+  # Pass additional arguments to the test command
+  scripts/run-tests ddtrace/contrib/django/patch.py -- -vvv -s --tb=short
         """,
     )
 
@@ -843,6 +841,13 @@ Examples:
     )
 
     parser.add_argument("--dry-run", action="store_true", help="Show what would be run without executing")
+
+    parser.add_argument(
+        "-s",
+        "--skip-ddtrace-install",
+        action="store_true",
+        help="Reuse the selected environment's existing ddtrace installation",
+    )
 
     parser.add_argument(
         "--all-suites", action="store_true", help="Show all available suites regardless of file changes"
@@ -861,16 +866,18 @@ Examples:
         ),
     )
 
-    # Parse args, but handle -- separator for riot args
+    # Parse script arguments before the separator and forward the rest.
     if "--" in sys.argv:
         separator_idx = sys.argv.index("--")
         script_args = sys.argv[1:separator_idx]
-        riot_args = sys.argv[separator_idx + 1 :]
+        forwarded_args = sys.argv[separator_idx + 1 :]
     else:
         script_args = sys.argv[1:]
-        riot_args = []
+        forwarded_args = []
 
     args = parser.parse_args(script_args)
+    riot_args, test_args, legacy_skip = _parse_forwarded_args(forwarded_args)
+    skip_ddtrace_install = args.skip_ddtrace_install or legacy_skip
 
     runner = TestRunner()
 
@@ -910,7 +917,14 @@ Examples:
             print("⚠️  Could not determine suite information for venvs, running without service management")
             matching_suites = {}
 
-        success = runner.run_tests(venvs_with_suite, matching_suites, riot_args=riot_args, dry_run=args.dry_run)
+        success = runner.run_tests(
+            venvs_with_suite,
+            matching_suites,
+            riot_args=riot_args,
+            test_args=test_args,
+            skip_ddtrace_install=skip_ddtrace_install,
+            dry_run=args.dry_run,
+        )
         return 0 if success else 1
 
     # Normal flow: determine which files to check
@@ -960,7 +974,14 @@ Examples:
     selected_venvs = runner.interactive_venv_selection(matching_suites)
 
     # Execute tests
-    success = runner.run_tests(selected_venvs, matching_suites, riot_args=riot_args, dry_run=args.dry_run)
+    success = runner.run_tests(
+        selected_venvs,
+        matching_suites,
+        riot_args=riot_args,
+        test_args=test_args,
+        skip_ddtrace_install=skip_ddtrace_install,
+        dry_run=args.dry_run,
+    )
 
     return 0 if success else 1
 

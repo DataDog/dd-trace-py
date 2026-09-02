@@ -111,12 +111,16 @@ def test_service_enable_agent_service_precedence_over_service(tracer):
 
 def test_service_enable_service_used_as_ml_app_fallback(tracer):
     """When neither agent_service nor ml_app is set, service is used as the ml app."""
+    # Guard against leaked enabled=True from a prior failed test
+    llmobs_service.disable()
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app=None)):
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
-        with llmobs_service.workflow() as span:
-            pass
-        assert get_llmobs_ml_app(span) == "<service>"
-        llmobs_service.disable()
+        try:
+            with llmobs_service.workflow() as span:
+                pass
+            assert get_llmobs_ml_app(span) == "<service>"
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.mark.subprocess(
@@ -124,13 +128,12 @@ def test_service_enable_service_used_as_ml_app_fallback(tracer):
 )
 def test_enable_agentless():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable(agentless_enabled=True)
     assert llmobs_service.enabled
     assert llmobs_service._instance._llmobs_span_writer._agentless is True
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
 
 
@@ -181,30 +184,28 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
 @pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
 def test_configure_agentless_writer_swaps_writer():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable(agentless_enabled=False)
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.enable(agentless_enabled=True)
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
 def test_enable_without_api_key_does_not_swap_apm_writer():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     try:
         llmobs_service.enable()
     except ValueError:
         pass
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(
@@ -349,15 +350,14 @@ def test_service_disable(tracer):
 def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
     """disable() reverts the APM writer when enable() was the one that switched it to agentless."""
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.enable()
     assert llmobs_service._instance._apm_writer_switched_to_agentless is True
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(
@@ -371,14 +371,13 @@ def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
 def test_disable_does_not_revert_agentless_writer_when_already_agentless():
     """disable() leaves the APM writer alone when the writer was already agentless before enable()."""
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.enable()
     assert llmobs_service._instance._apm_writer_switched_to_agentless is False
     llmobs_service.disable()
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
 
 
 def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):

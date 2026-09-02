@@ -47,12 +47,11 @@ def test_sampling_priority_is_published_after_otel_sampling_state(monkeypatch):
             SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
         )
         assert state_update_started.wait(2)
-        lock_acquired = span.context._lock.acquire(False)
-        if lock_acquired:
-            span.context._lock.release()
         try:
+            # The native Context no longer exposes a Python lock. Blocking the
+            # state update still verifies that sampling priority is not visible
+            # before the OTel sampling state update completes.
             assert span.context.sampling_priority is None
-            assert lock_acquired is False
         finally:
             allow_state_update.set()
         sampling.result()

@@ -152,7 +152,7 @@ def _wrap_send(func, instance, args, kwargs):
             return response
         finally:
             if response is not None:
-                ctx.event.set_response(response)
+                ctx.event.set_response_attributes(response)
 
 
 def _wrap_adapter_send(func, instance, args, kwargs):

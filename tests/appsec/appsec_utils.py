@@ -14,28 +14,17 @@ from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.utils.retry import RetryError
+from tests.appsec.ports import port_is_available
 from tests.utils import _build_env
 from tests.webclient import Client
 
 
 FILE_PATH = Path(__file__).resolve().parent
 
-
-def _port_is_available(port: int) -> bool:
-    """Whether a server could bind the port right now.
-
-    Binding is the question that matters, since it is what the next server does. Probing with
-    connect() instead reports a port as free once a bound server's listen backlog fills, and
-    opens real connections to a live server.
-    """
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        try:
-            sock.bind(("0.0.0.0", int(port)))
-            return True
-        except OSError:
-            return False
+# Startup is CPU bound (IAST rewrites every import) and the CI runners are contended, so this
+# is deliberately generous. Override it rather than editing the default.
+SERVER_STARTUP_TIMEOUT = float(os.environ.get("DD_TEST_SERVER_STARTUP_TIMEOUT", "60"))
+SERVER_STARTUP_POLL_INTERVAL = 0.1
 
 
 def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
@@ -46,23 +35,63 @@ def _wait_for_port_release(port: int, timeout: float = 10.0) -> bool:
     """
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        if _port_is_available(port):
+        if port_is_available(port):
             return True
         time.sleep(0.1)
-    return _port_is_available(port)
+    return port_is_available(port)
 
 
-def _server_diagnostics(server_process, port: int, cmd: list) -> str:
-    """Facts that are not in the captured server output but explain most startup failures."""
+def _process_exit_code(server_process) -> _t.Optional[int]:
+    """The server's exit status, or None while it is still running, whichever API it provides."""
     if isinstance(server_process, multiprocessing.Process):
-        exit_code = server_process.exitcode
-    else:
-        exit_code = server_process.poll()
+        return server_process.exitcode
+    return server_process.poll()
+
+
+def _wait_for_server_ready(client: Client, server_process, port: int, use_multiprocess: bool, deadline: float) -> None:
+    """Block until the server answers, re-raising the last probe failure if it never does.
+
+    Probed over HTTP unless the server was exec'd by _mp_target, which may run something that
+    does not speak it; a TCP probe alone would pass on a socket that is bound but not serving.
+    """
+    if not use_multiprocess:
+        # Matches the initial_wait the replaced client.wait() applied only to this path.
+        time.sleep(1.0)
+    while True:
+        try:
+            if use_multiprocess:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                    sock.settimeout(0.2)
+                    sock.connect(("0.0.0.0", int(port)))
+            else:
+                timeout = min(10.0, max(0.5, deadline - time.monotonic()))
+                response = client.get_ignored("/", timeout=timeout)
+                assert response.status_code == 200, f"server answered {response.status_code}"
+            return
+        except Exception:
+            # A server that died on import is never going to answer, so spending the rest of
+            # the budget on it only makes a suite of these slow to fail.
+            if time.monotonic() >= deadline or _process_exit_code(server_process) is not None:
+                raise
+            time.sleep(SERVER_STARTUP_POLL_INTERVAL)
+
+
+def _server_diagnostics(server_process, port: int, cmd: list, port_was_free_at_start: bool = True) -> str:
+    """Facts that are not in the captured server output but explain most startup failures."""
+    exit_code = _process_exit_code(server_process)
+    already_taken = (
+        ""
+        if port_was_free_at_start
+        else f"\nport {port} was ALREADY BOUND when this server was started, so it never had a "
+        "chance to bind and the failure above is a consequence, not the cause. Something a "
+        "previous test left running still holds the port; give this test its own port (the "
+        "free_port fixture) instead of sharing a fixed one."
+    )
     return (
-        f"port={port} port_still_bound={not _port_is_available(port)} pid={server_process.pid} "
+        f"port={port} port_still_bound={not port_is_available(port)} pid={server_process.pid} "
         f"exit_code={exit_code} (None means it was still running, so it was too slow rather "
         f"than dead; a non-zero code with the port bound means another server still holds it)\n"
-        f"command={cmd}"
+        f"command={cmd}" + already_taken
     )
 
 
@@ -291,6 +320,10 @@ def django_server(
     The server is started when entering the context and stopped when exiting.
     """
     manage_py = "tests/appsec/integrations/django_tests/django_app/manage.py"
+    server_env = dict(env or {})
+    # This server does not use gevent. Module cleanup can prevent Django from
+    # discovering management commands when ddtrace is installed from a wheel.
+    server_env["DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE"] = "false"
     cmd = [
         python_cmd,
         "-m",
@@ -310,7 +343,7 @@ def django_server(
         tracer_enabled=tracer_enabled,
         token=token,
         port=port,
-        env=env,
+        env=server_env,
         assert_debug=assert_debug,
         manual_propagation_debug=manual_propagation_debug,
     )
@@ -446,8 +479,13 @@ def appsec_application_server(
             subprocess_kwargs["preexec_fn"] = preexec  # type: ignore[assignment]
 
     # A previous test's server may still hold the port, which would make this one fail to bind.
-    if not _wait_for_port_release(port):
-        print(f"WARNING: port {port} was still bound when starting the server")
+    port_was_free_at_start = _wait_for_port_release(port)
+    if not port_was_free_at_start:
+        print(
+            f"WARNING: port {port} is still bound by something a previous test left running. "
+            "Starting anyway, but this server will almost certainly fail to bind: expect the "
+            "startup failure below to be a symptom of this, not of the server itself."
+        )
 
     if use_multiprocess:
         # Run the server command by replacing the child Python process with the target binary (exec),
@@ -462,40 +500,25 @@ def appsec_application_server(
     try:
         client = Client("http://0.0.0.0:%s" % port)
 
+        startup_started = time.monotonic()
         try:
             print("Waiting for server to start...")
             print(f"* Command: {cmd}")
             print(f"* Environment {env}")
             print("* *****************************************")
-            if use_multiprocess:
-                # Socket-based readiness check similar to the provided fixture snippet
-                max_attempts = 120
-                attempt = 0
-                while attempt < max_attempts:
-                    try:
-                        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                            s.settimeout(0.2)
-                            s.connect(("0.0.0.0", int(port)))
-                            break
-                    except (ConnectionRefusedError, OSError):
-                        time.sleep(0.1)
-                        attempt += 1
-                else:
-                    raise RetryError("Server failed to accept connections in time")
-                print("Server started")
-            else:
-                client.wait(max_tries=120, delay=0.1, initial_wait=1.0)
-                print("Server started")
-        except RetryError:
-            raise AssertionError(
-                "Server failed to start; its output is in the captured stdout/stderr above.\n"
-                + _server_diagnostics(server_process, port, cmd)
+            _wait_for_server_ready(
+                client, server_process, port, use_multiprocess, startup_started + SERVER_STARTUP_TIMEOUT
             )
-        except Exception:
+            print("Server started in %.3fs" % (time.monotonic() - startup_started))
+        except Exception as exc:
+            # Elapsed time separates a slow contended start from a server that died on import.
             raise AssertionError(
-                "Server FAILED; its output is in the captured stdout/stderr above.\n"
-                + _server_diagnostics(server_process, port, cmd)
-            )
+                "Server failed to start within %.3fs (of a %.1fs budget, override with "
+                "DD_TEST_SERVER_STARTUP_TIMEOUT); its output is in the captured stdout/stderr "
+                "above.\n"
+                % (time.monotonic() - startup_started, SERVER_STARTUP_TIMEOUT)
+                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
+            ) from exc
 
         # If we run a Gunicorn application, we want to get the child's pid, see test_flask_remoteconfig.py
         # Obtain child PID tree for gunicorn when possible
@@ -503,14 +526,21 @@ def appsec_application_server(
         children = parent.children(recursive=True)
 
         yield server_process, client, (children[1].pid if len(children) > 1 else None)
+        shutdown_started = time.monotonic()
         try:
             client.get_ignored("/shutdown", timeout=10)
         except ConnectionError:
             pass
         except Exception:
+            # How long the client actually waited, to pair with the endpoint's own timing in the
+            # captured output above: the endpoint reports how long it took and the watchdog
+            # reports any event-loop stall, so between the three it is clear whether the time
+            # went into the shutdown, into a frozen worker, or somewhere outside the server.
             raise AssertionError(
-                "Server shutdown request failed; its output is in the captured stdout/stderr above.\n"
-                + _server_diagnostics(server_process, port, cmd)
+                "Server shutdown request failed after %.3fs; its output is in the captured "
+                "stdout/stderr above.\n"
+                % (time.monotonic() - shutdown_started)
+                + _server_diagnostics(server_process, port, cmd, port_was_free_at_start)
                 + "\n"
                 + _dump_server_stacks(server_process)
             )
@@ -552,7 +582,11 @@ def appsec_application_server(
         finally:
             # Do not hand the port to the next test while a worker still holds it.
             if not _wait_for_port_release(port):
-                print(f"WARNING: port {port} still bound after server teardown")
+                print(
+                    f"WARNING: port {port} is still bound after tearing down the server; a worker "
+                    "outlived it. Harmless while each test uses its own port, but it will break "
+                    "the next test that asks for this one."
+                )
 
 
 def _mp_target(_cmd: list[str], _env: dict) -> None:

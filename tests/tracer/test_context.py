@@ -154,11 +154,9 @@ def test_context_pickle_preserves_pending_otel_sampling_state():
 def test_copy_populates_every_getstate_slot(tracer):
     """Guard against a future state-field drop in Context.copy().
 
-    A child span builds its context lazily via Context.copy() (ddtrace/_trace/context.py),
-    which calls native ContextData.__new__ directly instead of going through __init__.
-    A dropped constructor argument would only surface later when the context is serialized or
-    propagated. Pin both halves: the copied context must pickle/round-trip equal, and every field
-    __getstate__ reads must be initialized.
+    The native implementation constructs child contexts directly while sharing trace-level
+    dictionaries and deferred OTel sampling state. A dropped field would only surface later
+    during serialization or propagation, so pin both the pickle round trip and every state field.
     """
     with tracer.trace("parent"):
         with tracer.trace("child") as child:
@@ -168,8 +166,7 @@ def test_copy_populates_every_getstate_slot(tracer):
     # pickle.dumps calls __getstate__, which reads every slot copy() is responsible for.
     assert pickle.loads(pickle.dumps(child_ctx)) == child_ctx
 
-    # Explicit tripwire: every field __getstate__ reads is present (minus the unpicklable _lock).
-    # A missing native property or Python slot would raise AttributeError on access.
+    # Explicit tripwire: every field __getstate__ reads is exposed by the native Context.
     for slot in (
         "trace_id",
         "span_id",
