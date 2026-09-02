@@ -20,6 +20,8 @@ log = logging.getLogger(__name__)
 _registry: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 _registry_before_fork: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 _registry_after_parent: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
+_registry_before_child_hooks: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
+_registry_after_child_hooks: typing.List[typing.Callable[[], None]] = []  # noqa: UP006
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -35,6 +37,11 @@ _forked = False
 # used to determine if the current process is a child of a fork, and if so, how
 # many generations of forks have occurred since the original process.
 _fork_generation = 0
+
+# AIDEV-NOTE: Process managers such as Celery can close inherited file descriptors after
+# Python's after-in-child callbacks return. Native workers must not be rebuilt while this
+# flag is set because their newly opened descriptors would be swept up by that later cleanup.
+_in_child_hook = False
 
 
 def set_forked():
@@ -61,6 +68,10 @@ def get_generation() -> int:
     return _fork_generation
 
 
+def in_child_hook() -> bool:
+    return _in_child_hook
+
+
 def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
     for hook in list(registry):
         try:
@@ -70,8 +81,20 @@ def run_hooks(registry: list[typing.Callable[[], None]]) -> None:
             log.exception("Exception ignored in forksafe hook %r", hook)
 
 
+def run_child_hooks() -> None:
+    global _in_child_hook
+
+    _in_child_hook = True
+    run_hooks(_registry_before_child_hooks)
+    try:
+        run_hooks(_registry)
+    finally:
+        run_hooks(_registry_after_child_hooks)
+        _in_child_hook = False
+
+
 ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
-ddtrace_after_in_child = functools.partial(run_hooks, _registry)
+ddtrace_after_in_child = run_child_hooks
 ddtrace_after_in_parent = functools.partial(run_hooks, _registry_after_parent)
 
 
@@ -83,6 +106,8 @@ def register_hook(registry, hook):
 register_before_fork = functools.partial(register_hook, _registry_before_fork)
 register = functools.partial(register_hook, _registry)
 register_after_parent = functools.partial(register_hook, _registry_after_parent)
+register_before_child_hooks = functools.partial(register_hook, _registry_before_child_hooks)
+register_after_child_hooks = functools.partial(register_hook, _registry_after_child_hooks)
 
 register(set_fork_child)
 register_after_parent(set_forked)
@@ -107,6 +132,20 @@ def unregister_before_fork(before_fork: typing.Callable[[], None]) -> None:
         _registry_before_fork.remove(before_fork)
     except ValueError:
         log.info("before_in_child hook %r was unregistered without first being registered", before_fork)
+
+
+def unregister_before_child_hooks(hook: typing.Callable[[], None]) -> None:
+    try:
+        _registry_before_child_hooks.remove(hook)
+    except ValueError:
+        log.info("before-child-hooks callback %r was unregistered without first being registered", hook)
+
+
+def unregister_after_child_hooks(hook: typing.Callable[[], None]) -> None:
+    try:
+        _registry_after_child_hooks.remove(hook)
+    except ValueError:
+        log.info("after-child-hooks callback %r was unregistered without first being registered", hook)
 
 
 # Availability: Unix, not WASI, not Android, not iOS.
