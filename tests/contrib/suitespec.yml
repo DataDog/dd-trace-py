@@ -1017,7 +1017,7 @@ suites:
       - tests/snapshots/tests.contrib.mlflow.*
     snapshot: true
   molten:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1378,7 +1378,7 @@ suites:
       - tests/contrib/tornado/*
     snapshot: true
   urllib3:
-    parallelism: 1
+    parallelism: 2
     env:
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'

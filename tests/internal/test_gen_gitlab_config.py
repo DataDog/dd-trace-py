@@ -1,6 +1,7 @@
 """Tests for scripts/gen_gitlab_config.py."""
 
 import importlib.util
+import io
 import pathlib
 import sys
 import types
@@ -70,6 +71,42 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     assert '    - export NIGHTLY_BUILD="false"' in config
     assert "$(curl" not in config
     assert "$DD_API_KEY" not in config
+
+
+def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
+    info = gen_gitlab_config_mod.SuiteVenvInfo(
+        venv_count=2,
+        python_versions={"3.12"},
+        venvs=[("hash-with-path", "3.12"), ("hash-without-path", "3.12")],
+        venv_test_locations={"hash-with-path": "tests/internal", "hash-without-path": ""},
+    )
+
+    with pytest.raises(ValueError, match="hash-without-path"):
+        gen_gitlab_config_mod._ddtest_module().validate_ddtest_venv_test_locations("internal", info)
+
+
+def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
+    output = io.StringIO()
+
+    gen_gitlab_config_mod._ddtest_module().emit_ddtest_jobs(
+        output,
+        suite="internal",
+        stage="core",
+        clean_name="internal",
+        config={"env": {"_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.internal"}},
+        venvs=[("abc1234", "3.13"), ("def5678", "3.14")],
+        k=1,
+    )
+
+    content = output.getvalue()
+    assert "_DD_PYTEST_XDIST_INFERRED_SERVICE: tests.internal" in content
+    assert "RIOT_HASH_PYTHON: abc1234:3.13 def5678:3.14" in content
+    run_313_needs = content.split("core/internal::ddtest-run-3.13:", 1)[1].split("\n  parallel:\n", 1)[0]
+    run_314_needs = content.split("core/internal::ddtest-run-3.14:", 1)[1].split("\n  parallel:\n", 1)[0]
+    assert 'PYTHON_VERSION: "3.13"' in run_313_needs
+    assert 'PYTHON_VERSION: "3.14"' in run_314_needs
+    assert 'PYTHON_VERSION: "3.14"' not in run_313_needs
+    assert 'PYTHON_VERSION: "3.13"' not in run_314_needs
 
 
 def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):

@@ -419,7 +419,7 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py ${{DDTEST_SUITE_PATH}}",
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -435,6 +435,14 @@ venv = Venv(
                 "freezegun": latest,
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/tracer",
+                "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
+                # Exclude test_uwsgi_shutdown.py from ddtest's plan: it needs the
+                # uwsgi binary (in the separate tracer-uwsgi venv, not this one).
+                # ddtest reads DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN
+                # directly (settings.go), so setting it in the venv env works both
+                # in CI (riot --command inherits venv env) and locally (riot run).
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_shutdown.py",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
@@ -503,9 +511,14 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration",
+                "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -525,9 +538,13 @@ venv = Venv(
         ),
         Venv(
             name="integration-civisibility",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
+                "DDTEST_TESTS_LOCATION": "tests/integration/test_integration_civisibility.py",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
+            command="pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -634,6 +651,13 @@ venv = Venv(
         Venv(
             name="internal",
             env={
+                # DDTEST_SUITE_PATH is the single source of truth for this suite's
+                # test location. The command references it via ${DDTEST_SUITE_PATH} so
+                # the path stays data (queryable by Riot's environment) rather than a
+                # literal baked into the pytest invocation. Local `riot run` works
+                # unchanged whether or not ddtest is installed; ddtest reads this env
+                # var via Riot's --command override to plan/run individual files.
+                "DDTEST_PYTEST_ADDOPTS": "-v",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
@@ -1949,6 +1973,11 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
+                "DD_AGENT_PORT": "9126",
+                "DD_PYTEST_USE_NEW_PLUGIN": "false",
+            },
             command=(
                 "pytest --ddtrace --no-cov -n auto --dist=worksteal {cmdargs} tests/contrib/pytest/"
                 " --ignore=tests/contrib/pytest/snapshot/"
@@ -1956,11 +1985,6 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
-            },
-            env={
-                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
-                "DD_AGENT_PORT": "9126",
-                "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
             venvs=[
                 Venv(
@@ -2853,7 +2877,9 @@ venv = Venv(
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
-            env={"DD_TRACE_OTEL_ENABLED": "true"},
+            env={
+                "DD_TRACE_OTEL_ENABLED": "true",
+            },
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
@@ -3651,6 +3677,10 @@ venv = Venv(
         ),
         Venv(
             name="ci_visibility",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
+                "DD_AGENT_PORT": "9126",
+            },
             command=(
                 "pytest --ddtrace -n auto --dist=worksteal {cmdargs} tests/ci_visibility"
                 " --ignore=tests/ci_visibility/api/test_api_fake_runners.py"
@@ -3661,10 +3691,6 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
                 "gevent": latest,
-            },
-            env={
-                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
-                "DD_AGENT_PORT": "9126",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
         ),
@@ -3971,10 +3997,10 @@ venv = Venv(
                 "selenium": "~=4.0",
                 "webdriver-manager": latest,
             },
-            command="pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium",
             env={
                 "DD_AGENT_PORT": "9126",
             },
+            command="pytest --no-cov {cmdargs} -c /dev/null tests/contrib/selenium",
             venvs=[
                 Venv(
                     venvs=[

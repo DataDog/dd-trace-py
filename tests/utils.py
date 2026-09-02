@@ -50,6 +50,7 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
+from tests._ddtest_env_helpers import strip_ddtest_leaked_env
 from tests.subprocesstest import SubprocessTestCase
 
 
@@ -1427,13 +1428,26 @@ class AnyFloat(object):
         return isinstance(other, float)
 
 
+# ddtest sets PYTEST_ADDOPTS="--ddtrace" globally for pytest workers. It leaks
+# into test-spawned subprocesses, enabling CI Visibility which logs to stderr
+# (breaking tests that assert err == b"") and computes stats (breaking
+# snapshot tests). All ddtest-specific env stripping is encapsulated in
+# _ddtest_env_helpers so it can be removed cleanly if ddtest support is
+# dropped.
+
+
 def call_program(*args, **kwargs):
     timeout = kwargs.pop("timeout", None)
     if "env" in kwargs:
         # Remove all keys with the value None from env, None is used to unset an environment variable
         env = kwargs.pop("env")
         cleaned_env = {env: val for env, val in env.items() if val is not None}
-        kwargs["env"] = cleaned_env
+    else:
+        # No explicit env: subprocess would inherit os.environ directly.
+        cleaned_env = dict(os.environ)
+    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches normal
+    # riot CI, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
+    kwargs["env"] = strip_ddtest_leaked_env(cleaned_env)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)
     try:

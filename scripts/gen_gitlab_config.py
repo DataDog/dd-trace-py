@@ -21,10 +21,19 @@ from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import hashlib
+
+# ddtest job emission is encapsulated in ddtest_jobs.py (same directory).
+# This script runs via uv-run-script; scripts/ is added to sys.path later
+# (line 884), so use a deferred import to avoid ModuleNotFoundError at top level.
+import importlib as _importlib
 import os
 import re
 import subprocess
 import typing as t
+
+
+def _ddtest_module():
+    return _importlib.import_module("ddtest_jobs")
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
@@ -177,6 +186,15 @@ class JobSpec:
 class SuiteVenvInfo:
     venv_count: int
     python_versions: set[str]
+    # Per-venv (short_hash, python_hint) pairs, sorted by hash. Used by the
+    # ddtest emission to fan out one run job per venv via a parallel matrix.
+    # python_hint is the riot interpreter hint (e.g. "3.10") used to match
+    # the build_base_venvs artifact for that venv.
+    venvs: t.Optional[list[tuple[str, str]]] = None
+    # Effective DDTEST_TESTS_LOCATION values, keyed by short hash. Keeping
+    # this metadata during collection lets ddtest suites validate their venvs
+    # before emitting a pipeline that cannot discover any tests.
+    venv_test_locations: t.Optional[dict[str, str]] = None
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -213,6 +231,10 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
 
     venv_hashes: dict[str, set] = {s: set() for s in compiled}
     python_versions: dict[str, set] = {s: set() for s in compiled}
+    # hash -> python hint/path, per suite (deduplicated). Preserved as
+    # ordered lists for the ddtest parallel matrix and validation.
+    venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
+    venv_test_locations: dict[str, dict[str, str]] = {s: {} for s in compiled}
 
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
@@ -221,6 +243,8 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
         for suite, regex in compiled.items():
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
                 venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
+                venv_hash_hint[suite][inst.short_hash] = hint  # type: ignore[attr-defined]
+                venv_test_locations[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_LOCATION", "")
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
                     python_versions[suite].add(hint)
@@ -228,9 +252,12 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
     result: dict[str, SuiteVenvInfo] = {}
     for suite in compiled:
         if venv_hashes[suite]:
+            venvs = sorted(venv_hash_hint[suite].items())
             result[suite] = SuiteVenvInfo(
                 venv_count=len(venv_hashes[suite]),
                 python_versions=python_versions[suite],
+                venvs=venvs,
+                venv_test_locations=venv_test_locations[suite],
             )
         else:
             LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
@@ -494,18 +521,28 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     suite_patterns = {s: suites[s].get("pattern", s) for s in non_skipped}
     suite_venv_info = collect_all_suite_venv_info(suite_patterns)
 
+    # A ddtest job must have a file-based location for every matching riot
+    # venv. Fail during generation instead of creating a job that silently
+    # plans the repository root or an invalid pytest node ID.
+    for suite in non_skipped:
+        if not suites[suite].get("ddtest") or suite not in suite_venv_info:
+            continue
+        _ddtest_module().validate_ddtest_venv_test_locations(suite, suite_venv_info[suite])
+
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
     for info in suite_venv_info.values():
         _global_python_versions.update(info.python_versions)
 
-    # Compute baseline parallelism. Track scalable suites (those with venv info, eligible
-    # for scaling up) and the vpj map for dynamic suites.
+    # Compute baseline parallelism only for legacy riot suites. ddtest owns
+    # its run matrix, so including ddtest suites here only calculates values
+    # that are never emitted.
+    legacy_non_skipped = [s for s in non_skipped if not suites[s].get("ddtest")]
     baseline_jobs: dict[str, int] = {}
-    scalable_suites: list[str] = []  # all suites with venv info (both static and dynamic)
+    scalable_suites: list[str] = []  # all legacy suites eligible for scaling
     venvs_per_job_map: dict[str, int] = {}  # only for venvs_per_job suites
 
-    for suite in non_skipped:
+    for suite in legacy_non_skipped:
         config = suites[suite]
         static_parallelism = config.get("parallelism")
         venvs_per_job = config.get("venvs_per_job")
@@ -544,6 +581,18 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             clean_name = suite_config.pop("_clean_name", suite)
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
+
+            # ddtest suites: emit plan/run jobs instead of the legacy riot job.
+            if suite_config.get("ddtest"):
+                venvs = (suite_venv_info[suite].venvs or []) if suite in suite_venv_info else []
+                if not venvs:
+                    LOGGER.warning("Suite %s opted into ddtest but has no riot venvs; skipping", suite)
+                    continue
+                k = _ddtest_module().ddtest_k(suite_config)
+                LOGGER.info("Suite %s: ddtest (venvs=%d, nodes/venv=%d)", suite, len(venvs), k)
+                _ddtest_module().emit_ddtest_jobs(f, suite, stage, clean_name, suite_config, venvs, k)
+                continue
+
             jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)

@@ -163,6 +163,8 @@ suites:
     paths:
       - 'conftest.py'
       - '**/conftest.py'
+      - 'tests/_ddtest_conftest_helpers.py'
+      - 'tests/_ddtest_env_helpers.py'
     pattern: meta-testing
     snapshot: false
   ddtracerun:
@@ -185,6 +187,10 @@ suites:
       - 'src/native/*'
       - 'scripts/global-lock-detection.py'
   integration_agent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     parallelism: 2
     paths:
       - '@tracing'
@@ -196,6 +202,10 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
   integration_testagent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -278,7 +288,10 @@ suites:
       - tests/snapshots/tests.telemetry.*
     snapshot: true
   tracer:
+    ddtest: true
+    ddtest_nodes: 2
     env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
