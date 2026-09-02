@@ -18,7 +18,13 @@
     fi
 
     source $EXT_CACHE_VENV/bin/activate
-    python -m pip install cmake setuptools_rust Cython
+    # Cython 3.3 cp315 wheels SIGSEGV on pre-rc1 3.15; pyproject.toml pin does not apply here.
+    # TODO(py-315): drop this pin once testrunner 3.15 is 3.15.0rc1+.
+    if [ "$PYTHON_VERSION" = "3.15" ]; then
+        python -m pip install cmake setuptools_rust 'Cython<3.3'
+    else
+        python -m pip install cmake setuptools_rust Cython
+    fi
     python scripts/ext_cache.py restore
     deactivate
   after_script: |
