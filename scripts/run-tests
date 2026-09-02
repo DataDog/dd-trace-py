@@ -754,8 +754,44 @@ class TestRunner:
         run: TestRun,
         pytest_args: list[str],
         forwarded_env: dict[str, str],
+        ddtest_mode: Optional[str] = None,
+        ddtest_nodes: int = 1,
+        ddtest_ci_node: int = 0,
+        ddtest_ci_node_workers: int = 1,
     ) -> list[str]:
-        command = shlex.split(run.command)
+        if ddtest_mode == "plan":
+            tests_location = run.environment.get("DDTEST_TESTS_LOCATION")
+            if not tests_location:
+                raise ValueError(f"{environment.hash} has no DDTEST_TESTS_LOCATION")
+            command = [
+                "ddtest",
+                "plan",
+                "--platform",
+                "python",
+                "--framework",
+                "pytest",
+                "--tests-location",
+                tests_location,
+                "--min-parallelism",
+                str(ddtest_nodes),
+                "--max-parallelism",
+                str(ddtest_nodes),
+            ]
+        elif ddtest_mode == "run":
+            command = [
+                "ddtest",
+                "run",
+                "--platform",
+                "python",
+                "--framework",
+                "pytest",
+                "--ci-node",
+                str(ddtest_ci_node),
+                "--ci-node-workers",
+                str(ddtest_ci_node_workers),
+            ]
+        else:
+            command = shlex.split(run.command)
         expanded = []
         for argument in command:
             if argument == "{cmdargs}":
@@ -779,6 +815,16 @@ class TestRunner:
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
+        if ddtest_mode:
+            ddtest_command = " ".join(shlex.quote(argument) for argument in expanded)
+            prefix = 'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; '
+            if ddtest_mode == "plan":
+                prefix += 'export DD_TRACE_AGENT_URL="$DDTEST_PLAN_AGENT_URL"; '
+            if ddtest_mode == "run":
+                ddtest_command += (
+                    '; coverage_files=(.coverage.*); if [[ -e "${coverage_files[0]}" ]]; then coverage combine; fi'
+                )
+            expanded = ["bash", "-c", prefix + ddtest_command]
         return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
 
     def _run_uv_suite(
@@ -788,6 +834,10 @@ class TestRunner:
         test_args: list[str],
         skip_ddtrace_install: bool,
         dry_run: bool = False,
+        ddtest_mode: Optional[str] = None,
+        ddtest_nodes: int = 1,
+        ddtest_ci_node: int = 0,
+        ddtest_ci_node_workers: int = 1,
     ) -> bool:
         pytest_args = test_args[1:] if test_args[:1] == ["--"] else test_args
 
@@ -817,7 +867,17 @@ class TestRunner:
             if dry_run:
                 print(f"[DRY RUN] Would synchronize {prepared.path} from {environment.lockfile}")
                 for run in environment.runs:
-                    command = self._uv_test_command(environment, prepared, run, pytest_args, forwarded_env)
+                    command = self._uv_test_command(
+                        environment,
+                        prepared,
+                        run,
+                        pytest_args,
+                        forwarded_env,
+                        ddtest_mode,
+                        ddtest_nodes,
+                        ddtest_ci_node,
+                        ddtest_ci_node_workers,
+                    )
                     print(f"[DRY RUN] Would execute: {' '.join(command)}")
                 continue
             try:
@@ -839,7 +899,17 @@ class TestRunner:
 
             for run in environment.runs:
                 try:
-                    command = self._uv_test_command(environment, prepared, run, pytest_args, forwarded_env)
+                    command = self._uv_test_command(
+                        environment,
+                        prepared,
+                        run,
+                        pytest_args,
+                        forwarded_env,
+                        ddtest_mode,
+                        ddtest_nodes,
+                        ddtest_ci_node,
+                        ddtest_ci_node_workers,
+                    )
                 except ValueError as error:
                     print(f"❌ {error}")
                     return False
@@ -860,6 +930,10 @@ class TestRunner:
         test_args: Optional[list[str]] = None,
         skip_ddtrace_install: bool = False,
         dry_run: bool = False,
+        ddtest_mode: Optional[str] = None,
+        ddtest_nodes: int = 1,
+        ddtest_ci_node: int = 0,
+        ddtest_ci_node_workers: int = 1,
     ) -> bool:
         """Execute the selected venvs, grouped by suite with per-suite service management."""
         if not selected_venvs:
@@ -967,6 +1041,10 @@ class TestRunner:
                     test_args or [],
                     skip_ddtrace_install,
                     dry_run,
+                    ddtest_mode,
+                    ddtest_nodes,
+                    ddtest_ci_node,
+                    ddtest_ci_node_workers,
                 )
                 if suite_services and not self.in_ci:
                     self.stop_services(suite_services)
@@ -1256,6 +1334,13 @@ Examples:
     )
 
     parser.add_argument(
+        "--ddtest-mode", choices=("plan", "run"), help="Execute ddtest planning or a planned CI partition"
+    )
+    parser.add_argument("--ddtest-nodes", type=int, default=1, help="Number of DDTest plan partitions")
+    parser.add_argument("--ddtest-ci-node", type=int, default=0, help="Zero-based DDTest CI partition")
+    parser.add_argument("--ddtest-ci-node-workers", type=int, default=1, help="Workers per DDTest CI partition")
+
+    parser.add_argument(
         "--venv",
         action="append",
         help=(
@@ -1332,6 +1417,10 @@ Examples:
             test_args=test_args,
             skip_ddtrace_install=skip_ddtrace_install,
             dry_run=args.dry_run,
+            ddtest_mode=args.ddtest_mode,
+            ddtest_nodes=args.ddtest_nodes,
+            ddtest_ci_node=args.ddtest_ci_node,
+            ddtest_ci_node_workers=args.ddtest_ci_node_workers,
         )
         return 0 if success else 1
 
@@ -1389,6 +1478,10 @@ Examples:
         test_args=test_args,
         skip_ddtrace_install=skip_ddtrace_install,
         dry_run=args.dry_run,
+        ddtest_mode=args.ddtest_mode,
+        ddtest_nodes=args.ddtest_nodes,
+        ddtest_ci_node=args.ddtest_ci_node,
+        ddtest_ci_node_workers=args.ddtest_ci_node_workers,
     )
 
     return 0 if success else 1

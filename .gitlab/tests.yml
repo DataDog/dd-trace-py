@@ -116,6 +116,56 @@ include:
         "Changes detected in committed test locks. Run scripts/compile-and-prune-test-requirements and commit the result."
 
 # ---------------------------------------------------------------------------
+# ddtest's uv runner reuses the same suite definitions as normal uv jobs.
+# It plans each hash independently because ddtest writes .testoptimization in
+# the checkout root, then restores the matching plan in each run matrix job.
+.ddtest_base_uv:
+  extends: .test_base_uv
+
+.ddtest_base_uv_snapshot:
+  extends: .ddtest_base_uv
+  services:
+    - !reference [.ddtest_base_uv, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.ddtest_base_uv, before_script]
+    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+
+.ddtest_plan_uv:
+  extends: .ddtest_base_uv
+  script:
+    - |
+      set -euo pipefail
+      for hash_py in ${TEST_ENVIRONMENT_HASH_PYTHON}; do
+        environment_hash="${hash_py%%:*}"
+        scripts/run-tests -s --venv "${environment_hash}" --ddtest-mode plan --ddtest-nodes "${DDTEST_NODES}"
+        mv .testoptimization ".testoptimization-${environment_hash}"
+      done
+  artifacts:
+    when: always
+    paths:
+      - .testoptimization-*/
+    expire_in: 1 week
+
+.ddtest_run_uv:
+  extends: .ddtest_base_uv
+  script:
+    - |
+      rm -rf .testoptimization
+      mv ".testoptimization-${TEST_ENVIRONMENT_HASH}" .testoptimization
+      export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
+      scripts/run-tests -s --venv "${TEST_ENVIRONMENT_HASH}" --ddtest-mode run --ddtest-ci-node "${CI_NODE_INDEX}" --ddtest-ci-node-workers 4
+
+.ddtest_run_uv_snapshot:
+  extends: .ddtest_base_uv_snapshot
+  script:
+    - |
+      rm -rf .testoptimization
+      mv ".testoptimization-${TEST_ENVIRONMENT_HASH}" .testoptimization
+      export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
+      scripts/run-tests -s --venv "${TEST_ENVIRONMENT_HASH}" --ddtest-mode run --ddtest-ci-node "${CI_NODE_INDEX}" --ddtest-ci-node-workers 1
+
+# ---------------------------------------------------------------------------
 # ddtest job templates. Used by gen_gitlab_config.py for suites with
 # `ddtest: true` in suitespec. ddtest owns plan/run + file splitting; riot
 # knowledge stays in Riot's command override.

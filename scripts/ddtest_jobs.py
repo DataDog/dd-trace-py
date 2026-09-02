@@ -27,9 +27,11 @@ def _get_bool_env(name: str) -> str:
     return "true" if value == "true" else "false"
 
 
-def validate_ddtest_venv_test_locations(suite: str, info) -> None:
-    """Reject ddtest suites whose matched venvs do not declare a test location."""
-    missing = [h for h, _py in info.riot_venvs if not (info.venv_test_locations or {}).get(h)]
+def validate_ddtest_venv_test_locations(
+    suite: str, venvs: t.Iterable[tuple[str, str]], test_locations: t.Optional[dict[str, str]]
+) -> None:
+    """Reject ddtest suites whose selected environments lack a test location."""
+    missing = [h for h, _py in venvs if not (test_locations or {}).get(h)]
     if missing:
         raise ValueError(f"ddtest suite {suite} has venvs without DDTEST_TESTS_LOCATION: {', '.join(missing)}")
 
@@ -58,9 +60,9 @@ def ddtest_k(config: dict) -> int:
     return int(k)
 
 
-def _ddtest_base(snapshot: bool, gpu: bool) -> str:
+def _ddtest_base(snapshot: bool, gpu: bool, runner: str) -> str:
     """Return the hidden base template a ddtest suite's before_script references."""
-    base = ".ddtest_base"
+    base = ".ddtest_base_uv" if runner == "uv" else ".ddtest_base"
     if gpu:
         base += "_gpu"
     if snapshot:
@@ -68,19 +70,19 @@ def _ddtest_base(snapshot: bool, gpu: bool) -> str:
     return base
 
 
-def _ddtest_plan_template(gpu: bool) -> str:
+def _ddtest_plan_template(gpu: bool, runner: str) -> str:
     """Plan template. Plan only collects (glob + Datadog API); it sends
     no traces, so it never needs the testagent and has no snapshot
     variant — snapshot suites and non-snapshot suites plan the same way.
     """
-    tpl = ".ddtest_plan"
+    tpl = ".ddtest_plan_uv" if runner == "uv" else ".ddtest_plan"
     if gpu:
         tpl += "_gpu"
     return tpl
 
 
-def _ddtest_run_template(snapshot: bool, gpu: bool) -> str:
-    tpl = ".ddtest_run"
+def _ddtest_run_template(snapshot: bool, gpu: bool, runner: str) -> str:
+    tpl = ".ddtest_run_uv" if runner == "uv" else ".ddtest_run"
     if gpu:
         tpl += "_gpu"
     if snapshot:
@@ -97,6 +99,7 @@ def emit_ddtest_jobs(
     venvs: list[tuple[str, str]],
     k: int,
     testrunner_image_hash: str,
+    runner: str,
 ) -> None:
     """Emit ddtest-plan and ddtest-run jobs for one suite.
 
@@ -118,10 +121,10 @@ def emit_ddtest_jobs(
     env["PIP_CACHE_KEY"] = (
         subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
     )
-    base = _ddtest_base(snapshot, gpu)
-    plan_base = _ddtest_base(False, gpu)  # plan never needs the testagent
-    plan_tpl = _ddtest_plan_template(gpu)
-    run_tpl = _ddtest_run_template(snapshot, gpu)
+    base = _ddtest_base(snapshot, gpu, runner)
+    plan_base = _ddtest_base(False, gpu, runner)  # plan never needs the testagent
+    plan_tpl = _ddtest_plan_template(gpu, runner)
+    run_tpl = _ddtest_run_template(snapshot, gpu, runner)
     job_prefix = f"{stage}/{clean_name.replace('::', '/')}"
     plan_name = f"{job_prefix}::ddtest-plan"
     run_name = f"{job_prefix}::ddtest-run"
@@ -195,12 +198,14 @@ def emit_ddtest_jobs(
     emit_needs_build_base_venvs(venvs)
     emit_services(plan=True)
     emit_before_script(plan=True)
-    riot_hashes = " ".join(h for h, _ in venvs)
+    environment_hashes = " ".join(h for h, _ in venvs)
+    hash_prefix = "TEST_ENVIRONMENT" if runner == "uv" else "RIOT"
     emit_variables(
         {
+            "DDTEST_EXECUTION_RUNNER": runner,
             "DDTEST_NODES": str(k),
-            "RIOT_HASHES": riot_hashes,
-            "RIOT_HASH_PYTHON": " ".join(f"{h}:{py}" for h, py in venvs),
+            f"{hash_prefix}_HASHES": environment_hashes,
+            f"{hash_prefix}_HASH_PYTHON": " ".join(f"{h}:{py}" for h, py in venvs),
             "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
         }
     )
@@ -236,12 +241,12 @@ def emit_ddtest_jobs(
         print("      artifacts: true", file=f)
         emit_services(plan=False)
         emit_before_script(plan=False)
-        emit_variables({"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"})
+        emit_variables({"DDTEST_EXECUTION_RUNNER": runner, "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"})
         print("  parallel:", file=f)
         print("    matrix:", file=f)
         for h, _py in py_venvs:
             for node in range(k):
-                print(f'      - RIOT_HASH: "{h}"', file=f)
+                print(f'      - {hash_prefix}_HASH: "{h}"', file=f)
                 print(f'        PYTHON_VERSION: "{py}"', file=f)
                 print(f"        CI_NODE_INDEX: {node}", file=f)
         if retry is not None:
