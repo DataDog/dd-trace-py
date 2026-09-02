@@ -75,7 +75,7 @@ def _collect_suitespecs() -> dict:
 
 
 SUITESPEC = _collect_suitespecs()
-UV_TEST_SUITES = ("tracer", "tracer-uwsgi") + tuple(
+UV_TEST_SUITES = ("tracer", "tracer-uwsgi", "debugging::debugger") + tuple(
     suite for suite, config in SUITESPEC["suites"].items() if suite.startswith("contrib::") and "matrix" in config
 )
 
