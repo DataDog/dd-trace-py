@@ -269,7 +269,7 @@ impl Context {
                 return Ok(vec![raw_tracestate]);
             }
             let dd_member = format!("dd={}", dd_list_member);
-            if dd_member.len() + raw_tracestate.len() + 1 <= DD_TRACE_TRACESTATE_MAX_BYTES {
+            if dd_member.len() + raw_tracestate.len() < DD_TRACE_TRACESTATE_MAX_BYTES {
                 return Ok(vec![dd_member, raw_tracestate]);
             }
             return Ok(vec![dd_member]);
