@@ -25,6 +25,10 @@ def get_version() -> Text:
 
 _IS_PATCHED = False
 
+# Upper bound on frames inspected when locating the caller of eval, so a pathological stack
+# cannot turn the walk into an unbounded loop.
+_MAX_FRAMES_TO_INSPECT = 8
+
 
 def patch():
     global _IS_PATCHED
@@ -51,6 +55,23 @@ def patch():
 class CodeInjection(VulnerabilityBase):
     vulnerability_type = VULN_CODE_INJECTION
     secure_mark = VulnerabilityType.CODE_INJECTION
+
+
+def _resolve_caller_frame(frame):
+    """Walk past the wrapping machinery so we land on the frame that called eval.
+
+    wrapt's pure-Python FunctionWrapper adds a frame that its C extension does not, so a
+    fixed f_back depth resolves to the wrong scope whenever the C extension is unavailable.
+    """
+    candidate = frame
+    for _ in range(_MAX_FRAMES_TO_INSPECT):
+        if candidate is None:
+            break
+        module_name = candidate.f_globals.get("__name__") or ""
+        if module_name != "wrapt" and not module_name.startswith("wrapt."):
+            return candidate
+        candidate = candidate.f_back
+    return frame
 
 
 def _iast_coi(wrapped, instance, args, kwargs):
@@ -81,7 +102,9 @@ def _iast_coi(wrapped, instance, args, kwargs):
             else:
                 frames = inspect.currentframe()
                 if frames is not None:
-                    caller_frame = frames.f_back
+                    caller_frame = _resolve_caller_frame(frames.f_back)
+                    # Left unguarded on purpose: AttributeError here routes to the except below,
+                    # which re-dispatches the caller's original args instead of forcing None.
                     func_globals = caller_frame.f_globals
 
             if len(args) > 2:
@@ -92,7 +115,7 @@ def _iast_coi(wrapped, instance, args, kwargs):
                 if caller_frame is None:
                     frames = inspect.currentframe()
                     if frames is not None:
-                        caller_frame = frames.f_back
+                        caller_frame = _resolve_caller_frame(frames.f_back)
                 if caller_frame is not None:
                     func_locals = caller_frame.f_locals
                     func_locals_copy_to_check = func_locals.copy() if func_locals else None

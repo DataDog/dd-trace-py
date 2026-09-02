@@ -17,7 +17,6 @@ import urllib.parse
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.context import Context
 from ddtrace._trace.processor import _NoopTraceProcessor
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
@@ -33,6 +32,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
@@ -606,12 +606,15 @@ class LLMObs(Service):
             interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
+        # Without a local app key, fall back to the agent's EVP proxy, which supplies both
+        # credentials. An override origin stands in for intake, not an agent, so it stays direct.
+        dne_agentless = bool(self._app_key) or agentless_enabled or bool(_env.get("DD_LLMOBS_OVERRIDE_ORIGIN", ""))
         self._dne_client = LLMObsExperimentsClient(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
-            is_agentless=True,  # agent proxy doesn't seem to work for experiments
+            is_agentless=dne_agentless,
         )
         self._api_client = LLMObsAPIClient(app_key=self._app_key)
 

@@ -111,12 +111,16 @@ def test_service_enable_agent_service_precedence_over_service(tracer):
 
 def test_service_enable_service_used_as_ml_app_fallback(tracer):
     """When neither agent_service nor ml_app is set, service is used as the ml app."""
+    # Guard against leaked enabled=True from a prior failed test
+    llmobs_service.disable()
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app=None)):
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
-        with llmobs_service.workflow() as span:
-            pass
-        assert get_llmobs_ml_app(span) == "<service>"
-        llmobs_service.disable()
+        try:
+            with llmobs_service.workflow() as span:
+                pass
+            assert get_llmobs_ml_app(span) == "<service>"
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.mark.subprocess(
