@@ -56,7 +56,7 @@ def _reset_universal_module_watchdog():
     if leaked:
         warn(f"Test leaked {len(leaked)} module watchdog(s) that were never uninstalled: {leaked}")
         for watchdog in leaked:
-            _UniversalModuleWatchdog._unregister(watchdog)
+            type(watchdog).uninstall()
 
 
 @pytest.fixture
@@ -788,6 +788,9 @@ def test_universal_module_watchdog_first_registered_wins():
 
 
 def test_universal_module_watchdog_teardown():
+    watchdogs_before = list(_UniversalModuleWatchdog._instance._watchdogs) if _UniversalModuleWatchdog._instance else []
+    meta_path_before = list(sys.meta_path)
+
     classes = [type(f"Watchdog{i}", (ModuleWatchdog,), {}) for i in range(3)]
     for cls in classes:
         cls.install()
@@ -795,5 +798,6 @@ def test_universal_module_watchdog_teardown():
     for cls in classes:
         cls.uninstall()
 
-    assert _UniversalModuleWatchdog._instance is None
-    assert not any(isinstance(m, _UniversalModuleWatchdog) for m in sys.meta_path)
+    watchdogs_after = list(_UniversalModuleWatchdog._instance._watchdogs) if _UniversalModuleWatchdog._instance else []
+    assert watchdogs_after == watchdogs_before
+    assert list(sys.meta_path) == meta_path_before
