@@ -1,5 +1,6 @@
 import re
 from typing import Optional
+from typing import Protocol
 from typing import Union
 from urllib.parse import urlparse
 
@@ -14,7 +15,11 @@ from ddtrace.internal.settings._config import config
 log = get_logger(__name__)
 
 
-def path_source_tag_value(span: Span) -> Optional[str]:
+class _SpanTagReader(Protocol):
+    def get_tag(self, key: str) -> Optional[str]: ...
+
+
+def path_source_tag_value(span: _SpanTagReader) -> Optional[str]:
     path_source_tags = (http.OTEL_URL_PATH, http.OTEL_URL_FULL) if config._otel_trace_semantics_enabled else (http.URL,)
     return next((value for value in map(span.get_tag, path_source_tags) if value), None)
 
