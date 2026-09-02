@@ -750,6 +750,16 @@ class TracerTestCases(TracerTestCase):
 
             recreate.assert_called_once_with(reset_buffer=True)
 
+    def test_tracer_shutdown_after_fork_does_not_recreate_writer(self):
+        writer = self.tracer._span_aggregator.writer
+        with mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate:
+            self.tracer._child_after_fork()
+            self.tracer.shutdown()
+
+        recreate.assert_not_called()
+        assert self.tracer._span_aggregator.writer is writer
+        assert not self.tracer._new_process
+
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
         self.tracer.context_provider.activate(context)

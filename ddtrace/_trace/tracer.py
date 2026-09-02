@@ -1001,9 +1001,9 @@ class Tracer(object):
             # Already shutting down from this or another thread — skip re-entrant call
             return
         try:
-            if self._new_process:
-                self._recreate(reset_buffer=True)
-                self._new_process = False
+            # Do not recreate an inherited writer only to shut it down. The span aggregator
+            # discards its buffered traces during shutdown.
+            self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)
