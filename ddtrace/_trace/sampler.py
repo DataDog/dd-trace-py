@@ -171,6 +171,7 @@ class DatadogSampler:
         sampled = True
         sample_rate = 1.0
         agent_sampler = None
+        limiter_dropped = False
         if matched_rule:
             # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
@@ -187,13 +188,10 @@ class DatadogSampler:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
             # by users. In this scenario tracing should default to agent based sampling. ASM
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
-            limiter_dropped = False
             if sampled:
                 sampled = self.limiter.is_allowed()
                 limiter_dropped = not sampled
                 span._set_attribute(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
-        else:
-            limiter_dropped = False
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
         probabilistic_decision = (
