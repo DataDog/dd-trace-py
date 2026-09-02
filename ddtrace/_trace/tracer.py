@@ -436,6 +436,7 @@ class Tracer(object):
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
+        flush_writer: Optional[bool] = None,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
@@ -447,6 +448,7 @@ class Tracer(object):
             appsec_enabled=appsec_enabled,
             llmobs_enabled=llmobs_enabled,
             reset_buffer=reset_buffer,
+            flush_writer=flush_writer,
         )
         self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
@@ -498,7 +500,7 @@ class Tracer(object):
         parenting of spans.
         """
         if self._new_process:
-            self._recreate(reset_buffer=True)
+            self._recreate(reset_buffer=False, flush_writer=False)
             self._new_process = False
 
             # The spans remaining in the context can not and will not be

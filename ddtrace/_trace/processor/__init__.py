@@ -547,15 +547,19 @@ class SpanAggregator(SpanProcessor):
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
+        flush_writer: Optional[bool] = None,
     ) -> None:
         """
         Resets the internal state of the SpanAggregator, including the writer, sampling processor,
         user-defined processors, and optionally the trace buffer and span metrics.
 
         This method is typically used after a process fork or during runtime reconfiguration.
-        Arguments that are None will not override existing values.
+        Arguments that are None will not override existing values. By default, the writer is
+        flushed only when preserving the trace buffer.
         """
-        if not reset_buffer:
+        if flush_writer is None:
+            flush_writer = not reset_buffer
+        if flush_writer:
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
