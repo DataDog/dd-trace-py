@@ -3336,6 +3336,13 @@
         ]
       }
     ],
+    "DD_REMOTE_CONFIGURATION_AGENT_URL": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "DD_REMOTE_CONFIGURATION_ENABLED": [
       {
         "implementation": "A",

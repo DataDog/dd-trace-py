@@ -270,6 +270,30 @@ def test_trace_url_with_url_host_and_port():
 
 @pytest.mark.subprocess(
     env={
+        "DD_REMOTE_CONFIGURATION_AGENT_URL": "http://remote-config:8126",
+        "DD_TRACE_AGENT_URL": "http://traces:8126",
+    }
+)
+def test_remote_configuration_agent_url_override():
+    from ddtrace.internal.remoteconfig.client import RemoteConfigClient
+    from ddtrace.internal.settings._agent import config
+
+    assert config.parsed.remote_configuration_agent_url == "http://remote-config:8126"
+    assert config.remote_configuration_agent_url == "http://remote-config:8126"
+    assert config.trace_agent_url == "http://traces:8126"
+    assert RemoteConfigClient().agent_url == "http://remote-config:8126"
+
+
+@pytest.mark.subprocess(env={"DD_REMOTE_CONFIGURATION_AGENT_URL": None, "DD_TRACE_AGENT_URL": "http://traces:8126"})
+def test_remote_configuration_agent_url_defaults_to_trace_agent_url():
+    from ddtrace.internal.settings._agent import config
+
+    assert config.parsed.remote_configuration_agent_url == "http://traces:8126"
+    assert config.remote_configuration_agent_url == "http://traces:8126"
+
+
+@pytest.mark.subprocess(
+    env={
         "DD_DOGSTATSD_URL": None,
         "DD_AGENT_HOST": None,
         "DD_DOGSTATSD_PORT": None,

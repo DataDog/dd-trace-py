@@ -50,6 +50,10 @@ def _derive_trace_url(config: "AgentConfig") -> str:
     return url
 
 
+def _derive_remote_configuration_url(config: "AgentConfig") -> str:
+    return config._remote_configuration_agent_url or config.trace_agent_url
+
+
 def _derive_stats_url(config: "AgentConfig") -> str:
     user_supplied_host = config._dogstatsd_host or config._agent_host
     user_supplied_port = config._dogstatsd_port or config._agent_port
@@ -107,6 +111,14 @@ class AgentConfig(DDConfig):
         default=None,
         help_type="String",
         help="Stores the URL of the trace agent",
+    )
+
+    _remote_configuration_agent_url = DDConfig.v(
+        Optional[str],
+        "remote_configuration_agent_url",
+        default=None,
+        help_type="String",
+        help="Stores the URL of the agent receiving Remote Configuration requests",
     )
 
     trace_agent_timeout_seconds = DDConfig.v(
@@ -176,6 +188,8 @@ class AgentConfig(DDConfig):
     trace_native_span_events = DDConfig.d(bool, _derive_trace_native_span_events)
     # Effective trace agent URL (this is the one that will be used)
     trace_agent_url = DDConfig.d(str, _derive_trace_url)
+    # Effective Remote Configuration agent URL (this is the one that will be used)
+    remote_configuration_agent_url = DDConfig.d(str, _derive_remote_configuration_url)
     # Effective DogStatsD URL (this is the one that will be used)
     dogstatsd_url = DDConfig.d(str, _derive_stats_url)
 
