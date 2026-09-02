@@ -988,6 +988,7 @@ suites:
           python: ['3.9']
           dependencies: ['django-redis>=4.5,<4.6', 'django-pylibmc>=0.6,<0.7', daphne, requests, 'redis>=2.10,<2.11', 'psycopg2-binary>=2.8.6', 'pytest-django[testing]==3.10.0', pytest-asyncio, 'setuptools<80', pylibmc, python-memcached, pytest-randomly, spyne, zeep, 'bcrypt==4.2.1', 'django~=2.2.0', channels, django-q]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
           command: >-
@@ -997,6 +998,7 @@ suites:
           python: ['3.9']
           dependencies: ['django-redis>=4.5,<4.6', 'django-pylibmc>=0.6,<0.7', daphne, requests, 'redis>=2.10,<2.11', 'psycopg2-binary>=2.8.6', 'pytest-django[testing]==3.10.0', pytest-asyncio, 'setuptools<80', pylibmc, python-memcached, pytest-randomly, spyne, zeep, 'bcrypt==4.2.1', 'django~=3.0.0', channels, django-q]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
           command: >-
@@ -1006,6 +1008,7 @@ suites:
           python: ['3.9']
           dependencies: ['django-redis>=4.5,<4.6', 'django-pylibmc>=0.6,<0.7', daphne, requests, 'redis>=2.10,<2.11', 'psycopg2-binary>=2.8.6', 'pytest-django[testing]==3.10.0', pytest-asyncio, 'setuptools<80', pylibmc, python-memcached, pytest-randomly, spyne, zeep, 'bcrypt==4.2.1', 'django~=4.0', channels, django-q]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
           command: >-
@@ -1015,6 +1018,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: ['django-redis>=4.5,<4.6', 'django-pylibmc>=0.6,<0.7', daphne, requests, 'redis>=2.10,<2.11', 'psycopg2-binary>=2.8.6', 'pytest-django[testing]==3.10.0', pytest-asyncio, 'setuptools<80', pylibmc, python-memcached, pytest-randomly, spyne, zeep, 'bcrypt==4.2.1', 'django~=4.2', psycopg, channels, django-q]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
           command: pytest {cmdargs} tests/contrib/django
@@ -1022,6 +1026,7 @@ suites:
           python: ['3.10', '3.11', '3.12', '3.13']
           dependencies: ['django-redis>=4.5,<4.6', 'django-pylibmc>=0.6,<0.7', daphne, requests, 'redis>=2.10,<2.11', 'psycopg2-binary>=2.8.6', 'pytest-django[testing]==3.10.0', pytest-asyncio, 'setuptools<80', pylibmc, python-memcached, pytest-randomly, spyne, zeep, 'bcrypt==4.2.1', 'django~=5.1', psycopg, channels, django-q2]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
             PYTHONWARNINGS: ignore::UserWarning:ddtrace.internal.module
           command: >-
@@ -2561,18 +2566,21 @@ suites:
         - name: dbapi
           dependencies: [pytest-randomly]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
           command: pytest {cmdargs} tests/contrib/dbapi
         - name: dbapi_async
           python: ['3.9', '3.10']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
           command: pytest {cmdargs} tests/contrib/dbapi_async
         - name: dbapi_async
           python: ['3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, attrs]
           env:
+            DD_CIVISIBILITY_ITR_ENABLED: '0'
             DD_IAST_REQUEST_SAMPLING: '100'
           command: pytest {cmdargs} tests/contrib/dbapi_async
         - name: asyncio

@@ -1,3 +1,4 @@
+import difflib
 import importlib
 import pathlib
 import re
@@ -35,48 +36,56 @@ def _load_suitespec():
 
 def test_suitespec_matches_riot():
     suitespec_module = _load_suitespec()
-    riot_generated_env = {
-        "_CI_DD_TAGS",
-        "DD_CIVISIBILITY_ITR_ENABLED",
-        "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
-        "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
-    }
     suitespec = suitespec_module.get_test_environments(nightly=False)
-    declared_suites = set(suitespec)
-    assert declared_suites == {
-        suite for suite in declared_suites if suite in suitespec_module.UV_TEST_SUITES or suite.startswith("contrib::")
-    }
     suite_patterns = tuple(
-        re.compile(suitespec_module.get_suites()[suite].get("pattern", suite)) for suite in declared_suites
+        re.compile(suitespec_module.get_suites()[suite].get("pattern", suite)) for suite in suitespec
     )
 
-    riot_environments = set()
-    for environment in riotfile.venv.instances():
-        if not any(environment.matches_pattern(pattern) for pattern in suite_patterns):
-            continue
-        riot_environments.add(
-            (
-                environment.short_hash,
-                tuple(shlex.split(environment.command)),
-                tuple(shlex.split(environment.full_pkg_str)),
-                tuple(sorted((key, value) for key, value in environment.env.items() if key not in riot_generated_env)),
-            )
+    riot_environments = sorted(
+        repr(
+            {
+                "name": environment.name,
+                "python": environment.py._hint,
+                "command": tuple(shlex.split(environment.command)),
+                "lock_hash": environment.short_hash,
+                "dependencies": tuple(sorted(shlex.split(environment.full_pkg_str))),
+                "env": tuple(sorted(environment.env.items())),
+            }
         )
-
-    declared_environments = {
-        (
-            environment.lock_hash,
-            tuple(shlex.split(run.command)),
-            environment.riot_lock_dependencies,
-            run.env,
+        + "\n"
+        for environment in riotfile._venv_instances()
+        if any(environment.matches_pattern(pattern) for pattern in suite_patterns)
+    )
+    suitespec_environments = sorted(
+        repr(
+            {
+                "name": environment.name,
+                "python": environment.python,
+                "command": tuple(shlex.split(run.command)),
+                "lock_hash": environment.lock_hash,
+                "dependencies": tuple(sorted(environment.riot_lock_dependencies)),
+                "env": tuple(sorted(run.env)),
+            }
         )
+        + "\n"
         for environments in suitespec.values()
         for environment in environments
         for run in environment.runs
-    }
+    )
 
-    assert all(environment.lockfile.is_file() for environments in suitespec.values() for environment in environments)
-    assert declared_environments == riot_environments
+    missing_lockfiles = sorted(
+        str(environment.lockfile)
+        for environments in suitespec.values()
+        for environment in environments
+        if not environment.lockfile.is_file()
+    )
+    assert not missing_lockfiles, f"Missing suitespec lock files: {missing_lockfiles}"
+
+    if suitespec_environments != riot_environments:
+        difference = difflib.unified_diff(
+            riot_environments, suitespec_environments, fromfile="Riot", tofile="suitespec", n=0
+        )
+        raise AssertionError("Suitespec and Riot environments differ:\n" + "".join(difference))
 
 
 def test_integrations_have_riot_envs(
