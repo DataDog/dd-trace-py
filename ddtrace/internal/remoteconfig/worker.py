@@ -51,7 +51,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def _agent_check(self) -> None:
         try:
-            info = agent.info()
+            info = agent.info(self._client.agent_url)
         except Exception:
             info = None
 

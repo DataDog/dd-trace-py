@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    remote configuration: Adds ``DD_REMOTE_CONFIGURATION_AGENT_URL`` to route
+    Remote Configuration capability discovery and polling to a different Datadog
+    Agent URL. When unset, it defaults to ``DD_TRACE_AGENT_URL``.

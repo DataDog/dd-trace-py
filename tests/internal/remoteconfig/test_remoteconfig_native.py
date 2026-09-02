@@ -398,6 +398,31 @@ def test_poller_runs_periodic_every_cycle_even_when_fetch_fails():
     assert ticks == [1, 1]
 
 
+def test_agent_check_uses_remote_configuration_agent_url(monkeypatch):
+    from ddtrace.internal.remoteconfig import worker as worker_mod
+
+    poller = worker_mod.RemoteConfigPoller()
+    poller._client.agent_url = "http://remote-config:8126"
+    info_urls = []
+    requests = []
+
+    def info(url):
+        info_urls.append(url)
+        return {"endpoints": ["/v0.7/config"]}
+
+    def request():
+        requests.append(True)
+        return True
+
+    monkeypatch.setattr(worker_mod.agent, "info", info)
+    monkeypatch.setattr(poller._client, "request", request)
+
+    poller._agent_check()
+
+    assert info_urls == ["http://remote-config:8126"]
+    assert requests == [True]
+
+
 def test_enable_builds_native_runtime_before_registering_fork_hook(monkeypatch):
     # The native client + shared Tokio runtime must be constructed at enable(),
     # BEFORE the _before_fork hook is registered. Otherwise the runtime registers

@@ -85,7 +85,7 @@ class RemoteConfigClient:
 
     def __init__(self) -> None:
         self.id = str(uuid.uuid4())
-        self.agent_url = agent_config.trace_agent_url
+        self.agent_url = agent_config.remote_configuration_agent_url
 
         # Product callbacks for single subscriber architecture
         self._product_callbacks: "dict[RemoteConfigProduct, RCCallback]" = {}

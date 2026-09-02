@@ -1065,6 +1065,15 @@ Agent
      default: 2.0
      description: The timeout in float to use to connect to the Datadog agent.
 
+   DD_REMOTE_CONFIGURATION_AGENT_URL:
+     type: URL
+     default: ``DD_TRACE_AGENT_URL``
+
+     description: |
+         The URL of the Datadog Agent used for Remote Configuration capability
+         discovery and polling. Setting this option does not change the Agent URL
+         used for trace intake.
+
    DD_TRACE_AGENT_URL:
      type: URL
 
