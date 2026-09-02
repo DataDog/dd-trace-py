@@ -3,9 +3,11 @@ import contextlib
 import copy
 import types
 
+import mock
 import pytest
 from wrapt import FunctionWrapper
 
+import ddtrace.appsec._common_module_patches as cmp
 from ddtrace.appsec._common_module_patches import _RaspContext
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionGetresponse
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionRequest
@@ -15,9 +17,17 @@ from ddtrace.appsec._common_module_patches import try_unwrap
 from ddtrace.appsec._common_module_patches import try_wrap_function_wrapper
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
+from ddtrace.appsec._constants import EXPLOIT_PREVENTION
+from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._patch_utils import _DD_WRAPPING_CONTEXTS
+from ddtrace.appsec._patch_utils import try_unwrap_context
+from ddtrace.appsec._patch_utils import try_wrap_context
+from ddtrace.appsec._utils import DDWaf_result
+from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.wrapping.context import WrappingContext
 
 
 def test_patch_read():
@@ -166,6 +176,176 @@ def test_rasp_context_releases_its_core_context(path):
         context.__exit__(ValueError, ValueError("boom"), None)
 
     assert core.find_item("full_url") is None
+
+
+def test_blocking_exception_is_not_exception_derived():
+    """RASP blocking depends on this and nothing else would catch a change.
+
+    A registered context's __enter__ runs inside `except Exception: continue`, so a block deriving
+    from Exception would be swallowed and the request would proceed unblocked.
+    """
+    assert issubclass(BlockingException, BaseException)
+    assert not issubclass(BlockingException, Exception)
+
+
+def _blocking_waf_result():
+    return DDWaf_result(1, [], {WAF_ACTIONS.BLOCK_ACTION: {}}, 0.0, 0.0, False, _observator(), {})
+
+
+def test_http_connection_request_blocks_on_a_waf_block_decision():
+    """A SSRF_REQ block must still propagate out of the migrated http.client hook."""
+    unpatch_common_modules()
+    import http.client
+
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    httplib_unpatch()
+    try:
+        patch_common_modules()
+        core.set_item("full_url", "http://127.0.0.1:1/")
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()) as call_waf,
+            mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
+        ):
+            # __enter__ runs at function entry, so this blocks before any socket work.
+            conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
+            with pytest.raises(BlockingException) as raised:
+                conn.request("GET", "/")
+
+        assert raised.value.args[3] == "http://127.0.0.1:1/"
+        # A context leaves no wrapper frame, so the crop anchor must name the wrapped function.
+        assert call_waf.call_args.kwargs["crop_trace"] == "request"
+    finally:
+        core.discard_item("full_url")
+        unpatch_common_modules()
+
+
+def test_http_client_request_traceback_has_no_ddtrace_frames():
+    """The same guarantee as for urlopen, for the migrated http.client hooks.
+
+    The httplib integration is unpatched here so this is about appsec's hook alone; that
+    integration's wrapt wrapper would legitimately contribute a frame of its own.
+    """
+    unpatch_common_modules()
+    import http.client
+    import traceback
+
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    httplib_unpatch()
+    try:
+        patch_common_modules()
+        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
+        with pytest.raises(OSError) as raised:
+            conn.request("GET", "/")
+
+        frames = traceback.extract_tb(raised.value.__traceback__)
+        ddtrace_frames = [frame.filename for frame in frames if "ddtrace" in frame.filename]
+        assert not ddtrace_frames, ddtrace_frames
+        assert any(frame.filename == __file__ for frame in frames)
+    finally:
+        unpatch_common_modules()
+
+
+def test_a_failing_rasp_hook_does_not_break_the_request():
+    """A bug inside the hook must not reach the customer: the request proceeds and fails on its own."""
+    unpatch_common_modules()
+    import urllib.request
+
+    try:
+        patch_common_modules()
+        with mock.patch.object(cmp, "get_rasp_capability", side_effect=RuntimeError("boom")):
+            with pytest.raises(Exception) as raised:
+                urllib.request.urlopen("http://127.0.0.1:1/", timeout=1)
+
+        assert not isinstance(raised.value, RuntimeError)
+        assert isinstance(raised.value, OSError)
+    finally:
+        unpatch_common_modules()
+
+
+def test_try_wrap_context_survives_a_wrap_failure():
+    """Bytecode rewriting can fail on shapes the bytecode library cannot round-trip.
+
+    Losing a RASP hook is acceptable; breaking the customer's patching is not.
+    """
+    key = ("http.client", "HTTPConnection.putrequest")
+
+    class _Unwrappable(WrappingContext):
+        def wrap(self):
+            raise RuntimeError("bytecode cannot round-trip this")
+
+    try:
+        # http.client is already imported, so the module hook fires immediately.
+        try_wrap_context(key[0], key[1], _Unwrappable)
+        assert key not in _DD_WRAPPING_CONTEXTS
+    finally:
+        try_unwrap_context(key[0], key[1])
+
+
+def _entered_context():
+    """A _SsrfOpenerDirectorOpen with its core context open, without needing RASP enabled."""
+    import urllib.request
+
+    context = _SsrfOpenerDirectorOpen(urllib.request.OpenerDirector.open)
+    _RaspContext.__enter__(context)
+    context.set("use_body", False)
+    context._open_core_context("url_open_analysis", full_url="http://127.0.0.1:1/", use_body=False)
+    return context
+
+
+def test_opener_director_open_reports_the_downstream_response():
+    """The API10 down-response WAF call moved from inside a `with` block to __return__."""
+
+    class HTTPResponse:  # production matches on the class name
+        status = 200
+
+        def getheaders(self):
+            return [("Content-Type", "application/json")]
+
+    context = _entered_context()
+    with mock.patch.object(cmp, "call_waf_callback") as call_waf:
+        context.__return__(HTTPResponse())
+
+    call_waf.assert_called_once_with(
+        {"DOWN_RES_STATUS": "200", "DOWN_RES_HEADERS": {"Content-Type": "application/json"}},
+        rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+    )
+
+
+def test_opener_director_open_reports_a_downstream_http_error():
+    """Same for the error path, which moved to __exit__."""
+
+    class HTTPError(Exception):  # production matches on the class name
+        code = 404
+        headers = {"Content-Type": "text/html"}
+
+    context = _entered_context()
+    with mock.patch.object(cmp, "call_waf_callback") as call_waf:
+        context.__exit__(HTTPError, HTTPError(), None)
+
+    call_waf.assert_called_once_with(
+        {"DOWN_RES_STATUS": "404", "DOWN_RES_HEADERS": {"Content-Type": "text/html"}},
+        rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
+    )
+
+
+def test_opener_director_open_skips_a_redirect_response():
+    """3xx is handled deeper, in getresponse, so __return__ must not double-call the WAF."""
+
+    class HTTPResponse:
+        status = 302
+
+        def getheaders(self):
+            return []
+
+    context = _entered_context()
+    with mock.patch.object(cmp, "call_waf_callback") as call_waf:
+        context.__return__(HTTPResponse())
+
+    call_waf.assert_not_called()
 
 
 @pytest.mark.parametrize("appsec_first", [True, False])
