@@ -3,6 +3,8 @@ import time
 import aiopg
 import mock
 from psycopg2 import extras
+from psycopg2.sql import SQL
+from psycopg2.sql import Identifier
 import pytest
 
 # project
@@ -40,6 +42,7 @@ class AiopgTestCase(AsyncioTestCase):
     @mark_asyncio
     async def test_query_is_blocked_before_execution(self):
         cursor = mock.AsyncMock()
+        cursor._impl = mock.Mock()
         traced_cursor = AIOTracedCursor(cursor, Pin())
 
         class StringifiableQuery:
@@ -62,8 +65,27 @@ class AiopgTestCase(AsyncioTestCase):
                 core.reset_listeners(DbQueryEvent.event_name, block)
 
             assert exc_info.value is expected
-            query.as_string.assert_called_once_with(cursor)
+            query.as_string.assert_called_once_with(cursor._impl)
             getattr(cursor, method).assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_composable_query_is_normalized(self):
+        conn = await self._get_conn()
+        cursor = await conn.cursor()
+        query = SQL("SELECT 1 AS {}").format(Identifier("result"))
+        events = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            await cursor.execute(query)
+            assert await cursor.fetchall() == [(1,)]
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        assert events == [DbQueryEvent(query=query.as_string(cursor.__wrapped__._impl), span_name_prefix="postgres")]
 
     @pytest.mark.asyncio
     async def _get_conn(self):

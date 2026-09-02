@@ -39,7 +39,7 @@ class AIOTracedCursor(dbapi_async.TracedAsyncCursor):
             return query
         renderer = getattr(query, "as_string", None)
         if callable(renderer):
-            rendered_query = renderer(self.__wrapped__)
+            rendered_query = renderer(getattr(self.__wrapped__, "_impl", self.__wrapped__))
             if isinstance(rendered_query, str):
                 return rendered_query
         return None
