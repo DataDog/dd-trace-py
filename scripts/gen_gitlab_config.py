@@ -375,7 +375,6 @@ def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
         MICROBENCHMARKS_GEN.write_text(
             """
 microbenchmark-noop:
-  image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   script: |
     echo "noop"
@@ -543,6 +542,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config = suites[suite].copy()
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
+            suite_config.pop("matrix", None)
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
             jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
@@ -574,6 +574,7 @@ def gen_build_docs() -> None:
             "scripts/gen_gitlab_config.py",
             "benchmarks/README.rst",
             ".readthedocs.yml",
+            ".uv/build-docs--py310--*.txt",
         }
     ):
         # build_docs uses Python 3.10; ensure it's included in build_base_venvs
@@ -593,7 +594,11 @@ def gen_build_docs() -> None:
             print("  script:", file=f)
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
-            print("      riot -v run -s --pass-env build_docs", file=f)
+            print(
+                "      uv run --no-project --python 3.10 --no-python-downloads "
+                "--with-requirements .uv/build-docs--py310--*.txt scripts/docs/build.sh",
+                file=f,
+            )
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)

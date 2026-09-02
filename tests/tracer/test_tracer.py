@@ -1436,20 +1436,16 @@ class TestPartialFlush(TracerTestCase):
 
 
 def test_child_span_shares_trace_level_state(tracer):
-    """A child span's context shares the root's _meta/_metrics/_baggage/lock, so
+    """A child span's context shares the root's _meta/_metrics/_baggage, so
     sampling/baggage/origin set anywhere in the trace is consistent, while each span
     keeps its own trace_id/span_id.
     """
     with tracer.trace("root") as root:
-        with tracer.trace("child") as child:
+        with tracer.trace("child"):
             with tracer.trace("grandchild") as grandchild:
                 # each span's context carries its own ids
                 assert grandchild.context.trace_id == root.context.trace_id
                 assert grandchild.context.span_id == grandchild.span_id
-
-                # the shared lock serializes trace-level writes across the trace
-                assert child.context._lock is root.context._lock
-                assert grandchild.context._lock is root.context._lock
 
                 # a mutation via a descendant is visible on the root, proving the
                 # shared _metrics (sampling), _baggage (baggage) and _meta (origin)
@@ -2143,7 +2139,8 @@ def test_activate_context_nesting_and_restoration(tracer):
     1. A context can be activated and its values are accessible
     2. A nested context can be activated and its values override the outer context
     3. When the nested context exits, the outer context is properly restored
-    4. When all contexts exit, the active context is None
+    4. An empty nested context clears and then restores the outer context
+    5. When all contexts exit, the active context is None
     """
 
     with tracer._activate_context(Context(trace_id=1, span_id=1)):
@@ -2159,5 +2156,10 @@ def test_activate_context_nesting_and_restoration(tracer):
         active = tracer.context_provider.active()
         assert active.trace_id == 1
         assert active.span_id == 1
+
+        with tracer._activate_context(None):
+            assert tracer.context_provider.active() is None
+
+        assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None

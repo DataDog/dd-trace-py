@@ -1,15 +1,12 @@
 import json
 import typing  # noqa:F401
-from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Optional
+from typing import Sequence
 
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._agent import config as agent_config  # noqa:F401
-from ddtrace.internal.threads import RLock
 
-from ._encoding import BufferedEncoder
-from ._encoding import BufferFull
-from ._encoding import BufferItemTooLarge
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
@@ -18,16 +15,11 @@ from .logger import get_logger
 
 
 __all__ = [
-    "AgentlessTraceJSONEncoder",
     "MsgpackEncoderV04",
     "MsgpackEncoderV05",
     "ListStringTable",
     "MSGPACK_ENCODERS",
 ]
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -43,7 +35,7 @@ class _EncoderBase(object):
     Encoder interface that provides the logic to encode traces and service.
     """
 
-    def encode_traces(self, traces: list[list["Span"]]) -> str:
+    def encode_traces(self, traces: Sequence[Sequence[SpanData]]) -> str:
         """
         Encodes a list of traces, expecting a list of items where each items
         is a list of spans. Before dumping the string in a serialized format all
@@ -63,7 +55,7 @@ class _EncoderBase(object):
         raise NotImplementedError()
 
     @staticmethod
-    def _span_to_dict(span: "Span") -> dict[str, Any]:
+    def _span_to_dict(span: SpanData) -> dict[str, Any]:
         d: dict[str, Any] = {
             "trace_id": span._trace_id_64bits,
             "parent_id": span.parent_id,
@@ -144,12 +136,12 @@ class JSONEncoderV2(JSONEncoder):
 
     content_type = "application/json"
 
-    def encode_traces(self, traces: list[list["Span"]]) -> str:
+    def encode_traces(self, traces: Sequence[Sequence[SpanData]]) -> str:
         normalized_traces = [[JSONEncoderV2._convert_span(span) for span in trace] for trace in traces]
         return self.encode({"traces": normalized_traces})[0]
 
     @staticmethod
-    def _convert_span(span: "Span") -> dict[str, Any]:
+    def _convert_span(span: SpanData) -> dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["trace_id"] = JSONEncoderV2._encode_id_to_hex(sp.get("trace_id"))
@@ -166,99 +158,6 @@ class JSONEncoderV2(JSONEncoder):
     def encode(self, obj):
         res, _ = super().encode(obj)
         return res, len(obj.get("traces", []))
-
-
-class AgentlessTraceJSONEncoder(BufferedEncoder):
-    """
-    Buffered encoder for the agentless JSON trace intake. Buffers multiple traces and
-    produces a single payload in the {"traces": [[...], ...]} format for HTTPWriter.
-    """
-
-    content_type = "application/json"
-    _PREFIX = b'{"traces":['
-    _SUFFIX = b"]}"
-    _SEPARATOR = b","
-
-    def __init__(self, max_size: int, max_item_size: int) -> None:
-        self.max_size = max_size
-        self.max_item_size = max_item_size
-        self._lock = RLock()
-        self._reset()
-
-    def _reset(self) -> None:
-        self._buffer = bytearray(self._PREFIX)
-        self._count = 0
-        self._n_spans = 0
-
-    def __len__(self) -> int:
-        with self._lock:
-            return self._count
-
-    @property
-    def size(self) -> int:
-        with self._lock:
-            return len(self._buffer) + len(self._SUFFIX)
-
-    @property
-    def pending_spans(self) -> int:
-        """Number of spans currently buffered (across all buffered traces).
-
-        Used by the writer to report ``spans_dropped`` telemetry when a payload cannot be
-        encoded or delivered, since the buffer/encode/HTTP layers otherwise only know the
-        trace (chunk) count.
-        """
-        with self._lock:
-            return self._n_spans
-
-    def put(self, item) -> None:
-        item = typing.cast(list["Span"], item)
-
-        if not item:
-            return
-
-        with self._lock:
-            # First span in the list: set compute_stats in meta so intake can compute stats.
-            # Root and top-level are normally set by the Agent; set them here for trace views.
-            item[0]._set_attribute("_dd.compute_stats", "1")
-            encoded_trace = _json_dumps_bytes({"spans": [self._item_to_dict(span) for span in item]})
-            item_size = len(encoded_trace)
-            if item_size > self.max_item_size:
-                raise BufferItemTooLarge(item_size)
-
-            # Projected size: current buffer + separator (if not first) + new trace + suffix
-            added = item_size + (1 if self._count > 0 else 0)
-            if len(self._buffer) + added + len(self._SUFFIX) > self.max_size:
-                raise BufferFull(len(self._buffer) + added + len(self._SUFFIX))
-
-            if self._count > 0:
-                self._buffer += self._SEPARATOR
-            self._buffer += encoded_trace
-            self._count += 1
-            self._n_spans += len(item)
-
-    def encode(self) -> list[tuple[Optional[bytes], int]]:
-        with self._lock:
-            if self._count == 0:
-                return []
-            self._buffer += self._SUFFIX
-            payload = self._buffer
-            count = self._count
-            self._reset()
-        return [(payload, count)]
-
-    def _item_to_dict(self, item: "Span") -> dict[str, Any]:
-        if not item.parent_id:
-            item._set_attribute("_trace_root", 1)
-        if item._is_top_level:
-            item._set_attribute("_top_level", 1)
-
-        span_dict = JSONEncoderV2._convert_span(item)
-        span_dict["meta_struct"] = item._get_meta_structs()
-        # Intake Requires ids to be in lowercase
-        span_dict["trace_id"] = span_dict["trace_id"].lower()
-        span_dict["parent_id"] = span_dict["parent_id"].lower()
-        span_dict["span_id"] = span_dict["span_id"].lower()
-        return span_dict
 
 
 MSGPACK_ENCODERS = {

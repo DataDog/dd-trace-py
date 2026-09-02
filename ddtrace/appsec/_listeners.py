@@ -36,8 +36,6 @@ def _abort_appsec(failure_msg: str) -> None:
 
     This is called in case of non-recoverable AppSec load-time failure, such as a libddwaf loading error.
     """
-    from ddtrace.trace import tracer
-
     log.warning("Disabling AppSec: libddwaf failed to load (%s)", failure_msg or "unknown error")
 
     if asm_config._asm_enabled:
@@ -84,6 +82,13 @@ def disable_appsec(reconfigure_tracer: bool = False) -> None:
     return
 
 
+def _register_exploit_prevention_listeners() -> None:
+    """Register listeners for operations monitored by Exploit Prevention."""
+    import ddtrace.appsec._contrib.dbapi.subscribers  # noqa: F401
+    import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+    import ddtrace.appsec._contrib.subprocess.subscribers  # noqa: F401
+
+
 def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
     """Lazily load the appsec module listeners."""
     try:
@@ -111,7 +116,8 @@ def load_appsec(reconfigure_tracer: bool = False, origin: str = "") -> bool:
         flask_listen()
         django_listen()
         fastapi_listen()
-        import ddtrace.appsec._contrib.httpx.subscribers  # noqa: F401
+        if asm_config._ep_enabled:
+            _register_exploit_prevention_listeners()
 
         openai_listen()
         stripe_listen()

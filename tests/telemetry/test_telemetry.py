@@ -386,7 +386,11 @@ patch(raise_errors=False, sqlite3=True)
     assert len(integration_error) == 1
     assert integration_error[0]["type"] == "count"
     assert integration_error[0]["points"][0][1] == 1
-    assert integration_error[0]["tags"] == ["integration_name:sqlite3", "error_type:attributeerror"]
+    # wrapt 2.4.0 now throws PathResolutionError instead of AttributeError.
+    assert integration_error[0]["tags"] in (
+        ["integration_name:sqlite3", "error_type:attributeerror"],
+        ["integration_name:sqlite3", "error_type:pathresolutionerror"],
+    )
 
 
 def test_unhandled_integration_error(test_agent_session, ddtrace_run_python_code_in_subprocess):
