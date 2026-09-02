@@ -85,4 +85,170 @@ include:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
+# ---------------------------------------------------------------------------
+# ddtest job templates. Used by gen_gitlab_config.py for suites with
+# `ddtest: true` in suitespec. ddtest owns plan/run + file splitting; riot
+# knowledge stays in Riot's command override.
+#
+# before_script and script share the same shell session in GitLab. Venv
+# preparation and activation are handled by Riot for each command.
+# ---------------------------------------------------------------------------
+.ddtest_base:
+  extends: .testrunner
+  services:
+    - !reference [.services, ddagent]
+  before_script:
+    - !reference [.testrunner, before_script]
+    - unset DD_SERVICE
+    - unset DD_ENV
+    - unset DD_TAGS
+    - unset DD_TRACE_REMOVE_INTEGRATION_SERVICE_NAMES_ENABLED
+
+.ddtest_base_snapshot:
+  extends: .ddtest_base
+  services:
+    - !reference [.ddtest_base, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.ddtest_base, before_script]
+    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+
+# Plan: discover the venv's suite files and write .testoptimization/.
+# No snapshot variant — plan only collects (glob + Datadog API) and sends
+# no traces, so the testagent is never needed at plan time.
+# --tests-location is a raw glob (ddtest does not combine it with python_files),
+# so each Riot venv declares its complete location in DDTEST_TESTS_LOCATION.
+.ddtest_plan:
+  extends: .ddtest_base
+  script:
+    - |
+      set -euo pipefail
+      export DDTEST_PLAN_AGENT_URL="${_CI_DD_AGENT_URL}"
+      riot_cmd=(riot -P -v run --pass-env -s)
+      # Keep at most one planner active per Python version: Riot's nspkgs()
+      # temporarily modifies namespace-package .pth files in the shared base
+      # venv. Each hash gets its own worktree, so its hash-specific venv and
+      # planner output are isolated, but same-Python planners cannot overlap.
+      declare -A hashes_by_python=()
+      declare -A plan_workdirs=()
+      cleanup_worktrees() {
+        local workdir
+        for workdir in "${plan_workdirs[@]}"; do
+          git worktree remove --force "${workdir}" >/dev/null 2>&1 || rm -rf "${workdir}"
+        done
+      }
+      trap cleanup_worktrees EXIT
+
+      # Each plan writes fixed paths below .testoptimization, so give every
+      # hash its own Git worktree and output directory.
+      for hash_py in ${RIOT_HASH_PYTHON}; do
+        _hash="${hash_py%%:*}"
+        _py="${hash_py#*:}"
+        _workdir="$(mktemp -d "${TMPDIR:-/tmp}/ddtest-plan.XXXXXX")"
+        rmdir "${_workdir}"
+        git worktree add --quiet --detach "${_workdir}" HEAD
+        # .riot/requirements is tracked, so the directory already exists in
+        # the worktree. Share only the built base venvs from the artifact;
+        # hash-specific venvs and their outputs remain worktree-local.
+        base_venv_count=0
+        for _venv in "${CI_PROJECT_DIR}"/.riot/venv_*; do
+          [[ -d "${_venv}" ]] || continue
+          ln -s "${_venv}" "${_workdir}/.riot/$(basename "${_venv}")"
+          ((base_venv_count += 1))
+        done
+        if ((base_venv_count == 0)); then
+          echo "No base Riot venvs found under ${CI_PROJECT_DIR}/.riot" >&2
+          exit 1
+        fi
+        plan_workdirs["${_hash}"]="${_workdir}"
+        hashes_by_python["${_py}"]+="${_hash} "
+      done
+
+      # Limit concurrent Python groups because each group may install a
+      # hash-specific dependency set in the same pod. Four groups preserve
+      # useful cross-version parallelism without allowing all six versions to
+      # peak during pip installs and exhaust the planner's memory limit.
+      plan_parallelism=4
+      declare -a plan_pids=()
+      plan_status=0
+      for _py in "${!hashes_by_python[@]}"; do
+        (
+          for _hash in ${hashes_by_python[${_py}]}; do
+            _workdir="${plan_workdirs[${_hash}]}"
+            (
+              cd "${_workdir}"
+              "${riot_cmd[@]}" --command \
+                'export DD_TRACE_AGENT_URL="$DDTEST_PLAN_AGENT_URL"; export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; ddtest plan --platform python --framework pytest --tests-location "$DDTEST_TESTS_LOCATION" --min-parallelism "$DDTEST_NODES" --max-parallelism "$DDTEST_NODES"' \
+                "${_hash}"
+            )
+            mv "${_workdir}/.testoptimization" "${CI_PROJECT_DIR}/.testoptimization-${_hash}"
+          done
+        ) &
+        plan_pids+=("$!")
+        if ((${#plan_pids[@]} >= plan_parallelism)); then
+          if ! wait "${plan_pids[0]}"; then
+            plan_status=1
+          fi
+          plan_pids=("${plan_pids[@]:1}")
+        fi
+      done
+
+      for plan_pid in "${plan_pids[@]}"; do
+        if ! wait "${plan_pid}"; then
+          plan_status=1
+        fi
+      done
+      exit "${plan_status}"
+  artifacts:
+    when: always
+    paths:
+      - .testoptimization-*/
+    expire_in: 1 week
+
+# Run: execute this CI node's files in the activated venv.
+# 4 workers (not ncpu): the testrunner image runs on many-core k8s pods
+# where ncpu spawns too many workers and corrupts pytest-cov's sqlite DB;
+# matching PYTEST_XDIST_AUTO_NUM_WORKERS=4 from testrunner.yml.
+.ddtest_run:
+  extends: .ddtest_base
+  script:
+    - |
+      # Restore this venv's plan artifact (partitioned by RIOT_HASH in the plan job).
+      rm -rf .testoptimization
+      mv ".testoptimization-${RIOT_HASH}" .testoptimization
+      export COVERAGE_FILE=".coverage.${RIOT_HASH}.${CI_NODE_INDEX}"
+      riot_cmd=(riot -P -v run --pass-env -s)
+      # Keep CI Visibility session names tied to the CI job and test command;
+      # ddtest expands these placeholders for each local worker.
+      "${riot_cmd[@]}" --command \
+        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; export DD_TEST_SESSION_NAME="${{CI_JOB_NAME}}-pytest ${{DDTEST_SUITE_PATH}} ${{DDTEST_PYTEST_ADDOPTS}} node-{{{{nodeIndex}}}}-worker-{{{{workerIndex}}}}"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 4' \
+        "${RIOT_HASH}"
+      # Consolidate per-worker coverage files into one .coverage file.
+      # Each xdist worker wrote to its own COVERAGE_FILE;
+      # 'coverage combine' merges them so coverage can be uploaded.
+      coverage_files=(.coverage.*)
+      if [[ -e "${coverage_files[0]}" ]]; then
+        coverage combine
+      fi
+
+.ddtest_run_snapshot:
+  extends: .ddtest_base_snapshot
+  script:
+    - |
+      rm -rf .testoptimization
+      mv ".testoptimization-${RIOT_HASH}" .testoptimization
+      export COVERAGE_FILE=".coverage.${RIOT_HASH}.${CI_NODE_INDEX}"
+      riot_cmd=(riot -P -v run --pass-env -s)
+      # Snapshot suites use --ci-node-workers 1 (not 4): the shared testagent
+      # is session-token-keyed, and parallel xdist workers cause cross-session
+      # contamination (wrong stats, '400: list index out of range').
+      "${riot_cmd[@]}" --command \
+        'export PYTEST_ADDOPTS="$DDTEST_PYTEST_ADDOPTS"; export DD_TEST_SESSION_NAME="${{CI_JOB_NAME}}-pytest ${{DDTEST_SUITE_PATH}} ${{DDTEST_PYTEST_ADDOPTS}} node-{{{{nodeIndex}}}}-worker-{{{{workerIndex}}}}"; case "$NIGHTLY_BUILD" in true) ;; *) case "$PYTEST_ADDOPTS" in *--no-cov*) ;; *) export PYTEST_ADDOPTS="$PYTEST_ADDOPTS --no-cov" ;; esac ;; esac; export COVERAGE_FILE="$COVERAGE_FILE"; export DD_TRACE_AGENT_URL="http://testagent:9126"; ddtest run --platform python --framework pytest --ci-node "$CI_NODE_INDEX" --ci-node-workers 1' \
+        "${RIOT_HASH}"
+      # Consolidate per-worker coverage files into one .coverage file.
+      coverage_files=(.coverage.*)
+      if [[ -e "${coverage_files[0]}" ]]; then
+        coverage combine
+      fi
+
 # Required jobs will appear here
