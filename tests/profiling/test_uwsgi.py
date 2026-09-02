@@ -213,9 +213,39 @@ def test_uwsgi_threads_processes_no_primary(uwsgi: Callable[..., subprocess.Pope
     proc = uwsgi("--enable-threads", "--processes", "2")
     stdout, _ = proc.communicate()
     assert (
-        b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes are used"
-        in stdout
+        b"ddtrace.internal.uwsgi.uWSGIConfigError: master option must be enabled when multiple processes "
+        b"are used, unless the py-call-uwsgi-fork-hooks option is also enabled" in stdout
     )
+
+
+def test_uwsgi_threads_processes_fork_hooks_no_primary(
+    uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Test that --py-call-uwsgi-fork-hooks does NOT require --master.
+
+    Unlike the plain non-lazy, multi-process case (see
+    test_uwsgi_threads_processes_no_primary), --master is not needed here: with
+    --py-call-uwsgi-fork-hooks, uwsgi itself calls CPython's PyOS_BeforeFork/
+    AfterFork_* hooks around every worker fork, so the profiler doesn't need a
+    postfork hook registered via uwsgidecorators (which requires --master) --
+    ordinary os.register_at_fork-based fork-safety handles it instead.
+
+    The test verifies that:
+    - uwsgi starts successfully without --master
+    - Both workers independently collect wall-time samples
+    """
+    filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    proc = uwsgi("--enable-threads", "--py-call-uwsgi-fork-hooks", "--processes", "2")
+
+    try:
+        worker_pids = _get_worker_pids(proc.stdout, 2)
+        for pid in worker_pids:
+            _wait_for_profile_samples(filename, pid, "wall-time")
+    finally:
+        proc.terminate()
+        proc.wait()
 
 
 def _get_worker_pids(stdout: Optional[IO[bytes]], num_worker: int, num_app_started: int = 1) -> list[int]:
@@ -339,7 +369,7 @@ def _wait_for_profile_samples(
 def test_uwsgi_threads_processes_primary(
     uwsgi: Callable[..., subprocess.Popen[bytes]], tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Test that profiler works correctly with multiple workers and master process.
+    """Test that profiler works correctly with multiple workers, master, and fork hooks.
 
     This is the standard production configuration for multi-worker uwsgi:
     - --enable-threads: satisfies the threading requirement
@@ -347,8 +377,12 @@ def test_uwsgi_threads_processes_primary(
     - --py-call-uwsgi-fork-hooks: ensures Python fork hooks are called after fork
     - --processes 2: spawns 2 worker processes
 
-    With --master, the profiler can register postfork hooks via uwsgidecorators.postfork()
-    to restart the profiler in each worker after fork. The test verifies that:
+    With --py-call-uwsgi-fork-hooks active, check_uwsgi() treats this as an ordinary
+    forking process (like gunicorn without preload): uwsgi itself invokes CPython's
+    os.register_at_fork hooks around each worker fork, so the profiler's normal
+    fork-safety machinery (forksafe registry, PeriodicThread auto-restart) restarts
+    it in each worker -- no uwsgidecorators.postfork bridging is needed. The test
+    verifies that:
     - Both workers start successfully
     - Each worker independently collects wall-time samples
     - Profiles are written with each worker's PID suffix
