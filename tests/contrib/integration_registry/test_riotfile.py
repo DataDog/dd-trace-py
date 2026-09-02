@@ -1,4 +1,3 @@
-import difflib
 import importlib
 import pathlib
 import re
@@ -37,55 +36,51 @@ def _load_suitespec():
 def test_suitespec_matches_riot():
     suitespec_module = _load_suitespec()
     suitespec = suitespec_module.get_test_environments(nightly=False)
-    suite_patterns = tuple(
-        re.compile(suitespec_module.get_suites()[suite].get("pattern", suite)) for suite in suitespec
-    )
+    uv_suites = set(suitespec_module.UV_TEST_SUITES)
+    assert not uv_suites - set(suitespec), f"uv suites missing environment definitions: {uv_suites - set(suitespec)}"
 
-    riot_environments = sorted(
-        repr(
-            {
-                "name": environment.name,
-                "python": environment.py._hint,
-                "command": tuple(shlex.split(environment.command)),
-                "lock_hash": environment.short_hash,
-                "dependencies": tuple(sorted(shlex.split(environment.full_pkg_str))),
-                "env": tuple(sorted(environment.env.items())),
-            }
-        )
-        + "\n"
+    suite_patterns = tuple(
+        re.compile(suitespec_module.get_suites()[suite].get("pattern", suite)) for suite in uv_suites
+    )
+    riot_instances = tuple(
+        environment
         for environment in riotfile._venv_instances()
         if any(environment.matches_pattern(pattern) for pattern in suite_patterns)
     )
-    suitespec_environments = sorted(
-        repr(
-            {
-                "name": environment.name,
-                "python": environment.python,
-                "command": tuple(shlex.split(run.command)),
-                "lock_hash": environment.lock_hash,
-                "dependencies": tuple(sorted(environment.riot_lock_dependencies)),
-                "env": tuple(sorted(run.env)),
-            }
+    riot_environments = {
+        (
+            environment.name,
+            environment.py._hint,
+            tuple(shlex.split(environment.command)),
+            frozenset(shlex.split(environment.full_pkg_str)),
+            frozenset(environment.env.items()),
         )
-        + "\n"
-        for environments in suitespec.values()
-        for environment in environments
+        for environment in riot_instances
+    }
+    suitespec_environments = {
+        (
+            environment.name,
+            environment.python,
+            tuple(shlex.split(run.command)),
+            frozenset(environment.riot_lock_dependencies),
+            frozenset(run.env),
+        )
+        for suite in uv_suites
+        for environment in suitespec[suite]
         for run in environment.runs
-    )
+    }
 
-    missing_lockfiles = sorted(
-        str(environment.lockfile)
-        for environments in suitespec.values()
-        for environment in environments
-        if not environment.lockfile.is_file()
+    missing_riot_environments = suitespec_environments - riot_environments
+    assert not missing_riot_environments, f"uv environments missing from Riot: {missing_riot_environments}"
+
+    riot_lockfiles = {suitespec_module.LOCK_ROOT / f"{environment.short_hash}.txt" for environment in riot_instances}
+    suitespec_lockfiles = {environment.lockfile for suite in uv_suites for environment in suitespec[suite]}
+    assert suitespec_lockfiles == riot_lockfiles, (
+        f"Lock files only in suitespec: {suitespec_lockfiles - riot_lockfiles}\n"
+        f"Lock files only in Riot: {riot_lockfiles - suitespec_lockfiles}"
     )
+    missing_lockfiles = {lockfile for lockfile in suitespec_lockfiles if not lockfile.is_file()}
     assert not missing_lockfiles, f"Missing suitespec lock files: {missing_lockfiles}"
-
-    if suitespec_environments != riot_environments:
-        difference = difflib.unified_diff(
-            riot_environments, suitespec_environments, fromfile="Riot", tofile="suitespec", n=0
-        )
-        raise AssertionError("Suitespec and Riot environments differ:\n" + "".join(difference))
 
 
 def test_integrations_have_riot_envs(

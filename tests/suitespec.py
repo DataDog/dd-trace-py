@@ -42,7 +42,6 @@ DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
 NIGHTLY_ENVIRONMENT = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
-UV_TEST_SUITES = ("tracer", "tracer-uwsgi")
 
 
 class MatrixError(ValueError):
@@ -76,6 +75,9 @@ def _collect_suitespecs() -> dict:
 
 
 SUITESPEC = _collect_suitespecs()
+UV_TEST_SUITES = ("tracer", "tracer-uwsgi") + tuple(
+    suite for suite, config in SUITESPEC["suites"].items() if suite.startswith("contrib::") and "matrix" in config
+)
 
 
 @cache
