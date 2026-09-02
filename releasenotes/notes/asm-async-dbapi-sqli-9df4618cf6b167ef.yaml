@@ -1,0 +1,4 @@
+features:
+  - |
+    ASM: Adds SQL injection attack detection and blocking for applications using the ``aiomysql``,
+    ``aiopg``, ``psycopg`` async, and MySQL Connector/Python asyncio database drivers.
