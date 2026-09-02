@@ -1,10 +1,11 @@
 use std::sync::OnceLock;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use pyo3::prelude::FromPyObjectOwned;
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAny, PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyTuple},
-    Bound, IntoPyObject, Py, PyResult, Python,
+    Bound, FromPyObject, IntoPyObject, Py, PyErr, PyResult, Python,
 };
 
 const ORIGIN_KEY: &str = "_dd.origin";
@@ -12,7 +13,6 @@ const SAMPLING_PRIORITY_KEY: &str = "_sampling_priority_v1";
 const USER_ID_KEY: &str = "_dd.p.usr.id";
 const W3C_TRACEPARENT_KEY: &str = "traceparent";
 const W3C_TRACESTATE_KEY: &str = "tracestate";
-const DD_TRACE_TRACESTATE_MAX_BYTES: usize = 256;
 const MAX_UINT_64BITS: u128 = (1u128 << 64) - 1;
 
 type ContextState<'py> = (
@@ -31,6 +31,7 @@ static W3C_GET_DD_LIST_MEMBER: OnceLock<Py<PyAny>> = OnceLock::new();
 static W3C_BUILD_TRACESTATE_MEMBERS: OnceLock<Py<PyAny>> = OnceLock::new();
 static NORMALIZE_OTEL_TRACESTATE: OnceLock<Py<PyAny>> = OnceLock::new();
 static MATERIALIZE_OTEL_SAMPLING_DECISION: OnceLock<Py<PyAny>> = OnceLock::new();
+static TRACESTATE_MAX_BYTES_CACHE: OnceLock<usize> = OnceLock::new();
 
 fn cached_fn<'py>(
     py: Python<'py>,
@@ -44,6 +45,19 @@ fn cached_fn<'py>(
     let f = py.import(module)?.getattr(name)?;
     let _ = cache.set(f.clone().unbind());
     Ok(f)
+}
+
+fn cached_const<T>(py: Python<'_>, cache: &OnceLock<T>, module: &str, name: &str) -> PyResult<T>
+where
+    T: Copy + for<'py> FromPyObjectOwned<'py>,
+    for<'a, 'py> PyErr: From<<T as FromPyObject<'a, 'py>>::Error>,
+{
+    if let Some(value) = cache.get() {
+        return Ok(*value);
+    }
+    let value = py.import(module)?.getattr(name)?.extract()?;
+    let _ = cache.set(value);
+    Ok(value)
 }
 
 fn w3c_get_dd_list_member_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
@@ -79,6 +93,17 @@ fn materialize_otel_sampling_decision_fn(py: Python<'_>) -> PyResult<Bound<'_, P
         &MATERIALIZE_OTEL_SAMPLING_DECISION,
         "ddtrace.internal.opentelemetry.sampling",
         "materialize_otel_sampling_decision",
+    )
+}
+
+fn dd_trace_tracestate_max_bytes(py: Python<'_>) -> PyResult<usize> {
+    // AIDEV-NOTE: Python owns the propagation limits. Resolve this lazily to avoid
+    // making ddtrace.internal.constants import the native extension during startup.
+    cached_const::<usize>(
+        py,
+        &TRACESTATE_MAX_BYTES_CACHE,
+        "ddtrace.internal.constants",
+        "DD_TRACE_TRACESTATE_MAX_BYTES",
     )
 }
 
@@ -269,7 +294,7 @@ impl Context {
                 return Ok(vec![raw_tracestate]);
             }
             let dd_member = format!("dd={}", dd_list_member);
-            if dd_member.len() + raw_tracestate.len() < DD_TRACE_TRACESTATE_MAX_BYTES {
+            if dd_member.len() + raw_tracestate.len() < dd_trace_tracestate_max_bytes(py)? {
                 return Ok(vec![dd_member, raw_tracestate]);
             }
             return Ok(vec![dd_member]);

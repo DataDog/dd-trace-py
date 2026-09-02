@@ -8,6 +8,7 @@ from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
@@ -299,6 +300,14 @@ def test_rebuilt_otel_member_allows_a_256_character_value():
     context = Context(meta={"tracestate": "ot={}".format(ot_value)})
 
     assert context._tracestate == "ot={}".format(ot_value)
+
+
+def test_otel_member_is_kept_when_combined_tracestate_fits_byte_cap():
+    ot_value = "future:" + ("x" * 249)
+    context = Context(sampling_priority=USER_KEEP, meta={"tracestate": "ot={}".format(ot_value)})
+
+    assert 256 < len(context._tracestate) <= DD_TRACE_TRACESTATE_MAX_BYTES
+    assert context._tracestate == "dd=s:2,ot={}".format(ot_value)
 
 
 def test_probability_sampling_tracestate_is_shared_with_existing_child_contexts():
