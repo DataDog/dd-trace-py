@@ -41,7 +41,7 @@ cases:
       renders via an automodule directive, and separately a private `_flush()` helper next to
       it. What docstring/comment style should each use, and why do they differ?
     expected_criteria:
-      - Rendered (Sphinx-reachable) docstrings use reStructuredText, e.g. :param:/:raises: fields.
+      - "Rendered (Sphinx-reachable) docstrings use reStructuredText, e.g. :param:/:raises: fields."
       - Non-rendered docstrings/comments (private `_`-prefixed helpers, inline comments) use plain
         prose with no rST markup — no emphasis around parameter names, no double-backtick literals.
       - Frames the split as "does Sphinx render this," not "is the module private."
