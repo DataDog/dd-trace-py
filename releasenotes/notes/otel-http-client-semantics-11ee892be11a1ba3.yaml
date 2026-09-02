@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Adds support for OpenTelemetry HTTP semantic conventions on HTTP client spans,
+    enabled with ``DD_TRACE_OTEL_SEMANTICS_ENABLED=true``. When enabled, client spans use
+    OpenTelemetry attribute names and low-cardinality resource names; the default remains the
+    existing Datadog behavior.
