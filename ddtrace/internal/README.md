@@ -270,6 +270,32 @@ forksafe.register(my_after_child_hook)  # after_in_child
 forksafe.register_after_parent(my_after_parent_hook)
 ```
 
+#### Fork-safe synchronization primitives
+
+`forksafe` also provides drop-in replacements for process-local synchronization
+objects that must not inherit lock state across `fork()`:
+
+| Factory | Returns |
+|---------|---------|
+| `forksafe.Lock()` | Fork-safe `threading.Lock` |
+| `forksafe.RLock()` | Fork-safe `threading.RLock` |
+| `forksafe.Event()` | Fork-safe `threading.Event` |
+
+Each factory returns a `ResetObject` wrapper around a fresh instance of the
+underlying type. After `fork()`, registered hooks replace the wrapped object with
+a new, unlocked (or unset, for events) instance in the child process.
+
+`ResetObject` instances are not picklable as-is — the underlying `_thread.lock`
+primitive cannot cross process boundaries. `__reduce__` reconstructs a fresh
+`ResetObject` instead, so `pickle` and `cloudpickle` round-trips yield an
+unlocked lock or unset event in the destination process.
+
+`ResetObject` defines the lock protocol methods (`acquire`, `release`, `locked`,
+and for `RLock`: `_release_save`, `_acquire_restore`, `_is_owned`) on the
+proxy itself. This is required because `threading.Condition` caches bound methods
+from its lock at construction time; without proxy-level delegation, a Condition
+would keep using the pre-fork inner lock after reset.
+
 **Keep hooks non-blocking.** By the time a hook registered *after*
 `ddtrace.internal.threads._before_fork` runs, all periodic threads have already
 been stopped, so there are no locks held by those threads to worry about. (Hooks

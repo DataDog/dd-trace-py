@@ -282,6 +282,78 @@ def test_rlock_fork() -> None:
 
 
 @pytest.mark.subprocess
+def test_condition_rlock_fork() -> None:
+    """Check that threading.Condition with a forksafe.RLock resets after fork().
+
+    Parent holds the lock reentrantly via the Condition. After fork the child
+    must acquire through the Condition; a regular threading.RLock would stay held.
+    """
+    import os
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    lock: threading.RLock = forksafe.RLock()
+    condition: threading.Condition = threading.Condition(lock)
+    assert condition.acquire(blocking=False) is True
+    assert condition.acquire(blocking=False) is True
+
+    pid: int = os.fork()
+
+    if pid == 0:
+        # child: ResetObject replaced the held lock
+        assert condition.acquire(blocking=False) is True
+        condition.release()
+        os._exit(12)
+
+    # parent still owns it (reentrant)
+    assert condition.acquire(blocking=False) is True
+    condition.release()
+    condition.release()
+    condition.release()
+
+    _: int
+    status: int
+    _, status = os.waitpid(pid, 0)
+    exit_code: int = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
+@pytest.mark.subprocess
+def test_condition_lock_fork() -> None:
+    """Check that threading.Condition with a forksafe.Lock resets after fork().
+
+    Parent holds the lock via the Condition. After fork the child must acquire
+    through the Condition; a regular threading.Lock would stay held.
+    """
+    import os
+    import threading
+
+    from ddtrace.internal import forksafe
+
+    lock: threading.Lock = forksafe.Lock()
+    condition: threading.Condition = threading.Condition(lock)
+    assert condition.acquire(blocking=False) is True
+
+    pid: int = os.fork()
+
+    if pid == 0:
+        # child: ResetObject replaced the held lock
+        assert condition.acquire(blocking=False) is True
+        condition.release()
+        os._exit(12)
+
+    # parent still owns it (non-reentrant)
+    condition.release()
+
+    _: int
+    status: int
+    _, status = os.waitpid(pid, 0)
+    exit_code: int = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
+@pytest.mark.subprocess
 def test_double_fork():
     import os
 

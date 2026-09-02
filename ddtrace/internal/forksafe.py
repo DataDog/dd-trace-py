@@ -120,6 +120,22 @@ if hasattr(os, "register_at_fork"):
 _T = typing.TypeVar("_T")
 
 
+class _LockProtocol(typing.Protocol):
+    def acquire(self, blocking: bool = ..., timeout: float = ...) -> bool: ...
+
+    def release(self) -> None: ...
+
+    def locked(self) -> bool: ...
+
+
+class _RLockProtocol(_LockProtocol, typing.Protocol):
+    def _release_save(self) -> int: ...
+
+    def _acquire_restore(self, state: int) -> None: ...
+
+    def _is_owned(self) -> bool: ...
+
+
 class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     """An object wrapper object that is fork-safe and resets itself after a fork.
 
@@ -127,6 +143,9 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     are gone, Lock objects needs to be reset. CPython does this with an internal `threading._after_fork` function. We
     use the same mechanism here.
 
+    ``threading.Condition`` caches bound methods from its lock at construction time,
+    so lock protocol methods are defined on the proxy rather than delegated through
+    ``ObjectProxy`` to the wrapped object.
     """
 
     def __init__(
@@ -140,6 +159,18 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     def _reset_object(self) -> None:
         self.__wrapped__ = self._self_wrapped_class()
 
+    def acquire(self, blocking: bool = True, timeout: float = -1) -> bool:
+        lock: _LockProtocol = typing.cast(_LockProtocol, self.__wrapped__)
+        return lock.acquire(blocking, timeout)
+
+    def release(self) -> None:
+        lock: _LockProtocol = typing.cast(_LockProtocol, self.__wrapped__)
+        lock.release()
+
+    def locked(self) -> bool:
+        lock: _LockProtocol = typing.cast(_LockProtocol, self.__wrapped__)
+        return lock.locked()
+
     def __reduce__(self) -> "typing.Tuple[type, typing.Tuple[type[_T]]]":  # noqa: UP006
         # A lock/event is process-local, and so it cannot be carried across a process
         # boundary (e.g. by cloudpickle in Ray Serve).
@@ -151,6 +182,30 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     # wrapt's ObjectProxy routes __reduce_ex__ to the wrapped object, which is
     # unpicklable for locks; override it so the picklers use __reduce__ above.
     def __reduce_ex__(self, protocol: "typing.SupportsIndex") -> "typing.Tuple[type, typing.Tuple[type[_T]]]":  # noqa: UP006
+        return self.__reduce__()
+
+
+class ResetRLock(ResetObject[_unpatched.threading_RLock]):
+    """``ResetObject`` for reentrant locks, including the RLock protocol used by ``threading.Condition``."""
+
+    def _release_save(self) -> int:
+        lock: _RLockProtocol = typing.cast(_RLockProtocol, self.__wrapped__)
+        return lock._release_save()
+
+    def _acquire_restore(self, state: int) -> None:
+        lock: _RLockProtocol = typing.cast(_RLockProtocol, self.__wrapped__)
+        lock._acquire_restore(state)
+
+    def _is_owned(self) -> bool:
+        lock: _RLockProtocol = typing.cast(_RLockProtocol, self.__wrapped__)
+        return lock._is_owned()
+
+    def __reduce__(self) -> "typing.Tuple[type, typing.Tuple[type[_unpatched.threading_RLock]]]":  # noqa: UP006
+        return (ResetRLock, (self._self_wrapped_class,))
+
+    def __reduce_ex__(
+        self, protocol: "typing.SupportsIndex"
+    ) -> "typing.Tuple[type, typing.Tuple[type[_unpatched.threading_RLock]]]":  # noqa: UP006
         return self.__reduce__()
 
 
@@ -173,7 +228,7 @@ def Lock() -> _unpatched.threading_Lock:
 
 
 def RLock() -> _unpatched.threading_RLock:
-    return ResetObject(_unpatched.threading_RLock)
+    return ResetRLock(_unpatched.threading_RLock)
 
 
 def Event() -> _unpatched.threading_Event:
