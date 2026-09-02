@@ -311,6 +311,51 @@
         ]
     },
     {
+        "dependencyName": "anyio",
+        "integrationName": "anyio",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=3.4.0",
+                "tested": [
+                    "3.4.0",
+                    "4.12.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=3.4.0",
+                "tested": [
+                    "3.7.1",
+                    "4.14.2"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=3.4.0",
+                "tested": [
+                    "4.14.2"
+                ]
+            }
+        ]
+    },
+    {
         "dependencyName": "aredis",
         "integrationName": "aredis",
         "autoInstrumented": true,

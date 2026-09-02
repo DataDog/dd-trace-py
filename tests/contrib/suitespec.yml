@@ -11,6 +11,8 @@ components:
     - ddtrace/ext/kafka.py
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
+  anyio:
+    - ddtrace/contrib/internal/anyio/*
   asgi:
     - ddtrace/contrib/asgi.py
     - ddtrace/contrib/internal/asgi/*
@@ -323,6 +325,18 @@ suites:
       - '@algoliasearch'
       - tests/contrib/algoliasearch/*
     snapshot: true
+  anyio:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@anyio'
+      - tests/contrib/anyio/*
+    services:
+      - testagent
+    snapshot: false
+    venvs_per_job: 3
   aredis:
     parallelism: 1
     paths:
@@ -768,6 +782,7 @@ suites:
       - '@core'
       - '@contrib'
       - '@tracing'
+      - '@anyio'
       - '@starlette'
       - '@fastapi'
       - '@asgi'
