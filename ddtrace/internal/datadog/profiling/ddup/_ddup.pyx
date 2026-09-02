@@ -51,6 +51,7 @@ cdef extern from "sample.hpp" namespace "Datadog":
         bint push_gpu_gputime(int64_t time, int64_t count)
         bint push_gpu_memory(int64_t size, int64_t count)
         bint push_gpu_flops(int64_t flops, int64_t count)
+        bint push_gctime(int64_t gctime, int64_t count)
         bint push_lock_name(string_view lock_name)
         bint push_threadinfo(int64_t thread_id, int64_t thread_native_id, string_view thread_name)
         bint push_task_id(uint64_t task_id)
@@ -400,6 +401,14 @@ def config(
         ddup_config_set_max_timeout_ms(clamp_to_uint64_unsigned(timeout))
 
 
+# Must match Datadog::SampleType::GC in dd_wrapper/include/types.hpp.
+SAMPLE_TYPE_GC: int = 1 << 10
+
+
+def config_sample_type(sample_type: int) -> None:
+    ddup_config_sample_type(sample_type)
+
+
 def start() -> None:
     ddup_start()
 
@@ -497,6 +506,10 @@ cdef class SampleHandle:
     def push_gpu_flops(self, value: int, count: int) -> None:
         if self.ptr is not NULL:
             self.ptr.push_gpu_flops(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
+
+    def push_gctime(self, value: int, count: int) -> None:
+        if self.ptr is not NULL:
+            self.ptr.push_gctime(clamp_to_int64_unsigned(value), clamp_to_int64_unsigned(count))
 
     def push_lock_name(self, lock_name: StringType) -> None:
         if self.ptr is not NULL:

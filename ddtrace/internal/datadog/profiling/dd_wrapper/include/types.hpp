@@ -16,7 +16,10 @@ enum SampleType : std::uint16_t
     GPUTime = 1 << 7,
     GPUMemory = 1 << 8,
     GPUFlops = 1 << 9,
-    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops
+    // Opt-in: registered only when DD_PROFILING_GC_ENABLED=true (not in All).
+    GC = 1 << 10,
+    All = CPU | Wall | Exception | LockAcquire | LockRelease | Allocation | Heap | GPUTime | GPUMemory | GPUFlops,
+    Known = All | GC
 };
 
 // Closed set of pymalloc domains we label on allocation/heap samples.
@@ -53,6 +56,8 @@ struct ValueIndex
     unsigned short gpu_alloc_count;
     unsigned short gpu_flops;
     unsigned short gpu_flops_samples; // Should be "count," but flops is already a count
+    unsigned short gc_time;
+    unsigned short gc_count;
 };
 
 } // namespace Datadog

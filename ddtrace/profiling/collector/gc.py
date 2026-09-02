@@ -30,10 +30,12 @@ class GCCollector(collector.Collector):
     once per profile flush interval.
 
     Data emitted:
-    - Wall time samples (push_walltime) attributed to synthetic gc.collect[gen=N]
-      frames. These appear in the Wall Time profile view.
+    - GC time samples (push_gctime) attributed to synthetic gc.collect[gen=N]
+      frames. These appear as libdatadog gc-time / gc-samples (GC Time view).
+      Window totals are pushed with count=1 because push_gctime multiplies
+      ns*count (same as walltime).
     - A gc.config snapshot sample per flush carrying the interval's explicit
-      gc.collect() tally in the sample count field.
+      gc.collect() tally in the wall-time sample count field.
 
     Thresholds, freeze count, and cumulative collection totals are DEBUG-only.
     """
@@ -139,7 +141,9 @@ class GCCollector(collector.Collector):
             if n == 0:
                 continue
             pause_handle: ddup.SampleHandle = ddup.SampleHandle()
-            pause_handle.push_walltime(pause_total_ns[gen], 1)
+            # count=1: pause_total_ns is already the window sum; push_gctime
+            # multiplies ns*count (same contract as push_walltime).
+            pause_handle.push_gctime(pause_total_ns[gen], 1)
             pause_handle.push_frame(_GEN_NAMES[gen], _GC_FILE, 0, gen)
             pause_handle.push_monotonic_ns(time.monotonic_ns())
             pause_handle.flush_sample()

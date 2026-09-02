@@ -6,6 +6,7 @@ import gc
 import os
 from pathlib import Path
 import threading
+from typing import TYPE_CHECKING
 from typing import Callable
 from unittest import mock
 
@@ -17,11 +18,16 @@ from ddtrace.profiling.collector.gc import GCCollector
 from tests.profiling.collector import pprof_utils
 
 
+if TYPE_CHECKING:
+    from tests.profiling.collector import pprof_pb2
+
+
 def _setup_profiler(tmp_path: Path, test_name: str) -> str:
-    pprof_prefix = str(tmp_path / test_name)
-    output_filename = pprof_prefix + "." + str(os.getpid())
+    pprof_prefix: str = str(tmp_path / test_name)
+    output_filename: str = pprof_prefix + "." + str(os.getpid())
     assert ddup.is_available
     ddup.config(env="test", service=test_name, version="1.0", output_filename=pprof_prefix)
+    ddup.config_sample_type(ddup.SAMPLE_TYPE_GC)
     ddup.start()
     return output_filename
 
@@ -134,7 +140,7 @@ def _make_isolated_collector() -> GCCollector:
     return col
 
 
-def test_on_gc_records_pause_walltime() -> None:
+def test_on_gc_records_pause_gctime() -> None:
     col = _make_isolated_collector()
     handles: list[mock.MagicMock] = []
 
@@ -151,22 +157,25 @@ def test_on_gc_records_pause_walltime() -> None:
         col.snapshot()
 
     assert len(handles) == 2
-    pause_handle = handles[0]
-    pause_handle.push_walltime.assert_called_once()
-    args = pause_handle.push_walltime.call_args[0]
+    pause_handle: mock.MagicMock = handles[0]
+    pause_handle.push_gctime.assert_called_once()
+    args: tuple[int, int] = pause_handle.push_gctime.call_args[0]
+    pause_ns: int
+    count: int
     pause_ns, count = args
     assert pause_ns >= 0
     assert count == 1
+    pause_handle.push_walltime.assert_not_called()
     pause_handle.push_frame.assert_called_once_with("gc.collect[gen=0]", "gc", 0, 0)
     pause_handle.flush_sample.assert_called_once()
     pause_handle.push_alloc.assert_not_called()
-    config_handle = handles[1]
+    config_handle: mock.MagicMock = handles[1]
     config_handle.push_walltime.assert_called_once_with(0, 0)
     config_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
 
 
-def test_snapshot_walltime_equals_total_pause_ns() -> None:
-    """Emitted wall-time must be the window sum, not sum * pause count."""
+def test_snapshot_gctime_equals_total_pause_ns() -> None:
+    """Emitted gc-time must be the window sum, not sum * pause count."""
     col: GCCollector = _make_isolated_collector()
     total_ns: int = 1_000_000
     pause_count: int = 5
@@ -187,9 +196,10 @@ def test_snapshot_walltime_equals_total_pause_ns() -> None:
     pause_handle: mock.MagicMock = handles[0]
     pause_ns: int
     count: int
-    pause_ns, count = pause_handle.push_walltime.call_args[0]
+    pause_ns, count = pause_handle.push_gctime.call_args[0]
     assert pause_ns == total_ns
     assert count == 1
+    pause_handle.push_walltime.assert_not_called()
 
 
 def test_on_gc_stop_without_start_is_noop() -> None:
@@ -237,17 +247,17 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
     ddup.upload()
 
     profile = pprof_utils.parse_newest_profile(output_filename)
-    wall_time_samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    gc_time_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "gc-time")
 
     # At least one sample must have a gc.collect frame
     gc_samples = [
         s
-        for s in wall_time_samples
+        for s in gc_time_samples
         if any(
             "gc.collect" in pprof_utils.get_location_from_id(profile, loc_id).function_name for loc_id in s.location_id
         )
     ]
-    assert len(gc_samples) > 0, "Expected at least one gc.collect wall-time sample"
+    assert len(gc_samples) > 0, "Expected at least one gc.collect gc-time sample"
 
 
 def test_gc_collector_default_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

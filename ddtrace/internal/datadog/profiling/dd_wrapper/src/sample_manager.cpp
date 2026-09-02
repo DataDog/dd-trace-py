@@ -9,7 +9,7 @@ void
 Datadog::SampleManager::add_type(unsigned int type)
 {
     auto& state = ProfilerState::get();
-    state.type_mask = static_cast<SampleType>((state.type_mask | type) & SampleType::All);
+    state.type_mask = static_cast<SampleType>((state.type_mask | type) & SampleType::Known);
 }
 
 void
