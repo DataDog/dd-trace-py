@@ -5,7 +5,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 
 ## Project Rules
 
-1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
+1. **Testing** — ALWAYS run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
 2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`scripts/lint <subcommand>`).
 3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
 4. **No public API breakage** — Never change public API contracts; real applications depend on them.
@@ -19,6 +19,8 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
 13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
 14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
+
+Just run pytest directly
 
 ## Docstrings and Comments
 
