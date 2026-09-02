@@ -18,7 +18,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace import patch
 from ddtrace._trace.processor import _NoopTraceProcessor
-from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.tracer import Tracer
 from ddtrace.constants import ERROR_MSG
@@ -34,7 +33,6 @@ from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
 from ddtrace.internal.native._native import Context
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
-from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
@@ -146,6 +144,7 @@ from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -625,7 +624,7 @@ class LLMObs(Service):
         self._annotation_context_lock = RLock()
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
-        self._sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
+        self._sampler = LLMObsSampler(sample_rate=config._llmobs_sample_rate, rules=config._llmobs_sampling_rules)
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -2458,10 +2457,15 @@ class LLMObs(Service):
             return context
         return None
 
-    def _sample_span(self, span: Span) -> LLMObsSamplingDecision:
-        if self._sampler.sample(span):
-            return LLMObsSamplingDecision.SAMPLED
-        return LLMObsSamplingDecision.DROPPED
+    def _sample_span(self, span: Span) -> tuple[str, LLMObsSamplingDecision]:
+        """Make the head sampling decision for the root span of an LLMObs trace.
+
+        :returns: A (sample_rate, sampling_decision) pair, where sample_rate is the rate of the
+            DD_LLMOBS_SAMPLING_RULES rule that matched, or the global rate if none did.
+        """
+        sampled, sample_rate = self._sampler.sample(span, config.env)
+        decision = LLMObsSamplingDecision.SAMPLED if sampled else LLMObsSamplingDecision.DROPPED
+        return sample_rate, decision
 
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent spanID, traceID, ml_app, and session_id and activate the new span.
@@ -2491,8 +2495,7 @@ class LLMObs(Service):
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
-            sample_rate = format_rate(self._sampler.sample_rate)
-            sampling_decision = self._sample_span(span)
+            sample_rate, sampling_decision = self._sample_span(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         # Fall back to the trace-level default session when the parent chain carries none (e.g. a
