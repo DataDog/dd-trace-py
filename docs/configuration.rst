@@ -1238,9 +1238,15 @@ Sampling
      type: JSON array
 
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", "tags", and "discard" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+
+         Setting "discard" to ``true`` on a rule fully drops a trace chunk the rule rejects, excluding it from client-side stats and the Agent.
+
+         **Note** that with partial flushing enabled (the default), a chunk is matched against the trace's local root span as it stood when that chunk was flushed, so a rule keyed on data only available later in the request (e.g. a resolved HTTP route) may miss chunks flushed earlier in the same trace.
 
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
+
+         **Example (fully drop a noisy, unsampled endpoint):** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.0,"resource":"/health","discard":true}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.'
 
@@ -1248,6 +1254,7 @@ Sampling
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
+       v4.15.0: added support for "discard"
 
 Feature Flagging
 ----------------
