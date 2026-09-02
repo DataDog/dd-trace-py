@@ -681,6 +681,13 @@ venv = Venv(
                         "zope-interface": "==7.2",
                     },
                 ),
+                Venv(
+                    command="pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py",
+                    pys=select_pys(),
+                    # Pin wrapt to a single version to avoid needlessly multiplying this
+                    # venv, which doesn't exercise wrapt-specific behavior.
+                    pkgs={"pyarmor": latest, "wrapt": latest},
+                ),
             ],
         ),
         Venv(

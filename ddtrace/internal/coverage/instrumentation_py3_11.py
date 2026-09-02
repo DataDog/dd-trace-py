@@ -8,6 +8,7 @@ import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.coverage.coverage_lines import CoverageLines
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
 # This is primarily to make mypy happy without having to nest the rest of this module behind a version check
@@ -456,7 +457,7 @@ def instrument_all_lines(code: CodeType, hook: HookType, path: str, package: str
 
     # Instrument nested code objects recursively
     for original_offset, nested_code in enumerate(code.co_consts):
-        if isinstance(nested_code, CodeType):
+        if isinstance(nested_code, CodeType) and not is_obfuscated_code(nested_code):
             new_consts[original_offset], nested_lines = instrument_all_lines(nested_code, trap_func, trap_arg, package)
             seen_lines.update(nested_lines)
 

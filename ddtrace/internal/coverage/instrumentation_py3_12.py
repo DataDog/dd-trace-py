@@ -25,6 +25,7 @@ from ddtrace.internal.coverage.import_instrumentation_py3_12 import iter_import_
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
 log = get_logger(__name__)
@@ -317,7 +318,7 @@ def _instrument_with_monitoring(
     # objects, not on the original nested constants that may be replaced below.
     new_consts: t.Optional[list[t.Any]] = None
     for const_index, nested_code in enumerate(code.co_consts):
-        if isinstance(nested_code, CodeType):
+        if isinstance(nested_code, CodeType) and not is_obfuscated_code(nested_code):
             new_nested_code, nested_lines = instrument_all_lines(nested_code, hook, path, package)
             lines.update(nested_lines)
             if new_nested_code is not nested_code:
