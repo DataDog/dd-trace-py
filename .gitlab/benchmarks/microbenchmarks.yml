@@ -212,6 +212,35 @@ benchmarks-pr-comment:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
 
+# Percentage-regression PR gate: fails when this branch made any benchmark
+# more than FAIL_ON_REGRESSION_THRESHOLD percent slower than the branch it
+# merges into. Complements check-slo-breaches, which scores the same results
+# against fixed SLO thresholds instead of against the baseline.
+# Bypass with the 'performance/ignore-performance-regression' label on the PR.
+# @see https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+Quality+Gates
+check-big-regressions:
+  extends: .check-slo-breaches
+  stage: gate
+  # Temporary override while benchmarking platform updates their template
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:16a75e4d
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: tests-gen
+    - job: microbenchmarks
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - artifacts/
+      - reports/
+    expire_in: 3 months
+  variables:
+    DDOCTOSTS_POLICY: "gitlab.github-access.read"
+    ARTIFACTS_DIR: "reports/"
+    FAIL_ON_REGRESSION_THRESHOLD: "10.0"
+  script: |
+    .gitlab/benchmarks/steps/check-big-regressions.sh
+
 # Unlike pre-release SLO checks that run unconditionally (which have
 # "when: always"), this PR-level check runs only if benchmarks succeed.
 # Since benchmark failures block the PR directly, this job blocks the PR if

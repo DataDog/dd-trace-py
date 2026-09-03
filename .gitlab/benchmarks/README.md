@@ -57,6 +57,9 @@ within 7% of a threshold notifies Slack without failing the job.
   builds it from source.
 * `combine-results.sh` — merges the per-config `results.*.json` files a scenario produces
   into one `results.json`, keeping a single copy of the shared metadata.
+* `check-big-regressions.sh` — the percentage-regression PR gate: filters out known flaky
+  benchmarks, then compares candidate against baseline and fails on a regression larger than
+  `FAIL_ON_REGRESSION_THRESHOLD`.
 
 ## External
 
@@ -103,10 +106,12 @@ For microbenchmarks, on every pipeline:
    artifacts. Both are cached, `baseline:build` on the baseline commit SHA.
 4. **`microbenchmarks`** (child pipeline) runs each matrix entry's scenarios against both wheels,
    then `analyze-results.sh` and an S3 upload.
-5. **`check-slo-breaches`** compares the results against the filtered SLO file and fails on a
-   breach — this is the PR gate. It runs only if the benchmark job succeeded, because a benchmark
-   failure already blocks the pull request on its own.
-6. **`benchmarks-pr-comment`** uploads to the Benchmarking API and posts the results table as a
+5. **`check-big-regressions`** compares candidate against baseline and fails when a metric
+   regressed by more than 10% — the percentage-regression PR gate.
+6. **`check-slo-breaches`** compares the results against the filtered SLO file and fails on a
+   breach — the SLO PR gate. Both gates run only if the benchmark job succeeded, because a
+   benchmark failure already blocks the pull request on its own.
+7. **`benchmarks-pr-comment`** uploads to the Benchmarking API and posts the results table as a
    pull request comment. It is `allow_failure: true` and never blocks.
 
 For macrobenchmarks, the `macrobenchmarks` job triggers `macrobenchmarks.yml`, which builds a
@@ -129,19 +134,51 @@ hardware is large enough to swamp the regressions these gates exist to catch.
 | Microbenchmark wheel builds | `PACKAGE_IMAGE` — `pypa/manylinux2014_x86_64` | `baseline:build` and `candidate` only need a manylinux toolchain, so they use the same image as the release wheel builds instead of the heavier benchmarking image. |
 | Baseline detection | `GITHUB_CLI_IMAGE` — `dd-octo-sts-ci-base` | `baseline:detect` needs `gh` and `dd-octo-sts` to mint a GitHub token, and nothing else. |
 | Macrobenchmarks | `MACROBENCHMARKS_CI_IMAGE` — `ci/benchmarking-platform:dd-trace-py-macrobenchmarks` | Separate image because it bundles the Flask and Django applications under test and their load-generation harness. |
-| SLO gates | `benchmarking-platform-tools-ubuntu`, pinned by tag | Supplied by the `benchmarking-platform-tools` template; both pipelines pin a tag as a temporary override. |
+| Performance gates | `benchmarking-platform-tools-ubuntu`, pinned by tag | Supplied by the `benchmarking-platform-tools` template and shared by `check-big-regressions` and `check-slo-breaches`; it carries `benchmark_analyzer`, `bp-runner`, and the GitHub label tooling. Both pipelines pin a tag as a temporary override. |
 | Serverless | `SLS_CI_IMAGE` — `ci/serverless-tools` | The suite runs entirely in `DataDog/serverless-tools`; this repo only triggers it. |
 
 ## Performance quality gates
 
-Two gates block on performance, and they answer different questions.
+Three gates block on performance, and they answer different questions.
 
-|  | PR gate | Pre-release gate |
-|--|---------|------------------|
-| Job | `check-slo-breaches` in the `microbenchmarks` child pipeline | `check-slo-breaches` in the `macrobenchmarks` child pipeline |
-| Thresholds | `bp-runner.microbenchmarks.fail-on-breach.template.yml` | `bp-runner.macrobenchmarks.fail-on-breach.yml` |
-| Blocks | Merging the pull request | Pushing a release tag or branch |
-| Catches | A single change making an operation obviously slower | Regression accumulated across many changes, each too small to trip the PR gate |
+|  | PR gate (regression) | PR gate (SLO) | Pre-release gate |
+|--|----------------------|---------------|------------------|
+| Job | `check-big-regressions` in the `microbenchmarks` child pipeline | `check-slo-breaches` in the `microbenchmarks` child pipeline | `check-slo-breaches` in the `macrobenchmarks` child pipeline |
+| Compares against | The baseline commit this branch merges into | Fixed thresholds in `bp-runner.microbenchmarks.fail-on-breach.template.yml` | Fixed thresholds in `bp-runner.macrobenchmarks.fail-on-breach.yml` |
+| Fails when | Any metric regressed more than `FAIL_ON_REGRESSION_THRESHOLD` (10%) | A measurement exceeds its absolute SLO | A measurement exceeds its absolute SLO |
+| Blocks | Merging the pull request | Merging the pull request | Pushing a release tag or branch |
+| Catches | *This change* making an operation materially slower, even where the absolute SLO still has headroom | An operation that is slow in absolute terms, however it got there | Regression accumulated across many changes, each too small to trip a PR gate |
+| Bypass | `performance/ignore-performance-regression` label on the PR | Raise the breached threshold | Raise the breached threshold |
+
+The two PR gates are complementary rather than redundant. A scenario sitting well under its SLO
+can still absorb a 30% regression without breaching, which `check-slo-breaches` would pass and
+`check-big-regressions` catches. Conversely a scenario already near its SLO can breach after a
+regression too small to trip the percentage gate.
+
+### The percentage-regression gate (`check-big-regressions`)
+
+Runs in the `gate` stage, before `check-slo-breaches`. It compares the candidate wheel's results
+against the baseline wheel's, per scenario and metric, and fails when a regression exceeds
+`FAIL_ON_REGRESSION_THRESHOLD` — currently **10%**, set in the job's `variables`.
+
+A regression is only reported when the *entire* 95% confidence interval of the difference sits
+beyond the threshold, so a scenario has to be reliably worse, not merely noisy, to fail. Metrics
+the platform judges unstable within a single run are skipped outright.
+
+Known flaky benchmarks are excluded before the comparison: `FLAKY_BENCHMARKS_REGEX` from
+`microbenchmarks.yml` is matched against scenario names and matching benchmarks are filtered out of
+the reports the gate reads. They still run and still report their numbers, so trends stay visible
+on the dashboards; they just cannot fail the pipeline. See
+[microbenchmarks.md](microbenchmarks.md#marking-a-benchmark-as-known-flaky).
+
+The gate needs both sides to conclude anything. If a scenario's candidate results have no matching
+baseline results — which happens when benchmark jobs ran before the pull request existed — it fails
+and names the missing files rather than quietly gating on the subset it does have. The fix is to
+re-run the `microbenchmarks` jobs that lack a baseline and then re-run the gate, or simply push a
+commit, which runs both in the right order.
+
+On a branch with no pull request yet there is no baseline to compare against, and the gate passes
+with a warning instead of failing.
 
 ### Reading the gate output
 
@@ -160,6 +197,10 @@ Each line carries a confidence interval, for example `[2.024ms; 2.042ms]`, rathe
 average. A breach is only reported when the whole interval is on the wrong side of the threshold,
 which keeps noisy scenarios from failing pipelines at random.
 
+`check-big-regressions` uses the same confidence-interval rule but reports percentages against the
+baseline instead, one `FAIL!` line per regressed metric naming the scenario and the size of the
+regression, and a single `ALL GOOD!` line when nothing regressed.
+
 ### Re-running after a fix
 
 **Re-run both jobs, in order.** The gate scores artifacts from a previous benchmark run; it does
@@ -169,7 +210,7 @@ verdict, which is the usual reason a fix appears to have changed nothing.
 For a microbenchmark breach, in the `microbenchmarks` child pipeline:
 
 1. `microbenchmarks`
-2. then `check-slo-breaches`
+2. then `check-big-regressions` and/or `check-slo-breaches`, whichever failed
 
 For a macrobenchmark breach, the same order in the `macrobenchmarks` child pipeline: the scenario
 job named in the gate output — the job names there are the configuration names, such as
@@ -205,28 +246,54 @@ Two options. Pick deliberately; do not bypass because the gate is in the way.
 and deliberate: a correctness or security fix that cannot be made cheaper, or a threshold that was
 always too tight.
 
-* For a **PR gate** breach, raise the breached threshold in
+* For a **`check-big-regressions`** failure, add the
+  `performance/ignore-performance-regression` label to the pull request. The gate re-reads the
+  label on its next run, so re-run the job after adding the label. You do not need to push a commit. Do not raise
+  `FAIL_ON_REGRESSION_THRESHOLD` to get one pull request through — that weakens the gate for
+  everyone.
+* For a **`check-slo-breaches`** breach, raise the breached threshold in
   `bp-runner.microbenchmarks.fail-on-breach.template.yml`, in the same pull request.
 * For a **pre-release gate** breach, raise the breached threshold in
   `bp-runner.macrobenchmarks.fail-on-breach.yml`.
 
-Both gates here compare measurements against fixed SLO thresholds, so editing the threshold is the
-only bypass. The `performance/ignore-performance-regression` label described in the cross-language
-user guide applies to repositories whose PR gate is a percentage-regression check
-(`fail-on-regression`); dd-trace-py does not use one, and the label has no effect on
-`check-slo-breaches`.
+Either way, **comment on the pull request explaining why the regression is accepted.** A label or
+threshold change without a rationale is indistinguishable from one made to quiet CI, and a
+threshold change raises the bar permanently for everyone after you.
 
-Either way, **comment on the pull request explaining why the regression is accepted.** A threshold
-change without a rationale is indistinguishable from a threshold change to make CI quiet, and it
-raises the bar permanently for everyone after you.
-
-When setting a new threshold, put it a small margin (roughly 10%) above the current measurement
+When setting a new SLO threshold, put it a small margin (roughly 10%) above the current measurement
 rather than exactly at it, or the next run's noise breaches it again.
+
+### When an unrelated benchmark fails the regression gate
+
+`check-big-regressions` fails on any scenario that regressed more than 10%, including scenarios
+your change could not plausibly have touched. That is usually an unstable benchmark rather than a
+real regression: run-to-run variance above the threshold trips the gate at random.
+
+Confirm it is instability rather than a genuine regression first — a real regression looks much the
+same from a single failed pipeline. See
+[Confirming instability](microbenchmarks.md#confirming-instability). Do not skip this step: waving
+through a real regression because it looked unrelated is exactly the failure this gate exists to
+prevent.
+
+Once confirmed:
+
+1. Add the scenario name to `FLAKY_BENCHMARKS_REGEX` in `microbenchmarks.yml`, anchored, for
+   example `^sethttpmeta-all-enabled$`. Match the exact scenario name from the gate log.
+2. Re-run `microbenchmarks`, then `check-big-regressions`. Both, in that order, because the gate scores
+   artifacts from the benchmark run and re-running it alone re-reads the same numbers.
+
+The benchmark keeps running and keeps reporting, so its trend stays visible on the dashboards; it
+just stops being able to fail the pipeline. Prefer this to reaching for the bypass label: the label
+disables the gate for every scenario in the pull request, while the regex disables it for one.
+
+Marking a benchmark flaky is a stopgap, not a resolution — nothing then watches that code path for
+regressions. Open an issue to stabilize or remove the scenario.
 
 ## Further reading
 
 * [Performance Quality Gates user guide](https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+Quality+Gates)
-  — the cross-language reference this section is adapted from.
+  — the cross-language reference this section is adapted from, including the rationale for
+  percentage-regression PR gates and the `performance/ignore-performance-regression` bypass.
 * [How to set up pre-release performance quality gates](https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5070193198/How+to+set+up+pre-release+performance+quality+gates)
   — including how to choose thresholds.
 * [benchmarks/README.rst](../../benchmarks/README.rst) — running benchmarks locally.

@@ -127,19 +127,19 @@ Also check whether the gate is already telling you: an `(unstable)` line in the
 ### Recording it
 
 Add the scenario name to `FLAKY_BENCHMARKS_REGEX` in `microbenchmarks.yml`. It is a
-`|`-delimited regex matched against scenario names. A flagged benchmark still runs and still
-reports its numbers, so trends stay visible; it just does not fail the pipeline.
+`|`-delimited regex matched against scenario names, anchored per entry (`^name$`). A flagged
+benchmark still runs and still reports its numbers, so trends stay visible; it just does not
+fail the pipeline.
+
+Do not work around it by deleting the scenario's thresholds from the SLO template: that drops the
+benchmark out of reporting as well as out of gating, so nobody sees the trend either.
 
 > [!NOTE]
-> `FLAKY_BENCHMARKS_REGEX` is not declared in `microbenchmarks.yml` yet, and the gate does not
-> read it yet either — the `check-slo-breaches` job currently runs `bp-runner` against the SLO
-> file and nothing consults a flaky list. Adding the empty variable declaration, and the gate
-> support behind it, is tracked separately.
->
-> This is nonetheless the intended mechanism, so record the name here when the declaration lands
-> rather than reaching for something else. In particular, do not work around it by deleting the
-> scenario's thresholds from the SLO template: that drops the benchmark out of reporting as well as
-> out of gating, so nobody sees the trend either.
+> `check-big-regressions` reads `FLAKY_BENCHMARKS_REGEX` and drops matching scenarios from the
+> comparison before deciding whether to fail. `check-slo-breaches` does **not** consult it: that
+> gate runs `bp-runner` against the SLO file, and nothing there reads a flaky list. So marking a
+> benchmark flaky exempts it from the percentage-regression gate only; if it also breaches a fixed
+> SLO threshold, adjust that threshold in the SLO template instead.
 
 Marking a benchmark flaky is a stopgap, not a resolution: it means nothing is watching that code
 path for regressions. Open an issue to either stabilize the scenario or remove it.
