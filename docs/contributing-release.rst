@@ -24,8 +24,12 @@ High-Level Steps
 These are the high-level steps involved in all ddtrace releases:
 
 1. Set / Validate branch structure
-2. Set / Validate version strings on branches
-3. Make a GitHub release
+2. Make a GitHub release
+
+There is no version-string pull request in any of these steps: the version is computed automatically
+from git state at build time by ``scripts/compute_version.py``. See "Version String" below. The only
+manual action that determines a release's version is the exact tag created by the GitHub release
+itself.
 
 Here are the specifics of those steps for all of the different types of releases. See even more detail in the sections that follow.
 
@@ -36,14 +40,9 @@ Patch Release
 
     * A branch named after the relevant minor version line (``X.Y``) is expected to already exist. This is the "release branch".
 
-2. Set / Validate version strings on branches
+2. Make a GitHub release
 
-    * The version string on the release branch is currently set to a patch version on the relevant minor release line (for example, ``1.2.3``)
-    * Pull request a change to the version string on the release branch that sets it to the patch version you're releasing.
-
-3. Make a GitHub release
-
-    * Target: the merged commit from the version string pull request above
+    * Target: the tip of the release branch
     * "Set as latest" may be applicable
     * "Pre-release" unchecked
 
@@ -54,15 +53,9 @@ Minor or Major Release Candidate
 
     * The main branch exists
 
-2. Set / Validate version strings on branches
+2. Make a GitHub release
 
-    * main's version string is currently a release candidate ``rc`` version.
-    * Pull request a change to the version string on the main branch that sets it to the next release candidate on the current minor release line.
-        In practice this means incrementing the ``rcX`` number by one.
-
-3. Make a GitHub release
-
-    * Target: the merged commit from the version string pull request above
+    * Target: the tip of the main branch
     * "Pre-release" checked
 
 Minor or Major Release
@@ -80,43 +73,54 @@ Minor or Major Release
         $ git merge main -Xtheirs # this keeps the tags intact so that reno will work properly
         $ git push -u origin X.Y
 
-2. Set / Validate version strings on branches
+2. Make a GitHub release
 
-    * main's version string is currently a release candidate ``rc`` version.
-    * Pull request a change to the version string on the main branch that sets it to ``rc1`` on the next release line.
-        For example: in step 1 we created branch ``1.3``, and we will change the version string on main to ``1.4.0rc1``.
-    * The version string on the release branch is currently set to a patch version on the previous minor release line.
-        For example: in step 1 we created branch ``1.3``, and it has a version string of ``1.2.9``
-    * Pull request a change to the version string on the release branch that sets it to the minor version you're releasing.
-
-3. Make a GitHub release
-
-    * Target: the merged commit on the release branch from the version string pull request above
+    * Target: the tip of the release branch created above
     * "Set as latest" checked
     * "Pre-release" unchecked
 
 Version String
 --------------
 
-The ``[project.version]`` attribute in ``pyproject.toml`` is the source of truth about the version of ddtrace.
-If you inspect a ddtrace wheel via directory exploration or ``print(ddtrace.__version__)``, the version you find will match the
-version in the wheel's name.
+ddtrace's version is not a literal anywhere in the source tree. It's computed at build time by
+``scripts/compute_version.py`` from git state, and exposed as ``ddtrace.__version__`` via the
+installed package's metadata. If you inspect a ddtrace wheel via directory exploration or
+``print(ddtrace.__version__)``, the version you find will match the version in the wheel's name.
 
-If you check the attribute on a checkout of the ddtrace main branch, you will find it set to the ``rcX`` release candidate version
-that comes next on the currently under-development minor release line. For example:
+The rules, applied in order:
 
-* Latest release: ``4.4.0`` -> version string on main: ``4.5.0rc1``
-* Latest release: ``4.3.0rc4`` -> version string on main: ``4.3.0rc5``
-* Latest release: ``4.2.1`` -> version string on main: ``4.3.0rc1``
+1. If the commit being built is exactly tagged ``vX.Y.Z`` or ``vX.Y.ZrcN``, the version is that tag,
+   verbatim (``v`` stripped). This is the only way a final or ``rc`` version is ever produced — always
+   by a human creating that exact tag, e.g. as part of making a GitHub release.
+2. Otherwise, on a release branch (named ``X.Y``): the next patch version after the latest ``vX.Y.Z``
+   tag on that branch, suffixed ``.devN`` (``N`` = commits since that tag), or ``X.Y.0.devN`` if the
+   branch was just cut and has no tag yet.
+3. Otherwise (``main``, feature branches, PRs): the next minor version after the latest final release
+   anywhere in the repo, suffixed ``.devN``.
 
-If you check the attribute on a checkout of a ddtrace release branch with a name like ``X.Y``, you will find it set to the patch release version
-that comes next on that minor release line. For example:
+For example:
 
-* Latest release: ``4.4.0`` -> version string on 4.4 branch: ``4.4.1dev``
-* Latest release: ``4.3.0rc4`` -> version string on 4.3 branch: not applicable, branch doesn't exist
-* Latest release: ``4.2.1`` -> version string on 4.2: ``4.2.2dev``
+* Latest release: ``4.4.0`` -> version on main: ``4.5.0.devN``
+* Latest release: ``4.3.0rc4`` -> version on main: ``4.4.0.devN`` (release candidates don't count as
+  "the latest final release" — only an actual ``vX.Y.Z`` tag does)
+* Latest release: ``4.4.0`` -> version on the ``4.4`` branch: ``4.4.1.devN``
+* Latest release: ``4.2.1`` -> version on the freshly-cut ``4.3`` branch, no tag yet: ``4.3.0.devN``
 
-If ever you discover that one of these guarantees is not upheld, please open a pull request adjusting the version string accordingly.
+Branch identity for rules 2/3 comes from CI-provided ref info (GitHub Actions'
+``GITHUB_HEAD_REF``/``GITHUB_REF_NAME``, GitLab's ``CI_COMMIT_BRANCH``/``CI_COMMIT_REF_NAME``), not
+from ``git rev-parse --abbrev-ref HEAD`` — that returns the literal string ``"HEAD"`` under a detached
+checkout, which is the norm for CI, and silently treats release branches as "main-like" if
+relied upon. To compute what a particular branch's version would be from a local, possibly-detached
+checkout (for example, testing a release branch cut before pushing it), set
+``_DD_TRACE_BUILD_VERSION=X.Y`` in the environment to override branch detection:
+
+.. code-block:: bash
+
+    $ _DD_TRACE_BUILD_VERSION=4.13 scripts/compute_version.py
+
+If you ever find a computed version doesn't match one of the rules above, that's a bug in
+``scripts/compute_version.py`` (see ``tests/scripts/test_compute_version.py``) — not something to work
+around by hand-editing a version string, since there is no longer one to edit.
 
 
 Pre-Release Performance Gates

@@ -727,7 +727,15 @@ def gen_pre_checks() -> None:
     check(
         name="Check package version",
         command="scripts/verify-package-version",
-        paths={"pyproject.toml"},
+        paths={"*"},
+    )
+    check(
+        name="Check compute_version tests",
+        command=(
+            "uv run --no-project --with pytest==8.3.3 --with packaging==23.1 "
+            "python tests/scripts/test_compute_version.py"
+        ),
+        paths={"scripts/compute_version.py", "scripts/version_lib.py", "tests/scripts/test_compute_version.py"},
     )
     check(
         name="Check for namespace packages",

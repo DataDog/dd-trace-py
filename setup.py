@@ -55,6 +55,29 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
+try:
+    # Only present in a real git checkout - deliberately not shipped in the sdist (it's
+    # build tooling, not package content). Git, when available, is always authoritative
+    # over any stale ddtrace/_version_frozen.py left over from a prior build in this same
+    # checkout - see resolve_version(). A wheel built from the sdist has no scripts/ (and
+    # no .git) at all, so falls to the except branch below, which imports the version
+    # already frozen into ddtrace/_version_frozen.py at sdist-build time.
+    sys.path.insert(0, str(HERE / "scripts"))
+    from compute_version import resolve_version  # noqa: E402
+
+    DDTRACE_VERSION = resolve_version(HERE)
+except ImportError:
+    import importlib.util
+
+    # Load the module directly by file path rather than `from ddtrace._version_frozen
+    # import version`, which would execute ddtrace/__init__.py (monkeypatching setup and
+    # more) as a side effect of the import - not something a version lookup should trigger.
+    _spec = importlib.util.spec_from_file_location("_version_frozen", HERE / "ddtrace" / "_version_frozen.py")
+    assert _spec is not None and _spec.loader is not None
+    _version_frozen = importlib.util.module_from_spec(_spec)
+    _spec.loader.exec_module(_version_frozen)
+    DDTRACE_VERSION = _version_frozen.version
+
 CURRENT_OS = platform.system()
 
 # What's meant by each build mode is similar to that from CMake, except that
@@ -1889,6 +1912,7 @@ print(f"INFO: building package '{PACKAGE_NAME}'")
 interpose_sccache()
 setup(
     name="ddtrace",
+    version=DDTRACE_VERSION,
     packages=find_packages(
         exclude=[
             "tests*",
