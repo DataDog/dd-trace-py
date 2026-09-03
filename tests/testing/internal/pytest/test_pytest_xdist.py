@@ -898,9 +898,9 @@ class TestXdistWorkerCrashRestart:
         worker.
 
         This test documents the current behavior — it is a known limitation.
-        If the writer is changed to flush after each test, or to
-        use a non-daemon thread with proper shutdown, this test should be updated.
         """
+        # TODO(testing): If the writer is changed to flush after each test, or to
+        # use a non-daemon thread with proper shutdown, this test should be updated.
         # Use -n 1 so there is only one worker. Put a passing test and a
         # crashing test in the same file (guaranteeing same worker). Disable
         # random ordering with -p no:randomly to ensure deterministic execution.
