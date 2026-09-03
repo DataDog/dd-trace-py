@@ -113,6 +113,19 @@ def test_migrated_jobs_use_uv_environments(gen_gitlab_config_mod):
     assert configured_hashes == set(environment_hashes)
 
 
+def test_migrated_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
+    config = str(
+        gen_gitlab_config_mod.JobSpec(
+            name="requests", stage="contrib", suite="contrib::requests", uses_uv=True, snapshot=True
+        )
+    )
+    extends = next(line.removeprefix("  extends: ") for line in config.splitlines() if line.startswith("  extends: "))
+    test_templates = (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text()
+
+    assert extends == ".test_base_uv_snapshot"
+    assert f"{extends}:" in test_templates
+
+
 def test_migrated_jobs_allow_prerelease_dependencies_when_unpinned(gen_gitlab_config_mod, monkeypatch):
     monkeypatch.setenv("UNPIN_DEPENDENCIES", "true")
 

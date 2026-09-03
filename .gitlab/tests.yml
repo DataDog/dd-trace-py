@@ -115,4 +115,15 @@ include:
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected in committed test locks. Run scripts/compile-and-prune-test-requirements and commit the result."
 
+.test_base_uv_snapshot:
+  extends: .test_base_uv
+  services:
+    - !reference [.test_base_uv, services]
+    - !reference [.services, testagent]
+  before_script:
+    - !reference [.test_base_uv, before_script]
+    # Job variables are shared with services, so setting this globally would make the testagent forward requests to itself.
+    - export DD_TRACE_AGENT_URL="http://testagent:9126"
+    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
+
 # Required jobs will appear here
