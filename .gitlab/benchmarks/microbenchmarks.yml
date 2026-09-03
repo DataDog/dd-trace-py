@@ -19,7 +19,7 @@ variables:
   BENCHMARKING_BRANCH: dd-trace-py
   BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
   # Known flaky benchmarks
-  FLAKY_BENCHMARKS_REGEX: "^iastaspects-(add_aspect|casefold_aspect|casefold_noaspect|index_aspect|join_aspect|ljust_noaspect|lower_aspect|lstrip_aspect|modulo_noaspect|replace_aspect|repr_aspect|rstrip_aspect|stringio_aspect|stringio_noaspect|swapcase_aspect|title_aspect|title_noaspect|translate_aspect|translate_noaspect|upper_aspect|upper_noaspect)$|^httppropagationextract-(tracecontext_headers|wsgi_valid_headers_all)$|^httppropagationinject-ids_only$|^iastaspectsospath-ospathbasename_aspect$|^iastaspectssplit-rsplit_aspect$|^span-start$|^telemetryaddmetric-1-count-metric-1-times$|^tracer-small$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^telemetryaddmetric-record-100-metrics$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
+  FLAKY_BENCHMARKS_REGEX: "^iastaspects-(add_aspect|casefold_aspect|casefold_noaspect|index_aspect|join_aspect|ljust_noaspect|lower_aspect|replace_aspect|swapcase_aspect|title_aspect|title_noaspect|translate_aspect|translate_noaspect|upper_noaspect)$|^httppropagationextract-(tracecontext_headers|wsgi_valid_headers_all)$|^httppropagationinject-ids_only$|^iastaspectsospath-ospathbasename_aspect$|^iastaspectssplit-rsplit_aspect$|^span-start$|^telemetryaddmetric-1-count-metric-1-times$|^tracer-small$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^telemetryaddmetric-record-100-metrics$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
 
 .benchmarks:
   stage: test
