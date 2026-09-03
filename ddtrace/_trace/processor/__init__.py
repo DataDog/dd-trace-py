@@ -25,7 +25,7 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
@@ -123,6 +123,8 @@ class TraceSamplingProcessor(TraceProcessor):
     * If the span sampling decision is to keep the span, then span sampling metrics are added to the span.
     * If a dropped trace includes a span that had been kept by a span sampling rule, then the span is sent to the
       Agent even if the dropped trace is not (as is the case when trace stats computation is enabled).
+    * If the chunk is rejected by a rule with ``discard=True``, the whole chunk is dropped instead of being kept
+      with a reject priority, so it is excluded from stats and never serialized or sent to the Agent.
     """
 
     def __init__(
@@ -164,7 +166,9 @@ class TraceSamplingProcessor(TraceProcessor):
                     span._set_attribute(_APM_ENABLED_METRIC_KEY, 0)
 
             if chunk_root.context.sampling_priority is None:
-                self.sampler.sample(chunk_root._local_root)
+                _, discard = self.sampler.sample_or_discard(chunk_root._local_root)
+                if discard:
+                    return None
                 if chunk_root.context.sampling_priority is None:
                     # NOTE: This should never happen, `self.sampler.sample(..)` should always set the sampling priority.
                     log.error(
@@ -268,11 +272,12 @@ class TraceTagsProcessor(TraceProcessor):
 
 
 class _Trace:
-    __slots__ = ("spans", "num_finished")
+    __slots__ = ("spans", "num_finished", "discarded")
 
     def __init__(self, spans: Optional[list[Span]] = None, num_finished: int = 0):
         self.spans: list[Span] = spans if spans is not None else []
         self.num_finished: int = num_finished
+        self.discarded: bool = False
 
     def remove_finished(self) -> list[Span]:
         # perf: Avoid Span.finished which is a computed property and has function call overhead
@@ -338,7 +343,7 @@ class SpanAggregator(SpanProcessor):
         self.partial_flush_min_spans = partial_flush_min_spans
         # Initialize trace processors
         self.sampling_processor = TraceSamplingProcessor(
-            config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
+            config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out
         )
         self.tags_processor = TraceTagsProcessor()
         self.dd_processors = dd_processors or []
@@ -418,23 +423,41 @@ class SpanAggregator(SpanProcessor):
                 return
 
         # perf: Process spans outside of the span aggregator lock
-        spans = finished
-        for tp in chain(
-            self.dd_processors,
-            self.user_processors,
-            [
-                self.sampling_processor,
-                self.llmobs_processor,
-                self.tags_processor,
-                self.service_name_processor,
-            ],
-        ):
-            try:
-                spans = tp.process_trace(spans) or []
-                if not spans:
+        if trace.discarded:
+            spans: list[Span] = []
+        else:
+            spans = finished
+            sampling_discarded = False
+            for tp in chain(
+                self.dd_processors,
+                self.user_processors,
+                [
+                    self.sampling_processor,
+                    self.llmobs_processor,
+                    self.tags_processor,
+                    self.service_name_processor,
+                ],
+            ):
+                try:
+                    result = tp.process_trace(spans) or []
+                except Exception:
+                    log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
+                    continue
+                if not result and tp is self.sampling_processor:
+                    # TraceSamplingProcessor only ever returns an empty result for a discard=True
+                    # rule rejecting the chunk. However, we must not actually discard them until the
+                    # llmobs_processor has run to allow them to rescue spans.
+                    sampling_discarded = True
+                    if not is_trace_complete:
+                        # Remember this so later partial-flush chunks of the same trace are dropped
+                        # too, instead of being kept with the (already-set) reject priority.
+                        trace.discarded = True
+                    continue
+                spans = result
+                if not spans or (tp is self.llmobs_processor and sampling_discarded):
+                    # If llmobs does not rescue the span, we still discard it.
+                    spans = []
                     break
-            except Exception:
-                log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 
         num_dropped = len(finished) - len(spans)
         if num_dropped > 0:
@@ -547,15 +570,19 @@ class SpanAggregator(SpanProcessor):
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
+        flush_writer: Optional[bool] = None,
     ) -> None:
         """
         Resets the internal state of the SpanAggregator, including the writer, sampling processor,
         user-defined processors, and optionally the trace buffer and span metrics.
 
         This method is typically used after a process fork or during runtime reconfiguration.
-        Arguments that are None will not override existing values.
+        Arguments that are None will not override existing values. By default, the writer is
+        flushed only when preserving the trace buffer.
         """
-        if not reset_buffer:
+        if flush_writer is None:
+            flush_writer = not reset_buffer
+        if flush_writer:
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
@@ -574,4 +601,8 @@ class SpanAggregator(SpanProcessor):
         # Reset the trace buffer.
         # Useful when forking to prevent sending duplicate spans from parent and child processes.
         if reset_buffer:
-            self._traces = defaultdict(lambda: _Trace())
+            self.reset_trace_buffer_after_fork()
+
+    def reset_trace_buffer_after_fork(self) -> None:
+        """Discard inherited traces without touching the fork-unsafe writer."""
+        self._traces = defaultdict(lambda: _Trace())

@@ -7,12 +7,14 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Union
+import weakref
 
 from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
 
 from ...internal import atexit
@@ -150,9 +152,11 @@ class TelemetryWriter:
         self._enabled = config.TELEMETRY_ENABLED
 
         if agentless is None:
-            agentless = config.AGENTLESS_MODE or config.API_KEY not in (None, "")
+            # An API key on its own says nothing about how data should be submitted;
+            # only an explicit agentless setting does.
+            agentless = agentless_config.any_enabled
 
-        if agentless and not config.API_KEY:
+        if agentless and not agentless_config.api_key:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
 
@@ -174,7 +178,9 @@ class TelemetryWriter:
         # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
         # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
         # health metrics) has to be handed the new one rather than keeping a stale clone.
-        self._worker_subscribers: list[Callable[[Optional["TelemetryWorker"]], None]] = []
+        # Keep these callbacks weak because this process-global writer must not retain
+        # per-tracer exporters and their native runtime workers.
+        self._worker_subscribers: list[weakref.WeakMethod] = []
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
         # once in enable(); forked children inherit and auto-resume it (see the class docstring).
         self._deps_collector: Optional[PeriodicService] = None
@@ -199,9 +205,9 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in forked children (registered AFTER the native
-            # runtime's after_fork_child hook, which get_native_runtime() registered
-            # during enable(), so the shared runtime is restarted before we rebuild).
+            # Rebuild the native worker in Python-managed forked children. The NativeRuntime
+            # after_fork_child callback runs before this callback, ensuring the shared runtime
+            # has been restarted before we drop and lazily rebuild the telemetry worker.
             forksafe.register(self._fork_writer)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
@@ -224,8 +230,8 @@ class TelemetryWriter:
             endpoint_url = "file://" + os.path.join(self._payload_file_dir, "")
             api_key = None
         elif self._agentless:
-            endpoint_url = _agentless_endpoint_url(config.SITE)
-            api_key = config.API_KEY
+            endpoint_url = _agentless_endpoint_url(agentless_config.site)
+            api_key = agentless_config.api_key
         else:
             endpoint_url = agent_config.trace_agent_url
             api_key = None
@@ -274,7 +280,7 @@ class TelemetryWriter:
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if not self._enabled:
+        if not self._enabled or forksafe.in_child_hook():
             return False
 
         if self._worker is not None:
@@ -385,11 +391,27 @@ class TelemetryWriter:
             self._notify_worker_changed(None)
 
     def _subscribe_worker_changes(self, callback: "Callable[[Optional[TelemetryWorker]], None]") -> None:
-        if callback not in self._worker_subscribers:
-            self._worker_subscribers.append(callback)
+        if any(subscriber() == callback for subscriber in self._worker_subscribers):
+            return
+
+        writer_ref = weakref.ref(self)
+
+        def remove_subscriber(subscriber: weakref.WeakMethod) -> None:
+            writer = writer_ref()
+            if writer is None:
+                return
+            try:
+                writer._worker_subscribers.remove(subscriber)
+            except ValueError:
+                return
+
+        self._worker_subscribers.append(weakref.WeakMethod(callback, remove_subscriber))
 
     def _notify_worker_changed(self, worker: Optional["TelemetryWorker"]) -> None:
-        for callback in list(self._worker_subscribers):
+        for subscriber in list(self._worker_subscribers):
+            callback = subscriber()
+            if callback is None:
+                continue
             try:
                 callback(worker)
             except Exception:
@@ -401,7 +423,7 @@ class TelemetryWriter:
 
         self._agentless = enabled
 
-        if enabled and not config.API_KEY:
+        if enabled and not agentless_config.api_key:
             log.debug("Cannot switch telemetry to agentless mode: no Datadog API key found")
             return
 
@@ -894,14 +916,12 @@ class TelemetryWriter:
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
     def _fork_writer(self) -> None:
-        # Runs in the child after fork. The inherited native worker was spawned with
-        # restart_on_fork=False, so the shared runtime drops it (without app-closing) in the
-        # child; the inherited Python handle is now inert. Drop it and rebuild lazily on the
-        # child's next telemetry call (enable()), bound to the child's own runtime and session
-        # ids (get_runtime_id()/get_parent_runtime_id() now reflect the child), heartbeating
-        # without re-emitting app-started.
-        # NOTE: rebuilding here, inside the fork-hook chain, trips a tokio IO-safety abort
-        # (spawning on the just-restarted runtime from within the after-fork callbacks).
+        # Runs in the child after a Python-managed fork. Drop the inherited worker and rebuild
+        # lazily on the child's next telemetry call (enable()), bound to the child's own runtime
+        # and session ids (get_runtime_id()/get_parent_runtime_id() now reflect the child),
+        # heartbeating without re-emitting app-started.
+        # NOTE: rebuilding here, inside the fork-hook chain, starts Tokio before process managers
+        # such as Celery finish closing inherited file descriptors.
         #
         # This hook is registered before the tracer's _child_after_fork (TelemetryWriter is
         # constructed before the tracer), so it always runs before the trace-exporter rebuild
