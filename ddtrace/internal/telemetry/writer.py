@@ -178,7 +178,7 @@ class TelemetryWriter:
         # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
         # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
         # health metrics) has to be handed the new one rather than keeping a stale clone.
-        # AIDEV-NOTE: Keep these callbacks weak because this process-global writer must not retain
+        # Keep these callbacks weak because this process-global writer must not retain
         # per-tracer exporters and their native runtime workers.
         self._worker_subscribers: list[weakref.WeakMethod] = []
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
