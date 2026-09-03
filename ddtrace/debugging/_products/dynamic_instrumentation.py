@@ -1,7 +1,7 @@
-import enum
 from typing import Any
 
 from ddtrace.debugging._import import DebuggerModuleWatchdog
+from ddtrace.internal.native import RemoteConfigCapabilities
 from ddtrace.internal.settings.dynamic_instrumentation import config
 
 
@@ -45,8 +45,7 @@ def stop(join: bool = False) -> None:
     DynamicInstrumentation.disable(join=join)
 
 
-class APMCapabilities(enum.IntFlag):
-    APM_TRACING_ENABLE_DYNAMIC_INSTRUMENTATION = 1 << 38
+APMCapabilities = (RemoteConfigCapabilities.ApmTracingEnableDynamicInstrumentation,)
 
 
 def apm_tracing_rc(lib_config: Any, _config: Any) -> None:

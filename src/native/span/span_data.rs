@@ -24,7 +24,11 @@ use super::utils::{
 };
 use super::{SpanEvent, SpanLink};
 
-#[pyo3::pyclass(name = "SpanData", module = "ddtrace.internal._native", subclass)]
+#[pyo3::pyclass(
+    name = "SpanData",
+    module = "ddtrace.internal.native._native",
+    subclass
+)]
 #[derive(Default)]
 pub struct SpanData {
     pub name: PyBackedString,
@@ -54,6 +58,12 @@ pub struct SpanData {
     /// Storage for meta_struct values: dict[str, Any].
     /// None until first use; initialized to an empty dict in __new__.
     pub meta_struct: Option<Py<PyDict>>,
+    /// The parent `Span` (a `SpanData` subclass), or `None` for a root span.
+    /// Set from Python during span creation; read natively by the context
+    /// provider when walking the ancestor chain in `_update_active`.
+    pub _parent: Option<Py<PyAny>>,
+    /// The parent `Context` this span was created under, or `None`.
+    pub _parent_context: Option<Py<crate::context::Context>>,
 }
 
 impl SpanData {
@@ -67,17 +77,100 @@ impl SpanData {
         self.trace_id = id;
         self._trace_id_py = None;
     }
-
-    /// Setdefault helper for `_set_default_attributes`: insert one key/value pair only if
-    /// the key is not already present in either meta or metrics.
-    fn set_default_attribute_entry(&mut self, k: &Bound<'_, PyAny>, v: &Bound<'_, PyAny>) {
-        if !self.has_attribute(k) {
-            let _ = self.set_attribute(k, v);
-        }
-    }
 }
 
 const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
+
+/// Convert one Python key/value pair to native attribute storage.
+///
+/// DEV: Keep Python coercion outside a mutable SpanData borrow. Arbitrary
+/// `__str__` and `__index__` implementations can start nested spans and re-enter
+/// the native context provider, which needs to borrow the active SpanData.
+fn extract_attribute(
+    key: &Bound<'_, PyAny>,
+    value: &Bound<'_, PyAny>,
+) -> Option<(AttrKey, AttributeValue)> {
+    let key_str = key.cast::<PyString>().ok()?;
+    let is_http_status_code = key_str.to_str().unwrap_or("") == HTTP_STATUS_CODE_KEY;
+    let attr_key = AttrKey::new(key_str.clone().unbind());
+
+    // http.status_code must always be a string in meta.
+    // Fast path: typed contract is `str`, so most callers already pass a PyString.
+    // Only fall back to str() for non-string inputs (e.g. an int 200).
+    if is_http_status_code {
+        let s = if let Ok(s) = value.cast::<PyString>() {
+            s.clone()
+        } else {
+            value.str().ok()?
+        };
+        return Some((attr_key, AttributeValue::Str(s.unbind())));
+    }
+
+    // str → Str
+    if let Ok(s) = value.cast::<PyString>() {
+        return Some((attr_key, AttributeValue::Str(s.clone().unbind())));
+    }
+
+    // float → Float (drop NaN/Inf)
+    // Check before int because some types (e.g. numpy.float64) implement __float__
+    // but not __index__, so PyFloat succeeds and PyInt would fail.
+    if let Ok(f) = value.cast::<PyFloat>() {
+        let n = f.value();
+        if n.is_nan() || n.is_infinite() {
+            return None;
+        }
+        return Some((attr_key, AttributeValue::Float(n)));
+    }
+
+    // int (catches bool and numpy.int* via __index__) → Int.
+    // extract::<i64>() succeeds for bool (True → 1, False → 0) and for any
+    // type implementing __index__. Python ints that overflow i64 fall through
+    // to the str() fallback below.
+    if let Ok(n) = value.extract::<i64>() {
+        return Some((attr_key, AttributeValue::Int(n)));
+    }
+
+    // bytes → UTF-8 decoded Str (with U+FFFD replacements for invalid sequences)
+    if let Ok(b) = value.cast::<PyBytes>() {
+        let decoded = String::from_utf8_lossy(b.as_bytes());
+        let py_str = PyString::new(key.py(), &decoded);
+        return Some((attr_key, AttributeValue::Str(py_str.unbind())));
+    }
+
+    // Fallback: str(value) — covers Python ints that overflow i64, arbitrary objects, etc.
+    let s = value.str().ok()?;
+    Some((attr_key, AttributeValue::Str(s.unbind())))
+}
+
+fn set_default_attribute(
+    slf: &Bound<'_, SpanData>,
+    key: &Bound<'_, PyAny>,
+    value: &Bound<'_, PyAny>,
+) {
+    let Ok(key_str) = key.cast::<PyString>() else {
+        return;
+    };
+    let Ok(key_text) = key_str.to_str() else {
+        return;
+    };
+    if slf.borrow().attributes.contains_key(key_text) {
+        return;
+    }
+    if let Some((attr_key, attr_value)) = extract_attribute(key, value) {
+        // Re-entrant coercion may have inserted the key after the check above; if so,
+        // `attr_value` is discarded rather than stored. A discarded str subclass can run
+        // Python finalization when its last reference is dropped, so release the SpanData
+        // borrow before dropping it (same hazard as the `replaced` value in `set_attribute`).
+        let discarded = match slf.borrow_mut().attributes.entry(attr_key) {
+            std::collections::hash_map::Entry::Occupied(_) => Some(attr_value),
+            std::collections::hash_map::Entry::Vacant(e) => {
+                e.insert(attr_value);
+                None
+            }
+        };
+        drop(discarded);
+    }
+}
 
 #[pyo3::pymethods]
 impl SpanData {
@@ -433,6 +526,67 @@ impl SpanData {
         self.span_api = extract_backed_string_or_default(value);
     }
 
+    // _parent property — the parent Span, or None for a root span.
+    #[getter(_parent)]
+    #[inline(always)]
+    fn get_parent<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyAny>> {
+        self._parent.as_ref().map(|p| p.bind(py).clone())
+    }
+
+    #[setter(_parent)]
+    #[inline(always)]
+    fn set_parent(&mut self, value: &Bound<'_, PyAny>) {
+        // None → no parent; any other value is stored as-is.
+        self._parent = if value.is_none() {
+            None
+        } else {
+            Some(value.clone().unbind())
+        };
+    }
+
+    // _parent_context property — the parent Context, or None.
+    #[getter(_parent_context)]
+    #[inline(always)]
+    fn get_parent_context<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> Option<Bound<'py, crate::context::Context>> {
+        self._parent_context.as_ref().map(|c| c.bind(py).clone())
+    }
+
+    #[setter(_parent_context)]
+    #[inline(always)]
+    fn set_parent_context(&mut self, value: &Bound<'_, PyAny>) {
+        self._parent_context = if value.is_none() {
+            None
+        } else {
+            // Silently ignore non-Context values, matching other setters' defensive style.
+            value.extract::<Py<crate::context::Context>>().ok()
+        };
+    }
+
+    // _is_top_level property (native for performance - avoids Python property hop).
+    // A span is top-level if it has no parent, or if its own service is set
+    // and differs from its parent's service.
+    #[getter(_is_top_level)]
+    #[inline(always)]
+    fn get_is_top_level(&self, py: Python<'_>) -> bool {
+        let Some(parent) = self._parent.as_ref() else {
+            return true;
+        };
+        if self.service.is_py_none(py) {
+            return false;
+        }
+        match parent.bind(py).cast::<SpanData>() {
+            Ok(parent_span) => {
+                let parent_span = parent_span.borrow();
+                parent_span.service.is_py_none(py) || parent_span.service != self.service
+            }
+            // Non-native parent object (shouldn't normally happen) - default to top-level.
+            Err(_) => true,
+        }
+    }
+
     // ── Attribute API (meta / metrics) ──────────────────────────────────────
 
     /// Set a tag/metric on the span. Stores the value in the unified `attributes` map,
@@ -445,75 +599,19 @@ impl SpanData {
     /// basis (bytes → UTF-8 decoded str, oversized ints → str, arbitrary objects → str).
     #[pyo3(name = "_set_attribute")]
     fn set_attribute(
-        &mut self,
+        slf: &Bound<'_, Self>,
         key: &Bound<'_, PyAny>,
         value: &Bound<'_, PyAny>,
     ) -> pyo3::PyResult<()> {
-        let Ok(key_str) = key.cast::<PyString>() else {
-            return Ok(());
-        };
-        let attr_key = AttrKey::new(key_str.clone().unbind());
-
-        // http.status_code must always be a string in meta.
-        // Fast path: typed contract is `str`, so most callers already pass a PyString.
-        // Only fall back to str() for non-string inputs (e.g. an int 200).
-        if key_str.to_str().unwrap_or("") == HTTP_STATUS_CODE_KEY {
-            let s = if let Ok(s) = value.cast::<PyString>() {
-                s.clone()
-            } else {
-                let Ok(s) = value.str() else {
-                    return Ok(());
-                };
-                s
+        if let Some((attr_key, attr_value)) = extract_attribute(key, value) {
+            let replaced = {
+                let mut span = slf.borrow_mut();
+                span.attributes.insert(attr_key, attr_value)
             };
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(s.unbind()));
-            return Ok(());
+            // A replaced str subclass can run Python finalization when its last
+            // reference is dropped, so release the SpanData borrow first.
+            drop(replaced);
         }
-
-        // str → Str
-        if let Ok(s) = value.cast::<PyString>() {
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(s.clone().unbind()));
-            return Ok(());
-        }
-
-        // float → Float (drop NaN/Inf)
-        // Check before int because some types (e.g. numpy.float64) implement __float__
-        // but not __index__, so PyFloat succeeds and PyInt would fail.
-        if let Ok(f) = value.cast::<PyFloat>() {
-            let n = f.value();
-            if n.is_nan() || n.is_infinite() {
-                return Ok(());
-            }
-            self.attributes.insert(attr_key, AttributeValue::Float(n));
-            return Ok(());
-        }
-
-        // int (catches bool and numpy.int* via __index__) → Int.
-        // extract::<i64>() succeeds for bool (True → 1, False → 0) and for any
-        // type implementing __index__. Python ints that overflow i64 fall through
-        // to the str() fallback below.
-        if let Ok(n) = value.extract::<i64>() {
-            self.attributes.insert(attr_key, AttributeValue::Int(n));
-            return Ok(());
-        }
-
-        // bytes → UTF-8 decoded Str (with U+FFFD replacements for invalid sequences)
-        if let Ok(b) = value.cast::<PyBytes>() {
-            let decoded = String::from_utf8_lossy(b.as_bytes());
-            let py_str = PyString::new(key.py(), &decoded);
-            self.attributes
-                .insert(attr_key, AttributeValue::Str(py_str.unbind()));
-            return Ok(());
-        }
-
-        // Fallback: str(value) — covers Python ints that overflow i64, arbitrary objects, etc.
-        let Ok(s) = value.str() else {
-            return Ok(());
-        };
-        self.attributes
-            .insert(attr_key, AttributeValue::Str(s.unbind()));
         Ok(())
     }
 
@@ -524,10 +622,10 @@ impl SpanData {
     /// neither, the call is a no-op. Invalid value types follow the same coercion rules as
     /// `_set_attribute`.
     #[pyo3(name = "_set_attributes")]
-    fn set_attributes(&mut self, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+    fn set_attributes(slf: &Bound<'_, Self>, attrs: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
         if let Ok(d) = attrs.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
-                let _ = self.set_attribute(&k, &v);
+                let _ = Self::set_attribute(slf, &k, &v);
             }
         } else if let Ok(m) = attrs.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
@@ -541,7 +639,7 @@ impl SpanData {
                     let Ok(v) = pair.get_item(1) else {
                         continue;
                     };
-                    let _ = self.set_attribute(&k, &v);
+                    let _ = Self::set_attribute(slf, &k, &v);
                 }
             }
         }
@@ -679,10 +777,13 @@ impl SpanData {
     /// Used by callers that previously called `_update_tags_from_context`.
     /// Callers handle any locking on the source dict themselves.
     #[pyo3(name = "_set_default_attributes")]
-    fn set_default_attributes(&mut self, values: &Bound<'_, PyAny>) -> pyo3::PyResult<()> {
+    fn set_default_attributes(
+        slf: &Bound<'_, Self>,
+        values: &Bound<'_, PyAny>,
+    ) -> pyo3::PyResult<()> {
         if let Ok(d) = values.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
-                self.set_default_attribute_entry(&k, &v);
+                set_default_attribute(slf, &k, &v);
             }
         } else if let Ok(m) = values.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
@@ -696,7 +797,7 @@ impl SpanData {
                     let Ok(v) = pair.get_item(1) else {
                         continue;
                     };
-                    self.set_default_attribute_entry(&k, &v);
+                    set_default_attribute(slf, &k, &v);
                 }
             }
         }
@@ -889,6 +990,15 @@ impl SpanData {
         }
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
+        }
+        // `_parent` closes span -> parent span -> ... cycles; `_parent_context`
+        // can reach back to the span through the Context. Both must be visited
+        // so the cyclic GC can collect a finished trace.
+        if let Some(p) = &self._parent {
+            visit.call(p)?;
+        }
+        if let Some(c) = &self._parent_context {
+            visit.call(c)?;
         }
         // PyBackedString fields hold `Py<PyAny>` storage for str/bytes/None.
         // Atomic types can't form cycles, but visit them for correct refcount

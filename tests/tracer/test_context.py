@@ -129,6 +129,32 @@ def test_context_serializable_reactivate():
     assert context._reactivate == serialized_context._reactivate
 
 
+def test_copy_populates_every_getstate_slot(tracer):
+    """Guard against a future slot-drop in ``Context.copy()``.
+
+    A child span builds its context lazily via ``Context.copy()`` (ddtrace/_trace/context.py),
+    which assigns each slot by hand — ``trace_id``, ``span_id``, ``_meta``, ``_metrics``,
+    ``_baggage``, ``_is_remote``, ``_reactivate``, ``_span_links`` — instead of
+    going through ``__init__``. A dropped assignment there would only surface later as an
+    AttributeError when the context is serialized. Pin both halves: the copied context must
+    pickle/round-trip equal, and every slot ``__getstate__`` reads must be set.
+    """
+    with tracer.trace("parent"):
+        with tracer.trace("child") as child:
+            # Force the lazy child context to materialize through Context.copy().
+            child_ctx = child.context
+
+    # pickle.dumps calls __getstate__, which reads every slot copy() is responsible for.
+    assert pickle.loads(pickle.dumps(child_ctx)) == child_ctx
+
+    # Explicit tripwire: every slot __getstate__ reads is present (mirrors copy()'s slot list).
+    # A missing slot would raise AttributeError on access.
+    for slot in ("trace_id", "span_id", "_meta", "_metrics", "_span_links", "_baggage", "_is_remote", "_reactivate"):
+        assert hasattr(child_ctx, slot), f"copy() must set slot {slot!r}"
+    # __getstate__ itself must not raise (reads all of the above at once).
+    assert child_ctx.__getstate__() == pickle.loads(pickle.dumps(child_ctx)).__getstate__()
+
+
 @pytest.mark.parametrize(
     "context,expected_traceparent",
     [
@@ -385,12 +411,63 @@ def test_is_remote():
     ctx = Context(trace_id=123, span_id=321)
     assert ctx._is_remote is True
 
-    # Span.context.is_remote should ALWAYS evaluate to False.
+    # A local span built from a remote Context materializes a NON-remote context:
+    # copy() forces _is_remote=False, so a local child can never be mistaken for remote.
     local_span = Span("span_with_context", context=ctx)
-    local_span.context.trace_id = 123
-    local_span.context.span_id = 321
-    local_span.context._is_remote = False
+    assert local_span.context._is_remote is False
 
     # is_remote should be set to False on root spans.
     root = Span("root")
     assert root.context._is_remote is False
+
+
+# =============================================================================
+# Cyclic GC support
+# =============================================================================
+#
+# Mirrors the regression tests in tests/tracer/test_span_data.py for SpanData:
+# native pyclasses that hold `Py<PyDict>` / `Py<PyList>` fields without
+# implementing `__traverse__` / `__clear__` are invisible to CPython's cyclic
+# GC, so a cycle passing through one of those fields (e.g. `_baggage`) leaks
+# forever. These tests build the canonical cycle (context -> dict -> list ->
+# context) and assert that `gc.collect()` reclaims it.
+
+
+def _count_objects_of_type(typename):
+    import gc
+
+    return sum(1 for o in gc.get_objects() if type(o).__name__ == typename)
+
+
+def test_context_is_gc_tracked():
+    import gc
+
+    assert gc.is_tracked(Context())
+
+
+def test_context_baggage_cycle_is_collectable():
+    """Cycles formed via `_baggage` must be reclaimed by `gc.collect()`."""
+    import gc
+
+    gc.collect()
+
+    initial = _count_objects_of_type("Context")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            ctx = Context()
+            cycle_list = []
+            ctx.set_baggage_item("self_ref", cycle_list)
+            cycle_list.append(ctx)
+            del ctx
+            del cycle_list
+        # All N cycles still alive (gc disabled, refcount can't break the cycle).
+        assert _count_objects_of_type("Context") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — Context is not GC-tracked"
+        assert _count_objects_of_type("Context") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()

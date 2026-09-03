@@ -31,7 +31,12 @@ OUTPUT_FILE = REPO_ROOT / "ddtrace" / "internal" / "settings" / "_supported_conf
 CONFIG_REGISTRY_URL = "https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations"
 
 # Do not add new values to this list; ignoring a value prevents it from working with the configuration system.
-IGNORED_ENVIRONMENT_VARIABLES = ["_DD_CONTEXTVAR"]
+# The only admissible entries are names that are not ddtrace configuration at all: ddtrace never
+# reads them as settings, it only hands them to something else that does.
+IGNORED_ENVIRONMENT_VARIABLES = [
+    "_DD_CONTEXTVAR",
+    "_DD_DIRECT_SUBMISSION_ENABLED",
+]
 
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.

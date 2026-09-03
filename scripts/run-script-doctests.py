@@ -19,6 +19,7 @@ import sys
 _FILES = [
     "scripts/get-target-milestone.py",
     "scripts/needs_testrun.py",
+    "scripts/resolve_previous_version.py",
     "tests/suitespec.py",
 ]
 
@@ -26,6 +27,7 @@ failures = 0
 for path in _FILES:
     spec = importlib.util.spec_from_file_location("_doctest_module", path)
     module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     result = doctest.testmod(module, verbose=False)
     failures += result.failed

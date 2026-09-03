@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    LLM Observability: Managed prompts no longer expose deprecated deployment label metadata. #19047
+    LLM Observability: The ``ManagedPrompt.label`` property is deprecated. #19399

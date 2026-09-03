@@ -25,6 +25,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
 log = get_logger(__name__)
@@ -39,6 +40,12 @@ _PY_GE_312 = sys.version_info >= (3, 12)
 _PY_GE_313 = sys.version_info >= (3, 13)
 _PY_GE_314 = sys.version_info >= (3, 14)
 _FILE_LEVEL_COVERED_PATHS_CACHE_MAX_SIZE = 4096
+_SITE_PACKAGES_DIRNAMES = frozenset(("site-packages", "dist-packages"))
+
+
+def _is_site_packages_path(path: Path) -> bool:
+    return not _SITE_PACKAGES_DIRNAMES.isdisjoint(path.parts)
+
 
 ctx_covered: ContextVar[list[defaultdict[str, CoverageLines]]] = ContextVar("ctx_covered", default=[])
 ctx_covered_files: ContextVar[list[set[str]]] = ContextVar("ctx_covered_files", default=[])
@@ -518,6 +525,10 @@ class ModuleCodeCollector(ModuleWatchdog):
 
         code_path = resolved_code_origin(code)
 
+        if _is_site_packages_path(code_path):
+            # Do not instrument dependencies vendored or installed under the workspace.
+            return code
+
         if not any(code_path.is_relative_to(include_path) for include_path in self._include_paths):
             # Not a code object we want to instrument
             return code
@@ -575,6 +586,13 @@ class ModuleCodeCollector(ModuleWatchdog):
             del self._import_time_contexts[_module.__file__]
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot instrument %r for coverage: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return code
+
         # Avoid instrumenting the same code object multiple times
         if (code, code.co_filename) in self.seen:
             return code

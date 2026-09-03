@@ -37,6 +37,9 @@ PIPELINE_ID = "ci.pipeline.id"
 # Pipeline Name
 PIPELINE_NAME = "ci.pipeline.name"
 
+# Pipeline Display Name
+PIPELINE_DISPLAY_NAME = "ci.pipeline.display_name"
+
 # Pipeline Number
 PIPELINE_NUMBER = "ci.pipeline.number"
 
@@ -300,6 +303,7 @@ def extract_buildkite(environ: MutableMapping[str, str]) -> dict[str, Optional[s
         git.TAG: environ.get("BUILDKITE_TAG"),
         PIPELINE_ID: environ.get("BUILDKITE_BUILD_ID"),
         PIPELINE_NAME: environ.get("BUILDKITE_PIPELINE_SLUG"),
+        PIPELINE_DISPLAY_NAME: environ.get("BUILDKITE_PIPELINE_NAME"),
         PIPELINE_NUMBER: environ.get("BUILDKITE_BUILD_NUMBER"),
         PIPELINE_URL: environ.get("BUILDKITE_BUILD_URL"),
         JOB_ID: environ.get("BUILDKITE_JOB_ID"),

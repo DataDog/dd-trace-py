@@ -21,6 +21,7 @@ from ddtrace._trace.processor import SpanAggregator
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.processor import TopLevelSpanProcessor
 from ddtrace._trace.processor import TraceProcessor
+from ddtrace._trace.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace._trace.processor.resource_renaming import ResourceRenamingProcessor
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
@@ -35,6 +36,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.constants import _SERVICE_SOURCE
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -50,7 +52,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
-from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.settings._config import config
@@ -58,10 +59,11 @@ from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.internal.utils.tracer_debug_info import TracerDebugInfo
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -243,14 +245,16 @@ class Tracer(object):
             self.sample(span)
 
     @contextmanager
-    def _activate_context(self, context: Context):
+    def _activate_context(self, context: Optional[Context]):
         prev_active = self.context_provider.active()
-        context._reactivate = True
+        if context is not None:
+            context._reactivate = True
         self.context_provider.activate(context)
         try:
             yield
         finally:
-            context._reactivate = False
+            if context is not None:
+                context._reactivate = False
             self.context_provider.activate(prev_active)
 
     @property
@@ -388,7 +392,14 @@ class Tracer(object):
     def _generate_diagnostic_logs(self):
         if config._debug_mode or config._startup_logs_enabled:
             try:
-                info = debug.collect()
+                tracer_debug_info = TracerDebugInfo(
+                    writer=self._span_aggregator.writer,
+                    sampling_rules=self._sampler.rules,
+                    tags=self._tags,
+                    partial_flush_enabled=self._span_aggregator.partial_flush_enabled,
+                    partial_flush_min_spans=self._span_aggregator.partial_flush_min_spans,
+                )
+                info = debug.collect(tracer_debug_info)
             except Exception as e:
                 msg = "Failed to collect start-up logs: %s" % e
                 self._log_compat(logging.WARNING, "- DATADOG TRACER DIAGNOSTIC - %s" % msg)
@@ -406,7 +417,10 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate(reset_buffer=True)
+        # Celery and other process managers close inherited file descriptors after Python's
+        # at-fork callbacks return. Recreating the native writer here would start Tokio early
+        # enough for those descriptor sweeps to invalidate its I/O driver.
+        self._span_aggregator.reset_trace_buffer_after_fork()
         self._new_process = True
         self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
@@ -422,6 +436,7 @@ class Tracer(object):
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
+        flush_writer: Optional[bool] = None,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
@@ -433,6 +448,7 @@ class Tracer(object):
             appsec_enabled=appsec_enabled,
             llmobs_enabled=llmobs_enabled,
             reset_buffer=reset_buffer,
+            flush_writer=flush_writer,
         )
         self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
@@ -484,6 +500,7 @@ class Tracer(object):
         parenting of spans.
         """
         if self._new_process:
+            self._recreate(reset_buffer=False, flush_writer=False)
             self._new_process = False
 
             # The spans remaining in the context can not and will not be
@@ -505,14 +522,17 @@ class Tracer(object):
         parent_id: Optional[int] = None
 
         if child_of is not None:
+            # Both Context and Span expose trace_id/span_id; reading them off the
+            # parent span (native) avoids materializing its Context here.
+            trace_id = child_of.trace_id
+            parent_id = child_of.span_id
             if isinstance(child_of, Context):
                 context = child_of
             else:
-                context = child_of.context
                 parent = child_of
-
-            trace_id = context.trace_id
-            parent_id = context.span_id
+                # PERF: reuse an existing context that already holds the shared
+                # trace-level state instead of building one Context per span.
+                context = child_of._context_for_child()
 
         # The following precedence is used for a new span's service:
         # 1. Explicitly provided service name
@@ -649,6 +669,16 @@ class Tracer(object):
         # run handlers before flushing that don't need the span in its final state
         core.dispatch("trace.span_finish", (span,))
 
+        integration_name = span._get_str_attribute(COMPONENT) or span._span_api
+        existing_service_source = span._get_str_attribute(_SERVICE_SOURCE)
+        if span.service in config._integration_default_services or span.service == config._inferred_base_service:
+            if not existing_service_source or (
+                existing_service_source
+                and not existing_service_source.startswith("opt.")
+                and integration_name != span._span_api
+            ):
+                span._set_attribute(_SERVICE_SOURCE, integration_name)
+
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
@@ -764,8 +794,12 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
-            return self._span_aggregator.writer.intake_url
+        writer = self._span_aggregator.writer
+        if isinstance(writer, AgentWriterInterface):
+            # An agentless writer points at the trace intake, which is not an agent..
+            if getattr(writer, "agentless", False):
+                return None
+            return writer.intake_url
 
         return None
 
@@ -969,6 +1003,9 @@ class Tracer(object):
             # Already shutting down from this or another thread — skip re-entrant call
             return
         try:
+            # Do not recreate an inherited writer only to shut it down. The span aggregator
+            # discards its buffered traces during shutdown.
+            self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)
