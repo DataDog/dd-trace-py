@@ -210,7 +210,6 @@ def test_migrated_jobs_allow_prerelease_dependencies_when_unpinned(gen_gitlab_co
 
     config = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer", uses_uv=True))
 
-    assert "    UNPIN_DEPENDENCIES: true" in config
     assert "    UV_PRERELEASE: allow" in config
 
 

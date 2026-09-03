@@ -1890,7 +1890,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    parallelism: 4
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
