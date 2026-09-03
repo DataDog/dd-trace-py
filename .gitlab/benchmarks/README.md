@@ -57,9 +57,6 @@ within 7% of a threshold notifies Slack without failing the job.
   builds it from source.
 * `combine-results.sh` — merges the per-config `results.*.json` files a scenario produces
   into one `results.json`, keeping a single copy of the shared metadata.
-* `check-big-regressions.sh` — the percentage-regression PR gate: filters out known flaky
-  benchmarks, then compares candidate against baseline and fails on a regression larger than
-  `FAIL_ON_REGRESSION_THRESHOLD`.
 
 ## External
 
@@ -157,18 +154,21 @@ regression too small to trip the percentage gate.
 
 ### The percentage-regression gate (`check-big-regressions`)
 
-Runs in the `gate` stage, before `check-slo-breaches`. It compares the candidate wheel's results
-against the baseline wheel's, per scenario and metric, and fails when a regression exceeds
-`FAIL_ON_REGRESSION_THRESHOLD` — currently **10%**, set in the job's `variables`.
+Runs in the `gate` stage, before `check-slo-breaches`, as a `bp-runner` experiment using the
+platform's `fail_on_regression` step. It compares the candidate wheel's results against the
+baseline wheel's, per scenario and metric, and fails when a regression exceeds
+`regression_threshold`, currently **10%**, set in
+`bp-runner.microbenchmarks.fail-on-regression.yml`.
 
 A regression is only reported when the *entire* 95% confidence interval of the difference sits
 beyond the threshold, so a scenario has to be reliably worse, not merely noisy, to fail. Metrics
 the platform judges unstable within a single run are skipped outright.
 
-Known flaky benchmarks are excluded before the comparison: `FLAKY_BENCHMARKS_REGEX` from
-`microbenchmarks.yml` is matched against scenario names and matching benchmarks are filtered out of
-the reports the gate reads. They still run and still report their numbers, so trends stay visible
-on the dashboards; they just cannot fail the pipeline. See
+Known flaky benchmarks cannot fail it. `benchmark_analyzer convert` reads
+`FLAKY_BENCHMARKS_REGEX` during the `microbenchmarks` job and stamps `flaky: "true"` on every
+benchmark whose scenario name matches, and the regression check skips those benchmarks when
+deciding whether to fail. They still run and still report their numbers, so trends stay visible on
+the dashboards, and the pull request comment lists them under their own heading. See
 [microbenchmarks.md](microbenchmarks.md#marking-a-benchmark-as-known-flaky).
 
 The gate needs both sides to conclude anything. If a scenario's candidate results have no matching
@@ -249,8 +249,7 @@ always too tight.
 * For a **`check-big-regressions`** failure, add the
   `performance/ignore-performance-regression` label to the pull request. The gate re-reads the
   label on its next run, so re-run the job after adding the label. You do not need to push a commit. Do not raise
-  `FAIL_ON_REGRESSION_THRESHOLD` to get one pull request through — that weakens the gate for
-  everyone.
+  `regression_threshold` to get one pull request through — that weakens the gate for everyone.
 * For a **`check-slo-breaches`** breach, raise the breached threshold in
   `bp-runner.microbenchmarks.fail-on-breach.template.yml`, in the same pull request.
 * For a **pre-release gate** breach, raise the breached threshold in
@@ -279,8 +278,9 @@ Once confirmed:
 
 1. Add the scenario name to `FLAKY_BENCHMARKS_REGEX` in `microbenchmarks.yml`, anchored, for
    example `^sethttpmeta-all-enabled$`. Match the exact scenario name from the gate log.
-2. Re-run `microbenchmarks`, then `check-big-regressions`. Both, in that order, because the gate scores
-   artifacts from the benchmark run and re-running it alone re-reads the same numbers.
+2. Re-run `microbenchmarks`, then `check-big-regressions`. Both, in that order. The flaky mark is
+   applied when the `microbenchmarks` job converts its results, so a gate re-run on its own would
+   score the results that job already converted under the old regex.
 
 The benchmark keeps running and keeps reporting, so its trend stays visible on the dashboards; it
 just stops being able to fail the pipeline. Prefer this to reaching for the bypass label: the label
