@@ -822,10 +822,13 @@ def test_root_span_context_built_eagerly():
     stays lazy.
     """
     root = Span("root")
-    assert root._context is not None, "root span must build its context eagerly (thread-safe, no race)"
+    orig_span_id = root.span_id
+    root.span_id = 555
+    assert root.context.span_id == orig_span_id, "root span must build its context eagerly (thread-safe, no race)"
 
     child = Span("child", context=root.context)
-    assert child._context is None, "child span context must stay lazy"
+    child.span_id = 999
+    assert child.context.span_id == 999, "child span context must stay lazy"
 
 
 def test_context_for_child_reuses_own_built_context():
@@ -840,9 +843,9 @@ def test_context_for_child_reuses_local_parent_context_without_building():
     """
     parent_ctx = Context(trace_id=1, span_id=2, is_remote=False)
     child = Span("child", context=parent_ctx)
-    assert child._context is None
     assert child._context_for_child() is parent_ctx
-    assert child._context is None, "reusing the parent-context must not build the child's own context"
+    child.span_id = 999
+    assert child.context.span_id == 999, "reusing the parent-context must not build the child's own context"
 
 
 def test_context_for_child_never_hands_down_remote_context():

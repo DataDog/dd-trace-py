@@ -61,7 +61,6 @@ def _get_64_highest_order_bits_as_hex(large_int: int) -> str:
 class Span(SpanData):
     __slots__ = [
         # Public span attributes
-        "_context",
         "_store",
         # Internal attributes
         "_local_root_value",
@@ -109,17 +108,8 @@ class Span(SpanData):
         """
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._parent_context: Optional[Context] = context
-        if context is None:
-            # PERF/CORRECTNESS: a root span owns fresh, unshared trace-level state.
-            # Build its Context inline now, in the creating thread before the span can
-            # be published, so concurrent first-readers can't race and build divergent
-            # state — no lock required. Built inline (not via the `context` property) to
-            # keep root-span creation off the property-getter call overhead on the hot
-            # path; this mirrors the property's root branch below. Child spans stay lazy.
-            self._context: Optional[Context] = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-        else:
-            self._context = None
+        # `_parent_context` and, for a root span, `context` are set natively in
+        # `SpanData.__new__` from the `context` argument above.
 
         if links:
             for link in links:
@@ -130,52 +120,6 @@ class Span(SpanData):
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[dict[str, Any]] = None
-
-    @property
-    def context(self) -> Context:
-        """The trace context for this span.
-
-        For a child span this is a copy of the parent context that shares the
-        trace-level ``_meta``/``_metrics``/``_baggage``/lock while carrying this
-        span's own ``trace_id``/``span_id``; for a root span it is fresh
-        trace-level state. Child contexts are built lazily on first read; root
-        contexts are forced eagerly in ``__init__`` (before the span is published)
-        so the build cannot race across threads.
-        """
-        ctx = self._context
-        if ctx is None:
-            parent = self._parent_context
-            if parent is not None:
-                ctx = parent.copy(self.trace_id, self.span_id)
-            else:
-                # Root fallback (mirrors the eager inline build in __init__); reached
-                # only if a root's _context was cleared, e.g. via the setter.
-                ctx = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-            self._context = ctx
-        return ctx
-
-    @context.setter
-    def context(self, value: Context) -> None:
-        self._context = value
-
-    def _context_for_child(self) -> Context:
-        """Return the context a child span should inherit trace-level state from.
-
-        Reuses a context that already holds this trace's shared
-        ``_meta``/``_metrics``/``_baggage``/lock — this span's own context if it
-        was built, otherwise its (local) parent-context — so a deep local trace
-        materializes a single Context instead of one per span. A remote
-        parent-context is never handed down: a local child's parent-context must
-        stay local so ``_is_remote``/reactivation keep their meaning, so a
-        distributed entry span materializes its (local) context once here.
-        """
-        ctx = self._context
-        if ctx is not None:
-            return ctx
-        parent = self._parent_context
-        if parent is not None and not parent._is_remote:
-            return parent
-        return self.context
 
     def _update_tags_from_context(self) -> None:
         ctx = self.context

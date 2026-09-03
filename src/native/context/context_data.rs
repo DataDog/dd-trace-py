@@ -104,6 +104,54 @@ impl Context {
             None => Ok(None),
         }
     }
+
+    /// Native-typed sibling of the `copy` pymethod, used by `SpanData::get_context` to
+    /// build a child context without a Python round-trip for `trace_id`/`span_id`.
+    pub(crate) fn copy_native<'py>(
+        slf: &Bound<'py, Self>,
+        trace_id: Option<u128>,
+        span_id: Option<u128>,
+    ) -> PyResult<Py<Self>> {
+        let py = slf.py();
+        let (meta, metrics, baggage);
+        {
+            let mut this = slf.borrow_mut();
+            meta = this.get_meta(py);
+            metrics = this.get_metrics(py);
+            baggage = this.get_baggage(py);
+        }
+        Py::new(
+            py,
+            Self {
+                trace_id,
+                span_id,
+                meta: meta.unbind(),
+                metrics: metrics.unbind(),
+                baggage: Some(baggage.unbind()),
+                span_links: Some(PyList::empty(py).unbind()),
+                is_remote: false,
+                reactivate: false,
+            },
+        )
+    }
+
+    /// Fresh trace-level state for a root span's `Context`, built natively (no Python
+    /// round-trip) so `SpanData::get_context` can construct it directly.
+    pub(crate) fn new_root(py: Python<'_>, trace_id: u128, span_id: u128) -> PyResult<Py<Self>> {
+        Py::new(
+            py,
+            Self {
+                trace_id: Some(trace_id),
+                span_id: Some(span_id),
+                meta: PyDict::new(py).unbind(),
+                metrics: PyDict::new(py).unbind(),
+                baggage: Some(PyDict::new(py).unbind()),
+                span_links: Some(PyList::empty(py).unbind()),
+                is_remote: false,
+                reactivate: false,
+            },
+        )
+    }
 }
 
 #[pyo3::pymethods]
@@ -432,30 +480,17 @@ impl Context {
     /// data has already been validated. This mirrors the previous Python
     /// implementation's `Context.__new__(Context)` behavior.
     #[pyo3(signature = (trace_id, span_id))]
-    fn copy<'py>(
+    pub(crate) fn copy<'py>(
         slf: &Bound<'py, Self>,
         trace_id: &Bound<'py, PyAny>,
         span_id: &Bound<'py, PyAny>,
     ) -> PyResult<Py<PyAny>> {
-        let py = slf.py();
-        let (meta, metrics, baggage);
-        {
-            let mut this = slf.borrow_mut();
-            meta = this.get_meta(py);
-            metrics = this.get_metrics(py);
-            baggage = this.get_baggage(py);
-        }
-        let new_ctx = Self {
-            trace_id: extract_trace_id(Some(trace_id)),
-            span_id: extract_span_id(Some(span_id)),
-            meta: meta.unbind(),
-            metrics: metrics.unbind(),
-            baggage: Some(baggage.unbind()),
-            span_links: Some(PyList::empty(py).unbind()),
-            is_remote: false,
-            reactivate: false,
-        };
-        Ok(Py::new(py, new_ctx)?.into_any())
+        Ok(Self::copy_native(
+            slf,
+            extract_trace_id(Some(trace_id)),
+            extract_span_id(Some(span_id)),
+        )?
+        .into_any())
     }
 
     fn _with_baggage_item<'py>(
