@@ -255,7 +255,7 @@ impl DebuggerSenderPy {
             .map_err(|e| PyValueError::new_err(format!("invalid debugger endpoint: {e}")))?;
 
         Ok(Self {
-            runtime: runtime.as_arc().clone(),
+            runtime: runtime.as_arc()?,
             state: Mutex::new(State {
                 config,
                 downgraded: false,

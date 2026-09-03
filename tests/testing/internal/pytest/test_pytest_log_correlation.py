@@ -300,6 +300,24 @@ class TestAgentlessLogSubmission:
         result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
         result.assert_outcomes(passed=1)
 
+    def test_handler_installed_with_the_global_agentless_flag(
+        self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
+    ) -> None:
+        """The global DD_AGENTLESS_ENABLED must satisfy the agentless requirement on its own.
+
+        Log submission used to insist on DD_CIVISIBILITY_AGENTLESS_ENABLED specifically, so a
+        session running agentless via the global switch silently forwarded nothing.
+        """
+        monkeypatch.setenv("DD_AGENTLESS_LOG_SUBMISSION_ENABLED", "true")
+        monkeypatch.delenv("DD_CIVISIBILITY_AGENTLESS_ENABLED", raising=False)
+        monkeypatch.setenv("DD_AGENTLESS_ENABLED", "true")
+
+        pytester.makepyfile(dd_log_corr_infra=_INFRA_PLUGIN)
+        pytester.makepyfile(test_file=_TEST_AGENTLESS_HANDLER_INSTALLED)
+
+        result = pytester.runpytest_subprocess("--ddtrace", "-p", "dd_log_corr_infra", "-v", "-s")
+        result.assert_outcomes(passed=1)
+
     def test_disabled_without_log_submission_flag(
         self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
     ) -> None:
