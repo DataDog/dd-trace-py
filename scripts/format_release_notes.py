@@ -35,10 +35,10 @@ Notes are grouped by their leading "Category: " prefix within each
       - Adds support for Y.
 
 Usage:
-    reno report | pandoc -f rst -t gfm --wrap=none | python format_release_notes.py
-    reno report | pandoc -f rst -t gfm --wrap=none | python format_release_notes.py v1.2.3
-    python format_release_notes.py v1.2.3 notes.gfm.md
-    python format_release_notes.py  # no stdin, no input_file: runs reno/pandoc itself
+    reno report | pandoc -f rst -t gfm --wrap=none | python scripts/format_release_notes.py
+    reno report | pandoc -f rst -t gfm --wrap=none | python scripts/format_release_notes.py v1.2.3
+    python scripts/format_release_notes.py v1.2.3 notes.gfm.md
+    python scripts/format_release_notes.py  # no stdin, no input_file: runs reno/pandoc itself
 """
 
 import argparse
@@ -59,20 +59,40 @@ UNRELEASED = "Unreleased"
 
 
 def parse_entries(body):
-    """Split a section body into (category_or_None, text) tuples, in order."""
+    """Split a section body into (category_or_None, text) tuples, in order.
+
+    Only the leading "Category: " line is stripped/matched; everything after
+    it is kept as-is (minus the 2-space list-nesting indent pandoc adds) so
+    nested sub-lists, code blocks, and multiple paragraphs survive intact.
+    """
     entries = []
     for block in SEPARATOR_RE.split(body):
-        lines = [line.strip() for line in block.split("\n") if line.strip()]
-        if not lines:
+        block = block.strip("\n")
+        if not block.strip():
             continue
-        lines[0] = re.sub(r"^-\s*", "", lines[0])
-        text = " ".join(lines)
-        match = CATEGORY_RE.match(text)
+        lines = block.split("\n")
+        first_line = re.sub(r"^-\s*", "", lines[0].strip())
+        rest = [re.sub(r"^  ", "", line) for line in lines[1:]]
+        match = CATEGORY_RE.match(first_line)
         if match:
-            entries.append((match.group(1).strip(), match.group(2).strip()))
+            category, head = match.group(1).strip(), match.group(2).strip()
         else:
-            entries.append((None, text))
+            category, head = None, first_line
+        text = "\n".join([head] + rest).rstrip("\n")
+        entries.append((category, text))
     return entries
+
+
+def render_entry(text, indent):
+    """Render a (possibly multi-line) entry as a "- " bullet at indent,
+    reindenting continuation lines so nested Markdown stays valid.
+    """
+    text_lines = text.split("\n")
+    out = [f"{indent}- {text_lines[0]}"]
+    cont_indent = indent + "  "
+    for line in text_lines[1:]:
+        out.append(f"{cont_indent}{line}" if line.strip() else "")
+    return out
 
 
 def format_section_body(body):
@@ -95,9 +115,9 @@ def format_section_body(body):
     for key in order:
         lines.append(f"- {labels[key]}")
         for text in groups[key]:
-            lines.append(f"  - {text}")
+            lines.extend(render_entry(text, "  "))
     for text in uncategorized:
-        lines.append(f"- {text}")
+        lines.extend(render_entry(text, ""))
     return "\n".join(lines)
 
 
@@ -174,7 +194,11 @@ def format_release_notes(raw_text, earliest_version=None):
         body = select_release_body(releases, earliest_version)
         return format_release_body(body) + "\n"
 
-    out = [format_release_body(body) for _, body in releases if format_release_body(body)]
+    out = []
+    for version, body in releases:
+        formatted_body = format_release_body(body)
+        if formatted_body:
+            out.append(f"## {version}\n\n{formatted_body}")
     return "\n\n".join(out) + "\n"
 
 
@@ -202,6 +226,11 @@ def main():
             raw_text = f.read()
     elif not sys.stdin.isatty():
         raw_text = sys.stdin.read()
+        if not raw_text:
+            # Non-interactive stdin (CI, IDE, cron, /dev/null) with nothing
+            # actually piped in reads as an empty string, not a TTY. Treat
+            # it the same as no stdin at all.
+            raw_text = generate_raw_text()
     else:
         raw_text = generate_raw_text()
 
