@@ -5779,7 +5779,7 @@
       {
         "implementation": "A",
         "type": "array",
-        "default": "",
+        "default": null,
         "internal": true
       }
     ],
