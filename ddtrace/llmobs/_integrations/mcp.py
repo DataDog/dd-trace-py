@@ -84,21 +84,21 @@ class MCPIntegration(BaseLLMIntegration):
 
         return span
 
-    def set_client_session_server_info(self, span: Span, server_info: Any) -> None:
-        """Add server identity to the client session root when modern MCP discovers it."""
+    def set_client_session_server_info(self, span: Span, server_info: Any, include_span: bool = False) -> None:
+        """Add modern MCP server identity to the session root and active client span."""
         if not server_info:
             return
 
+        tags = {
+            "mcp_server_name": _get_attr(server_info, "name", ""),
+            "mcp_server_version": _get_attr(server_info, "version", ""),
+            "mcp_server_title": _get_attr(server_info, "title", ""),
+        }
         client_session_root = _find_client_session_root(span)
         if client_session_root:
-            _annotate_llmobs_span_data(
-                client_session_root,
-                tags={
-                    "mcp_server_name": _get_attr(server_info, "name", ""),
-                    "mcp_server_version": _get_attr(server_info, "version", ""),
-                    "mcp_server_title": _get_attr(server_info, "title", ""),
-                },
-            )
+            _annotate_llmobs_span_data(client_session_root, tags=tags)
+        if include_span:
+            _annotate_llmobs_span_data(span, tags=tags)
 
     # Inject intent capture properties into inputSchemas on the response
     def inject_tools_list_response(self, response: "ListToolsResult") -> None:

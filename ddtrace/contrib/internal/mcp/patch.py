@@ -121,7 +121,10 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
 
     try:
         result = await func(*args, **kwargs)
-        integration.set_client_session_server_info(span, _get_attr(instance, "server_info", None))
+        if _get_attr(instance, "discover_result", None) is not None:
+            integration.set_client_session_server_info(
+                span, _get_attr(instance, "server_info", None), include_span=True
+            )
 
         if getattr(result, "isError", getattr(result, "is_error", False)):
             content = getattr(result, "content", [])
