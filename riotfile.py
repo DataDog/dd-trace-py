@@ -1600,16 +1600,18 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb",
-            # TODO: Py312 requires changes to test code
-            pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
                 "pynamodb": ["~=5.3", "<6.0"],
-                "moto": ">=1.0,<2.0",
-                "cfn-lint": "~=0.53.1",
-                "Jinja2": "~=2.10.0",
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
+            venvs=[
+                Venv(pys=["3.9"], pkgs={"moto": "==5.1.22"}),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pkgs={"moto": "==5.2.3"},
+                ),
+            ],
         ),
         Venv(
             name="starlette",
