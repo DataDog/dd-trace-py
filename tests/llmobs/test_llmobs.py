@@ -1366,11 +1366,11 @@ def test_decision_survives_an_unresolvable_trace(llmobs, llmobs_events):
     another process -- the span keeps the global-rate floor stamped at activation instead of
     shipping with the fields absent entirely.
     """
-    from ddtrace.llmobs._constants import LLMOBS_ROOT_SPAN
+    from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 
     with llmobs.workflow("w") as span:
         llmobs.annotate(span, tags={"tier": "gold"})
-        span._set_ctx_item(LLMOBS_ROOT_SPAN, None)  # stand in for a trace with no local root
+        span._set_ctx_item(LLMOBS_SAMPLING, None)  # stand in for a trace with no local state
     event_dd = llmobs_events[0]["_dd"]
     assert event_dd["sampling_decision"] == "1"  # the floor, not the matching rule's 0
     assert event_dd["sample_rate"] == "1"

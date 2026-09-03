@@ -2,7 +2,7 @@ import mock
 import pytest
 
 from ddtrace._trace.span import Span
-from ddtrace.llmobs._constants import LLMOBS_ROOT_SPAN
+from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._sampler import LLMObsSampler
 from ddtrace.llmobs._sampler import LLMObsSamplingResolver
@@ -151,35 +151,42 @@ class TestLLMObsSamplingResolver:
         return LLMObsSamplingResolver(LLMObsSampler(sample_rate=sample_rate, rules=rules), get_llmobs_tags)
 
     @staticmethod
-    def _rooted(span, root=None):
-        """Give a span the root pointer that _activate_llmobs_span would set."""
-        span._set_ctx_item(LLMOBS_ROOT_SPAN, root if root is not None else span)
+    def _rooted(resolver, span, share_with=None):
+        """Give a span the sampling state that _activate_llmobs_span would set.
+
+        Passing share_with reuses another span's state, as a child inherits its parent's.
+        """
+        if share_with is not None:
+            span._set_ctx_item(LLMOBS_SAMPLING, share_with._get_ctx_item(LLMOBS_SAMPLING))
+        else:
+            state, _, _ = resolver.start_trace(span)
+            span._set_ctx_item(LLMOBS_SAMPLING, state)
         return span
 
     def test_span_without_a_local_root_resolves_to_nothing(self):
         """A trace continued from another process inherits its decision instead."""
         assert self._resolver().resolve(_span(tags={})) == (None, None)
 
-    def test_default_decision_ignores_rules(self):
+    def test_start_trace_floor_ignores_rules(self):
         """The floor is the global rate: at root start there are no tags to match a rule on."""
         resolver = self._resolver(sample_rate=1.0, rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        assert resolver.default_decision(_span(tags={"tier": "gold"})) == ("1", "1")
+        assert resolver.start_trace(_span(tags={"tier": "gold"}))[1:] == ("1", "1")
 
-    def test_default_decision_follows_the_global_rate(self):
-        assert self._resolver(sample_rate=0.0).default_decision(_span()) == ("0", "0")
-        assert self._resolver(sample_rate=1.0).default_decision(_span()) == ("1", "1")
+    def test_start_trace_floor_follows_the_global_rate(self):
+        assert self._resolver(sample_rate=0.0).start_trace(_span())[1:] == ("0", "0")
+        assert self._resolver(sample_rate=1.0).start_trace(_span())[1:] == ("1", "1")
 
     def test_resolve_uses_tags_present_at_resolve_time(self):
         """The whole point: tags set after the root started still affect the decision."""
         resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        root = self._rooted(_span(tags={}))
+        root = self._rooted(resolver, _span(tags={}))
         # Tag lands after activation, as LLMObs.annotate() would do.
         root._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.TAGS]["tier"] = "gold"
         assert resolver.resolve(root) == ("0", "0")
 
     def test_decision_is_frozen_after_first_resolve(self):
         resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        root = self._rooted(_span(tags={}))
+        root = self._rooted(resolver, _span(tags={}))
         first = resolver.resolve(root)
         assert first == ("1", "1")  # no tag yet, so the global rate applied
         root._get_struct_tag(LLMOBS_STRUCT.KEY)[LLMOBS_STRUCT.TAGS]["tier"] = "gold"
@@ -187,8 +194,8 @@ class TestLLMObsSamplingResolver:
 
     def test_child_resolves_through_its_root_pointer(self):
         resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        root = self._rooted(_span(tags={"tier": "gold"}))
-        child = self._rooted(_span(tags={}), root=root)
+        root = self._rooted(resolver, _span(tags={"tier": "gold"}))
+        child = self._rooted(resolver, _span(tags={}), share_with=root)
         assert resolver.resolve(child) == ("0", "0")
 
     def test_frozen_decision_survives_the_meta_struct_scrub(self):
@@ -196,15 +203,15 @@ class TestLLMObsSamplingResolver:
         decision, which is why the frozen value lives in a ctx item.
         """
         resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        root = self._rooted(_span(tags={"tier": "gold"}))
-        child = self._rooted(_span(tags={}), root=root)
+        root = self._rooted(resolver, _span(tags={"tier": "gold"}))
+        child = self._rooted(resolver, _span(tags={}), share_with=root)
         assert resolver.resolve(root) == ("0", "0")
         root._remove_struct_tag(LLMOBS_STRUCT.KEY)  # what LLMObsProcessor._scrub does
         assert resolver.resolve(child) == ("0", "0")
 
     def test_traces_are_independent(self):
         resolver = self._resolver(rules='[{"tags": {"tier": "gold"}, "sample_rate": 0}]')
-        gold = self._rooted(_span(tags={"tier": "gold"}))
-        free = self._rooted(_span(tags={"tier": "free"}))
+        gold = self._rooted(resolver, _span(tags={"tier": "gold"}))
+        free = self._rooted(resolver, _span(tags={"tier": "free"}))
         assert resolver.resolve(gold) == ("0", "0")
         assert resolver.resolve(free) == ("1", "1")

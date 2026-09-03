@@ -38,7 +38,6 @@ from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.threads import RLock
-from ddtrace.llmobs._constants import LLMOBS_ROOT_SPAN
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
 
@@ -172,6 +171,20 @@ class LLMObsSampler:
         return f"LLMObsSampler(sample_rate={self.sample_rate}, rules={self.rules!r})"
 
 
+class _TraceSampling:
+    """One LLMObs trace's sampling state, shared by reference across every span of the trace.
+
+    Holding the root here rather than on each span avoids a self-reference on the root, so a
+    finished trace is reclaimed by reference counting instead of waiting on the cyclic collector.
+    """
+
+    __slots__ = ("frozen", "root")
+
+    def __init__(self, root: Any) -> None:
+        self.root = root
+        self.frozen: Optional[tuple[str, str]] = None
+
+
 class LLMObsSamplingResolver:
     """Resolves each LLMObs trace's decision once, storing it on the trace's root span.
 
@@ -189,14 +202,14 @@ class LLMObsSamplingResolver:
     def _as_decision(sampled: bool) -> str:
         return LLMObsSamplingDecision.SAMPLED.value if sampled else LLMObsSamplingDecision.DROPPED.value
 
-    def default_decision(self, root: Any) -> tuple[str, str]:
-        """The global-rate decision, stamped at root start.
+    def start_trace(self, root: Any) -> tuple["_TraceSampling", str, str]:
+        """Open a trace's sampling state and return it with the global-rate floor.
 
-        Maintains the invariant that every span must carry some decision, so this stands in until
-        ``resolve`` can overwrite it with a rule-aware one.
+        Rules cannot be evaluated this early -- the root has no tags yet -- but every span must
+        carry some decision, so the floor stands in until ``resolve`` overwrites it.
         """
         sampled, sample_rate = self._sampler.sample(root)
-        return sample_rate, self._as_decision(sampled)
+        return _TraceSampling(root), sample_rate, self._as_decision(sampled)
 
     def resolve(self, span: Any) -> tuple[Optional[str], Optional[str]]:
         """Return this trace's frozen ``(sample_rate, sampling_decision)``, computing it once.
@@ -204,15 +217,14 @@ class LLMObsSamplingResolver:
         Returns ``(None, None)`` for a span with no local root -- a trace continued from another
         process, whose decision was frozen there and inherited. Callers fall back accordingly.
         """
-        root = span._get_ctx_item(LLMOBS_ROOT_SPAN)
-        if root is None:
+        state: Optional[_TraceSampling] = span._get_ctx_item(LLMOBS_SAMPLING)
+        if state is None:
             return None, None
         with self._lock:
-            frozen: Optional[tuple[str, str]] = root._get_ctx_item(LLMOBS_SAMPLING)
-            if frozen is not None:
-                return frozen
-            sampled, sample_rate = self._sampler.sample(root, self._tags_getter(root) or {})
-            frozen = (sample_rate, self._as_decision(sampled))
-            root._set_ctx_item(LLMOBS_SAMPLING, frozen)
-            log.debug("LLMObs sampling resolved for %s: %s", root, frozen)
+            frozen = state.frozen
+            if frozen is None:
+                sampled, sample_rate = self._sampler.sample(state.root, self._tags_getter(state.root) or {})
+                frozen = (sample_rate, self._as_decision(sampled))
+                state.frozen = frozen
+                log.debug("LLMObs sampling resolved for %s: %s", state.root, frozen)
             return frozen

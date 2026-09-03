@@ -76,7 +76,7 @@ from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
-from ddtrace.llmobs._constants import LLMOBS_ROOT_SPAN
+from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
@@ -2494,7 +2494,7 @@ class LLMObs(Service):
                 session_id = llmobs_parent._get_ctx_item(SESSION_ID)
                 sample_rate = get_llmobs_sample_rate(llmobs_parent)
                 sampling_decision = get_llmobs_sampling_decision(llmobs_parent)
-                root_span = llmobs_parent._get_ctx_item(LLMOBS_ROOT_SPAN)
+                sampling_state = llmobs_parent._get_ctx_item(LLMOBS_SAMPLING)
             else:
                 parent_ctx = llmobs_parent
                 # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
@@ -2504,15 +2504,14 @@ class LLMObs(Service):
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
                 # Continued from another process: the decision was frozen there and is
-                # inherited above, so there is no local root to resolve against.
-                root_span = None
+                # inherited above, so there is no local state to resolve against.
+                sampling_state = None
         else:
             parent_id = ROOT_PARENT_ID
             llmobs_trace_id, ml_app, session_id = None, None, None
             # Attach the default sampling decision to each span. LLMObsProcessor overwrites it with a
             # rule-aware decision once the tags are in.
-            sample_rate, sampling_decision = self._sampling_resolver.default_decision(span)
-            root_span = span
+            sampling_state, sample_rate, sampling_decision = self._sampling_resolver.start_trace(span)
         llmobs_trace_id = llmobs_trace_id or format_trace_id(generate_128bit_trace_id())
         ml_app = resolve_ml_app(ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY))
         # Fall back to the trace-level default session when the parent chain carries none (e.g. a
@@ -2576,9 +2575,8 @@ class LLMObs(Service):
                 else sampling_decision
             ),
         )
-        # The root points at itself, which is what distinguishes a locally-rooted trace from one
-        # whose decision arrived from upstream.
-        span._set_ctx_item(LLMOBS_ROOT_SPAN, root_span)
+        # Shared by reference across the trace; absent on spans whose decision came from upstream.
+        span._set_ctx_item(LLMOBS_SAMPLING, sampling_state)
         # Tag the local root so the backend OTel trace processor can connect OTel gen_ai spans
         # to this LLMObs trace
         if span._local_root.get_tag("llmobs_trace_id") is None:
