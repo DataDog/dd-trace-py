@@ -95,11 +95,11 @@ jobs:
   serverless-system-tests:
     needs: [serverless-system-tests-build-layer]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@72ed6ee7d6b33d2d3a080b939c10a6d3d9077746
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@7c6b10ef0bf72d26c4a59edbef3caac02d0bcb21
     secrets: inherit
     with:
       library: python_lambda
-      ref: '72ed6ee7d6b33d2d3a080b939c10a6d3d9077746'
+      ref: '7c6b10ef0bf72d26c4a59edbef3caac02d0bcb21'
       binaries_artifact: serverless_system_tests_binaries
       scenarios_groups: lambda_end_to_end
       skip_empty_scenarios: true
@@ -126,11 +126,11 @@ jobs:
     if: github.event_name != 'schedule' || github.event.repository.fork == false
     needs: [integration-frameworks-combine-wheels]
     # Automatically managed, use scripts/update-system-tests-version to update
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@72ed6ee7d6b33d2d3a080b939c10a6d3d9077746
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@7c6b10ef0bf72d26c4a59edbef3caac02d0bcb21
     secrets: inherit
     with:
       library: python
-      ref: '72ed6ee7d6b33d2d3a080b939c10a6d3d9077746'
+      ref: '7c6b10ef0bf72d26c4a59edbef3caac02d0bcb21'
       scenarios: INTEGRATION_FRAMEWORKS
       binaries_artifact: integration-frameworks-wheels
       push_to_test_optimization: true
@@ -138,10 +138,10 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@72ed6ee7d6b33d2d3a080b939c10a6d3d9077746
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@7c6b10ef0bf72d26c4a59edbef3caac02d0bcb21
     with:
       library: python
-      ref: '72ed6ee7d6b33d2d3a080b939c10a6d3d9077746'
+      ref: '7c6b10ef0bf72d26c4a59edbef3caac02d0bcb21'
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
