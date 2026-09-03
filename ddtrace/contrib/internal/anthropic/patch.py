@@ -122,7 +122,7 @@ def patch() -> None:
     anthropic._datadog_integration = integration
 
     # AIDEV-NOTE: AI Guard mirrors this wrap-target list in
-    # ddtrace/appsec/_ai_guard/_listener.py::_install_anthropic_wrappers to
+    # ddtrace/aiguard/_listener.py::_install_anthropic_wrappers to
     # install its outermost streaming buffer. If you add/rename a target or
     # change the >= (0, 37) beta gate below, update that list too or the new
     # surface goes unbuffered for stream-response evaluation.
@@ -141,6 +141,14 @@ def patch() -> None:
             traced_async_chat_model_generate,
         )
         wrap("anthropic", "resources.beta.messages.messages.AsyncMessages.stream", traced_chat_model_generate)
+        # Bedrock's beta resource copies the first-party create functions when
+        # anthropic is imported, before this patch replaces those functions.
+        wrap("anthropic", "lib.bedrock._beta_messages.Messages.create", traced_chat_model_generate)
+        wrap(
+            "anthropic",
+            "lib.bedrock._beta_messages.AsyncMessages.create",
+            traced_async_chat_model_generate,
+        )
 
     # Notify AI Guard (and any other plugin) that wrapping is complete so they
     # can install their own outermost wrappers on the same targets.
@@ -166,5 +174,7 @@ def unpatch() -> None:
         unwrap(anthropic.resources.beta.messages.messages.Messages, "stream")
         unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "create")
         unwrap(anthropic.resources.beta.messages.messages.AsyncMessages, "stream")
+        unwrap(anthropic.lib.bedrock._beta_messages.Messages, "create")
+        unwrap(anthropic.lib.bedrock._beta_messages.AsyncMessages, "create")
 
     delattr(anthropic, "_datadog_integration")
