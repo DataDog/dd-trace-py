@@ -398,8 +398,12 @@ class TelemetryWriter:
 
         def remove_subscriber(subscriber: weakref.WeakMethod) -> None:
             writer = writer_ref()
-            if writer is not None and subscriber in writer._worker_subscribers:
+            if writer is None:
+                return
+            try:
                 writer._worker_subscribers.remove(subscriber)
+            except ValueError:
+                return
 
         self._worker_subscribers.append(weakref.WeakMethod(callback, remove_subscriber))
 
