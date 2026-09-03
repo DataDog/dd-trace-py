@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CI Visibility: Adds ``_DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED`` to enable
+    dynamic Auto Test Retries budgets based on test duration, instead of the flat
+    per-test retry limit. Optionally configure the five duration-based budgets with
+    ``_DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS``, corresponding to the Early Flake
+    Detection duration buckets.

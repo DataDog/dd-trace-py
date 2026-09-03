@@ -25,6 +25,9 @@ from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
+from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
+from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
@@ -130,6 +133,10 @@ class SessionManager:
         if self.env is None:
             self.env = self.connector_setup.default_env()
 
+        # Parse these once. When dynamic ATR is disabled, normal ATR stays on its existing path.
+        self._dynamic_retries_enabled = is_dynamic_retries_enabled()
+        self._dynamic_retries_buckets = get_retries_buckets() if self._dynamic_retries_enabled else None
+
         self.api_client: TestOptDataProvider
         # Set only when reads come from a manifest but coverage reports must still be uploaded over HTTP.
         self.coverage_upload_client: t.Optional[TestOptDataProvider] = None
@@ -210,7 +217,7 @@ class SessionManager:
             tm_properties_future = executor.submit(_fetch_test_management_properties)
             skippable_future = executor.submit(_upload_git_and_fetch_skippable)
 
-            self.known_tests: set[TestRef] = known_tests_future.result()
+            self.known_tests = known_tests_future.result()
             self.test_properties: dict[TestRef, TestProperties] = tm_properties_future.result()
             self.skippable_items, self.itr_correlation_id = skippable_future.result()
 
@@ -314,7 +321,10 @@ class SessionManager:
                 log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
-            self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
+            if self._dynamic_retries_enabled:
+                self.retry_handlers.append(DynamicATRRetriesHandler(self.settings, self._dynamic_retries_buckets))
+            else:
+                self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
 
     def start(self) -> None:
         self.writer.start()

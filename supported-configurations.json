@@ -5767,6 +5767,22 @@
         "internal": true
       }
     ],
+    "_DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
+    "_DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": "",
+        "internal": true
+      }
+    ],
     "_DD_CIVISIBILITY_DISABLE_EVP_PROXY": [
       {
         "implementation": "A",
