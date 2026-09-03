@@ -29,7 +29,10 @@ class RuntimeMetricCollector(ValueCollector):
 
 def _read_gc_collections(gc_mod: ModuleType) -> list[int]:
     """Return per-generation collections counts from gc.get_stats()."""
-    stats: list[dict[str, int]] = gc_mod.get_stats()
+    get_stats = getattr(gc_mod, "get_stats", None)
+    if get_stats is None:
+        return [0] * GEN_COUNT
+    stats: list[dict[str, int]] = get_stats()
     collections: list[int] = []
     i: int
     for i in range(GEN_COUNT):

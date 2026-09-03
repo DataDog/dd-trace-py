@@ -9,6 +9,7 @@ from __future__ import annotations
 from enum import Enum
 import gc
 import time
+from typing import Any
 from typing import Callable
 from typing import NamedTuple
 from typing import Optional
@@ -20,8 +21,12 @@ from ddtrace.internal._unpatched import threading_Lock
 GEN_COUNT: int = 3
 
 
+def _gc_callbacks_supported() -> bool:
+    return hasattr(gc, "callbacks")
+
+
 def _gc_callback_installed(hook: Callable[[str, dict[str, int]], None]) -> bool:
-    callbacks: list = gc.callbacks
+    callbacks: list[Any] = gc.callbacks
     i: int
     for i in range(len(callbacks)):
         if callbacks[i] is hook:
@@ -30,7 +35,7 @@ def _gc_callback_installed(hook: Callable[[str, dict[str, int]], None]) -> bool:
 
 
 def _remove_gc_callback(hook: Callable[[str, dict[str, int]], None]) -> None:
-    callbacks: list = gc.callbacks
+    callbacks: list[Any] = gc.callbacks
     i: int = 0
     while i < len(callbacks):
         if callbacks[i] is hook:
@@ -90,6 +95,9 @@ class GCPauseMonitor:
             # Register first: forksafe.register is a functools.partial, so calling
             # it builds an args tuple. Allocating after the callback is installed
             # could start a collection that reenters _on_gc on this thread.
+            if not _gc_callbacks_supported():
+                return
+
             if not self._fork_registered:
                 forksafe.register(self._fork_hook)
                 self._fork_registered = True
@@ -104,7 +112,8 @@ class GCPauseMonitor:
 
             self._refcount -= 1
             if self._refcount == 0:
-                _remove_gc_callback(self._gc_hook)
+                if _gc_callbacks_supported():
+                    _remove_gc_callback(self._gc_hook)
 
                 if self._fork_registered:
                     forksafe.unregister(self._fork_hook)
