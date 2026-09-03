@@ -94,13 +94,13 @@ def emit_ddtest_jobs(
     stage: str,
     clean_name: str,
     config: dict,
-    venvs: list[tuple[str, str]],
+    environments: list[tuple[str, str]],
     k: int,
     testrunner_image_hash: str,
 ) -> None:
     """Emit ddtest-plan and ddtest-run jobs for one suite.
 
-    One plan job loops over all suite venvs. Run jobs are emitted per Python
+    One plan job loops over all suite environments. Run jobs are emitted per Python
     version, with a parallel matrix over that version's hashes and
     CI_NODE_INDEX. The plan partitions its artifact by hash so run jobs can
     restore only their own plan.
@@ -168,7 +168,7 @@ def emit_ddtest_jobs(
         print("    paths:", file=f)
         print("      - .cache", file=f)
 
-    def emit_needs_build_base_venvs(needed_venvs: list[tuple[str, str]]) -> None:
+    def emit_needs_build_base_venvs(needed_environments: list[tuple[str, str]]) -> None:
         print("    - job: build_base_venvs", file=f)
         print("      artifacts: true", file=f)
         print("      parallel:", file=f)
@@ -176,7 +176,7 @@ def emit_ddtest_jobs(
         # Dedup PYTHON_VERSIONs: several hashes share a Python version, but
         # build_base_venvs only needs to be downloaded once per version.
         seen_py: set[str] = set()
-        for _h, py in needed_venvs:
+        for _h, py in needed_environments:
             if py in seen_py:
                 continue
             seen_py.add(py)
@@ -192,15 +192,13 @@ def emit_ddtest_jobs(
     emit_cache()
     print("  needs:", file=f)
     print("    - prechecks", file=f)
-    emit_needs_build_base_venvs(venvs)
+    emit_needs_build_base_venvs(environments)
     emit_services(plan=True)
     emit_before_script(plan=True)
-    riot_hashes = " ".join(h for h, _ in venvs)
     emit_variables(
         {
             "DDTEST_NODES": str(k),
-            "RIOT_HASHES": riot_hashes,
-            "RIOT_HASH_PYTHON": " ".join(f"{h}:{py}" for h, py in venvs),
+            "TEST_ENVIRONMENT_HASH_PYTHON": " ".join(f"{h}:{py}" for h, py in environments),
             "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
         }
     )
@@ -217,11 +215,11 @@ def emit_ddtest_jobs(
     # so emit one run job per Python version instead of dynamically matching a
     # need from the run matrix. This keeps each run job's artifact download
     # limited to its own build_base_venvs matrix entry.
-    venvs_by_py: dict[str, list[tuple[str, str]]] = {}
-    for venv in venvs:
-        venvs_by_py.setdefault(venv[1], []).append(venv)
+    environments_by_python: dict[str, list[tuple[str, str]]] = {}
+    for environment in environments:
+        environments_by_python.setdefault(environment[1], []).append(environment)
 
-    for py, py_venvs in venvs_by_py.items():
+    for py, python_environments in environments_by_python.items():
         py_run_name = f"{run_name}-{py}"
         print(f"{py_run_name}:", file=f)
         print(f"  extends: {run_tpl}", file=f)
@@ -229,7 +227,7 @@ def emit_ddtest_jobs(
         emit_cache()
         print("  needs:", file=f)
         print("    - prechecks", file=f)
-        emit_needs_build_base_venvs(py_venvs)
+        emit_needs_build_base_venvs(python_environments)
         # Each run downloads the single plan artifact (which contains all
         # hashes' plans, partitioned by hash) and restores its own hash's plan.
         print("    - job: " + plan_name, file=f)
@@ -239,9 +237,9 @@ def emit_ddtest_jobs(
         emit_variables({"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"})
         print("  parallel:", file=f)
         print("    matrix:", file=f)
-        for h, _py in py_venvs:
+        for h, _py in python_environments:
             for node in range(k):
-                print(f'      - RIOT_HASH: "{h}"', file=f)
+                print(f'      - TEST_ENVIRONMENT_HASH: "{h}"', file=f)
                 print(f'        PYTHON_VERSION: "{py}"', file=f)
                 print(f"        CI_NODE_INDEX: {node}", file=f)
         if retry is not None:
