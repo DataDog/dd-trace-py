@@ -23,6 +23,10 @@ import time  # noqa: E402
 
 import pytest  # noqa: E402
 
+# patch requests here: patch() is one-shot and installs the AppSec Session.request
+# wrapper only if _load_modules is true, which a test may have turned off by then
+import requests  # noqa: E402,F401
+
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
 from tests.utils import TracerSpanContainer  # noqa: E402
