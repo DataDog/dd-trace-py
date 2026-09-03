@@ -19,6 +19,8 @@ from urllib.parse import urlparse
 import uuid
 
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import config as agentless_config
+from ddtrace.testing.internal._protocols import BackendConnectorSetupProtocol
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_HOSTNAME
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_PORT
 from ddtrace.testing.internal.constants import DEFAULT_AGENT_SOCKET_FILE
@@ -27,7 +29,6 @@ from ddtrace.testing.internal.constants import DEFAULT_SITE
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.telemetry import ErrorType
 from ddtrace.testing.internal.telemetry import TelemetryAPIRequestMetrics
-from ddtrace.testing.internal.utils import asbool
 
 
 log = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ RETRIABLE_ERRORS = {
 }
 
 
-class BackendConnectorSetup:
+class BackendConnectorSetup(BackendConnectorSetupProtocol):
     """
     Logic for detecting the backend connection mode (agentless or EVP) and creating new connectors.
     """
@@ -121,7 +122,7 @@ class BackendConnectorSetup:
         """
         Detect which backend connection mode to use and return a configured instance of the corresponding subclass.
         """
-        if asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+        if agentless_config.ci_visibility:
             log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup(api_key_override=env.get("_CI_DD_API_KEY"))
 
@@ -137,7 +138,7 @@ class BackendConnectorSetup:
         Unlike :meth:`detect_setup`, this method does not consult any dd-trace-py-internal
         environment variables, making it suitable for use in customer-facing code.
         """
-        if asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+        if agentless_config.ci_visibility:
             log.debug("Connecting to backend in agentless mode")
             return cls._detect_agentless_setup()
 

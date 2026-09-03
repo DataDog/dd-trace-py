@@ -1,6 +1,7 @@
 import abc
 import json
 import typing as t
+from urllib.parse import urlparse as _urlparse
 
 from ddtrace.internal.constants import CONTAINER_TAGS_HASH
 from ddtrace.internal.logger import get_logger
@@ -27,17 +28,35 @@ def process_info_headers(resp):
         log.debug("Could not compute base hash: %s", e)
 
 
-def info(url=None):
-    agent_url = config.trace_agent_url if url is None else url
+def _agent_base_path(agent_url: str) -> str:
+    # get_connection() strips the URL path, so reverse-proxied Agent URLs (e.g.
+    # http://gateway/datadog/) need their path prefix re-added to the request target.
+    # unix:// paths are the socket location, not an HTTP path prefix, so they're excluded.
+    parsed = _urlparse(agent_url)
+    if parsed.scheme not in ("http", "https"):
+        return ""
+    return parsed.path.rstrip("/")
+
+
+def _request_info(agent_url):
     timeout = config.trace_agent_timeout_seconds
     _conn = get_connection(agent_url, timeout=timeout)
     try:
-        _conn.request("GET", "info", headers={"content-type": "application/json"})
+        base_path = _agent_base_path(agent_url)
+        endpoint = base_path + "/info" if base_path else "info"
+        _conn.request("GET", endpoint, headers={"content-type": "application/json"})
         resp = _conn.getresponse()
         process_info_headers(resp)
         data = resp.read()
     finally:
         _conn.close()
+
+    return resp, data
+
+
+def info(url=None):
+    agent_url = config.trace_agent_url if url is None else url
+    resp, data = _request_info(agent_url)
 
     if resp.status == 404:
         # Remote configuration is not enabled or unsupported by the agent
@@ -48,6 +67,17 @@ def info(url=None):
         return None
 
     return json.loads(data)
+
+
+def is_reachable(url=None):
+    """Check whether the trace agent responds to /info, regardless of HTTP status."""
+    agent_url = config.trace_agent_url if url is None else url
+    try:
+        _request_info(agent_url)
+    except Exception:
+        return False
+
+    return True
 
 
 class AgentCheckPeriodicService(ForksafeAwakeablePeriodicService, metaclass=abc.ABCMeta):

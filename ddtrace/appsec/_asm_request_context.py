@@ -12,7 +12,6 @@ from typing import Protocol
 from typing import Union
 from urllib import parse
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
@@ -29,7 +28,9 @@ from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.constants import Constant_Class
+from ddtrace.internal.core.events import Event
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -97,7 +98,7 @@ class ASM_Environment:
     def __init__(
         self,
         waf_callable: Optional[WafCallable],
-        span: Optional[Span] = None,
+        span: Optional[SpanProtocol] = None,
         rc_products: str = "",
     ):
         self.root = not in_asm_context()
@@ -108,8 +109,8 @@ class ASM_Environment:
         if context_span is None:
             logger.warning(WARNING_TAGS.ASM_ENV_NO_SPAN, extra=log_extra, stack_info=True)
             raise TypeError("ASM_Environment requires a span")
-        self.span: Span = context_span
-        self.entry_span: Span = self.span._service_entry_span
+        self.span: SpanProtocol = context_span
+        self.entry_span: SpanProtocol = self.span._service_entry_span
         if self.span.name.endswith(".request"):
             self.framework = self.span.name[:-8]
         else:
@@ -162,7 +163,7 @@ def get_blocked() -> Optional[Block_config]:
     return env.blocked or None
 
 
-def get_entry_span() -> Optional[Span]:
+def get_entry_span() -> Optional[SpanProtocol]:
     env = _get_asm_context()
     if env is None:
         span = span_bus.get_span()
@@ -253,7 +254,7 @@ def get_framework() -> str:
     return env.framework
 
 
-def _use_html(headers: Mapping) -> bool:
+def _use_html(headers: Mapping[str, str]) -> bool:
     """decide if the response should be html or json.
 
     Add support for quality values in the Accept header.
@@ -309,7 +310,7 @@ def set_blocked_dict(block: Union[dict[str, Any], Block_config, None]) -> None:
     set_blocked(blocked)
 
 
-def update_span_metrics(span: Span, name: str, value: Union[float, int]) -> None:
+def update_span_metrics(span: SpanProtocol, name: str, value: Union[float, int]) -> None:
     span._set_attribute(name, value + (span.get_metric(name) or 0.0))
 
 
@@ -524,12 +525,12 @@ def get_ip() -> Optional[str]:
 # early point set_headers is usually called
 
 
-def set_headers(headers: Mapping) -> None:
+def set_headers(headers: Mapping[str, str]) -> None:
     if headers is not None:
         set_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, headers)
 
 
-def get_headers() -> Optional[Mapping]:
+def get_headers() -> Optional[Mapping[str, str]]:
     return get_waf_address(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})  # type: ignore[no-any-return]
 
 
@@ -650,7 +651,7 @@ def store_waf_results_data(data: "list[WafEvent]") -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: str) -> None:
+def start_context(waf_callable: Optional[WafCallable], span: SpanProtocol, rc_products: str) -> None:
     if asm_config._asm_enabled:
         core.set_item(
             _ASM_CONTEXT,
@@ -673,14 +674,14 @@ def start_context(waf_callable: Optional[WafCallable], span: Span, rc_products: 
         )
 
 
-def end_context(span: Span) -> None:
+def end_context(span: SpanProtocol) -> None:
     env = _get_asm_context()
     if env is not None and env.span is span:
         finalize_asm_env(env)
 
 
 def _on_context_ended(
-    ctx: core.ExecutionContext,
+    ctx: core.ExecutionContext[Event],
     _exc_info: tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     env = ctx.get_item(_ASM_CONTEXT)
@@ -766,7 +767,7 @@ _COLLECTED_REQUEST_HEADERS = {
 _COLLECTED_REQUEST_HEADERS.update(_COLLECTED_REQUEST_HEADERS_ASM_ENABLED)
 
 
-def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
+def _set_headers(span: SpanProtocol, headers: Any, kind: str, only_asm_enabled: bool = False) -> None:
     for k in headers:
         if isinstance(k, tuple):
             key, value = k

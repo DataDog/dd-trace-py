@@ -267,15 +267,48 @@ class TestTelemetryPayloadFileNaming:
 
 
 def _collect_events(telemetry_dir) -> list[dict]:
-    """Return all events from all telemetry payload files as a flat list."""
+    """Return all events from all telemetry payload files as a flat list.
+
+    The writer mirrors the HTTP protocol: some requests are standalone (``app-started``,
+    ``app-closing``, ``generate-metrics``, ...) and some are ``message-batch`` wrappers whose
+    ``payload`` is a list of sub-events. Flatten both forms into individual events.
+    """
     events = []
     for f in sorted(telemetry_dir.glob("telemetry-*.json")):
         data = json.loads(f.read_text())
-        events.extend(data.get("payload", []))
+        if data.get("request_type") == "message-batch":
+            events.extend(data.get("payload", []))
+        else:
+            events.append(data)
     return events
 
 
 class TestPayloadFileTelemetryAPI:
+    @pytest.fixture(autouse=True)
+    def _fresh_telemetry_writer(self):
+        # Each test builds a PayloadFileTelemetryAPI whose finish() calls the writer's shutdown,
+        # which disables it permanently. Give every test a fresh, enabled writer (and point the
+        # binding PayloadFileTelemetryAPI reads at it) so tests don't clobber each other.
+        import ddtrace.internal.telemetry as _t
+        from ddtrace.internal.telemetry.writer import TelemetryWriter
+        import ddtrace.testing.internal.telemetry as _ti
+
+        saved_t, saved_ti = _t.telemetry_writer, _ti.telemetry_writer
+        writer = TelemetryWriter(agentless=False)
+        writer.enable()
+        _t.telemetry_writer = writer
+        _ti.telemetry_writer = writer
+        try:
+            yield
+        finally:
+            try:
+                if writer._worker is not None:
+                    writer.disable()
+            except Exception:
+                pass
+            _t.telemetry_writer = saved_t
+            _ti.telemetry_writer = saved_ti
+
     def test_telemetry_batch_written_on_finish(self, tmp_path):
         """finish() writes at least one message-batch file with real writer fields."""
         telemetry_dir = tmp_path / "telemetry"
@@ -289,15 +322,21 @@ class TestPayloadFileTelemetryAPI:
         files = list(telemetry_dir.glob("telemetry-*.json"))
         assert len(files) >= 1
 
-        # Every file must be a structurally valid message-batch from the real writer.
+        # Every file is a structurally valid telemetry request from the real writer; at least one
+        # is a message-batch (finish() flushes a heartbeat + app-events batch). Standalone requests
+        # (app-started/app-closing) mirror the HTTP protocol and are valid too.
+        batch_files = 0
         for f in files:
             data = json.loads(f.read_text())
             assert data["api_version"] == "v2"
-            assert data["request_type"] == "message-batch"
             assert "seq_id" in data
             assert "application" in data
             assert "host" in data
-            assert isinstance(data["payload"], list)
+            assert "request_type" in data
+            if data["request_type"] == "message-batch":
+                batch_files += 1
+                assert isinstance(data["payload"], list)
+        assert batch_files >= 1
 
     def test_app_started_and_closing_present(self, tmp_path):
         """finish() produces both app-started and app-closing events."""
@@ -327,23 +366,26 @@ class TestPayloadFileTelemetryAPI:
 
         events = _collect_events(telemetry_dir)
 
-        # generate-metrics uses points: [[timestamp, value], ...]
+        # generate-metrics uses points: [[timestamp, value], ...]; namespace is per-series.
         metrics_series = [
             s
             for e in events
-            if e["request_type"] == "generate-metrics" and e["payload"]["namespace"] == "civisibility"
+            if e["request_type"] == "generate-metrics"
             for s in e["payload"]["series"]
+            if s.get("namespace") == "civisibility"
         ]
         assert any(s["metric"] == "test_metric" and s["points"][0][1] == 1 for s in metrics_series)
 
-        # distributions uses points: [value, ...]
+        # distributions are serialized as "sketches" (base64-encoded DDSketch, not raw points),
+        # one series per metric; namespace is per-series.
         dist_series = [
             s
             for e in events
-            if e["request_type"] == "distributions" and e["payload"]["namespace"] == "civisibility"
+            if e["request_type"] == "sketches"
             for s in e["payload"]["series"]
+            if s.get("namespace") == "civisibility"
         ]
-        assert any(s["metric"] == "test_dist" and s["points"][0] == 42.5 for s in dist_series)
+        assert any(s["metric"] == "test_dist" and s.get("sketch_b64") for s in dist_series)
 
     def test_enable_agentless_client_does_not_raise_after_client_swap(self, tmp_path):
         """enable_agentless_client() must not AttributeError after PayloadFileTelemetryAPI swaps the client.
