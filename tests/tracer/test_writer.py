@@ -22,6 +22,7 @@ from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
+from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
@@ -920,6 +921,43 @@ def test_bad_encoding(monkeypatch):
         assert writer._api_version == "v0.5"
 
 
+def test_dropped_native_writer_stops_exporter_workers():
+    runtime = get_native_runtime()
+    workers_before = runtime.debug().count("WorkerEntry")
+
+    with override_global_config({"_telemetry_enabled": False}):
+        writer = NativeWriter("http://localhost:9126")
+    assert runtime.debug().count("WorkerEntry") == workers_before + 1
+
+    del writer
+
+    assert runtime.debug().count("WorkerEntry") == workers_before
+
+
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+def test_native_writer_does_not_restart_inherited_exporter_workers():
+    import os
+
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.writer import NativeWriter
+
+    writer = NativeWriter("http://localhost:9126")
+    try:
+        pid = os.fork()
+        if pid == 0:
+            try:
+                _child_writer = NativeWriter("http://localhost:9126")
+                child_workers = get_native_runtime().debug().count("WorkerEntry")
+                os._exit(0 if child_workers == 1 else 1)
+            except BaseException:
+                os._exit(2)
+
+        _, status = os.waitpid(pid, 0)
+        assert status == 0
+    finally:
+        writer.shutdown_exporter()
+
+
 @pytest.mark.parametrize(
     "init_api_version,api_version,endpoint,encoder_cls",
     [
@@ -1134,6 +1172,7 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
             else:
                 mock_builder.enable_telemetry.assert_not_called()
+            mock_builder.set_restart_after_fork.assert_called_once_with(False)
 
 
 @pytest.mark.subprocess(
