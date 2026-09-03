@@ -54,6 +54,7 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import Tracer
 
@@ -243,10 +244,10 @@ class Debugger(Service):
 
         log.debug("Disabling %s", cls.__name__)
 
-        callback = remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebugger)
+        callback = remoteconfig_poller.get_registered(RemoteConfigProduct.LiveDebugging)
 
-        remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebugger)
-        remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebugger)
+        remoteconfig_poller.unregister_callback(RemoteConfigProduct.LiveDebugging)
+        remoteconfig_poller.disable_product(RemoteConfigProduct.LiveDebugging)
 
         # Currently the product enablement and the callback registration are
         # tied together within the RC client so here we have to pretend that
@@ -304,8 +305,8 @@ class Debugger(Service):
                 self._probe_registry,
                 di_config.diagnostics_interval,
             )
-            remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebugger, di_callback)
-            remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebugger)
+            remoteconfig_poller.register_callback(RemoteConfigProduct.LiveDebugging, di_callback)
+            remoteconfig_poller.enable_product(RemoteConfigProduct.LiveDebugging)
 
             # Load local probes from the probe file.
             self._load_local_config()
@@ -534,7 +535,13 @@ class Debugger(Service):
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
                 )
-                self._function_store.wrap(cast(FunctionType, function), context)
+                try:
+                    self._function_store.wrap(cast(FunctionType, function), context)
+                except ObfuscatedCodeError:
+                    message = f"Cannot wrap {probe.func_qname!r}: code object appears to be obfuscated"
+                    self._probe_registry.set_error(probe, "ObfuscatedCode", message)
+                    log.error(message, extra={"send_to_telemetry": False})
+                    continue
                 log.debug(
                     "[%s][P: %s] Function probe %r wrapped around %r",
                     os.getpid(),

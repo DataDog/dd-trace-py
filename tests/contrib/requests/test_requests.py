@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from unittest import mock
 
 import pytest
 import requests
@@ -57,6 +58,15 @@ class TestRequests(BaseRequestTestCase, TracerTestCase):
         assert s.get_tag("component") == "requests"
         assert s.get_tag("span.kind") == "client"
         assert s.get_tag("out.host") == SOCKET
+
+    def test_resource_with_otel_semantics(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            out = self.session.get(URL_200)
+
+        assert out.status_code == 200
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "GET"
 
     def test_tracer_disabled(self):
         # ensure all valid combinations of args / kwargs work

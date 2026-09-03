@@ -17,7 +17,6 @@ import urllib.parse
 import ddtrace
 from ddtrace import config
 from ddtrace import patch
-from ddtrace._trace.context import Context
 from ddtrace._trace.processor import _NoopTraceProcessor
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
@@ -33,6 +32,7 @@ from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import generate_128bit_trace_id
 from ddtrace.internal.native import rand64bits
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.sampling import format_rate
 from ddtrace.internal.service import Service
@@ -44,10 +44,13 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
+from ddtrace.llmobs._constants import AGENT_ANNOTATION
+from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
@@ -152,7 +155,7 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_parent_prompt
 from ddtrace.llmobs._utils import _normalize_wire_trace_id_to_hex
 from ddtrace.llmobs._utils import _resolve_parent_agent
-from ddtrace.llmobs._utils import _sanitize_span_event_depth
+from ddtrace.llmobs._utils import _sanitize_span_event_data
 from ddtrace.llmobs._utils import _stamp_agent_attribution
 from ddtrace.llmobs._utils import _trace_id_to_wire
 from ddtrace.llmobs._utils import _validate_prompt
@@ -178,6 +181,7 @@ from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
+from ddtrace.llmobs.types import Agent
 from ddtrace.llmobs.types import ChatMessage
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
@@ -197,7 +201,6 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import Messages
 from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.version import __version__
 
 
@@ -603,12 +606,15 @@ class LLMObs(Service):
             interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
+        # Without a local app key, fall back to the agent's EVP proxy, which supplies both
+        # credentials. An override origin stands in for intake, not an agent, so it stays direct.
+        dne_agentless = bool(self._app_key) or agentless_enabled or bool(_env.get("DD_LLMOBS_OVERRIDE_ORIGIN", ""))
         self._dne_client = LLMObsExperimentsClient(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
-            is_agentless=True,  # agent proxy doesn't seem to work for experiments
+            is_agentless=dne_agentless,
         )
         self._api_client = LLMObsAPIClient(app_key=self._app_key)
 
@@ -706,6 +712,12 @@ class LLMObs(Service):
             )
             return False
 
+        # Agent annotations are applied here, where the span kind is known: annotation_context
+        # reaches every span in its block, but only agent spans carry the tags.
+        agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
+        if agent_annotation and span_kind == "agent":
+            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
+
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
         llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
@@ -729,7 +741,10 @@ class LLMObs(Service):
             output_type,
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
-        llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_depth(llmobs_meta)
+        llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
+        config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
+        if config is not None:
+            llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)
         if self._export_mode == LLMObsExportMode.APM_AGENTLESS:
             # APM agentless ingestion treats dots in tag keys as nested-path separators;
             # replace them with underscores before encoding.
@@ -997,14 +1012,14 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not _env.get("DD_REMOTE_CONFIGURATION_ENABLED"):
-                    config._remote_config_enabled = False
-                    log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                    remoteconfig_poller.disable()
 
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
                 # we need to force telemetry to use agentless configuration
                 telemetry_writer.enable_agentless_client(True)
+                # Remote configuration resolved its own agentless state from the environment at
+                # import time, so it is still pointed at an agent that may not be there. Send it
+                # to the intake as well, on the key validated just above.
+                remoteconfig_poller.switch_to_agentless()
 
             if integrations_enabled:
                 cls._patch_integrations()
@@ -1887,6 +1902,7 @@ class LLMObs(Service):
         prompt: Optional[Union[dict, Prompt]] = None,
         name: Optional[str] = None,
         cost_tags: Optional[list[str]] = None,
+        agent: Optional[Union[dict, Agent]] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
     ) -> AnnotationContext:
         """
@@ -1915,6 +1931,10 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param name: set to override the span name for any spans annotated within the returned context.
+        :param agent: A dictionary declaring the versioned agent running in this context, of the form
+                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
+                      Set as an ``agent_version`` tag on agent spans created within the context;
+                      other span kinds are unaffected.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -1951,6 +1971,7 @@ class LLMObs(Service):
                             "tags": tags,
                             "cost_tags": cost_tags,
                             "prompt": prompt,
+                            "agent": agent,
                             "_name": name,
                             "_linked_spans": _linked_spans,
                             "_telemetry_source": "annotation_context",
@@ -2550,6 +2571,7 @@ class LLMObs(Service):
         model_name: Optional[str] = None,
         model_provider: Optional[str] = None,
         agent_service: Optional[str] = None,
+        agent_version: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         if name is None:
@@ -2567,6 +2589,8 @@ class LLMObs(Service):
             session_id=session_id,
             ml_app=agent_service,
         )
+        if agent_version:
+            span._set_ctx_item(AGENT_ANNOTATION, agent_version)
         if _decorator:
             _annotate_llmobs_span_data(span, tags={"decorator": "1"})
         # First session in the trace becomes the trace-level default (first-writer wins), so later
@@ -2690,6 +2714,7 @@ class LLMObs(Service):
         session_id: Optional[str] = None,
         ml_app: Optional[str] = None,
         agent_service: Optional[str] = None,
+        version: Optional[str] = None,
         _decorator: bool = False,
     ) -> Span:
         """
@@ -2700,6 +2725,8 @@ class LLMObs(Service):
         :param str ml_app: Deprecated. Use ``agent_service`` instead.
         :param str agent_service: The agent service that this span belongs to. If not provided, defaults to the
                            propagated value from a parent span/context, ``DD_LLMOBS_ML_APP``, or ``DD_SERVICE``.
+        :param str version: The version of this agent. Set as an ``agent_version`` tag on this span,
+                            and not on its child spans.
 
         :returns: The Span object representing the traced operation.
         """
@@ -2710,6 +2737,7 @@ class LLMObs(Service):
             name=name,
             session_id=session_id,
             agent_service=_resolve_agent_service(agent_service, ml_app),
+            agent_version=version,
             _decorator=_decorator,
         )
 
@@ -2887,6 +2915,7 @@ class LLMObs(Service):
         tags: Optional[dict[str, Any]] = None,
         tool_definitions: Optional[list[dict[str, Any]]] = None,
         cost_tags: Optional[list[str]] = None,
+        agent: Optional[Union[dict, Agent]] = None,
         _name: Optional[str] = None,
         _linked_spans: Optional[list[ExportedLLMObsSpan]] = None,
         _suppress_span_kind_error: bool = False,
@@ -2955,6 +2984,9 @@ class LLMObs(Service):
                                    and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
+        :param agent: A dictionary declaring the versioned agent this span represents, of the form
+                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent``
+                      class. Set as an ``agent_version`` tag, and only on agent spans.
         """
         error = None
         try:
@@ -2996,6 +3028,11 @@ class LLMObs(Service):
                     if session_id:
                         _annotate_llmobs_span_data(span, session_id=str(session_id))
                     _annotate_llmobs_span_data(span, tags=tags)
+            if agent is not None:
+                agent_version = agent.get("version") if isinstance(agent, dict) else None
+                if agent_version:
+                    # Stashed rather than tagged: the span kind is not resolved yet.
+                    span._set_ctx_item(AGENT_ANNOTATION, agent_version)
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: A rare crash happening when using gevent has been fixed.

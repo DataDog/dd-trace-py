@@ -46,12 +46,12 @@ def _corpus_params() -> list[Any]:
     return [pytest.param(case, id=case["id"]) for case in SCENARIOS]
 
 
-def _metrics(telemetry_mock: Mock, metric: str) -> list[tuple[Any, Any]]:
+def _metrics(add_count_metric: Mock, metric: str) -> list[tuple[Any, Any]]:
     """Every (value, tags) pair recorded for the given metric."""
     return [
-        (args[3], args[4])
-        for args, _ in telemetry_mock.add_metric.call_args_list
-        if args[1].value == "appsec" and args[2] == metric
+        (args[2], args[3])
+        for args, _ in add_count_metric.call_args_list
+        if args[0].value == "ai_guard" and args[1] == metric
     ]
 
 
@@ -78,11 +78,9 @@ def test_redact_messages_corpus(case: dict[str, Any]) -> None:
 
 
 @pytest.mark.parametrize("case", _corpus_params())
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_evaluate_applies_corpus(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
     case: dict[str, Any],
@@ -105,6 +103,108 @@ def test_evaluate_applies_corpus(
     # The service must always receive the originals: it needs the raw text to compute the replacements.
     payload = mock_execute_request.call_args[0][1]
     assert payload["data"]["attributes"]["messages"] == sent
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_history_is_redacted_again_on_every_turn(
+    mock_execute_request: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
+    """Redaction is copy-on-write, so an original left in the caller's history is redacted again next turn.
+
+    The service needs the raw text to compute a replacement, so the history it receives on the second
+    turn still carries the SSN the application never had redacted in its own list.
+    """
+    messages = deepcopy(SIMPLE)
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=REPLACEMENTS)
+
+    first = ai_guard_client.evaluate(messages)
+
+    assert first["messages"] == REDACTED
+    assert messages == SIMPLE, "the application keeps its own list, originals included"
+
+    test_spans.reset()
+    messages.append({"role": "assistant", "content": "Your SSN is <REDACTED>."})
+    messages.append({"role": "user", "content": "my email is paco@paco.es"})
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ALLOW",
+        redaction_replacements=[
+            {"path": "messages[1].content", "replacement": "My SSN is <REDACTED>"},
+            {"path": "messages[3].content", "replacement": "my email is <REDACTED>"},
+        ],
+    )
+
+    second = ai_guard_client.evaluate(messages)
+
+    sent = mock_execute_request.call_args[0][1]["data"]["attributes"]["messages"]
+    assert sent[1]["content"] == "My SSN is 123-45-6789", "the service must still see the original history"
+    expected: list[Message] = [
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "My SSN is <REDACTED>"},
+        {"role": "assistant", "content": "Your SSN is <REDACTED>."},
+        {"role": "user", "content": "my email is <REDACTED>"},
+    ]
+    assert second["messages"] == expected
+    assert _meta_struct(test_spans)["messages"] == expected
+
+
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_paths_are_not_reused_across_turns(
+    mock_execute_request: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
+    """Paths belong to the array they were returned for: a redacted index says nothing about the next turn."""
+    messages = deepcopy(SIMPLE)
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=REPLACEMENTS)
+
+    ai_guard_client.evaluate(messages)
+
+    test_spans.reset()
+    # The application rebuilds the context: the sensitive message moves to index 0 and a benign one
+    # takes over index 1, the index the previous turn redacted.
+    messages = [messages[1], {"role": "user", "content": "what is the weather?"}]
+    mock_execute_request.return_value = mock_evaluate_response(
+        "ALLOW", redaction_replacements=[{"path": "messages[0].content", "replacement": "My SSN is <REDACTED>"}]
+    )
+
+    result = ai_guard_client.evaluate(messages)
+
+    expected: list[Message] = [
+        {"role": "user", "content": "My SSN is <REDACTED>"},
+        {"role": "user", "content": "what is the weather?"},
+    ]
+    assert result["messages"] == expected
+    assert _meta_struct(test_spans)["messages"] == expected
+
+
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+@patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
+def test_redacted_is_reported_per_turn(
+    mock_execute_request: Mock,
+    add_count_metric: Mock,
+    ai_guard_client: AIGuardClient,
+    test_spans: TracerSpanContainer,
+) -> None:
+    """Each evaluation reports its own outcome: a redacting turn does not mark the next one redacted."""
+    messages = deepcopy(SIMPLE)
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW", redaction_replacements=REPLACEMENTS)
+
+    ai_guard_client.evaluate(messages)
+
+    assert find_ai_guard_span(test_spans).get_tag(AI_GUARD.REDACTED_TAG) == "true"
+
+    test_spans.reset()
+    clean: list[Message] = [{"role": "user", "content": "what is the weather?"}]
+    mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+    result = ai_guard_client.evaluate(clean)
+
+    assert result["messages"] is clean
+    assert find_ai_guard_span(test_spans).get_tag(AI_GUARD.REDACTED_TAG) == "false"
+    redacted_tags = [dict(tags).get("redacted") for _, tags in _metrics(add_count_metric, AI_GUARD.REQUESTS_METRIC)]
+    assert redacted_tags == ["true", "false"]
 
 
 def test_redaction_never_raises() -> None:
@@ -166,11 +266,11 @@ def test_resolve_writable_string_against_the_rfc_example() -> None:
     assert resolved_value("messages[0].missing") is None
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redaction_survives_message_truncation(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
+    add_count_metric: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -196,14 +296,14 @@ def test_redaction_survives_message_truncation(
     assert struct_messages[-1]["content"] == "message 19 ssn <REDACTED>"
     assert struct_messages[0]["content"] == "message 4 ssn 123-45-6789"
     # Truncating twice must not be reported twice.
-    assert _metrics(telemetry_mock, AI_GUARD.TRUNCATED_METRIC) == [(1, (("type", "messages"),))]
+    assert _metrics(add_count_metric, AI_GUARD.TRUNCATED_METRIC) == [
+        (1, (("type", "messages"), ("source", AI_GUARD.SOURCE_SDK), ("integration", AI_GUARD.INTEGRATION_NONE)))
+    ]
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_content_is_truncated_in_meta_struct(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -222,11 +322,9 @@ def test_redacted_content_is_truncated_in_meta_struct(
 
 
 @pytest.mark.parametrize("action", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_blocked_evaluation_reports_redacted_messages(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
     action: str,
@@ -257,11 +355,11 @@ def test_blocked_evaluation_reports_redacted_messages(
         pytest.param(False, REPLACEMENTS, None, id="kill switch off means no tag at all"),
     ],
 )
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
+@patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_is_reported(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
+    add_count_metric: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
     redaction_enabled: bool,
@@ -276,15 +374,13 @@ def test_redacted_is_reported(
         ai_guard_client.evaluate(messages)
 
     assert find_ai_guard_span(test_spans).get_tag(AI_GUARD.REDACTED_TAG) == expected
-    [(_, telemetry_tags)] = _metrics(telemetry_mock, AI_GUARD.REQUESTS_METRIC)
+    [(_, telemetry_tags)] = _metrics(add_count_metric, AI_GUARD.REQUESTS_METRIC)
     assert dict(telemetry_tags).get("redacted") == expected
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_sds_findings_do_not_drive_redaction(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -306,11 +402,9 @@ def test_sds_findings_do_not_drive_redaction(
     assert _meta_struct(test_spans)["sds"] == findings
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_redacted_messages_are_isolated_from_the_caller(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:
@@ -326,11 +420,9 @@ def test_redacted_messages_are_isolated_from_the_caller(
     assert _meta_struct(test_spans)["messages"] == REDACTED
 
 
-@patch("ddtrace.internal.telemetry.telemetry_writer._namespace")
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")
 def test_kill_switch_keeps_findings_and_evaluation(
     mock_execute_request: Mock,
-    telemetry_mock: Mock,
     ai_guard_client: AIGuardClient,
     test_spans: TracerSpanContainer,
 ) -> None:

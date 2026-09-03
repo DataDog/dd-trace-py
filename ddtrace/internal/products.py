@@ -248,6 +248,11 @@ class ProductManager:
         # Start all products
         self.start_products()
 
+        # Emit telemetry app-started now that products are loaded and their configuration has been
+        # reported, so the app-started payload carries the full startup configuration (the native
+        # worker builds it from state accumulated so far; see TelemetryWriter.app_started).
+        telemetry_writer.app_started()
+
         # Execute before fork hooks
         forksafe.register_before_fork(self.before_fork)
 

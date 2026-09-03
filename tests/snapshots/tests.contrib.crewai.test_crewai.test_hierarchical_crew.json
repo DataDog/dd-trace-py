@@ -11,7 +11,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a3ec25c00000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.crewai",
       "language": "python",
       "runtime-id": "7700e6ebfafe4178aa4dc076821a34a9"
@@ -36,7 +36,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "m"
+         "_dd.svc_src": "datadog"
        },
        "metrics": {
          "_dd.measured": 1.0
@@ -54,7 +54,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "m"
+            "_dd.svc_src": "datadog"
           },
           "metrics": {
             "_dd.measured": 1.0
@@ -72,7 +72,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "m"
+         "_dd.svc_src": "datadog"
        },
        "metrics": {
          "_dd.measured": 1.0
@@ -90,7 +90,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "m"
+            "_dd.svc_src": "datadog"
           },
           "metrics": {
             "_dd.measured": 1.0
@@ -108,7 +108,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.svc_src": "m"
+               "_dd.svc_src": "datadog"
              },
              "metrics": {
                "_dd.measured": 1.0
@@ -126,7 +126,7 @@
                 "type": "",
                 "error": 0,
                 "meta": {
-                  "_dd.svc_src": "m"
+                  "_dd.svc_src": "datadog"
                 },
                 "metrics": {
                   "_dd.measured": 1.0
@@ -144,7 +144,7 @@
                    "type": "",
                    "error": 0,
                    "meta": {
-                     "_dd.svc_src": "m"
+                     "_dd.svc_src": "datadog"
                    },
                    "metrics": {
                      "_dd.measured": 1.0
@@ -162,7 +162,7 @@
        "type": "",
        "error": 0,
        "meta": {
-         "_dd.svc_src": "m"
+         "_dd.svc_src": "datadog"
        },
        "metrics": {
          "_dd.measured": 1.0
@@ -180,7 +180,7 @@
           "type": "",
           "error": 0,
           "meta": {
-            "_dd.svc_src": "m"
+            "_dd.svc_src": "datadog"
           },
           "metrics": {
             "_dd.measured": 1.0
@@ -198,7 +198,7 @@
              "type": "",
              "error": 0,
              "meta": {
-               "_dd.svc_src": "m"
+               "_dd.svc_src": "datadog"
              },
              "metrics": {
                "_dd.measured": 1.0
@@ -216,7 +216,7 @@
                 "type": "",
                 "error": 0,
                 "meta": {
-                  "_dd.svc_src": "m"
+                  "_dd.svc_src": "datadog"
                 },
                 "metrics": {
                   "_dd.measured": 1.0

@@ -24,7 +24,6 @@ components:
     - ddtrace/internal/pack_template.h
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
-    - ddtrace/internal/processor/__init__.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
@@ -72,6 +71,7 @@ components:
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
+    - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
@@ -82,7 +82,6 @@ components:
     - ddtrace/internal/rate_limiter.py
     - ddtrace/internal/safety.py
     - ddtrace/internal/service.py
-    - ddtrace/internal/uds.py
     - ddtrace/internal/utils/*
     - ddtrace/internal/uwsgi.py
     - ddtrace/internal/wrapping/*
@@ -145,7 +144,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/telemetry/constants.py
-      - ddtrace/internal/telemetry/metrics_namespaces.py*
+      - ddtrace/internal/telemetry/writer.py
       - benchmarks/telemetry_add_metric/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1

@@ -2,6 +2,8 @@
 components:
   $harness:
     - docker/*
+    - docker-compose.base.yml
+    - docker-compose.podman.yml
     - docker-compose.yml
     - riotfile.py
     - .riot/requirements/*
@@ -42,6 +44,7 @@ components:
   core:
     - ddtrace/internal/__init__.py
     - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/_service_state.py
     - ddtrace/internal/_threads.*
     - ddtrace/internal/_unpatched.py
     - ddtrace/internal/agent.py
@@ -62,6 +65,7 @@ components:
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
     - ddtrace/internal/logger.py
+    - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
@@ -88,6 +92,7 @@ components:
     - ddtrace/ext/schema.py
   openfeature:
     - ddtrace/openfeature/*
+    - ddtrace/internal/openfeature/*
     - tests/openfeature/*
   git:
     - ddtrace/ext/git.py
@@ -100,7 +105,7 @@ components:
   profiling:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
-    - ddtrace/internal/processor/endpoint_call_counter.py
+    - ddtrace/_trace/processor/endpoint_call_counter.py
     - ddtrace/internal/settings/profiling.py
   remoteconfig:
     - ddtrace/internal/remoteconfig/*
@@ -137,7 +142,6 @@ components:
     - ddtrace/internal/pack_template.h
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
-    - ddtrace/internal/processor/__init__.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
@@ -219,6 +223,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/*
+      - scripts/gen_gitlab_config.py
       - tests/internal/*
       - tests/submod/*
       - tests/cache/*
@@ -267,6 +272,9 @@ suites:
       - '@settings'
       - '@profiling'
       - '@vendor'
+      # tests/telemetry runs real django and flask apps; '@contrib' is only shared infrastructure.
+      - '@django'
+      - '@flask'
       - tests/telemetry/*
       - tests/snapshots/tests.telemetry.*
     snapshot: true
@@ -290,6 +298,27 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     venvs_per_job: 1
+    matrix:
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
+      env:
+        DD_CIVISIBILITY_LOG_LEVEL: none
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+      variants:
+        - name: tracer
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+        - name: tracer-python-optimize
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          env:
+            PYTHONOPTIMIZE: '1'
+        - name: tracer-legacy-attrs
+          python: ['3.9']
+          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
+        - name: tracer-128-bit-traceid-disabled
+          python: ['3.14']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          env:
+            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:
     venvs_per_job: 1
     paths:
@@ -301,6 +330,16 @@ suites:
       - tests/tracer/uwsgi-app.py
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
+    matrix:
+      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+      env:
+        DD_CIVISIBILITY_LOG_LEVEL: none
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+      variants:
+        - name: tracer-uwsgi
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
   vendor:
     parallelism: 1
     paths:

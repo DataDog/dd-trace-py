@@ -1,11 +1,15 @@
+from typing import Any
 from typing import Optional  # noqa:F401
 
-import ddtrace
-import ddtrace.internal.runtime.runtime_metrics
+from ddtrace.internal.runtime import runtime_metrics
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 
 
 TELEMETRY_RUNTIMEMETRICS_ENABLED = "DD_RUNTIME_METRICS_ENABLED"
+
+_TRACER_NOT_SET = object()
 
 
 class _RuntimeMetricsStatus(type):
@@ -13,7 +17,7 @@ class _RuntimeMetricsStatus(type):
     def _enabled(_):
         # type: () -> bool
         """Runtime metrics enabled status."""
-        return ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enabled
+        return runtime_metrics.RuntimeWorker.enabled
 
 
 class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
@@ -31,7 +35,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
 
     @staticmethod
     def enable(
-        tracer: Optional[ddtrace.trace.Tracer] = None,
+        tracer: Any = _TRACER_NOT_SET,
         dogstatsd_url: Optional[str] = None,
     ) -> None:
         """
@@ -39,10 +43,17 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         nothing. Use ``disable`` to turn off the runtime metric collection
         service.
 
-        :param tracer: The tracer instance to correlate with.
+        :param tracer: Deprecated and unused.
         """
+        if tracer is not _TRACER_NOT_SET:
+            deprecate(
+                prefix="The tracer parameter to RuntimeMetrics.enable is deprecated",
+                message="It is not used and will be removed in a future version.",
+                removal_version="5.0.0",
+                category=DDTraceDeprecationWarning,
+            )
         telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, True, origin="code")
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.enable(tracer=tracer, dogstatsd_url=dogstatsd_url)
+        runtime_metrics.RuntimeWorker.enable(dogstatsd_url=dogstatsd_url)
 
     @staticmethod
     def disable() -> None:
@@ -53,7 +64,7 @@ class RuntimeMetrics(metaclass=_RuntimeMetricsStatus):
         again.
         """
         telemetry_writer.add_configuration(TELEMETRY_RUNTIMEMETRICS_ENABLED, False, origin="code")
-        ddtrace.internal.runtime.runtime_metrics.RuntimeWorker.disable()
+        runtime_metrics.RuntimeWorker.disable()
 
 
 __all__ = ["RuntimeMetrics"]

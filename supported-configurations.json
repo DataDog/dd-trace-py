@@ -26,6 +26,13 @@
         "default": null
       }
     ],
+    "DD_AGENTLESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": [
       {
         "implementation": "A",
@@ -1704,6 +1711,42 @@
         "default": "false"
       }
     ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": "agentless"
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "sensitive": true
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "30"
+      }
+    ],
+    "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "5"
+      }
+    ],
+    "DD_FEATURE_FLAGS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_FFE_INTAKE_ENABLED": [
       {
         "implementation": "A",
@@ -1893,7 +1936,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "deprecated": true
       }
     ],
     "DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED": [
@@ -2005,6 +2049,30 @@
         "aliases": [
           "DD_HTTPLIB_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_HTTPX2_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_HTTPX2_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_HTTPX2_SERVICE_NAME"
+        ]
+      }
+    ],
+    "DD_HTTPX2_SPLIT_BY_DOMAIN": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_HTTPX_DISTRIBUTED_TRACING": [
@@ -2913,6 +2981,13 @@
         "default": "true"
       }
     ],
+    "DD_PROFILING_NATIVE_HEAP_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_PROFILING_NATIVE_TESTS": [
       {
         "implementation": "A",
@@ -2974,6 +3049,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_PROFILING_STACK_GC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_PROFILING_STACK_NATIVE_FRAMES": [
@@ -3259,6 +3341,20 @@
         "aliases": [
           "DD_REDIS_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
       }
     ],
     "DD_REMOTE_CONFIGURATION_ENABLED": [
@@ -4303,6 +4399,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_HTTPX2_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_HTTPX_ENABLED": [
       {
         "implementation": "A",
@@ -4572,6 +4675,14 @@
         "default": "true"
       }
     ],
+    "DD_TRACE_OTEL_CTX_ENABLED": [
+      {
+        "implementation": "B",
+        "type": "boolean",
+        "default": "true",
+        "experimental": true
+      }
+    ],
     "DD_TRACE_OTEL_ENABLED": [
       {
         "implementation": "A",
@@ -4612,6 +4723,13 @@
         "implementation": "A",
         "type": "map",
         "default": ""
+      }
+    ],
+    "DD_TRACE_PROPAGATION_AS_SPAN_LINKS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
       }
     ],
     "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT": [
@@ -4954,6 +5072,14 @@
         "implementation": "D",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_STATS_ADDITIONAL_TAGS": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": null,
+        "experimental": true
       }
     ],
     "DD_TRACE_STATS_COMPUTATION_ENABLED": [
@@ -5774,6 +5900,14 @@
         "internal": true
       }
     ],
+    "_DD_COVERAGE_ACCURATE_IMPORTS": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false",
+        "internal": true
+      }
+    ],
     "_DD_COVERAGE_FILE_LEVEL": [
       {
         "implementation": "B",
@@ -5863,14 +5997,6 @@
       }
     ],
     "_DD_IAST_USE_ROOT_SPAN": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
-    "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -6011,6 +6137,14 @@
         "implementation": "B",
         "type": "boolean",
         "default": "true",
+        "internal": true
+      }
+    ],
+    "_DD_PROFILING_STACK_MAX_TASKS": [
+      {
+        "implementation": "A",
+        "type": "int",
+        "default": "50",
         "internal": true
       }
     ],
