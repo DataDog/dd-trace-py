@@ -8,6 +8,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Union
+import weakref
 
 from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
@@ -189,7 +190,9 @@ class TelemetryWriter:
         # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
         # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
         # health metrics) has to be handed the new one rather than keeping a stale clone.
-        self._worker_subscribers: list[Callable[[Optional["TelemetryWorker"]], None]] = []
+        # Keep these callbacks weak because this process-global writer must not retain
+        # per-tracer exporters and their native runtime workers.
+        self._worker_subscribers: list[weakref.WeakMethod] = []
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
         # once in enable(); forked children inherit and auto-resume it (see the class docstring).
         self._deps_collector: Optional[PeriodicService] = None
@@ -396,11 +399,27 @@ class TelemetryWriter:
             self._notify_worker_changed(None)
 
     def _subscribe_worker_changes(self, callback: "Callable[[Optional[TelemetryWorker]], None]") -> None:
-        if callback not in self._worker_subscribers:
-            self._worker_subscribers.append(callback)
+        if any(subscriber() == callback for subscriber in self._worker_subscribers):
+            return
+
+        writer_ref = weakref.ref(self)
+
+        def remove_subscriber(subscriber: weakref.WeakMethod) -> None:
+            writer = writer_ref()
+            if writer is None:
+                return
+            try:
+                writer._worker_subscribers.remove(subscriber)
+            except ValueError:
+                return
+
+        self._worker_subscribers.append(weakref.WeakMethod(callback, remove_subscriber))
 
     def _notify_worker_changed(self, worker: Optional["TelemetryWorker"]) -> None:
-        for callback in list(self._worker_subscribers):
+        for subscriber in list(self._worker_subscribers):
+            callback = subscriber()
+            if callback is None:
+                continue
             try:
                 callback(worker)
             except Exception:
