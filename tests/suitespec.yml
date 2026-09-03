@@ -289,8 +289,13 @@ suites:
       - tests/snapshots/tests.telemetry.*
     snapshot: true
   tracer:
+    ddtest: true
+    ddtest_nodes: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
+      DDTEST_SUITE_PATH: tests/tracer
+      DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
@@ -314,6 +319,9 @@ suites:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+        DDTEST_SUITE_PATH: tests/tracer
+        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
       variants:
         - name: tracer
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]

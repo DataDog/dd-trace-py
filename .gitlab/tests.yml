@@ -116,6 +116,66 @@ include:
         "Changes detected in committed test locks. Run scripts/compile-and-prune-test-requirements and commit the result."
 
 # ---------------------------------------------------------------------------
+# AIDEV-NOTE: DDTest must receive the complete suitespec command. Falling back
+# to bare pytest bypasses per-suite exclusions and can select unavailable tools.
+# DDTest's uv backend is intentionally self-contained: it creates an ephemeral
+# environment from the suite lock and runs the exact suite command emitted by
+# suitespec. This keeps DDTest out of scripts/run-tests.
+.ddtest_base_uv:
+  extends: .test_base_uv
+
+.ddtest_plan_uv:
+  extends: .ddtest_base_uv
+  script:
+    - |
+      set -euo pipefail
+      for metadata in ${TEST_ENVIRONMENT_HASH_PYTHON}; do
+        IFS=: read -r environment_hash python_version lockfile tests_location <<< "${metadata}"
+        command_var="DDTEST_UV_COMMAND_${environment_hash}"
+        env_var="DDTEST_UV_ENV_${environment_hash}"
+        requirements="$(mktemp)"
+        grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
+        wheel="$(find ".cache/ddtrace-test-wheels/${python_version}" -name 'ddtrace-*.whl' -print -quit)"
+        set -f
+        export ${!env_var}
+        set +f
+        uv run --isolated --no-project --python "python${python_version}" --no-python-downloads \
+          --with-requirements "${requirements}" --with "${wheel}" \
+          ddtest plan --platform python --framework pytest --command "${!command_var}" \
+          --tests-location "${tests_location}" --min-parallelism "${DDTEST_NODES}" --max-parallelism "${DDTEST_NODES}"
+        rm -f "${requirements}"
+        mv .testoptimization ".testoptimization-${environment_hash}"
+      done
+  artifacts:
+    when: always
+    paths:
+      - .testoptimization-*/
+    expire_in: 1 week
+
+.ddtest_run_uv:
+  extends: .ddtest_base_uv
+  script:
+    - |
+      set -euo pipefail
+      rm -rf .testoptimization
+      mv ".testoptimization-${TEST_ENVIRONMENT_HASH}" .testoptimization
+      command_var="DDTEST_UV_COMMAND_${TEST_ENVIRONMENT_HASH}"
+      env_var="DDTEST_UV_ENV_${TEST_ENVIRONMENT_HASH}"
+      requirements="$(mktemp)"
+      grep -vi '^ddtrace==' "${TEST_ENVIRONMENT_LOCKFILE}" > "${requirements}"
+      wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
+      set -f
+      export ${!env_var}
+      set +f
+      export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
+      uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
+        --with-requirements "${requirements}" --with "${wheel}" \
+        ddtest run --platform python --framework pytest --command "${!command_var}" \
+          --ci-node "${CI_NODE_INDEX}" --ci-node-workers 1
+      rm -f "${requirements}"
+      coverage combine || true
+
+# ---------------------------------------------------------------------------
 # ddtest job templates. Used by gen_gitlab_config.py for suites with
 # `ddtest: true` in suitespec. ddtest owns plan/run + file splitting; riot
 # knowledge stays in Riot's command override.
