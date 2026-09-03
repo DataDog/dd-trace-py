@@ -136,7 +136,7 @@ class Span(SpanData):
         """The trace context for this span.
 
         For a child span this is a copy of the parent context that shares the
-        trace-level ``_meta``/``_metrics``/``_baggage``/lock while carrying this
+        trace-level ``_meta``/``_metrics``/``_baggage`` while carrying this
         span's own ``trace_id``/``span_id``; for a root span it is fresh
         trace-level state. Child contexts are built lazily on first read; root
         contexts are forced eagerly in ``__init__`` (before the span is published)
@@ -162,7 +162,7 @@ class Span(SpanData):
         """Return the context a child span should inherit trace-level state from.
 
         Reuses a context that already holds this trace's shared
-        ``_meta``/``_metrics``/``_baggage``/lock — this span's own context if it
+        ``_meta``/``_metrics``/``_baggage`` — this span's own context if it
         was built, otherwise its (local) parent-context — so a deep local trace
         materializes a single Context instead of one per span. A remote
         parent-context is never handed down: a local child's parent-context must
@@ -180,8 +180,9 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         ctx = self.context
         with ctx:
-            self._set_default_attributes(ctx._meta)
-            self._set_default_attributes(ctx._metrics)
+            # AIDEV-NOTE: traceparent and tracestate are propagation state, not DD-native
+            # span metadata. Copy both context dictionaries while filtering them.
+            self._set_default_context_attributes(ctx._meta, ctx._metrics)
 
     def _ignore_exception(self, exc: type[BaseException]) -> None:
         if self._ignored_exceptions is None:
@@ -226,8 +227,8 @@ class Span(SpanData):
             cb(self)
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
-        self.context.sampling_priority = decision
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
+        self.context._publish_sampling_decision(decision, 0.0, False)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 self._local_root._remove_attribute(key)

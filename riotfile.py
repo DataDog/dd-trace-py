@@ -435,6 +435,10 @@ venv = Venv(
                 "freezegun": latest,
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/tracer",
+                "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_shutdown.py",
+                "_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.tracer",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
@@ -503,9 +507,14 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration",
+                "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -525,9 +534,13 @@ venv = Venv(
         ),
         Venv(
             name="integration-civisibility",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
+                "DDTEST_TESTS_LOCATION": "tests/integration/test_integration_civisibility.py",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
+            command="pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -4120,8 +4133,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4174,8 +4188,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4247,8 +4262,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_no_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4294,8 +4310,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4363,8 +4380,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4414,8 +4432,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4487,8 +4506,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4524,8 +4544,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
