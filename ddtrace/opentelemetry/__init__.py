@@ -26,6 +26,19 @@ or ``ddtrace-run``. Manual configuration is also supported through ``ddtrace.ope
 
 For supported configurations, see `OpenTelemetry Tracing Configuration <https://docs.datadoghq.com/tracing/trace_collection/library_config/>`_.
 
+Consistent sampling in mixed environments
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When W3C Trace Context propagation is enabled, ``dd-trace-py`` preserves OpenTelemetry's
+consistent probability sampling fields and emits them when Datadog makes a probability-based
+sampling decision. This allows downstream OpenTelemetry services to follow the same decision
+and derive the effective sampling probability for accurate count estimates.
+
+An inherited sampling decision remains authoritative. If an application or security product
+overrides the decision, or if the Datadog rate limiter drops the trace, ``dd-trace-py`` removes
+the probability threshold because the resulting decision no longer represents probability
+sampling. Inherited trace randomness is preserved across these overrides.
+
 Usage example::
 
     import os

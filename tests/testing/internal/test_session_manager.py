@@ -1297,8 +1297,14 @@ class TestUploadLock:
         mock_git_cls.assert_not_called()
         assert sm.env_tags[GitTag.PULL_REQUEST_BASE_BRANCH_SHA] == "peer-mb"
 
-    def test_cleanup_removes_sentinel_and_lock(self, tmp_path) -> None:
-        """cleanup_upload_artifacts() deletes both files when present."""
+    def test_cleanup_removes_sentinel_only(self, tmp_path) -> None:
+        """cleanup_upload_artifacts() deletes the sentinel but preserves the lock file.
+
+        The lock file must not be deleted because another pytest controller
+        sharing the same workspace may still rely on it for flock coordination.
+        Deleting it would cause a new inode to be created on next open, breaking
+        the lock for any process that still holds the old inode.
+        """
         (tmp_path / ".git").mkdir()
         sm = self._make_sm(tmp_path, head_sha="head-sha")
         sentinel = tmp_path / ".git" / "dd-trace-py.upload-done"
@@ -1309,7 +1315,7 @@ class TestUploadLock:
         sm.cleanup_upload_artifacts()
 
         assert not sentinel.exists()
-        assert not lock.exists()
+        assert lock.exists(), "Lock file must be preserved to avoid split-lock-inode races"
 
     def test_cleanup_is_noop_when_files_absent(self, tmp_path) -> None:
         """cleanup_upload_artifacts() does not raise when files are already gone."""
@@ -1580,3 +1586,24 @@ class TestParallelInit:
         mock_client.get_test_management_properties.assert_called_once_with(
             statuses=("active", "quarantined", "disabled")
         )
+
+
+def test_build_real_with_mocks_restores_the_agentless_config() -> None:
+    """The builder reinitializes the process-wide agentless settings against its patched env.
+
+    Leaving them behind makes later tests pick a backend connector from an environment that is no
+    longer set, so the outcome depends on execution order.
+    """
+    from ddtrace.internal.settings._agentless import AgentlessConfig
+    from ddtrace.internal.settings._agentless import config as agentless_config
+
+    session_manager_mock().build_real_with_mocks(MockDefaults.test_environment())
+
+    # The builder's environment is gone by now, so the singleton has to describe the environment
+    # that is actually left -- not the one the builder patched in.
+    expected = AgentlessConfig()
+    assert (agentless_config.enabled, agentless_config.ci_visibility, agentless_config.api_key) == (
+        expected.enabled,
+        expected.ci_visibility,
+        expected.api_key,
+    )

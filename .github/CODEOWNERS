@@ -113,6 +113,8 @@ tests/smoke_test.py                 @DataDog/python-guild
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.yml                 @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
+tests/_ddtest_conftest_helpers.py   @DataDog/python-guild
+tests/_ddtest_env_helpers.py        @DataDog/python-guild
 tests/__init__.py                   @DataDog/python-guild
 tests/README.md                     @DataDog/python-guild
 tests/ddtrace_run.py                @DataDog/python-guild
