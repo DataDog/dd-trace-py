@@ -45,6 +45,14 @@ components:
   errortracking:
     - ddtrace/errortracking/*
     - ddtrace/internal/settings/errortracking.py
+  ci_visibility:
+    # The pytest (CI Visibility / Test Visibility) plugin and its supporting modules.
+    - ddtrace/testing/*
+    - ddtrace/testing/internal/*
+    - ddtrace/internal/ci_visibility/*
+    - ddtrace/internal/test_visibility/*
+    - ddtrace/internal/coverage/*
+    - ddtrace/ext/test_visibility/*
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/*
@@ -384,6 +392,19 @@ suites:
       - ddtrace/internal/telemetry/dependency*.py
       - ddtrace/appsec/sca/*
       - benchmarks/telemetry_dependencies/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  pytest_plugin:
+    # Whole-session overhead of the ddtrace pytest plugin on a trivial-test corpus.
+    # Subprocess-based (like `startup`); cProfile is disabled for this scenario.
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - '@ci_visibility'
+      - benchmarks/pytest_plugin/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
