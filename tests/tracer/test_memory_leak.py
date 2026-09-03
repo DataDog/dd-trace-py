@@ -156,14 +156,10 @@ def test_fork_open_span():
         span2.finish()
 
         del span2
-        for _ in range(100):
-            with trace(wd, tracer, "child-span"):
-                pass
-
         # Expect there to be one span left (the original from before the fork)
         # which is inherited into the child process but will never be closed.
         # The important thing in this test case is all new spans created in the
-        # child will be gc'd, including after deferred writer recreation.
+        # child will be gc'd.
         gc.collect()
         assert len(wd) == 1
 

@@ -598,7 +598,6 @@ dependencies = [
  "libdd-trace-utils",
  "libdd-tracer-flare",
  "native-proc-macro",
- "once_cell",
  "percent-encoding",
  "pyo3",
  "pyo3-build-config",

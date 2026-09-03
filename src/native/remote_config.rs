@@ -167,7 +167,7 @@ impl RemoteConfigClient {
         config_root: Option<String>,
         director_root: Option<String>,
     ) -> PyResult<Self> {
-        let rt = runtime.as_arc()?;
+        let rt = runtime.as_arc().clone();
 
         let test_token = test_session_token.map(Cow::Owned);
 
