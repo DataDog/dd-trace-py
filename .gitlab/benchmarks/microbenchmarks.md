@@ -131,9 +131,6 @@ Add the scenario name to `FLAKY_BENCHMARKS_REGEX` in `microbenchmarks.yml`. It i
 benchmark still runs and still reports its numbers, so trends stay visible, and the pull request
 comment groups it under its own heading; it just does not fail the pipeline.
 
-Do not work around it by deleting the scenario's thresholds from the SLO template: that drops the
-benchmark out of reporting as well as out of gating, so nobody sees the trend either.
-
 > [!NOTE]
 > The regex is read by `benchmark_analyzer convert` in the `microbenchmarks` job, not by the gates.
 > Matching benchmarks get a `flaky: "true"` parameter in their converted results, and both
