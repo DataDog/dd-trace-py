@@ -13,7 +13,7 @@ from ddtrace.internal.schema import schematize_url_operation
 
 class WebFrameworkEvents(str, Enum):
     WEB_REQUEST = "web.request"
-
+    WEB_REQUEST_STARTING = "web.request.starting"
 
 @dataclass
 class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
