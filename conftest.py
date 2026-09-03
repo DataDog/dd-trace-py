@@ -43,18 +43,21 @@ def _cgroup_root():
         rel, version = unified[0][3:], "v2"
     elif entries:
         version = "v1"
-    mount = None
+    mount = mount_root = None
     try:
         with open("/proc/self/mountinfo") as f:
             for line in f:
                 left, _, right = line.partition(" - ")
-                if right.startswith("cgroup2 ") and len(left.split()) > 4:
-                    mount = left.split()[4]
+                fields = left.split()
+                if right.startswith("cgroup2 ") and len(fields) > 4:
+                    mount_root, mount = fields[3], fields[4]
                     break
     except Exception:  # nosec
         pass
     if mount is None:
         return None, version, "no cgroup2 mount"
+    if mount_root and mount_root != "/" and rel.startswith(mount_root):
+        rel = rel[len(mount_root) :]
     candidate = mount + rel if rel not in ("", "/") else mount
     if os.path.isdir(candidate):
         return candidate, version, "resolved"
@@ -126,6 +129,11 @@ def _env_probe(label, benchmarks_first):
     Called at session start and end; most of the value is in diffing the two. Benchmarks run before
     the snapshot at start and after it at end, so the two snapshots bracket the test session alone
     and the probe's own CPU burn stays out of the delta.
+
+    A job killed from outside, by the GitLab job timeout or an OOM kill, never reaches
+    pytest_sessionfinish, so only the start block appears and there is no delta. That is the case
+    this is most wanted for, and collecting the end counters there needs an after_script rather than
+    a pytest hook. The start block still carries the limits and the benchmarks.
 
     monotonic
         Clock reading taken with the snapshot, so utilisation is delta(usage_usec) over
