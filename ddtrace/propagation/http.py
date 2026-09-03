@@ -1100,7 +1100,7 @@ class HTTPPropagator(object):
         return None
 
     @staticmethod
-    def _resolve_contexts(contexts, styles_w_ctx, normalized_headers):
+    def _resolve_contexts(contexts, styles_w_ctx):
         primary_context = contexts[0]
         links = []
 
@@ -1118,10 +1118,16 @@ class HTTPPropagator(object):
             # if trace_id matches and the propagation style is tracecontext
             # add the tracestate to the primary context
             elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
-                # extract and add the raw ts value to the primary_context
-                ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
-                if ts:
-                    primary_context._meta[W3C_TRACESTATE_KEY] = ts
+                # Preserve the validated W3C state. The traceparent carries flags
+                # that cannot be reconstructed from Datadog headers, while the
+                # extracted tracestate has already had its limits and ot= fields
+                # validated by _TraceContext.
+                traceparent = context._meta.get(W3C_TRACEPARENT_KEY)
+                if traceparent:
+                    primary_context._meta[W3C_TRACEPARENT_KEY] = traceparent
+                tracestate = context._meta.get(W3C_TRACESTATE_KEY)
+                if tracestate:
+                    primary_context._meta[W3C_TRACESTATE_KEY] = tracestate
                 if primary_context.trace_id == context.trace_id and primary_context.span_id != context.span_id:
                     dd_context = None
                     if PROPAGATION_STYLE_DATADOG in styles_w_ctx:
@@ -1257,7 +1263,7 @@ class HTTPPropagator(object):
                     style = styles_w_ctx[0]
 
                 if contexts:
-                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
+                    context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx)
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
 
