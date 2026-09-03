@@ -9,7 +9,6 @@
 
 #include "echion/echion_sampler.h"
 #include "echion/strings.h"
-#include <ddup_interface.hpp>
 #include <unordered_map>
 
 using namespace Datadog;
@@ -78,7 +77,10 @@ StackRenderer::render_thread_begin(PyThreadState* tstate,
 }
 
 void
-StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64_t task_id)
+StackRenderer::render_task_begin(std::string_view task_name,
+                                 bool on_cpu,
+                                 uint64_t task_id,
+                                 std::optional<int64_t> walltime_ns_override)
 {
     static bool failed = false;
     if (failed) {
@@ -99,7 +101,8 @@ StackRenderer::render_task_begin(std::string_view task_name, bool on_cpu, uint64
         // Add thread context into the sample
         sample->push_threadinfo(
           static_cast<int64_t>(thread_state.id), static_cast<int64_t>(thread_state.native_id), thread_state.name);
-        sample->push_walltime(thread_state.wall_time_ns, 1);
+        const int64_t walltime = walltime_ns_override.value_or(thread_state.wall_time_ns);
+        sample->push_walltime(walltime, 1);
 
         if (on_cpu) {
             // initialized to 0, so possibly a no-op
@@ -204,6 +207,17 @@ StackRenderer::render_frame(Frame& frame)
     }
 
     sample->push_frame(function_id, 0, line);
+}
+
+void
+StackRenderer::render_gc_frame()
+{
+    if (sample == nullptr) {
+        std::cerr << "Received a GC frame without sample storage. Some profiling data has been lost." << std::endl;
+        return;
+    }
+
+    sample->push_frame("Garbage collection", "<runtime>", 0, 0);
 }
 
 void

@@ -2,9 +2,49 @@
 OpenFeature configuration settings.
 """
 
+from typing import Callable
 from typing import Optional
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._core import ValueSource
+
+
+log = get_logger(__name__)
+
+AGENTLESS = "agentless"
+REMOTE_CONFIG = "remote_config"
+DISABLED = "disabled"
+
+_SOURCE_ENV = "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE"
+_LEGACY_ENV = "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED"
+
+
+# AIDEV-NOTE: numeric settings here parse leniently on purpose. This class is instantiated at
+# module scope (see the bottom of this file), so letting envier raise on an unparsable value
+# turns it into an ImportError for ddtrace.openfeature and takes the whole application down at
+# startup rather than degrading one setting. dd-trace-java substitutes the default in the same
+# situation; match that.
+def _lenient_int(env_name: str, default: int) -> Callable[[str], int]:
+    def parse(raw: str) -> int:
+        try:
+            return int(raw)
+        except ValueError:
+            log.warning("Invalid value for %s: %r is not an integer; using the default", env_name, raw)
+            return default
+
+    return parse
+
+
+def _lenient_float(env_name: str, default: float) -> Callable[[str], float]:
+    def parse(raw: str) -> float:
+        try:
+            return float(raw)
+        except ValueError:
+            log.warning("Invalid value for %s: %r is not a number; using the default", env_name, raw)
+            return default
+
+    return parse
 
 
 class OpenFeatureConfig(DDConfig):
@@ -15,7 +55,7 @@ class OpenFeatureConfig(DDConfig):
     # Experimental flagging provider
     experimental_flagging_provider_enabled = DDConfig.var(
         bool,
-        "DD_EXPERIMENTAL_FLAGGING_PROVIDER_ENABLED",
+        _LEGACY_ENV,
         default=False,
     )
 
@@ -48,6 +88,7 @@ class OpenFeatureConfig(DDConfig):
         float,
         "DD_FFE_INTAKE_HEARTBEAT_INTERVAL",
         default=1.0,
+        parser=_lenient_float("DD_FFE_INTAKE_HEARTBEAT_INTERVAL", 1.0),
     )
 
     # Provider initialization timeout in milliseconds. Controls how long initialize()
@@ -61,6 +102,7 @@ class OpenFeatureConfig(DDConfig):
         int,
         "DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS",
         default=10000,
+        parser=_lenient_int("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", 10000),
     )
 
     # Stable Feature Flagging kill switch. When False, the provider is disabled
@@ -77,7 +119,7 @@ class OpenFeatureConfig(DDConfig):
     # grandfathering are resolved by the source-selection layer.
     configuration_source = DDConfig.var(
         str,
-        "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE",
+        _SOURCE_ENV,
         default="agentless",
         parser=lambda v: v.strip().lower(),
     )
@@ -96,6 +138,7 @@ class OpenFeatureConfig(DDConfig):
         int,
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS",
         default=30,
+        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_POLL_INTERVAL_SECONDS", 30),
     )
 
     # Agentless UFC per-request timeout in seconds.
@@ -103,6 +146,7 @@ class OpenFeatureConfig(DDConfig):
         int,
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS",
         default=5,
+        parser=_lenient_int("DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_REQUEST_TIMEOUT_SECONDS", 5),
     )
 
     _openfeature_config_keys = [
@@ -118,6 +162,42 @@ class OpenFeatureConfig(DDConfig):
         "configuration_source_agentless_poll_interval_seconds",
         "configuration_source_agentless_request_timeout_seconds",
     ]
+
+
+def _provided(ffe_config: OpenFeatureConfig, env_name: str) -> bool:
+    """True when the value came from an external source rather than the default."""
+    return ffe_config.value_source(env_name) != ValueSource.DEFAULT
+
+
+def resolve_configuration_source(ffe_config: OpenFeatureConfig) -> str:
+    """Resolve the active source: ``agentless``, ``remote_config`` or ``disabled``.
+
+    Precedence (mirrors dd-trace-js):
+
+    1. Stable kill switch off -> disabled.
+    2. Explicit source -> use it; an unsupported/reserved value (e.g. ``offline``)
+       fails closed to disabled without contacting any source.
+    3. Source absent -> grandfather on the legacy experimental flag: explicitly
+       true -> remote_config, explicitly false -> disabled.
+    4. Otherwise the default -> agentless.
+    """
+    if not ffe_config.feature_flags_enabled:
+        return DISABLED
+
+    source = ffe_config.configuration_source or ""
+    if _provided(ffe_config, _SOURCE_ENV) and source:
+        if source == AGENTLESS:
+            return AGENTLESS
+        if source == REMOTE_CONFIG:
+            return REMOTE_CONFIG
+        log.warning("Unsupported Feature Flagging configuration source %r; provider disabled", source)
+        return DISABLED
+
+    # Source absent (unset or blank): preserve legacy Remote Config grandfathering.
+    if _provided(ffe_config, _LEGACY_ENV):
+        return REMOTE_CONFIG if ffe_config.experimental_flagging_provider_enabled else DISABLED
+
+    return AGENTLESS
 
 
 # Global config instance

@@ -306,7 +306,7 @@ How the Build Works
 
 .. code-block:: text
 
-    riot generate
+    scripts/run-tests
       └─ pip install -e .
            ├─ build_py  → LibraryDownloader.run()
            │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
@@ -369,7 +369,7 @@ Known Root Causes of Warm Rebuilds
 
 2. **CMakeExtension skip check gated on ``IS_EDITABLE``**
 
-   The skip check ``if IS_EDITABLE and self.INCREMENTAL`` never fired during riot's
+   The skip check ``if IS_EDITABLE and self.INCREMENTAL`` never fired during the test environment's
    ``pip install -e .`` because ``IS_EDITABLE`` was never set in that context. Fixed
    by removing the ``IS_EDITABLE`` guard.
 
