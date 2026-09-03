@@ -1,4 +1,0 @@
-fixes:
-  - |
-    tracing: Fixes an issue where applications that repeatedly fork child processes
-    use excessive memory.
