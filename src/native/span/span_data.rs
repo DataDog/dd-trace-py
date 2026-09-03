@@ -80,6 +80,7 @@ impl SpanData {
 }
 
 const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
+const W3C_PROPAGATION_STATE_KEYS: [&str; 2] = ["traceparent", "tracestate"];
 
 /// Convert one Python key/value pair to native attribute storage.
 ///
@@ -146,7 +147,7 @@ fn set_default_attribute(
     slf: &Bound<'_, SpanData>,
     key: &Bound<'_, PyAny>,
     value: &Bound<'_, PyAny>,
-    excluded_key: Option<&str>,
+    excluded_keys: Option<&[&str]>,
 ) {
     let Ok(key_str) = key.cast::<PyString>() else {
         return;
@@ -154,7 +155,7 @@ fn set_default_attribute(
     let Ok(key_text) = key_str.to_str() else {
         return;
     };
-    if excluded_key == Some(key_text) {
+    if excluded_keys.is_some_and(|keys| keys.contains(&key_text)) {
         return;
     }
     if slf.borrow().attributes.contains_key(key_text) {
@@ -808,7 +809,7 @@ impl SpanData {
         Ok(())
     }
 
-    /// Copy shared Context state while excluding propagation-only tracestate.
+    /// Copy shared Context state while excluding propagation-only W3C state.
     #[pyo3(name = "_set_default_context_attributes")]
     fn set_default_context_attributes(
         slf: &Bound<'_, Self>,
@@ -816,7 +817,7 @@ impl SpanData {
         metrics: &Bound<'_, PyDict>,
     ) {
         for (k, v) in meta.iter() {
-            set_default_attribute(slf, &k, &v, Some("tracestate"));
+            set_default_attribute(slf, &k, &v, Some(&W3C_PROPAGATION_STATE_KEYS));
         }
         for (k, v) in metrics.iter() {
             set_default_attribute(slf, &k, &v, None);

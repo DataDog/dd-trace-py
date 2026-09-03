@@ -180,8 +180,8 @@ class Span(SpanData):
     def _update_tags_from_context(self) -> None:
         ctx = self.context
         with ctx:
-            # AIDEV-NOTE: tracestate is propagation state, not DD-native span metadata.
-            # Copy both context dictionaries in one native call while filtering it.
+            # AIDEV-NOTE: traceparent and tracestate are propagation state, not DD-native
+            # span metadata. Copy both context dictionaries while filtering them.
             self._set_default_context_attributes(ctx._meta, ctx._metrics)
 
     def _ignore_exception(self, exc: type[BaseException]) -> None:
