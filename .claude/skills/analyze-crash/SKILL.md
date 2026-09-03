@@ -446,8 +446,8 @@ ref so results reflect the code that actually shipped in the crashing binary.
    (use keywords relevant to the crash area)
 3. For each relevant commit, extract PR numbers from the message (e.g., `(#7659)`) and link:
    `https://github.com/DataDog/dd-trace-py/pull/{number}`
-4. Grep for `AIDEV-` comments near the crash site: `grep -n "AIDEV" {file}` — these are
-   embedded rationale notes left specifically for AI and developers explaining non-obvious
+4. Read inline invariant comments near the crash site: `grep -n "AIDEV\|TODO(" {file}` —
+   legacy `AIDEV-*` anchors and scoped `TODO(scope):` notes often explain non-obvious
    invariants. Read any that are near relevant functions.
 
 **Prioritize PR links** — PRs have descriptions and discussion context that commit messages lack.

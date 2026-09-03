@@ -11,7 +11,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 5. **No public API breakage** — Never change public API contracts; real applications depend on them.
 6. **No secrets** — Never commit secrets; use environment variables.
 7. **Don't assume business logic** — Ask when unsure about implementation details.
-8. **AIDEV comments are protected** — Never remove `AIDEV-` comments without explicit human instruction. Update them when modifying related code.
+8. **No new `AIDEV-*` anchor comments** — The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels. Use plain inline comments (see "Docstrings and Comments"). When editing code that still has an old anchor, convert it to a plain comment; do not add new anchors.
 9. **Test before committing** — Run relevant tests to validate changes before committing.
 10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
 11. **Update docs** — Add/update documentation when changing internal or public APIs.
@@ -61,14 +61,14 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## AIDEV Anchor Comments
+## Inline knowledge comments (formerly AIDEV anchors)
 
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
+`AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` are **deprecated**. Do not add them on new or edited lines.
 
-- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
-- **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
+- Use **plain inline comments** for non-obvious invariants, following "Docstrings and Comments" above.
+- For grep-able follow-ups, prefer scoped `TODO(scope):` comments (for example `TODO(testing):`) over `AIDEV-TODO:`.
+- Legacy `AIDEV-*` lines may still exist in the tree; when you touch nearby code, **rewrite them as plain comments** instead of preserving the prefix.
+- Grep for `AIDEV-` only when migrating a file you are already editing; do not run repo-wide anchor-preservation passes.
 
 ## PR Guidelines
 
