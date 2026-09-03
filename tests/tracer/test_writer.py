@@ -22,7 +22,6 @@ from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
-from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
@@ -921,17 +920,24 @@ def test_bad_encoding(monkeypatch):
         assert writer._api_version == "v0.5"
 
 
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"})
 def test_dropped_native_writer_stops_exporter_workers():
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.writer import NativeWriter
+
     runtime = get_native_runtime()
     workers_before = runtime.debug().count("WorkerEntry")
+    subscribers_before = len(telemetry_writer._worker_subscribers)
 
-    with override_global_config({"_telemetry_enabled": False}):
-        writer = NativeWriter("http://localhost:9126")
+    writer = NativeWriter("http://localhost:9126")
     assert runtime.debug().count("WorkerEntry") == workers_before + 1
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before + 1
 
     del writer
 
     assert runtime.debug().count("WorkerEntry") == workers_before
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before
 
 
 @pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
