@@ -116,7 +116,7 @@ include:
         "Changes detected in committed test locks. Run scripts/compile-and-prune-test-requirements and commit the result."
 
 # ---------------------------------------------------------------------------
-# AIDEV-NOTE: DDTest must receive the complete suitespec command. Falling back
+# DDTest must receive the complete suitespec command. Falling back
 # to bare pytest bypasses per-suite exclusions and can select unavailable tools.
 # DDTest's uv backend is intentionally self-contained: it creates an ephemeral
 # environment from the suite lock and runs the exact suite command emitted by

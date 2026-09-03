@@ -38,7 +38,7 @@ _forked = False
 # many generations of forks have occurred since the original process.
 _fork_generation = 0
 
-# AIDEV-NOTE: Process managers such as Celery can close inherited file descriptors after
+# Process managers such as Celery can close inherited file descriptors after
 # Python's after-in-child callbacks return. Native workers must not be rebuilt while this
 # flag is set because their newly opened descriptors would be swept up by that later cleanup.
 _in_child_hook = False

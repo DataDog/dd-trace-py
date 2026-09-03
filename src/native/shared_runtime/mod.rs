@@ -62,7 +62,7 @@ unsafe extern "C" fn after_fork_parent() {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn after_fork_child() {
-    // AIDEV-NOTE: Do not rebuild Tokio here. This callback also runs in fork+exec children,
+    // Do not rebuild Tokio here. This callback also runs in fork+exec children,
     // where exec closes the new runtime's descriptors while its worker thread is using them.
     // The next Python-facing runtime or telemetry operation performs the restart instead.
     CHILD_RESTART_PENDING.store(true, Ordering::Release);
@@ -82,7 +82,7 @@ impl SharedRuntimePy {
 pub(crate) fn ensure_after_fork_child(runtime: &Arc<ForkSafeRuntime>) -> PyResult<()> {
     #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
-        // AIDEV-NOTE: Telemetry calls this for every metric point. Keep the normal path to one
+        // Telemetry calls this for every metric point. Keep the normal path to one
         // read-only load; an unconditional swap and PID check caused a substantial hot-path
         // regression even when the process had never forked.
         if !CHILD_RESTART_PENDING.load(Ordering::Acquire) {
@@ -162,7 +162,7 @@ impl SharedRuntimePy {
                     runtime: RwLock::new(Arc::new(runtime)),
                     pid: AtomicU32::new(std::process::id()),
                 });
-                // AIDEV-NOTE: uWSGI forks in native code and bypasses Python's os.register_at_fork
+                // uWSGI forks in native code and bypasses Python's os.register_at_fork
                 // callbacks. pthread_atfork pauses the runtime around every native fork. The child
                 // callback only marks the runtime for lazy restart because it also runs in transient
                 // fork+exec children, where starting threads would race with exec closing descriptors.

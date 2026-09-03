@@ -398,7 +398,7 @@ def format_image_part(data: Union[bytes, str], mime_type: str) -> ImagePart:
     return ImagePart(mime_type=mime_type, content=content)
 
 
-# AIDEV-NOTE: Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
+# Measured on the base64 that rides the event. Sized against the DEFAULT 5 MB limit; over
 # it, _truncate_span_event blanks the span's whole input AND output. Two gaps shared with the audio
 # guard, for the writer-side fix (MLOB-6408): bounds one image not their sum, and ignores
 # DD_LLMOBS_EVENT_SIZE_BYTES.
@@ -441,7 +441,7 @@ def format_image_part_with_guard(
     return format_image_part(data, mime_type)
 
 
-# AIDEV-NOTE: per-image, not cumulative. N images that each fit can still bust the event limit
+# per-image, not cumulative. N images that each fit can still bust the event limit
 # together; a shared per-request budget is tracked under MLOB-6408.
 # Distinct from LLMOBS_IMAGE_INLINE_MAX_BYTES above on purpose: this OpenAI data-URL path tracks the
 # configured limit, while the Anthropic guard keeps its fixed default. Unifying them would change
