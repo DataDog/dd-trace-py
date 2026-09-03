@@ -25,6 +25,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import SUPPORTED_LLMOBS_INTEGRATIONS
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_FRAMEWORK_NAME
 from ddtrace.llmobs._telemetry import LLMObsTelemetryMetrics
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
@@ -2087,6 +2088,182 @@ def test_annotate_sets_agent_version_tag(llmobs):
     with llmobs.agent(name="test_agent") as span:
         llmobs.annotate(span=span, agent={"version": "v3"})
     assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+DECLARED_AGENT = {
+    "version": "v3",
+    "name": "travel_desk",
+    "instructions": "Book travel.",
+    "model": "gpt-4o",
+    "model_settings": {"temperature": 0.1},
+    "tools": [{"name": "get_weather", "parameters": {"city": {"type": "string", "required": True}}}],
+}
+DECLARED_MANIFEST = {
+    "framework": MANUAL_FRAMEWORK_NAME,
+    "name": "travel_desk",
+    "instructions": "Book travel.",
+    "model": "gpt-4o",
+    "model_settings": {"temperature": 0.1},
+    "tools": [{"name": "get_weather", "parameters": {"city": {"type": "string", "required": True}}}],
+}
+
+
+def _agent_manifest(span):
+    return (get_llmobs_metadata(span) or {}).get("_dd", {}).get("agent_manifest")
+
+
+def test_annotate_agent_reports_a_manifest(llmobs):
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+
+    assert _agent_manifest(span) == DECLARED_MANIFEST
+    assert get_llmobs_tags(span)["agent_version"] == "v3", "version stays a tag, alongside the manifest"
+
+
+def test_annotate_agent_manifest_reaches_the_emitted_event(llmobs, llmobs_events):
+    """The tracer dict and the wire differ: the writer drops nulls and empties in transit."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=DECLARED_AGENT)
+
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["metadata"]["_dd"]["agent_manifest"] == DECLARED_MANIFEST
+
+
+def test_annotation_context_agent_manifest_on_agent_spans_only(llmobs):
+    """annotation_context reaches every span in its block; the manifest describes the agent."""
+    with llmobs.annotation_context(agent=DECLARED_AGENT):
+        with llmobs.agent(name="test_agent") as agent_span:
+            with llmobs.llm(name="test_llm", model_name="test") as llm_span:
+                pass
+            with llmobs.workflow(name="test_workflow") as workflow_span:
+                pass
+
+    assert _agent_manifest(agent_span) == DECLARED_MANIFEST
+    for span in (llm_span, workflow_span):
+        assert _agent_manifest(span) is None
+
+
+def test_agent_without_declared_configuration_reports_no_manifest(llmobs):
+    """A version-only agent is the pre-existing call, and it must not start emitting a manifest."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"version": "v3"})
+
+    assert _agent_manifest(span) is None
+    assert get_llmobs_tags(span)["agent_version"] == "v3"
+
+
+def test_declared_agent_version_is_read_at_annotate_time(llmobs):
+    """version is read eagerly at annotate() time, so mutations to the dict afterwards do not
+    affect the tag. Manifest fields are built at finalization from the SDK-owned stash.
+    """
+    declared = {"version": "v1", "name": "before"}
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent=declared)
+        declared["version"] = "v2"
+
+    assert _agent_manifest(span)["name"] == "before"
+    assert get_llmobs_tags(span)["agent_version"] == "v1"
+
+
+def test_repeated_annotate_calls_compose_rather_than_overwrite(llmobs):
+    """Successive annotate(agent=...) calls on the same span accumulate fields.
+    A later call adds or overrides individual keys but does not discard earlier ones.
+    """
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"instructions": "Be brief."})
+        llmobs.annotate(span=span, agent={"model": "gpt-4o"})
+
+    manifest = _agent_manifest(span)
+    assert manifest["instructions"] == "Be brief."
+    assert manifest["model"] == "gpt-4o"
+
+
+def test_nested_annotation_contexts_compose_agent_manifest(llmobs):
+    """An outer annotation_context declaring one field and an inner one declaring another
+    must both appear in the final manifest.
+    """
+    with llmobs.annotation_context(agent={"instructions": "Be brief."}):
+        with llmobs.annotation_context(agent={"model": "gpt-4o"}):
+            with llmobs.agent(name="test_agent") as span:
+                pass
+
+    manifest = _agent_manifest(span)
+    assert manifest["instructions"] == "Be brief."
+    assert manifest["model"] == "gpt-4o"
+
+
+def test_later_annotate_call_wins_for_overlapping_key(llmobs):
+    """When the same key appears in two successive annotate() calls, the later value wins."""
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"model": "gpt-4o-mini"})
+        llmobs.annotate(span=span, agent={"model": "gpt-4o"})
+
+    assert _agent_manifest(span)["model"] == "gpt-4o"
+
+
+def test_a_malformed_declaration_does_not_cost_the_span(llmobs, llmobs_events):
+    """An escaping error during span assembly would drop the whole event."""
+
+    class ExplodingSettings(dict):
+        def items(self):
+            raise RuntimeError("boom")
+
+    with llmobs.agent(name="test_agent") as span:
+        llmobs.annotate(span=span, agent={"name": "travel_desk", "model_settings": ExplodingSettings(a=1)})
+
+    assert len(llmobs_events) == 1, "the span still has to ship"
+    assert _agent_manifest(span) == {"framework": MANUAL_FRAMEWORK_NAME, "name": "travel_desk"}
+
+
+def test_declared_fields_merge_into_an_integration_built_manifest(llmobs):
+    """Annotating one field leaves the rest of an integration's manifest alone.
+
+    framework keeps naming whoever built the bulk of the document, since the caller never supplies
+    it and cannot have meant to relabel a CrewAI agent.
+    """
+    with llmobs.agent(name="test_agent") as span:
+        _annotate_llmobs_span_data(
+            span,
+            agent_manifest={"framework": "CrewAI", "name": "auto_agent", "model": "gpt-4o-mini", "guardrails": ["x"]},
+        )
+        llmobs.annotate(span=span, agent={"model": "gpt-4o", "instructions": "Book travel."})
+
+    assert _agent_manifest(span) == {
+        "framework": "CrewAI",
+        "name": "auto_agent",
+        "model": "gpt-4o",
+        "instructions": "Book travel.",
+        "guardrails": ["x"],
+    }
+
+
+def test_manifest_name_defaults_to_the_span_name(llmobs):
+    """The panel needs something to call the agent, and a declared name overrides it."""
+    with llmobs.agent(name="travel_desk_span") as defaulted:
+        llmobs.annotate(span=defaulted, agent={"instructions": "Book travel."})
+    with llmobs.agent(name="travel_desk_span") as declared:
+        llmobs.annotate(span=declared, agent={"instructions": "Book travel.", "name": "declared_name"})
+
+    assert _agent_manifest(defaulted)["name"] == "travel_desk_span"
+    assert _agent_manifest(declared)["name"] == "declared_name"
+
+
+@pytest.mark.parametrize(
+    "forged",
+    ["boom", ["boom"], 1, {"agent_manifest": "boom"}, {"agent_manifest": ["boom"]}],
+)
+def test_a_forged_dd_metadata_key_does_not_break_the_merge(llmobs, forged):
+    """Caller metadata is not sanitized until finalization, so `_dd` is still raw when the merge
+    reads it. A non-mapping at either level is ignored rather than raising.
+    """
+    with llmobs.agent(name="travel_desk_span") as span:
+        llmobs.annotate(span=span, metadata={"_dd": forged}, agent={"model": "gpt-4o"})
+
+    assert _agent_manifest(span) == {
+        "framework": MANUAL_FRAMEWORK_NAME,
+        "name": "travel_desk_span",
+        "model": "gpt-4o",
+    }
 
 
 def test_annotation_context_nested(llmobs):

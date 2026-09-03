@@ -50,6 +50,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_ANNOTATION
+from ddtrace.llmobs._constants import AGENT_DECLARATION_ANNOTATION
 from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
@@ -135,6 +136,8 @@ from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
 from ddtrace.llmobs._integration_api import register_llmobs_service
+from ddtrace.llmobs._integrations.agent_manifest import MANUAL_MANIFEST_KEYS
+from ddtrace.llmobs._integrations.agent_manifest import build_manual_agent_manifest
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
 from ddtrace.llmobs._prompt_optimization import validate_dataset
@@ -714,9 +717,47 @@ class LLMObs(Service):
 
         # Agent annotations are applied here, where the span kind is known: annotation_context
         # reaches every span in its block, but only agent spans carry the tags.
-        agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
-        if agent_annotation and span_kind == "agent":
-            llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
+        if span_kind == "agent":
+            agent_annotation = span._get_ctx_item(AGENT_ANNOTATION)
+            if agent_annotation:
+                llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
+            declared_agent = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+            if declared_agent:
+                # Built here, not when the annotation ran, so a context wrapping many spans pays
+                # only for the agent spans among them. Must precede the llmobs_meta read below.
+                agent_manifest = build_manual_agent_manifest(declared_agent)
+                if agent_manifest:
+                    # Both levels are type-checked because caller metadata is not sanitized until
+                    # _normalize_llmobs_meta runs below, so a forged `_dd` is still raw here. A
+                    # non-mapping would otherwise raise AttributeError, which the handler around
+                    # this path does not catch.
+                    # `existing` is a local working copy in the fallback path — writes to it do not
+                    # propagate to llmobs_data. _annotate_llmobs_span_data is the authoritative write.
+                    existing = (llmobs_data.get(LLMOBS_STRUCT.META) or {}).get(LLMOBS_STRUCT.METADATA)
+                    if not isinstance(existing, dict):
+                        existing = {}
+                    existing_dd = existing.get(LLMOBS_STRUCT.METADATA_DD)
+                    if not isinstance(existing_dd, dict):
+                        # `_dd` is reserved, so a caller value here is discarded rather than merged
+                        # into. Reset it so the write below has a mapping to assign into.
+                        existing_dd = {}
+                        existing[LLMOBS_STRUCT.METADATA_DD] = existing_dd
+                    existing_manifest = existing_dd.get(LLMOBS_STRUCT.AGENT_MANIFEST)
+                    # Merged, not replaced: an integration may have already reported this agent and
+                    # the caller is annotating a few fields on top. Caller fields win for every key
+                    # except framework, which names whoever built the bulk of the document.
+                    merged: dict[str, Any] = dict(existing_manifest) if isinstance(existing_manifest, dict) else {}
+                    declared_fields = dict(agent_manifest)
+                    if merged:
+                        # The caller never supplies framework, so it keeps naming whoever built the
+                        # rest rather than relabelling someone else's manifest.
+                        declared_fields.pop("framework", None)
+                    merged.update(declared_fields)
+                    # The panel needs something to call the agent; the span name is what it is
+                    # called everywhere else. A declared name has already won by this point.
+                    if not merged.get("name"):
+                        merged["name"] = get_llmobs_span_name(span) or span.name
+                    _annotate_llmobs_span_data(span, agent_manifest=merged)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
@@ -1931,10 +1972,11 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param name: set to override the span name for any spans annotated within the returned context.
-        :param agent: A dictionary declaring the versioned agent running in this context, of the form
-                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent`` class.
-                      Set as an ``agent_version`` tag on agent spans created within the context;
-                      other span kinds are unaffected.
+        :param agent: A dictionary declaring the agent running in this context, accepting
+                      ``version``, ``name``, ``instructions``, ``model``, ``model_settings`` and
+                      ``tools``; see ``ddtrace.llmobs.Agent``. ``version`` is set as an
+                      ``agent_version`` tag and the rest as the agent's manifest, on agent spans
+                      only. All keys are optional; unreportable values are dropped, not raised.
         """
         # id to track an annotation for registering / de-registering
         annotation_id = rand64bits()
@@ -2984,9 +3026,11 @@ class LLMObs(Service):
                                    and "version" (string) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
-        :param agent: A dictionary declaring the versioned agent this span represents, of the form
-                      `{"version": "..."}`. Can also be set using the ``ddtrace.llmobs.Agent``
-                      class. Set as an ``agent_version`` tag, and only on agent spans.
+        :param agent: A dictionary declaring the agent this span represents, accepting ``version``,
+                      ``name``, ``instructions``, ``model``, ``model_settings`` and ``tools``; see
+                      ``ddtrace.llmobs.Agent``. ``version`` is set as an ``agent_version`` tag and
+                      the rest as the agent's manifest, on agent spans only. All keys are optional;
+                      unreportable values are dropped, not raised.
         """
         error = None
         try:
@@ -3033,6 +3077,17 @@ class LLMObs(Service):
                 if agent_version:
                     # Stashed rather than tagged: the span kind is not resolved yet.
                     span._set_ctx_item(AGENT_ANNOTATION, agent_version)
+                if isinstance(agent, dict) and not MANUAL_MANIFEST_KEYS.isdisjoint(agent):
+                    # Accumulated into an SDK-owned dict so repeated annotate() calls or nested
+                    # annotation_context blocks compose rather than overwrite. The key check keeps a
+                    # version-only agent from being retained at all.
+                    stashed = span._get_ctx_item(AGENT_DECLARATION_ANNOTATION)
+                    if stashed is None:
+                        stashed = {}
+                        span._set_ctx_item(AGENT_DECLARATION_ANNOTATION, stashed)
+                    for key in MANUAL_MANIFEST_KEYS:
+                        if key in agent:
+                            stashed[key] = agent[key]
             validated_cost_tags = cls._validate_cost_tags(span, cost_tags, source=_telemetry_source)
             if validated_cost_tags:
                 _annotate_llmobs_span_data(span, cost_tags=validated_cost_tags)
