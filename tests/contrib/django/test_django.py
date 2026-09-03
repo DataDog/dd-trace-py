@@ -23,9 +23,12 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib.internal import web
 from ddtrace.contrib.internal.django.patch import instrument_view
 from ddtrace.contrib.internal.django.response import traced_get_response
 from ddtrace.contrib.internal.django.utils import get_request_uri
+from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import wrapping
@@ -2648,6 +2651,68 @@ class TestWSGI:
             error=0,
             meta=meta,
         )
+
+    def test_get_wsgi_application_microvm_dispatches_web_request_starting(self, resource):
+        application = get_wsgi_application()
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        with (
+            mock.patch.object(web, "in_aws_lambda_microvm", return_value=True),
+            mock.patch.object(web.core, "dispatch", wraps=web.core.dispatch) as dispatch,
+        ):
+            response = application(environ, start_response)
+            list(response)
+
+        assert test_response["status"] == "404 Not Found"
+        request_starting_calls = [
+            call.args
+            for call in dispatch.call_args_list
+            if call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value
+        ]
+        assert request_starting_calls == [
+            (WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", "/aws/lambda-microvms/runtime/v1/run"))
+        ]
+
+    def test_get_wsgi_application_microvm_dispatches_web_request_starting_once_with_wsgi_middleware(self, resource):
+        application = DDWSGIMiddleware(get_wsgi_application(), app_is_iterator=True)
+        test_response = {}
+        environ = self.request_factory._base_environ(
+            PATH_INFO="/run",
+            SCRIPT_NAME="/aws/lambda-microvms/runtime/v1",
+            CONTENT_TYPE="text/html; charset=utf-8",
+            REQUEST_METHOD="POST",
+        )
+
+        def start_response(status, headers, exc_info=None):
+            test_response["status"] = status
+            test_response["headers"] = headers
+
+        with (
+            mock.patch.object(web, "in_aws_lambda_microvm", return_value=True),
+            mock.patch.object(web.core, "dispatch", wraps=web.core.dispatch) as dispatch,
+        ):
+            response = application(environ, start_response)
+            list(response)
+
+        assert test_response["status"] == "404 Not Found"
+        request_starting_calls = [
+            call.args
+            for call in dispatch.call_args_list
+            if call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value
+        ]
+        assert request_starting_calls == [
+            (WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", "/aws/lambda-microvms/runtime/v1/run"))
+        ]
 
     def test_get_wsgi_application_500_request(self, test_spans, resource):
         application = get_wsgi_application()

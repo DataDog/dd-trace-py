@@ -1,9 +1,13 @@
 import os
+from unittest import mock
 
 import pytest
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib.internal import web
+from ddtrace.contrib.internal.wsgi import wsgi as wsgi_module
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
@@ -83,6 +87,101 @@ class WsgiCustomMiddleware(_DDWSGIMiddlewareBase):
         resp_span.set_tag("response_tag", "resp test tag set")
         resp_span._set_attribute("response_metric", 3)
         resp_span.resource = "response resource was modified"
+
+
+@pytest.mark.parametrize(
+    "method,path,script_name,in_microvm,dispatches",
+    [
+        ("post", "/run", "/aws/lambda-microvms/runtime/v1", True, True),
+        ("post", "/aws/lambda-microvms/runtime/v1/run", "", True, True),
+        ("get", "/run", "/aws/lambda-microvms/runtime/v1", True, False),
+        ("post", "/other", "/aws/lambda-microvms/runtime/v1", True, False),
+        ("post", "/run", "/aws/lambda-microvms/runtime/v1", False, False),
+    ],
+)
+def test_microvm_dispatches_web_request_starting(tracer, method, path, script_name, in_microvm, dispatches):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+
+    with (
+        mock.patch.object(web, "in_aws_lambda_microvm", return_value=in_microvm),
+        mock.patch.object(web.core, "dispatch", wraps=web.core.dispatch) as dispatch,
+    ):
+        resp = getattr(app, method)(path, extra_environ={"SCRIPT_NAME": script_name})
+
+    assert resp.status == "200 OK"
+    request_starting_calls = [
+        call.args for call in dispatch.call_args_list if call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    ]
+    if dispatches:
+        assert request_starting_calls == [
+            (WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", "/aws/lambda-microvms/runtime/v1/run"))
+        ]
+    else:
+        assert request_starting_calls == []
+
+
+def test_microvm_dispatches_web_request_starting_once_for_nested_middleware(tracer):
+    app = TestApp(
+        DDWSGIMiddleware(
+            DDWSGIMiddleware(application, tracer=tracer),
+            tracer=tracer,
+        )
+    )
+
+    with (
+        mock.patch.object(web, "in_aws_lambda_microvm", return_value=True),
+        mock.patch.object(web.core, "dispatch", wraps=web.core.dispatch) as dispatch,
+    ):
+        resp = app.post("/run", extra_environ={"SCRIPT_NAME": "/aws/lambda-microvms/runtime/v1"})
+
+    assert resp.status == "200 OK"
+    request_starting_calls = [
+        call.args for call in dispatch.call_args_list if call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    ]
+    assert request_starting_calls == [
+        (WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", "/aws/lambda-microvms/runtime/v1/run"))
+    ]
+
+
+def test_web_request_starting_skips_environment_check_for_non_post():
+    with (
+        mock.patch.object(web, "in_aws_lambda_microvm") as in_microvm,
+        mock.patch.object(web.core, "dispatch") as dispatch,
+    ):
+        web.dispatch_web_request_starting("GET", "/aws/lambda-microvms/runtime/v1", "/run")
+
+    in_microvm.assert_not_called()
+    assert web.dispatch_web_request_starting("GET", "/aws/lambda-microvms/runtime/v1", "/run") is False
+    dispatch.assert_not_called()
+
+
+def test_web_request_starting_dispatch_precedes_span_creation(tracer):
+    events = []
+    original_context_with_data = wsgi_module.core.context_with_data
+
+    def record_request_starting(*args, **kwargs):
+        events.append("request_starting")
+
+    def record_context_with_data(*args, **kwargs):
+        events.append("span")
+        return original_context_with_data(*args, **kwargs)
+
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+    with (
+        mock.patch.object(
+            wsgi_module,
+            "dispatch_web_request_starting",
+            side_effect=record_request_starting,
+        ),
+        mock.patch.object(
+            wsgi_module.core,
+            "context_with_data",
+            side_effect=record_context_with_data,
+        ),
+    ):
+        app.post("/aws/lambda-microvms/runtime/v1/run")
+
+    assert events.index("request_starting") < events.index("span")
 
 
 def test_middleware(tracer, test_spans):

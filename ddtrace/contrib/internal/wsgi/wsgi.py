@@ -24,6 +24,8 @@ import wrapt
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.web import _WEB_REQUEST_STARTING_DISPATCHED
+from ddtrace.contrib.internal.web import dispatch_web_request_starting
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -104,6 +106,14 @@ class _DDWSGIMiddlewareBase:
         raise NotImplementedError
 
     def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
+        if not environ.get(_WEB_REQUEST_STARTING_DISPATCHED):
+            if dispatch_web_request_starting(
+                environ.get("REQUEST_METHOD"),
+                environ.get("SCRIPT_NAME") or "",
+                environ.get("PATH_INFO") or "",
+            ):
+                environ[_WEB_REQUEST_STARTING_DISPATCHED] = True
+
         headers = get_request_headers(environ)
         closing_iterable = ()
         not_blocked = True
