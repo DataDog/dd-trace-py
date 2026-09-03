@@ -82,20 +82,7 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
     )
 
     with pytest.raises(ValueError, match="hash-without-path"):
-        gen_gitlab_config_mod._ddtest_module().validate_ddtest_venv_test_locations(
-            "internal", info.riot_venvs, info.venv_test_locations
-        )
-
-
-def test_ddtest_auto_runner_uses_uv_for_migrated_suite(gen_gitlab_config_mod, monkeypatch):
-    monkeypatch.setenv("DDTEST_EXECUTION_RUNNER", "auto")
-    info = gen_gitlab_config_mod.SuiteVenvInfo(
-        venv_count=1,
-        python_versions={"3.12"},
-        uv_venvs=(("uv-hash", "3.12"),),
-    )
-
-    assert gen_gitlab_config_mod._ddtest_execution_runner(info) == "uv"
+        gen_gitlab_config_mod._ddtest_module().validate_ddtest_venv_test_locations("internal", info)
 
 
 def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
@@ -112,7 +99,6 @@ def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
             venvs=[("abc1234", "3.13"), ("def5678", "3.14")],
             k=1,
             testrunner_image_hash="image-hash",
-            runner="riot",
         )
 
     content = output.getvalue()
@@ -121,43 +107,12 @@ def test_ddtest_jobs_emit_suite_environment(gen_gitlab_config_mod):
     assert "PIP_CACHE_KEY: pip-key" in content
     assert "key: v1-pip-${PIP_CACHE_KEY}-image-hash-cache" in content
     assert "RIOT_HASH_PYTHON: abc1234:3.13 def5678:3.14" in content
-    assert "DDTEST_CI_NODE_WORKERS: 4" in content
     run_313_needs = content.split("core/internal::ddtest-run-3.13:", 1)[1].split("\n  parallel:\n", 1)[0]
     run_314_needs = content.split("core/internal::ddtest-run-3.14:", 1)[1].split("\n  parallel:\n", 1)[0]
     assert 'PYTHON_VERSION: "3.13"' in run_313_needs
     assert 'PYTHON_VERSION: "3.14"' in run_314_needs
     assert 'PYTHON_VERSION: "3.14"' not in run_313_needs
     assert 'PYTHON_VERSION: "3.13"' not in run_314_needs
-
-
-def test_ddtest_workers_can_disable_per_node_parallelism(gen_gitlab_config_mod):
-    assert gen_gitlab_config_mod._ddtest_module().ddtest_workers({"ddtest_workers": 1}) == 1
-
-
-def test_ddtest_uv_jobs_use_generic_environment_hashes(gen_gitlab_config_mod):
-    output = io.StringIO()
-    ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
-
-    with mock.patch.object(ddtest_jobs.subprocess, "check_output", return_value=b"pip-key\n"):
-        ddtest_jobs.emit_ddtest_jobs(
-            output,
-            "tracer",
-            "core",
-            "tracer",
-            {"env": {}},
-            [("uv123", "3.12")],
-            2,
-            "image-hash",
-            "uv",
-            {"uv123": ".riot/requirements/uv123.txt"},
-            {"uv123": "tests/tracer/**/test*.py"},
-        )
-
-    content = output.getvalue()
-    assert "extends: .ddtest_plan_uv" in content
-    assert "extends: .ddtest_run_uv" in content
-    assert "TEST_ENVIRONMENT_HASH_PYTHON: uv123:3.12:.riot/requirements/uv123.txt:tests/tracer/**/test*.py" in content
-    assert 'TEST_ENVIRONMENT_HASH: "uv123"' in content
 
 
 def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):

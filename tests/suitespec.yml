@@ -289,14 +289,7 @@ suites:
       - tests/snapshots/tests.telemetry.*
     snapshot: true
   tracer:
-    ddtest: true
-    ddtest_nodes: 2
-    # Keep each DDTest CI node single-process while UV environments stabilize.
-    ddtest_workers: 1
-    # Match tracer variants, but keep the uwsgi-only venv on its legacy job.
-    pattern: ^tracer(?!-uwsgi(?:$|-))
     env:
-      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       DD_TRACE_AGENT_URL: http://localhost:8126
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
@@ -316,11 +309,8 @@ suites:
     retry: 2
     venvs_per_job: 1
     matrix:
-      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py ${{DDTEST_SUITE_PATH}}
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
       env:
-        DDTEST_SUITE_PATH: tests/tracer
-        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
@@ -353,9 +343,6 @@ suites:
     matrix:
       command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
       env:
-        DDTEST_SUITE_PATH: tests/tracer
-        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
