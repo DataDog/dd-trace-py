@@ -497,6 +497,7 @@ class SpanTestCase(TracerTestCase):
         child2 = self.start_span("child2", service="service2", child_of=parent)
 
         assert parent._service_entry_span is parent
+        assert child1._parent is parent
         assert child1._service_entry_span is parent
         assert child2._service_entry_span is child2
 
@@ -507,6 +508,11 @@ class SpanTestCase(TracerTestCase):
         # Service entry span only works for the immediate parent
         grandchild = self.start_span("grandchild", service="service1", child_of=child2)
         assert grandchild._service_entry_span is grandchild
+
+        # Relationship state is native so native consumers do not have to
+        # re-enter Python to find the local root or service entry span.
+        assert "_local_root_value" not in Span.__slots__
+        assert "_service_entry_span_value" not in Span.__slots__
 
 
 def test_span_ignored_exceptions():

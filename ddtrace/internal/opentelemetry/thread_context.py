@@ -36,7 +36,7 @@ if sys.platform == "linux":
             if type(ctx) is Span:
                 sampling_priority = ctx._local_root.context.sampling_priority
                 trace_flags = 1 if sampling_priority is not None and sampling_priority > 0 else 0
-                update_otel_thread_context_from_span(ctx, ctx._local_root_value, trace_flags)
+                update_otel_thread_context_from_span(ctx, ctx._local_root, trace_flags)
             elif isinstance(ctx, Context):
                 sampling_priority = ctx.sampling_priority
                 trace_flags = 1 if sampling_priority is not None and sampling_priority > 0 else 0
