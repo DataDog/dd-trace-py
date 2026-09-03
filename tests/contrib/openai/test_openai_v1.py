@@ -936,7 +936,14 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+    env.update(
+        {
+            "OPENAI_API_KEY": openai_api_key,
+            "DD_TRACE_HTTPX_ENABLED": "0",
+            "DD_TRACE_HTTPX2_ENABLED": "0",
+            "PYTHONPATH": ":".join(pypath),
+        }
+    )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import openai
@@ -976,7 +983,14 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+    env.update(
+        {
+            "OPENAI_API_KEY": openai_api_key,
+            "DD_TRACE_HTTPX_ENABLED": "0",
+            "DD_TRACE_HTTPX2_ENABLED": "0",
+            "PYTHONPATH": ":".join(pypath),
+        }
+    )
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import asyncio
@@ -1160,7 +1174,14 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
+    env.update(
+        {
+            "OPENAI_API_KEY": openai_api_key,
+            "DD_TRACE_HTTPX_ENABLED": "0",
+            "DD_TRACE_HTTPX2_ENABLED": "0",
+            "PYTHONPATH": ":".join(pypath),
+        }
+    )
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
@@ -1193,7 +1214,11 @@ with get_openai_vcr(subdirectory_name="v1").use_cassette("completion.yaml"):
 async def test_openai_asyncio_cancellation(openai):
     import asyncio
 
-    import httpx
+    try:
+        # openai>=3.0 vendors httpx as httpx2 to avoid colliding with a user's own httpx install.
+        import httpx2 as httpx
+    except ImportError:
+        import httpx
 
     class DelayedTransport(httpx.AsyncBaseTransport):
         def __init__(self, delay: float):
