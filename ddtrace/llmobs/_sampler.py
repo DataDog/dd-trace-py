@@ -31,13 +31,13 @@ from typing import Callable
 from typing import Optional
 from typing import Protocol
 
+from ddtrace.internal import forksafe
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import format_rate
-from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._constants import LLMOBS_SAMPLING
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
 
@@ -140,9 +140,12 @@ class LLMObsSampler:
             if "sample_rate" not in rule:
                 log.warning("Skipping LLMObs sampling rule %r: no sample_rate provided.", rule)
                 continue
+            if not isinstance(rule.get("tags", {}), dict):
+                log.warning("Skipping LLMObs sampling rule %r: tags must be a JSON object.", rule)
+                continue
             try:
                 parsed.append(LLMObsSamplingRule(**rule))
-            except (TypeError, ValueError):
+            except (AttributeError, TypeError, ValueError):
                 log.warning("Skipping invalid LLMObs sampling rule %r.", rule, exc_info=True)
         return parsed
 
@@ -160,7 +163,7 @@ class LLMObsSampler:
             the rule that produced the decision. It is stamped on every span of the trace so the
             whole trace reports the rate it was actually sampled at.
         """
-        rule = self.match(tags) if (self.rules and tags) else None
+        rule = self.match(tags) if (self.rules and tags is not None) else None
         if rule is None:
             rule = self._default_rule
         sampled = rule.sample(span)
@@ -196,7 +199,7 @@ class LLMObsSamplingResolver:
     def __init__(self, sampler: LLMObsSampler, tags_getter: Callable[[Any], Optional[dict[str, str]]]) -> None:
         self._sampler = sampler
         self._tags_getter = tags_getter
-        self._lock = RLock()
+        self._lock = forksafe.Lock()
 
     @staticmethod
     def _as_decision(sampled: bool) -> str:

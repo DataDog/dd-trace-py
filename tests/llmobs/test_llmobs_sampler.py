@@ -92,6 +92,8 @@ class TestLLMObsSamplerRuleParsing:
             '{"tags": {"env": "prod"}}',  # no sample_rate
             '{"sample_rate": 0.5, "unknown_field": "x"}',
             '{"sample_rate": 0.5, "env": "prod"}',  # env is not a top-level matcher
+            '{"sample_rate": 1, "tags": "prod"}',  # tags must be an object, not a string
+            '{"sample_rate": 1, "tags": ["prod"]}',
             '"a string"',
             "null",
         ],
@@ -128,6 +130,17 @@ class TestLLMObsSamplerSampling:
         )
         assert sampler.sample(_span(), {"env": "prod"}) == (True, "1")
         assert sampler.sample(_span(), {"env": "staging"}) == (False, "0")
+
+    def test_catch_all_matches_a_root_with_no_tags(self):
+        """An empty tagset is not the same as no tagset: a catch-all rule must still fire.
+
+        Delayed resolution routinely sees a root carrying no tags, and a rule declaring no tags
+        is documented to match every trace.
+        """
+        sampler = LLMObsSampler(sample_rate=1.0, rules='[{"sample_rate": 0}]')
+        assert sampler.sample(_span(), {}) == (False, "0")
+        # tags=None is the deliberate floor and must skip rule matching entirely.
+        assert sampler.sample(_span()) == (True, "1")
 
     def test_env_specific_rates(self):
         """The motivating case: sample prod at 50% and staging at 10%.
