@@ -108,6 +108,19 @@ def assert_span_http_status_code(span, code):
     assert tag == code, "%r != %r" % (tag, code)
 
 
+def reinitialize_agentless_config():
+    """Re-resolve the agentless settings from the environment as it stands now.
+
+    ``ddtrace.internal.settings._agentless.config`` is resolved once, at import, and its consumers
+    hold a reference to that instance -- so a test that changes the environment in-process has to
+    refresh it in place rather than rebind the module attribute.
+    """
+    from ddtrace.internal.settings._agentless import AgentlessConfig
+    from ddtrace.internal.settings._agentless import config as agentless_config
+
+    agentless_config.__dict__ = AgentlessConfig().__dict__
+
+
 @contextlib.contextmanager
 def override_env(env, replace_os_env=False):
     """
@@ -170,6 +183,7 @@ def override_global_config(values: dict[str, Any]):
         "_obfuscation_query_string_pattern",
         "_global_query_string_obfuscation_disabled",
         "_trace_agentless_enabled",
+        "_agentless_enabled",
         "_ci_visibility_agentless_url",
         "_ci_visibility_agentless_enabled",
         "_remote_config_enabled",
