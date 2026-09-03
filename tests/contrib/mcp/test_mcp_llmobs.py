@@ -6,8 +6,10 @@ import os
 from textwrap import dedent
 
 import mock
+import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.mcp import SERVER_REQUEST_OPERATION_NAME
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_value
 from ddtrace.llmobs._utils import get_llmobs_output_value
@@ -205,6 +207,67 @@ def test_mcp_v2_modern_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mc
     _, client_spans, server_spans = _assert_distributed_trace(test_spans, "calculator")
     assert len(client_spans) == 1
     assert len(server_spans) == 1
+    if MCP_VERSION >= (2, 0, 0):
+        assert get_llmobs_tags(client_spans[0])["mcp_server_name"] == "TestServer"
+        assert get_llmobs_tags(client_spans[0])["mcp_server_version"] == ""
+
+
+def test_mcp_v2_server_middleware_restores_context_after_setup_error(mcp_setup, tracer):
+    """Server middleware must restore caller context if span setup raises."""
+    from ddtrace.contrib.internal.mcp.patch import traced_server_middleware
+
+    caller_span = tracer.trace("caller")
+    original_trace = mcp_setup._datadog_integration.trace
+
+    def raise_during_trace(*args, **kwargs):
+        raise RuntimeError("setup failed")
+
+    mcp_setup._datadog_integration.trace = raise_during_trace
+
+    class Context:
+        method = "tools/call"
+        params = {"name": "calculator", "arguments": {}}
+
+    async def call_next(context):
+        raise AssertionError("handler must not run")
+
+    async def run():
+        try:
+            await traced_server_middleware(Context(), call_next)
+        except RuntimeError:
+            pass
+
+    try:
+        asyncio.run(run())
+        assert tracer.current_span() is caller_span
+    finally:
+        mcp_setup._datadog_integration.trace = original_trace
+        caller_span.finish()
+
+
+@pytest.mark.skipif(MCP_VERSION < (2, 0, 0), reason="MCP server request context is only available in MCP v2")
+def test_mcp_v2_server_middleware_records_http_session_id(mcp_setup, mcp_llmobs):
+    """Server LLMObs annotations retain the streamable HTTP session id."""
+    from mcp.server.streamable_http import MCP_SESSION_ID_HEADER
+
+    integration = mcp_setup._datadog_integration
+    span = integration.trace(SERVER_REQUEST_OPERATION_NAME, submit_to_llmobs=True)
+
+    class Request:
+        headers = {MCP_SESSION_ID_HEADER: "session-id"}
+
+    class Context:
+        method = "initialize"
+        params = {}
+        request = Request()
+        request_id = 1
+
+    try:
+        integration.llmobs_set_tags_server(span, Context(), {})
+    finally:
+        span.finish()
+
+    assert get_llmobs_tags(span)["mcp_session_id"] == "session-id"
 
 
 def test_llmobs_client_server_tool_error(mcp_setup, mcp_llmobs, test_spans, mcp_call_tool):

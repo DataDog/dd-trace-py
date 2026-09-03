@@ -84,6 +84,22 @@ class MCPIntegration(BaseLLMIntegration):
 
         return span
 
+    def set_client_session_server_info(self, span: Span, server_info: Any) -> None:
+        """Add server identity to the client session root when modern MCP discovers it."""
+        if not server_info:
+            return
+
+        client_session_root = _find_client_session_root(span)
+        if client_session_root:
+            _annotate_llmobs_span_data(
+                client_session_root,
+                tags={
+                    "mcp_server_name": _get_attr(server_info, "name", ""),
+                    "mcp_server_version": _get_attr(server_info, "version", ""),
+                    "mcp_server_title": _get_attr(server_info, "title", ""),
+                },
+            )
+
     # Inject intent capture properties into inputSchemas on the response
     def inject_tools_list_response(self, response: "ListToolsResult") -> None:
         if not self.llmobs_enabled:
@@ -171,16 +187,7 @@ class MCPIntegration(BaseLLMIntegration):
         if not server_info:
             return
 
-        client_session_root = _find_client_session_root(span)
-        if client_session_root:
-            _annotate_llmobs_span_data(
-                client_session_root,
-                tags={
-                    "mcp_server_name": _get_attr(server_info, "name", ""),
-                    "mcp_server_version": _get_attr(server_info, "version", ""),
-                    "mcp_server_title": _get_attr(server_info, "title", ""),
-                },
-            )
+        self.set_client_session_server_info(span, server_info)
 
     def _set_initialize_request_overrides(self, span: Span, request: "InitializeRequest") -> None:
         """Update span for initialize request specific tags"""
@@ -323,9 +330,10 @@ class MCPIntegration(BaseLLMIntegration):
         if request_id is not None:
             request_root["id"] = request_id
 
+        request = _get_attr(context, "request", None)
         responder = SimpleNamespace(
             request=SimpleNamespace(root=request_root),
-            message_metadata=None,
+            message_metadata=SimpleNamespace(request_context=request) if request else None,
         )
         self._llmobs_set_tags_request_responder_respond(
             span,

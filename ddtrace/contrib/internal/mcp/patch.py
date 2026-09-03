@@ -120,6 +120,7 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
     span: Span = integration.trace(CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
     try:
+        integration.set_client_session_server_info(span, _get_attr(instance, "server_info", None))
         result = await func(*args, **kwargs)
 
         if getattr(result, "isError", getattr(result, "is_error", False)):
@@ -224,41 +225,51 @@ async def traced_server_middleware(context, call_next):
 
     params = _get_attr(context, "params", None)
     previous_context = tracer.context_provider.active()
-    tracer.context_provider.activate(None)
-    llmobs_context_provider = integration._get_llmobs_context_provider()
-    previous_llmobs_context = llmobs_context_provider.active() if llmobs_context_provider else None
-    if llmobs_context_provider:
-        llmobs_context_provider.activate(None)
-    if (
-        method == "tools/call"
-        and config.mcp.distributed_tracing
-        and (headers := _extract_distributed_headers_from_mcp_request(params or {}))
-    ):
-        activate_distributed_headers(tracer, config.mcp, headers)
-
-    operation_name = SERVER_TOOL_CALL_OPERATION_NAME if method == "tools/call" else SERVER_REQUEST_OPERATION_NAME
-    span = integration.trace(
-        operation_name,
-        submit_to_llmobs=True,
-        span_name="mcp.{}".format(method),
-    )
-
-    if method == "tools/call":
-        arguments = _get_attr(params, "arguments", None)
-        integration.process_telemetry_arguments(span, arguments)
-
+    llmobs_context_provider = None
+    previous_llmobs_context = None
+    tracer_context_cleared = False
+    llmobs_context_cleared = False
+    span: Optional[Span] = None
     try:
+        llmobs_context_provider = integration._get_llmobs_context_provider()
+        previous_llmobs_context = llmobs_context_provider.active() if llmobs_context_provider else None
+        tracer.context_provider.activate(None)
+        tracer_context_cleared = True
+        if llmobs_context_provider:
+            llmobs_context_provider.activate(None)
+            llmobs_context_cleared = True
+        if (
+            method == "tools/call"
+            and config.mcp.distributed_tracing
+            and (headers := _extract_distributed_headers_from_mcp_request(params or {}))
+        ):
+            activate_distributed_headers(tracer, config.mcp, headers)
+
+        operation_name = SERVER_TOOL_CALL_OPERATION_NAME if method == "tools/call" else SERVER_REQUEST_OPERATION_NAME
+        span = integration.trace(
+            operation_name,
+            submit_to_llmobs=True,
+            span_name="mcp.{}".format(method),
+        )
+
+        if method == "tools/call":
+            arguments = _get_attr(params, "arguments", None)
+            integration.process_telemetry_arguments(span, arguments)
+
         response = await call_next(context)
         integration.llmobs_set_tags_server(span, context, response)
         return response
     except Exception:
-        integration.llmobs_set_tags_server(span, context, None)
-        span.set_exc_info(*sys.exc_info())
+        if span is not None:
+            integration.llmobs_set_tags_server(span, context, None)
+            span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        span.finish()
-        tracer.context_provider.activate(previous_context)
-        if llmobs_context_provider:
+        if span is not None:
+            span.finish()
+        if tracer_context_cleared:
+            tracer.context_provider.activate(previous_context)
+        if llmobs_context_provider and llmobs_context_cleared:
             llmobs_context_provider.activate(previous_llmobs_context)
 
 
