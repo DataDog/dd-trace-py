@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import agent
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
@@ -37,15 +39,17 @@ from ddtrace.llmobs._constants import EVAL_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._eval_metric import LLMObsEvaluationMetricEvent as LLMObsEvaluationMetricEvent
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordUpdateWithId
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentSummary
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
-from ddtrace.llmobs._http import get_connection
+from ddtrace.llmobs._http import HTTPConnection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ExperimentConfigType
 from ddtrace.llmobs.types import _Meta
@@ -99,23 +103,6 @@ class LLMObsSpanEvent(_LLMObsSpanEventOptional):
     meta: _Meta
     metrics: dict[str, Any]
     _dd: dict[str, str]
-
-
-class LLMObsEvaluationMetricEvent(TypedDict, total=False):
-    join_on: dict[str, dict[str, str]]
-    metric_type: str
-    label: str
-    categorical_value: str
-    numerical_value: float
-    score_value: float
-    boolean_value: bool
-    ml_app: str
-    timestamp_ms: int
-    tags: list[str]
-    assessment: str
-    reasoning: str
-    eval_scope: str
-    metadata: dict[str, Any]
 
 
 class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
@@ -231,7 +218,10 @@ class BaseLLMObsWriter(PeriodicService):
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
         additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "")
         if additional_header_str:
-            self._headers.update(parse_tags_str(additional_header_str))
+            # Explicit comma separator: header values (e.g. "Bearer <token>") may contain a space
+            # with no comma anywhere in the string, which would otherwise fall back to a whitespace
+            # split and corrupt the value.
+            self._headers.update(parse_tags_str(additional_header_str, sep=","))
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
@@ -310,7 +300,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        conn = get_connection(self._intake, timeout=self._timeout)
+        conn = HTTPConnection(self._intake, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
@@ -386,6 +376,19 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
+    def _auth_headers(self) -> dict[str, str]:
+        """Our credentials for a direct call, or the headers that make the agent supply them.
+
+        The proxy only attaches an app key when asked, so omitting that header proxies an
+        unauthenticated request and looks like the route is unsupported.
+        """
+        if self._agentless:
+            return {"DD-API-KEY": self._api_key, "DD-APPLICATION-KEY": self._app_key}
+        return {
+            EVP_SUBDOMAIN_HEADER_NAME: self.EVP_SUBDOMAIN_HEADER_VALUE,
+            EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+        }
+
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         try:
             return self._request_with_retry(method, path, body, timeout)
@@ -402,20 +405,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         until=lambda result: isinstance(result, Response) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
-        headers = {
-            "Content-Type": "application/json",
-            "DD-API-KEY": self._api_key,
-            "DD-APPLICATION-KEY": self._app_key,
-        }
-        if not self._agentless:
-            headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+        headers = {"Content-Type": "application/json", **self._auth_headers()}
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(url=self._intake, timeout=timeout)
+        conn = HTTPConnection(self._intake, timeout=timeout)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
-            conn.request(method, url, encoded_body, headers)
+            conn.request(method, self._endpoint + path, encoded_body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -430,17 +427,13 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to publish evaluator {evaluation['eval_name']}: {resp.status}")
 
     def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
-        headers = {
-            "Content-Type": content_type,
-            "DD-API-KEY": self._api_key,
-            "DD-APPLICATION-KEY": self._app_key,
-        }
+        headers = {"Content-Type": content_type, **self._auth_headers()}
 
-        conn = get_connection(url=self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
+        conn = HTTPConnection(self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s, %s", url, content_type)
-            conn.request(method, url, body, headers)
+            conn.request(method, self._endpoint + path, body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -814,6 +807,94 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_obj._project_id = project_id
         return experiment_obj
 
+    def experiment_list(
+        self,
+        experiment_name: Optional[str] = None,
+        metadata_filter: Optional[dict[str, Any]] = None,
+        parent_experiment_ids: Optional[list[str]] = None,
+        project_id: Optional[str] = None,
+        dataset_id: Optional[str] = None,
+        is_deleted: bool = False,
+        page_limit: int = 100,
+        max_results: Optional[int] = None,
+    ) -> "list[ExperimentSummary]":
+        """List experiments with optional filtering for CI/CD comparison flows.
+
+        :param experiment_name: Filter by logical experiment name (shared across all CI runs).
+        :param metadata_filter: Filter by metadata containment. Experiments created by this SDK
+            only store the ``tags`` key under metadata, so CI/CD lookups filter on tags, e.g.
+            ``{"tags": ["git.commit.sha:abc123"]}``.
+        :param parent_experiment_ids: Filter by one or more parent/baseline experiment UUIDs.
+        :param project_id: Filter by project UUID.
+        :param dataset_id: Filter by dataset UUID.
+        :param is_deleted: Include soft-deleted experiments (default: False).
+        :param page_limit: Maximum number of experiments per page request (1–5000, default: 100).
+            This controls the batch size per HTTP request, not the total returned.
+        :param max_results: Stop paginating once this many experiments have been collected; must
+            be at least 1. ``None`` (default) walks every page, which for a broad or unfiltered
+            query can mean many requests against an org with a large experiment history.
+        :return: List of :class:`ExperimentSummary` dicts ordered by creation time descending.
+        :raises ValueError: If ``max_results`` is less than 1, or the backend request fails.
+        """
+        if max_results is not None and max_results < 1:
+            raise ValueError("max_results must be at least 1, got {}".format(max_results))
+        limit = max(1, min(page_limit, 5000))
+        base_params: list[tuple[str, str]] = [("page[limit]", str(limit))]
+        if experiment_name:
+            base_params.append(("filter[experiment]", experiment_name))
+        if metadata_filter:
+            base_params.append(("filter[metadata]", json.dumps(metadata_filter, separators=(",", ":"))))
+        if parent_experiment_ids:
+            for pid in parent_experiment_ids:
+                base_params.append(("filter[parent_experiment_id]", pid))
+        if project_id:
+            base_params.append(("filter[project_id]", project_id))
+        if dataset_id:
+            base_params.append(("filter[dataset_id]", dataset_id))
+        if is_deleted:
+            base_params.append(("filter[is_deleted]", "true"))
+
+        results: list[ExperimentSummary] = []
+        cursor: Optional[str] = None
+
+        while True:
+            params = list(base_params)
+            if cursor:
+                params.append(("page[cursor]", cursor))
+            path = "/api/v2/llm-obs/v1/experiments?" + urllib.parse.urlencode(params, safe="[]")
+            resp = self.request("GET", path)
+            if resp.status != 200:
+                raise ValueError(f"Failed to list experiments: {resp.status} {resp.get_json()}")
+            body = resp.get_json() or {}
+            for item in body.get("data") or []:
+                attrs = item.get("attributes") or {}
+                meta = attrs.get("metadata") or {}
+                summary = ExperimentSummary(
+                    id=item.get("id") or "",
+                    name=attrs.get("name") or "",
+                    experiment=attrs.get("experiment") or "",
+                    project_id=attrs.get("project_id") or "",
+                    dataset_id=attrs.get("dataset_id") or "",
+                    dataset_version=attrs.get("dataset_version") or 0,
+                    description=attrs.get("description") or "",
+                    config=attrs.get("config") or {},
+                    run_count=attrs.get("run_count") or 0,
+                    tags=meta.get("tags") or [],
+                    parent_experiment_id=attrs.get("parent_experiment_id"),
+                    aggregate_data=attrs.get("aggregate_data"),
+                    status=attrs.get("status"),
+                    error=attrs.get("error"),
+                    created_at=attrs.get("created_at"),
+                    updated_at=attrs.get("updated_at"),
+                )
+                results.append(summary)
+                if max_results is not None and len(results) >= max_results:
+                    return results
+            cursor = (body.get("meta") or {}).get("after")
+            if not cursor:
+                break
+        return results
+
     def experiment_create(
         self,
         name: str,
@@ -1027,7 +1108,7 @@ class LLMObsAPIClient:
                 params["page[cursor]"] = cursor
             path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
             logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
-            conn = get_connection(self._base_url, timeout=self.TIMEOUT)
+            conn = HTTPConnection(self._base_url, timeout=self.TIMEOUT)
             try:
                 conn.request("GET", path, b"", headers)
                 resp = conn.getresponse()

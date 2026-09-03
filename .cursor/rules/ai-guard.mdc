@@ -142,14 +142,21 @@ plain dicts *or* SDK objects.
 
 `AIGuardClient.evaluate()`:
 1. Opens an `ai_guard` span and sets `target` (`prompt` vs `tool`) tags.
-2. Truncates messages to `DD_AI_GUARD_MAX_MESSAGES_LENGTH` /
-   `DD_AI_GUARD_MAX_CONTENT_SIZE` and attaches them as a meta-struct.
-3. POSTs to the AI Guard `/evaluate` endpoint.
+2. POSTs the original messages to the AI Guard `/evaluate` endpoint.
+3. Applies any `redaction_replacements` from the response, then truncates to
+   `DD_AI_GUARD_MAX_MESSAGES_LENGTH` / `DD_AI_GUARD_MAX_CONTENT_SIZE` and
+   attaches the result as a meta-struct. The service always receives the
+   originals; only what is reported is redacted.
 4. Tags the span with the action/reason, marks the root span
    (`_aiguard_manual_keep`, `ai_guard` event tag, client IP), and emits
    telemetry.
 5. Raises `AIGuardAbortError` when blocking applies, otherwise returns an
-   `Evaluation`.
+   `Evaluation`. The abort error carries no messages: the conversation can be
+   sensitive and arbitrarily large, and errors get logged.
+
+`sds_findings` are copied through untouched. Their `location` offsets are
+computed on the **redacted** string, so they only line up when the reported
+messages are the redacted ones — never slice on them.
 
 ### 5. Double-scan avoidance (`_context.py`)
 

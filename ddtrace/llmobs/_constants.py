@@ -137,6 +137,11 @@ PROMPT_MULTIMODAL = "prompt_multimodal"
 INSTRUMENTATION_METHOD_AUTO = "auto"
 INSTRUMENTATION_METHOD_ANNOTATED = "annotated"
 
+# Agent tracking tag. Set on agent spans only, at span finish.
+AGENT_VERSION_TAG_KEY = "agent_version"
+# Holds the version an annotation supplied, until the span kind is known at finish.
+AGENT_ANNOTATION = "_ml_obs.agent_annotation"
+
 DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
 DISPATCH_ON_TOOL_CALL = "on_tool_call"
@@ -172,6 +177,15 @@ DEFAULT_PROJECT_NAME = "default-project"
 IMAGE_FALLBACK_MARKER = "[image]"
 FILE_FALLBACK_MARKER = "[file]"
 AUDIO_FALLBACK_MARKER = "[audio]"
+# Distinct from IMAGE_FALLBACK_MARKER so a dropped inline image stays greppable instead of looking
+# like a remote reference we never fetch.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
+
+# Anthropic/Bedrock marker for an image we saw but did not capture (URL, file id, unsupported source).
+IMAGE_DETECTED_MARKER = "([IMAGE DETECTED])"
+
+# Deliberately size-free: span content is aggregated, and a per-image size would fragment grouping.
+IMAGE_TOO_LARGE_MARKER = "[image omitted: too large]"
 
 # OpenAI input types
 INPUT_TYPE_IMAGE = "input_image"

@@ -119,19 +119,6 @@ class DependencyTracker:
                 entry.mark_all_metadata_sent()
         return re_report
 
-    def snapshot_for_heartbeat(self) -> list[dict[str, Any]]:
-        """Return serialized dependency dicts for the extended heartbeat payload.
-
-        Serialization happens under the lock so that concurrent SCA mutations
-        (``attach_metadata`` / ``register_cve``) cannot race the iteration of
-        ``entry.metadata`` or the ``reached`` list inside ``json.dumps``. The
-        payload is a list of fresh dicts safe to hand off to the transport.
-        """
-        with self._lock:
-            return [
-                entry.to_telemetry_dict(include_all_metadata=True) for entry in self._imported_dependencies.values()
-            ]
-
     def _ensure_entry(self, package_name: str) -> None:
         """Auto-create a DependencyEntry if SCA is active and package not yet tracked.
 

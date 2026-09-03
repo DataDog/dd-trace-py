@@ -105,6 +105,15 @@ has_pyerr();
 std::string
 has_pyerr_as_string();
 
+/**
+ * @brief Clear a pending Python error and return its description.
+ *
+ * Unlike has_pyerr_as_string(), which leaves the error set, this takes it. Use it for errors
+ * raised by IAST's own propagation work, which must never reach the instrumented application.
+ */
+std::string
+take_pyerr_as_string();
+
 struct EVIDENCE_MARKS
 {
     static constexpr const char* BLANK = "";
@@ -190,7 +199,7 @@ getNum(const std::string& s)
     return n;
 }
 
-inline PyObject*
+inline py::object
 process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyObject* args, PyObject* kwargs)
 {
     // If orig_function is not None and not the built-in str, bytes, or bytearray, slice args
@@ -200,31 +209,25 @@ process_flag_added_args(PyObject* orig_function, const int flag_added_args, PyOb
 
         if (flag_added_args > 0) {
             const Py_ssize_t num_args = PyTuple_Size(args);
-            PyObject* sliced_args = PyTuple_New(num_args - flag_added_args);
-            if (sliced_args == nullptr) {
-                return nullptr;
+            PyObject* sliced_args_ptr = PyTuple_New(num_args - flag_added_args);
+            if (sliced_args_ptr == nullptr) {
+                return {};
             }
+            py::tuple sliced_args = py::reinterpret_steal<py::tuple>(sliced_args_ptr);
             for (Py_ssize_t i = 0; i < num_args - flag_added_args; ++i) {
-                // PyTuple_SET_ITEM(sliced_args, i, PyTuple_GET_ITEM(args, i + flag_added_args));
                 PyObject* item = PyTuple_GetItem(args, i + flag_added_args);
-                Py_INCREF(item);                        // Increase the reference count here
-                PyTuple_SET_ITEM(sliced_args, i, item); // Steal the reference
+                Py_INCREF(item);                              // Increase the reference count here
+                PyTuple_SET_ITEM(sliced_args.ptr(), i, item); // Steal the reference
             }
-            // Call the original function with the sliced args and return its result
-            PyObject* result = PyObject_Call(orig_function, sliced_args, kwargs);
-            Py_DECREF(sliced_args);
-            return result;
+            return py::reinterpret_steal<py::object>(PyObject_Call(orig_function, sliced_args.ptr(), kwargs));
         }
         // Else: call the original function with all args if no slicing is needed
-        return PyObject_Call(orig_function, args, kwargs);
+        return py::reinterpret_steal<py::object>(PyObject_Call(orig_function, args, kwargs));
     }
 
-    // If orig_function is None or one of the built-in types, just return args for further processing
-    // Note: it the caller assigns the PyObject* to a py::object or derivate like with:
-    // auto foo py::reinterpret_borrow<py::list>(result_or_args);
-    // Then you don't need to Py_INCREF the resulted value. But if it's used as a PyObject*, then you need
-    // to do it.
-    return args;
+    // If orig_function is None or one of the built-in types, return an owned view
+    // of args so every path has the same ownership contract.
+    return py::reinterpret_borrow<py::object>(args);
 }
 
 /**
@@ -298,12 +301,12 @@ parse_param(size_t position,
 
 // Convert the kwnames of a function with METH_FASTCALL | METH_KEYWORDS to a classic kwargs dictionary
 // so it can be used for other normal functions
-inline PyObject*
+inline py::object
 kwnames_to_kwargs(PyObject* const* args, int nargs, PyObject* kwnames)
 {
-    PyObject* kwargs = PyDict_New();
-    if (kwargs == nullptr) {
-        return nullptr; // Memory allocation failed
+    py::object kwargs = py::reinterpret_steal<py::object>(PyDict_New());
+    if (!kwargs) {
+        return {}; // Memory allocation failed
     }
 
     if (kwnames == nullptr || nargs == 0 || args == nullptr) {
@@ -317,13 +320,11 @@ kwnames_to_kwargs(PyObject* const* args, int nargs, PyObject* kwnames)
         PyObject* key = PyTuple_GetItem(kwnames, i);
         PyObject* value = args[nargs + i];
 
-        if (PyDict_SetItem(kwargs, key, value) < 0) {
-            Py_DECREF(kwargs);
-            return nullptr;
+        if (PyDict_SetItem(kwargs.ptr(), key, value) < 0) {
+            return {};
         }
     }
 
-    // Return the kwargs dictionary (new reference, must be decref by the caller)
     return kwargs;
 }
 
@@ -373,11 +374,15 @@ Example calling:
     });
 */
 
+// Discards every Python exception raised in the block, KeyboardInterrupt and SystemExit included:
+// the call sites return different types, so there is no uniform way to signal failure instead.
 #define TRY_CATCH_ASPECT(NAME, RETURNRESULT, CLEANUP, ...)                                                             \
     try {                                                                                                              \
         __VA_ARGS__;                                                                                                   \
     } catch (py::error_already_set & e) {                                                                              \
-        e.restore();                                                                                                   \
+        /* Not restored: RETURNRESULT yields a valid result, and a result plus a pending error is */                   \
+        /* "SystemError: returned a result with an error set". The ctor already fetched it. */                         \
+        iast_taint_log_error(NAME ". " + std::string(e.what()));                                                       \
         CLEANUP;                                                                                                       \
         RETURNRESULT;                                                                                                  \
     } catch (const std::exception& e) {                                                                                \

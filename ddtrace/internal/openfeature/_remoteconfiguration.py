@@ -5,11 +5,12 @@ This product receives feature flag configuration rules from Remote Configuration
 and processes them through the native FFE processor.
 """
 
-import enum
 import os
 import typing as t
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native import RemoteConfigCapabilities
+from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.openfeature._config import _set_ffe_config
 from ddtrace.internal.openfeature._native import process_ffe_configuration
 from ddtrace.internal.remoteconfig import Payload
@@ -19,17 +20,20 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
 log = get_logger(__name__)
 
-FFE_FLAGS_PRODUCT = "FFE_FLAGS"
-
-
-class FFECapabilities(enum.IntFlag):
-    """FFE Remote Configuration capabilities."""
-
-    FFE_FLAG_CONFIGURATION_RULES = 1 << 46
+FFE_FLAGS_PRODUCT = RemoteConfigProduct.FfeFlags
 
 
 class FeatureFlagCallback(RCCallback):
     """Remote Configuration callback for Feature Flagging and Experimentation (FFE)."""
+
+    def __init__(self) -> None:
+        # AIDEV-NOTE: Path of the configuration currently loaded, so a removal only
+        # clears it when it names that same path. Replacing a config is remove(old) +
+        # add(new), and a forked child can see the two in either order because the
+        # shared-memory distribution publishes a manifest per file operation (see
+        # src/native/rc_shm.rs). An unqualified clear would then wipe the config that
+        # just became current, leaving every evaluation on PROVIDER_NOT_READY.
+        self._applied_path: t.Optional[str] = None
 
     def __call__(self, payloads: t.Sequence[Payload]) -> None:
         """
@@ -51,12 +55,20 @@ class FeatureFlagCallback(RCCallback):
                     payload.metadata.product_name,
                     payload.path,
                 )
-                # Handle deletion/removal of configuration by clearing the stored config
+                if self._applied_path is not None and payload.path != self._applied_path:
+                    log.debug(
+                        "Ignoring FFE config deletion for %s; %s is the applied configuration",
+                        payload.path,
+                        self._applied_path,
+                    )
+                    continue
                 _set_ffe_config(None)
+                self._applied_path = None
                 continue
 
             try:
-                process_ffe_configuration(payload.content)
+                if process_ffe_configuration(payload.content):
+                    self._applied_path = payload.path
                 log.debug("Processing FFE config ID: %s, size: %d bytes", payload.metadata.id, len(payload.content))
             except Exception as e:
                 log.debug("Error processing FFE config payload: %s", e, exc_info=True)
@@ -71,7 +83,7 @@ def enable_featureflags_rc() -> None:
     remoteconfig_poller.register_callback(
         FFE_FLAGS_PRODUCT,
         _featureflag_rc_callback,
-        capabilities=[FFECapabilities.FFE_FLAG_CONFIGURATION_RULES],
+        capabilities=[RemoteConfigCapabilities.FfeFlagConfigurationRules],
     )
     remoteconfig_poller.enable_product(FFE_FLAGS_PRODUCT)
 

@@ -25,6 +25,7 @@ def test_event_handler_returns_disable():
     """
     import ddtrace.internal.coverage.instrumentation_py3_12 as m
     from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _USE_FILE_LEVEL_COVERAGE
     from ddtrace.internal.coverage.instrumentation_py3_12 import _event_handler
 
     # Create a simple code object and register it
@@ -56,7 +57,8 @@ def test_event_handler_returns_disable():
 
         # Verify the hook was called
         assert len(calls) == 1
-        assert calls[0] == (1, "/test/path.py", None)
+        expected_line = 0 if _USE_FILE_LEVEL_COVERAGE else 1
+        assert calls[0] == (expected_line, "/test/path.py", None)
     finally:
         m._use_disable_optimization = prev_use_disable_optimization
         # Cleanup

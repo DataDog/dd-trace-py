@@ -96,7 +96,7 @@ class MockSignalUploader(SignalUploader):
         self.queue = []
         self._state = self._online
 
-    def _write(self, payload, endpoint):
+    def _write(self, payload, debugger_type):
         self.queue.append(payload.decode())
 
     def wait_for_payloads(self, cond=lambda _: bool(_), timeout=1.0):

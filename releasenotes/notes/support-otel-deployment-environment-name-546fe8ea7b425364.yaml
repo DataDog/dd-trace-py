@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the Datadog environment is not set from the
+    ``deployment.environment.name`` attribute in ``OTEL_RESOURCE_ATTRIBUTES``.

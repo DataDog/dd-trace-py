@@ -56,7 +56,7 @@ class SymbolResolver:
             # new bound-method wrapper each time, so inject_hook would patch a
             # throwaway copy instead of the real function in the class dict.
             parts = symbol_path.split(".")
-            target = module
+            target: object = module
             for i, part in enumerate(parts):
                 is_last = i == len(parts) - 1
                 if is_last and isinstance(target, type) and part in target.__dict__:

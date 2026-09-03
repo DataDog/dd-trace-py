@@ -82,12 +82,21 @@ your behalf::
 
   import ddtrace.profiling.auto
 
+If native profiling extensions are not available on the current Python version,
+``ddtrace.profiling.auto`` logs a warning and skips starting the profiler.
+
 Via API
 -------
-If you want to control which part of your code should be profiled, you can use
-the `ddtrace.profiling.Profiler` object::
+If you want to control which part of your code should be profiled, check
+:py:data:`ddtrace.profiling.is_available` before constructing a
+:py:class:`ddtrace.profiling.Profiler` instance::
 
   from ddtrace.profiling import Profiler
+  from ddtrace.profiling import failure_msg
+  from ddtrace.profiling import is_available
+
+  if not is_available:
+      raise RuntimeError(f"Profiling is not available: {failure_msg}")
 
   prof = Profiler()
   prof.start()

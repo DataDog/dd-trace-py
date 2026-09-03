@@ -5,6 +5,7 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -152,3 +153,13 @@ def _wrap_send(func, instance, args, kwargs):
         finally:
             if response is not None:
                 ctx.event.set_response(response)
+
+
+def _wrap_adapter_send(func, instance, args, kwargs):
+    # Scoped to the per-hop HTTPAdapter.send (not Session.send, which recurses on
+    # redirects) so redirected requests.request spans aren't also suppressed.
+    token = _http_propagation_suppressed.set(True)
+    try:
+        return func(*args, **kwargs)
+    finally:
+        _http_propagation_suppressed.reset(token)

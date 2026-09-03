@@ -32,6 +32,19 @@ BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
 
+def _get_bool_env(name: str) -> str:
+    """Return "true"/"false" for a boolean environment variable.
+
+    The result is interpolated verbatim into generated shell snippets, so it must never carry
+    anything the shell could expand. Only a case-insensitive "true" enables the flag; anything else
+    is treated as false.
+    """
+    value = os.getenv(name, "").lower()
+    if value not in ("", "true", "false"):
+        LOGGER.warning("Ignoring unexpected value for %s, treating it as false", name)
+    return "true" if value == "true" else "false"
+
+
 @dataclass
 class BenchmarkSpec:
     name: str
@@ -61,12 +74,15 @@ class JobSpec:
     gpu: bool = False
     type: str = "test"  # ignored
     skip_pip_cache: bool = False
+    suite: t.Optional[str] = None
+    uses_uv: bool = False
 
     python_versions: t.Optional[set[str]] = None
+    environment_hashes: t.Optional[tuple[str, ...]] = None
 
     def __str__(self) -> str:
         lines = []
-        base = ".test_base_riot"
+        base = ".test_base_uv" if self.uses_uv else ".test_base_riot"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -112,25 +128,31 @@ class JobSpec:
 
         # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
         # so the value is set when tests-gen runs and is present in the child job.
-        _nightly_build = os.getenv("NIGHTLY_BUILD", "false")
+        _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
-        lines.append("    - pip cache info")
+        if not self.uses_uv:
+            lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
             lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
-        env = self.env
+        env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
-            env = env or {}
             env["SUITE_NAME"] = self.pattern or self.name
 
+        if self.uses_uv:
+            env["TEST_SUITE"] = self.suite or self.name
+            if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
+                env["UV_PRERELEASE"] = "allow"
+
         suite_name = env["SUITE_NAME"]
-        env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-        env["PIP_CACHE_KEY"] = (
-            subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-        )
-        if not self.skip_pip_cache:
+        if not self.uses_uv:
+            env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
+            env["PIP_CACHE_KEY"] = (
+                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
+            )
+        if not self.uses_uv and not self.skip_pip_cache:
             lines.append("  cache:")
             lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
             lines.append("    paths:")
@@ -139,6 +161,11 @@ class JobSpec:
         lines.append("  variables:")
         for key, value in env.items():
             lines.append(f"    {key}: {value}")
+        if self.environment_hashes:
+            shard_count = self.parallelism or 1
+            for index in range(shard_count):
+                shard = " ".join(self.environment_hashes[index::shard_count])
+                lines.append(f'    TEST_ENVIRONMENTS_{index + 1}: "{shard}"')
 
         if self.only:
             lines.append("  only:")
@@ -164,6 +191,7 @@ class JobSpec:
 class SuiteVenvInfo:
     venv_count: int
     python_versions: set[str]
+    environment_hashes: tuple[str, ...] = ()
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -176,23 +204,28 @@ TARGET_JOBS = 200
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
-def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, SuiteVenvInfo]:
+def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
     """Collect venv count and Python versions for multiple suites in a single pass.
 
     Iterates riotfile.venv.instances() once and matches each instance against all
     suite patterns simultaneously, which is much more efficient than per-suite iteration.
 
     Args:
-        suite_patterns: mapping of suite name -> regex pattern string
+        suite_configs: mapping of suite name -> suite configuration
 
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    # Importing will load/evaluate the whole riotfile.py
+    # Importing will load/evaluate the whole riotfile.py for suites that still use Riot.
     import riotfile
+    from tests.suitespec import UV_TEST_SUITES
+    from tests.suitespec import get_test_environments
 
     compiled: dict[str, re.Pattern] = {}
-    for suite, pattern in suite_patterns.items():
+    for suite, config in suite_configs.items():
+        if suite in UV_TEST_SUITES:
+            continue
+        pattern = config.get("pattern", suite)
         try:
             compiled[suite] = re.compile(pattern)
         except re.error:
@@ -220,7 +253,22 @@ def collect_all_suite_venv_info(suite_patterns: dict[str, str]) -> dict[str, Sui
                 python_versions=python_versions[suite],
             )
         else:
-            LOGGER.warning("No riot venvs found for suite %s with pattern %s", suite, suite_patterns[suite])
+            LOGGER.warning(
+                "No riot venvs found for suite %s with pattern %s",
+                suite,
+                suite_configs[suite].get("pattern", suite),
+            )
+
+    uv_environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
+    for suite in UV_TEST_SUITES:
+        if suite not in suite_configs:
+            continue
+        environments = uv_environments[suite]
+        result[suite] = SuiteVenvInfo(
+            venv_count=len(environments),
+            python_versions={environment.python for environment in environments},
+            environment_hashes=tuple(environment.hash for environment in environments),
+        )
     return result
 
 
@@ -362,7 +410,6 @@ def _gen_benchmarks(suites: dict, required_suites: list[str]) -> None:
         MICROBENCHMARKS_GEN.write_text(
             """
 microbenchmark-noop:
-  image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   script: |
     echo "noop"
@@ -445,6 +492,8 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
 
+    from tests.suitespec import UV_TEST_SUITES
+
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
@@ -479,8 +528,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
     # === PASS 1: Collect venv info for all non-skipped required suites ===
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
-    suite_patterns = {s: suites[s].get("pattern", s) for s in non_skipped}
-    suite_venv_info = collect_all_suite_venv_info(suite_patterns)
+    suite_configs = {s: suites[s] for s in non_skipped}
+    suite_venv_info = collect_all_suite_venv_info(suite_configs)
 
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
@@ -530,9 +579,19 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config = suites[suite].copy()
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
+            suite_config.pop("matrix", None)
+            suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
-            jobspec = JobSpec(clean_name, stage=stage, python_versions=py_versions, **suite_config)
+            environment_hashes = suite_venv_info[suite].environment_hashes if suite in suite_venv_info else None
+            jobspec = JobSpec(
+                clean_name,
+                stage=stage,
+                python_versions=py_versions,
+                environment_hashes=environment_hashes,
+                uses_uv=suite in UV_TEST_SUITES,
+                **suite_config,
+            )
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
@@ -561,6 +620,7 @@ def gen_build_docs() -> None:
             "scripts/gen_gitlab_config.py",
             "benchmarks/README.rst",
             ".readthedocs.yml",
+            ".uv/build-docs--py310--*.txt",
         }
     ):
         # build_docs uses Python 3.10; ensure it's included in build_base_venvs
@@ -580,7 +640,11 @@ def gen_build_docs() -> None:
             print("  script:", file=f)
             print("    - |", file=f)
             print("      git config --global --add safe.directory $CI_PROJECT_DIR", file=f)
-            print("      riot -v run -s --pass-env build_docs", file=f)
+            print(
+                "      uv run --no-project --python 3.10 --no-python-downloads "
+                "--with-requirements .uv/build-docs--py310--*.txt scripts/docs/build.sh",
+                file=f,
+            )
             print("      mkdir -p /tmp/docs", file=f)
             print("  artifacts:", file=f)
             print("    paths:", file=f)
@@ -748,8 +812,8 @@ def gen_build_base_venvs() -> None:
             template(
                 "build-base-venvs",
                 python_versions=python_versions_str,
-                unpin_dependencies=os.getenv("UNPIN_DEPENDENCIES", "false") or "false",
-                nightly_build=os.getenv("NIGHTLY_BUILD", "false"),
+                unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
+                nightly_build=_get_bool_env("NIGHTLY_BUILD"),
             )
         )
 
@@ -829,18 +893,19 @@ def template(name: str, **params):
     return "\n" + template_path.read_text().format(**params).strip() + "\n"
 
 
-has_error = False
+if __name__ == "__main__":
+    has_error = False
 
-LOGGER.info("Configuration generation steps:")
-for name, func in dict(globals()).items():
-    if name.startswith("gen_"):
-        desc = func.__doc__.splitlines()[0]
-        try:
-            start = time()
-            func()
-            LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
-        except Exception as e:
-            LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
-            has_error = True
+    LOGGER.info("Configuration generation steps:")
+    for name, func in dict(globals()).items():
+        if name.startswith("gen_"):
+            desc = func.__doc__.splitlines()[0]
+            try:
+                start = time()
+                func()
+                LOGGER.info("- %s: %s [took %dms]", name, desc, int((time() - start) / 1e6))
+            except Exception as e:
+                LOGGER.error("- %s: %s [reason: %s]", name, desc, str(e), exc_info=True)
+                has_error = True
 
-sys.exit(has_error)
+    sys.exit(has_error)

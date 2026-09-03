@@ -733,6 +733,42 @@ Datadog::Sample::push_class_name(std::string_view class_name)
 }
 
 bool
+Datadog::Sample::push_allocator_domain(AllocatorDomain allocator_domain)
+{
+    /*
+     * Map the closed enum to a label value and copy it into the sample's string
+     * arena, which is pre-reserved and retained across clear(), so this does
+     * not allocate on the hook path.
+     */
+    std::string_view value;
+    switch (allocator_domain) {
+        case AllocatorDomain::obj:
+            value = "obj";
+            break;
+        case AllocatorDomain::mem:
+            value = "mem";
+            break;
+        case AllocatorDomain::raw:
+            value = "raw";
+            break;
+        case AllocatorDomain::unknown:
+        default:
+            value = "unknown";
+            break;
+    }
+
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!push_label(ExportLabelKey::allocator_domain, value)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push allocator domain" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
 Datadog::Sample::push_gpu_device_name(std::string_view device_name)
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety

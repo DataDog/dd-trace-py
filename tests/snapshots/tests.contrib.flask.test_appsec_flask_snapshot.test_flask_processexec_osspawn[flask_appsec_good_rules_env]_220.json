@@ -11,7 +11,7 @@
       "_dd.appsec.event_rules.version": "rules_good",
       "_dd.appsec.normalized_route": "/executions/osspawn",
       "_dd.appsec.rc_products": "[] u:0 r:2",
-      "_dd.appsec.waf.version": "2.0.0",
+      "_dd.appsec.waf.version": "2.0.1",
       "_dd.base_service": "",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "69dd2bae00000000",
@@ -126,7 +126,7 @@
                 "type": "system",
                 "meta": {
                   "_dd.base_service": "",
-                  "_dd.svc_src": "flask",
+                  "_dd.svc_src": "os",
                   "cmd.exec": "['/bin/ls', '-l', '/']",
                   "cmd.exit_code": "0",
                   "component": "os"
@@ -144,7 +144,7 @@
                    "type": "system",
                    "meta": {
                      "_dd.base_service": "",
-                     "_dd.svc_src": "flask",
+                     "_dd.svc_src": "os",
                      "cmd.exec": "['os.fork']",
                      "component": "os"
                    },

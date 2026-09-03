@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    data streams monitoring: This adds an optional ``tags`` argument to
+    ``ddtrace.data_streams.set_produce_checkpoint`` and
+    ``ddtrace.data_streams.set_consume_checkpoint``. Pass a list of ``"key:value"``
+    strings to attach additional edge tags to a manual checkpoint alongside the
+    automatically set ``type``, ``topic``, and ``direction`` tags, for example
+    ``set_produce_checkpoint("eventbridge", detail_type, carrier_set, tags=["exchange:my-bus"])``.
+    Existing calls that do not pass ``tags`` are unaffected.

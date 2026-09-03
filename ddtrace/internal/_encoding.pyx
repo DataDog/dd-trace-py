@@ -95,7 +95,7 @@ cdef size_t _ORIGIN_KEY_LEN = <size_t> len(ORIGIN_KEY)
 cdef inline int array_prefix_size(stdint.uint32_t l):
     if l < 16:
         return 1
-    elif l < (2<<16):
+    elif l < (1<<16):
         return 3
     return MSGPACK_ARRAY_LENGTH_PREFIX_SIZE
 

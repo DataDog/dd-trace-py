@@ -139,8 +139,11 @@ def get_env_tags() -> dict[str, str]:
     if job_id := env.get("JOB_ID"):
         tags[CITag.JOB_ID] = job_id
 
-    # Bazel provider fallback (manifest-only mode without payload-files)
-    if offline.manifest_enabled and not tags.get(CITag.PROVIDER_NAME):
+    # Bazel provider fallback (manifest-only mode without payload-files).
+    # AIDEV-NOTE: Only for a manifest an external tool gave us. A manifest we generated ourselves for pytest-xdist
+    # workers carries no information about the environment: inferring "bazel" from it would mislabel every worker
+    # event in a plain `pytest -n auto` run on a machine with no recognized CI provider.
+    if offline.manifest_enabled and not offline.manifest_self_generated and not tags.get(CITag.PROVIDER_NAME):
         tags[CITag.PROVIDER_NAME] = "bazel"
 
     return {k: v for k, v in tags.items() if v}

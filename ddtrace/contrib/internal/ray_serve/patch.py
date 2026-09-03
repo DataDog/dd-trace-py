@@ -395,6 +395,10 @@ def traced_serve_deployment(func, instance, args, kwargs):
     return _traced_decorator
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"ray": ">=2.47.1"}
+
+
 def patch(module) -> None:
     if getattr(module, "_datadog_patch", False):
         return

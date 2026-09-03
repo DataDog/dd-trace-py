@@ -2,6 +2,7 @@ import asyncio
 from typing import Any
 
 from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.asyncio import _context_switch
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -24,9 +25,10 @@ def patch():
     """
     if getattr(asyncio, "_datadog_patch", False):
         return
-    asyncio._datadog_patch = True
     Pin().onto(asyncio)
+    _context_switch.install()
     wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
+    asyncio._datadog_patch = True
 
 
 def unpatch():
@@ -34,8 +36,9 @@ def unpatch():
 
     if not getattr(asyncio, "_datadog_patch", False):
         return
-    asyncio._datadog_patch = False
     unwrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
+    _context_switch.uninstall()
+    asyncio._datadog_patch = False
 
 
 def _wrapped_create_task(wrapped, args, kwargs):
@@ -57,6 +60,8 @@ def _wrapped_create_task(wrapped, args, kwargs):
 
     # Get the coroutine
     coro = get_argument_value(args, kwargs, 1, "coro")
+    if not asyncio.iscoroutine(coro):
+        return wrapped(*args, **kwargs)
 
     # Wrap the coroutine and ensure the current trace context is propagated
     async def traced_coro(*args_c, **kwargs_c):

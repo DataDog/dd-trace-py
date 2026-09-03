@@ -14,9 +14,9 @@ def index():
 
 @app.route("/start_application")
 def starting_app_view():
-    # We must call app-started before telemetry events can be sent to the agent.
-    # This endpoint mocks the behavior of the agent writer.
-    telemetry_writer._report_app_started()
+    # The native telemetry worker emits the app-started event automatically when the
+    # writer is enabled, so this endpoint no longer needs to trigger it explicitly.
+    # Kept as a no-op route so existing test flows that hit it continue to work.
     return "OK", 200
 
 

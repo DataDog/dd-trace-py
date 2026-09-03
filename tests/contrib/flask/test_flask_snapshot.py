@@ -69,8 +69,8 @@ def flask_client(
             client.wait()
         except RetryError:
             # process failed
-            stdout = proc.stdout.read()
-            stderr = proc.stderr.read()
+            os.killpg(proc.pid, signal.SIGKILL)
+            stdout, stderr = proc.communicate()
             raise TimeoutError(
                 "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
             )
@@ -86,7 +86,7 @@ def flask_client(
         time.sleep(0.2)
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
+        proc.communicate()
 
 
 @pytest.mark.snapshot(

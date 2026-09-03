@@ -1,6 +1,6 @@
 variables:
   IMAGE_BASE_URL: "registry.ddbuild.io/dd-trace-py"
-  MANYLINUX_AMD64_IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+  MANYLINUX_AMD64_IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   ALPINE_BUILD_IMAGE_TAG: "v126532003-233089d-alpine_build"
 
 .PYTHON_VERSIONS: &PYTHON_VERSIONS
@@ -22,12 +22,12 @@ variables:
   - "cp315-cp315"
 
 .AARCH64_IMAGES: &AARCH64_IMAGES
-  - "v113741357-d2b8243-manylinux2014_aarch64"
-  - "v126532182-233089d-musllinux_1_2_aarch64"
+  - "v133965501-8f84bce-manylinux2014_aarch64"
+  - "v133965516-8f84bce-musllinux_1_2_aarch64"
 
 .X86_64_IMAGES: &X86_64_IMAGES
-  - "v113741238-d2b8243-manylinux2014_x86_64"
-  - "v126532274-233089d-musllinux_1_2_x86_64"
+  - "v133965508-8f84bce-manylinux2014_x86_64"
+  - "v133965497-8f84bce-musllinux_1_2_x86_64"
 
 .build_base:
   stage: package
@@ -201,10 +201,72 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014_x86_64"
+
+# Rewrites each wheel's version to major.minor.patch[rc].dev<pipeline_id>+<local>.<commit_sha>,
+# then uploads it to the private prerelease index.
+#
+# DEV: only manylinux2014 and macOS wheels get this treatment. musllinux, Windows and the
+# sdist are deliberately left out: the prerelease index exists to hand a custom build to a
+# customer or an internal service, and those all run manylinux or macOS.
+.patch_wheel_versions_base:
+  # DEV: the testrunner image is used for the adms binary it ships.
+  image: ${TESTRUNNER_IMAGE}
+  tags: [ "arch:amd64" ]
+  stage: package
+  script:
+    - |
+      set -euo pipefail
+      # Only run when the version has a local segment (e.g. 4.1.3rc3+memory-leak-fix).
+      # A plain semver or pre-release (4.1.3, 4.1.3rc3) skips this job.
+      if [[ "${PACKAGE_VERSION:-}" != *+* ]]; then
+        echo "Version '${PACKAGE_VERSION:-}' has no local segment (+...) -- nothing to patch, exiting."
+        exit 0
+      fi
+    # Prune unsupported tags from adms; S3 SHA index keeps them for gate installs.
+    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
+    - python3 .gitlab/scripts/patch-wheel-versions.py pywheels pywheels-patched
+    - |
+      set -euo pipefail
+      shopt -s nullglob
+      wheels=(pywheels-patched/*.whl)
+      if [ ${#wheels[@]} -eq 0 ]; then
+        echo "No patched wheels to upload."
+        exit 0
+      fi
+      # adms parseRepositoryURL accepts only host/org/repo (5 slash parts).
+      # GitLab sets CI_REPOSITORY_URL to DataDog/apm-reliability/dd-trace-py.
+      export CI_REPOSITORY_URL="https://github.com/DataDog/dd-trace-py"
+      for wheel in "${wheels[@]}"; do
+        adms first-party python upload --repository datadog/pypi-private-prereleases "${wheel}"
+      done
+
+"patch manylinux2014 wheel versions":
+  extends: .patch_wheel_versions_base
+  needs:
+    - job: "build linux"
+      artifacts: true
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+          - ARCH_TAG: "arm64"
+            PYTHON_TAG: *PYTHON_TAGS
+            IMAGE_TAG: "v133965501-8f84bce-manylinux2014_aarch64"
+    - job: "package version"
+
+"patch macos wheel versions":
+  extends: .patch_wheel_versions_base
+  needs:
+    - job: "build macos amd64"
+      artifacts: true
+    - job: "build macos arm64"
+      artifacts: true
+    - job: "package version"
 
 # All manylinux2014 wheels
 "upload manylinux2014":
@@ -216,10 +278,10 @@ variables:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
           - ARCH_TAG: "arm64"
             PYTHON_TAG: *PYTHON_TAGS
-            IMAGE_TAG: "v113741357-d2b8243-manylinux2014_aarch64"
+            IMAGE_TAG: "v133965501-8f84bce-manylinux2014_aarch64"
     - job: "package version"
   variables:
     UPLOAD_SUFFIX: "manylinux2014"
@@ -278,6 +340,8 @@ variables:
 "build windows":
   stage: package
   tags: ["windows-v2:2022"]
+  # Windows runners are prone to flaky infra failures
+  retry: 2
   parallel:
     matrix:
       - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
@@ -295,7 +359,7 @@ variables:
 # Downloads win_arm64 wheels from GitHub Actions (arm64 cannot be cross-compiled
 # from the amd64 Windows runners available in GitLab).
 "download win_arm64 wheels":
-  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  image: ${CI_UTILS_IMAGE}
   tags: [ "arch:amd64" ]
   stage: package
   id_tokens:
@@ -328,6 +392,12 @@ download_dependency_wheels:
       artifacts: true
   variables:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
+  rules:
+    # TODO(py-315): cp315 ddtrace wheels are still allow_failure on build linux; keep SSI dep
+    # wheel download non-blocking until the wheel pipeline is stable (#17849).
+    - if: '$PYTHON_VERSION == "3.15"'
+      allow_failure: true
+    - when: on_success
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.9.13"
@@ -342,6 +412,8 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.13"
       - PYTHON_IMAGE_TAG: "3.14.0"
         PYTHON_VERSION: "3.14"
+      - PYTHON_IMAGE_TAG: "3.15.0rc1"
+        PYTHON_VERSION: "3.15"
   script:
     - .gitlab/download-dependency-wheels.sh
   cache:
@@ -361,8 +433,9 @@ download_dependency_wheels:
     - |
       set -euo pipefail
 
-      # Upload to branch path (only for main/release branches)
-      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+      # Upload to branch path (only for main/staging/release branches)
+      if [ "${CI_COMMIT_BRANCH:-}" = "main" ] || [ "${CI_COMMIT_BRANCH:-}" = "staging" ] || [[ "${CI_COMMIT_BRANCH:-}" =~ ^[0-9]+\.[0-9]+$ ]];
+      then
         .gitlab/scripts/upload-wheels-to-s3.sh "${CI_COMMIT_BRANCH}" ${UPLOAD_SUFFIX:-}
       fi
 
@@ -436,6 +509,7 @@ download_dependency_wheels:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
 
+# Do not prune here: "upload all" publishes this artifact as the SHA S3 index.
 "ddtrace package":
   extends: .package_base
   needs:

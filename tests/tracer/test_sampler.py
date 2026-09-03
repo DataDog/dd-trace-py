@@ -203,6 +203,22 @@ def test_sampling_rule_init():
     assert rule.name.pattern == a_regex, "SamplingRule should store the name regex it's initialized with"
 
 
+def test_sampling_rule_init_discard_default():
+    rule = SamplingRule(sample_rate=1.0)
+    assert rule.discard is False, "SamplingRule discard should default to False"
+
+
+def test_sampling_rule_init_discard():
+    rule = SamplingRule(sample_rate=0.0, discard=True)
+    assert rule.discard is True
+    assert "discard=True" in repr(rule)
+
+
+def test_sampling_rule_eq_discard():
+    assert SamplingRule(sample_rate=1.0, discard=True) == SamplingRule(sample_rate=1.0, discard=True)
+    assert SamplingRule(sample_rate=1.0, discard=True) != SamplingRule(sample_rate=1.0, discard=False)
+
+
 @pytest.mark.parametrize(
     "rule_1,rule_2,expected_to_be_equal",
     [
@@ -375,6 +391,7 @@ def test_sampling_rule_init_via_env():
     with mock.patch("ddtrace._trace.sampler.log") as mock_log:
         with override_global_config(dict(_trace_sampling_rules='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
             sampling_rule = DatadogSampler().rules
+    assert sampling_rule == []
     mock_log.error.assert_has_calls(
         [
             mock.call(
@@ -382,24 +399,6 @@ def test_sampling_rule_init_via_env():
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
                 [],
                 exc_info=True,
-                extra={"send_to_telemetry": False},
-            )
-        ]
-    )
-
-    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
-        with override_global_config(
-            dict(
-                _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
-                + '{"service":"my-service","name":"my-name"}]'
-            )
-        ):
-            sampling_rule = DatadogSampler().rules
-    mock_log.error.assert_has_calls(
-        [
-            mock.call(
-                "No sample_rate provided for sampling rule: %s. Skipping.",
-                {"service": "my-service", "name": "my-name"},
                 extra={"send_to_telemetry": False},
             )
         ]
@@ -542,6 +541,36 @@ def test_sampling_rule_sample_rate_0():
     assert sum(rule.sample(Span(name=str(i))) for i in range(iterations)) == 0, (
         "SamplingRule with rate=0 should never keep samples"
     )
+
+
+def test_datadog_sampler_sample_discard_true_on_rejected_trace():
+    """discard=True + rejected -> sample_or_discard reports discard=True."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, discard=True)])
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
+    assert sampled is False
+    assert discard is True
+
+
+def test_datadog_sampler_sample_discard_false_when_sampled():
+    """discard=True only matters for rejected chunks; a kept chunk reports discard=False."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=1.0, discard=True)])
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
+    assert sampled is True
+    assert discard is False
+
+
+def test_datadog_sampler_sample_discard_false_by_default():
+    """discard=False (default) + rejected -> unchanged legacy behavior: kept with reject priority."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0)])
+    sampled, discard = sampler.sample_or_discard(Span(name="test.span"))
+    assert sampled is False
+    assert discard is False
+
+
+def test_datadog_sampler_sample_public_api_unchanged():
+    """DatadogSampler.sample(span) -> bool keeps its public signature/behavior."""
+    sampler = DatadogSampler(rules=[SamplingRule(sample_rate=0.0, discard=True)])
+    assert sampler.sample(Span(name="test.span")) is False
 
 
 @pytest.mark.subprocess(

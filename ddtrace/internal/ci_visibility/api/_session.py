@@ -8,6 +8,7 @@ from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+from ddtrace.internal.ci_visibility.api._protocols import TestVisibilitySessionProtocol
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE
@@ -25,7 +26,9 @@ from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 log = get_logger(__name__)
 
 
-class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilityModule]):
+class TestVisibilitySession(
+    TestVisibilityParentItem[TestModuleId, TestVisibilityModule], TestVisibilitySessionProtocol
+):
     """This class represents a Test session and is the top level in the hierarchy of Test visibility items.
 
     It does not access its skip-level descendents directly as they are expected to be managed through their own parent

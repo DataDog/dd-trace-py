@@ -4,6 +4,7 @@ import pytest
 from ddtrace._monkey import patch
 from ddtrace.contrib.internal.litellm.patch import get_version
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_metrics
@@ -1049,6 +1050,33 @@ def test_completion_openrouter_cost(litellm, request_vcr, litellm_llmobs, test_s
     assert len(spans) == 1
     metrics = get_llmobs_metrics(spans[0])
     assert "total_cost" in metrics
+    assert metrics["total_cost"] > 0
+    if "input_cost" in metrics or "output_cost" in metrics:
+        assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)
+
+
+def test_completion_openrouter_byok_cost(litellm, request_vcr, litellm_llmobs, test_spans):
+    """OpenRouter BYOK (bring-your-own-key) upstream cost is surfaced on the span's cost metrics.
+
+    With BYOK, OpenRouter bills ``usage.cost=0`` (the customer pays the provider directly with their
+    own key) and reports the real provider cost under ``usage.cost_details.upstream_inference_cost``,
+    flagged by ``usage.is_byok=True``. The integration should surface that upstream cost as
+    ``total_cost`` rather than the billed 0.
+    """
+    with request_vcr.use_cassette("completion_openrouter_byok.yaml"):
+        resp = litellm.completion(
+            model="openrouter/anthropic/claude-opus-5",
+            messages=[{"content": "What is the capital of France?", "role": "user"}],
+        )
+
+    assert _get_attr(resp.usage, "is_byok", None) is True
+    assert _get_attr(resp.usage, "cost", None) == 0
+    cost_details = _get_attr(resp.usage, "cost_details", {})
+    assert _get_attr(cost_details, "upstream_inference_cost", 0) > 0
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    metrics = get_llmobs_metrics(spans[0])
+    # BYOK bills cost=0; the upstream inference cost must still be surfaced as a non-zero total_cost.
     assert metrics["total_cost"] > 0
     if "input_cost" in metrics or "output_cost" in metrics:
         assert round((metrics["input_cost"] + metrics["output_cost"]) * 1e9) == round(metrics["total_cost"] * 1e9)

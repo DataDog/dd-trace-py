@@ -748,3 +748,37 @@ def test_match_group_complex(input_str, expected_result, tainted):
     result = mod.do_match_group(input_tainted)
     assert result == matches.group() == expected_result
     assert is_pyobject_tainted(result) is tainted
+
+
+@pytest.mark.parametrize(
+    "aspect, pattern",
+    [
+        (re_match_aspect, rb"(\w+) (\w+)"),
+        (re_search_aspect, rb"(\w+) (\w+)"),
+        (re_fullmatch_aspect, rb"(\w+) (\w+), (\w+)"),
+    ],
+)
+def test_re_aspects_tainted_bytearray_propagate_to_groups(aspect, pattern):
+    """A bytearray subject is unhashable, so the Match it produces needs its own hash to be tracked."""
+    tainted_isaac_newton = taint_pyobject(
+        pyobject=bytearray(b"Isaac Newton, physicist"),
+        source_name="test_re_aspects_tainted_bytearray",
+        source_value="Isaac Newton, physicist",
+        source_origin=OriginType.PARAMETER,
+    )
+
+    re_obj = re.compile(pattern)
+
+    re_match = aspect(None, 1, re_obj, tainted_isaac_newton)
+    assert re_match is not None
+    assert is_pyobject_tainted(re_match)
+
+    result = re_group_aspect(None, 1, re_match, 1)
+    assert result == b"Isaac"
+    assert get_tainted_ranges(result) == [
+        TaintRange(
+            0,
+            len(result),
+            Source("test_re_aspects_tainted_bytearray", "Isaac Newton, physicist", OriginType.PARAMETER),
+        ),
+    ]

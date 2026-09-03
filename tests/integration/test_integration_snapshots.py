@@ -424,7 +424,8 @@ except KeyboardInterrupt:
                     break
 
             if not ready:
-                stderr = proc.stderr.read()
+                proc.kill()
+                _, stderr = proc.communicate()
                 pytest.fail(f"Subprocess did not signal ready. Got: {line!r}, stderr: {stderr.decode()}")
 
             # Send the signal
@@ -433,16 +434,16 @@ except KeyboardInterrupt:
             # Wait for process to exit (should flush traces during shutdown)
             # Tracer has SHUTDOWN_TIMEOUT=5s, allow some extra time for test agent communication
             try:
-                proc.wait(timeout=5)
+                proc.communicate(timeout=5)
             except subprocess.TimeoutExpired:
                 proc.kill()
-                proc.wait()
+                proc.communicate()
                 pytest.fail("Process did not exit after SIGTERM")
 
         finally:
             if proc.poll() is None:
                 proc.kill()
-                proc.wait()
+                proc.communicate()
 
 
 @pytest.mark.subprocess(err=None, env={"DD_TRACE_WRITER_INTERVAL_SECONDS": "30"})

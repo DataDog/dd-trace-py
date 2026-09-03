@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from ddtrace._trace.context import Context
+from ddtrace.internal.native._native import Context
 
 
 PROFILING_LOCAL_ROOT_SPAN_ID_KEY = "_dd.profiling.local_root_span_id"

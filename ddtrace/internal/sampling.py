@@ -42,6 +42,12 @@ class PriorityCategory(object):
     RULE_DYNAMIC = "rule_dynamic"
 
 
+# AIDEV-NOTE: sampling mechanism is an opaque integer; validate syntax/range only, not enum
+# membership, or unenumerated-but-valid ids get silently dropped (#13516, #19335). Do not re-tighten.
+_MAX_SAMPLING_MECHANISM = 255  # libdatadog encodes the sampling mechanism as a u8
+VALID_SAMPLING_DECISIONS = frozenset("-%d" % value for value in range(_MAX_SAMPLING_MECHANISM + 1))
+
+# Unused, kept so external `.add()` calls (a past workaround) don't AttributeError on upgrade.
 SAMPLING_MECHANISM_CONSTANTS = {
     "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
 }
@@ -77,7 +83,7 @@ def validate_sampling_decision(
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
-        if value not in SAMPLING_MECHANISM_CONSTANTS:
+        if value not in VALID_SAMPLING_DECISIONS:
             del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
             meta["_dd.propagation_error"] = "decoding_error"
             log.warning("failed to decode _dd.p.dm: %r", value)

@@ -34,7 +34,7 @@ log = get_logger(__name__)
     ],
 )
 @pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
-def test_iast_cmdi_bodies(body, content_type, server):
+def test_iast_cmdi_bodies(body, content_type, server, free_port):
     """This test parametrizes body encodings to validate that IAST taints http.request.body
     across different content types and still reports CMDI on the vulnerable sink in
     tests/appsec/integrations/django_tests/django_app/views.py:command_injection
@@ -53,6 +53,7 @@ def test_iast_cmdi_bodies(body, content_type, server):
         iast_enabled="true",
         appsec_enabled="false",
         token=token,
+        port=free_port,
         env={
             "_DD_IAST_PATCH_MODULES": (
                 "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
@@ -103,11 +104,12 @@ def test_iast_cmdi_bodies(body, content_type, server):
 
 
 @pytest.mark.parametrize("server", (gunicorn_django_server, django_server))
-def test_iast_untrusted_serialization_yaml(server, iast_test_token):
+def test_iast_untrusted_serialization_yaml(server, iast_test_token, free_port):
     with server(
         use_ddtrace_cmd=False,
         iast_enabled="true",
         token=iast_test_token,
+        port=free_port,
         env={
             "_DD_IAST_PATCH_MODULES": (
                 "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."
@@ -142,64 +144,23 @@ def test_iast_untrusted_serialization_yaml(server, iast_test_token):
     assert vulnerability["hash"]
 
 
+# DD_APM_TRACING_ENABLED cannot be set through "env": appsec_application_server writes the
+# apm_tracing_enabled argument into the child environment afterwards and overwrites it. Pass it
+# as a server argument instead; it reaches the config dict as a keyword argument.
 @pytest.mark.parametrize(
     "server, config",
     (
         (
             gunicorn_django_server,
-            {
-                "workers": "3",
-                "use_threads": False,
-                "use_gevent": False,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
+            {"workers": "3", "use_threads": False, "use_gevent": False},
         ),
         (
             gunicorn_django_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": False,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
+            {"workers": "3", "use_threads": True, "use_gevent": False},
         ),
         (
             gunicorn_django_server,
-            {
-                "workers": "3",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_django_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                    "_DD_IAST_PROPAGATION_ENABLED": "false",
-                },
-            },
-        ),
-        (
-            gunicorn_django_server,
-            {
-                "workers": "1",
-                "use_threads": True,
-                "use_gevent": True,
-                "env": {
-                    "DD_APM_TRACING_ENABLED": "false",
-                },
-            },
+            {"workers": "3", "use_threads": True, "use_gevent": True},
         ),
         (
             gunicorn_django_server,
@@ -210,32 +171,43 @@ def test_iast_untrusted_serialization_yaml(server, iast_test_token):
                 "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
             },
         ),
-        (django_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
+        (
+            gunicorn_django_server,
+            {"workers": "1", "use_threads": True, "use_gevent": True},
+        ),
+        (
+            # As config3, but with APM tracing off, which is what the whole file used to ask for
+            # through the (ignored) env key. Mirrors the flask test's apm_tracing_enabled
+            # parametrization.
+            gunicorn_django_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "apm_tracing_enabled": "false",
+                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
+            },
+        ),
+        (django_server, {}),
     ),
 )
-def test_iast_vulnerable_request_downstream_django(server, config, iast_test_token):
+def test_iast_vulnerable_request_downstream_django(server, config, iast_test_token, free_port):
     """Mirror Flask downstream propagation test for Django server.
 
     Sends a request with Datadog headers to the Django endpoint which triggers a weak-hash
     vulnerability and then calls a downstream endpoint to echo headers. Asserts that headers are
     properly propagated and that an IAST WEAK_HASH vulnerability is reported.
     """
-    env = {
-        "DD_APM_TRACING_ENABLED": "false",
-        "DD_TRACE_URLLIB3_ENABLED": "true",
-    }
-    # Merge base env with parametrized env overrides
-    cfg_env = dict(config.get("env", {}))
-    cfg_env.update(env)
+    # Base env, overridden by the parametrized config.
     config = dict(config)
-    config["env"] = cfg_env
-    with server(use_ddtrace_cmd=True, iast_enabled="true", token=iast_test_token, port=8050, **config) as context:
+    config["env"] = {"DD_TRACE_URLLIB3_ENABLED": "true", **config.get("env", {})}
+    with server(use_ddtrace_cmd=True, iast_enabled="true", token=iast_test_token, port=free_port, **config) as context:
         _, django_client, pid = context
 
         trace_id = 1212121212121212121
         parent_id = 34343434
         response = django_client.get(
-            "/vulnerablerequestdownstream/?port=8050",
+            f"/vulnerablerequestdownstream/?port={free_port}",
             headers={
                 "x-datadog-trace-id": str(trace_id),
                 "x-datadog-parent-id": str(parent_id),
@@ -273,7 +245,7 @@ def test_iast_vulnerable_request_downstream_django(server, config, iast_test_tok
         assert vulnerability["hash"]
 
 
-def test_iast_concurrent_requests_limit_django(iast_test_token):
+def test_iast_concurrent_requests_limit_django(iast_test_token, free_port):
     """Ensure only DD_IAST_MAX_CONCURRENT_REQUESTS requests have IAST enabled concurrently in Django app.
 
     Hits /iast-enabled concurrently; the response contains whether IAST was enabled.
@@ -288,7 +260,7 @@ def test_iast_concurrent_requests_limit_django(iast_test_token):
         "DD_IAST_MAX_CONCURRENT_REQUESTS": str(max_concurrent),
     }
 
-    with django_server(iast_enabled="true", token=iast_test_token, env=env) as context:
+    with django_server(iast_enabled="true", token=iast_test_token, port=free_port, env=env) as context:
         _, django_client, pid = context
 
         def worker():
@@ -307,10 +279,11 @@ def test_iast_concurrent_requests_limit_django(iast_test_token):
     assert false_count <= rejected_requests, f"{len(results)} requests. Expected {rejected_requests}, got {false_count}"
 
 
-def test_iast_header_injection(iast_test_token):
+def test_iast_header_injection(iast_test_token, free_port):
     with django_server(
         iast_enabled="true",
         token=iast_test_token,
+        port=free_port,
         env={
             "_DD_IAST_PATCH_MODULES": (
                 "benchmarks.,tests.appsec.,tests.appsec.integrations.django_tests.django_app.views."

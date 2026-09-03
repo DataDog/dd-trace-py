@@ -289,6 +289,30 @@ def test_otel_get_span_context_with_default_trace_state(oteltracer):
         assert span_context.trace_flags == TraceFlags.DEFAULT
 
 
+def test_otel_child_span_context_reflects_root_sampling_decision(oteltracer):
+    """A child span surfaces the sampling decision made on its local root.
+
+    A child span's Datadog context is built lazily as a copy of its parent's that shares the
+    trace-level ``_metrics`` (where sampling priority lives) by reference. get_span_context()
+    makes the sampling decision on the local root the first time it is read; because the child
+    shares that ``_metrics`` dict, the decision is visible through the child's context. Assert
+    the child reports a consistent, non-None sampling decision matching the root.
+    """
+    with oteltracer.start_as_current_span("otel-root") as root_span:
+        with oteltracer.start_as_current_span("otel-child") as child_span:
+            # Read the child first: this samples the local root and records the decision in the
+            # trace-level metrics shared with the child's lazily-built context.
+            child_context = child_span.get_span_context()
+            root_context = root_span.get_span_context()
+
+            assert child_context.trace_id == root_context.trace_id
+            # A concrete (non-None) sampling decision is visible through the child's context.
+            assert child_span._ddspan.context.sampling_priority is not None
+            # The child and root agree on the sampling decision (shared trace-level metrics).
+            assert child_context.trace_flags == root_context.trace_flags
+            assert child_context.trace_flags == TraceFlags.SAMPLED
+
+
 @pytest.mark.parametrize("trace_flags", [TraceFlags.SAMPLED, TraceFlags.DEFAULT])
 @pytest.mark.parametrize("trace_state", [TraceState.from_header(["rojo=00f067aa0ba902b7,congo=t61rcWkgMzE"]), None])
 def test_otel_span_with_remote_parent(oteltracer, trace_flags, trace_state):

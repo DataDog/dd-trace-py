@@ -18,16 +18,19 @@ from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
+from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.native._native import HttpClientError
 from ddtrace.internal.native._native import IoError
 from ddtrace.internal.native._native import NetworkError
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
-from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _human_size
-from ddtrace.internal.writer import AgentlessTraceWriter
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import NativeWriter
+from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
+from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
+from ddtrace.internal.writer.writer import compute_agentless_intake_url
 from ddtrace.trace import Span
 from tests.utils import AnyInt
 from tests.utils import BaseTestCase
@@ -490,57 +493,6 @@ class LogWriterTests(BaseTestCase):
         self.assertEqual(len(self.output.entries), self.N_TRACES)
 
 
-def test_agentless_trace_writer_uses_post():
-    """AgentlessTraceWriter uses POST and has expected intake URL and encoder."""
-    writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
-        api_key="test-api-key",
-    )
-    assert writer.HTTP_METHOD == "POST"
-    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com"
-    assert writer._headers.get("dd-api-key") == "test-api-key"
-    assert writer._clients[0].ENDPOINT == "api/v2/spans"
-    assert writer._encoder.content_type == "application/json"
-
-
-def test_agentless_trace_writer_buffer_size_capped_at_max():
-    """AgentlessTraceWriter caps buffer_size at MAX_BUFFER_SIZE (15 MB) regardless of config."""
-    max_size = AgentlessTraceWriter.MAX_BUFFER_SIZE
-
-    # Default: no explicit buffer_size -> capped at MAX_BUFFER_SIZE
-    writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
-        api_key="test-api-key",
-    )
-    assert writer._encoder.max_size == max_size
-
-    # Explicit buffer_size smaller than MAX_BUFFER_SIZE -> respected as-is
-    small = max_size // 2
-    writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
-        api_key="test-api-key",
-        buffer_size=small,
-    )
-    assert writer._encoder.max_size == small
-
-    # Explicit buffer_size larger than MAX_BUFFER_SIZE -> capped at MAX_BUFFER_SIZE
-    writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
-        api_key="test-api-key",
-        buffer_size=max_size * 2,
-    )
-    assert writer._encoder.max_size == max_size
-
-
-def test_agentless_trace_writer_encode_traces():
-    writer = AgentlessTraceWriter(
-        intake_url="https://public-trace-http-intake.logs.datadoghq.com",
-        api_key="test-api-key",
-    )
-    writer.write([Span(name="span1", trace_id=123456789, span_id=1, service="svc", resource="/r")])
-    writer.flush_queue(raise_exc=True)
-
-
 @pytest.mark.subprocess(
     env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "DD_API_KEY": "test-key"},
     parametrize={
@@ -557,34 +509,35 @@ def test_agentless_trace_writer_encode_traces():
     },
 )
 def test_agentless_trace_writer_intake_url():
-    """AgentlessTraceWriter sets the correct intake URL for each DD_SITE."""
+    """The agentless writer targets the correct intake URL for each DD_SITE."""
     import os
 
-    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
+    from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_URLS
     from ddtrace.trace import tracer
 
     site = os.environ["DD_SITE"]
     writer = tracer._span_aggregator.writer
-    assert isinstance(writer, AgentlessTraceWriter)
-    assert writer.intake_url == AgentlessTraceWriter.INTAKE_URLS[site]
+    assert writer.agentless is True
+    assert writer.intake_url == AGENTLESS_INTAKE_URLS[site] + AGENTLESS_INTAKE_PATH
 
 
-@pytest.mark.parametrize("site,expected", list(AgentlessTraceWriter.INTAKE_URLS.items()))
+@pytest.mark.parametrize("site,expected", list(AGENTLESS_INTAKE_URLS.items()))
 def test_compute_intake_url_known_sites(site, expected):
-    assert AgentlessTraceWriter.compute_intake_url(site) == expected
+    assert compute_agentless_intake_url(site) == expected + AGENTLESS_INTAKE_PATH
 
 
 @pytest.mark.parametrize(
     "site,expected",
     [
-        ("ap3.datadoghq.com", "https://browser-intake-ap3-datadoghq.com"),
-        ("ddog-gov.com", "https://browser-intake-ddog-gov.com"),
-        ("us2.ddog-gov.com", "https://browser-intake-us2-ddog-gov.com"),
+        ("ap3.datadoghq.com", "https://browser-intake-ap3-datadoghq.com/v1/input"),
+        ("ddog-gov.com", "https://browser-intake-ddog-gov.com/v1/input"),
+        ("us2.ddog-gov.com", "https://browser-intake-us2-ddog-gov.com/v1/input"),
     ],
 )
 def test_compute_intake_url_unknown_site_uses_browser_intake_fallback(site, expected):
     with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
-        result = AgentlessTraceWriter.compute_intake_url(site)
+        result = compute_agentless_intake_url(site)
 
     assert result == expected
     mock_log.warning.assert_called_once()
@@ -686,7 +639,7 @@ def _make_uds_server(path, request_handler):
     # Wait for the server to start
     resp = None
     while resp != 200:
-        conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
+        conn = HTTPConnection(f"unix://{server.server_address}")
         try:
             conn.request("PUT", "/")
             resp = conn.getresponse().status
@@ -796,7 +749,7 @@ def test_flush_connection_timeout_connect(writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, 2019)) as writer,
     ):
-        exc_type = (OSError, NetworkError)
+        exc_type = (OSError, NetworkError, HttpClientError)
         with pytest.raises(exc_type):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -809,7 +762,7 @@ def test_flush_connection_timeout(endpoint_test_timeout_server, writer_class):
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _TIMEOUT_PORT)) as writer,
     ):
         writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
-        with pytest.raises((socket.timeout, IoError)):
+        with pytest.raises((socket.timeout, IoError, HttpClientError)):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
 
@@ -821,7 +774,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
     import threading
 
     from ddtrace.internal._threads import PeriodicThread
-    from ddtrace.internal.uds import UDSHTTPConnection
+    from ddtrace.internal.http import HTTPConnection
 
     sock_dir = tempfile.mkdtemp(prefix="ddtrace-uds-fork-repro-")
     sock_path = os.path.join(sock_dir, "blackhole.sock")
@@ -849,7 +802,7 @@ def test_periodic_thread_uds_callback_unblocks_with_timeout():
 
     def _callback():
         callback_started.set()
-        conn = UDSHTTPConnection(sock_path, "localhost", 80, timeout=0.5)
+        conn = HTTPConnection(f"unix://{sock_path}", timeout=0.5)
         try:
             conn.request("GET", "/")
             conn.getresponse().read()
@@ -889,7 +842,7 @@ def test_flush_connection_reset(endpoint_test_reset_server, writer_class):
         override_env(dict(DD_API_KEY="foobar.baz")),
         managed_writer(writer_class, "http://%s:%s" % (_HOST, _RESET_PORT)) as writer,
     ):
-        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError)
+        exc_types = (httplib.BadStatusLine, ConnectionResetError, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer.HTTP_METHOD = "PUT"  # the test server only accepts PUT
             writer._encoder.put([Span("foobar")])
@@ -901,7 +854,7 @@ def test_flush_connection_incomplete_read(endpoint_test_incomplete_read_server, 
     """Test that IncompleteRead errors are handled properly by resetting the connection"""
     with managed_writer(writer_class, f"http://{_HOST}:{_INCOMPLETE_READ_PORT}") as writer:
         # IncompleteRead should be raised when the server sends an incomplete chunked response
-        exc_types = (httplib.IncompleteRead, NetworkError)
+        exc_types = (httplib.IncompleteRead, NetworkError, HttpClientError)
         with pytest.raises(exc_types):
             writer._encoder.put([Span("foobar")])
             writer.flush_queue(raise_exc=True)
@@ -919,6 +872,19 @@ def test_flush_connection_uds(endpoint_uds_server):
         writer.flush_queue(raise_exc=True)
 
 
+def test_intake_base_path_uds():
+    """For a unix:// intake URL, the path component is the socket location, not an
+    HTTP path prefix, so it must not be prepended to the request path.
+    """
+    writer = CIVisibilityWriter("unix:///var/run/datadog/apm.socket")
+    assert writer._intake_base_path() == ""
+
+
+def test_intake_base_path_http():
+    writer = CIVisibilityWriter("http://localhost:8126/some/prefix")
+    assert writer._intake_base_path() == "/some/prefix"
+
+
 @pytest.mark.parametrize("writer_class", (CIVisibilityWriter, NativeWriter))
 def test_flush_queue_raise(writer_class):
     with override_env(dict(DD_API_KEY="foobar.baz")), managed_writer(writer_class, "http://dne:1234") as writer:
@@ -926,7 +892,7 @@ def test_flush_queue_raise(writer_class):
         writer.write([])
         writer.flush_queue(raise_exc=False)
 
-        error = (OSError, NetworkError)
+        error = (OSError, NetworkError, HttpClientError)
         with pytest.raises(error):
             writer.write([Span("name")])
             writer.flush_queue(raise_exc=True)
@@ -1170,6 +1136,37 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_not_called()
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_TAGS": "team:apm,tier:backend,service:ignored,env:ignored,version:ignored,runtime_id:ignored",
+        "DD_TRACE_STATS_ADDITIONAL_TAGS": "customer.tier,region",
+    }
+)
+def test_otlp_metric_tags_configured():
+    from unittest import mock
+
+    from ddtrace.internal import native
+    from ddtrace.internal.writer.writer import _build_base_exporter_builder
+
+    mock_builder = mock.Mock()
+    for method_name in [
+        "set_url",
+        "set_language",
+        "set_language_version",
+        "set_language_interpreter",
+        "set_tracer_version",
+        "set_git_commit_sha",
+        "set_client_computed_top_level",
+    ]:
+        getattr(mock_builder, method_name).return_value = mock_builder
+
+    with mock.patch.object(native, "TraceExporterBuilder", return_value=mock_builder):
+        _build_base_exporter_builder("http://localhost:8126", None, False, False, True)
+
+    mock_builder.set_tracer_tags.assert_called_once_with(["team:apm", "tier:backend"])
+    mock_builder.set_additional_metric_tag_keys.assert_called_once_with(["customer.tier", "region"])
+
+
 class TestSafelog:
     """Tests for the _safelog function that handles closed I/O streams gracefully."""
 
@@ -1277,138 +1274,20 @@ class TestSafelog:
 
 @pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "1", "DD_API_KEY": "test-api-key"})
 def test_agentless_writer_enabled():
-    import json
-    from unittest.mock import patch
+    """Agentless submission is configured on the native writer, pointed at the intake.
 
-    from ddtrace.internal.utils.http import Response
-    from ddtrace.internal.writer.writer import AgentlessTraceWriter
+    The payload format and transport are libdatadog's; all this owns is the wiring, so it does
+    not flush (that would POST to the real intake).
+    """
+    from ddtrace.internal.writer.writer import AGENTLESS_INTAKE_PATH
+    from ddtrace.internal.writer.writer import NativeWriter
     from ddtrace.trace import tracer
 
     writer = tracer._span_aggregator.writer
-    assert isinstance(writer, AgentlessTraceWriter)
-
-    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
-        with tracer.trace("root1") as root1:
-            with tracer.trace("child1") as child1:
-                pass
-            with tracer.trace("child2") as child2:
-                pass
-        with tracer.trace("root2") as root2:
-            pass
-
-        writer.flush_queue()
-
-    # Both traces are batched into a single payload
-    assert mock_put.call_count == 1
-    payload = json.loads(mock_put.call_args_list[0][0][0])
-
-    assert "traces" in payload
-    assert len(payload["traces"]) == 2
-
-    # Find each trace by matching trace_id across all spans
-    trace1_id = "{:016x}".format(root1._trace_id_64bits)
-    trace2_id = "{:016x}".format(root2._trace_id_64bits)
-    trace1_spans_list = next(
-        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace1_id for s in t["spans"])
-    )
-    trace2_spans_list = next(
-        t["spans"] for t in payload["traces"] if all(s["trace_id"] == trace2_id for s in t["spans"])
-    )
-
-    # trace1: root1, child1, child2
-    assert len(trace1_spans_list) == 3
-    trace1_spans = {s["name"]: s for s in trace1_spans_list}
-    assert set(trace1_spans.keys()) == {"root1", "child1", "child2"}
-    assert trace1_spans["root1"]["span_id"] == "{:016x}".format(root1.span_id)
-    assert trace1_spans["root1"]["parent_id"] == "0000000000000000"
-    assert trace1_spans["child1"]["span_id"] == "{:016x}".format(child1.span_id)
-    assert trace1_spans["child1"]["parent_id"] == "{:016x}".format(root1.span_id)
-    assert trace1_spans["child2"]["span_id"] == "{:016x}".format(child2.span_id)
-    assert trace1_spans["child2"]["parent_id"] == "{:016x}".format(root1.span_id)
-
-    # trace2: root2 only
-    assert len(trace2_spans_list) == 1
-    assert trace2_spans_list[0]["name"] == "root2"
-    assert trace2_spans_list[0]["span_id"] == "{:016x}".format(root2.span_id)
-    assert trace2_spans_list[0]["parent_id"] == "0000000000000000"
-
-    headers = mock_put.call_args_list[0][0][1]
-    assert headers["Content-Type"] == "application/json"
-    assert headers["dd-api-key"] == "test-api-key"
-    assert headers["Datadog-Meta-Lang"] == "python"
-
-
-@pytest.mark.subprocess(
-    env={
-        "_DD_APM_TRACING_AGENTLESS_ENABLED": "1",
-        "DD_API_KEY": "test-api-key",
-        "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED": "true",
-        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0}]',
-        "DD_TRACE_HEALTH_METRICS_ENABLED": "true",
-        "DD_TRACE_RATE_LIMIT": "1",
-        "DD_TRACE_COMPUTE_STATS": "true",
-    }
-)
-def test_agentless_writer_serialize_span_fields():
-    import json
-    from os import getpid
-    from unittest.mock import patch
-
-    from ddtrace.internal.hostname import get_hostname
-    from ddtrace.internal.runtime import get_runtime_id
-    from ddtrace.internal.utils.http import Response
-    from ddtrace.internal.writer.writer import AgentlessTraceWriter
-    from ddtrace.trace import tracer
-
-    writer = tracer._span_aggregator.writer
-    assert isinstance(writer, AgentlessTraceWriter)
-
-    with patch.object(writer, "_put", return_value=Response(status=200)) as mock_put:
-        with tracer.trace("root1", resource="resource1", service="service1") as span:
-            span.set_tag("tag1", "value1")
-            span.set_tag("tag2", "value2")
-            span._set_attribute("metric1", 1.0)
-            span._set_attribute("metric2", 2.0)
-            span.set_link(trace_id=3, span_id=4)
-            span.error = 1
-            span._set_struct_tag("payload", {"key": "value"})
-        writer.flush_queue()
-
-    assert mock_put.call_count == 1
-    payload_json_bytes = mock_put.call_args_list[0][0][0]
-    payload_json = json.loads(payload_json_bytes.decode("utf-8"))
-
-    assert "traces" in payload_json
-    assert len(payload_json["traces"]) == 1
-    assert len(payload_json["traces"][0]["spans"]) == 1
-    span_json = payload_json["traces"][0]["spans"][0]
-
-    assert span_json["trace_id"] == "{:016x}".format(span._trace_id_64bits)
-    assert span_json["parent_id"] == "0000000000000000"
-    assert span_json["span_id"] == "{:016x}".format(span.span_id)
-    assert span_json["service"] == "service1"
-    assert span_json["resource"] == "resource1"
-    assert span_json["name"] == "root1"
-    assert span_json["error"] == 1
-    assert span_json["start"] == span.start_ns
-    assert span_json["duration"] == span.duration_ns
-    assert span_json["span_links"] == [{"trace_id": "00000000000000000000000000000003", "span_id": "0000000000000004"}]
-    assert span_json["meta_struct"] == {"payload": {"key": "value"}}
-
-    assert span_json["meta"]["_dd.hostname"] == get_hostname()
-    assert span_json["meta"]["runtime-id"] == get_runtime_id()
-    assert span_json["meta"]["tag1"] == "value1"
-    assert span_json["meta"]["tag2"] == "value2"
-    assert span_json["meta"]["_dd.p.dm"] == "-3"
-    assert span_json["meta"]["language"] == "python"
-    assert span_json["meta"]["_dd.p.tid"] == "{:016x}".format(span.trace_id >> 64)
-
-    assert span_json["metrics"]["process_id"] == getpid()
-    assert span_json["metrics"]["metric1"] == 1.0
-    assert span_json["metrics"]["metric2"] == 2.0
-    assert span_json["metrics"]["_dd.top_level"] == 1
-    assert span_json["metrics"]["_dd.rule_psr"] == 0
-    assert span_json["metrics"]["_sampling_priority_v1"] == -1
+    assert isinstance(writer, NativeWriter)
+    assert writer.agentless is True
+    assert writer.intake_url.startswith("https://public-trace-http-intake.logs.")
+    assert writer.intake_url.endswith(AGENTLESS_INTAKE_PATH)
 
 
 @pytest.mark.subprocess(
@@ -1419,11 +1298,10 @@ def test_agentless_writer_serialize_span_fields():
     err=b"APM Agentless enabled but DD_API_KEY is not set. Agentless mode will be disabled.\n",
 )
 def test_agentless_writer_no_api_key():
-    from ddtrace.internal.writer.writer import AgentlessTraceWriter
     from ddtrace.trace import tracer
 
     writer = tracer._span_aggregator.writer
-    assert not isinstance(writer, AgentlessTraceWriter)
+    assert writer.agentless is False
 
 
 def test_is_otlp_traces_exporter_enabled_when_otel_traces_exporter_is_otlp():
@@ -1450,3 +1328,371 @@ def test_native_writer_stores_otlp_endpoint():
     """NativeWriter stores the otlp_endpoint when provided."""
     writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
     assert writer._otlp_endpoint == "http://localhost:4318/v1/traces"
+
+
+def test_native_writer_reports_otlp_intake_endpoint():
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    assert writer._intake_endpoint() == "http://localhost:4318/v1/traces"
+
+
+def test_agentless_exporter_uses_the_configured_timeout():
+    """DD_TRACE_AGENT_TIMEOUT_SECONDS must reach the intake transport.
+
+    Left unset, libdatadog applies its own 15s default, so a slow intake would block flushes and
+    shutdown well past the configured timeout.
+    """
+    import ddtrace.internal.writer.writer as writer_module
+
+    calls = []
+
+    class _RecordingBuilder:
+        def __getattr__(self, name):
+            def record(*args, **kwargs):
+                calls.append((name, args))
+                return self
+
+            return record
+
+    with override_global_config(dict(_trace_compute_stats=False)):
+        with mock.patch.object(writer_module.agent_config, "trace_agent_timeout_seconds", 3.5):
+            with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
+                writer_module._build_base_exporter_builder(
+                    "https://public-trace-http-intake.logs.datadoghq.com/v1/input",
+                    None,
+                    False,
+                    False,
+                    False,
+                    "an-api-key",
+                )
+
+    assert ("set_agentless_timeout", (3500,)) in calls
+    # Agentless and an agent URL are mutually exclusive; libdatadog's build() rejects both.
+    assert not [c for c in calls if c[0] == "set_url"]
+
+
+def test_agent_exporter_sets_the_agent_url_not_the_intake():
+    import ddtrace.internal.writer.writer as writer_module
+
+    calls = []
+
+    class _RecordingBuilder:
+        def __getattr__(self, name):
+            def record(*args, **kwargs):
+                calls.append((name, args))
+                return self
+
+            return record
+
+    with mock.patch.object(writer_module.native, "TraceExporterBuilder", _RecordingBuilder):
+        writer_module._build_base_exporter_builder("http://localhost:8126", None, False, False, False, None)
+
+    assert ("set_url", ("http://localhost:8126",)) in calls
+    assert not [c for c in calls if "agentless" in c[0]]
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+def test_agentless_end_to_end_payload_reaches_the_intake():
+    """Full flow: a span written in agentless mode arrives at the intake as JSON.
+
+    The intake URL is redirected at a local server, since the real one is unreachable from tests.
+    """
+    import http.server
+    import json
+    import threading
+    import time
+
+    requests = []
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            length = int(self.headers.get("Content-Length") or 0)
+            requests.append((self.path, dict(self.headers), self.rfile.read(length)))
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, *args):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    from ddtrace._trace.processor import _resolve_apm_trace_agentless
+    from ddtrace.internal.writer import writer as writer_module
+    from ddtrace.trace import tracer
+
+    assert _resolve_apm_trace_agentless() is True
+
+    port = server.server_address[1]
+    writer_module.compute_agentless_intake_url = lambda site: f"http://127.0.0.1:{port}/v1/input"
+    # The writer built at import time points at the real intake; replace it before tracing so
+    # nothing leaves the machine.
+    previous = tracer._span_aggregator.writer
+    tracer._span_aggregator.writer = writer_module.create_trace_writer(agentless=True)
+    try:
+        previous.stop()
+    except Exception:
+        previous.shutdown_exporter()
+
+    assert tracer._span_aggregator.writer.agentless is True
+
+    with tracer.trace("agentless-e2e", service="agentless-svc", resource="a-resource") as span:
+        span.set_tag("in_payload", "yes")
+    tracer.flush()
+
+    deadline = time.time() + 10
+    while not requests and time.time() < deadline:
+        time.sleep(0.05)
+    assert requests, "no payload reached the intake"
+
+    path, headers, body = requests[0]
+    assert path == "/v1/input"
+    assert headers["dd-api-key"] == "a-test-api-key"
+    assert headers["content-type"] == "application/json"
+    assert headers["x-datadog-trace-count"] == "1"
+
+    # libdatadog compresses the payload when it is built with its `compression` feature. The
+    # content-type keeps describing the decoded body, so the encoding decides how to read it.
+    encoding = headers.get("content-encoding")
+    payload = None
+    if encoding == "zstd":
+        assert body[:4] == b"\x28\xb5\x2f\xfd", "declared zstd but the frame magic is missing"
+        try:
+            from compression.zstd import decompress  # Python 3.14 and later
+
+            payload = decompress(body)
+        except ImportError:
+            # No decoder in this interpreter, so the headers above are as far as we can check.
+            pass
+    else:
+        assert encoding is None, f"unexpected content-encoding {encoding!r}"
+        payload = body
+
+    if payload is not None:
+        chunks = json.loads(payload)["traces"]
+        assert len(chunks) == 1
+        assert chunks[0]["languageName"] == "python"
+        spans = chunks[0]["spans"]
+        assert [(s["name"], s["service"], s["resource"]) for s in spans] == [
+            ("agentless-e2e", "agentless-svc", "a-resource")
+        ]
+        assert spans[0]["meta"]["in_payload"] == "yes"
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+def test_agentless_buffer_stays_under_the_intake_limit():
+    """The intake rejects payloads over 20 MB, and the 20 MB default would sit right at the edge."""
+    from ddtrace.internal.writer.writer import AGENTLESS_MAX_BUFFER_SIZE
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._buffer_size == AGENTLESS_MAX_BUFFER_SIZE
+    assert writer._max_payload_size == AGENTLESS_MAX_BUFFER_SIZE
+
+
+@pytest.mark.subprocess(
+    env={
+        "_DD_APM_TRACING_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "a-test-api-key",
+        "DD_TRACE_WRITER_BUFFER_SIZE_BYTES": str(64 << 20),
+    }
+)
+def test_agentless_buffer_cap_overrides_a_larger_request():
+    from ddtrace.internal.writer.writer import AGENTLESS_MAX_BUFFER_SIZE
+    from ddtrace.trace import tracer
+
+    assert tracer._span_aggregator.writer._buffer_size == AGENTLESS_MAX_BUFFER_SIZE
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "a-test-api-key"})
+def test_agent_writer_keeps_the_configured_buffer_size():
+    from ddtrace.internal.settings._config import config
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._buffer_size == config._trace_writer_buffer_size
+
+
+@pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
+def test_agent_trace_url_is_not_the_intake_when_agentless():
+    """Consumers treat agent_trace_url as an Agent endpoint and fall back to the Agent when None.
+
+    The profiling uploader does exactly that, and it does not support agentless mode.
+    """
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.trace import tracer
+
+    assert tracer._span_aggregator.writer.agentless is True
+    assert tracer.agent_trace_url is None
+
+    profiling_endpoint = tracer.agent_trace_url or agent_config.trace_agent_url
+    assert profiling_endpoint == agent_config.trace_agent_url
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "a-test-api-key"})
+def test_agent_trace_url_is_the_agent_when_not_agentless():
+    from ddtrace.internal.settings._agent import config as agent_config
+    from ddtrace.trace import tracer
+
+    assert tracer.agent_trace_url == agent_config.trace_agent_url
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+        # Agentless computes Datadog stats by default, and those win over OTLP trace metrics.
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_agentless_writer_exports_trace_metrics_to_the_intake():
+    """libdatadog forbids OTLP *trace* export with agentless, but not OTLP trace metrics.
+
+    Dropping the endpoint in agentless mode would silently stop span-stats export.
+    """
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._otlp_metrics_endpoint == "https://otlp.datadoghq.com/v1/metrics"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "OTEL_TRACES_SPAN_METRICS_ENABLED": "true"})
+def test_agent_mode_exports_trace_metrics_to_the_agent():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_metrics_endpoint == "http://localhost:4318/v1/metrics"
+
+
+@pytest.mark.subprocess(
+    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"}
+)
+def test_agentless_stats_go_to_the_stats_intake():
+    """There is no Agent to forward /v0.6/stats to, so computed stats go straight to the intake."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "DD_SITE": "datadoghq.eu",
+    }
+)
+def test_agentless_stats_intake_follows_dd_site():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.eu/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        # The test venv pins these off; the point here is what agentless defaults to.
+        "DD_TRACE_COMPUTE_STATS": None,
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": None,
+    }
+)
+def test_agentless_computes_stats_by_default():
+    """Without an Agent to compute them, agentless turns on client-side stats itself."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_agentless_leaves_stats_to_the_backend_when_disabled():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint is None
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+    },
+    err=None,  # warns that OTLP trace metrics are skipped
+)
+def test_agentless_stats_take_precedence_over_otlp_trace_metrics():
+    """libdatadog rejects both at build time, so one must be dropped before the exporter is built."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+    assert writer._otlp_metrics_endpoint is None
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"})
+def test_agent_mode_sends_stats_through_the_agent():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._agentless_stats_endpoint is None
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+    }
+)
+def test_explicit_otlp_trace_endpoint_wins_over_agentless():
+    """libdatadog cannot do both, and the endpoint the user configured is the more specific ask."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_endpoint == "http://collector:4318/v1/traces"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://collector:4318/v1/traces",
+    }
+)
+def test_signal_specific_otlp_trace_endpoint_wins_over_agentless():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_endpoint == "http://collector:4318/v1/traces"
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "OTEL_TRACES_EXPORTER": "otlp"})
+def test_otlp_without_an_explicit_endpoint_still_goes_agentless():
+    """With no endpoint of their own, OTel traces follow the tracer to the span intake."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._otlp_endpoint is None
+    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com/v1/input"

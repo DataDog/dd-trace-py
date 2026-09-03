@@ -52,7 +52,7 @@ if(NOT Python_FOUND AND NOT Python3_FOUND)
   endif()
 
   find_package(
-    Python 3.8 REQUIRED COMPONENTS ${_pybind11_interp_component} ${_pybind11_dev_component}
+    Python 3.9 REQUIRED COMPONENTS ${_pybind11_interp_component} ${_pybind11_dev_component}
                                    ${_pybind11_quiet} ${_pybind11_global_keyword})
 
   # If we are in submodule mode, export the Python targets to global targets.
@@ -106,23 +106,13 @@ if(PYBIND11_MASTER_PROJECT)
   endif()
 endif()
 
-if(NOT _PYBIND11_CROSSCOMPILING)
-  # If a user finds Python, they may forget to include the Interpreter component
-  # and the following two steps require it. It is highly recommended by CMake
-  # when finding development libraries anyway, so we will require it.
-  if(NOT DEFINED ${_Python}_EXECUTABLE)
-    message(
-      FATAL_ERROR
-        "${_Python} was found without the Interpreter component. Pybind11 requires this component."
-    )
-
-  endif()
-
+if(NOT _PYBIND11_CROSSCOMPILING AND DEFINED ${_Python}_EXECUTABLE)
   if(DEFINED PYBIND11_PYTHON_EXECUTABLE_LAST AND NOT ${_Python}_EXECUTABLE STREQUAL
                                                  PYBIND11_PYTHON_EXECUTABLE_LAST)
     # Detect changes to the Python version/binary in subsequent CMake runs, and refresh config if needed
     unset(PYTHON_IS_DEBUG CACHE)
     unset(PYTHON_MODULE_EXTENSION CACHE)
+    unset(PYTHON_MODULE_DEBUG_POSTFIX CACHE)
   endif()
 
   set(PYBIND11_PYTHON_EXECUTABLE_LAST
@@ -190,20 +180,20 @@ else()
     include("${CMAKE_CURRENT_LIST_DIR}/pybind11GuessPythonExtSuffix.cmake")
     pybind11_guess_python_module_extension("${_Python}")
   endif()
-  # When cross-compiling, we cannot query the Python interpreter, so we require
-  # the user to set these variables explicitly.
   if(NOT DEFINED PYTHON_IS_DEBUG
      OR NOT DEFINED PYTHON_MODULE_EXTENSION
      OR NOT DEFINED PYTHON_MODULE_DEBUG_POSTFIX)
     message(
       FATAL_ERROR
-        "When cross-compiling, you should set the PYTHON_IS_DEBUG, PYTHON_MODULE_EXTENSION and PYTHON_MODULE_DEBUG_POSTFIX \
-        variables appropriately before loading pybind11 (e.g. in your CMake toolchain file)")
+        "A Python interpreter was not found, or you are cross-compiling, and the "
+        "PYTHON_IS_DEBUG, PYTHON_MODULE_EXTENSION and PYTHON_MODULE_DEBUG_POSTFIX "
+        "variables could not be guessed. Set these variables appropriately before "
+        "loading pybind11 (e.g. in your CMake toolchain file)")
   endif()
 endif()
 
-# Python debug libraries expose slightly different objects before 3.8
-# https://docs.python.org/3.6/c-api/intro.html#debugging-builds
+# A debug build of Python needs Py_DEBUG to select the matching ABI.
+# https://docs.python.org/3/c-api/intro.html#debugging-builds
 # https://stackoverflow.com/questions/39161202/how-to-work-around-missing-pymodule-create2-in-amd64-win-python35-d-lib
 if(PYTHON_IS_DEBUG)
   set_property(
@@ -248,10 +238,7 @@ if(TARGET ${_Python}::Module)
   # files.
   get_target_property(module_target_type ${_Python}::Module TYPE)
   if(ANDROID AND module_target_type STREQUAL INTERFACE_LIBRARY)
-    set_property(
-      TARGET ${_Python}::Module
-      APPEND
-      PROPERTY INTERFACE_LINK_LIBRARIES "${${_Python}_LIBRARIES}")
+    target_link_libraries(${_Python}::Module INTERFACE ${${_Python}_LIBRARIES})
   endif()
 
   set_property(
