@@ -130,20 +130,37 @@ VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
-BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
+
+def _env_truthy(name: str, default: str = "0") -> bool:
+    return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
+
+
+BUILD_PROFILING_NATIVE_TESTS = _env_truthy("DD_PROFILING_NATIVE_TESTS")
+
+
+def is_musl_libc() -> bool:
+    """Whether the current interpreter is a musl (Alpine / musllinux) build."""
+    return any(
+        "musl" in (sysconfig.get_config_var(k) or "")
+        for k in ("SOABI", "EXT_SUFFIX", "BUILD_GNU_TYPE", "HOST_GNU_TYPE", "MULTIARCH")
+    )
+
 
 # Opt-in build of the native heap-gotter cdylib.
 # Off by default so normal builds don't pay the extra cargo fetch/compile and
 # mainline wheels don't ship the artifact until it GA's.
-BUILD_NATIVE_HEAP_GOTTER: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_BUILD", "0").lower() in ("1", "yes", "on", "true")
+# Same env var as runtime arming (ProfilingConfigNativeHeap.enabled); setup.py
+# reads it via os.getenv during the package build, independent of DDConfig.
+# Musl is always a no-op even when the env is set (see is_musl_libc).
+if _env_truthy("DD_PROFILING_NATIVE_HEAP_ENABLED") and is_musl_libc():
+    print(
+        "WARNING: DD_PROFILING_NATIVE_HEAP_ENABLED is set but the native heap-gotter "
+        "cdylib is only built on manylinux (glibc); skipping on musllinux."
+    )
+BUILD_NATIVE_HEAP_GOTTER: bool = _env_truthy("DD_PROFILING_NATIVE_HEAP_ENABLED") and not is_musl_libc()
 # Keep the staged cdylib unstripped when building with the upstream test-support
 # feature (hook-hit counter for e2e / integration tests).
-BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT: bool = os.getenv("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT", "0").lower() in (
-    "1",
-    "yes",
-    "on",
-    "true",
-)
+BUILD_NATIVE_HEAP_GOTTER_TEST_SUPPORT = _env_truthy("DD_PROFILING_NATIVE_HEAP_TEST_SUPPORT")
 
 CURRENT_OS = platform.system()
 SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes", "on", "true")
@@ -280,28 +297,6 @@ def verify_checksum_from_hash(expected_checksum, filename):
         print("expected checksum: %s" % expected_checksum)
         print("actual checksum: %s" % actual_checksum)
         sys.exit(1)
-
-
-def load_module_from_project_file(mod_name, fname):
-    """
-    Helper used to load a module from a file in this project
-
-    DEV: Loading this way will by-pass loading all parent modules
-         e.g. importing `ddtrace.vendor.psutil.setup` will load `ddtrace/__init__.py`
-         which has side effects like loading the tracer
-    """
-    fpath = HERE / fname
-
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location(mod_name, fpath)
-    if spec is None:
-        raise ImportError(f"Could not find module {mod_name} in {fpath}")
-    mod = importlib.util.module_from_spec(spec)
-    if spec.loader is None:
-        raise ImportError(f"Could not load module {mod_name} from {fpath}")
-    spec.loader.exec_module(mod)
-    return mod
 
 
 def is_64_bit_python():
@@ -507,11 +502,6 @@ class LibraryDownload:
             shutil.rmtree(download_dir)
             download_dir.mkdir(parents=True, exist_ok=True)
 
-        # If the directory is nonempty (beyond the sentinel), assume we're done
-        non_sentinel = [p for p in download_dir.iterdir() if p.name != ".version"]
-        if non_sentinel:
-            return
-
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
@@ -535,8 +525,10 @@ class LibraryDownload:
 
             arch_dir = download_dir / arch
 
-            # If the directory for the architecture exists and is nonempty, assume we're done
-            if arch_dir.is_dir() and any(arch_dir.iterdir()):
+            # A source checkout can be shared between host and container builds.
+            # Only the library for this OS/architecture makes an existing directory complete.
+            lib_dir = arch_dir / "lib"
+            if all((lib_dir / f"lib{cls.name}{suffix}").is_file() for suffix in suffixes):
                 continue
 
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
@@ -589,7 +581,14 @@ class LibraryDownload:
 
             with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
-                Path(HERE / archive_dir).rename(arch_dir)
+
+            extracted_dir = Path(HERE / archive_dir)
+            if arch_dir.exists():
+                # A host and container can use the same architecture name with different library suffixes.
+                shutil.copytree(extracted_dir, arch_dir, dirs_exist_ok=True)
+                shutil.rmtree(extracted_dir)
+            else:
+                extracted_dir.rename(arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
             lib_dir = arch_dir / "lib"
@@ -1710,17 +1709,6 @@ except EnvironmentError as e:
     sys.exit(1)
 
 
-def get_exts_for(name):
-    try:
-        mod = load_module_from_project_file(
-            "ddtrace.vendor.{}.setup".format(name), "ddtrace/vendor/{}/setup.py".format(name)
-        )
-        return mod.get_extensions()
-    except Exception as e:
-        print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
-        return []
-
-
 if CURRENT_OS == "Windows":
     encoding_libraries = ["ws2_32"]
     extra_compile_args = []
@@ -1927,8 +1915,6 @@ setup(
         ),
     },
     zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
     cmdclass={
         "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,
@@ -1942,6 +1928,6 @@ setup(
         "setuptools-rust<2",
         "patchelf>=0.17.0.0; sys_platform == 'linux'",
     ],
-    ext_modules=ext_modules + cython_exts + get_exts_for("psutil"),
+    ext_modules=ext_modules + cython_exts,  # type: ignore[arg-type]
     distclass=PatchedDistribution,
 )

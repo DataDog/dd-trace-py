@@ -20,8 +20,64 @@ use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime};
 #[cfg(not(unix))]
 use pyo3::exceptions::PyValueError;
 use pyo3::{prelude::*, pybacked::PyBackedBytes};
-use std::{sync::Arc, time::Duration};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
+use std::{sync::Arc, sync::OnceLock, thread, time::Duration};
 use url::Url;
+
+/// Substring of the panic message `Runtime::block_on` raises when called from a
+/// thread whose thread-local storage has already been torn down.
+const TLS_DESTROYED_PANIC: &str = "Tokio context thread-local variable has been destroyed";
+
+/// Run `f`, retrying once on a fresh thread if it panics with the specific
+/// "TLS destroyed" message below — never for any other panic.
+///
+/// AIDEV-NOTE: this exists for requests issued at interpreter shutdown. Some
+/// embedders tear down their threads *before* Python runs its `atexit` hooks,
+/// so a request made from such a hook runs on a thread whose thread-local
+/// storage is already destroyed, and `Runtime::block_on` panics with "The Tokio
+/// context thread-local variable has been destroyed". A freshly spawned thread
+/// has intact thread-local storage, so re-running the call there succeeds. Same
+/// workaround as `SharedRuntimePy::shutdown_in_thread`.
+///
+/// The retry is gated on the panic message rather than "any panic" so a panic
+/// unrelated to runtime teardown (e.g. a bug elsewhere in `f`) propagates
+/// immediately instead of being silently re-run against possibly-broken state
+/// — or, worse, sending the same request twice.
+///
+/// A scoped thread is used so `f` can keep borrowing the client. The retry is
+/// only paid on the panic path; if it panics again the panic is propagated.
+fn block_on_resilient<T: Send>(f: impl Fn() -> T + Send + Sync) -> T {
+    match catch_unwind(AssertUnwindSafe(&f)) {
+        Ok(out) => out,
+        Err(panic) => {
+            let is_tls_destroyed = panic
+                .downcast_ref::<&str>()
+                .copied()
+                .or_else(|| panic.downcast_ref::<String>().map(String::as_str))
+                .is_some_and(|msg| msg.contains(TLS_DESTROYED_PANIC));
+            if !is_tls_destroyed {
+                resume_unwind(panic);
+            }
+            thread::scope(|s| match s.spawn(f).join() {
+                Ok(out) => out,
+                Err(panic) => resume_unwind(panic),
+            })
+        }
+    }
+}
+
+/// Install the ring crypto provider once.
+///
+/// `libdd-http-client` uses `reqwest/rustls-no-provider` so no provider is
+/// auto-installed. This mirrors `libdd-common`'s connector init: ring is
+/// installed lazily on first client construction. In FIPS builds the caller
+/// must install `aws_lc_rs` before the first `HTTPClient` is created.
+fn ensure_crypto_provider() {
+    static ONCE: OnceLock<()> = OnceLock::new();
+    ONCE.get_or_init(|| {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    });
+}
 
 use crate::http_client::{errors::http_error_to_pyerr, response::HttpResponsePy};
 use crate::shared_runtime::SharedRuntimePy;
@@ -93,7 +149,11 @@ impl HttpClientPy {
         // `Result<HttpResponse, HttpClientError>`. The io::Error only appears if the
         // runtime fails to rebuild a fallback (fork chaos); map it to HttpIoError so
         // callers never see a raw error type leak through.
-        let result = py.detach(move || runtime.block_on(client.send(req)));
+        //
+        // DEV: `req` is cloned per attempt so the call can be retried by
+        // `block_on_resilient`; `HttpRequest` is a cheap, plain-data value.
+        let result =
+            py.detach(move || block_on_resilient(|| runtime.block_on(client.send(req.clone()))));
         match result {
             Ok(Ok(resp)) => Ok(HttpResponsePy::from(resp)),
             Ok(Err(e)) => Err(http_error_to_pyerr(py, e)),
@@ -135,7 +195,8 @@ impl HttpClientPy {
         retry_jitter: bool,
         treat_http_errors_as_errors: bool,
     ) -> PyResult<Self> {
-        let rt = runtime.as_arc().clone();
+        ensure_crypto_provider();
+        let rt = runtime.as_arc()?;
 
         // Parse the base URL to validate it and extract the canonical base origin.
         // unix:// is not a registered URL scheme so we handle it first; http/https
@@ -298,5 +359,43 @@ impl HttpClientPy {
 
     fn __repr__(&self) -> String {
         format!("HTTPClient(base={:?})", self.base)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::block_on_resilient;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::thread;
+
+    #[test]
+    fn resilient_returns_first_attempt() {
+        let calls = AtomicUsize::new(0);
+        let out = block_on_resilient(|| {
+            calls.fetch_add(1, Ordering::SeqCst);
+            42
+        });
+        assert_eq!(out, 42);
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn resilient_retries_on_another_thread_after_panic() {
+        let caller = thread::current().id();
+        let calls = AtomicUsize::new(0);
+        let out = block_on_resilient(|| {
+            if calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                panic!("the Tokio context thread-local variable has been destroyed");
+            }
+            thread::current().id()
+        });
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert_ne!(out, caller, "retry must run on a fresh thread");
+    }
+
+    #[test]
+    #[should_panic(expected = "always")]
+    fn resilient_propagates_a_persistent_panic() {
+        block_on_resilient(|| panic!("always"));
     }
 }

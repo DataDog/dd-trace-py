@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from enum import Enum
 import itertools
 import os
 import traceback
@@ -14,6 +13,7 @@ from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._telemetry import config
 
 from ...internal import atexit
@@ -34,6 +34,10 @@ from .data import get_host_info
 from .data import get_python_config_vars
 from .dependency_tracker import DependencyTracker
 from .logging import DDTelemetryErrorHandler
+from .metrics import _bind_metric_recorders
+from .metrics import _convert_metric_tags
+from .metrics import _unbind_metric_recorders
+from .metrics import register_metric_context
 
 
 if TYPE_CHECKING:
@@ -74,7 +78,7 @@ def _config_value_to_str(value: Any) -> Optional[str]:
 
 
 # Used for deduplication.
-class LogData(dict):
+class LogData(dict[str, Any]):
     def __hash__(self):
         return hash((self["message"], self["level"], self.get("tags"), self.get("stack_trace")))
 
@@ -87,15 +91,6 @@ class LogData(dict):
         )
 
 
-def _convert_metric_tags(tags: tuple[tuple[str, str], ...]) -> list[str]:
-    """Convert the tag tuple form ``((k, v), ...)`` into ``["k:v", ...]``.
-
-    Callers check for tags first and use the untagged ``add_point`` when there are none, so this
-    is never handed an empty/None tag set.
-    """
-    return [f"{k}:{v}".lower() for k, v in tags]
-
-
 # Map python strings to libdatadog enums.
 _NATIVE_TELEMETRY_ENUMS: Optional[dict] = None
 
@@ -105,17 +100,8 @@ def _native_telemetry_enums() -> dict:
     if _NATIVE_TELEMETRY_ENUMS is None:
         from ddtrace.internal.native import ConfigurationOrigin
         from ddtrace.internal.native import LogLevel
-        from ddtrace.internal.native import MetricNamespace
-        from ddtrace.internal.native import MetricType
 
         _NATIVE_TELEMETRY_ENUMS = {
-            "namespace": {ns: getattr(MetricNamespace, ns.value) for ns in TELEMETRY_NAMESPACE},
-            "metric_type": {
-                "gauge": MetricType.gauge,
-                "count": MetricType.count,
-                "rate": MetricType.rate,
-                "distribution": MetricType.distribution,
-            },
             "level": {level: getattr(LogLevel, level.value) for level in TELEMETRY_LOG_LEVEL},
             "origin": ConfigurationOrigin,
         }
@@ -165,9 +151,11 @@ class TelemetryWriter:
         self._enabled = config.TELEMETRY_ENABLED
 
         if agentless is None:
-            agentless = config.AGENTLESS_MODE or config.API_KEY not in (None, "")
+            # An API key on its own says nothing about how data should be submitted;
+            # only an explicit agentless setting does.
+            agentless = agentless_config.any_enabled
 
-        if agentless and not config.API_KEY:
+        if agentless and not agentless_config.api_key:
             log.debug("Disabling telemetry: no Datadog API key found in agentless mode")
             self._enabled = False
 
@@ -214,9 +202,9 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in forked children (registered AFTER the native
-            # runtime's after_fork_child hook, which get_native_runtime() registered
-            # during enable(), so the shared runtime is restarted before we rebuild).
+            # Rebuild the native worker in Python-managed forked children. The NativeRuntime
+            # after_fork_child callback runs before this callback, ensuring the shared runtime
+            # has been restarted before we drop and lazily rebuild the telemetry worker.
             forksafe.register(self._fork_writer)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
@@ -239,8 +227,8 @@ class TelemetryWriter:
             endpoint_url = "file://" + os.path.join(self._payload_file_dir, "")
             api_key = None
         elif self._agentless:
-            endpoint_url = _agentless_endpoint_url(config.SITE)
-            api_key = config.API_KEY
+            endpoint_url = _agentless_endpoint_url(agentless_config.site)
+            api_key = agentless_config.api_key
         else:
             endpoint_url = agent_config.trace_agent_url
             api_key = None
@@ -289,7 +277,7 @@ class TelemetryWriter:
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if not self._enabled:
+        if not self._enabled or forksafe.in_child_hook():
             return False
 
         if self._worker is not None:
@@ -307,6 +295,9 @@ class TelemetryWriter:
                 return False
             self._metric_contexts.clear()
             self._worker = worker
+            # Adopt the recorders onto the new worker while still holding the lock, so no thread
+            # can observe a published worker whose recorders still point at the previous one.
+            _bind_metric_recorders(self, worker)
             self._notify_worker_changed(worker)
 
         # Every process starts its worker so it heartbeats with its own session id.
@@ -393,6 +384,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
 
     def _subscribe_worker_changes(self, callback: "Callable[[Optional[TelemetryWorker]], None]") -> None:
@@ -412,7 +404,7 @@ class TelemetryWriter:
 
         self._agentless = enabled
 
-        if enabled and not config.API_KEY:
+        if enabled and not agentless_config.api_key:
             log.debug("Cannot switch telemetry to agentless mode: no Datadog API key found")
             return
 
@@ -427,6 +419,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker during agentless switch", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
             self.enable()
             if was_started:
@@ -724,17 +717,8 @@ class TelemetryWriter:
             context = self._metric_contexts.get(key)
             if context is not None:
                 return context
-            enums = _native_telemetry_enums()
-            context = worker.register_metric_context(
-                enums["namespace"][namespace],
-                # ``name`` may be an ``E(str, enum.Enum)``, use value then, rather than str().
-                name.value if isinstance(name, Enum) else str(name),
-                enums["metric_type"][metric_type],
-                # No tags on the context itself; they are sent per point.
-                [],
-                # ``common`` marks language-shared metrics
-                True,
-            )
+            # No tags on the context itself; they are sent per point.
+            context = register_metric_context(worker, metric_type, namespace, name)
             self._metric_contexts[key] = context
             return context
 
@@ -875,6 +859,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker while setting test token", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
         self.enable()
 
@@ -898,6 +883,7 @@ class TelemetryWriter:
                 log.debug("Failed to stop the native telemetry worker while enabling payload files", exc_info=True)
             self._worker = None
             self.started = False
+            _unbind_metric_recorders(self)
             self._notify_worker_changed(None)
         self.enable()
         # Re-emit app-started against the file:// worker if it had already started, so the offline
@@ -911,20 +897,21 @@ class TelemetryWriter:
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
     def _fork_writer(self) -> None:
-        # Runs in the child after fork. The inherited native worker was spawned with
-        # restart_on_fork=False, so the shared runtime drops it (without app-closing) in the
-        # child; the inherited Python handle is now inert. Drop it and rebuild lazily on the
-        # child's next telemetry call (enable()), bound to the child's own runtime and session
-        # ids (get_runtime_id()/get_parent_runtime_id() now reflect the child), heartbeating
-        # without re-emitting app-started.
-        # NOTE: rebuilding here, inside the fork-hook chain, trips a tokio IO-safety abort
-        # (spawning on the just-restarted runtime from within the after-fork callbacks).
+        # Runs in the child after a Python-managed fork. Drop the inherited worker and rebuild
+        # lazily on the child's next telemetry call (enable()), bound to the child's own runtime
+        # and session ids (get_runtime_id()/get_parent_runtime_id() now reflect the child),
+        # heartbeating without re-emitting app-started.
+        # NOTE: rebuilding here, inside the fork-hook chain, starts Tokio before process managers
+        # such as Celery finish closing inherited file descriptors.
         #
         # This hook is registered before the tracer's _child_after_fork (TelemetryWriter is
         # constructed before the tracer), so it always runs before the trace-exporter rebuild
         # that calls _get_shared_worker() to get a new telemetry client.
         self._worker = None
         self.started = False
+        # Contexts belong to the worker the parent built; the child rebuilds lazily and the
+        # recorders re-register against it then.
+        _unbind_metric_recorders(self)
         self._notify_worker_changed(None)
         # Re-discover dependencies from scratch so the child reports its own imports.
         self._dependency_tracker.reset()

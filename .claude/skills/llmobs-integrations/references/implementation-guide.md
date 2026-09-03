@@ -118,8 +118,17 @@ Different libraries structure messages differently — implement only the helper
 - `_extract_usage(response)` — map library-specific token field names to metric keys
 - `_extract_tools(kwargs)` — convert `tools` kwarg to `ToolDefinition` list
 - `_extract_audio_parts(...)` — for multimodal audio providers, populate `Message.audio_parts` with `AudioPart` entries containing `mime_type` plus either inline base64 `content` or an `attachment_key`
+- `_extract_<lib>_image_source(...)` — same, for `Message.image_parts`. See `anthropic.py`
 
 `MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper.
+
+### Inline Media Size Guards
+
+Oversized inline media makes `_writer._truncate_span_event` blank the span's entire input **and** output, not just the offending field. So route media through `format_audio_part_with_guard()` / `format_image_part_with_guard()`, which return `None` and let the caller keep a text marker.
+
+- Pass raw data, not a pre-encoded string, so an oversized payload is rejected before paying to encode it.
+- Do non-size rejection (bad MIME, non-ASCII "base64", a `Path`) in the *extractor*. If the guard returns `None` for a non-size reason, the caller's "too large" marker starts lying.
+- Each guard bounds one part. Several that each fit can still exceed the event limit — no cross-field budget exists yet.
 
 ### Metadata Hygiene
 
@@ -193,5 +202,5 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans (see anthropic for pattern)
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
-- [ ] `riotfile.py` — test dependencies match the suite style; include `vcrpy` only when cassette replay is used
+- [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index
