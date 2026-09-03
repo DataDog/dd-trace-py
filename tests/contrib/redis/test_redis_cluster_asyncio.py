@@ -12,6 +12,7 @@ from tests.utils import assert_is_measured
 
 TEST_HOST = REDISCLUSTER_CONFIG["host"]
 TEST_PORTS = REDISCLUSTER_CONFIG["ports"]
+REDIS_CLUSTER_PIPELINE_SNAPSHOT_VARIANTS = {"redis8": redis.VERSION >= (8, 0), "": redis.VERSION < (8, 0)}
 
 
 @pytest.fixture
@@ -155,7 +156,7 @@ async def test_pipeline(traced_redis_cluster):
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, variants=REDIS_CLUSTER_PIPELINE_SNAPSHOT_VARIANTS)
 @pytest.mark.asyncio
 async def test_pipeline_command_stack_count_matches_metric(redis_cluster):
     patch()
