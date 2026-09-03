@@ -1,4 +1,4 @@
 fixes:
   - |
-    tracing: Fixes an issue where memory usage grows over time in applications that
-    repeatedly create tracers or fork child processes.
+    tracing: Fixes an issue where applications that repeatedly fork child processes
+    use excessive memory.
