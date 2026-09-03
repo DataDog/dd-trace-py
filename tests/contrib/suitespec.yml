@@ -837,9 +837,9 @@ suites:
     snapshot: true
     matrix:
       runs:
-        - command: pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py'
+        - command: python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py'
             tests/contrib/bottle/
-        - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
+        - command: python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
           env:
             DD_SERVICE: bottle-app
       variants:
@@ -1890,7 +1890,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    parallelism: 4
+    parallelism: 6
     paths:
       - '@bootstrap'
       - '@core'
@@ -2107,11 +2107,17 @@ suites:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb
       variants:
         - name: pynamodb
-          python: ['3.9', '3.10', '3.11']
-          dependencies: ['pynamodb~=5.3', 'moto>=1.0,<2.0', 'cfn-lint~=0.53.1', 'Jinja2~=2.10.0', pytest-randomly, pytest-xdist]
+          python: ['3.9']
+          dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
-          python: ['3.9', '3.10', '3.11']
-          dependencies: ['pynamodb<6.0', 'moto>=1.0,<2.0', 'cfn-lint~=0.53.1', 'Jinja2~=2.10.0', pytest-randomly, pytest-xdist]
+          python: ['3.10', '3.11', '3.12']
+          dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.2.3']
+        - name: pynamodb
+          python: ['3.9']
+          dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.1.22']
+        - name: pynamodb
+          python: ['3.10', '3.11', '3.12']
+          dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
     venvs_per_job: 1
     skip_pip_cache: true
@@ -2227,6 +2233,10 @@ suites:
     pattern: ^ray$
     snapshot: true
     matrix:
+      # Ray 2.47+ mistakes scripts/run-tests' uv bootstrap for the driver environment.
+      # Keep workers in the suite's prebuilt venv instead of propagating the runner venv.
+      env:
+        RAY_ENABLE_UV_RUN_RUNTIME_ENV: '0'
       command: pytest {cmdargs} tests/contrib/ray
       variants:
         - name: ray
@@ -2250,6 +2260,10 @@ suites:
     pattern: ^ray_serve$
     snapshot: true
     matrix:
+      # Ray 2.47+ mistakes scripts/run-tests' uv bootstrap for the driver environment.
+      # Keep workers in the suite's prebuilt venv instead of propagating the runner venv.
+      env:
+        RAY_ENABLE_UV_RUN_RUNTIME_ENV: '0'
       command: pytest {cmdargs} tests/contrib/ray_serve
       variants:
         - name: ray_serve
