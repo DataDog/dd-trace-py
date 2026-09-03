@@ -16,8 +16,12 @@ variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2025-04-12-5990e2d
-  BENCHMARKING_BRANCH: dd-trace-py
-  BENCHMARKING_COMMIT_SHA: dbe21f0dd0f8274c31a006d0482f6836e86446c4
+  # EXPERIMENT (do not merge): points at a benchmarking-platform branch that
+  # swaps the candidate and baseline CPU ranges, to test whether the
+  # regression-only sign on no-op PRs follows core placement.
+  # See https://github.com/DataDog/benchmarking-platform/tree/augusto/investigate-dd-trace-py-benchmark-design
+  BENCHMARKING_BRANCH: augusto/investigate-dd-trace-py-benchmark-design
+  BENCHMARKING_COMMIT_SHA: 740fe874290645251c2e2e8fcfd7d9a3cf14df9a
   # Known flaky benchmarks
   FLAKY_BENCHMARKS_REGEX: "^iastaspects-(casefold_aspect|casefold_noaspect|lower_aspect|upper_noaspect|ljust_noaspect|swapcase_aspect|translate_aspect|translate_noaspect|index_aspect|replace_aspect|title_noaspect)$|^packagespackageforrootmodulemapping-cache_(on|off)$|^sethttpmeta-all-enabled$|^telemetryaddmetric-record-100-metrics$|^span-start$|^errortrackingflasksqli-baseline$|^flasksimple-iast-get$"
 
