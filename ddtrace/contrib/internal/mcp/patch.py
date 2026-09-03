@@ -120,8 +120,8 @@ async def traced_call_tool(func, instance, args: tuple, kwargs: dict):
     span: Span = integration.trace(CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
     try:
-        integration.set_client_session_server_info(span, _get_attr(instance, "server_info", None))
         result = await func(*args, **kwargs)
+        integration.set_client_session_server_info(span, _get_attr(instance, "server_info", None))
 
         if getattr(result, "isError", getattr(result, "is_error", False)):
             content = getattr(result, "content", [])
