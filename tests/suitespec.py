@@ -76,7 +76,9 @@ def _collect_suitespecs() -> dict:
 
 SUITESPEC = _collect_suitespecs()
 UV_TEST_SUITES = ("tracer", "tracer-uwsgi") + tuple(
-    suite for suite, config in SUITESPEC["suites"].items() if suite.startswith("contrib::") and "matrix" in config
+    suite
+    for suite, config in SUITESPEC["suites"].items()
+    if suite.startswith(("contrib::", "ci_visibility::")) and "matrix" in config
 )
 
 
