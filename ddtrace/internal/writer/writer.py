@@ -1246,7 +1246,7 @@ def _resolve_otlp_metrics_endpoint() -> Optional[str]:
 
 
 def _resolve_agentless_stats_endpoint() -> Optional[str]:
-    if not config._trace_compute_stats or asm_config._apm_opt_out:
+    if not config._trace_compute_stats or standalone_config.apm_opt_out:
         return None
     return compute_agentless_stats_url(config._dd_site.lower())
 
