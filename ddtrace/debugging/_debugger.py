@@ -54,6 +54,7 @@ from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLim
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import Service
 from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.trace import Tracer
 
@@ -538,7 +539,13 @@ class Debugger(Service):
                     tracer=self._tracer,
                     probe_meter=self._probe_meter,
                 )
-                self._function_store.wrap(cast(FunctionType, function), context)
+                try:
+                    self._function_store.wrap(cast(FunctionType, function), context)
+                except ObfuscatedCodeError:
+                    message = f"Cannot wrap {probe.func_qname!r}: code object appears to be obfuscated"
+                    self._probe_registry.set_error(probe, "ObfuscatedCode", message)
+                    log.error(message, extra={"send_to_telemetry": False})
+                    continue
                 log.debug(
                     "[%s][P: %s] Function probe %r wrapped around %r",
                     os.getpid(),

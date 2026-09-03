@@ -66,7 +66,7 @@ def build_symdb_sender() -> SymDBSender:
     """Build a sender for symbol uploads."""
     timeout_ms = int(UPLOAD_TIMEOUT * 1000)
 
-    if di_config._agentless:
+    if config._agentless_enabled:
         return SymDBSender(
             get_native_runtime(),
             site=config._dd_site,

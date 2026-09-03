@@ -417,7 +417,10 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate(reset_buffer=True)
+        # Celery and other process managers close inherited file descriptors after Python's
+        # at-fork callbacks return. Recreating the native writer here would start Tokio early
+        # enough for those descriptor sweeps to invalidate its I/O driver.
+        self._span_aggregator.reset_trace_buffer_after_fork()
         self._new_process = True
         self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
@@ -433,6 +436,7 @@ class Tracer(object):
         appsec_enabled: Optional[bool] = None,
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
+        flush_writer: Optional[bool] = None,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
@@ -444,6 +448,7 @@ class Tracer(object):
             appsec_enabled=appsec_enabled,
             llmobs_enabled=llmobs_enabled,
             reset_buffer=reset_buffer,
+            flush_writer=flush_writer,
         )
         self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
@@ -495,6 +500,7 @@ class Tracer(object):
         parenting of spans.
         """
         if self._new_process:
+            self._recreate(reset_buffer=False, flush_writer=False)
             self._new_process = False
 
             # The spans remaining in the context can not and will not be
@@ -997,6 +1003,9 @@ class Tracer(object):
             # Already shutting down from this or another thread — skip re-entrant call
             return
         try:
+            # Do not recreate an inherited writer only to shut it down. The span aggregator
+            # discards its buffered traces during shutdown.
+            self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)

@@ -681,6 +681,13 @@ venv = Venv(
                         "zope-interface": "==7.2",
                     },
                 ),
+                Venv(
+                    command="pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py",
+                    pys=select_pys(),
+                    # Pin wrapt to a single version to avoid needlessly multiplying this
+                    # venv, which doesn't exercise wrapt-specific behavior.
+                    pkgs={"pyarmor": latest, "wrapt": latest},
+                ),
             ],
         ),
         Venv(
@@ -4113,8 +4120,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4167,8 +4175,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4240,8 +4249,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_no_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4287,8 +4297,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4356,8 +4367,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4407,8 +4419,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4480,8 +4493,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4517,8 +4531,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
