@@ -1069,10 +1069,13 @@ class Context:
     _span_links: list[Any]
     _is_remote: bool
     _reactivate: bool
+    _otel_sampling_state_data: Optional[float]
+    _otel_sampling_state_owner: Optional[Context]
     sampling_priority: Optional[Any]
     dd_origin: Optional[str]
     dd_user_id: Optional[str]
     _trace_id_64bits: Optional[int]
+    _trace_flags: int
     _traceflags: str
     _traceparent: str
     _tracestate: str
@@ -1100,6 +1103,10 @@ class Context:
     def remove_all_baggage_items(self) -> None: ...
     def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
     def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
+    def _tracestate_entries(self, parent_id: Optional[int] = None) -> list[tuple[str, str]]: ...
+    def _publish_sampling_decision(
+        self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
+    ) -> None: ...
 
 class SpanData:
     name: str
@@ -1174,6 +1181,11 @@ class SpanData:
     def _get_str_attributes(self) -> Mapping[str, str]: ...
     def _get_numeric_attributes(self) -> Mapping[str, Union[int, float]]: ...
     def _set_default_attributes(self, values: Mapping[str, Union[str, int, float]]) -> None: ...
+    def _set_default_context_attributes(
+        self,
+        meta: dict[str, str],
+        metrics: dict[str, Union[int, float]],
+    ) -> None: ...
 
 class SpanEvent:
     name: str

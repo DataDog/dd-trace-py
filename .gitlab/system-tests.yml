@@ -78,7 +78,6 @@
 
 system-tests parametric:
   extends: .system-tests-base
-  allow_failure: true
   script:
     - echo -e "\e[0Ksection_start:`date +%s`:run_parametric\r\e[0KRunning PARAMETRIC scenario"
     - cd ${CI_PROJECT_DIR}/system-tests
