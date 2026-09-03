@@ -1,11 +1,13 @@
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
+from typing import Protocol
 from typing import cast
 
 from ddtrace._trace.processor import TraceProcessor
-from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.llmobs import _telemetry as telemetry
@@ -27,6 +29,30 @@ log = get_logger(__name__)
 __all__ = ["LLMObsProcessor"]
 
 
+class _LLMObsSpanProtocol(Protocol):
+    """Structural span interface the LLMObs trace processor needs.
+
+    Lets this module type-annotate spans without a runtime dependency on the concrete
+    ``ddtrace._trace.span.Span`` class.
+    """
+
+    span_type: Optional[str]
+
+    @property
+    def context(self) -> Context: ...
+
+    @property
+    def _local_root(self) -> "_LLMObsSpanProtocol": ...
+
+    def set_tag(self, key: str, value: Optional[str] = None) -> None: ...
+
+    def _get_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+
+    def _remove_struct_tag(self, key: str) -> Optional[dict[str, Any]]: ...
+
+    def _get_ctx_item(self, key: str) -> Optional[Any]: ...
+
+
 class LLMObsProcessor(TraceProcessor):
     """Routes LLMObs span events to the correct intake and gates the APM trace.
 
@@ -44,9 +70,9 @@ class LLMObsProcessor(TraceProcessor):
         self._apm_tracing_enabled = asbool(env.get("DD_APM_TRACING_ENABLED", "true"))
         self._keep_meta_struct = keep_meta_struct
 
-    def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
+    def process_trace(self, trace: list[Any]) -> Optional[list[Any]]:
         drop_apm_trace = not self._apm_tracing_enabled or not self._tracer.enabled
-        for span in trace:
+        for span in cast(list[_LLMObsSpanProtocol], trace):
             if span.span_type != SpanTypes.LLM:
                 continue
             try:
@@ -57,17 +83,17 @@ class LLMObsProcessor(TraceProcessor):
             return None
         return trace
 
-    def _scrub(self, span: Span) -> None:
+    def _scrub(self, span: _LLMObsSpanProtocol) -> None:
         if not self._keep_meta_struct and span._get_struct_tag(LLMOBS_STRUCT.KEY) is not None:
             span._remove_struct_tag(LLMOBS_STRUCT.KEY)
 
-    def _predicted_drop(self, span: Span) -> bool:
+    def _predicted_drop(self, span: _LLMObsSpanProtocol) -> bool:
         # APM_AGENT only: the local agent drops traces whose root priority <= 0.
         root = span._local_root or span
         priority = root.context.sampling_priority
         return priority is not None and priority <= 0
 
-    def _route_span(self, span: Span, drop_apm_trace: bool) -> None:
+    def _route_span(self, span: _LLMObsSpanProtocol, drop_apm_trace: bool) -> None:
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
         if event is None:
             # Half-built payload: scrub so a partial never rides the APM trace.
@@ -95,4 +121,4 @@ class LLMObsProcessor(TraceProcessor):
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
             self._scrub(span)
             self._llmobs_span_writer.enqueue(event)
-        telemetry.record_span_created(span, mode)
+        telemetry.record_span_created(cast(Any, span), mode)

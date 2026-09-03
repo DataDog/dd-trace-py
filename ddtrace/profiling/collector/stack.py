@@ -6,11 +6,11 @@ from types import ModuleType
 import typing
 
 from ddtrace._trace.provider import BaseContextProvider
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.datadog.profiling import context_meta
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
@@ -23,7 +23,7 @@ from ddtrace.trace import Tracer
 LOG = logging.getLogger(__name__)
 
 
-def _unlink_finished_span(span: Span) -> None:
+def _unlink_finished_span(span: SpanData) -> None:
     """Remove physical-thread attribution derived from a finished span."""
     stack.unlink_finished_span(span.span_id)
 
@@ -112,12 +112,13 @@ class StackCollector(collector.Collector):
     def _link_span(
         self,
         provider: BaseContextProvider,
-        span: typing.Optional[typing.Union[Context, Span]],
+        span: typing.Optional[typing.Union[Context, SpanData]],
     ) -> None:
         if self.tracer is None or provider is not self.tracer.context_provider:
             return
-        if isinstance(span, Span):
+        if isinstance(span, SpanData):
             span_id = span.span_id
+            local_root = typing.cast(typing.Any, span)._local_root
             # A Span whose _parent is None but parent_id is set was created with child_of=Context. Its local root is
             # the new span, so read the distributed local-root metadata directly from the parent Context. This works
             # across both thread and greenlet context propagation without relying on physical-thread-local state.
@@ -125,11 +126,11 @@ class StackCollector(collector.Collector):
                 propagated_root_span_id, propagated_root_span_type = context_meta.read_profiler_link(
                     span._parent_context
                 )
-                local_root_span_id = propagated_root_span_id or span._local_root.span_id
-                local_root_span_type = propagated_root_span_type or span._local_root.span_type
+                local_root_span_id = propagated_root_span_id or local_root.span_id
+                local_root_span_type = propagated_root_span_type or local_root.span_type
             else:
-                local_root_span_id = span._local_root.span_id
-                local_root_span_type = span._local_root.span_type
+                local_root_span_id = local_root.span_id
+                local_root_span_type = local_root.span_type
             stack.link_span(span_id, local_root_span_id, local_root_span_type)
         elif isinstance(span, Context) and span.span_id is not None:
             local_root_span_id, span_type = context_meta.read_profiler_link(span)

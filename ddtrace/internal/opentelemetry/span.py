@@ -1,6 +1,9 @@
 from time import time_ns
 import traceback
 from typing import TYPE_CHECKING
+from typing import Any
+from typing import Optional
+from typing import Protocol
 
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext
@@ -18,6 +21,7 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
 from ddtrace.internal.utils.http import w3c_tracestate_add_p
@@ -26,21 +30,65 @@ from ddtrace.trace import tracer as ddtracer
 
 if TYPE_CHECKING:
     from typing import Mapping  # noqa:F401
-    from typing import Optional  # noqa:F401
     from typing import Union  # noqa:F401
 
     from opentelemetry.util.types import Attributes  # noqa:F401
     from opentelemetry.util.types import AttributeValue  # noqa:F401
 
-    from ddtrace._trace.span import Span as DDSpan  # noqa:F401
     from ddtrace.internal.compat import NumericType  # noqa:F401
 
 
 log = get_logger(__name__)
 
 
+class _DDSpanProtocol(Protocol):
+    """Structural span interface the OpenTelemetry span shim needs.
+
+    Lets this module type-annotate the wrapped Datadog span without a runtime dependency on the
+    concrete ``ddtrace._trace.span.Span`` class.
+    """
+
+    name: str
+    resource: str
+    error: int
+    start_ns: int
+
+    @property
+    def finished(self) -> bool: ...
+
+    @property
+    def context(self) -> Context: ...
+
+    @property
+    def span_id(self) -> int: ...
+
+    @property
+    def trace_id(self) -> int: ...
+
+    @property
+    def _local_root(self) -> "_DDSpanProtocol": ...
+
+    def get_tag(self, key: str) -> Optional[str]: ...
+
+    def set_tag(self, key: str, value: Optional[str] = None) -> None: ...
+
+    def _get_ctx_item(self, key: str) -> Optional[Any]: ...
+
+    def _set_ctx_item(self, key: str, val: Any) -> None: ...
+
+    def _finish_ns(self, finish_time_ns: int) -> None: ...
+
+    def _get_str_attribute(self, key: str) -> Optional[str]: ...
+
+    def _set_attribute(self, key: str, value: Any) -> None: ...
+
+    def _remove_attribute(self, key: str) -> None: ...
+
+    def _add_event(self, name: str, attributes: Optional[Any] = None, time_unix_nano: Optional[int] = None) -> None: ...
+
+
 def _ddmap(span, attribute, value):
-    # type: (DDSpan, str, Union[str, bytes, NumericType]) -> DDSpan
+    # type: (_DDSpanProtocol, str, Union[str, bytes, NumericType]) -> _DDSpanProtocol
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:
@@ -88,7 +136,7 @@ class Span(OtelSpan):
 
     def __init__(
         self,
-        datadog_span,  # type: DDSpan
+        datadog_span,  # type: _DDSpanProtocol
         kind=SpanKind.INTERNAL,  # type: SpanKind
         attributes=None,  # type: Optional[Mapping[str, AttributeValue]]
         start_time=None,  # type: Optional[int]
@@ -336,7 +384,7 @@ class Span(OtelSpan):
 
     @property
     def _datadog_operation_name(self):
-        # Adapted from https://github.com/DataDog/dd-trace-java/blob/4131e509a94db430b47104769800ec14de5f0a0d/dd-java-agent/instrumentation/opentelemetry/opentelemetry-1.4/src/main/java/datadog/trace/instrumentation/opentelemetry14/trace/OtelConventions.java#L107
+        # Adapted from https://github.com/DataDog/dd-trace-java/blob/4131e509a94db430b47104769800ec14de5f0a0d/dd-java-agent/instrumentation/opentelemetry/opentelemetry-1.4/src/main/java/datadog/trace/instrumentation/opentelemetry14/trace/OtelConventions.java#L107  # noqa: E501
         ddspan = self._ddspan
         span_kind = self.kind
 

@@ -6,11 +6,12 @@ import re
 from typing import Any
 from typing import Optional
 from typing import Union
+from typing import cast
 
 from ddtrace import config
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -373,7 +374,7 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
 
 
 def openai_set_meta_tags_from_completion(
-    span: Span, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
+    span: SpanData, kwargs: dict[str, Any], completions: Any, integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
@@ -385,7 +386,7 @@ def openai_set_meta_tags_from_completion(
         choices = getattr(completions, "choices", completions)
         output_messages = [Message(content=str(_get_attr(choice, "text", ""))) for choice in choices]
     _annotate_llmobs_span_data(
-        span,
+        cast(Any, span),
         input_messages=[Message(content=p) for p in prompt],
         metadata=parameters,
         output_messages=output_messages,
@@ -541,7 +542,7 @@ def _extract_content_parts(parts: list) -> tuple[str, list[AudioPart], list[Imag
 
 
 def openai_set_meta_tags_from_chat(
-    span: Span, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+    span: SpanData, kwargs: dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
 ) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages: list[Message] = []
@@ -590,14 +591,14 @@ def openai_set_meta_tags_from_chat(
         if tools:
             tool_definitions = tools
     _annotate_llmobs_span_data(
-        span, input_messages=input_messages, metadata=parameters, tool_definitions=tool_definitions
+        cast(Any, span), input_messages=input_messages, metadata=parameters, tool_definitions=tool_definitions
     )
 
     # Gate on output presence only: a genuine model error leaves no messages,
     # while an AI Guard block after the model call errors the span but keeps a
     # valid response (APPSEC-68147).
     if not messages:
-        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        _annotate_llmobs_span_data(cast(Any, span), output_messages=[Message(content="")])
         return
 
     output_messages: list[Message] = []
@@ -660,11 +661,11 @@ def openai_set_meta_tags_from_chat(
                 message["tool_results"] = extracted_tool_results
                 message["content"] = ""  # set content empty to avoid duplication
             output_messages.append(message)
-    _annotate_llmobs_span_data(span, output_messages=output_messages)
+    _annotate_llmobs_span_data(cast(Any, span), output_messages=output_messages)
 
 
 def _openai_extract_tool_calls_and_results_chat(
-    message: dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+    message: dict[str, Any], llm_span: Optional[SpanData] = None, dispatch_llm_choice: bool = False
 ) -> tuple[list[ToolCall], list[ToolResult]]:
     tool_calls = []
     tool_results = []
@@ -690,7 +691,7 @@ def _openai_extract_tool_calls_and_results_chat(
                         "trace_id": format_trace_id(llm_span.trace_id),
                         "span_id": str(llm_span.span_id),
                     },
-                    get_tool_version_from_llm_span(llm_span, tool_name),
+                    get_tool_version_from_llm_span(cast(Any, llm_span), tool_name),
                 ),
             )
         raw_args = safe_load_json(raw_args) if isinstance(raw_args, str) else raw_args
@@ -729,7 +730,7 @@ def _openai_extract_tool_calls_and_results_chat(
 
 
 def capture_plain_text_tool_usage(
-    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
+    tool_calls_info: Any, tool_results_info: Any, content: str, span: SpanData, is_input: bool = False
 ) -> None:
     """
     Captures plain text tool calls and tool results from a content string.
@@ -783,7 +784,7 @@ def capture_plain_text_tool_usage(
                             "trace_id": format_trace_id(span.trace_id),
                             "span_id": str(span.span_id),
                         },
-                        get_tool_version_from_llm_span(span, tool_name),
+                        get_tool_version_from_llm_span(cast(Any, span), tool_name),
                     ),
                 )
     except Exception:
@@ -1212,7 +1213,7 @@ def _has_multimodal_inputs(variables: dict[str, Any]) -> bool:
     return False
 
 
-def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None:
+def set_prompt_tracking_tags(span: SpanData, *, is_multimodal: bool = False) -> None:
     """Set prompt tracking telemetry tags on a span.
 
     Args:
@@ -1223,11 +1224,11 @@ def set_prompt_tracking_tags(span: Span, *, is_multimodal: bool = False) -> None
     if is_multimodal:
         new_tags[PROMPT_MULTIMODAL] = "true"
 
-    _annotate_llmobs_span_data(span, tags=new_tags)
+    _annotate_llmobs_span_data(cast(Any, span), tags=new_tags)
 
 
 def openai_set_meta_tags_from_response(
-    span: Span, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
+    span: SpanData, kwargs: dict[str, Any], response: Optional[Any], integration: Any = None
 ) -> None:
     """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
     input_data = kwargs.get("input", [])
@@ -1273,7 +1274,7 @@ def openai_set_meta_tags_from_response(
             logger.debug("Failed to validate prompt for OpenAI response: %s", e)
 
     _annotate_llmobs_span_data(
-        span,
+        cast(Any, span),
         input_messages=input_messages,
         metadata=openai_get_metadata_from_response(response, kwargs),
         prompt=validated_prompt,
@@ -1283,13 +1284,13 @@ def openai_set_meta_tags_from_response(
     # while an AI Guard block after the model call errors the span but keeps a
     # valid response (APPSEC-68147).
     if not response:
-        _annotate_llmobs_span_data(span, output_messages=[Message(content="")])
+        _annotate_llmobs_span_data(cast(Any, span), output_messages=[Message(content="")])
         return
 
     output_messages, mcp_tool_definitions = openai_get_output_messages_from_response(response, integration)
     tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     tool_definitions = (tools + mcp_tool_definitions) if (mcp_tool_definitions or tools) else None
-    _annotate_llmobs_span_data(span, output_messages=output_messages, tool_definitions=tool_definitions)
+    _annotate_llmobs_span_data(cast(Any, span), output_messages=output_messages, tool_definitions=tool_definitions)
 
 
 def _openai_get_tool_definitions(tools: list[Any]) -> list[ToolDefinition]:
