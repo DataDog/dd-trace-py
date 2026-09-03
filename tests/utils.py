@@ -207,6 +207,7 @@ def override_global_config(values: dict[str, Any]):
         "_dd_app_key",
         "_llmobs_enabled",
         "_llmobs_sample_rate",
+        "_llmobs_sampling_rules",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
         "_llmobs_instrumented_proxy_urls",

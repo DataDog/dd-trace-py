@@ -14,6 +14,9 @@ from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import LLMObsExportMode
+from ddtrace.llmobs._sampler import LLMObsSamplingResolver
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from ddtrace.llmobs._utils import get_llmobs_trace_id
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 
 
@@ -22,7 +25,6 @@ if TYPE_CHECKING:
 
 
 log = get_logger(__name__)
-
 
 __all__ = ["LLMObsProcessor"]
 
@@ -37,15 +39,26 @@ class LLMObsProcessor(TraceProcessor):
         tracer is disabled at runtime (replaces the legacy ``APMTracingEnabledFilter``).
     """
 
-    def __init__(self, llmobs_span_writer: LLMObsSpanWriter, tracer: "Tracer", keep_meta_struct: bool = False) -> None:
+    def __init__(
+        self,
+        llmobs_span_writer: LLMObsSpanWriter,
+        tracer: "Tracer",
+        keep_meta_struct: bool = False,
+        sampling_resolver: Optional[LLMObsSamplingResolver] = None,
+    ) -> None:
         super().__init__()
         self._llmobs_span_writer = llmobs_span_writer
         self._tracer = tracer
         self._apm_tracing_enabled = asbool(env.get("DD_APM_TRACING_ENABLED", "true"))
         self._keep_meta_struct = keep_meta_struct
+        self._sampling_resolver = sampling_resolver
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
         drop_apm_trace = not self._apm_tracing_enabled or not self._tracer.enabled
+        try:
+            self._stamp_sampling_decisions(trace)
+        except Exception:
+            log.debug("Failed to stamp LLMObs sampling decisions.", exc_info=True)
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue
@@ -56,6 +69,47 @@ class LLMObsProcessor(TraceProcessor):
         if drop_apm_trace:
             return None
         return trace
+
+    def _stamp_sampling_decisions(self, trace: list[Span]) -> None:
+        """Resolve each LLMObs trace in this chunk and write its decision onto every span.
+
+        This is the last point at which the decision can still be influenced by the root's tags.
+        A trace the resolver cannot answer for is left as it is, keeping either the
+        global-rate floor stamped at activation or a decision inherited from upstream.
+        """
+        if self._sampling_resolver is None:
+            return
+
+        groups: dict[str, list[Span]] = {}
+        for span in trace:
+            if span.span_type != SpanTypes.LLM:
+                continue
+            llmobs_trace_id = get_llmobs_trace_id(span)
+            if llmobs_trace_id is not None:
+                groups.setdefault(llmobs_trace_id, []).append(span)
+        for spans in groups.values():
+            # Any span in the group carries the pointer to the trace's root.
+            sample_rate, sampling_decision = self._sampling_resolver.resolve(spans[0])
+            if sample_rate is not None and sampling_decision is not None:
+                for span in spans:
+                    self._write_sampling_decision(span, sample_rate, sampling_decision)
+
+    @staticmethod
+    def _write_sampling_decision(span: Span, sample_rate: str, sampling_decision: str) -> None:
+        """Write the decision into both places a span can be exported from.
+
+        ``_llmobs_span_event`` shallow-copies the meta_struct ``_dd`` block into the event, so the
+        two are independent dicts by now and ``_route_span`` sends one or the other depending on
+        export mode. Writing only one silently loses the decision on the other path.
+        """
+        for dd in (
+            _get_llmobs_data_metastruct(span).get(LLMOBS_STRUCT.DD),
+            (span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY) or {}).get(LLMOBS_STRUCT.DD),
+        ):
+            if dd is None:
+                continue
+            dd[LLMOBS_STRUCT.SAMPLE_RATE] = sample_rate
+            dd[LLMOBS_STRUCT.SAMPLING_DECISION] = sampling_decision
 
     def _scrub(self, span: Span) -> None:
         if not self._keep_meta_struct and span._get_struct_tag(LLMOBS_STRUCT.KEY) is not None:

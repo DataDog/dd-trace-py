@@ -455,6 +455,26 @@ Traces
      version_added:
         v4.11.0:
 
+   DD_LLMOBS_SAMPLING_RULES:
+     type: String
+     default: ""
+
+     description: |
+         A JSON array of tag-based sampling rules for LLM Observability traces, mirroring the format of
+         ``DD_TRACE_SAMPLING_RULES``. Each rule requires a ``sample_rate`` and may declare a ``tags``
+         object mapping tag names to glob patterns, matched case-insensitively against the root span of
+         the trace (``*`` matches any number of characters, ``?`` exactly one). Every declared tag must
+         match, so a rule with no ``tags`` matches every trace.
+
+         Rules are evaluated in order and the first match wins, with its rate replacing
+         ``DD_LLMOBS_SAMPLE_RATE``. Traces matching no rule fall back to that global rate. One decision
+         applies to the whole trace and is propagated across distributed boundaries.
+
+         For example, ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
+
+     version_added:
+        v4.15.0:
+
 Trace Context propagation
 -------------------------
 

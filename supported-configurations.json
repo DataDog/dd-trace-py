@@ -2505,6 +2505,13 @@
         "default": "1.0"
       }
     ],
+    "DD_LLMOBS_SAMPLING_RULES": [
+      {
+        "implementation": "B",
+        "type": "string",
+        "default": ""
+      }
+    ],
     "DD_LOGBOOK_SERVICE": [
       {
         "implementation": "A",

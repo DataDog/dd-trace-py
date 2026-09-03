@@ -1292,6 +1292,118 @@ def test_llmobs_event_records_sample_rate_and_decision(llmobs, llmobs_events):
     assert event_dd["sampling_decision"] in ("0", "1")
 
 
+_DROP_GOLD_RULE = '[{"tags": {"tier": "gold"}, "sample_rate": 0}]'
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_sampling_rule_matches_tag_annotated_after_span_start(llmobs, llmobs_events):
+    """The headline case: a tag set at the top of the ``with`` body still drives the decision.
+
+    The decision is not made at span start, so an annotation that lands before anything leaves the
+    process is visible to the rule.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "0"
+    assert event_dd["sample_rate"] == "0"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_non_matching_tag_falls_back_to_global_rate(llmobs, llmobs_events):
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "free"})
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "1"
+    assert event_dd["sample_rate"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_whole_trace_shares_one_decision(llmobs, llmobs_events):
+    """The no-splits invariant: every span of a trace reports the same rate and decision."""
+    with llmobs.workflow("parent") as parent:
+        llmobs.annotate(parent, tags={"tier": "gold"})
+        with llmobs.task("child-1"):
+            pass
+        with llmobs.task("child-2"):
+            pass
+    assert len(llmobs_events) == 3
+    decisions = {(e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("0", "0")}
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_decision_frozen_at_injection_is_not_revised(llmobs, llmobs_events):
+    """Once the decision has left the process it must not change, even if a later tag would match.
+
+    This is the trade that prevents one trace carrying two different decisions.
+    """
+    with llmobs.workflow("w") as span:
+        llmobs._inject_llmobs_context(span.context, {})  # freezes: no matching tag yet
+        llmobs.annotate(span, tags={"tier": "gold"})  # would have matched, but too late
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "1"
+    assert event_dd["sample_rate"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_sibling_llmobs_traces_decide_independently(llmobs, llmobs_events):
+    """Two successive root workflows are separate LLMObs traces even in one APM trace."""
+    with llmobs.workflow("gold") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    with llmobs.workflow("free") as span:
+        llmobs.annotate(span, tags={"tier": "free"})
+    by_name = {e["name"]: e["_dd"] for e in llmobs_events}
+    assert by_name["gold"]["sampling_decision"] == "0"
+    assert by_name["free"]["sampling_decision"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_decision_survives_an_unresolvable_trace(llmobs, llmobs_events):
+    """A span must never ship without a decision.
+
+    When the resolver cannot answer for a trace -- no local root, as for one continued from
+    another process -- the span keeps the global-rate floor stamped at activation instead of
+    shipping with the fields absent entirely.
+    """
+    from ddtrace.llmobs._constants import LLMOBS_SAMPLING
+
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+        span._set_ctx_item(LLMOBS_SAMPLING, None)  # stand in for a trace with no local state
+    event_dd = llmobs_events[0]["_dd"]
+    assert event_dd["sampling_decision"] == "1"  # the floor, not the matching rule's 0
+    assert event_dd["sample_rate"] == "1"
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules="not-valid-json")])
+def test_invalid_sampling_rules_fall_back_to_global_rate(llmobs, llmobs_events):
+    """Unparsable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""
+    assert llmobs._instance._sampler.rules == []
+    with llmobs.workflow("w") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    assert llmobs_events[0]["_dd"]["sampling_decision"] == "1"
+
+
+@pytest.mark.parametrize(
+    "ddtrace_global_config",
+    [dict(_llmobs_sampling_rules='[{"tags": {"tier": "gold"}, "sample_rate": 1}]', _llmobs_sample_rate=0.0)],
+)
+def test_matching_rule_overrides_global_rate(llmobs, llmobs_events):
+    """A matched rule replaces the global rate rather than compounding with it.
+
+    With a global rate of 0 nothing would be kept, yet the matching trace is kept at the rule's
+    rate of 1 -- so the rule wins outright instead of the two multiplying to 0.
+    """
+    with llmobs.workflow("matched") as span:
+        llmobs.annotate(span, tags={"tier": "gold"})
+    with llmobs.workflow("unmatched") as span:
+        llmobs.annotate(span, tags={"tier": "silver"})
+    by_name = {e["name"]: e["_dd"] for e in llmobs_events}
+    assert by_name["matched"] == {**by_name["matched"], "sample_rate": "1", "sampling_decision": "1"}
+    assert by_name["unmatched"] == {**by_name["unmatched"], "sample_rate": "0", "sampling_decision": "0"}
+
+
 @pytest.mark.subprocess(env={"DD_LLMOBS_ML_APP": "test-app"})
 def test_enable_sample_rate_sets_sampler():
     """LLMObs.enable(sample_rate=...) configures the span sampler."""

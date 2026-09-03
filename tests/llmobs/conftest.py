@@ -290,7 +290,12 @@ def llmobs(
         dne_client._agentless = True
         dne_client._endpoint = dne_client.ENDPOINT
         dne_client._intake = llmobs_api_proxy_url
-        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(llmobs_span_writer, tracer, keep_meta_struct=True)
+        tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+            llmobs_span_writer,
+            tracer,
+            keep_meta_struct=True,
+            sampling_resolver=llmobs_service._instance._sampling_resolver,
+        )
         try:
             yield llmobs_service
         finally:
