@@ -255,7 +255,7 @@ def _set_sampling_tags(
     sampled: bool,
     sample_rate: float,
     mechanism: int,
-    probabilistic_decision: bool = True,
+    probabilistic_decision: bool = False,
 ) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):

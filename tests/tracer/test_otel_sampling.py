@@ -44,6 +44,7 @@ def test_sampling_priority_is_published_with_otel_sampling_state():
             True,
             0.1,
             SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+            probabilistic_decision=True,
         )
         assert state_update_started.wait(2)
         try:
@@ -68,6 +69,14 @@ def test_local_sampling_decision_is_serialized_lazily():
     assert span.context._otel_sampling_state_data == 0.1
     assert _ot_fields(span.context._tracestate)["th"] == "e6666666666668"
     assert span.context._otel_sampling_state_data is None
+
+
+def test_set_sampling_tags_defaults_to_non_probabilistic_decision():
+    span = Span("test", trace_id=1, span_id=1)
+
+    _set_sampling_tags(span, True, 0.1, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
+
+    assert "ot=" not in span.context._tracestate
 
 
 @pytest.mark.parametrize(
