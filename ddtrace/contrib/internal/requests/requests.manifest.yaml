@@ -1,0 +1,11 @@
+_v: 1
+name: requests
+display_name: Requests
+description: Instruments outbound HTTP requests made through Requests sessions, capturing request, response, error, and distributed
+  tracing metadata.
+packages:
+- name: requests
+category:
+- http.client
+systems: []
+creation_date: '2016-10-04'
