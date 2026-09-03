@@ -191,7 +191,7 @@ class Tracer(object):
         forksafe.register(self._child_after_fork)
 
         self._shutdown_lock = Lock()
-
+        self._post_fork_lock = forksafe.Lock()
         self._new_process = False
 
         self._store_metadata()
@@ -428,6 +428,17 @@ class Tracer(object):
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
+    def _ensure_post_fork_writer(self) -> bool:
+        """Recreate the inherited writer once after a fork."""
+        if not self._new_process:
+            return False
+        with self._post_fork_lock:
+            if not self._new_process:
+                return False
+            self._recreate(reset_buffer=False, flush_writer=False)
+            self._new_process = False
+            return True
+
     def _recreate(
         self,
         trace_processors: Optional[list[TraceProcessor]] = None,
@@ -499,10 +510,9 @@ class Tracer(object):
         Note: be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
-        if self._new_process:
-            self._recreate(reset_buffer=False, flush_writer=False)
-            self._new_process = False
-
+        # PERF: keep the normal span-start path to the existing flag check; avoid a helper call
+        # unless this process actually forked.
+        if self._new_process and self._ensure_post_fork_writer():
             # The spans remaining in the context can not and will not be
             # finished in this new process. So to avoid memory leaks the
             # strong span reference (which will never be finished) is replaced
@@ -805,6 +815,7 @@ class Tracer(object):
 
     def flush(self):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
+        self._ensure_post_fork_writer()
         self._span_aggregator.writer.flush_queue()
 
     def _wrap_generator(
