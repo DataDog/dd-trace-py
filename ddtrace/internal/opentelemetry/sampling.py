@@ -140,7 +140,7 @@ def resolve_otel_sampling_decision(
     the upstream sampled bit. Explicit non-probabilistic decisions erase th while
     preserving a valid inherited rv and unknown fields.
     """
-    # AIDEV-NOTE: Valid inherited sampling fields remain authoritative because the
+    # Valid inherited sampling fields remain authoritative because the
     # tracer follows the upstream sampled bit. Only a non-probabilistic decision
     # invalidates an inherited threshold.
     if ot_value is None:

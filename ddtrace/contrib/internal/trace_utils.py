@@ -626,7 +626,7 @@ def _copy_trace_level_tags(target_span: Span, parent: Span):
     raw_tracestate = parent.context._meta.get(W3C_TRACESTATE_KEY, "")
     ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot")
     if ot_value is not None:
-        # AIDEV-NOTE: WebSocket message spans start independent traces. Copy only canonical ot=
+        # WebSocket message spans start independent traces. Copy only canonical ot=
         # sampling data; other vendor members describe the parent trace.
         target_span.context._meta[W3C_TRACESTATE_KEY] = "ot=" + ot_value
 
