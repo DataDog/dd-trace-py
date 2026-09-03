@@ -37,13 +37,23 @@ from tests.utils import override_env
     "method, expected",
     [
         ("GET", ("GET", None)),
-        ("get", ("GET", "get")),
+        ("get", (OTHER_HTTP_METHOD, "get")),
         ("QUERY", ("QUERY", None)),
         ("PROPFIND", (OTHER_HTTP_METHOD, "PROPFIND")),
     ],
 )
 def test_normalize_http_method(method, expected):
     assert normalize_http_method(method) == expected
+
+
+@pytest.mark.subprocess(env={"OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS": "GET,PROPFIND"})
+def test_configured_known_http_methods_replace_defaults_and_are_case_sensitive():
+    from ddtrace._trace.http_semantics import OTHER_HTTP_METHOD
+    from ddtrace._trace.http_semantics import normalize_http_method
+
+    assert normalize_http_method("PROPFIND") == ("PROPFIND", None)
+    assert normalize_http_method("propfind") == (OTHER_HTTP_METHOD, "propfind")
+    assert normalize_http_method("POST") == (OTHER_HTTP_METHOD, "POST")
 
 
 @pytest.mark.parametrize(
@@ -119,16 +129,16 @@ def test_otel_number_reads_export_configuration_per_call():
 
 
 @pytest.mark.parametrize(
-    "netloc, scheme, expected",
+    "netloc, expected",
     [
-        ("example.com", "https", ("example.com", 443)),
-        ("example.com:8443", "https", ("example.com", 8443)),
-        ("user:password@example.com", "http", ("example.com", 80)),
-        ("[::1]:8080", "http", ("::1", 8080)),
+        ("example.com", ("example.com", None)),
+        ("example.com:8443", ("example.com", 8443)),
+        ("user:password@example.com", ("example.com", None)),
+        ("[::1]:8080", ("::1", 8080)),
     ],
 )
-def test_split_netloc(netloc, scheme, expected):
-    assert http_semantics._split_netloc(netloc, scheme) == expected
+def test_split_netloc(netloc, expected):
+    assert http_semantics._split_netloc(netloc) == expected
 
 
 def test_credentials_redacted_url():
@@ -142,7 +152,7 @@ def test_credentials_redacted_url():
 
 
 def test_set_url_tags_otel_server():
-    integration_config = mock.Mock(http_tag_query_string=True, trace_query_string=False)
+    integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("web.request")
 
     with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
@@ -162,7 +172,7 @@ def test_set_url_tags_otel_server():
     assert span.get_tag(net.SERVER_PORT) == "443"
 
 
-def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
+def test_set_url_tags_otel_client_redacts_credentials_and_preserves_query():
     integration_config = mock.Mock(http_tag_query_string=False, trace_query_string=False)
     span = Span("http.request")
 
@@ -174,7 +184,7 @@ def test_set_url_tags_otel_client_redacts_credentials_and_drops_query():
             "q=secret",
         )
 
-    assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search"
+    assert span.get_tag(http.OTEL_URL_FULL) == "https://REDACTED:REDACTED@example.com/search?q=secret"
     assert span.get_tag(net.SERVER_ADDRESS) == "example.com"
     assert span.get_tag(net.SERVER_PORT) == "443"
 
@@ -201,7 +211,7 @@ def test_semantics_dependent_helpers_read_flag_per_call():
     assert datadog_span.get_tag(http.METHOD) == "get"
     assert datadog_span.get_tag(http.STATUS_CODE) == "204"
     assert otel_span.get_tag(http.OTEL_URL_PATH) == "/path"
-    assert otel_span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
+    assert otel_span.get_tag(http.OTEL_REQUEST_METHOD) == OTHER_HTTP_METHOD
     assert otel_span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "get"
     assert otel_span.get_metric(http.OTEL_RESPONSE_STATUS_CODE) == 204
 
@@ -221,6 +231,19 @@ def test_set_query_string_tag_uses_active_semantics():
     assert otel_span.get_tag(http.OTEL_URL_QUERY) == "token=redacted"
 
 
+def test_set_method_tag_removes_stale_original_method():
+    span = Span("web.request")
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        set_method_tag(span, "custom")
+        assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) == "custom"
+
+        set_method_tag(span, "GET")
+
+    assert span.get_tag(http.OTEL_REQUEST_METHOD) == "GET"
+    assert span.get_tag(http.OTEL_REQUEST_METHOD_ORIGINAL) is None
+
+
 def test_standalone_request_identity_tags_use_active_semantics():
     datadog_span = Span("web.request")
     otel_span = Span("web.request")
@@ -238,7 +261,7 @@ def test_standalone_request_identity_tags_use_active_semantics():
     assert datadog_span.get_tag("network.client.ip") == "192.0.2.1"
     assert otel_span.get_tag(http.OTEL_USER_AGENT_ORIGINAL) == "otel-agent"
     assert otel_span.get_tag(http.OTEL_CLIENT_ADDRESS) == "192.0.2.2"
-    assert otel_span.get_tag(net.NETWORK_PEER_ADDRESS) == "192.0.2.2"
+    assert otel_span.get_tag(net.NETWORK_PEER_ADDRESS) is None
 
 
 def test_http_block_metadata_uses_active_semantics():
@@ -255,7 +278,7 @@ def test_http_block_metadata_uses_active_semantics():
             with mock.patch.object(http_semantics, "_obfuscated_query", return_value="token=redacted"):
                 assert http_block_metadata("get", 403, "token=secret", "agent") == {
                     http.OTEL_RESPONSE_STATUS_CODE: 403,
-                    http.OTEL_REQUEST_METHOD: "GET",
+                    http.OTEL_REQUEST_METHOD: OTHER_HTTP_METHOD,
                     http.OTEL_REQUEST_METHOD_ORIGINAL: "get",
                     http.OTEL_URL_QUERY: "token=redacted",
                     http.OTEL_USER_AGENT_ORIGINAL: "agent",
@@ -300,7 +323,7 @@ def test_otel_span_attributes_classifies_client_and_server(integration_config, s
     "method, normalized, original",
     [
         ("GET", "GET", None),
-        ("get", "GET", "get"),
+        ("get", OTHER_HTTP_METHOD, "get"),
         ("PROPFIND", OTHER_HTTP_METHOD, "PROPFIND"),
     ],
 )
@@ -325,10 +348,20 @@ def test_otel_span_attributes_dispatches_client_and_server_urls(integration_conf
             raw_uri="/users/%34%32?token=secret",
         )
 
-    assert client_span.get_tag(http.OTEL_URL_FULL) == "https://example.com/users/42"
+    assert client_span.get_tag(http.OTEL_URL_FULL) == "https://example.com/users/42?<redacted>"
     assert client_span.get_tag(http.OTEL_URL_PATH) is None
     assert server_span.get_tag(http.OTEL_URL_PATH) == "/users/%34%32"
+    assert server_span.get_tag(http.OTEL_URL_QUERY) == "<redacted>"
     assert server_span.get_tag(http.OTEL_URL_FULL) is None
+
+
+def test_otel_span_attributes_sets_query_without_url(integration_config):
+    span = Span("request", span_type=SpanTypes.WEB)
+
+    with mock.patch.object(http_semantics, "_obfuscated_query", return_value="q=public"):
+        OTelHTTPSpanAttributes(span, integration_config).set_url(None, query="q=public")
+
+    assert span.get_tag(http.OTEL_URL_QUERY) == "q=public"
 
 
 def test_otel_span_attributes_server_address_precedence(integration_config):
@@ -480,6 +513,19 @@ def test_otel_span_attributes_refines_server_resource_with_route(integration_con
     assert span.resource == "GET /users/{id}"
 
 
+def test_otel_span_attributes_preserves_method_and_route_across_calls(integration_config):
+    span = Span("web.request", span_type=SpanTypes.WEB)
+    OTelHTTPSpanAttributes(span, integration_config).set_method("PROPFIND")
+    span._set_attribute(http.ROUTE, "/users/{id}")
+
+    OTelHTTPSpanAttributes(span, integration_config).set_resource(None)
+    assert span.resource == "HTTP /users/{id}"
+
+    OTelHTTPSpanAttributes(span, integration_config).set_method("PROPFIND")
+    OTelHTTPSpanAttributes(span, integration_config).set_resource(None)
+    assert span.resource == "HTTP /users/{id}"
+
+
 def test_otel_span_attributes_client_resource_ignores_server_route(integration_config):
     span = Span("http.request", span_type=SpanTypes.HTTP)
     attributes = OTelHTTPSpanAttributes(span, integration_config)
@@ -487,7 +533,7 @@ def test_otel_span_attributes_client_resource_ignores_server_route(integration_c
 
     attributes.set_resource("/users/{id}")
 
-    assert span.resource == "GET"
+    assert span.resource == "HTTP"
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_HTTP_SERVER_ERROR_STATUSES": "500-599"})

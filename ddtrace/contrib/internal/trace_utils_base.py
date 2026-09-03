@@ -3,13 +3,6 @@ from typing import Any
 from typing import Mapping
 from typing import Optional
 
-from ddtrace._trace.http_semantics import set_client_address_tags as set_client_address_tags
-from ddtrace._trace.http_semantics import set_method_tag as set_method_tag
-from ddtrace._trace.http_semantics import set_query_string_tag as set_query_string_tag
-from ddtrace._trace.http_semantics import set_status_code_tag as set_status_code_tag
-from ddtrace._trace.http_semantics import set_url_tags_server as set_url_tags_server
-from ddtrace._trace.http_semantics import set_user_agent_tag as set_user_agent_tag
-from ddtrace._trace.http_semantics import user_agent_tag as user_agent_tag
 from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import user

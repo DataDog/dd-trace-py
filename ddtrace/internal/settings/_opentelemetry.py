@@ -179,6 +179,8 @@ def _is_otlp_trace_metrics_enabled(
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 
+    HTTP_KNOWN_METHODS = DDConfig.v(t.Optional[str], "instrumentation.http.known_methods", default=None)
+
 
 class ExporterConfig(DDConfig):
     __prefix__ = "exporter"
