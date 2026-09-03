@@ -1012,14 +1012,14 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not _env.get("DD_REMOTE_CONFIGURATION_ENABLED"):
-                    config._remote_config_enabled = False
-                    log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                    remoteconfig_poller.disable()
 
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
                 # we need to force telemetry to use agentless configuration
                 telemetry_writer.enable_agentless_client(True)
+                # Remote configuration resolved its own agentless state from the environment at
+                # import time, so it is still pointed at an agent that may not be there. Send it
+                # to the intake as well, on the key validated just above.
+                remoteconfig_poller.switch_to_agentless()
 
             if integrations_enabled:
                 cls._patch_integrations()

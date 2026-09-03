@@ -435,6 +435,10 @@ venv = Venv(
                 "freezegun": latest,
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/tracer",
+                "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_shutdown.py",
+                "_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.tracer",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
@@ -503,9 +507,14 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration",
+                "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -525,9 +534,13 @@ venv = Venv(
         ),
         Venv(
             name="integration-civisibility",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
+                "DDTEST_TESTS_LOCATION": "tests/integration/test_integration_civisibility.py",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
+            command="pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -905,12 +918,17 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
@@ -1587,16 +1605,18 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb",
-            # TODO: Py312 requires changes to test code
-            pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
                 "pynamodb": ["~=5.3", "<6.0"],
-                "moto": ">=1.0,<2.0",
-                "cfn-lint": "~=0.53.1",
-                "Jinja2": "~=2.10.0",
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
+            venvs=[
+                Venv(pys=["3.9"], pkgs={"moto": "==5.1.22"}),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pkgs={"moto": "==5.2.3"},
+                ),
+            ],
         ),
         Venv(
             name="starlette",
@@ -3365,6 +3385,7 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", "~=2.54.1"],
@@ -3373,6 +3394,7 @@ venv = Venv(
         Venv(
             name="ray_serve",
             command="pytest {cmdargs} tests/contrib/ray_serve",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "fastapi": latest,
@@ -4120,8 +4142,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4174,8 +4197,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4247,8 +4271,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_no_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4294,8 +4319,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4363,8 +4389,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4414,8 +4441,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4487,8 +4515,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4524,8 +4553,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
                 "httpx2": ["~=2.0.0", latest],
@@ -4783,41 +4813,40 @@ def _is_protected_ci_branch() -> bool:
     return branch == "main" or branch.startswith("mq-")
 
 
-def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
-    python_hint = getattr(inst.py, "_hint", "")
+def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
     python_version = _python_hint_to_version(python_hint)
 
-    # Ensure inst.env is a mutable dict we can update in-place.
-    if not inst.env:
-        inst.env = {}
-
     if python_hint:
-        inst.env["_CI_DD_TAGS"] = (
-            f"test.configuration.riot_hash:{inst.short_hash},test.configuration.python:{python_hint}"
-        )
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash},test.configuration.python:{python_hint}"
     else:
-        inst.env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{inst.short_hash}"
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash}"
 
     # ITR is enabled by default for Python >= 3.12, unless the venv explicitly opts out
     # via DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false.
     if (
-        _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
-        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst.env
+        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in env
         and python_version is not None
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
-        inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
 
         # Test skipping is disabled by default (PREVENT_TEST_SKIPPING=1), unless the venv
         # explicitly opts in via DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB=true.
-        if _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
-            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+        if _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
+            env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
         else:
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
         if _is_protected_ci_branch():
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+            env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+
+def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
+    if not inst.env:
+        inst.env = {}
+    _configure_ci_itr_environment(inst.env, getattr(inst.py, "_hint", ""), inst.short_hash)
 
 
 _venv_instances = venv.instances

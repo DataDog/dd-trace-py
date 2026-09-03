@@ -560,13 +560,24 @@ class TestRunner:
         return self.select_venvs_for_suites(selected_suites)
 
     def _prepare_uv_environment(
-        self, environment: TestEnvironment, project_artifact: Path | None
+        self,
+        environment: TestEnvironment,
+        project_artifact: Path | None,
+        unpin_dependencies: bool = False,
     ) -> PreparedEnvironment:
         lockfile = self.root / environment.lockfile
         if not lockfile.is_file():
             raise UvTestEnvironmentError(f"uv lockfile does not exist: {environment.lockfile}")
 
-        contents = lockfile.read_text()
+        if unpin_dependencies:
+            contents = "".join(f"{dependency}\n" for dependency in environment.direct_dependencies)
+        else:
+            contents = lockfile.read_text()
+            contents += "".join(
+                f"{dependency}\n"
+                for dependency in environment.direct_dependencies
+                if dependency not in environment.riot_lock_dependencies
+            )
         package_hash = hashlib.sha256(contents.encode()).hexdigest()[:12]
         if project_artifact is None:
             project_file = self.root / "pyproject.toml"
@@ -779,6 +790,8 @@ class TestRunner:
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
+        if self.in_ci:
+            riotfile._configure_ci_itr_environment(run_env, environment.python, environment.lock_hash)
         return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
 
     def _run_uv_suite(
@@ -794,6 +807,7 @@ class TestRunner:
         if skip_ddtrace_install:
             print("\n⚡ Reusing prebuilt or current ddtrace installations (-s)")
 
+        unpin_dependencies = os.environ.get("UNPIN_DEPENDENCIES", "").lower() == "true"
         for environment in environments:
             try:
                 build_env = dict(forwarded_env)
@@ -807,7 +821,11 @@ class TestRunner:
                     project_artifact = self._prebuilt_ddtrace_wheel(environment.python)
                 else:
                     project_artifact = None
-                prepared = self._prepare_uv_environment(environment, project_artifact)
+                prepared = self._prepare_uv_environment(
+                    environment,
+                    project_artifact,
+                    unpin_dependencies=unpin_dependencies,
+                )
                 command_env = self._uv_command_environment(prepared, build_env)
             except UvTestEnvironmentError as error:
                 print(f"❌ {error}")
