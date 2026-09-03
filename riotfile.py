@@ -905,12 +905,17 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},

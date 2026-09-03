@@ -837,9 +837,9 @@ suites:
     snapshot: true
     matrix:
       runs:
-        - command: pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py'
+        - command: python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py'
             tests/contrib/bottle/
-        - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
+        - command: python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
           env:
             DD_SERVICE: bottle-app
       variants:
