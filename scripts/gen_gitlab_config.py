@@ -150,7 +150,6 @@ class JobSpec:
         if self.uses_uv:
             env["TEST_SUITE"] = self.suite or self.name
             if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
-                env["UNPIN_DEPENDENCIES"] = "true"
                 env["UV_PRERELEASE"] = "allow"
 
         suite_name = env["SUITE_NAME"]
