@@ -943,13 +943,20 @@ def test_dropped_native_writer_stops_exporter_workers():
 @pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
 def test_native_writer_does_not_restart_inherited_exporter_workers():
     import os
+    import warnings
 
     from ddtrace.internal.native_runtime import get_native_runtime
     from ddtrace.internal.writer import NativeWriter
 
     writer = NativeWriter("http://localhost:9126")
     try:
-        pid = os.fork()
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"This process .* is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.",
+                category=DeprecationWarning,
+            )
+            pid = os.fork()
         if pid == 0:
             try:
                 _child_writer = NativeWriter("http://localhost:9126")
