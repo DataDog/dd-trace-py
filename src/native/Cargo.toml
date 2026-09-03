@@ -58,6 +58,10 @@ pyo3-ffi = { version = "0.28", optional = true }
 [target.'cfg(target_os = "linux")'.dependencies]
 libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0", features = ["otel-thread-ctx"]}
 libdd-otel-thread-ctx = { git = "https://github.com/DataDog/libdatadog", rev = "v40.0.0" }
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+libc = "0.2"
 
 [build-dependencies]
 pyo3-build-config = "0.28"
