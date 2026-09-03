@@ -41,6 +41,50 @@ def test_get_runtime_id_fork():
 
 
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_fork_notifies_runtime_id_subscribers():
+    import os
+
+    from ddtrace.internal import runtime
+
+    seen = []
+
+    def on_change(new_id):
+        seen.append(new_id)
+
+    runtime.on_runtime_id_change(on_change)
+
+    child = os.fork()
+    if child == 0:
+        assert seen == [runtime.get_runtime_id()]
+        os._exit(42)
+
+    _, status = os.waitpid(child, 0)
+    assert os.WEXITSTATUS(status) == 42
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
+def test_fork_does_not_notify_runtime_identity_refresh_subscribers():
+    import os
+
+    from ddtrace.internal import runtime
+
+    seen = []
+
+    def on_refresh(new_id):
+        seen.append(new_id)
+
+    runtime.on_runtime_identity_refresh(on_refresh)
+
+    child = os.fork()
+    if child == 0:
+        assert seen == []
+        os._exit(42)
+
+    _, status = os.waitpid(child, 0)
+    assert os.WEXITSTATUS(status) == 42
+
+
+@pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})
 def test_get_runtime_id_double_fork():
     import os
 
@@ -210,3 +254,168 @@ def test_get_process_role_spawn_child() -> None:
     from ddtrace.internal.runtime import get_process_role
 
     assert get_process_role() == "worker", get_process_role()
+
+
+def test_refresh_identity_changes_runtime_id(run_python_code_in_subprocess):
+    """refresh_identity() is the non-fork trigger for a new logical process instance."""
+    code = """
+from ddtrace.internal import runtime
+
+runtime_id = runtime.get_runtime_id()
+runtime.refresh_identity()
+new_runtime_id = runtime.get_runtime_id()
+
+assert isinstance(new_runtime_id, str)
+assert new_runtime_id != runtime_id
+assert new_runtime_id == runtime.get_runtime_id()
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+
+
+def test_refresh_identity_does_not_record_fork_lineage(run_python_code_in_subprocess):
+    """Unlike a fork, refresh_identity() must not make get_process_role() report a fake worker.
+
+    The previous runtime ID was not a real parent process, so recording it as one would
+    corrupt process-lineage telemetry.
+    """
+    import os
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_ROOT_PY_SESSION_ID": None,
+            "_DD_PARENT_PY_SESSION_ID": None,
+            "DD_TRACE_SUBPROCESS_ENABLED": "false",
+        }
+    )
+    code = """
+from ddtrace.internal import runtime
+
+assert runtime.get_process_role() is None
+assert runtime.get_parent_runtime_id() is None
+assert runtime.get_ancestor_runtime_id() is None
+
+runtime.refresh_identity()
+
+assert runtime.get_process_role() is None
+assert runtime.get_parent_runtime_id() is None
+assert runtime.get_ancestor_runtime_id() is None
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+
+
+def test_refresh_identity_preserves_spawned_lineage(run_python_code_in_subprocess):
+    import os
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_ROOT_PY_SESSION_ID": "ancestor-session-id",
+            "_DD_PARENT_PY_SESSION_ID": "parent-session-id",
+            "DD_TRACE_SUBPROCESS_ENABLED": "false",
+        }
+    )
+    code = """
+from ddtrace.internal import runtime
+
+assert runtime.get_ancestor_runtime_id() == "ancestor-session-id"
+assert runtime.get_parent_runtime_id() == "parent-session-id"
+assert runtime.get_process_role() == "worker"
+
+runtime.refresh_identity()
+
+assert runtime.get_ancestor_runtime_id() == "ancestor-session-id"
+assert runtime.get_parent_runtime_id() == "parent-session-id"
+assert runtime.get_process_role() == "worker"
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+
+
+def test_refresh_identity_preserves_fork_lineage(run_python_code_in_subprocess):
+    import os
+
+    env = os.environ.copy()
+    env.update(
+        {
+            "_DD_ROOT_PY_SESSION_ID": None,
+            "_DD_PARENT_PY_SESSION_ID": None,
+            "DD_TRACE_SUBPROCESS_ENABLED": "false",
+        }
+    )
+    code = """
+import os
+
+from ddtrace.internal import runtime
+
+root_id = runtime.get_runtime_id()
+child = os.fork()
+
+if child == 0:
+    parent_id = runtime.get_parent_runtime_id()
+    ancestor_id = runtime.get_ancestor_runtime_id()
+
+    assert parent_id == root_id
+    assert ancestor_id == root_id
+    assert runtime.get_process_role() == "worker"
+
+    runtime.refresh_identity()
+
+    assert runtime.get_parent_runtime_id() == parent_id
+    assert runtime.get_ancestor_runtime_id() == ancestor_id
+    assert runtime.get_process_role() == "worker"
+    os._exit(42)
+
+_, status = os.waitpid(child, 0)
+assert os.WEXITSTATUS(status) == 42
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+
+
+def test_refresh_identity_notifies_subscribers(run_python_code_in_subprocess):
+    code = """
+from ddtrace.internal import runtime
+
+seen = []
+
+
+class _Subscriber:
+    def on_change(self, new_id):
+        seen.append(new_id)
+
+
+subscriber = _Subscriber()
+runtime.on_runtime_id_change(subscriber.on_change)
+
+runtime.refresh_identity()
+
+assert seen == [runtime.get_runtime_id()]
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
+
+
+def test_refresh_identity_notifies_refresh_subscribers(run_python_code_in_subprocess):
+    code = """
+from ddtrace.internal import runtime
+
+seen = []
+
+
+class _Subscriber:
+    def on_refresh(self, new_id):
+        seen.append(new_id)
+
+
+subscriber = _Subscriber()
+runtime.on_runtime_identity_refresh(subscriber.on_refresh)
+
+runtime.refresh_identity()
+
+assert seen == [runtime.get_runtime_id()]
+"""
+    _, err, status, _ = run_python_code_in_subprocess(code)
+    assert status == 0, err
