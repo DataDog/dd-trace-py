@@ -431,8 +431,8 @@ def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subproc
     )
     assert out == b""
     assert status == 0, err
-    events = llmobs_backend.wait_for_num_events(num=1)
-    traces = events[0]
+    # Separate trace contexts may be flushed in separate requests depending on the Python runtime.
+    traces = llmobs_backend.wait_for_num_traces(num=6)
     # session, client initialize, server initialize, client tool call, server tool call, list tools
     assert len(traces) == 6
 
