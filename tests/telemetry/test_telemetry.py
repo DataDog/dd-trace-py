@@ -901,3 +901,87 @@ time.sleep(1.5)
         assert any(d["name"] == "xmltodict" for d in extended_deps), extended_deps
     else:
         assert extended_deps == [], extended_deps
+
+
+@pytest.mark.skipif(os.name != "posix", reason="requires a native fork")
+def test_concurrent_metric_collection_after_native_fork(test_agent_session, run_python_code_in_subprocess):
+    """Concurrent child operations wait for the native runtime restart to finish."""
+    code = """
+import ctypes
+import os
+import signal
+import sys
+import threading
+import time
+import types
+
+# Reproduce ddtrace-run loading ddtrace before uWSGI has populated uwsgi.opt.
+sys.modules["uwsgi"] = types.SimpleNamespace()
+import ddtrace
+from ddtrace.internal.native import MetricNamespace
+from ddtrace.internal.native import MetricType
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+worker = telemetry_writer._worker
+assert worker is not None
+context = worker.register_metric_context(
+    MetricNamespace.tracers,
+    "concurrent_native_fork",
+    MetricType.count,
+    [],
+    True,
+)
+
+libc = ctypes.CDLL(None)
+libc.fork.restype = ctypes.c_int
+pid = libc.fork()
+if pid == 0:
+    barrier = threading.Barrier(8)
+    errors = []
+
+    def produce_metrics():
+        try:
+            barrier.wait(timeout=2)
+            for _ in range(512):
+                worker.add_point(context, 1)
+                worker.add_point_with_tags(context, 1, ["fork:child"])
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=produce_metrics) for _ in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+    assert all(not thread.is_alive() for thread in threads)
+    assert errors == []
+    telemetry_writer.periodic(force_flush=True)
+    os._exit(0)
+
+deadline = time.monotonic() + 5
+while True:
+    waited, status = os.waitpid(pid, os.WNOHANG)
+    if waited:
+        break
+    if time.monotonic() >= deadline:
+        os.kill(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+        raise AssertionError("metric producer blocked during the native runtime restart")
+    time.sleep(0.01)
+
+assert os.waitstatus_to_exitcode(status) == 0
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    child_metrics = [
+        metric
+        for event in test_agent_session.get_events("generate-metrics")
+        for metric in event["payload"]["series"]
+        if metric["metric"] == "concurrent_native_fork" and metric["tags"] == ["fork:child"]
+    ]
+    assert len(child_metrics) == 1, child_metrics
+    assert child_metrics[0]["type"] == "count"
+    assert child_metrics[0]["points"][0][1] == 4096
