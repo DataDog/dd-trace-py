@@ -920,6 +920,57 @@ def test_bad_encoding(monkeypatch):
         assert writer._api_version == "v0.5"
 
 
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"})
+def test_dropped_native_writer_stops_exporter_workers():
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.writer import NativeWriter
+
+    runtime = get_native_runtime()
+    workers_before = runtime.debug().count("WorkerEntry")
+    subscribers_before = len(telemetry_writer._worker_subscribers)
+
+    writer = NativeWriter("http://localhost:9126")
+    assert runtime.debug().count("WorkerEntry") == workers_before + 1
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before + 1
+
+    del writer
+
+    assert runtime.debug().count("WorkerEntry") == workers_before
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before
+
+
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+def test_native_writer_does_not_restart_inherited_exporter_workers():
+    import os
+    import warnings
+
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.writer import NativeWriter
+
+    writer = NativeWriter("http://localhost:9126")
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"This process .* is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.",
+                category=DeprecationWarning,
+            )
+            pid = os.fork()
+        if pid == 0:
+            try:
+                _child_writer = NativeWriter("http://localhost:9126")
+                child_workers = get_native_runtime().debug().count("WorkerEntry")
+                os._exit(0 if child_workers == 1 else 1)
+            except BaseException:
+                os._exit(2)
+
+        _, status = os.waitpid(pid, 0)
+        assert status == 0
+    finally:
+        writer.shutdown_exporter()
+
+
 @pytest.mark.parametrize(
     "init_api_version,api_version,endpoint,encoder_cls",
     [
@@ -1134,6 +1185,7 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
             else:
                 mock_builder.enable_telemetry.assert_not_called()
+            mock_builder.set_restart_after_fork.assert_called_once_with(False)
 
 
 @pytest.mark.subprocess(
