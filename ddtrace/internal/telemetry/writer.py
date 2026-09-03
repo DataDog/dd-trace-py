@@ -205,9 +205,11 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in Python-managed forked children. The NativeRuntime
-            # after_fork_child callback runs before this callback, ensuring the shared runtime
-            # has been restarted before we drop and lazily rebuild the telemetry worker.
+            # Rebuild the native worker in Python-managed forked children. The parent prepare hook
+            # marks the inherited worker for child-side removal; the shared runtime and replacement
+            # worker restart lazily after all child hooks have completed.
+            forksafe.register_before_fork(self._prepare_fork_writer)
+            forksafe.register_after_parent(self._resume_fork_writer)
             forksafe.register(self._fork_writer)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
@@ -915,11 +917,27 @@ class TelemetryWriter:
         # worker owns the message-batch seq_id and resets it when rebuilt.
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
+    def _prepare_fork_writer(self) -> None:
+        # This runs in the parent, before fork, where the worker-registry mutex is valid.
+        # The setting is copied into the child and restored in the parent callback.
+        if self._worker is not None:
+            try:
+                self._worker.set_fork_restart(False)
+            except Exception:
+                log.debug("Failed to disable telemetry worker fork restart", exc_info=True)
+
+    def _resume_fork_writer(self) -> None:
+        if self._worker is not None:
+            try:
+                self._worker.set_fork_restart(True)
+            except Exception:
+                log.debug("Failed to restore telemetry worker fork restart", exc_info=True)
+
     def _fork_writer(self) -> None:
-        # Runs in the child after a Python-managed fork. Drop the inherited worker and rebuild
-        # lazily on the child's next telemetry call (enable()), bound to the child's own runtime
-        # and session ids (get_runtime_id()/get_parent_runtime_id() now reflect the child),
-        # heartbeating without re-emitting app-started.
+        # Runs in the child after a Python-managed fork. The parent-side prepare hook already
+        # marked the inherited worker to be dropped without shutdown when the shared runtime
+        # restarts. Rebuild lazily on the child's next telemetry call (enable()); the replacement
+        # is bound to the child's runtime and session ids and heartbeats without app-started.
         # NOTE: rebuilding here, inside the fork-hook chain, starts Tokio before process managers
         # such as Celery finish closing inherited file descriptors.
         #
