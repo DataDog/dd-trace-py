@@ -3365,6 +3365,7 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", "~=2.54.1"],
@@ -3373,6 +3374,7 @@ venv = Venv(
         Venv(
             name="ray_serve",
             command="pytest {cmdargs} tests/contrib/ray_serve",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "fastapi": latest,
