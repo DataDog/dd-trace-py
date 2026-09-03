@@ -118,10 +118,8 @@ def _wrap_execution(
     if stack is not None:
         stack.link_origin_task(origin_task_id, origin_task_name)
     try:
-        if current_ctx is not None:
-            with ddtrace.tracer._activate_context(current_ctx):
-                return fn(*args, **kwargs)
-        return fn(*args, **kwargs)
+        with ddtrace.tracer._activate_context(current_ctx):
+            return fn(*args, **kwargs)
     finally:
         if stack is not None:
             stack.unlink_origin_task()

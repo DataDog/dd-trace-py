@@ -119,7 +119,8 @@ class ThreadRestartTimer(PeriodicThread):
     _instance: t.Optional["ThreadRestartTimer"] = None
     _timestamp = 0
 
-    def __init__(self):
+    def __init__(self, force_restart: bool = True):
+        self._force_restart = force_restart
         super().__init__(self.__timeout__ / 1e9, self._restart_threads, name=f"{__name__}:{self.__class__.__name__}")
 
     def _restart_threads(self) -> None:
@@ -147,12 +148,17 @@ class ThreadRestartTimer(PeriodicThread):
                         continue
                     log.debug("Restarting thread %s after fork", thread.name)
                     try:
-                        thread._after_fork(force=True)
+                        thread._after_fork(force=self._force_restart)
                     except Exception as e:
                         log.error("failed to restart periodic thread %s after fork: %s", thread.name, e)
                 _threads_to_restart_after_fork.clear()
 
                 for thread_start in _threads_to_start_after_fork:
+                    if not self._force_restart and not thread_start.__self__.__autorestart__:
+                        # The start() call was queued while forking, so the thread never
+                        # actually ran in the parent. Same __autorestart__ contract as
+                        # above: don't start it in the child either.
+                        continue
                     log.debug("Starting thread %s after fork", thread_start.__self__.name)
                     _safe_restart(thread_start, thread_start.__self__.name)
                 _threads_to_start_after_fork.clear()
@@ -173,12 +179,13 @@ class ThreadRestartTimer(PeriodicThread):
         cls._timestamp = monotonic_ns() + cls.__timeout__
 
     @classmethod
-    def set(cls):
+    def set(cls, force_restart: bool = True):
         """Set the timer to restart the threads after a fork."""
         if cls._instance is None:
-            cls._instance = cls()
+            cls._instance = cls(force_restart=force_restart)
             cls._instance.start()
         else:
+            cls._instance._force_restart = force_restart
             # We have already created the timer, so we let the forksafe logic
             # handle the restart instead of creating a new instance.
             cls._instance._after_fork()
@@ -190,29 +197,14 @@ def _after_fork_child():
 
     _forking = False
 
-    # Restart the threads immediately. It is unlikely that there will be another
-    # call to fork here. _after_fork() (without force=True) respects
-    # __autorestart__: cleanup always runs, but the thread is only restarted
-    # when __autorestart__ is True. This is intentional in the child — threads
-    # with __autorestart__ = False (e.g. RemoteConfigPoller) should not run in
-    # forked workers.
-    for thread in _threads_to_restart_after_fork.copy():
-        log.debug("Restarting thread %s after fork in child", thread.name)
-        try:
-            thread._after_fork()
-        except Exception as e:
-            log.error("failed to restart periodic thread %s after fork in child: %s", thread.name, e)
-    _threads_to_restart_after_fork.clear()
-
-    for thread_start in _threads_to_start_after_fork.copy():
-        if not thread_start.__self__.__autorestart__:
-            # The start() call was queued while forking, so the thread never
-            # actually ran in the parent. Same __autorestart__ contract as
-            # above: don't start it in the child either.
-            continue
-        log.debug("Starting thread %s after fork in child", thread_start.__self__.name)
-        _safe_restart(thread_start, thread_start.__self__.name)
-    _threads_to_start_after_fork.clear()
+    # Process managers can close inherited file descriptors after Python's at-fork callbacks
+    # return. Delay autorestarting periodic threads so none of them rebuilds a native runtime
+    # before that cleanup completes. ThreadRestartTimer forces eligible child threads to restart
+    # after the same 100 ms quiet period used for parent-side fork storms. force_restart=False
+    # makes _restart_threads() respect __autorestart__ for both the pending-restart and
+    # pending-start threads, same as the immediate child-side restart used to.
+    if _threads_to_restart_after_fork or _threads_to_start_after_fork:
+        ThreadRestartTimer.set(force_restart=False)
 
 
 @forksafe.register_after_parent

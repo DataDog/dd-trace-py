@@ -263,8 +263,11 @@ class ASMConfig(DDConfig):
     _bypass_instrumentation_for_waf = False
     _is_testing_instrumentation_for_waf = False
 
-    # IAST supported on python 3.6 to 3.13 and never on windows
-    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 15, 0)) and not (
+    # TODO(py-315): Only runtime gate for IAST version support; the native extensions are not
+    # version-gated in setup.py. This bound intentionally leads requires-python in pyproject.toml, so
+    # do not "resync" it downwards; 3.15 itself is still untested for IAST, tracked by issue #17843.
+    # IAST supported on python 3.6 to 3.15 and never on windows
+    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 16, 0)) and not (
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 

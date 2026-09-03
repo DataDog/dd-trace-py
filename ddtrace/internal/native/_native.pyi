@@ -11,7 +11,6 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
 from ddtrace._trace.types import _AttributeValueType
 
@@ -19,7 +18,7 @@ from ddtrace._trace.types import _AttributeValueType
 ActiveTrace = Union[Span, Context]
 
 _SpanDataT = TypeVar("_SpanDataT", bound="SpanData")
-_ContextDataT = TypeVar("_ContextDataT", bound="ContextData")
+_ContextT = TypeVar("_ContextT", bound="Context")
 
 class DDSketch:
     def __init__(self): ...
@@ -94,6 +93,7 @@ class CrashtrackerConfiguration:
         endpoint: Optional[str] = None,
         unix_socket_path: Optional[str] = None,
         test_token: Optional[str] = None,
+        api_key: Optional[str] = None,
     ): ...
 
 class CrashtrackerReceiverConfig:
@@ -192,7 +192,7 @@ if sys.platform == "linux":
         :param trace_flags: W3C Trace Context trace-flags byte (bit 0 = sampled).
         """
         ...
-    def update_otel_thread_context_from_context(context: ContextData, trace_flags: int) -> None:
+    def update_otel_thread_context_from_context(context: Context, trace_flags: int) -> None:
         """Update the OTel thread context from an active trace Context.
 
         Invalid Context identifiers detach the current thread context. The local root span ID is
@@ -218,6 +218,15 @@ class SharedRuntime:
         ...
     def after_fork_child(self) -> None:
         """Re-initialize the shared runtime in the child process after forking."""
+        ...
+    def defer_after_fork_child(self) -> None:
+        """Prevent lazy runtime restart while Python child hooks run."""
+        ...
+    def allow_after_fork_child(self) -> None:
+        """Allow lazy runtime restart after Python child hooks finish."""
+        ...
+    def register_at_fork(self) -> None:
+        """Register native fork handlers for this shared runtime."""
         ...
     def shutdown(self, timeout_ms: Optional[int] = None) -> None:
         """Gracefully shut down the shared runtime.
@@ -773,6 +782,17 @@ class TraceExporterBuilder:
         Requires :meth:`set_agentless_endpoint`; ``build`` rejects it otherwise.
         """
         ...
+    def set_agentless_stats_endpoint(self, url: str) -> TraceExporterBuilder:
+        """
+        Send client-computed trace stats to the Datadog stats intake instead of the agent.
+
+        Requires :meth:`set_agentless_endpoint` (whose API key and timeout it reuses) and
+        :meth:`enable_stats`. Mutually exclusive with :meth:`set_otlp_metrics_endpoint`;
+        ``build`` rejects the combination.
+        :param url: Full stats intake URL including the path
+            (e.g. "https://trace.agent.datadoghq.com/api/v0.2/stats").
+        """
+        ...
     def set_otlp_endpoint(self, url: str) -> TraceExporterBuilder:
         """
         Set the OTLP HTTP endpoint for trace export (serves both http/json and http/protobuf).
@@ -1034,7 +1054,7 @@ class native_flare:
         def zip_and_send(self, directory: str, send_action: native_flare.FlareAction) -> None: ...
         def set_current_log_level(self, level: str) -> None: ...
 
-class ContextData:
+class Context:
     trace_id: Optional[int]
     span_id: Optional[int]
     _meta: dict[str, str]
@@ -1043,20 +1063,37 @@ class ContextData:
     _span_links: list[Any]
     _is_remote: bool
     _reactivate: bool
+    sampling_priority: Optional[Any]
+    dd_origin: Optional[str]
+    dd_user_id: Optional[str]
+    _trace_id_64bits: Optional[int]
+    _traceflags: str
+    _traceparent: str
+    _tracestate: str
 
     def __new__(
-        cls: type[_ContextDataT],
+        cls: type[_ContextT],
         trace_id: Optional[int] = None,
         span_id: Optional[int] = None,
-        dd_origin: Optional[str] = None,  # placeholder for Context.__init__
-        sampling_priority: Optional[float] = None,  # placeholder for Context.__init__
+        dd_origin: Optional[str] = None,
+        sampling_priority: Optional[float] = None,
         meta: Optional[dict[str, str]] = None,
         metrics: Optional[dict[str, Any]] = None,
-        lock: Optional[Any] = None,  # placeholder for Context.__init__
         span_links: Optional[list[Any]] = None,
         baggage: Optional[dict[str, Any]] = None,
         is_remote: bool = True,
-    ) -> _ContextDataT: ...
+    ) -> _ContextT: ...
+    def __enter__(self: _ContextT) -> _ContextT: ...
+    def __exit__(self, *args: Any) -> None: ...
+    def __getstate__(self) -> tuple: ...
+    def __setstate__(self, state: tuple) -> None: ...
+    def set_baggage_item(self, key: str, value: Any) -> None: ...
+    def get_baggage_item(self, key: str) -> Optional[Any]: ...
+    def get_all_baggage_items(self) -> dict[str, Any]: ...
+    def remove_baggage_item(self, key: str) -> None: ...
+    def remove_all_baggage_items(self) -> None: ...
+    def copy(self: _ContextT, trace_id: int, span_id: int) -> _ContextT: ...
+    def _with_baggage_item(self: _ContextT, key: str, value: Any) -> _ContextT: ...
 
 class SpanData:
     name: str
@@ -1443,6 +1480,12 @@ class RemoteConfigClient:
     """Native single-target remote config client (origin process).
 
     Children consume published configs via :class:`RemoteConfigReader` instead.
+
+    Passing ``api_key`` (together with ``site`` and ``hostname``) selects agentless
+    mode: configs are fetched from ``config.<site>`` rather than from the agent.
+
+    ``config_root`` and ``director_root`` are raw signed TUF root metadata that replace the
+    roots libdatadog embeds for the site. This is mostly for testing. They apply to agentless mode only.
     """
 
     def __new__(
@@ -1461,6 +1504,11 @@ class RemoteConfigClient:
         process_tags: Optional[list[tuple[str, str]]] = None,
         timeout_ms: int = 5000,
         test_session_token: Optional[str] = None,
+        site: Optional[str] = None,
+        api_key: Optional[str] = None,
+        hostname: Optional[str] = None,
+        config_root: Optional[str] = None,
+        director_root: Optional[str] = None,
     ) -> "RemoteConfigClient": ...
     def add_capabilities(self, capabilities: list[RemoteConfigCapabilities]) -> None:
         """Add capabilities the client advertises to the agent."""
@@ -1480,6 +1528,13 @@ class RemoteConfigClient:
         ...
     def get_client_id(self) -> str:
         """The remote config client id (a UUID); stable for the process lifetime."""
+        ...
+    def get_refresh_interval(self) -> float:
+        """Seconds to wait before the next poll.
+
+        Agentless mode follows the interval the backend recommends, refreshed on
+        every successful fetch; against the agent this is a fixed default.
+        """
         ...
     def enable_shared_memory(self) -> None:
         """Enable cross-process broadcast. Call on the origin before forking."""

@@ -32,15 +32,16 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_and_report_otel_metrics_exporter_enabled
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.vendor.debtcollector import deprecate
 
 from ._inferred_base_service import detect_service
 from .endpoint_config import fetch_config_from_endpoint
@@ -166,6 +167,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dogpile_cache",
         "pylibmc",
         "httpx",
+        "httpx2",
         "httplib",
         "rq",
         "jinja2",
@@ -468,6 +470,15 @@ class Config(object):
         self._debug_mode = _get_config("DD_TRACE_DEBUG", False, asbool, "OTEL_LOG_LEVEL")
         self._startup_logs_enabled = _get_config("DD_TRACE_STARTUP_LOGS", False, asbool)
 
+        agentless = AgentlessConfig()
+        self._dd_api_key = agentless.api_key
+        self._dd_site = agentless.site
+        self._agentless_enabled = agentless.enabled
+        for _name, _value, _origin in agentless.reported_configuration():
+            telemetry_writer.add_configuration(_name, _value, _origin)
+
+        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
+
         self._trace_rate_limit: int = _get_config("DD_TRACE_RATE_LIMIT", DEFAULT_SAMPLING_RATE_LIMIT, int)
         if self._trace_rate_limit != DEFAULT_SAMPLING_RATE_LIMIT and self._trace_sampling_rules in ("", "[]"):
             log.warning(
@@ -635,6 +646,13 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+
+        self._propagation_as_span_links = _get_config(
+            "DD_TRACE_PROPAGATION_AS_SPAN_LINKS",
+            set(),
+            # Expected format: comma-separated integration names (e.g. "kafka,google_cloud_pubsub").
+            lambda x: {name.strip() for name in x.split(",") if name.strip()},
+        )
         self._baggage_tag_keys = _get_config(
             "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
         )
@@ -653,7 +671,9 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
-        trace_compute_stats_default = in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14)
+        trace_compute_stats_default = (
+            in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14) or agentless.enabled
+        )
         self._trace_compute_stats = _get_config(
             "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
         )
@@ -683,7 +703,7 @@ class Config(object):
             log.warning("Invalid obfuscation pattern, disabling query string tracing", exc_info=True)
             self._http_tag_query_string = False  # Disable query string tagging if malformed obfuscation pattern
 
-        self._ci_visibility_agentless_enabled = _get_config("DD_CIVISIBILITY_AGENTLESS_ENABLED", False, asbool)
+        self._ci_visibility_agentless_enabled = agentless.ci_visibility
         self._ci_visibility_agentless_url = _get_config("DD_CIVISIBILITY_AGENTLESS_URL", "")
         self._ci_visibility_intelligent_testrunner_enabled = _get_config("DD_CIVISIBILITY_ITR_ENABLED", True, asbool)
         self._ci_visibility_log_level = _get_config("DD_CIVISIBILITY_LOG_LEVEL", "info")
@@ -706,11 +726,7 @@ class Config(object):
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
-        self._dd_api_key = _get_config("DD_API_KEY", report_telemetry=False)
-        self._dd_app_key = _get_config("DD_APP_KEY", report_telemetry=False)
-        self._dd_site = _get_config("DD_SITE", "datadoghq.com")
-
-        self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
+        self._llmobs_agentless_enabled = agentless.llmobs
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
@@ -766,14 +782,15 @@ class Config(object):
             "DD_TRACE_EXPERIMENTAL_LONG_RUNNING_INITIAL_FLUSH_INTERVAL", default=10.0, modifier=float
         )
         # When True, traces are sent via the JSON span intake (agentless EvP), e.g. browser-intake-*.
-        self._trace_agentless_enabled = _get_config("_DD_APM_TRACING_AGENTLESS_ENABLED", False, asbool)
+        self._trace_agentless_enabled = agentless.apm_tracing
         if self._trace_agentless_enabled:
             log.debug(
-                "APM Agentless enabled: health metrics and client-side stats are disabled. "
-                "Hostnames will be resolved by ddtrace; spans will be sent directly to the Datadog intake, "
-                "bypassing the agent.",
+                "APM Agentless enabled: health metrics are disabled. Hostnames will be resolved by "
+                "ddtrace; spans will be sent directly to the Datadog intake, bypassing the agent. "
+                "Client-side stats, when enabled, are sent to the stats intake rather than the agent.",
             )
-            self._trace_compute_stats = False
+            # DD_TRACE_STATS_COMPUTATION_ENABLED stays honoured: libdatadog sends the stats to the
+            # stats intake instead of the agent's /v0.6/stats (see _resolve_agentless_stats_endpoint).
             self._report_hostname = True
             self._health_metrics_enabled = False
 
