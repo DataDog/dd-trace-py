@@ -281,8 +281,14 @@ suites:
   tracer:
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
-      KUBERNETES_MEMORY_REQUEST: "4Gi"
-      KUBERNETES_MEMORY_LIMIT: "4Gi"
+      # The tracer suite repeatedly OOMKilled at the previously pinned 4Gi
+      # (see #15324, which raised it from 3Gi). Pin 6Gi and disable the VPA —
+      # without DD_DISABLE_VPA the VPA overrides KUBERNETES_MEMORY_* and can
+      # clamp the container back down, which is the likely reason the 4Gi pin
+      # kept not holding.
+      DD_DISABLE_VPA: "true"
+      KUBERNETES_MEMORY_REQUEST: "6Gi"
+      KUBERNETES_MEMORY_LIMIT: "6Gi"
     paths:
       - '@tracing'
       - '@bootstrap'
