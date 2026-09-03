@@ -225,7 +225,10 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         try:
             collector.collect(GC_RUNTIME_METRICS)
             gc.collect()
-            collected: Optional[list[tuple[str, int]]] = collector.collect(GC_RUNTIME_METRICS)
+            raw: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, int]]] = None
+            if raw is not None:
+                collected = [(name, int(value)) for name, value in raw]
         finally:
             collector.stop()
 
@@ -244,7 +247,10 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
 
             gc.collect()
             collector.collect(GC_RUNTIME_METRICS)
-            collected: Optional[list[tuple[str, int]]] = collector.collect(GC_RUNTIME_METRICS)
+            raw: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, int]]] = None
+            if raw is not None:
+                collected = [(name, int(value)) for name, value in raw]
         finally:
             collector.stop()
 

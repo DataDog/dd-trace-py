@@ -91,38 +91,45 @@ class GCPauseMonitor:
             self._refcount += 1
             if self._refcount != 1:
                 return
-
-            # Register first: forksafe.register is a functools.partial, so calling
-            # it builds an args tuple. Allocating after the callback is installed
-            # could start a collection that reenters _on_gc on this thread.
             if not _gc_callbacks_supported():
                 return
 
-            if not self._fork_registered:
-                forksafe.register(self._fork_hook)
+        # Install hooks without holding _lock: forksafe.register and
+        # gc.callbacks.append can allocate and trigger a collection, and _on_gc
+        # would deadlock if it tried to take _lock while we hold it here.
+        with self._lock:
+            fork_registered: bool = self._fork_registered
+        if not fork_registered:
+            forksafe.register(self._fork_hook)
+            with self._lock:
                 self._fork_registered = True
 
-            if not _gc_callback_installed(self._gc_hook):
-                gc.callbacks.append(self._gc_hook)
+        if not _gc_callback_installed(self._gc_hook):
+            gc.callbacks.append(self._gc_hook)
 
     def release(self) -> None:
+        fork_registered: bool = False
         with self._lock:
             if self._refcount <= 0:
                 return
 
             self._refcount -= 1
-            if self._refcount == 0:
-                if _gc_callbacks_supported():
-                    _remove_gc_callback(self._gc_hook)
+            if self._refcount != 0:
+                return
 
-                if self._fork_registered:
-                    forksafe.unregister(self._fork_hook)
-                    self._fork_registered = False
+            fork_registered = self._fork_registered
+            # Drop in-flight starts so a later re-acquire cannot pair a
+            # new stop with a stale timestamp from before uninstall.
+            self._clear_starts()
+            self._clear_window()
 
-                # Drop in-flight starts so a later re-acquire cannot pair a
-                # new stop with a stale timestamp from before uninstall.
-                self._clear_starts()
-                self._clear_window()
+        if _gc_callbacks_supported():
+            _remove_gc_callback(self._gc_hook)
+
+        if fork_registered:
+            forksafe.unregister(self._fork_hook)
+            with self._lock:
+                self._fork_registered = False
 
     def reset(self) -> None:
         """Drop in-flight starts and the current window. Used after fork."""
