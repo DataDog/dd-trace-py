@@ -284,6 +284,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
         environments = uv_environments[suite]
         uv_metadata = {}
         for environment in environments:
+            if not suite_configs[suite].get("ddtest"):
+                continue
             if len(environment.runs) != 1:
                 raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
             run = environment.runs[0]
