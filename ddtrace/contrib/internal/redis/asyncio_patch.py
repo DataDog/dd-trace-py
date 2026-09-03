@@ -17,8 +17,14 @@ async def instrumented_async_execute_pipeline(func, instance, args, kwargs):
 
 
 async def instrumented_async_execute_cluster_pipeline(func, instance, args, kwargs):
-    # Try to access command_stack, fallback to _command_stack for backward compatibility
+    # Redis-py 8 stores cluster pipeline commands in the execution strategy.
     command_stack = getattr(instance, "command_stack", None)
+    if not command_stack:
+        execution_strategy = getattr(instance, "_execution_strategy", None)
+        if execution_strategy is not None:
+            command_stack = getattr(execution_strategy, "command_queue", None)
+            if command_stack is None:
+                command_stack = getattr(execution_strategy, "_command_queue", command_stack)
     if command_stack is None:
         command_stack = getattr(instance, "_command_stack", [])
 

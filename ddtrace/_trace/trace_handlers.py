@@ -957,10 +957,18 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, config_integration, a
         # PERF: avoid extra overhead from checks in Span.set_metric
         span._set_attribute(redisx.ARGS_LEN, len(args))
     else:
-        for attr in ("command_stack", "_command_stack"):
-            if hasattr(instance, attr):
-                # PERF: avoid extra overhead from checks in Span.set_metric
-                span._set_attribute(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
+        command_stack = getattr(instance, "command_stack", None)
+        if not command_stack:
+            command_stack = getattr(instance, "_command_stack", None)
+        if not command_stack:
+            execution_strategy = getattr(instance, "_execution_strategy", None)
+            if execution_strategy is not None:
+                command_stack = getattr(execution_strategy, "command_queue", None)
+                if command_stack is None:
+                    command_stack = getattr(execution_strategy, "_command_queue", command_stack)
+        if command_stack is not None:
+            # PERF: avoid extra overhead from checks in Span.set_metric
+            span._set_attribute(redisx.PIPELINE_LEN, len(command_stack))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):

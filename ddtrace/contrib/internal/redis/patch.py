@@ -136,9 +136,14 @@ def instrumented_execute_command(integration_config):
 def instrumented_execute_pipeline(integration_config, is_cluster=False):
     def _instrumented_execute_pipeline(func, instance, args, kwargs):
         if is_cluster:
+            command_stack = getattr(instance, "command_stack", None)
+            if not command_stack:
+                execution_strategy = getattr(instance, "_execution_strategy", None)
+                if execution_strategy is not None:
+                    command_stack = getattr(execution_strategy, "command_queue", command_stack)
             cmds = [
                 stringify_cache_args(c.args, cmd_max_len=integration_config.cmd_max_length)
-                for c in instance.command_stack
+                for c in (command_stack or [])
             ]
         else:
             cmds = [
