@@ -266,8 +266,7 @@ impl TraceExporterBuilderPy {
         mut slf: PyRefMut<'_, Self>,
         restart_after_fork: bool,
     ) -> PyResult<Py<Self>> {
-        slf.try_as_mut()?
-            .set_restart_after_fork(restart_after_fork);
+        slf.try_as_mut()?.set_restart_after_fork(restart_after_fork);
         Ok(slf.into())
     }
 
