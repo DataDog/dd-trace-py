@@ -301,6 +301,9 @@ class TelemetryWorker:
     def start(self) -> None:
         """Send the app-started lifecycle event. Call ONCE, on the origin process only."""
         ...
+    def set_fork_restart(self, restart_on_fork: bool) -> None:
+        """Configure whether this worker restarts in a fork child."""
+        ...
     def stop(self, send_app_closing: bool) -> None:
         """Flush and shut the worker down, waiting briefly for it to drain.
 
