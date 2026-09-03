@@ -165,6 +165,10 @@ class DatadogSampler:
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
+        sampled, _ = self.sample_or_discard(span)
+        return sampled
+
+    def sample_or_discard(self, span: Span) -> tuple[bool, bool]:
         span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
@@ -215,7 +219,8 @@ class DatadogSampler:
             str(self.rules) if self.rules is not None else "None",
             id(self),
         )
-        return sampled
+        discarded = bool(matched_rule is not None and matched_rule.discard and not sampled)
+        return sampled, discarded
 
     def _get_sampling_mechanism(self, matched_rule: Optional[SamplingRule], agent_service_based: bool) -> int:
         if matched_rule and matched_rule.provenance == "customer":
