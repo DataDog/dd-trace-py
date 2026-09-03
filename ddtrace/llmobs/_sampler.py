@@ -211,6 +211,18 @@ class LLMObsSamplingResolver:
         sampled, sample_rate = self._sampler.sample(root)
         return _TraceSampling(root), sample_rate, self._as_decision(sampled)
 
+    def resolve_if_root(self, span: Any) -> None:
+        """Resolve when ``span`` is its trace's root, called as the root finishes.
+
+        This is the last moment the root's tags are both complete and untouched: in
+        APM_AGENTLESS mode ``_prepare_llmobs_span_data`` rewrites dotted tag keys
+        (``customer.tier`` -> ``customer_tier``) immediately afterwards, which would leave a rule
+        on such a key permanently unmatchable.
+        """
+        state: Optional[_TraceSampling] = span._get_ctx_item(LLMOBS_SAMPLING)
+        if state is not None and state.root is span:
+            self.resolve(span)
+
     def resolve(self, span: Any) -> tuple[Optional[str], Optional[str]]:
         """Return this trace's frozen ``(sample_rate, sampling_decision)``, computing it once.
 

@@ -128,6 +128,37 @@ class TestExportModeKeepsMetaStruct:
             assert dd["sample_rate"] == "0"
             llmobs_service.disable()
 
+    def test_apm_agentless_matches_a_dotted_tag_rule(self, tracer):
+        """A rule on a dotted tag key must still match in APM_AGENTLESS mode.
+
+        _prepare_llmobs_span_data rewrites dotted tag keys to underscores for that export mode,
+        so sampling has to resolve before it runs or such a rule is silently unmatchable.
+        """
+        llmobs_service.disable()
+        with override_global_config(
+            {
+                "_llmobs_ml_app": "test-ml-app",
+                "_dd_api_key": "<not-a-real-key>",
+                "service": "tests.llmobs",
+                "_llmobs_sampling_rules": '[{"tags": {"customer.tier": "gold"}, "sample_rate": 0}]',
+            }
+        ):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            llmobs_service._instance._export_mode = LLMObsExportMode.APM_AGENTLESS
+            llmobs_service._instance._llmobs_span_writer.stop()
+            mock_writer = mock.MagicMock()
+            llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(
+                mock_writer, tracer, sampling_resolver=llmobs_service._instance._sampling_resolver
+            )
+            with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                _annotate_llm_span(span)
+                llmobs_service.annotate(span=span, tags={"customer.tier": "gold"})
+            dd = _get_llmobs_data_metastruct(span)["_dd"]
+            assert dd["sampling_decision"] == "0"
+            assert dd["sample_rate"] == "0"
+            llmobs_service.disable()
+
     def test_llmobs_direct_mode_still_enqueues_and_scrubs(self, tracer):
         llmobs_service.disable()
         with override_global_config(

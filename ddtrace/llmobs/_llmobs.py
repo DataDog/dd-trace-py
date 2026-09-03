@@ -641,6 +641,9 @@ class LLMObs(Service):
         if span_kind == "llm":
             core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
 
+        # Before _prepare_llmobs_span_data, which rewrites dotted tag keys in APM_AGENTLESS mode.
+        self._sampling_resolver.resolve_if_root(span)
+
         span_event = None
         try:
             if self._prepare_llmobs_span_data(span, span_kind):
