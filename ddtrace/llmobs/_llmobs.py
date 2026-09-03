@@ -607,12 +607,15 @@ class LLMObs(Service):
             interval=float(_env.get("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
         )
+        # Without a local app key, fall back to the agent's EVP proxy, which supplies both
+        # credentials. An override origin stands in for intake, not an agent, so it stays direct.
+        dne_agentless = bool(self._app_key) or agentless_enabled or bool(_env.get("DD_LLMOBS_OVERRIDE_ORIGIN", ""))
         self._dne_client = LLMObsExperimentsClient(
             interval=float(_env.get("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(_env.get("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
             _default_project=Project(name=self._project_name, _id=""),
-            is_agentless=True,  # agent proxy doesn't seem to work for experiments
+            is_agentless=dne_agentless,
         )
         self._api_client = LLMObsAPIClient(app_key=self._app_key)
 
@@ -1010,14 +1013,14 @@ class LLMObs(Service):
                         "DD_SITE is required for sending LLMObs data when agentless mode is enabled. "
                         "Ensure this configuration is set before running your application."
                     )
-                if not _env.get("DD_REMOTE_CONFIGURATION_ENABLED"):
-                    config._remote_config_enabled = False
-                    log.debug("Remote configuration disabled because DD_LLMOBS_AGENTLESS_ENABLED is set to true.")
-                    remoteconfig_poller.disable()
 
                 # Since the API key can be set programmatically and TelemetryWriter is already initialized by now,
                 # we need to force telemetry to use agentless configuration
                 telemetry_writer.enable_agentless_client(True)
+                # Remote configuration resolved its own agentless state from the environment at
+                # import time, so it is still pointed at an agent that may not be there. Send it
+                # to the intake as well, on the key validated just above.
+                remoteconfig_poller.switch_to_agentless()
 
             if integrations_enabled:
                 cls._patch_integrations()

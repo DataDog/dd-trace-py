@@ -269,14 +269,8 @@ PyDoc_STRVAR(memalloc_start__doc__,
              "Sets the average number of bytes allocated between samples to\n"
              "heap_sample_interval.\n"
              "If heap_sample_interval is set to 0, it is disabled entirely.\n"
-             "If mem_domain_enabled is true and the Python version supports it\n"
-             "(>= 3.12), MEM-domain allocations (PyMem_Malloc/Calloc/Realloc)\n"
-             "are tracked in addition to OBJ-domain allocations. This is off\n"
-             "by default because MEM-domain interposition adds per-allocation\n"
-             "overhead on hot paths (list/dict resize, buffer growth) and can\n"
-             "extend the time threads hold Python locks that allocate inside\n"
-             "critical sections. Enable it when you need visibility into\n"
-             "PyMem_*-only allocations that the OBJ hook does not capture.\n");
+             "Enables profiling of PyMem_Malloc/Calloc/Realloc events (allocations in the Mem domain).\n"
+             "Requires Python 3.12 or later.\n");
 static PyObject*
 memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 {
