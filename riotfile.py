@@ -438,6 +438,7 @@ venv = Venv(
                 "DDTEST_SUITE_PATH": "tests/tracer",
                 "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
                 "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_shutdown.py",
+                "_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.tracer",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",

@@ -147,10 +147,7 @@ def test_ddtest_uv_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     content = output.getvalue()
     assert "extends: .ddtest_plan_uv" in content
     assert "extends: .ddtest_run_uv" in content
-    assert (
-        "DDTEST_UV_COMMAND_uv123: pytest -v --ddtrace --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/"
-        in content
-    )
+    assert "DDTEST_UV_COMMAND_uv123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
     assert "DDTEST_UV_ENV_uv123: PYTHONOPTIMIZE=1" in content
 
 
