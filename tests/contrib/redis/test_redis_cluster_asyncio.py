@@ -156,7 +156,11 @@ async def test_pipeline(traced_redis_cluster):
 
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="fails under Python 3.14")
-@pytest.mark.snapshot(wait_for_num_traces=1, variants=REDIS_CLUSTER_PIPELINE_SNAPSHOT_VARIANTS)
+@pytest.mark.snapshot(
+    wait_for_num_traces=1,
+    variants=REDIS_CLUSTER_PIPELINE_SNAPSHOT_VARIANTS,
+    ignores=["meta.out.host", "meta.server.address", "metrics.network.destination.port"],
+)
 @pytest.mark.asyncio
 async def test_pipeline_command_stack_count_matches_metric(redis_cluster):
     patch()
