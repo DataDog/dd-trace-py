@@ -69,6 +69,12 @@ def _find_client_session_root(span: Optional[Span]) -> Optional[Span]:
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
 
+    @staticmethod
+    def _get_llmobs_context_provider():
+        from ddtrace.llmobs import LLMObs
+
+        return getattr(getattr(LLMObs, "_instance", None), "_llmobs_context_provider", None)
+
     def trace(self, operation_id: str, submit_to_llmobs: bool = False, **kwargs) -> Span:
         span = super().trace(operation_id, submit_to_llmobs, **kwargs)
 

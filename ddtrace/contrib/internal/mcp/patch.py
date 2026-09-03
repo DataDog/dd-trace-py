@@ -225,9 +225,7 @@ async def traced_server_middleware(context, call_next):
     params = _get_attr(context, "params", None)
     previous_context = tracer.context_provider.active()
     tracer.context_provider.activate(None)
-    from ddtrace.llmobs import LLMObs
-
-    llmobs_context_provider = getattr(getattr(LLMObs, "_instance", None), "_llmobs_context_provider", None)
+    llmobs_context_provider = integration._get_llmobs_context_provider()
     previous_llmobs_context = llmobs_context_provider.active() if llmobs_context_provider else None
     if llmobs_context_provider:
         llmobs_context_provider.activate(None)
