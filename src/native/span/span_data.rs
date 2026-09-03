@@ -665,8 +665,8 @@ impl SpanData {
 
         let replaced = {
             let mut child = slf.borrow_mut();
-            let old_parent = std::mem::replace(&mut child._parent, Some(parent_ref));
-            let old_local_root = std::mem::replace(&mut child._local_root, Some(local_root));
+            let old_parent = child._parent.replace(parent_ref);
+            let old_local_root = child._local_root.replace(local_root);
             (old_parent, old_local_root)
         };
         drop(replaced);
