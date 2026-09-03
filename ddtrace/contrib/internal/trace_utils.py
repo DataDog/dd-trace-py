@@ -43,6 +43,7 @@ from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
 from ddtrace.internal.utils.wrappers import iswrapped  # noqa: F401
 from ddtrace.internal.utils.wrappers import unwrap  # noqa: F401
@@ -321,7 +322,7 @@ def with_traced_module(func):
 
 def is_tracing_enabled() -> bool:
     tracer = core.root.get_item("tracer")
-    return tracer is not None and (tracer.enabled or asm_config._apm_opt_out)
+    return tracer is not None and (tracer.enabled or standalone_config.apm_opt_out)
 
 
 def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
