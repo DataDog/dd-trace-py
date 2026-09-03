@@ -16,6 +16,20 @@ from ddtrace.testing.internal.utils import DDTESTOPT_ROOT_SPAN_RESOURCE
 from ddtrace.testing.internal.utils import DDTraceTestContext
 
 
+@pytest.fixture(autouse=True)
+def _reset_tracer_context():
+    """Clear the global tracer's active context before and after each test.
+
+    These tests touch the real tracer (not a mock), so leftover spans from prior tests
+    in the same xdist worker would pollute current_root_span() assertions.
+    """
+    from ddtrace.trace import tracer
+
+    tracer.context_provider.activate(None)
+    yield
+    tracer.context_provider.activate(None)
+
+
 @pytest.fixture
 def span_processor(monkeypatch):
     """Install a TestOptSpanProcessor with a mock writer and restore config after."""
