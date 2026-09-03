@@ -19,6 +19,8 @@ from ddtrace.contrib.internal.django.routing import _collect_routes_once
 from ddtrace.contrib.internal.django.utils import REQUEST_DEFAULT_RESOURCE
 from ddtrace.contrib.internal.django.utils import _after_request_tags
 from ddtrace.contrib.internal.django.utils import _before_request_tags
+from ddtrace.contrib.internal.web import _WEB_REQUEST_STARTING_DISPATCHED
+from ddtrace.contrib.internal.web import dispatch_web_request_starting
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -90,6 +92,13 @@ def traced_get_response(func: FunctionType, args: tuple[Any, ...], kwargs: dict[
         return func(*args, **kwargs)
 
     request_headers = utils._get_request_headers(request)
+    if request.META.get("wsgi.version") is not None and not request.META.get(_WEB_REQUEST_STARTING_DISPATCHED):
+        if dispatch_web_request_starting(
+            request.method,
+            request.META.get("SCRIPT_NAME") or "",
+            request.META.get("PATH_INFO") or "",
+        ):
+            request.META[_WEB_REQUEST_STARTING_DISPATCHED] = True
 
     pin = Pin.get_from(instance)
 

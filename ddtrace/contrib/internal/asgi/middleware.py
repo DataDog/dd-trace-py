@@ -12,6 +12,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import bytes_to_str
 from ddtrace.contrib.internal.asgi.utils import extract_headers
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
+from ddtrace.contrib.internal.web import dispatch_web_request_starting
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -275,6 +276,12 @@ class TraceMiddleware:
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
+            if not is_subapp:
+                dispatch_web_request_starting(
+                    method,
+                    scope.get("root_path") or "",
+                    scope.get("path") or "",
+                )
 
         with (
             core.context_with_data(
