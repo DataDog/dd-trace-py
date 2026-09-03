@@ -286,7 +286,9 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
             if len(environment.runs) != 1:
                 raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
             run = environment.runs[0]
-            command = run.command.replace("{cmdargs}", "")
+            # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
+            # the command directly, so preserve that runner argument explicitly.
+            command = run.command.replace("{cmdargs}", "--ddtrace")
             for name, value in run.environment.items():
                 command = command.replace(f"${{{{{name}}}}}", value)
             uv_metadata[environment.hash] = (
