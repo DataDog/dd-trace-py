@@ -91,7 +91,7 @@ class GCPauseMonitor:
                     pass
 
                 if self._fork_registered:
-                    forksafe.unregister(self.reset)
+                    forksafe.unregister(self._fork_hook)
                     self._fork_registered = False
 
                 # Drop in-flight starts so a later re-acquire cannot pair a
@@ -133,6 +133,12 @@ class GCPauseMonitor:
 
         if phase == _GCPhase.START:
             with self._lock:
+                # A start callback can be waiting here while release() uninstalls.
+                # Storing a timestamp then would leave it to pair with a stop after
+                # the next acquire, reporting the gap between them as one pause.
+                if self._refcount <= 0:
+                    return
+
                 self._start_ns[gen] = time.monotonic_ns()
             return
 

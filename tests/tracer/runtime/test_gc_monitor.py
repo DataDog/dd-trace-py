@@ -78,6 +78,31 @@ def test_release_clears_in_flight_start() -> None:
     assert snap.total_ns == 0
 
 
+def test_start_is_ignored_while_unheld() -> None:
+    """A start callback that reaches the lock after release() must not record a time.
+
+    gc.callbacks.remove() does not retract a callback already waiting on the lock,
+    so without the refcount check the timestamp survives to pair with a stop after
+    the next acquire and reports the whole gap as one pause.
+    """
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    monitor.acquire()
+    monitor.release()
+
+    monitor._on_gc("start", {"generation": 0})
+    assert monitor._start_ns == [0, 0, 0]
+
+    monitor.acquire()
+    try:
+        monitor._on_gc("stop", {"generation": 0})
+        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
+    finally:
+        monitor.release()
+
+    assert snap.n_pauses == 0
+    assert snap.total_ns == 0
+
+
 def test_reset_drops_window() -> None:
     monitor: GCPauseMonitor = GCPauseMonitor()
     monitor.acquire()
