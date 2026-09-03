@@ -843,6 +843,12 @@ class TraceExporterBuilder:
         :param timeout_ms: Timeout in milliseconds.
         """
         ...
+    def set_restart_after_fork(self, restart_after_fork: bool) -> TraceExporterBuilder:
+        """
+        Configure whether the exporter's workers restart in a fork child.
+        :param restart_after_fork: Whether inherited workers restart in the child.
+        """
+        ...
     def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
