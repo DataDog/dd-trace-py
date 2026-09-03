@@ -7,40 +7,59 @@ from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
 
 def test_callback_installed_only_while_acquired() -> None:
     monitor: GCPauseMonitor = GCPauseMonitor()
-    assert monitor._on_gc not in gc.callbacks
+    assert not any(cb is monitor._gc_hook for cb in gc.callbacks)
     monitor.acquire()
     try:
-        assert monitor._on_gc in gc.callbacks
+        assert any(cb is monitor._gc_hook for cb in gc.callbacks)
         monitor.acquire()
-        assert gc.callbacks.count(monitor._on_gc) == 1
+        assert sum(1 for cb in gc.callbacks if cb is monitor._gc_hook) == 1
         monitor.release()
-        assert monitor._on_gc in gc.callbacks
+        assert any(cb is monitor._gc_hook for cb in gc.callbacks)
     finally:
         monitor.release()
-    assert monitor._on_gc not in gc.callbacks
+    assert not any(cb is monitor._gc_hook for cb in gc.callbacks)
 
 
 def test_last_release_unregisters_fork_hook() -> None:
     monitor: GCPauseMonitor = GCPauseMonitor()
-    assert monitor.reset not in forksafe._registry
+    assert monitor._fork_hook not in forksafe._registry
     monitor.acquire()
     try:
-        assert monitor.reset in forksafe._registry
+        assert monitor._fork_hook in forksafe._registry
         monitor.acquire()
-        assert forksafe._registry.count(monitor.reset) == 1
+        assert forksafe._registry.count(monitor._fork_hook) == 1
         monitor.release()
-        assert monitor.reset in forksafe._registry
+        assert monitor._fork_hook in forksafe._registry
     finally:
         monitor.release()
-    assert monitor.reset not in forksafe._registry
+    assert monitor._fork_hook not in forksafe._registry
 
     monitor.acquire()
     try:
-        assert monitor.reset in forksafe._registry
-        assert forksafe._registry.count(monitor.reset) == 1
+        assert monitor._fork_hook in forksafe._registry
+        assert forksafe._registry.count(monitor._fork_hook) == 1
     finally:
         monitor.release()
-    assert monitor.reset not in forksafe._registry
+    assert monitor._fork_hook not in forksafe._registry
+
+
+def test_release_uninstalls_by_identity_not_equality() -> None:
+    """`in`/`remove` use equality; a matching foreign callback must not block uninstall."""
+    monitor: GCPauseMonitor = GCPauseMonitor()
+
+    class _Confuser:
+        def __eq__(self, other: object) -> bool:
+            return True
+
+    confuser: _Confuser = _Confuser()
+    monitor.acquire()
+    gc.callbacks.append(confuser)  # type: ignore[arg-type]
+    try:
+        monitor.release()
+        assert not any(cb is monitor._gc_hook for cb in gc.callbacks)
+        assert confuser in gc.callbacks
+    finally:
+        gc.callbacks[:] = [cb for cb in gc.callbacks if cb is not confuser]
 
 
 def test_snapshot_records_real_collection() -> None:

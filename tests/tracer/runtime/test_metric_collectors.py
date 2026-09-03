@@ -225,7 +225,7 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         try:
             collector.collect(GC_RUNTIME_METRICS)
             gc.collect()
-            collected: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, int]]] = collector.collect(GC_RUNTIME_METRICS)
         finally:
             collector.stop()
 
@@ -244,7 +244,7 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
 
             gc.collect()
             collector.collect(GC_RUNTIME_METRICS)
-            collected: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, int]]] = collector.collect(GC_RUNTIME_METRICS)
         finally:
             collector.stop()
 
@@ -267,6 +267,17 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
             collector.stop()
         self.assertNotIn(collector._reset_state, forksafe._registry)
 
+    def test_runtime_worker_stop_tears_down_gc_collector(self) -> None:
+        from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+        from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+        worker: RuntimeWorker = RuntimeWorker()
+        worker.start()
+        monitor = gc_pause_monitor()
+        self.assertGreaterEqual(monitor._refcount, 1)
+        worker.stop()
+        self.assertEqual(monitor._refcount, 0)
+
     def test_init_failure_releases_monitor(self) -> None:
         import gc
 
@@ -285,4 +296,4 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         self.assertIsNone(collector._monitor)
         self.assertEqual(monitor._refcount, before)
         if before == 0:
-            self.assertNotIn(monitor._on_gc, gc.callbacks)
+            self.assertFalse(any(cb is monitor._gc_hook for cb in gc.callbacks))

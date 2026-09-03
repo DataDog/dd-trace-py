@@ -20,6 +20,25 @@ from ddtrace.internal._unpatched import threading_Lock
 GEN_COUNT: int = 3
 
 
+def _gc_callback_installed(hook: Callable[[str, dict[str, int]], None]) -> bool:
+    callbacks: list = gc.callbacks
+    i: int
+    for i in range(len(callbacks)):
+        if callbacks[i] is hook:
+            return True
+    return False
+
+
+def _remove_gc_callback(hook: Callable[[str, dict[str, int]], None]) -> None:
+    callbacks: list = gc.callbacks
+    i: int = 0
+    while i < len(callbacks):
+        if callbacks[i] is hook:
+            callbacks.pop(i)
+        else:
+            i += 1
+
+
 class _GCPhase(str, Enum):
     # CPython gc.callbacks phase is only these two strings (docs.python.org/3/library/gc.html).
     START = "start"
@@ -75,7 +94,7 @@ class GCPauseMonitor:
                 forksafe.register(self._fork_hook)
                 self._fork_registered = True
 
-            if self._gc_hook not in gc.callbacks:
+            if not _gc_callback_installed(self._gc_hook):
                 gc.callbacks.append(self._gc_hook)
 
     def release(self) -> None:
@@ -85,10 +104,7 @@ class GCPauseMonitor:
 
             self._refcount -= 1
             if self._refcount == 0:
-                try:
-                    gc.callbacks.remove(self._gc_hook)
-                except ValueError:
-                    pass
+                _remove_gc_callback(self._gc_hook)
 
                 if self._fork_registered:
                     forksafe.unregister(self._fork_hook)

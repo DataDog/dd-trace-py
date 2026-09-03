@@ -128,7 +128,6 @@ class RuntimeWorker(periodic.PeriodicService):
             #    _eintr_retry_call (/usr/lib/python2.7/subprocess.py:125)
             # which is the eventual cause of the deadlock.
             cls._instance.join(1)
-            cls._instance._runtime_metrics.stop()
             cls._instance = None
             cls.enabled = False
 
@@ -147,6 +146,10 @@ class RuntimeWorker(periodic.PeriodicService):
 
             cls._instance = runtime_worker
             cls.enabled = True
+
+    def stop(self, *args, **kwargs) -> None:
+        super().stop(*args, **kwargs)
+        self._runtime_metrics.stop()
 
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
