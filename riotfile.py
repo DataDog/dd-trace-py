@@ -681,6 +681,13 @@ venv = Venv(
                         "zope-interface": "==7.2",
                     },
                 ),
+                Venv(
+                    command="pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py",
+                    pys=select_pys(),
+                    # Pin wrapt to a single version to avoid needlessly multiplying this
+                    # venv, which doesn't exercise wrapt-specific behavior.
+                    pkgs={"pyarmor": latest, "wrapt": latest},
+                ),
             ],
         ),
         Venv(
@@ -4113,10 +4120,12 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4166,10 +4175,12 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4223,6 +4234,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "django": "~=5.1",
             },
             env={
@@ -4237,13 +4249,15 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_no_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4283,13 +4297,15 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4336,6 +4352,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "flask": "~=3.0",
             },
             env={
@@ -4350,8 +4367,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4372,32 +4390,38 @@ venv = Venv(
                     pkgs={
                         "fastapi": "==0.86.0",
                         "anyio": "==3.7.1",
+                        # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+                        "httpx2": "~=2.0.0",
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "==0.94.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.14"],
                     pkgs={
                         "fastapi": "==0.141.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
             ],
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4418,24 +4442,29 @@ venv = Venv(
                     pkgs={
                         "fastapi": "==0.86.0",
                         "anyio": "==3.7.1",
+                        # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+                        "httpx2": "~=2.0.0",
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "==0.94.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.14"],
                     pkgs={
                         "fastapi": "==0.141.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
             ],
@@ -4449,6 +4478,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": "<0.28.0",
+                "httpx2": ["~=2.0.0", latest],
                 "fastapi": "~=0.114.2",
             },
             env={
@@ -4463,10 +4493,12 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -4499,10 +4531,12 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
@@ -4539,6 +4573,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "tornado": "~=6.5",
             },
             env={
