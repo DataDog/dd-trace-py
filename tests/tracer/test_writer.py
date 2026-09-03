@@ -920,6 +920,57 @@ def test_bad_encoding(monkeypatch):
         assert writer._api_version == "v0.5"
 
 
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"})
+def test_dropped_native_writer_stops_exporter_workers():
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.writer import NativeWriter
+
+    runtime = get_native_runtime()
+    workers_before = runtime.debug().count("WorkerEntry")
+    subscribers_before = len(telemetry_writer._worker_subscribers)
+
+    writer = NativeWriter("http://localhost:9126")
+    assert runtime.debug().count("WorkerEntry") == workers_before + 1
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before + 1
+
+    del writer
+
+    assert runtime.debug().count("WorkerEntry") == workers_before
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before
+
+
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+def test_native_writer_does_not_restart_inherited_exporter_workers():
+    import os
+    import warnings
+
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.writer import NativeWriter
+
+    writer = NativeWriter("http://localhost:9126")
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"This process .* is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.",
+                category=DeprecationWarning,
+            )
+            pid = os.fork()
+        if pid == 0:
+            try:
+                _child_writer = NativeWriter("http://localhost:9126")
+                child_workers = get_native_runtime().debug().count("WorkerEntry")
+                os._exit(0 if child_workers == 1 else 1)
+            except BaseException:
+                os._exit(2)
+
+        _, status = os.waitpid(pid, 0)
+        assert status == 0
+    finally:
+        writer.shutdown_exporter()
+
+
 @pytest.mark.parametrize(
     "init_api_version,api_version,endpoint,encoder_cls",
     [
@@ -1134,6 +1185,7 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
             else:
                 mock_builder.enable_telemetry.assert_not_called()
+            mock_builder.set_restart_after_fork.assert_called_once_with(False)
 
 
 @pytest.mark.subprocess(
@@ -1451,14 +1503,32 @@ def test_agentless_end_to_end_payload_reaches_the_intake():
     assert headers["content-type"] == "application/json"
     assert headers["x-datadog-trace-count"] == "1"
 
-    chunks = json.loads(body)["traces"]
-    assert len(chunks) == 1
-    assert chunks[0]["languageName"] == "python"
-    spans = chunks[0]["spans"]
-    assert [(s["name"], s["service"], s["resource"]) for s in spans] == [
-        ("agentless-e2e", "agentless-svc", "a-resource")
-    ]
-    assert spans[0]["meta"]["in_payload"] == "yes"
+    # libdatadog compresses the payload when it is built with its `compression` feature. The
+    # content-type keeps describing the decoded body, so the encoding decides how to read it.
+    encoding = headers.get("content-encoding")
+    payload = None
+    if encoding == "zstd":
+        assert body[:4] == b"\x28\xb5\x2f\xfd", "declared zstd but the frame magic is missing"
+        try:
+            from compression.zstd import decompress  # Python 3.14 and later
+
+            payload = decompress(body)
+        except ImportError:
+            # No decoder in this interpreter, so the headers above are as far as we can check.
+            pass
+    else:
+        assert encoding is None, f"unexpected content-encoding {encoding!r}"
+        payload = body
+
+    if payload is not None:
+        chunks = json.loads(payload)["traces"]
+        assert len(chunks) == 1
+        assert chunks[0]["languageName"] == "python"
+        spans = chunks[0]["spans"]
+        assert [(s["name"], s["service"], s["resource"]) for s in spans] == [
+            ("agentless-e2e", "agentless-svc", "a-resource")
+        ]
+        assert spans[0]["meta"]["in_payload"] == "yes"
 
 
 @pytest.mark.subprocess(env={"_DD_APM_TRACING_AGENTLESS_ENABLED": "true", "DD_API_KEY": "a-test-api-key"})
@@ -1519,3 +1589,162 @@ def test_agent_trace_url_is_the_agent_when_not_agentless():
     from ddtrace.trace import tracer
 
     assert tracer.agent_trace_url == agent_config.trace_agent_url
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+        # Agentless computes Datadog stats by default, and those win over OTLP trace metrics.
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_agentless_writer_exports_trace_metrics_to_the_intake():
+    """libdatadog forbids OTLP *trace* export with agentless, but not OTLP trace metrics.
+
+    Dropping the endpoint in agentless mode would silently stop span-stats export.
+    """
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._otlp_metrics_endpoint == "https://otlp.datadoghq.com/v1/metrics"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "OTEL_TRACES_SPAN_METRICS_ENABLED": "true"})
+def test_agent_mode_exports_trace_metrics_to_the_agent():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_metrics_endpoint == "http://localhost:4318/v1/metrics"
+
+
+@pytest.mark.subprocess(
+    env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"}
+)
+def test_agentless_stats_go_to_the_stats_intake():
+    """There is no Agent to forward /v0.6/stats to, so computed stats go straight to the intake."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "DD_SITE": "datadoghq.eu",
+    }
+)
+def test_agentless_stats_intake_follows_dd_site():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.eu/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        # The test venv pins these off; the point here is what agentless defaults to.
+        "DD_TRACE_COMPUTE_STATS": None,
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": None,
+    }
+)
+def test_agentless_computes_stats_by_default():
+    """Without an Agent to compute them, agentless turns on client-side stats itself."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "0",
+    }
+)
+def test_agentless_leaves_stats_to_the_backend_when_disabled():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint is None
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "DD_TRACE_STATS_COMPUTATION_ENABLED": "true",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "true",
+    },
+    err=None,  # warns that OTLP trace metrics are skipped
+)
+def test_agentless_stats_take_precedence_over_otlp_trace_metrics():
+    """libdatadog rejects both at build time, so one must be dropped before the exporter is built."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer._agentless_stats_endpoint == "https://trace.agent.datadoghq.com/api/v0.2/stats"
+    assert writer._otlp_metrics_endpoint is None
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey", "DD_TRACE_STATS_COMPUTATION_ENABLED": "true"})
+def test_agent_mode_sends_stats_through_the_agent():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._agentless_stats_endpoint is None
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_ENDPOINT": "http://collector:4318",
+    }
+)
+def test_explicit_otlp_trace_endpoint_wins_over_agentless():
+    """libdatadog cannot do both, and the endpoint the user configured is the more specific ask."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_endpoint == "http://collector:4318/v1/traces"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AGENTLESS_ENABLED": "true",
+        "DD_API_KEY": "foobarkey",
+        "OTEL_TRACES_EXPORTER": "otlp",
+        "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://collector:4318/v1/traces",
+    }
+)
+def test_signal_specific_otlp_trace_endpoint_wins_over_agentless():
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is False
+    assert writer._otlp_endpoint == "http://collector:4318/v1/traces"
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey", "OTEL_TRACES_EXPORTER": "otlp"})
+def test_otlp_without_an_explicit_endpoint_still_goes_agentless():
+    """With no endpoint of their own, OTel traces follow the tracer to the span intake."""
+    from ddtrace.trace import tracer
+
+    writer = tracer._span_aggregator.writer
+    assert writer.agentless is True
+    assert writer._otlp_endpoint is None
+    assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com/v1/input"

@@ -21,6 +21,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import hashlib
+import importlib
 import os
 import re
 import subprocess
@@ -30,6 +31,11 @@ import typing as t
 MAX_BENCHMARKS_PER_GROUP = 2
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
+
+
+def _ddtest_module():
+    """Load the optional ddtest job emitter after scripts/ is on sys.path."""
+    return importlib.import_module("ddtest_jobs")
 
 
 def _get_bool_env(name: str) -> str:
@@ -193,6 +199,11 @@ class SuiteVenvInfo:
     venv_count: int
     python_versions: set[str]
     environment_hashes: tuple[str, ...] = ()
+    # Runner-specific metadata used to generate DDTest plan and run jobs.
+    riot_venvs: tuple[tuple[str, str], ...] = ()
+    uv_venvs: tuple[tuple[str, str], ...] = ()
+    venv_test_locations: t.Optional[dict[str, str]] = None
+    uv_metadata: t.Optional[dict[str, tuple[str, str, str, str]]] = None
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -224,7 +235,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
 
     compiled: dict[str, re.Pattern] = {}
     for suite, config in suite_configs.items():
-        if suite in UV_TEST_SUITES:
+        if suite in UV_TEST_SUITES and not config.get("ddtest"):
             continue
         pattern = config.get("pattern", suite)
         try:
@@ -234,6 +245,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
 
     venv_hashes: dict[str, set] = {s: set() for s in compiled}
     python_versions: dict[str, set] = {s: set() for s in compiled}
+    venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
+    venv_test_locations: dict[str, dict[str, str]] = {s: {} for s in compiled}
 
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
@@ -242,6 +255,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
         for suite, regex in compiled.items():
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
                 venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
+                venv_hash_hint[suite][inst.short_hash] = hint
+                venv_test_locations[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_LOCATION", "")
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
                     python_versions[suite].add(hint)
@@ -252,6 +267,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
             result[suite] = SuiteVenvInfo(
                 venv_count=len(venv_hashes[suite]),
                 python_versions=python_versions[suite],
+                riot_venvs=tuple(sorted(venv_hash_hint[suite].items())),
+                venv_test_locations=venv_test_locations[suite],
             )
         else:
             LOGGER.warning(
@@ -265,10 +282,29 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
         if suite not in suite_configs:
             continue
         environments = uv_environments[suite]
+        uv_metadata = {}
+        for environment in environments:
+            if len(environment.runs) != 1:
+                raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
+            run = environment.runs[0]
+            # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
+            # the command directly, so preserve that runner argument explicitly.
+            command = run.command.replace("{cmdargs}", "--ddtrace")
+            for name, value in run.environment.items():
+                command = command.replace(f"${{{{{name}}}}}", value)
+            uv_metadata[environment.hash] = (
+                environment.lockfile,
+                run.environment.get("DDTEST_TESTS_LOCATION", ""),
+                command,
+                " ".join(f"{name}={value}" for name, value in run.environment.items()),
+            )
         result[suite] = SuiteVenvInfo(
             venv_count=len(environments),
             python_versions={environment.python for environment in environments},
             environment_hashes=tuple(environment.hash for environment in environments),
+            uv_venvs=tuple((environment.hash, environment.python) for environment in environments),
+            venv_test_locations={hash_: metadata[1] for hash_, metadata in uv_metadata.items()},
+            uv_metadata=uv_metadata,
         )
     return result
 
@@ -532,6 +568,14 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     suite_configs = {s: suites[s] for s in non_skipped}
     suite_venv_info = collect_all_suite_venv_info(suite_configs)
 
+    for suite in non_skipped:
+        if not suites[suite].get("ddtest") or suite not in suite_venv_info:
+            continue
+        info = suite_venv_info[suite]
+        _ddtest_module().validate_ddtest_venv_test_locations(
+            suite, info.uv_venvs if suite in UV_TEST_SUITES else info.riot_venvs, info.venv_test_locations
+        )
+
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
     for info in suite_venv_info.values():
@@ -584,6 +628,33 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
+
+            if suite_config.get("ddtest"):
+                info = suite_venv_info.get(suite)
+                if info is None:
+                    LOGGER.warning("Suite %s opted into ddtest but has no environments; skipping", suite)
+                    continue
+                runner = "uv" if suite in UV_TEST_SUITES else "riot"
+                environments = info.uv_venvs if runner == "uv" else info.riot_venvs
+                if not environments:
+                    LOGGER.warning("Suite %s opted into ddtest but has no %s environments; skipping", suite, runner)
+                    continue
+                k = _ddtest_module().ddtest_k(suite_config)
+                LOGGER.info("Suite %s: ddtest %s runner (venvs=%d, nodes/venv=%d)", suite, runner, len(environments), k)
+                _ddtest_module().emit_ddtest_jobs(
+                    f,
+                    suite,
+                    stage,
+                    clean_name,
+                    suite_config,
+                    list(environments),
+                    k,
+                    TESTRUNNER_IMAGE_HASH,
+                    runner,
+                    info.uv_metadata,
+                )
+                continue
+
             environment_hashes = suite_venv_info[suite].environment_hashes if suite in suite_venv_info else None
             jobspec = JobSpec(
                 clean_name,

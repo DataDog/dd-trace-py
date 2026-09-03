@@ -2107,11 +2107,17 @@ suites:
       command: pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb
       variants:
         - name: pynamodb
-          python: ['3.9', '3.10', '3.11']
-          dependencies: ['pynamodb~=5.3', 'moto>=1.0,<2.0', 'cfn-lint~=0.53.1', 'Jinja2~=2.10.0', pytest-randomly, pytest-xdist]
+          python: ['3.9']
+          dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
-          python: ['3.9', '3.10', '3.11']
-          dependencies: ['pynamodb<6.0', 'moto>=1.0,<2.0', 'cfn-lint~=0.53.1', 'Jinja2~=2.10.0', pytest-randomly, pytest-xdist]
+          python: ['3.10', '3.11', '3.12']
+          dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.2.3']
+        - name: pynamodb
+          python: ['3.9']
+          dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.1.22']
+        - name: pynamodb
+          python: ['3.10', '3.11', '3.12']
+          dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
     venvs_per_job: 1
     skip_pip_cache: true
