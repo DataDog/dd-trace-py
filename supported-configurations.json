@@ -851,6 +851,20 @@
         "default": "false"
       }
     ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": null
+      }
+    ],
     "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": [
       {
         "implementation": "B",
@@ -5785,22 +5799,6 @@
         "implementation": "A",
         "type": "int",
         "default": "30000",
-        "internal": true
-      }
-    ],
-    "_DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false",
-        "internal": true
-      }
-    ],
-    "_DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS": [
-      {
-        "implementation": "A",
-        "type": "array",
-        "default": null,
         "internal": true
       }
     ],

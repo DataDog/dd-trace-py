@@ -323,6 +323,7 @@ class SessionManager:
         if self.settings.auto_test_retries.enabled:
             if self._dynamic_retries_enabled:
                 self.retry_handlers.append(DynamicATRRetriesHandler(self.settings, self._dynamic_retries_buckets))
+                self.telemetry_api.record_dynamic_atr_retries(self._dynamic_retries_buckets is not None)
             else:
                 self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
 
