@@ -61,3 +61,13 @@ def test_version_agent_format(version_str: str, expected: tuple[int, int, int]) 
     version_agent_format = _pep440_to_semver(version_str)
     assert version_agent_format == expected
     _assert_and_get_version_agent_format(version_agent_format)
+
+
+@pytest.mark.parametrize("version_arg", [None, ""])
+def test_pep440_to_semver_handles_missing_version(version_arg):
+    # __version__ can be None if importlib.metadata.version() returned None
+    # (e.g. stale coexisting ddtrace-*.dist-info dirs). _pep440_to_semver must
+    # not raise TypeError in that case, which used to crash import ddtrace.auto.
+    # See issue #18804.
+    version_agent_format = _pep440_to_semver(version_arg)
+    _assert_and_get_version_agent_format(version_agent_format)

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves a crash on ``import ddtrace.auto`` that could occur when
+    ``importlib.metadata.version()`` returned ``None`` instead of a version
+    string.
