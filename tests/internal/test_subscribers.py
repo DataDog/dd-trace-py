@@ -17,7 +17,7 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.trace import tracer
 
 
-called = []
+called: list[str] = []
 
 
 @pytest.fixture(autouse=True)
@@ -50,6 +50,33 @@ def test_base_subscriber():
     assert called == [SubscriberEvent.event_name], "subscriber should be called once with the event name; got %r" % (
         called,
     )
+
+    DirectSubscriber.unregister()
+    core.dispatch_event(SubscriberEvent())
+    assert called == [SubscriberEvent.event_name]
+
+    called.clear()
+    DirectSubscriber.register()
+    DirectSubscriber.register()
+    core.dispatch_event(SubscriberEvent())
+    assert called == [SubscriberEvent.event_name]
+
+
+def test_base_subscriber_can_defer_registration():
+    class ExplicitSubscriber(Subscriber):
+        auto_register = False
+        event_names = (SubscriberEvent.event_name,)
+
+        @classmethod
+        def on_event(cls, event_instance):
+            called.append(event_instance.event_name)
+
+    core.dispatch_event(SubscriberEvent())
+    assert called == []
+
+    ExplicitSubscriber.register()
+    core.dispatch_event(SubscriberEvent())
+    assert called == [SubscriberEvent.event_name]
 
 
 def test_base_subscriber_inheritance():
@@ -128,6 +155,18 @@ def test_base_context_subscriber():
     with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
         pass
 
+    assert called == ["started", "foo", "ended"]
+
+    called.clear()
+    DirectSubscriber.unregister()
+    with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
+        pass
+    assert called == []
+
+    DirectSubscriber.register()
+    DirectSubscriber.register()
+    with core.context_with_event(TestContextEventWithAttributes(in_context="foo", not_in_context="bar")):
+        pass
     assert called == ["started", "foo", "ended"]
 
 

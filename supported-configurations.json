@@ -2962,9 +2962,9 @@
     ],
     "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_PROFILING_NAME_INSPECT_DIR": [

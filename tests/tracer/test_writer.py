@@ -920,6 +920,57 @@ def test_bad_encoding(monkeypatch):
         assert writer._api_version == "v0.5"
 
 
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "true"})
+def test_dropped_native_writer_stops_exporter_workers():
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.telemetry import telemetry_writer
+    from ddtrace.internal.writer import NativeWriter
+
+    runtime = get_native_runtime()
+    workers_before = runtime.debug().count("WorkerEntry")
+    subscribers_before = len(telemetry_writer._worker_subscribers)
+
+    writer = NativeWriter("http://localhost:9126")
+    assert runtime.debug().count("WorkerEntry") == workers_before + 1
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before + 1
+
+    del writer
+
+    assert runtime.debug().count("WorkerEntry") == workers_before
+    assert len(telemetry_writer._worker_subscribers) == subscribers_before
+
+
+@pytest.mark.subprocess(env={"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false"})
+def test_native_writer_does_not_restart_inherited_exporter_workers():
+    import os
+    import warnings
+
+    from ddtrace.internal.native_runtime import get_native_runtime
+    from ddtrace.internal.writer import NativeWriter
+
+    writer = NativeWriter("http://localhost:9126")
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"This process .* is multi-threaded, use of fork\(\) may lead to deadlocks in the child\.",
+                category=DeprecationWarning,
+            )
+            pid = os.fork()
+        if pid == 0:
+            try:
+                _child_writer = NativeWriter("http://localhost:9126")
+                child_workers = get_native_runtime().debug().count("WorkerEntry")
+                os._exit(0 if child_workers == 1 else 1)
+            except BaseException:
+                os._exit(2)
+
+        _, status = os.waitpid(pid, 0)
+        assert status == 0
+    finally:
+        writer.shutdown_exporter()
+
+
 @pytest.mark.parametrize(
     "init_api_version,api_version,endpoint,encoder_cls",
     [
@@ -1134,6 +1185,7 @@ def test_writer_telemetry_enabled_on_linux(
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
             else:
                 mock_builder.enable_telemetry.assert_not_called()
+            mock_builder.set_restart_after_fork.assert_called_once_with(False)
 
 
 @pytest.mark.subprocess(
@@ -1696,3 +1748,33 @@ def test_otlp_without_an_explicit_endpoint_still_goes_agentless():
     assert writer.agentless is True
     assert writer._otlp_endpoint is None
     assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com/v1/input"
+
+
+def test_native_writer_sets_otlp_trace_context_on_every_span():
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    trace_id = 0xFFF972474538EFFF
+    root = Span("root", trace_id=trace_id, span_id=1)
+    root.context._publish_sampling_decision(1, 0.1, True)
+    child = Span("child", trace_id=trace_id, span_id=2, parent_id=1, context=root.context)
+
+    writer._set_otlp_trace_context([root, child])
+
+    for span in (root, child):
+        assert span.get_metric("_sampling_priority_v1") == 1
+        assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
+        assert "p:{:016x}".format(span.span_id) in span.get_tag("tracestate")
+
+
+def test_native_writer_forwards_inherited_otel_trace_context():
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    parent = Span("parent", trace_id=1, span_id=1)
+    parent.context.sampling_priority = 2
+    parent.context._meta["tracestate"] = "dd=s:2;t.dm:-3,ot=rv:ef284ace7a91e1;th:e6666666666668,future=value"
+    child = Span("child", trace_id=1, span_id=2, parent_id=1, context=parent.context)
+
+    writer._set_otlp_trace_context([child])
+
+    assert child.get_metric("_sampling_priority_v1") == 2
+    assert child.get_tag("tracestate") == (
+        "dd=p:0000000000000002;s:2,ot=rv:ef284ace7a91e1;th:e6666666666668,future=value"
+    )

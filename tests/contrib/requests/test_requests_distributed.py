@@ -2,7 +2,7 @@ from requests_mock import Adapter
 
 from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from tests.utils import TracerTestCase
 from tests.utils import get_128_bit_trace_id_from_headers
 
@@ -118,8 +118,8 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_apm_opt_out_true(self):
         # ensure distributed tracing works when APM is opted out
-        with self.override_global_config(dict(_apm_tracing_enabled=False, _asm_enabled=True)):
-            assert asm_config._apm_opt_out
+        with self.override_global_config(dict(apm_tracing_enabled=False, _asm_enabled=True)):
+            assert standalone_config.apm_opt_out
             self.tracer.enabled = False
 
             with self.override_config("requests", dict(distributed_tracing=True)):
@@ -210,8 +210,8 @@ class TestRequestsDistributed(BaseRequestTestCase, TracerTestCase):
 
     def test_propagation_apm_opt_out_false(self):
         # ensure distributed tracing doesn't works when APM is disabled but not opted out
-        with self.override_global_config(dict(_apm_tracing_enabled=True, _asm_enabled=True)):
-            assert not asm_config._apm_opt_out
+        with self.override_global_config(dict(apm_tracing_enabled=True, _asm_enabled=True)):
+            assert not standalone_config.apm_opt_out
             self.tracer.enabled = False
 
             with self.override_config("requests", dict(distributed_tracing=True)):

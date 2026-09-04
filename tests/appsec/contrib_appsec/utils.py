@@ -1468,7 +1468,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
         with (
             override_global_config(
-                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
+                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, apm_tracing_enabled=apm_tracing_enabled)
             ),
             mock_metric_points() as mocked,
         ):

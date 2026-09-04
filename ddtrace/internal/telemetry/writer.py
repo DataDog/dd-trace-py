@@ -7,6 +7,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Union
+import weakref
 
 from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
@@ -177,7 +178,9 @@ class TelemetryWriter:
         # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
         # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
         # health metrics) has to be handed the new one rather than keeping a stale clone.
-        self._worker_subscribers: list[Callable[[Optional["TelemetryWorker"]], None]] = []
+        # Keep these callbacks weak because this process-global writer must not retain
+        # per-tracer exporters and their native runtime workers.
+        self._worker_subscribers: list[weakref.WeakMethod] = []
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
         # once in enable(); forked children inherit and auto-resume it (see the class docstring).
         self._deps_collector: Optional[PeriodicService] = None
@@ -379,6 +382,9 @@ class TelemetryWriter:
             self._deps_collector = None
         if self._worker is not None:
             try:
+                # NOTE: send_app_closing is currently ignored by the native worker
+                # (it always emits app-closing in the origin process); see
+                # TelemetryWorker.stop in ddtrace/internal/native/_native.pyi.
                 self._worker.stop(send_app_closing=get_parent_runtime_id() is None)
             except Exception:
                 log.debug("Failed to stop the native telemetry worker", exc_info=True)
@@ -388,11 +394,27 @@ class TelemetryWriter:
             self._notify_worker_changed(None)
 
     def _subscribe_worker_changes(self, callback: "Callable[[Optional[TelemetryWorker]], None]") -> None:
-        if callback not in self._worker_subscribers:
-            self._worker_subscribers.append(callback)
+        if any(subscriber() == callback for subscriber in self._worker_subscribers):
+            return
+
+        writer_ref = weakref.ref(self)
+
+        def remove_subscriber(subscriber: weakref.WeakMethod) -> None:
+            writer = writer_ref()
+            if writer is None:
+                return
+            try:
+                writer._worker_subscribers.remove(subscriber)
+            except ValueError:
+                return
+
+        self._worker_subscribers.append(weakref.WeakMethod(callback, remove_subscriber))
 
     def _notify_worker_changed(self, worker: Optional["TelemetryWorker"]) -> None:
-        for callback in list(self._worker_subscribers):
+        for subscriber in list(self._worker_subscribers):
+            callback = subscriber()
+            if callback is None:
+                continue
             try:
                 callback(worker)
             except Exception:
@@ -834,11 +856,11 @@ class TelemetryWriter:
 
     def app_shutdown(self) -> None:
         if self._worker is not None:
-            # Final dependency/endpoint discovery + FLUSH. force_flush=True is required:
-            # the native Stop lifecycle only emits the observability batch (logs/metrics),
-            # not the app-events batch (dependencies/integrations/configs/endpoints), so the
-            # deps/endpoints discovered here must be flushed before stop() runs.
-            self.periodic(force_flush=True)
+            # The native stop() unconditionally drains the buffer and sends an
+            # app-closing event, so there's no need for an additional flush
+            # here (which would incur a heartbeat and an additional separate
+            # request for the final stop).
+            self.periodic(force_flush=False)
         self.disable()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
