@@ -17,19 +17,15 @@ struct GCGenStats
     uint64_t uncol{ 0 }; // uncollectable objects
 };
 
-struct TreeNode
+// One first-order edge in the type reference graph: "this holder type retains
+// `ic` instances of `held_idx`, together retaining `ts` shallow bytes". The
+// producer emits the flat graph (see GCMonitor::serialize) and the consumer
+// reconstructs any tree it wants from it -- no tree is materialized natively.
+struct GCRefEdge
 {
-    uint32_t type_idx{ 0 };
-    uint64_t ic{ 0 }; // instance count
-    uint64_t ts{ 0 }; // total shallow size (bytes)
-    std::vector<TreeNode> children;
-
-    // Merge another node's stats into this one; children are NOT merged here.
-    void add(uint64_t instances, uint64_t size)
-    {
-        ic += instances;
-        ts += size;
-    }
+    uint32_t held_idx{ 0 }; // index into the type table of the held type
+    uint64_t ic{ 0 };       // number of held instances reached from the holder type
+    uint64_t ts{ 0 };       // shallow bytes those held instances retain
 };
 
 class GCMonitor
@@ -69,8 +65,11 @@ class GCMonitor
     void take_snapshot();
     void install_atfork_once();
 
-    // Serialize the tree + gc stats to the output JSON string.
-    // Called with GIL already released.
+    // Serialize the reference graph + gc stats to the output JSON string.
+    // Called with GIL already released. `adjacency` is parallel to `type_table`
+    // (adjacency[holder] = its first-order edges); `type_sizes` is the per-type
+    // total shallow bytes; `roots` is the ordered set of types to expose as
+    // reconstruction roots. The last three are empty when referrers are off.
     void serialize(const std::array<GCGenStats, 3>& gen_stats,
                    const std::array<GCGenStats, 3>& delta_stats,
                    bool gc_enabled,
@@ -78,7 +77,9 @@ class GCMonitor
                    int garbage_count,
                    const std::vector<std::string>& type_table,
                    const std::vector<uint32_t>& type_counts,
-                   const std::vector<TreeNode>& ref_tree);
+                   const std::vector<uint64_t>& type_sizes,
+                   const std::vector<std::vector<GCRefEdge>>& adjacency,
+                   const std::vector<uint32_t>& roots);
 
     std::thread _thread;
     mutable std::mutex _mutex;
@@ -90,7 +91,8 @@ class GCMonitor
     int _survivor_threshold{ 3 };
     int _top_n{ 20 };
     bool _referrers_enabled{ false };
-    // Maximum depth of the type->type reference tree built via gc.get_referents.
+    // Retained for config/ABI compatibility. The producer no longer materializes
+    // a tree (it emits the first-order graph); depth is now a consumer concern.
     int _max_depth{ 10 };
 
     // Cross-snapshot state (only accessed from the background thread)
