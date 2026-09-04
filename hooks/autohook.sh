@@ -40,13 +40,38 @@ install() {
         "post-checkout"
     )
 
-    repo_root=$(git rev-parse --show-toplevel)
-    hooks_dir="$repo_root/.git/hooks"
+    # Install into git-common-dir/hooks; a worktree's .git is a file.
+    git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
+    hooks_dir="$git_common_dir/hooks"
+    mkdir -p "$hooks_dir"
     autohook_linktarget="../../hooks/autohook.sh"
     for hook_type in "${hook_types[@]}"
     do
         hook_symlink="$hooks_dir/$hook_type"
         ln -sf $autohook_linktarget $hook_symlink
+    done
+
+    drop_relative_hooks_path "$git_common_dir"
+}
+
+
+# Unset a relative core.hooksPath in repo-scoped config; it does not resolve in a worktree.
+drop_relative_hooks_path() {
+    git_common_dir="$1"
+    git_dir=$(cd "$(git rev-parse --git-dir)" && pwd)
+    # Repo-scoped files only; leave absolute / --global hooksPath alone.
+    for scope_file in "$git_dir/config" "$git_common_dir/config"
+    do
+        [[ -f $scope_file ]] || continue
+        configured=$(git config --file "$scope_file" --get core.hooksPath 2>/dev/null) || continue
+        [[ -n $configured ]] || continue
+        if [[ $configured == /* ]]
+        then
+            echo "core.hooksPath in $scope_file is '$configured'; leaving it alone."
+            continue
+        fi
+        git config --file "$scope_file" --unset-all core.hooksPath
+        echo "Removed relative core.hooksPath ('$configured') from $scope_file; it never resolves inside a worktree."
     done
 }
 

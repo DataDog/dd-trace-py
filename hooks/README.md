@@ -10,7 +10,9 @@ To install all git hooks, run:
 hooks/autohook.sh install
 ```
 
-This will create symlinks in `.git/hooks/` for all configured hook types.
+This will create symlinks in the repository's shared hooks directory for all configured
+hook types. Running it once covers the main checkout and every `git worktree` created
+from it, so it does not need to be repeated per worktree.
 
 ## Available Hooks
 
