@@ -61,6 +61,9 @@ variables:
       upload-results-to-s3.sh || :
       # Copy converted JSON reports to common location
       cp $REPORTS_DIR/*.converted.json $(pwd)/reports/
+      # check-big-regressions reads baseline_branch.txt from the flat reports/
+      # directory (ARTIFACTS_DIR), not the per-scenario one run-benchmarks.sh writes it to.
+      cp $REPORTS_DIR/baseline_branch.txt $(pwd)/reports/ 2>/dev/null || :
     done
 
     # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
