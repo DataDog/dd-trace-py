@@ -232,6 +232,54 @@ def test_runtime_metrics_experimental_runtime_tag():
         )
 
 
+@pytest.mark.subprocess(env={"DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true"}, err=None)
+def test_runtime_metrics_refresh_identity_updates_runtime_id_tag():
+    """Runtime metrics must not keep reporting the pre-refresh runtime-id tag."""
+    from ddtrace.internal import runtime
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+    RuntimeWorker.enable()
+    try:
+        worker = RuntimeWorker._instance
+        assert worker is not None
+
+        old_runtime_id = runtime.get_runtime_id()
+        assert f"runtime-id:{old_runtime_id}" in worker._platform_tags
+
+        runtime.refresh_identity()
+        worker.flush()
+
+        new_runtime_id = runtime.get_runtime_id()
+        assert f"runtime-id:{new_runtime_id}" in worker._platform_tags
+        assert f"runtime-id:{old_runtime_id}" not in worker._platform_tags
+    finally:
+        RuntimeWorker.disable()
+
+
+@pytest.mark.subprocess(env={"DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "false"}, err=None)
+def test_runtime_metrics_flush_keeps_platform_tags_cached_without_runtime_id():
+    """Runtime metrics must not rebuild static platform tags on every flush."""
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+    RuntimeWorker.enable()
+    try:
+        worker = RuntimeWorker._instance
+        assert worker is not None
+
+        platform_tags = worker._platform_tags
+        worker._runtime_metrics = ()
+
+        def fail_collect_platform_tags():
+            raise AssertionError("platform tags should stay cached when runtime-id tagging is disabled")
+
+        worker._collect_platform_tags = fail_collect_platform_tags
+        worker.flush()
+
+        assert worker._platform_tags is platform_tags
+    finally:
+        RuntimeWorker.disable()
+
+
 @pytest.mark.subprocess(
     parametrize={"DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED": ["DD_RUNTIME_METRICS_ENABLED,someotherfeature", ""]},
     err=None,
