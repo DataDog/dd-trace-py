@@ -527,7 +527,9 @@ class Config(object):
         self._propagation_http_baggage_enabled = _get_config("DD_TRACE_PROPAGATION_HTTP_BAGGAGE_ENABLED", False, asbool)
 
         self.env = _get_config("DD_ENV", self.tags.get("env"))
-        self.service = _get_config("DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME")
+        self.service: Optional[str] = _get_config(
+            "DD_SERVICE", self.tags.get("service", None), otel_env="OTEL_SERVICE_NAME"
+        )
 
         self._inferred_base_service = detect_service(sys.argv)
 
@@ -686,7 +688,7 @@ class Config(object):
         self._client_side_stats_obfuscation = _get_config(
             "_DD_TRACE_STATS_COMPUTATION_EXPERIMENTAL_CLIENT_OBFUSCATION_ENABLED", True, asbool
         )
-        self._data_streams_enabled = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
+        self._data_streams_enabled: bool = _get_config("DD_DATA_STREAMS_ENABLED", False, asbool)
         self._http_client_tag_query_string = _get_config("DD_TRACE_HTTP_CLIENT_TAG_QUERY_STRING", "true")
 
         dd_trace_obfuscation_query_string_regexp = _get_config(
@@ -731,7 +733,7 @@ class Config(object):
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )
 
-        self._model_lab_enabled = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
+        self._model_lab_enabled: bool = _get_config("DD_MODEL_LAB_ENABLED", False, asbool)
 
         self._llmobs_payload_size_limit = _get_config(
             "DD_LLMOBS_PAYLOAD_SIZE_BYTES", DEFAULT_EVP_PAYLOAD_SIZE_LIMIT, int
