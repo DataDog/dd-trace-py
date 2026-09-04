@@ -635,7 +635,7 @@ impl SpanData {
     fn _inherit_from_parent(
         slf: &Bound<'_, Self>,
         parent: &Bound<'_, SpanData>,
-        service: Option<&Bound<'_, PyString>>,
+        service: Option<&Bound<'_, PyAny>>,
     ) -> pyo3::PyResult<()> {
         if parent.as_any().is(slf.as_any()) {
             return Ok(());
@@ -645,8 +645,8 @@ impl SpanData {
         let parent_ref = parent.as_any().clone().unbind();
         let parent_span_ref = parent.clone().unbind();
         // Preserve the pre-migration comparison exactly. Service-entry semantics
-        // use the tracer's resolved service argument, which is not equivalent to
-        // SpanData's native service comparison for explicit child services.
+        // use the tracer's original resolved service argument, including invalid
+        // values that SpanData gracefully coerces to None.
         let parent_service = parent.as_any().getattr("service")?;
         let inherits_service_entry = match service {
             Some(service) => parent_service.eq(service)?,
