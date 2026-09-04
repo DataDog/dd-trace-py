@@ -164,7 +164,7 @@ def _after_fork_child():
 
     _forking = False
 
-    # AIDEV-NOTE: Clean up child-ineligible workers now and remove them from the pending set.
+    # Clean up child-ineligible workers now and remove them from the pending set.
     # A nested fork may promote the timer to the parent-side force policy, which must only apply
     # to workers that were actually running in that intermediate parent.
     for thread in _threads_to_restart_after_fork.copy():
