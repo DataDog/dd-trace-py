@@ -15,14 +15,16 @@
     TWINE_NON_INTERACTIVE: "1"
   script:
     - export TWINE_PASSWORD=$(aws ssm get-parameter --region us-east-1 --name "ci.${CI_PROJECT_NAME}.${PYPI_REPOSITORY}_token" --with-decryption --query "Parameter.Value" --out text)
-    # Prune unsupported tags from PyPI; S3 SHA index keeps them for gate installs.
-    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
-    - uvx --with="twine>=5.0,<7" twine check --strict pywheels/*
-    - uvx --with="twine>=5.0,<7" twine upload --repository ${PYPI_REPOSITORY} pywheels/ddtrace-*
+    # Keep the unpruned artifact for S3's SHA index; validate the separate PyPI copy.
+    - cp -a pywheels pywheels-publish
+    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels-publish
+    - python3 .gitlab/validate-ddtrace-package.py pywheels-publish
+    - uvx --with="twine>=5.0,<7" twine check --strict pywheels-publish/*
+    - uvx --with="twine>=5.0,<7" twine upload --repository ${PYPI_REPOSITORY} pywheels-publish/ddtrace-*
   artifacts:
     paths:
-      - pywheels/*.whl
-      - pywheels/*.tar.gz
+      - pywheels-publish/*.whl
+      - pywheels-publish/*.tar.gz
 
 # Can be used to validate uploading of artifacts
 # release_pypi_test:

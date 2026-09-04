@@ -43,6 +43,7 @@ if sys.version_info < (3, 11):
 
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 _VALIDATOR = _REPO_ROOT / ".gitlab" / "validate-ddtrace-package.py"
+_PRUNE_SCRIPT = _REPO_ROOT / ".gitlab" / "scripts" / "prune-unsupported-wheels.sh"
 _BUILD_DEPLOY_YML = _REPO_ROOT / ".github" / "workflows" / "build_deploy.yml"
 
 VERSION = "9.9.9"
@@ -143,6 +144,55 @@ def test_cp315_wheels_fail(tmp_path, mode_args, matrix, flavor):
     assert f"Unexpected wheels: {len(cp315)} (cp315)" in output
     for name in cp315:
         assert name in output
+
+
+def test_publish_copy_prunes_cp315_while_s3_copy_keeps_it(tmp_path: pathlib.Path) -> None:
+    """The S3 artifact remains complete while the publish copy passes strict validation."""
+    cp315: list[str] = [_wheel("cp315", platform) for platform in LINUX_PLATFORMS]
+    s3_dir: pathlib.Path = _make_dir(tmp_path, _full_matrix() + cp315)
+    pypi_dir: pathlib.Path = tmp_path / "pypi-publish"
+    shutil.copytree(s3_dir, pypi_dir)
+    adms_source_root: pathlib.Path = tmp_path / "adms-source"
+    adms_source_root.mkdir()
+    adms_source: pathlib.Path = _make_dir(
+        adms_source_root,
+        [_wheel(tag, platform) for tag, platform in itertools.product(validator.PYTHON_TAGS, validator.ADMS_PLATFORMS)]
+        + [_wheel("cp315", platform) for platform in validator.ADMS_PLATFORMS],
+        sdist=False,
+    )
+    adms_dir: pathlib.Path = tmp_path / "adms-publish"
+    shutil.copytree(adms_source, adms_dir)
+
+    prune_result: subprocess.CompletedProcess[str] = subprocess.run(
+        ["bash", str(_PRUNE_SCRIPT), str(pypi_dir), str(adms_dir)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert prune_result.returncode == 0, prune_result.stderr
+    assert all((s3_dir / name).exists() for name in cp315)
+    assert all(not (pypi_dir / name).exists() for name in cp315)
+    assert all(not (adms_dir / name).exists() for name in cp315)
+    returncode: int
+    output: str
+    returncode, output = _run(pypi_dir)
+    assert returncode == 0, output
+    returncode, output = _run(adms_dir, "--mode=adms")
+    assert returncode == 0, output
+
+
+def test_adms_publish_copy_validates_pruned_manylinux_set(tmp_path: pathlib.Path) -> None:
+    """The adms validator mode accepts its manylinux-only publication matrix."""
+    wheels: list[str] = [
+        _wheel(tag, platform) for tag, platform in itertools.product(validator.PYTHON_TAGS, validator.ADMS_PLATFORMS)
+    ]
+    wheels_dir: pathlib.Path = _make_dir(tmp_path, wheels, sdist=False)
+
+    returncode: int
+    output: str
+    returncode, output = _run(wheels_dir, "--mode=adms")
+    assert returncode == 0, output
 
 
 def test_unexpected_platform_fails(tmp_path):
