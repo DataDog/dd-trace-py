@@ -386,8 +386,12 @@ def test_app_shutdown_sends_a_single_closing_flush(telemetry_writer, test_agent_
       1. ["app-started"], emitted eagerly on start()
       2. ["app-dependencies-loaded", "app-closing"], drained by stop()
     """
-    telemetry_writer.app_started()
-    telemetry_writer.app_shutdown()
+    # The ddtrace Test Optimization plugin force-disables telemetry dependency
+    # collection. This test asserts the full app lifecycle including dependency
+    # discovery, so re-enable it for the duration of the test.
+    with mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", True):
+        telemetry_writer.app_started()
+        telemetry_writer.app_shutdown()
 
     # get_requests() returns requests in reverse seq_id order. Restore
     # chronological order and collapse each request into the list of the event
