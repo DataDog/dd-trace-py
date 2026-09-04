@@ -17,9 +17,7 @@ from ddtrace.internal.utils.formats import asbool
 config._add(
     "rq",
     dict(
-        distributed_tracing_enabled=asbool(
-            _get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)
-        ),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq"),
     ),
 )
@@ -27,9 +25,7 @@ config._add(
 config._add(
     "rq_worker",
     dict(
-        distributed_tracing_enabled=asbool(
-            _get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)
-        ),
+        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
@@ -55,9 +51,7 @@ def traced_queue_enqueue_job(func, instance, args, kwargs):
 
     func_name = job.func_name
     job_inst = job.instance
-    job_inst_str = (
-        "%s.%s" % (job_inst.__module__, job_inst.__class__.__name__) if job_inst else ""
-    )
+    job_inst_str = "%s.%s" % (job_inst.__module__, job_inst.__class__.__name__) if job_inst else ""
 
     if job_inst_str:
         resource = "%s.%s" % (job_inst_str, func_name)
