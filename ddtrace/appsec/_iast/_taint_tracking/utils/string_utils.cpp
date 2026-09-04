@@ -89,87 +89,82 @@ new_pyobject_id(PyObject* tainted_object)
         return tainted_object;
     }
 
-    // We call Python C-API (PyUnicode_New, Py_BuildValue, PyObject_Call*)
-    // and pybind11 helpers (attr("join")) below. All require the GIL. Tests and
-    // native code paths may reach this function without holding the GIL, so we
-    // acquire it here to guarantee thread-safety and avoid undefined behavior.
-    // py::gil_scoped_acquire acquire;
+    return new_pyobject_id_owned(py::handle(tainted_object)).release().ptr();
+}
 
-    if (PyUnicode_Check(tainted_object)) {
+py::object
+new_pyobject_id_owned(const py::handle& tainted_object)
+{
+    if (!tainted_object) {
+        return {};
+    }
+
+    PyObject* tainted_object_ptr = tainted_object.ptr();
+
+    if (PyUnicode_Check(tainted_object_ptr)) {
         py::object empty_unicode = py::reinterpret_steal<py::object>(PyUnicode_New(0, 127));
         if (!empty_unicode) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
-        py::object val = py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object, empty_unicode.ptr()));
+        py::object val =
+          py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object_ptr, empty_unicode.ptr()));
         if (!val) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
         py::object result = py::reinterpret_steal<py::object>(PyUnicode_Join(empty_unicode.ptr(), val.ptr()));
         if (!result) {
-            // Fallback to original but keep a strong ref
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
-        return result.release().ptr();
+        return result;
     }
 
-    if (PyBytes_Check(tainted_object)) {
+    if (PyBytes_Check(tainted_object_ptr)) {
         py::object empty_bytes = py::reinterpret_steal<py::object>(PyBytes_FromString(""));
         if (!empty_bytes) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
 
         py::object bytes_join = empty_bytes.attr("join");
-        py::object val = py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object, empty_bytes.ptr()));
+        py::object val =
+          py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object_ptr, empty_bytes.ptr()));
         if (!val) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
 
         py::object result =
           py::reinterpret_steal<py::object>(PyObject_CallFunctionObjArgs(bytes_join.ptr(), val.ptr(), nullptr));
         if (!result) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
-        return result.release().ptr();
+        return result;
     }
 
-    if (PyByteArray_Check(tainted_object)) {
+    if (PyByteArray_Check(tainted_object_ptr)) {
         py::object empty_bytes = py::reinterpret_steal<py::object>(PyBytes_FromString(""));
         if (!empty_bytes) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
 
         py::object empty_bytearray = py::reinterpret_steal<py::object>(PyByteArray_FromObject(empty_bytes.ptr()));
         if (!empty_bytearray) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
 
         py::object bytearray_join = empty_bytearray.attr("join");
         py::object val =
-          py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object, empty_bytearray.ptr()));
+          py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object_ptr, empty_bytearray.ptr()));
         if (!val) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
 
         py::object result =
           py::reinterpret_steal<py::object>(PyObject_CallFunctionObjArgs(bytearray_join.ptr(), val.ptr(), nullptr));
         if (!result) {
-            Py_INCREF(tainted_object);
-            return tainted_object;
+            return {};
         }
-        return result.release().ptr();
+        return result;
     }
-    // Final fallback: return original with a new strong ref
-    Py_INCREF(tainted_object);
-    return tainted_object;
+    return py::reinterpret_borrow<py::object>(tainted_object);
 }
 
 size_t
@@ -194,8 +189,7 @@ PyIOBase_Check(const PyObject* obj)
 
     try {
         return py::isinstance((PyObject*)obj, safe_import("_io", "_IOBase"));
-    } catch (py::error_already_set& err) {
-        PyErr_Clear();
+    } catch (const py::error_already_set&) {
         return false;
     }
 }
@@ -208,8 +202,7 @@ PyReMatch_Check(const PyObject* obj)
 
     try {
         return py::isinstance((PyObject*)obj, safe_import("re", "Match"));
-    } catch (py::error_already_set& err) {
-        PyErr_Clear();
+    } catch (const py::error_already_set&) {
         return false;
     }
 }
@@ -224,8 +217,7 @@ PyTemplate_Check(const PyObject* obj)
 #if PY_VERSION_HEX >= 0x030E0000
     try {
         return py::isinstance((PyObject*)obj, safe_import("string.templatelib", "Template"));
-    } catch (py::error_already_set& err) {
-        PyErr_Clear();
+    } catch (const py::error_already_set&) {
         return false;
     }
 #else

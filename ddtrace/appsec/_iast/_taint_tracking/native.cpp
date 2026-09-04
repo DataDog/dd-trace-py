@@ -25,10 +25,6 @@
 #include "tainted_ops/tainted_ops.h"
 #include "utils/generic_utils.h"
 
-#define PY_MODULE_NAME_ASPECTS                                                                                         \
-    PY_MODULE_NAME "."                                                                                                 \
-                   "aspects"
-
 using namespace pybind11::literals;
 namespace py = pybind11;
 
@@ -44,25 +40,11 @@ static PyMethodDef AspectsMethods[] = {
     { nullptr, nullptr, 0, nullptr }
 };
 
-// Mark the module as used to prevent it from being stripped.
-static struct PyModuleDef aspects __attribute__((used)) = { PyModuleDef_HEAD_INIT,
-                                                            .m_name = PY_MODULE_NAME_ASPECTS,
-                                                            .m_doc = "Taint tracking Aspects",
-                                                            .m_size = -1,
-                                                            .m_methods = AspectsMethods };
-
 static PyMethodDef OpsMethods[] = {
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
     { "taint_pyobject", ((PyCFunction)api_taint_pyobject), METH_FASTCALL, "api_taint_pyobject" },
     { nullptr, nullptr, 0, nullptr }
 };
-
-// Mark the module as used to prevent it from being stripped.
-static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
-                                                        .m_name = PY_MODULE_NAME_ASPECTS,
-                                                        .m_doc = "Taint tracking operations",
-                                                        .m_size = -1,
-                                                        .m_methods = OpsMethods };
 
 /**
  * Initialize or reinitialize the native IAST global state.
@@ -178,10 +160,10 @@ reset_native_state_after_fork()
     // We intentionally leak these objects to avoid segfaults from destructor cleanup
     if (taint_engine_context) {
         taint_engine_context->clear_tainted_object_map();
-        (void)taint_engine_context.release(); // Leak the old object
+        [[maybe_unused]] auto* leaked_context = taint_engine_context.release();
     }
     if (initializer) {
-        (void)initializer.release(); // Leak the old object
+        [[maybe_unused]] auto* leaked_initializer = initializer.release();
     }
 
     // Step 2: Recreate fresh instances
@@ -226,7 +208,6 @@ PYBIND11_MODULE(_native, m)
             gevent_active =
               asbool(is_patched("threading")) || asbool(is_patched("socket")) || asbool(is_patched("ssl"));
         } catch (const py::error_already_set&) {
-            PyErr_Clear();
         }
 
         if (!gevent_active) {
@@ -273,15 +254,13 @@ PYBIND11_MODULE(_native, m)
     // Note: the order of these definitions matter. For example,
     // stacktrace_element definitions must be before the ones of the
     // classes inheriting from it.
-    py::module_ hm_aspects = py::reinterpret_steal<py::module_>(PyModule_Create(&aspects));
-    if (!hm_aspects) {
+    auto hm_aspects = m.def_submodule("aspects", "Taint tracking Aspects");
+    if (PyModule_AddFunctions(hm_aspects.ptr(), AspectsMethods) < 0) {
         throw py::error_already_set();
     }
-    m.add_object("aspects", hm_aspects);
 
-    py::module_ hm_ops = py::reinterpret_steal<py::module_>(PyModule_Create(&ops));
-    if (!hm_ops) {
+    auto hm_ops = m.def_submodule("ops", "Taint tracking operations");
+    if (PyModule_AddFunctions(hm_ops.ptr(), OpsMethods) < 0) {
         throw py::error_already_set();
     }
-    m.add_object("ops", hm_ops);
 }

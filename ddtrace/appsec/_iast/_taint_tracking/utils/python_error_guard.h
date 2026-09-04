@@ -10,9 +10,8 @@ namespace py = pybind11;
  * This class fetches any existing Python error upon construction,
  * clears the error state to allow safe C++ operations, and
  * restores the error (if any) upon destruction.
- * WARNING: If you alter the error state in any way, like caling
- * PyErr_Clear while the guard is active, undefined behaviour will occur
- * since internally it will not be updated!
+ * Any transient Python error raised while the guard is active must be
+ * handled or cleared before destruction so the captured error can be restored.
  */
 class PythonErrorGuard
 {
@@ -27,10 +26,11 @@ class PythonErrorGuard
     /**
      * @brief Destructor.
      *
-     * Restores the fetched Python error if one was present, or decrements
-     * reference counts of fetched error objects if no error was present.
+     * Restores the fetched Python error if one was present. Otherwise the
+     * owned handles release any fetched objects normally. During interpreter
+     * finalization, owned references are intentionally abandoned.
      */
-    ~PythonErrorGuard();
+    ~PythonErrorGuard() noexcept(false);
 
     // Delete copy constructor and copy assignment operator
     PythonErrorGuard(const PythonErrorGuard&) = delete;
@@ -46,10 +46,11 @@ class PythonErrorGuard
     [[nodiscard]] std::string traceback_as_stdstring() const;
 
   private:
-    PyObject* ptype;
-    PyObject* pvalue;
-    PyObject* ptraceback;
+    py::object ptype;
+    py::object pvalue;
+    py::object ptraceback;
     bool had_exception;
 
-    void restore_or_decref();
+    void abandon() noexcept;
+    void restore() noexcept(false);
 };
