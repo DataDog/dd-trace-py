@@ -5,8 +5,8 @@ from ddtrace.ext.test_visibility import api as ext_api
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
 
 log = get_logger(__name__)

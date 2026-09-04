@@ -11,6 +11,7 @@ from types import CodeType
 from types import ModuleType
 import typing as t
 
+from ddtrace.internal.coverage.coverage_lines import CoverageLines
 from ddtrace.internal.coverage.instrumentation import instrument_all_lines
 from ddtrace.internal.coverage.report import gen_json_report
 from ddtrace.internal.coverage.report import print_coverage_report
@@ -22,7 +23,6 @@ from ddtrace.internal.packages import platstdlib_path
 from ddtrace.internal.packages import purelib_path
 from ddtrace.internal.packages import stdlib_path
 from ddtrace.internal.settings import env
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
