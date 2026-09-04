@@ -1,5 +1,4 @@
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -51,8 +50,7 @@ def _supported_versions() -> dict[str, str]:
     return {"rq": ">=1.8"}
 
 
-@trace_utils.with_traced_module
-def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
+def traced_queue_enqueue_job(func, instance, args, kwargs):
     job = get_argument_value(args, kwargs, 0, "f")
 
     func_name = job.func_name
@@ -72,8 +70,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
             span_name=schematize_messaging_operation(
                 "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
             ),
-            pin=pin,
-            service=trace_utils.int_service(pin, config.rq),
+            service=trace_utils.int_service(None, config.rq),
             resource=resource,
             span_type=SpanTypes.WORKER,
             integration_config=config.rq,
@@ -93,8 +90,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
+def traced_queue_fetch_job(func, instance, args, kwargs):
     job_id = get_argument_value(args, kwargs, 0, "job_id")
     with (
         core.context_with_data(
@@ -102,8 +98,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
             span_name=schematize_messaging_operation(
                 "rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING
             ),
-            pin=pin,
-            service=trace_utils.int_service(pin, config.rq),
+            service=trace_utils.int_service(None, config.rq),
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
             integration_config=config.rq,
         ) as ctx,
@@ -112,8 +107,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def traced_perform_job(rq, pin, func, instance, args, kwargs):
+def traced_perform_job(func, instance, args, kwargs):
     """Trace rq.Worker.perform_job"""
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
@@ -123,8 +117,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             core.context_with_data(
                 "rq.worker.perform_job",
                 span_name="rq.worker.perform_job",
-                service=trace_utils.int_service(pin, config.rq_worker),
-                pin=pin,
+                service=trace_utils.int_service(None, config.rq_worker),
                 span_type=SpanTypes.WORKER,
                 resource=job.func_name,
                 integration_config=config.rq_worker,
@@ -162,8 +155,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
         core.dispatch("rq.worker.after.perform.job", (ctx,))
 
 
-@trace_utils.with_traced_module
-def traced_job_perform(rq, pin, func, instance, args, kwargs):
+def traced_job_perform(func, instance, args, kwargs):
     """Trace rq.Job.perform(...)"""
     job = instance
 
@@ -175,7 +167,6 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
             "rq.job.perform",
             span_name="rq.job.perform",
             resource=job.func_name,
-            pin=pin,
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job.id},
             integration_config=config.rq,
         ) as ctx,
@@ -184,8 +175,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
-@trace_utils.with_traced_module
-def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
+def traced_job_fetch_many(func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
     job_ids = get_argument_value(args, kwargs, 0, "job_ids")
     with (
@@ -194,8 +184,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
             span_name=schematize_messaging_operation(
                 "rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING
             ),
-            service=trace_utils.ext_service(pin, config.rq_worker),
-            pin=pin,
+            service=trace_utils.ext_service(None, config.rq_worker),
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
             integration_config=config.rq_worker,
         ) as ctx,
@@ -206,6 +195,11 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
 
 def _worker_perform_job_owner(rq):
     """Return the class that actually defines Worker.perform_job.
+
+    rq 2.7 split rq/worker.py into a package, moved perform_job onto BaseWorker, and made
+    SimpleWorker a sibling of Worker instead of a subclass. Wrapping Worker alone therefore
+    silently misses SimpleWorker and every other BaseWorker subclass, so wrap whichever
+    class owns the method. Falls back to Worker, where it lives in rq < 2.7.
     """
     return next(
         (c for c in rq.worker.Worker.__mro__ if "perform_job" in vars(c)),
@@ -220,22 +214,10 @@ def patch():
     if getattr(rq, "_datadog_patch", False):
         return
 
-    Pin().onto(rq)
-
-    # Patch rq.job.Job
-    Pin().onto(rq.job.Job)
-    trace_utils.wrap(rq.job, "Job.perform", traced_job_perform(rq.job.Job))
-
-    # Patch rq.queue.Queue
-    Pin().onto(rq.queue.Queue)
-    trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job(rq))
-    trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job(rq))
-
-    # Patch rq.worker.Worker
-    Pin().onto(rq.worker.Worker)
-    trace_utils.wrap(
-        _worker_perform_job_owner(rq), "perform_job", traced_perform_job(rq)
-    )
+    trace_utils.wrap(rq.job, "Job.perform", traced_job_perform)
+    trace_utils.wrap("rq.queue", "Queue.enqueue_job", traced_queue_enqueue_job)
+    trace_utils.wrap("rq.queue", "Queue.fetch_job", traced_queue_fetch_job)
+    trace_utils.wrap(_worker_perform_job_owner(rq), "perform_job", traced_perform_job)
 
     rq._datadog_patch = True
 
@@ -246,19 +228,9 @@ def unpatch():
     if not getattr(rq, "_datadog_patch", False):
         return
 
-    Pin().remove_from(rq)
-
-    # Unpatch rq.job.Job
-    Pin().remove_from(rq.job.Job)
     trace_utils.unwrap(rq.job.Job, "perform")
-
-    # Unpatch rq.queue.Queue
-    Pin().remove_from(rq.queue.Queue)
     trace_utils.unwrap(rq.queue.Queue, "enqueue_job")
     trace_utils.unwrap(rq.queue.Queue, "fetch_job")
-
-    # Unpatch rq.worker.Worker
-    Pin().remove_from(rq.worker.Worker)
     trace_utils.unwrap(_worker_perform_job_owner(rq), "perform_job")
 
     rq._datadog_patch = False
