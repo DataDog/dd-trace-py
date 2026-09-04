@@ -66,3 +66,4 @@ build_base_venvs:
       - ddtrace/**/*.so*
       - .riot/venv_*
       - .cache/ddtrace-test-wheels/
+      - ddtrace/internal/datadog/profiling/test/py315/test_*
