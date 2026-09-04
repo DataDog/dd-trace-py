@@ -149,6 +149,10 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
         esac
     done
 
+    if [ -n "${DD_TEST_RUNTIME_PROBE+x}" ]; then
+        RUN_ARGS+=(-e "DD_TEST_RUNTIME_PROBE=$DD_TEST_RUNTIME_PROBE")
+    fi
+
     # Remove the one-off testrunner container after its command finishes.
     RUN_ARGS+=(--rm)
 
@@ -158,6 +162,7 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
 else
     docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
            -e DD_TRACE_AGENT_URL \
+           -e DD_TEST_RUNTIME_PROBE \
            --rm \
            -i \
            testrunner \

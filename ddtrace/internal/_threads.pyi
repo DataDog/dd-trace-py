@@ -17,7 +17,7 @@ class PeriodicThread:
     def __init__(
         self,
         interval: float,
-        target: t.Callable[[], None],
+        target: t.Callable[[], object],
         name: t.Optional[str] = None,
         on_shutdown: t.Optional[t.Callable[[], None]] = None,
         no_wait_at_start: bool = False,

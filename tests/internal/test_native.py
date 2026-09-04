@@ -1,6 +1,21 @@
 import pytest
 
 
+def test_is_panic_exception():
+    from ddtrace.internal.native.exceptions import is_panic_exception
+
+    class PanicException(BaseException):
+        pass
+
+    # pyo3_runtime is not normally importable, so PanicException is identified
+    # by name rather than by isinstance/issubclass.
+    PanicException.__module__ = "pyo3_runtime"
+
+    assert is_panic_exception(PanicException("boom")) is True
+    assert is_panic_exception(ValueError("boom")) is False
+    assert is_panic_exception(BaseException("boom")) is False
+
+
 @pytest.mark.subprocess(env={"DD_VERSION": "b"})
 def test_get_configuration_from_disk_managed_stable_config_priority():
     """

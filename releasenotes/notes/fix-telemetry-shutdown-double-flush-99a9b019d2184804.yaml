@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    telemetry: Fixes an issue where an extra, redundant telemetry request was sent at process
+    shutdown, adding avoidable latency to application teardown. The final telemetry payload is
+    now sent as a single request.
