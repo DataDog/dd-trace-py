@@ -980,8 +980,7 @@ stack_set_fast_copy(PyObject* Py_UNUSED(self), PyObject* args)
         fast_copy_user_disabled = true;
     }
     fast_copy_desired = want && safe_memcpy_initialized;
-    const bool enable_fast_copy =
-      want && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
+    const bool enable_fast_copy = want && !fast_copy_foreign_takeover.load(std::memory_order_relaxed);
     if (want && !enable_fast_copy) {
         mark_fast_copy_syscall_fallback();
     }
