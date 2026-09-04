@@ -709,8 +709,11 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 with pytest.raises(BlockingException):
                     conn.request("GET", "/status/200")
 
-            assert conn._datadog_span.duration is not None, "span left unfinished by the block"
             assert self.tracer.current_span() is None, "span left current by the block"
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].duration is not None, "span left unfinished by the block"
 
     def test_span_is_finished_when_putrequest_raises_a_base_exception(self):
         """Same contract for the putrequest wrapper, which owns the span when used directly."""
@@ -725,5 +728,34 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
                 with pytest.raises(BlockingException):
                     conn.putrequest("GET", "/status/200")
 
-            assert conn._datadog_span.duration is not None, "span left unfinished by the block"
             assert self.tracer.current_span() is None, "span left current by the block"
+
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].duration is not None, "span left unfinished by the block"
+
+    def test_a_reused_connection_gets_a_fresh_span_after_a_block(self):
+        """Connections are reusable, so a finished span must not stay attached to one.
+
+        _wrap_putrequest reuses whatever _datadog_span the connection already carries, so leaving
+        a finished one behind means the next request on that connection reports nothing.
+        """
+        from ddtrace.internal._exceptions import BlockingException
+
+        def blocking_send_request(*args, **kwargs):
+            raise BlockingException({}, "exploit_prevention", "ssrf", "http://blocked/")
+
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            with mock.patch.object(httplib.HTTPConnection, "_send_request", blocking_send_request):
+                with pytest.raises(BlockingException):
+                    conn.request("GET", "/status/200")
+
+            assert not hasattr(conn, "_datadog_span"), "finished span left attached to the connection"
+
+            conn.request("GET", "/status/200")
+            conn.getresponse()
+
+        spans = self.pop_spans()
+        assert len(spans) == 2, "the retry on the reused connection reported no span"
+        assert all(span.duration is not None for span in spans)

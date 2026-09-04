@@ -83,6 +83,19 @@ def _call_asm_wrap(func, instance, *args, **kwargs):
     _wrap_request_asm(func, instance, args, kwargs)
 
 
+def _finish_span(instance, exc_info=None):
+    """Finish the connection's span and detach it: _wrap_putrequest adopts any span still
+    attached, so a finished one left behind silences the next request on that connection.
+    """
+    span = getattr(instance, "_datadog_span", None)
+    if span is None:
+        return
+    if exc_info is not None:
+        span.set_exc_info(*exc_info)
+    span.finish()
+    delattr(instance, "_datadog_span")
+
+
 def _wrap_request(func, instance, args, kwargs):
     # Use any attached tracer if available, otherwise use the global tracer
     if asm_config._asm_enabled and asm_config._ep_enabled:
@@ -116,21 +129,14 @@ def _wrap_request(func, instance, args, kwargs):
             HTTPPropagator.inject(span.context, headers)
     except Exception:
         log.debug("error configuring request", exc_info=True)
-        span = getattr(instance, "_datadog_span", None)
-        if span:
-            span.finish()
+        _finish_span(instance)
 
     try:
         return func_to_call(*args, **kwargs)
     except BaseException:
-        # BaseException, not Exception: AppSec RASP blocks an outgoing request by raising
-        # BlockingException, which derives from BaseException so nothing swallows it. Catching
-        # only Exception left the span unfinished and current for the rest of the thread's life.
-        span = getattr(instance, "_datadog_span", None)
-        exc_info = sys.exc_info()
-        if span:
-            span.set_exc_info(*exc_info)
-            span.finish()
+        # AIDEV-NOTE: AppSec RASP blocks an outgoing request by raising BlockingException, which
+        # derives from BaseException, so this guard must not be narrowed to Exception.
+        _finish_span(instance, sys.exc_info())
         raise
 
 
@@ -178,19 +184,13 @@ def _wrap_putrequest(func, instance, args, kwargs):
         log.debug("error applying request tags", exc_info=True)
 
         # Close the span to prevent memory leaks.
-        span = getattr(instance, "_datadog_span", None)
-        if span:
-            span.finish()
+        _finish_span(instance)
 
     try:
         return func(*args, **kwargs)
     except BaseException:
-        # See the note in _wrap_request: a RASP block raises BaseException.
-        span = getattr(instance, "_datadog_span", None)
-        exc_info = sys.exc_info()
-        if span:
-            span.set_exc_info(*exc_info)
-            span.finish()
+        # AIDEV-NOTE: see the anchor in _wrap_request; a RASP block raises BaseException.
+        _finish_span(instance, sys.exc_info())
         raise
 
 
