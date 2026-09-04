@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import aiomysql
 import mock
@@ -85,6 +86,45 @@ async def test_query_is_blocked_before_execution() -> None:
 
             assert exc_info.value is expected
             getattr(cursor, method).assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tracing_enabled", (True, False))
+@pytest.mark.parametrize(
+    ("args", "kwargs"),
+    (
+        (("procedure",), {}),
+        (("procedure", [1]), {}),
+        ((), {"procname": "procedure", "args": [1]}),
+    ),
+)
+@pytest.mark.parametrize("raises", (False, True))
+async def test_callproc_is_forwarded(
+    tracing_enabled: bool,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    raises: bool,
+    tracer: Any,
+    test_spans: Any,
+) -> None:
+    cursor = mock.create_autospec(aiomysql.Cursor, instance=True)
+    traced_cursor = AIOTracedCursor(cursor, Pin())
+    result = object()
+    cursor.callproc.return_value = result
+    expected_error = RuntimeError("stored procedure failed")
+    if raises:
+        cursor.callproc.side_effect = expected_error
+
+    with mock.patch.object(tracer, "enabled", tracing_enabled):
+        if raises:
+            with pytest.raises(RuntimeError) as exc_info:
+                await traced_cursor.callproc(*args, **kwargs)
+            assert exc_info.value is expected_error
+        else:
+            assert await traced_cursor.callproc(*args, **kwargs) is result
+
+    cursor.callproc.assert_awaited_once_with(*args, **kwargs)
+    assert test_spans.pop() == []
 
 
 @pytest.mark.asyncio

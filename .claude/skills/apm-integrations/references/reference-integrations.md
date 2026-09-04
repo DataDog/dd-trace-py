@@ -23,6 +23,15 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
+## DBAPI Cursor Subclasses
+
+When reusing `TracedCursor` or `TracedAsyncCursor`, check every inherited method
+against the adapter's `_trace_method` signature. An adapter that retains a custom
+signature can accidentally break inherited methods such as `callproc()`.
+For example, aiomysql explicitly forwards `callproc()` to the wrapped driver to
+preserve its previously untraced behavior. Cover positional and keyword arguments,
+return values, and exceptions with tracing enabled and disabled.
+
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable
