@@ -83,10 +83,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         if response is not None:
             output_messages = self._extract_output_message(response)
             # Recorded under "finish_reason" to match the openai/litellm integrations, so one key
-            # answers "why did generation stop" across providers. The value stays Anthropic's own
-            # ("end_turn", "max_tokens", "refusal", ...). Streamed responses are reconstructed into a
-            # dict that stores it under "finish_reason", while the SDK's Message object exposes the
-            # same value as "stop_reason".
+            # answers "why did generation stop" across providers. 
             finish_reason = _get_attr(response, "stop_reason", None) or _get_attr(response, "finish_reason", None)
             if finish_reason:
                 parameters["finish_reason"] = str(finish_reason)
