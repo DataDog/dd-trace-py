@@ -218,11 +218,6 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
     snapshot: true
-  integration_registry:
-    parallelism: 1
-    paths:
-      - '@contrib'
-      - scripts/integration_registry/*
   internal:
     retry: 2
     venvs_per_job: 2
