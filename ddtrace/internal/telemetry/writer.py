@@ -858,7 +858,7 @@ class TelemetryWriter:
         if self._worker is not None:
             # The native stop() unconditionally drains the buffer and sends an
             # app-closing event, so there's no need for an additional flush
-            # here (which would incur a hearbeat and an additional separate
+            # here (which would incur a heartbeat and an additional separate
             # request for the final stop).
             self.periodic(force_flush=False)
         self.disable()
