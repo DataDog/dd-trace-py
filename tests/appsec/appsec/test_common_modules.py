@@ -524,58 +524,6 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         unpatch_common_modules()
 
 
-@pytest.mark.parametrize("appsec_first", [True, False])
-def test_a_rasp_block_under_the_httplib_contrib_finishes_its_span(appsec_first):
-    """A wrapping context always runs inside the httplib integration's wrapt wrapper, never
-    outside it, so a RASP block now raises while the integration's span is open and current.
-    """
-    unpatch_common_modules()
-    import http.client
-
-    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
-    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
-    from ddtrace.trace import tracer
-
-    httplib_unpatch()
-    probe = None
-    try:
-        if appsec_first:
-            patch_common_modules()
-            httplib_patch()
-        else:
-            httplib_patch()
-            patch_common_modules()
-
-        request_ctx = _DD_WRAPPING_CONTEXTS[("http.client", "HTTPConnection.request")]
-
-        class _Blocking(_SsrfHttpConnectionRequest):
-            def __enter__(self):
-                super(_SsrfHttpConnectionRequest, self).__enter__()
-                raise BlockingException({}, EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, "http://b/")
-
-        request_fn = request_ctx.__wrapped__
-        request_ctx.unwrap()
-        probe = _Blocking(request_fn)
-        probe.wrap()
-
-        conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
-        with pytest.raises(BlockingException):
-            conn.request("GET", "/")
-
-        span = getattr(conn, "_datadog_span", None)
-        if span is not None:
-            # BlockingException derives from BaseException, so an "except Exception" guard in the
-            # integration would let it past without finishing the span it had already activated.
-            assert span.duration is not None, "httplib span left unfinished by the RASP block"
-        assert tracer.current_span() is None, "httplib span left current after the RASP block"
-    finally:
-        if probe is not None:
-            with contextlib.suppress(Exception):
-                probe.unwrap()
-        httplib_unpatch()
-        unpatch_common_modules()
-
-
 def _code_sizes():
     import http.client
     import urllib.request

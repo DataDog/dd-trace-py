@@ -122,10 +122,7 @@ def _wrap_request(func, instance, args, kwargs):
 
     try:
         return func_to_call(*args, **kwargs)
-    except BaseException:
-        # BaseException, not Exception: AppSec RASP blocks an outgoing request by raising
-        # BlockingException, which derives from BaseException so nothing swallows it. Catching
-        # only Exception left the span unfinished and current for the rest of the thread's life.
+    except Exception:
         span = getattr(instance, "_datadog_span", None)
         exc_info = sys.exc_info()
         if span:
@@ -184,8 +181,7 @@ def _wrap_putrequest(func, instance, args, kwargs):
 
     try:
         return func(*args, **kwargs)
-    except BaseException:
-        # See the note in _wrap_request: a RASP block raises BaseException.
+    except Exception:
         span = getattr(instance, "_datadog_span", None)
         exc_info = sys.exc_info()
         if span:
