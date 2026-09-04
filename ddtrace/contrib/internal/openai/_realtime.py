@@ -145,12 +145,21 @@ class _AudioAccumulator:
         # Total decoded bytes seen for this segment, never capped, used only to derive playback
         # duration (the speaking window) even when the byte cap dropped the buffered chunks.
         self.total_decoded_bytes: int = 0
+        # The audio format in effect when this segment's first chunk arrived. Snapshotted per segment
+        # because the session's format is mutable - `session.update` can change it mid-connection -
+        # while a turn is finalized later (held for a transcript or for playback). Reading the
+        # session's current format at that point would time and WAV-wrap this segment's bytes at
+        # another format's rate: PCM16 read as G.711 overstates the window six-fold.
+        self.mime: str = ""
+        self.rate: int = 0
 
-    def append(self, b64: str) -> None:
+    def append(self, b64: str, mime: str = "", rate: int = 0) -> None:
         if not b64:
             return
         if self.start_ns is None:
             self.start_ns = time.time_ns()
+            self.mime = mime
+            self.rate = rate
         self.present = True
         decoded = _decoded_b64_len(b64)
         self.total_decoded_bytes += decoded
@@ -250,6 +259,8 @@ class _AudioAccumulator:
         self._bytes = 0
         self.start_ns = None
         self.total_decoded_bytes = 0
+        self.mime = ""
+        self.rate = 0
 
 
 class _InputTurn:
@@ -452,7 +463,7 @@ class _RealtimeState:
                 if item_id is not None:
                     # Remember where this item's audio starts in the turn's segment, before appending.
                     turn.audio_item_starts.setdefault(str(item_id), turn.audio.total_decoded_bytes)
-                turn.audio.append(delta)
+                turn.audio.append(delta, self._output_audio_mime, self._output_audio_rate)
         elif normalized == "response.audio_transcript.delta":
             turn.transcript += str(_get_attr(event, "delta", "") or "")
         elif normalized == "response.audio_transcript.done":
@@ -476,7 +487,7 @@ class _RealtimeState:
             # buffer here. Left at None while the clock is dead, since a base of 0 would read as
             # "this turn starts at the session origin" and over-trim the front of the segment.
             pending.audio_base_ms = self._input_buffer_ms
-        pending.audio.append(b64)
+        pending.audio.append(b64, self._input_audio_mime, self._input_audio_rate)
         self._advance_input_buffer_clock(_decoded_b64_len(b64))
 
     def _advance_input_buffer_clock(self, decoded_bytes: int) -> None:
@@ -575,13 +586,18 @@ class _RealtimeState:
         self._client_truncates = True
         item = str(item_id) if item_id is not None else None
         end_ms = _as_float(audio_end_ms)
-        bytes_per_second = _bytes_per_second(self._output_audio_mime, self._output_audio_rate)
-        if item is None or end_ms is None or not bytes_per_second:
+        if item is None or end_ms is None:
             return
         for turn in self._open_turns():
             item_start = turn.audio_item_starts.get(item)
             if item_start is None:
                 continue
+            # Per turn: an older held turn's audio may have arrived under a format the session has
+            # since changed, and the cut point is a byte offset into that turn's own bytes.
+            mime, rate = _segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate)
+            bytes_per_second = _bytes_per_second(mime, rate)
+            if not bytes_per_second:
+                return
             cap = item_start + int(end_ms / 1000 * bytes_per_second)
             turn.audio.cap_to(cap - cap % 2)  # keep PCM16 samples whole; a byte is nothing for G.711
             if turn in self._playing:
@@ -606,7 +622,8 @@ class _RealtimeState:
         if not self._client_truncates or turn.audio.start_ns is None:
             return False
         playback_ns = _segment_duration_ns(
-            turn.audio.total_decoded_bytes, self._output_audio_mime, self._output_audio_rate
+            turn.audio.total_decoded_bytes,
+            *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
         )
         if playback_ns is None:
             return False
@@ -816,7 +833,8 @@ class _RealtimeState:
             in_end = turn.input.speech_end_ns
             if in_end is None:
                 dur = _segment_duration_ns(
-                    turn.input.audio.total_decoded_bytes, self._input_audio_mime, self._input_audio_rate
+                    turn.input.audio.total_decoded_bytes,
+                    *_segment_format(turn.input.audio, self._input_audio_mime, self._input_audio_rate),
                 )
                 in_end = in_start + dur if dur else None
             self._emit_workflow_span(
@@ -829,7 +847,10 @@ class _RealtimeState:
             )
         out_start = turn.audio.start_ns
         if out_start is not None:
-            dur = _segment_duration_ns(turn.audio.total_decoded_bytes, self._output_audio_mime, self._output_audio_rate)
+            dur = _segment_duration_ns(
+                turn.audio.total_decoded_bytes,
+                *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
+            )
             out_end = out_start + dur if dur else turn.response_done_ns
             self._emit_workflow_span(
                 "createRealtimeAgentSpeech",
@@ -900,7 +921,10 @@ class _RealtimeState:
         if turn.response_done_ns is not None:
             candidates.append(turn.response_done_ns)
         if turn.audio.start_ns is not None:
-            dur = _segment_duration_ns(turn.audio.total_decoded_bytes, self._output_audio_mime, self._output_audio_rate)
+            dur = _segment_duration_ns(
+                turn.audio.total_decoded_bytes,
+                *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
+            )
             if dur:
                 candidates.append(turn.audio.start_ns + dur)
         if turn.input.speech_end_ns is not None:
@@ -914,8 +938,7 @@ class _RealtimeState:
             "user",
             turn.input.transcript or turn.input.text,
             turn.input.audio,
-            self._input_audio_mime,
-            self._input_audio_rate,
+            *_segment_format(turn.input.audio, self._input_audio_mime, self._input_audio_rate),
         )
         # Attach tool results the app fed back (function_call_output) to the input message.
         if turn.input.tool_results:
@@ -927,8 +950,7 @@ class _RealtimeState:
             "assistant",
             turn.transcript or turn.text,
             turn.audio,
-            self._output_audio_mime,
-            self._output_audio_rate,
+            *_segment_format(turn.audio, self._output_audio_mime, self._output_audio_rate),
         )
         # Attach the model's tool calls (and inline MCP results) to the output message. A turn can be
         # tool-call-only with no audio/text, so create the message if _build_message returned None.
@@ -1061,7 +1083,7 @@ class _RealtimeState:
             elif part_type in ("input_audio", "audio"):
                 audio = _get_attr(part, "audio", None)
                 if audio:
-                    self._pending_input.audio.append(audio)
+                    self._pending_input.audio.append(audio, self._input_audio_mime, self._input_audio_rate)
                 transcript = _get_attr(part, "transcript", None)
                 if transcript:
                     self._pending_input.transcript += str(transcript)
@@ -1163,6 +1185,17 @@ def _as_float(value: Any) -> Optional[float]:
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _segment_format(audio: "_AudioAccumulator", mime: str, rate: int) -> tuple[str, int]:
+    """The audio format to interpret `audio` with: the one recorded when its first chunk arrived,
+    falling back to the session's current format.
+
+    The fallback covers a segment that never recorded one - it holds no audio, or the session had not
+    announced a format yet - and is not the mutable-format case: a segment that did record a format
+    keeps it, so a later `session.update` cannot retime bytes that arrived under the old one.
+    """
+    return audio.mime or mime, audio.rate or rate
 
 
 def _bytes_per_second(mime: str, sample_rate: int) -> Optional[int]:

@@ -824,6 +824,45 @@ def test_realtime_state_barge_in_windows_still_overlap(monkeypatch):
     assert user2[1] < agent1[2], "a barge-in must still show the user speaking over the agent"
 
 
+def test_realtime_state_segment_keeps_the_format_its_audio_arrived_under(monkeypatch):
+    """A turn's audio is timed with the format it arrived under, not one the session switched to later.
+
+    `session.update` can change the audio format mid-connection, while a turn is finalized later -
+    held for a transcript, or for playback. Reading the session's current format at that point would
+    retime bytes that arrived under the old one: the PCM16 here read at G.711's byte rate would
+    overstate the agent-speech window six-fold.
+    """
+    clock = _Clock()
+    monkeypatch.setattr(_realtime.time, "time_ns", clock)
+    integration, state = _new_state()
+    state.on_server_event(_session_created())
+    mic = _Mic(state, clock)
+    # A truncation for a turn we no longer hold marks the client as one that cuts playback short, so
+    # the next turn is held - which is what keeps it open across the format change below.
+    _truncate(state, "gone", audio_end_ms=0)
+
+    mic.stream(200)
+    mic.speech_started()
+    mic.stream(300)
+    _respond(state, mic, "r1", agent_audio_ms=500, playback_ms=0)
+    assert len(state._playing) == 1, "the turn is held while its audio plays out"
+
+    # The session switches its output to G.711: 8 kHz at 1 byte per sample, a sixth of the byte rate
+    # of the PCM16 this turn's audio actually arrived as.
+    state.on_server_event(
+        _ns(type="session.updated", session=_ns(audio=_ns(output=_ns(format=_ns(type="audio/pcmu")))))
+    )
+    assert state._output_audio_mime == "audio/pcmu", "expected the session format to have changed"
+    state.finish_session()
+
+    agent = [w for w in _windows(integration) if w[0] == "agent speech"][0]
+    _assert_ns(agent[2] - agent[1], 500 * 1_000_000)
+    # The stored audio is still WAV-wrapped as PCM16 rather than decoded as G.711.
+    assert integration.responses[0]["output_messages"][0]["audio_parts"] == [
+        {"mime_type": "audio/wav", "content": _wav_b64(_agent_pcm(500))}
+    ]
+
+
 def test_realtime_state_truncation_caps_agent_speech_to_what_was_heard(monkeypatch):
     """A barge-in truncation caps the agent segment - window and stored audio - at what was played.
 
