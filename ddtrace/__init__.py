@@ -12,7 +12,9 @@ from ._logger import configure_ddtrace_logger  # noqa: E402
 configure_ddtrace_logger()  # noqa: E402
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
-import ddtrace.internal.telemetry  # noqa: E402, F401
+from ddtrace.internal.runtime import listen_for_identity_refresh_hooks  # noqa: E402,I001
+from ddtrace.internal.serverless import in_aws_lambda_microvm  # noqa: E402
+import ddtrace.internal.telemetry  # noqa: F401,E402
 
 from ._monkey import patch  # noqa: E402
 from ._monkey import patch_all  # noqa: E402
@@ -23,6 +25,12 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 from .internal.utils.deprecations import deprecate  # noqa: E402
 from .version import __version__  # noqa: E402
 
+
+# Register import-time hooks that depend on ddtrace.config being exported.
+if in_aws_lambda_microvm():
+    from .internal import core as _core  # noqa: E402
+
+    listen_for_identity_refresh_hooks(_core.on)
 
 # TODO: Deprecate accessing tracer from ddtrace.__init__ module in v4.0
 if env.get("_DD_GLOBAL_TRACER_INIT", "true").lower() in ("1", "true"):

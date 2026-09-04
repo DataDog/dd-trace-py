@@ -216,6 +216,42 @@ async def test_web_request_starting_dispatch_precedes_span_creation(scope):
     assert events.index("request_starting") < events.index("span")
 
 
+async def test_microvm_run_hook_refreshes_identity(scope):
+    from ddtrace.internal import runtime
+
+    event_name = WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    app = TraceMiddleware(basic_app)
+    scope.update({"method": "POST", "path": "/run", "root_path": "/aws/lambda-microvms/runtime/v1"})
+    runtime._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+    web.core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+
+    try:
+        with (
+            mock.patch.object(web, "in_aws_lambda_microvm", return_value=True),
+            mock.patch.object(runtime, "in_aws_lambda_microvm", return_value=True),
+        ):
+            runtime.listen_for_identity_refresh_hooks(web.core.on)
+            runtime_id = runtime.get_runtime_id()
+
+            instance = ApplicationCommunicator(app, scope)
+            await instance.send_input({"type": "http.request", "body": b""})
+            await instance.receive_output(1)
+            await instance.receive_output(1)
+
+            refreshed_runtime_id = runtime.get_runtime_id()
+            assert refreshed_runtime_id != runtime_id
+
+            instance = ApplicationCommunicator(app, scope)
+            await instance.send_input({"type": "http.request", "body": b""})
+            await instance.receive_output(1)
+            await instance.receive_output(1)
+
+            assert runtime.get_runtime_id() == refreshed_runtime_id
+    finally:
+        web.core.reset_listeners(event_name, runtime.maybe_refresh_identity)
+        runtime._IDENTITY_REFRESH_HOOK_REFRESHED.clear()
+
+
 @pytest.mark.asyncio
 async def test_basic_asgi(scope, test_spans):
     app = TraceMiddleware(basic_app)

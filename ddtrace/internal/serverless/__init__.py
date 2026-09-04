@@ -3,6 +3,11 @@ from os import path
 from ddtrace.internal.settings import env
 
 
+# Fixed platform request details for the AWS Lambda MicroVM /run lifecycle hook.
+MICROVM_RUN_HOOK_METHOD = "POST"
+MICROVM_RUN_HOOK_PATH = "/aws/lambda-microvms/runtime/v1/run"
+
+
 def in_aws_lambda():
     # type: () -> bool
     """Returns whether the environment is an AWS Lambda.

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    wsgi,asgi: Adds support for refreshing the runtime ID when applications
+    start in AWS Lambda MicroVM environments.
