@@ -70,15 +70,42 @@
     "//": [
       "A directed edge importer-zone -> imported-zone is a violation when:",
       "  - importer zone is 'internal-core' or 'contrib' and imported zone is any product, or",
-      "  - importer and imported zones are two different products.",
+      "  - importer and imported zones are two different products, or",
+      "  - importer zone is a product and imported zone is 'contrib' (see forbid_products_into_contrib).",
       "Same-zone edges, and edges into/out of unclassified (foundation) modules, are never flagged.",
       "'exceptions' lists zone-pairs that are exempt from the above -- e.g. if we later decide a",
       "product may import a security product directly, add {\"from_zone\": \"product:x\", \"to_zone\":",
       "\"product:appsec\"} here rather than changing the detection logic."
     ],
     "forbid_from_zones_into_products": ["internal-core", "contrib"],
+    "forbid_products_into_contrib": {
+      "//": [
+        "Contrib exists to attach integration-specific behaviour to a product (Pattern 1: dispatch",
+        "events, let contrib listen), never the other way round. A product module importing",
+        "ddtrace.contrib directly means integration-specific knowledge (a per-library constant, a",
+        "per-library helper) leaked into code every install runs regardless of which integrations are",
+        "active -- e.g. ddtrace._trace.trace_handlers importing per-integration constants from",
+        "ddtrace.contrib.internal.{botocore,mlflow,ray,azure_cosmos,google_cloud_pubsub}."
+      ],
+      "enabled": true
+    },
     "exceptions": [
       {"from_zone": "contrib", "to_zone": "product:tracing", "//": "contrib/* are tracer integrations; they attach to the Tracer/Pin/Span API by design"}
     ]
+  },
+  "affinity": {
+    "//": [
+      "Used only by affinity.py (the heuristic per-product-ownership finder), never by layers.py's",
+      "exact violation detection. A namespace bucket is a package that is intentionally structured so",
+      "each child module is owned by a single product -- e.g. ddtrace.internal.settings holds the",
+      "generic Config aggregator (_config.py) plus one settings module per product",
+      "(settings.profiling, settings.aiguard, ...), each contributed independently. affinity.py would",
+      "otherwise flag every such child as 'exclusive to one product' -- true, but not a finding: it was",
+      "never meant to be generic, so there's nothing to relocate. Modules directly under a listed prefix",
+      "are excluded from the exclusive/dominant tiers; a module still shows up if it has a",
+      "confirmed_violations entry, since a namespace bucket doesn't excuse an actual layers.py rule",
+      "violation."
+    ],
+    "namespace_buckets": ["ddtrace.internal.settings"]
   }
 }
