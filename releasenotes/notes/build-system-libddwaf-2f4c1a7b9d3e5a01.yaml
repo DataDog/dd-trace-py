@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    build: the AppSec WAF binding can now use a system-provided libddwaf
+    instead of the prebuilt binaries downloaded from GitHub releases.  Setting
+    ``DD_USE_SYSTEM_LIBDDWAF=1`` at build time locates the library via
+    pkg-config and records its path for the runtime loader.  This is intended
+    for system integrators and Linux distribution packagers that must build
+    everything from source; the default behaviour is unchanged.

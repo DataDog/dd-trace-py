@@ -167,6 +167,10 @@ SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes",
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
 LIBDDWAF_VERSION = "2.0.1"
+# Link against a system-provided libddwaf (located via pkg-config) instead of
+# downloading the prebuilt binaries from GitHub releases.  Intended for system
+# integrators and distribution packagers that build everything from source.
+USE_SYSTEM_LIBDDWAF = os.getenv("DD_USE_SYSTEM_LIBDDWAF", "0").lower() in ("1", "yes", "on", "true")
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -643,6 +647,55 @@ class LibDDWafDownload(LibraryDownload):
         else:
             archive_dir = "lib%s-%s-%s-%s.tar.gz" % (cls.name, cls.version, os_name, arch)
         return archive_dir
+
+    @classmethod
+    def link_system_library(cls):
+        """Record the location of a system-provided libddwaf.
+
+        Instead of downloading the prebuilt libddwaf binaries, locate the
+        library installed on the build system via pkg-config and record its
+        resolved path in a small ``libddwaf.link`` text file placed where the
+        bundled library would normally live.  The runtime loader
+        (``build_libddwaf_filename``) falls back to this file when no bundled
+        library is present.
+        """
+        libdir = subprocess.run(
+            ["pkg-config", "--variable=libdir", "libddwaf"],
+            stdout=subprocess.PIPE,
+            check=True,
+            text=True,
+        ).stdout.strip()
+        modversion = subprocess.run(
+            ["pkg-config", "--modversion", "libddwaf"],
+            stdout=subprocess.PIPE,
+            check=True,
+            text=True,
+        ).stdout.strip()
+        if modversion != cls.version:
+            print(
+                "WARNING: system lib%s version %s does not match the version %s pinned by ddtrace"
+                % (cls.name, modversion, cls.version)
+            )
+        suffix = cls.translate_suffix[CURRENT_OS][0]
+        library = Path(libdir) / ("lib%s%s" % (cls.name, suffix))
+        if not library.exists():
+            raise FileNotFoundError("system lib%s not found at %s" % (cls.name, library))
+        # Resolve symlinks so the recorded path stays valid at runtime even
+        # when the development symlink (libddwaf.so -> libddwaf.so.X) is not
+        # installed.
+        target = library.resolve()
+        arch_dir = Path(cls.download_dir) / platform.machine().lower() / "lib"
+        arch_dir.mkdir(parents=True, exist_ok=True)
+        link_file = arch_dir / ("lib%s.link" % cls.name)
+        link_file.write_text(str(target) + "\n")
+        print("Using system lib%s %s: %s" % (cls.name, modversion, target))
+
+    @classmethod
+    def run(cls) -> None:
+        if USE_SYSTEM_LIBDDWAF:
+            cls.link_system_library()
+        else:
+            cls.download_artifacts()
 
 
 # Source/build file extensions that should never appear in a binary wheel.
