@@ -56,6 +56,14 @@ update_fast_copy_stats(ProfilerStats& stats)
     stats.set_fast_copy_memory_foreign_takeover(fast_copy_foreign_takeover.load(std::memory_order_relaxed));
 }
 
+static void
+mark_fast_copy_foreign_takeover()
+{
+    fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
+    mark_fast_copy_syscall_fallback();
+    update_fast_copy_stats(Sample::profile_borrow().stats());
+}
+
 void
 Datadog::seed_fast_copy_profiler_stats()
 {
@@ -483,8 +491,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                         // syscall copy (already active from warmup) for the life of
                         // the process, and of any child forked from it.
                         handler_fallback_done = true;
-                        mark_fast_copy_syscall_fallback();
-                        fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
+                        mark_fast_copy_foreign_takeover();
                         const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
                         std::cerr << "ddtrace stack profiler: "
                                   << lost_ownership_clause("does not own", ownership.foreign)
@@ -499,8 +506,7 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 // degrade sample quality (e.g. on asyncio workloads). We still prefer
                 // it over the alternative, which is crashing under a foreign handler.
                 handler_fallback_done = true;
-                mark_fast_copy_syscall_fallback();
-                fast_copy_foreign_takeover.store(true, std::memory_order_relaxed);
+                mark_fast_copy_foreign_takeover();
                 const SegvHandlerOwnership ownership = describe_segv_handler_ownership();
                 std::cerr << "ddtrace stack profiler: " << lost_ownership_clause("no longer owns", ownership.foreign)
                           << "; falling back to syscall-based memory copy to avoid crashing. "
