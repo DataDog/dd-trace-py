@@ -135,6 +135,7 @@ from ddtrace.llmobs._experiment import _pydantic_async_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_async_report_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_evaluator_wrapper
 from ddtrace.llmobs._experiment import _pydantic_report_evaluator_wrapper
+from ddtrace.llmobs._gen_ai import set_gen_ai_apm_tags_from_llmobs_data
 from ddtrace.llmobs._integration_api import register_llmobs_service
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._prompt_optimization import PromptOptimization
@@ -743,6 +744,13 @@ class LLMObs(Service):
             export_to_llmobs=self._export_mode != LLMObsExportMode.APM_AGENTLESS,
         )
         llmobs_data[LLMOBS_STRUCT.META] = _sanitize_span_event_data(llmobs_meta)
+        # Single emission point for every LLMObs span — integrations, decorators, and manual
+        # LLMObs.annotate() alike. Caught separately so a tagging failure costs the APM tags
+        # rather than the LLMObs event.
+        try:
+            set_gen_ai_apm_tags_from_llmobs_data(span, llmobs_data)
+        except Exception:
+            log.debug("Error setting gen_ai APM tags for span %s", span, exc_info=True)
         config = llmobs_data.get(LLMOBS_STRUCT.CONFIG)
         if config is not None:
             llmobs_data[LLMOBS_STRUCT.CONFIG] = _sanitize_span_event_data(config)

@@ -727,6 +727,7 @@ class Config(object):
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
         self._llmobs_agentless_enabled = agentless.llmobs
+        self._llmobs_gen_ai_apm_tags_enabled = _get_config("DD_LLMOBS_GEN_AI_APM_TAGS_ENABLED", True, asbool)
         self._llmobs_instrumented_proxy_urls = _get_config(
             "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
         )

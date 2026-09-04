@@ -455,6 +455,25 @@ Traces
      version_added:
         v4.11.0:
 
+   DD_LLMOBS_GEN_AI_APM_TAGS_ENABLED:
+     type: Boolean
+     default: True
+
+     description: |
+         When enabled, ``ddtrace`` writes ``gen_ai.*`` attributes onto the APM spans it creates for
+         LLM and agent operations, so they can be searched, faceted, and monitored on in APM
+         alongside the rest of your trace data.
+
+         The span tags ``gen_ai.operation.name``, ``gen_ai.request.model``, ``gen_ai.provider.name``,
+         ``gen_ai.application.name``, and ``gen_ai.conversation.id`` are set when known, along with
+         the span metrics ``gen_ai.usage.input_tokens``, ``gen_ai.usage.output_tokens``,
+         ``gen_ai.usage.total_tokens``, ``gen_ai.usage.cache_read_input_tokens``, and
+         ``gen_ai.usage.cache_write_input_tokens``.
+
+         Prompt and completion contents are never written to APM spans; they are available through
+         LLM Observability. Set this to ``False`` to omit these attributes, for example to reduce
+         indexed span tag volume.
+
 Trace Context propagation
 -------------------------
 

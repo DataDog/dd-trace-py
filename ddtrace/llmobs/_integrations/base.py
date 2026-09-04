@@ -29,6 +29,7 @@ from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import REQUEST_BASE_URL
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._gen_ai import set_gen_ai_apm_tags
 from ddtrace.llmobs._integration_api import annotate
 from ddtrace.llmobs._integration_api import is_enabled
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -208,6 +209,19 @@ class BaseLLMIntegration:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY, model_name)
         if model_provider:
             span.set_tag(LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY, model_provider)
+        if not self.llmobs_enabled:
+            # With LLMObs on, LLMObs._prepare_llmobs_span_data emits these at span finish from the
+            # normalized meta_struct, which carries strictly better values (defaulted model name,
+            # lowercased provider, plus ml_app and session id, which no integration has here).
+            # Emitting from both places would leave the weaker value in place for spans whose
+            # finish-time preparation bails out.
+            set_gen_ai_apm_tags(
+                span,
+                span_kind=span_kind,
+                model_name=model_name,
+                model_provider=model_provider,
+                metrics=metrics,
+            )
         if span_kind in ("llm", "embedding") and metrics:
             for llmobs_key, shadow_key in (
                 (INPUT_TOKENS_METRIC_KEY, LLMOBS_APM_SHADOW_INPUT_TOKENS_METRIC_KEY),

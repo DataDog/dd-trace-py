@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    LLM Observability: APM spans for LLM and agent operations now carry ``gen_ai.*`` attributes, so
+    model, provider, application, conversation, and token usage can be searched, faceted, and
+    monitored on directly in APM. The span tags ``gen_ai.operation.name``, ``gen_ai.request.model``,
+    ``gen_ai.provider.name``, ``gen_ai.application.name``, and ``gen_ai.conversation.id`` are set
+    when known, along with the span metrics ``gen_ai.usage.input_tokens``,
+    ``gen_ai.usage.output_tokens``, ``gen_ai.usage.total_tokens``,
+    ``gen_ai.usage.cache_read_input_tokens``, and ``gen_ai.usage.cache_write_input_tokens``. Prompt
+    and completion contents are not written to APM spans. Set the new
+    ``DD_LLMOBS_GEN_AI_APM_TAGS_ENABLED`` (default ``true``) to ``false`` to omit these attributes.
