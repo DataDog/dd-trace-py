@@ -150,8 +150,38 @@
   {
     "name": "azure.functions.invoke",
     "service": "test-durable-func",
-    "resource": "Entity counter",
+    "resource": "Orchestration entity_orchestrator",
     "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "69e7a82200000000",
+      "_dd.svc_src": "m",
+      "_dd.tags.process": "entrypoint.basedir:arm64,entrypoint.name:worker,entrypoint.type:script,entrypoint.workdir:azure_function_app,svc.auto:arm64",
+      "aas.function.name": "entity_orchestrator",
+      "aas.function.trigger": "Orchestration",
+      "component": "azure_functions",
+      "language": "python",
+      "runtime-id": "1b69241f081e4253a3da394677a05d74",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 61271.0
+    },
+    "duration": 227000,
+    "start": 1776789538143367000
+  }],
+[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-durable-func",
+    "resource": "Entity counter",
+    "trace_id": 2,
     "span_id": 1,
     "parent_id": 0,
     "type": "serverless",
