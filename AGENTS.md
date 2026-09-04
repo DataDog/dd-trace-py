@@ -11,7 +11,7 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 4. **No public API breakage** — Never change public API contracts; real applications depend on them.
 5. **No secrets** — Never commit secrets; use environment variables.
 6. **Don't assume business logic** — Ask when unsure about implementation details.
-7. **AIDEV comments are protected** — Never remove `AIDEV-` comments without explicit human instruction. Update them when modifying related code.
+7. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
 8. **Test before committing** — Run relevant tests to validate changes before committing.
 9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
 10. **Update docs** — Add/update documentation when changing internal or public APIs.
