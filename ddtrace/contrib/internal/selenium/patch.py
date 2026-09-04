@@ -82,16 +82,19 @@ class SeleniumWrappingContextBase(WrappingContext):
         except Exception:  # noqa: E722
             log.debug("Error handling instrumentation return", exc_info=True)
 
-        return value
+        # super(), not a bare return: the base __return__ is what pops this call's storage off
+        # the context variable, and returning value directly leaks one dict per wrapped call.
+        return t.cast(T, super().__return__(value))
 
 
 class SeleniumGetWrappingContext(SeleniumWrappingContextBase):
     def _handle_return(self) -> None:
         root_span = tracer.current_root_span()
-        test_trace_id = root_span.trace_id
 
         if root_span is None or root_span.get_tag("type") != "test":
             return
+
+        test_trace_id = root_span.trace_id
 
         webdriver_instance = self._get_webdriver_instance()
 
