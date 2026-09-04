@@ -206,18 +206,16 @@ resolve_type_histogram(const std::unordered_map<PyTypeObject*, uint32_t>& type_h
 }
 
 // ---------------------------------------------------------------------------
-// Reference-tree construction (gc.get_referents based)
+// Reference-graph construction (gc.get_referents based)
 // ---------------------------------------------------------------------------
 
-// Safety bounds for the unrolled tree.  The type-reference graph is cyclic and
-// densely connected (builtin containers reference, and are referenced by, most
-// types), so even with a per-path cycle guard an unbounded expansion could blow
-// up memory and JSON size.  These caps keep the output bounded regardless of
-// heap shape.
-constexpr size_t kRefTreeMaxChildren = 64;        // top children (by bytes) per node
-constexpr size_t kRefTreeMaxNodes = 100'000;      // total nodes across the forest
-constexpr size_t kRefTreeMaxNodesPerRoot = 4'096; // hard cap on a single root's subtree
-constexpr size_t kRefTreeMinNodesPerRoot = 16;    // nodes reserved for *every* root
+// The type-reference graph is cyclic and densely connected (builtin containers
+// reference, and are referenced by, most types). We emit the first-order graph
+// (each holder type's direct edges) and leave any tree reconstruction to the
+// consumer, so no unbounded unrolling happens natively. The only bound here is
+// the per-holder fan-out: keep the heaviest edges (by retained bytes) so a hub
+// type like dict/type cannot produce a pathologically wide adjacency row.
+constexpr size_t kRefGraphMaxEdgesPerType = 64; // top edges (by bytes) per holder type
 
 // Bounds for the object-level graph capture + container-collapse pass. The
 // object graph preserves identity (one node per live PyObject*) so the collapse
@@ -261,78 +259,9 @@ is_transparent_container(PyObject* obj) noexcept
     return PyDict_Check(obj) || PyList_Check(obj) || PyTuple_Check(obj) || PyAnySet_Check(obj);
 }
 
-// Recursively unroll the aggregated type graph into a tree rooted at `idx`.
-// `on_path` marks the types on the current root-to-node path so a type is never
-// expanded twice along the same chain (cycle guard).  `budget` caps the total
-// number of nodes emitted across the whole forest.
-//
-// Expansion is breadth-first within each node: every eligible direct child is
-// reserved (Phase 1) before any single child is deep-expanded (Phase 2). A
-// purely depth-first walk lets the heaviest child's subtree consume a node's
-// entire budget, hiding its lighter direct siblings entirely -- e.g. a
-// SignalBundler whose top child is the deep signal-class machinery (hung off an
-// aggregator map) would never show the BundleIndex it also holds. Reserving the
-// breadth first guarantees each holder lists all of its direct children, and
-// deep detail is what gets truncated when budget is tight instead.
-void
-build_subtree(uint32_t idx,
-              uint64_t ic,
-              uint64_t ts,
-              int depth,
-              int max_depth,
-              const Adj& adj,
-              std::vector<char>& on_path,
-              size_t& budget,
-              TreeNode& out)
-{
-    out.type_idx = idx;
-    out.ic = ic;
-    out.ts = ts;
-    if (depth >= max_depth) {
-        return;
-    }
-    auto it = adj.find(idx);
-    if (it == adj.end()) {
-        return;
-    }
-    on_path[idx] = 1;
-
-    // Phase 1 (breadth): reserve a node for every eligible direct child first.
-    // Children are pre-sorted by retained bytes (desc), so the heaviest survive
-    // when budget is tight, but every direct child is emitted before deep
-    // expansion spends any budget.
-    std::vector<uint32_t> expand_child;
-    for (const auto& [child, agg] : it->second) {
-        if (expand_child.size() >= kRefTreeMaxChildren || budget == 0) {
-            break;
-        }
-        if (on_path[child] != 0) {
-            continue; // type already on this path -- stop to avoid a cycle
-        }
-        --budget;
-        out.children.emplace_back();
-        TreeNode& node = out.children.back();
-        node.type_idx = child;
-        node.ic = agg.first;
-        node.ts = agg.second;
-        expand_child.push_back(child);
-    }
-
-    // Phase 2 (depth): expand each reserved child in order while budget remains.
-    for (size_t k = 0; k < expand_child.size(); ++k) {
-        build_subtree(expand_child[k],
-                      out.children[k].ic,
-                      out.children[k].ts,
-                      depth + 1,
-                      max_depth,
-                      adj,
-                      on_path,
-                      budget,
-                      out.children[k]);
-    }
-
-    on_path[idx] = 0;
-}
+// (No native tree unrolling: the collapsed first-order graph is emitted as an
+// adjacency and the consumer reconstructs any tree it needs. See
+// build_collapsed_graph below and serialize_snapshot_json.)
 
 // Object-level reference graph captured under the GIL. Identity is preserved
 // (one node per live PyObject*) so the collapse pass can follow real object
@@ -351,7 +280,7 @@ struct ObjectGraph
 // once per object, and record the object-level reference graph into g
 // (preserving identity) plus the per-type instance counts/sizes. This is the
 // only phase that touches the Python API; the heavier graph processing runs
-// afterwards with the GIL released (build_collapsed_forest).
+// afterwards with the GIL released (build_collapsed_graph).
 void
 build_object_graph(PyObject* gc_mod,
                    PyObject* objs,
@@ -468,16 +397,18 @@ build_object_graph(PyObject* gc_mod,
 }
 
 // Phase B (GIL released): collapse generic containers on the object graph and
-// build the "holder type -> retained type" forest. Because the walk follows
-// real object references, container contents are attributed to the specific
-// holder that owns them (no process-wide pooling) and chains are real object
-// paths, not type-level stitching. Touches no Python API -- ints only.
+// build the first-order "holder type -> retained type" adjacency. Because the
+// walk follows real object references, container contents are attributed to the
+// specific holder that owns them (no process-wide pooling). `adjacency` is
+// filled parallel to `type_table` (adjacency[holder] = its edges) and `roots`
+// gets the ordered set of types to expose as reconstruction roots. Touches no
+// Python API -- ints only.
 void
-build_collapsed_forest(const ObjectGraph& g,
-                       const std::vector<std::string>& type_table,
-                       const std::vector<uint32_t>& type_counts,
-                       int max_depth,
-                       std::vector<TreeNode>& forest)
+build_collapsed_graph(const ObjectGraph& g,
+                      const std::vector<std::string>& type_table,
+                      const std::vector<uint32_t>& type_counts,
+                      std::vector<std::vector<GCRefEdge>>& adjacency,
+                      std::vector<uint32_t>& roots)
 {
     const size_t n_nodes = g.node_type.size();
     const size_t n_types = type_table.size();
@@ -634,55 +565,30 @@ build_collapsed_forest(const ObjectGraph& g,
           lst.begin(), lst.end(), [](const auto& a, const auto& b) { return a.second.second > b.second.second; });
     }
 
+    // Emit the first-order adjacency parallel to the type table, keeping only
+    // the heaviest kRefGraphMaxEdgesPerType edges per holder (rows are already
+    // sorted by retained bytes desc). No tree is unrolled here; the consumer
+    // reconstructs whatever depth it wants from this graph.
+    adjacency.assign(n_types, {});
+    for (const auto& [h, lst] : adj) {
+        auto& row = adjacency[h];
+        const size_t keep = std::min<size_t>(lst.size(), kRefGraphMaxEdgesPerType);
+        row.reserve(keep);
+        for (size_t i = 0; i < keep; ++i) {
+            row.push_back(GCRefEdge{ lst[i].first, lst[i].second.first, lst[i].second.second });
+        }
+    }
+
     // Roots: every type with live instances, minus the infrastructure / builtin
     // "node eaters" (is_excluded_type). Generic containers are excluded too, so
-    // the forest is rooted at application types. Heaviest first so the shared
-    // bonus budget is spent on the types that retain the most memory.
-    std::vector<uint32_t> root_order;
-    root_order.reserve(n_types);
+    // reconstruction is rooted at application types. Heaviest retained first.
+    roots.reserve(n_types);
     for (uint32_t idx = 0; idx < n_types; ++idx) {
         if (type_counts[idx] > 0 && type_excluded[idx] == 0) {
-            root_order.push_back(idx);
+            roots.push_back(idx);
         }
     }
-    std::sort(root_order.begin(), root_order.end(), [&](uint32_t a, uint32_t b) {
-        return type_retained[a] > type_retained[b];
-    });
-
-    // Budget policy. A single global cap lets one densely connected root eat the
-    // whole forest, starving every other type. Instead the global cap is split
-    // into a per-root *floor* (kRefTreeMinNodesPerRoot) reserved for every root
-    // so even small, low-ranked application types are guaranteed a subtree, plus
-    // a shared *bonus* pool the heaviest roots draw from, each limited to
-    // kRefTreeMaxNodesPerRoot. Every root appears; total nodes stay <= kRefTreeMaxNodes.
-    const size_t n_roots = root_order.size();
-    std::vector<char> on_path(n_types, 0);
-    forest.reserve(n_roots);
-
-    if (n_roots != 0) {
-        size_t floor = kRefTreeMinNodesPerRoot;
-        if (floor * n_roots > kRefTreeMaxNodes) {
-            floor = std::max<size_t>(1, kRefTreeMaxNodes / n_roots);
-        }
-        const size_t reserved = floor * n_roots;
-        size_t bonus_pool = kRefTreeMaxNodes > reserved ? kRefTreeMaxNodes - reserved : 0;
-
-        for (uint32_t idx : root_order) {
-            const size_t headroom = kRefTreeMaxNodesPerRoot > floor ? kRefTreeMaxNodesPerRoot - floor : 0;
-            const size_t cap = floor + std::min(bonus_pool, headroom);
-
-            // build_subtree always emits the root node itself and decrements the
-            // budget per *child*, so the children budget is cap minus the root.
-            size_t remaining = cap > 0 ? cap - 1 : 0;
-            forest.emplace_back();
-            build_subtree(
-              idx, type_counts[idx], g.type_sizes[idx], 0, max_depth, adj, on_path, remaining, forest.back());
-
-            const size_t used = cap - remaining; // root node + children emitted
-            const size_t bonus_used = used > floor ? used - floor : 0;
-            bonus_pool -= bonus_used;
-        }
-    }
+    std::sort(roots.begin(), roots.end(), [&](uint32_t a, uint32_t b) { return type_retained[a] > type_retained[b]; });
 }
 
 } // anonymous namespace
@@ -911,7 +817,9 @@ GCMonitor::take_snapshot()
 
     std::vector<std::string> type_table;
     std::vector<uint32_t> type_counts;
-    std::vector<TreeNode> ref_tree;
+    std::vector<uint64_t> type_sizes;                  // per-type total shallow bytes (referrers only)
+    std::vector<std::vector<GCRefEdge>> ref_adjacency; // holder -> edges (referrers only)
+    std::vector<uint32_t> ref_roots;                   // ordered reconstruction roots (referrers only)
     Clock::time_point t_name_resolve_start;
 
     if (_referrers_enabled) {
@@ -923,12 +831,13 @@ GCMonitor::take_snapshot()
         // records the object-level reference graph (identity preserved). This
         // is the only Python-touching phase, kept as short as possible.
         //
-        // Phase B (GIL released): build_collapsed_forest collapses generic
-        // containers and unrolls the forest on the pure-C++ int graph, so the
-        // heavy processing does not block other Python threads. Because it
-        // follows real object references, container contents are attributed to
-        // the specific holder that owns them (e.g. BundleIndex -> Bundle), which
-        // a type-only aggregate cannot do. Gated behind the referrers flag.
+        // Phase B (GIL released): build_collapsed_graph collapses generic
+        // containers on the pure-C++ int graph and emits the first-order type
+        // adjacency, so the heavy processing does not block other Python
+        // threads. Because it follows real object references, container contents
+        // are attributed to the specific holder that owns them (e.g. BundleIndex
+        // -> Bundle), which a type-only aggregate cannot do. The consumer
+        // reconstructs any tree from the adjacency. Gated behind the referrers flag.
         PyObject* objs = PyObject_CallMethod(gc_mod, "get_objects", nullptr);
         if (objs == nullptr || !PyList_Check(objs)) {
             Py_XDECREF(objs);
@@ -953,7 +862,8 @@ GCMonitor::take_snapshot()
         PyGILState_Release(gstate);
 
         // Phase B runs with the GIL released (no Python API below this point).
-        build_collapsed_forest(graph, type_table, type_counts, _max_depth, ref_tree);
+        build_collapsed_graph(graph, type_table, type_counts, ref_adjacency, ref_roots);
+        type_sizes = std::move(graph.type_sizes);
     } else {
         // Reference chains disabled, we only make a class histogram
         std::unordered_map<PyTypeObject*, uint32_t> type_hist;
@@ -1063,7 +973,16 @@ GCMonitor::take_snapshot()
     const auto t_serialize_start = Clock::now();
     timing.name_resolve_us = elapsed_us(t_name_resolve_start, t_serialize_start);
 
-    serialize(gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, ref_tree);
+    serialize(gen_stats,
+              delta_stats,
+              gc_enabled,
+              thresholds,
+              garbage_count,
+              type_table,
+              type_counts,
+              type_sizes,
+              ref_adjacency,
+              ref_roots);
 
     const auto t_wall_end = Clock::now();
     timing.serialize_us = elapsed_us(t_serialize_start, t_wall_end);
@@ -1083,10 +1002,20 @@ GCMonitor::serialize(const std::array<GCGenStats, 3>& gen_stats,
                      int garbage_count,
                      const std::vector<std::string>& type_table,
                      const std::vector<uint32_t>& type_counts,
-                     const std::vector<TreeNode>& ref_tree)
+                     const std::vector<uint64_t>& type_sizes,
+                     const std::vector<std::vector<GCRefEdge>>& adjacency,
+                     const std::vector<uint32_t>& roots)
 {
-    std::string json = serialize_snapshot_json(
-      gen_stats, delta_stats, gc_enabled, thresholds, garbage_count, type_table, type_counts, ref_tree);
+    std::string json = serialize_snapshot_json(gen_stats,
+                                               delta_stats,
+                                               gc_enabled,
+                                               thresholds,
+                                               garbage_count,
+                                               type_table,
+                                               type_counts,
+                                               type_sizes,
+                                               adjacency,
+                                               roots);
 
     std::lock_guard<std::mutex> lock(_mutex);
     _latest_json = std::move(json);

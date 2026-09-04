@@ -37,25 +37,6 @@ json_escape(const std::string& s)
     return out;
 }
 
-// Serialize a single TreeNode (non-root) recursively into the stream.
-void
-serialize_node(std::ostringstream& out, const TreeNode& node, int indent)
-{
-    std::string pad(static_cast<size_t>(indent * 2), ' ');
-    out << pad << "{\"t\":" << node.type_idx << ",\"ic\":" << node.ic << ",\"ts\":" << node.ts;
-    if (!node.children.empty()) {
-        out << ",\"ch\":[";
-        for (size_t i = 0; i < node.children.size(); ++i) {
-            if (i > 0) {
-                out << ",";
-            }
-            serialize_node(out, node.children[i], indent + 1);
-        }
-        out << "]";
-    }
-    out << "}";
-}
-
 } // anonymous namespace
 
 std::string
@@ -66,14 +47,16 @@ serialize_snapshot_json(const std::array<GCGenStats, 3>& gen_stats,
                         int garbage_count,
                         const std::vector<std::string>& type_table,
                         const std::vector<uint32_t>& type_counts,
-                        const std::vector<TreeNode>& ref_tree)
+                        const std::vector<uint64_t>& type_sizes,
+                        const std::vector<std::vector<GCRefEdge>>& adjacency,
+                        const std::vector<uint32_t>& roots)
 {
     auto now = std::chrono::system_clock::now();
     auto ts_ns =
       static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count());
 
     std::ostringstream out;
-    out << "{\"v\":1"
+    out << "{\"v\":2"
         << ",\"ts_ns\":" << ts_ns;
 
     // gc block
@@ -118,20 +101,60 @@ serialize_snapshot_json(const std::array<GCGenStats, 3>& gen_stats,
     }
     out << "]";
 
-    // reference tree (type -> type "holds a reference to" graph). Each node is
-    // {"t":type_idx,"ic":refs,"ts":bytes,"ch":[...]} -- see serialize_node. A
-    // root node's ic/ts are the type's live instance count and total shallow
-    // size; a child node's ic/ts are the number of references from the parent
-    // type to the child type and the bytes they retain (each held object's own
-    // shallow size plus the generic-container scaffold it owns).
-    out << ",\"rt\":[";
-    for (size_t i = 0; i < ref_tree.size(); ++i) {
-        if (i > 0) {
-            out << ",";
+    // First-order type reference graph. Only present when referrers are enabled
+    // (i.e. roots is non-empty). Consumers reconstruct any tree they want from
+    // it; nothing is unrolled natively.
+    if (!roots.empty()) {
+        // per-type total shallow bytes (parallel array to "tt")
+        out << ",\"tsz\":[";
+        for (size_t i = 0; i < type_sizes.size(); ++i) {
+            if (i > 0) {
+                out << ",";
+            }
+            out << type_sizes[i];
         }
-        serialize_node(out, ref_tree[i], 0);
+        out << "]";
+
+        // adjacency: holder type index -> list of [held_idx, ic, ts] edges.
+        // A holder's ic/ts as a *root* come from tc/tsz; the ic/ts on each edge
+        // are the held instance count reached from the holder type and the
+        // shallow bytes they retain (each held object's own shallow size plus
+        // the generic-container scaffold it owns). Holders with no edges are
+        // omitted.
+        out << ",\"g\":{";
+        bool first_holder = true;
+        for (size_t h = 0; h < adjacency.size(); ++h) {
+            const auto& edges = adjacency[h];
+            if (edges.empty()) {
+                continue;
+            }
+            if (!first_holder) {
+                out << ",";
+            }
+            first_holder = false;
+            out << "\"" << h << "\":[";
+            for (size_t e = 0; e < edges.size(); ++e) {
+                if (e > 0) {
+                    out << ",";
+                }
+                out << "[" << edges[e].held_idx << "," << edges[e].ic << "," << edges[e].ts << "]";
+            }
+            out << "]";
+        }
+        out << "}";
+
+        // ordered reconstruction roots (type indices, heaviest retained first)
+        out << ",\"roots\":[";
+        for (size_t i = 0; i < roots.size(); ++i) {
+            if (i > 0) {
+                out << ",";
+            }
+            out << roots[i];
+        }
+        out << "]";
     }
-    out << "]}";
+
+    out << "}";
 
     return out.str();
 }

@@ -58,6 +58,8 @@ from typing import Any
 from typing import Optional
 from typing import Sequence
 
+import gc_stats_graph
+
 
 CATEGORY_NAMES: dict[str, str] = {
     "K": "Stack (live frame)",
@@ -642,6 +644,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    # Schema v2 emits the first-order reference graph instead of a materialized
+    # tree; reconstruct an index-typed rt so the rest of the report is unchanged.
+    if gc_stats_graph.is_graph_format(data):
+        recon_depth = max(gc_stats_graph.DEFAULT_MAX_DEPTH, args.ref_depth + 1)
+        data["rt"] = gc_stats_graph.reconstruct_indexed_forest(data, max_depth=recon_depth)
 
     report = Report(data)
     text = report.build(
