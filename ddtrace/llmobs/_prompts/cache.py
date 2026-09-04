@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
-from threading import RLock
 from time import time
 from typing import Any
 from typing import Optional
@@ -12,6 +11,7 @@ from typing import Union
 from urllib.parse import quote
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_MAXSIZE
 from ddtrace.llmobs._constants import DEFAULT_PROMPTS_CACHE_TTL
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt

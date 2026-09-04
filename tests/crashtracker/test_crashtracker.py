@@ -1069,3 +1069,65 @@ def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
         # The exception is defined in __main__
         assert "__main__.CustomError" in error_str
         assert "crashtracker_unhandled_test_message" in error_str
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
+def test_crashtracker_uploads_to_the_intake_when_agentless():
+    """Crash reports ride the telemetry intake, so agentless has to supply a key with the URL.
+
+    libdatadog only resolves the direct intake path over the agent's telemetry proxy path when the
+    endpoint carries an API key *and* the receiver has direct submission enabled.
+    """
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    captured = {}
+
+    def fake_config(*args, **kwargs):
+        captured["endpoint"] = args[7]
+        captured["api_key"] = args[10] if len(args) > 10 else kwargs.get("api_key")
+        return mock.MagicMock()
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerConfiguration", fake_config),
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+    ):
+        crashtracking._get_args({})
+
+    assert captured["endpoint"] == "https://instrumentation-telemetry-intake.datadoghq.com/"
+    assert captured["api_key"] == "foobarkey"
+    assert captured["receiver_env"]["_DD_DIRECT_SUBMISSION_ENABLED"] == "true"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey"})
+def test_crashtracker_uploads_to_the_agent_without_agentless():
+    """An API key alone must not divert crash reports away from the agent."""
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    captured = {}
+
+    def fake_config(*args, **kwargs):
+        captured["endpoint"] = args[7]
+        captured["api_key"] = args[10] if len(args) > 10 else kwargs.get("api_key")
+        return mock.MagicMock()
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerConfiguration", fake_config),
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+    ):
+        crashtracking._get_args({})
+
+    assert "intake" not in captured["endpoint"]
+    assert captured["api_key"] is None
+    assert "_DD_DIRECT_SUBMISSION_ENABLED" not in captured["receiver_env"]

@@ -7,11 +7,13 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db as dbx
 from ddtrace.ext import net
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
@@ -24,6 +26,18 @@ from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
+
+
+def _dispatch_query_event(patch_routine, args, kwargs):
+    if patch_routine == "execute":
+        query = get_argument_value(args, kwargs, 0, "operation")
+    elif patch_routine == "copy":
+        query = get_argument_value(args, kwargs, 0, "sql")
+    else:
+        return
+
+    if isinstance(query, str):
+        core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="vertica"))
 
 
 _PATCHED = False
@@ -218,6 +232,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
         else:
             conf = _find_routine_config(config, instance, patch_routine)
 
+        _dispatch_query_event(patch_routine, args, kwargs)
         enabled = conf.get("trace_enabled", True)
 
         span = None

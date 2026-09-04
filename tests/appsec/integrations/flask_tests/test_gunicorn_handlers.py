@@ -7,14 +7,11 @@ from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_flask_server
 
 
-_PORT = 8030
-
-
 @pytest.mark.parametrize("appsec_enabled", ("true", "false"))
 @pytest.mark.parametrize("apm_tracing_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_flask_server, flask_server)))
-def test_when_appsec_reads_chunked_requests(appsec_enabled, apm_tracing_enabled, tracer_enabled, server):
+def test_when_appsec_reads_chunked_requests(appsec_enabled, apm_tracing_enabled, tracer_enabled, server, free_port):
     def read_in_chunks(filepath, chunk_size=1024):
         file_object = open(filepath, "rb")
         while True:
@@ -35,7 +32,7 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, apm_tracing_enabled,
             apm_tracing_enabled=apm_tracing_enabled,
             remote_configuration_enabled="false",
             token=None,
-            port=_PORT,
+            port=free_port,
         ) as context:
             _, gunicorn_client, pid = context
             headers = {
@@ -57,7 +54,11 @@ def test_when_appsec_reads_chunked_requests(appsec_enabled, apm_tracing_enabled,
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_flask_server, flask_server)))
 def test_corner_case_when_appsec_reads_chunked_request_with_no_body(
-    appsec_enabled, apm_tracing_enabled, tracer_enabled, server
+    appsec_enabled,
+    apm_tracing_enabled,
+    tracer_enabled,
+    server,
+    free_port,
 ):
     """if Gunicorn receives an empty body but Transfer-Encoding is "chunked", the application hangs but gunicorn
     control it with a timeout
@@ -69,7 +70,7 @@ def test_corner_case_when_appsec_reads_chunked_request_with_no_body(
             apm_tracing_enabled=apm_tracing_enabled,
             remote_configuration_enabled="false",
             token=None,
-            port=_PORT,
+            port=free_port,
         ) as context:
             _, gunicorn_client, pid = context
             headers = {
@@ -83,7 +84,7 @@ def test_corner_case_when_appsec_reads_chunked_request_with_no_body(
 @pytest.mark.parametrize("apm_tracing_enabled", ("true", "false"))
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_flask_server, flask_server)))
-def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, apm_tracing_enabled, tracer_enabled, server):
+def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, apm_tracing_enabled, tracer_enabled, server, free_port):
     """A bug was detected when running a Flask application locally
 
     file1.py:
@@ -102,7 +103,7 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, apm_tracing_enable
         tracer_enabled=tracer_enabled,
         remote_configuration_enabled="false",
         token=None,
-        port=_PORT,
+        port=free_port,
     ) as context:
         _, gunicorn_client, pid = context
 
@@ -123,7 +124,11 @@ def test_when_appsec_reads_empty_body_no_hang(appsec_enabled, apm_tracing_enable
 @pytest.mark.parametrize("tracer_enabled", ("true", "false"))
 @pytest.mark.parametrize("server", ((gunicorn_flask_server,)))
 def test_when_appsec_reads_empty_body_and_content_length_no_hang(
-    appsec_enabled, apm_tracing_enabled, tracer_enabled, server
+    appsec_enabled,
+    apm_tracing_enabled,
+    tracer_enabled,
+    server,
+    free_port,
 ):
     """We test Gunicorn, Flask server hangs forever in all cases"""
     with server(
@@ -132,7 +137,7 @@ def test_when_appsec_reads_empty_body_and_content_length_no_hang(
         tracer_enabled=tracer_enabled,
         remote_configuration_enabled="false",
         token=None,
-        port=_PORT,
+        port=free_port,
     ) as context:
         _, gunicorn_client, pid = context
 

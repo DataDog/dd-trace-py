@@ -7,14 +7,12 @@ from importlib.util import spec_from_loader
 from pathlib import Path
 import sys
 from types import CodeType
-from types import FunctionType
 from types import ModuleType
 import typing as t
 from weakref import WeakValueDictionary as wvdict
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.wrapping.context import WrappingContext
 
 
 if t.TYPE_CHECKING:
@@ -792,65 +790,3 @@ class ModuleWatchdog(BaseModuleWatchdog):
 
         instance = t.cast(ModuleWatchdog, cls._instance)
         instance._import_exception_hooks.add((cond, hook))
-
-
-class LazyWrappingContext(WrappingContext):
-    def __return__(self, value: t.Any) -> t.Any:
-        # Update the global (i.e. the module) scope with the local scope of the
-        # wrapped function.
-        self.__frame__.f_globals.update(self.__frame__.f_locals)
-
-        return super().__return__(value)
-
-
-def _exec_lazy_init(f: FunctionType, module_globals: dict[str, t.Any]) -> None:
-    """Run a @lazy initializer body in module scope without bytecode wrapping."""
-    fn = FunctionType(f.__code__, module_globals, f.__name__, f.__defaults__, f.__closure__)
-    frame_locals: dict[str, t.Any] = {}
-    code = fn.__code__
-
-    old_trace = sys.gettrace()
-
-    def _trace(frame, event, arg):
-        if frame.f_code is code and event in ("line", "return"):
-            # Materialize a snapshot (PEP 667) so locals survive under pytest/coverage.
-            frame_locals.update(dict(frame.f_locals))
-        # Do not forward to old_trace here: pytest/coverage often reinstall their
-        # own tracer on "call" and would prevent us from seeing the return event.
-        return _trace
-
-    sys.settrace(_trace)
-    try:
-        fn()
-    finally:
-        sys.settrace(old_trace)
-
-    module_globals.update(frame_locals)
-
-
-def lazy(f: t.Callable[[], None]) -> None:
-    from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
-    from ddtrace.internal.compat import PYTHON_VERSION_INFO
-
-    _globals = sys._getframe(1).f_globals
-    _initialized = False
-
-    if PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO:
-        LazyWrappingContext(t.cast(FunctionType, f)).wrap()
-
-    def __getattr__(name: str) -> t.Any:
-        nonlocal _initialized
-        if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
-            if not _initialized:
-                _exec_lazy_init(t.cast(FunctionType, f), _globals)
-                _initialized = True
-        else:
-            f()
-        try:
-            return _globals[name]
-        except KeyError:
-            h = AttributeError(f"module {_globals['__name__']!r} has no attribute {name!r}")
-            h.__suppress_context__ = True
-            raise h
-
-    _globals["__getattr__"] = __getattr__
