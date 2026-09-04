@@ -65,7 +65,7 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
         sys.version.split()[0],
     )
 
-# AIDEV-NOTE: Accurate import-hook injection (_DD_COVERAGE_ACCURATE_IMPORTS) is intentionally NOT
+# Accurate import-hook injection (_DD_COVERAGE_ACCURATE_IMPORTS) is intentionally NOT
 # supported on Python 3.15+. It works by splicing a `hook(arg); pop_top` call immediately after each
 # IMPORT_NAME/IMPORT_FROM opcode (see import_instrumentation_py3_12.inject_import_hooks) so the hook
 # fires only when an import actually executes — failed imports and runtime-false guarded imports are
