@@ -205,7 +205,8 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
 
 
 def _worker_perform_job_owner(rq):
-
+    """Return the class that actually defines Worker.perform_job.
+    """
     return next(
         (c for c in rq.worker.Worker.__mro__ if "perform_job" in vars(c)),
         rq.worker.Worker,
