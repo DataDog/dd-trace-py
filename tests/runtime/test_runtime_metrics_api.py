@@ -215,20 +215,22 @@ def test_runtime_metrics_experimental_runtime_tag():
     worker_instance = RuntimeWorker._instance
     assert worker_instance.status == ServiceStatus.RUNNING
 
-    worker_instance._runtime_metrics._collectors = ()
-    worker_instance.flush()
-    tags = worker_instance._dogstatsd_client.constant_tags
     runtime_id_tag = f"runtime-id:{get_runtime_id()}"
+    # runtime-id is resolved on each flush rather than snapshotted into _platform_tags, so a
+    # forked child reports its own id. Check the tags a flush actually sends.
+    assert runtime_id_tag not in worker_instance._platform_tags, worker_instance._platform_tags
+    worker_instance.flush()
+    sent_tags = worker_instance._dogstatsd_client.constant_tags
     if (
         os.environ["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "true"
         or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "true"
     ):
-        assert runtime_id_tag in tags, tags
+        assert runtime_id_tag in sent_tags, sent_tags
     elif (
         os.environ["DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"] == "false"
         or os.environ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"] == "false"
     ):
-        assert runtime_id_tag not in tags, tags
+        assert runtime_id_tag not in sent_tags, sent_tags
     else:
         raise pytest.fail(
             "Invalid value for DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED or DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED"
