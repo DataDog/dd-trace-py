@@ -1,5 +1,7 @@
+import importlib.util
 import os
 import shutil
+import subprocess
 import sys
 import warnings
 
@@ -984,6 +986,46 @@ def test_crashtracker_no_zombies():
                     time.sleep(0.01)  # Avoid busy-wait when no child exited
             except ChildProcessError:
                 break
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_receiver_pythonpath_isolation(monkeypatch):
+    from ddtrace.internal.core import crashtracking
+
+    receiver_spec = importlib.util.find_spec("ddtrace.commands._dd_crashtracker_receiver")
+    assert receiver_spec is not None
+    assert receiver_spec.origin is not None
+    ddtrace_package_dir = os.path.dirname(os.path.dirname(receiver_spec.origin))
+    bootstrap_dir = os.path.join(ddtrace_package_dir, "bootstrap")
+    injected_site_packages = os.path.dirname(ddtrace_package_dir)
+    pythonpath = [bootstrap_dir, injected_site_packages]
+    pythonpath.extend(os.environ.get("PYTHONPATH", "").split(os.pathsep))
+    monkeypatch.setenv("PYTHONPATH", os.pathsep.join(pythonpath))
+
+    receiver_args = None
+    receiver_env = None
+
+    def capture_receiver_config(args, env, *_args):
+        nonlocal receiver_args, receiver_env
+        receiver_args = args
+        receiver_env = env
+
+    monkeypatch.setattr(crashtracking, "CrashtrackerReceiverConfig", capture_receiver_config)
+    crashtracking._get_args(None)
+
+    assert receiver_args is not None
+    assert receiver_env is not None
+    result = subprocess.run(
+        [
+            receiver_args[0],
+            "-c",
+            "import sys; import ddtrace.internal.native._native; assert 'ddtrace.bootstrap.preload' not in sys.modules",
+        ],
+        env=receiver_env,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")

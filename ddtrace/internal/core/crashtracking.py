@@ -1,5 +1,6 @@
 # pyright: reportPossiblyUnboundVariable=false
 import importlib.util
+import os
 import platform
 import sys
 import traceback
@@ -181,6 +182,9 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     for env_var in inherited_env_vars:
         env_value = env.get(env_var)
         if env_value is not None:
+            if env_var == "PYTHONPATH":
+                bootstrap_dir = os.path.join(os.path.dirname(os.path.dirname(receiver_script_path)), "bootstrap")
+                env_value = os.pathsep.join(entry for entry in env_value.split(os.pathsep) if entry != bootstrap_dir)
             receiver_env[env_var] = env_value
 
     # This is equivalent to: python /path/to/_dd_crashtracker_receiver.py
