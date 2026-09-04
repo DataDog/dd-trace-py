@@ -19,6 +19,7 @@ from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
@@ -955,12 +956,24 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             old_exporter.shutdown(3_000_000_000)
         except Exception:
             _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+        except BaseException as e:
+            # The native exporter's tokio I/O driver can panic here after a
+            # fork. The exporter is being discarded either way, so treat that
+            # specific panic as non-fatal too; anything else still propagates.
+            if not is_panic_exception(e):
+                raise
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
     def shutdown_exporter(self) -> None:
         """Tear down the native exporter without going through ``stop()``."""
         try:
             self._exporter.shutdown(3_000_000_000)
         except Exception:
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+        except BaseException as e:
+            # See the comment in set_test_session_token above.
+            if not is_panic_exception(e):
+                raise
             _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 
     def recreate(
