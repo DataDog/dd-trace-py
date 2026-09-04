@@ -51,9 +51,7 @@ def _decoded_arg_for_history(instr: Instr) -> t.Any:
 
 def _decoded_import_name(value: t.Any) -> str:
     # TODO(py-315): bytecode 0.19 decodes Python 3.15 IMPORT_NAME args to (lazy, eager, name).
-    if isinstance(value, tuple) and len(value) == 3:
-        return t.cast(str, value[2])
-    return t.cast(str, value)
+        return t.cast(str, value[2]) if isinstance(value, tuple) and len(value) == 3 else t.cast(str, value)
 
 
 def iter_import_events(
