@@ -1629,13 +1629,31 @@ def _make_obj_domain_objects(count: int) -> object:
     return last
 
 
-def test_allocator_domain_label_obj_when_mem_domain_disabled(tmp_path: Path) -> None:
+# Subprocess: this test's assertion depends on PYMEM_DOMAIN_MEM never having
+# been installed by ANY earlier test in the process (it asserts the domain
+# label set is exactly {"obj"}, not a subset). Several other tests in this
+# file legitimately enable mem_domain, and pytest-randomly does not guarantee
+# this test runs before them, so it must run in its own process to avoid
+# being polluted by test order.
+@pytest.mark.subprocess()
+def test_allocator_domain_label_obj_when_mem_domain_disabled() -> None:
     """With mem_domain off, every allocation sample is still labelled, and always with "obj".
 
     Labelling is unconditional so that A/B runs (mem_domain off vs on) can be
     compared by filtering on the same label rather than on its absence.
     """
-    output_filename: str = _setup_profiling_prelude(tmp_path, "test_allocator_domain_obj_only")
+    from pathlib import Path
+    import tempfile
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import memalloc
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_memalloc import ALLOCATOR_DOMAIN_KEY
+    from tests.profiling.collector.test_memalloc import ALLOCATOR_DOMAIN_OBJ
+    from tests.profiling.collector.test_memalloc import _make_obj_domain_objects
+    from tests.profiling.collector.test_memalloc import _setup_profiling_prelude
+
+    output_filename: str = _setup_profiling_prelude(Path(tempfile.mkdtemp()), "test_allocator_domain_obj_only")
 
     mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=1024, mem_domain_enabled=False)
     obj: object

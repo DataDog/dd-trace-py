@@ -226,6 +226,21 @@ def test_set_default_attributes_preserves_value_set_during_coercion():
     assert span.get_tag("reentrant") == "set-during-coercion"
 
 
+def test_update_tags_from_context_excludes_w3c_propagation_state():
+    span = Span(name="test.span")
+    traceparent = "00-00000000000000000000000000000001-0000000000000001-02"
+    tracestate = "ot=rv:1234567890abcd;th:8"
+    span.context._meta.update({"context.tag": "value", "traceparent": traceparent, "tracestate": tracestate})
+
+    span._update_tags_from_context()
+
+    assert span.get_tag("context.tag") == "value"
+    assert span.get_tag("traceparent") is None
+    assert span.get_tag("tracestate") is None
+    assert span.context._meta["traceparent"] == traceparent
+    assert span.context._meta["tracestate"] == tracestate
+
+
 @mock.patch("ddtrace._trace.span.log")
 def test_numeric_tags_none(span_log):
     s = Span(name="test.span")

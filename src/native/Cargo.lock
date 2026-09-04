@@ -2217,6 +2217,8 @@ dependencies = [
  "serde_json",
  "thin-vec",
  "tracing",
+ "zrip",
+ "zstd",
 ]
 
 [[package]]
