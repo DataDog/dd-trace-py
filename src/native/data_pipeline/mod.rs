@@ -223,6 +223,14 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
+    fn set_restart_after_fork(
+        mut slf: PyRefMut<'_, Self>,
+        restart_after_fork: bool,
+    ) -> PyResult<Py<Self>> {
+        slf.try_as_mut()?.set_restart_after_fork(restart_after_fork);
+        Ok(slf.into())
+    }
+
     /// Consumes the wrapped builder, requires a shared runtime to be passed to spawn async tasks.
     ///
     /// The builder shouldn't be reused.
@@ -230,7 +238,7 @@ impl TraceExporterBuilderPy {
     /// `set_shared_runtime` must be specified on the worker to avoid the trace exporter creating
     /// one without registering the fork hooks.
     fn build(&mut self, shared_runtime: PyRef<'_, SharedRuntimePy>) -> PyResult<TraceExporterPy> {
-        let shared_runtime = shared_runtime.as_arc().clone();
+        let shared_runtime = shared_runtime.as_arc()?;
         self.try_as_mut()?.set_shared_runtime(shared_runtime);
         let exporter = TraceExporterPy {
             inner: Some(
@@ -286,12 +294,11 @@ impl TraceExporterPy {
         &self,
         worker: Option<PyRef<'_, crate::telemetry::TelemetryWorkerPy>>,
     ) -> PyResult<()> {
-        self.inner
-            .as_ref()
-            .ok_or(PyValueError::new_err(
-                "TraceExporter has already been consumed",
-            ))?
-            .set_telemetry_handle(worker.map(|w| w.clone_handle()));
+        let exporter = self.inner.as_ref().ok_or(PyValueError::new_err(
+            "TraceExporter has already been consumed",
+        ))?;
+        let telemetry_handle = worker.map(|worker| worker.clone_handle()).transpose()?;
+        exporter.set_telemetry_handle(telemetry_handle);
         Ok(())
     }
 
