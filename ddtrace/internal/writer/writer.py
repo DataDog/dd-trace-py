@@ -32,6 +32,7 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.settings._opentelemetry import _targets_agentless_intake
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import _human_size
@@ -1294,7 +1295,7 @@ def _resolve_otlp_metrics_endpoint() -> Optional[str]:
 
 
 def _resolve_agentless_stats_endpoint() -> Optional[str]:
-    if not config._trace_compute_stats or asm_config._apm_opt_out:
+    if not config._trace_compute_stats or standalone_config.apm_opt_out:
         return None
     return compute_agentless_stats_url(config._dd_site.lower())
 
@@ -1335,9 +1336,9 @@ def create_trace_writer(
             sync_mode=_use_sync_mode(),
             compute_stats_enabled=config._trace_compute_stats,
             client_side_stats_obfuscation=config._client_side_stats_obfuscation,
-            report_metrics=not asm_config._apm_opt_out,
+            report_metrics=not standalone_config.apm_opt_out,
             response_callback=response_callback,
-            stats_opt_out=asm_config._apm_opt_out,
+            stats_opt_out=standalone_config.apm_opt_out,
             # There is deliberately no otlp_endpoint: libdatadog rejects OTLP trace export
             # combined with agentless. OTLP trace metrics are permitted, and go to the intake.
             otlp_metrics_endpoint=otlp_metrics_endpoint,
@@ -1352,9 +1353,9 @@ def create_trace_writer(
         sync_mode=_use_sync_mode(),
         compute_stats_enabled=config._trace_compute_stats,
         client_side_stats_obfuscation=config._client_side_stats_obfuscation,
-        report_metrics=not asm_config._apm_opt_out,
+        report_metrics=not standalone_config.apm_opt_out,
         response_callback=response_callback,
-        stats_opt_out=asm_config._apm_opt_out,
+        stats_opt_out=standalone_config.apm_opt_out,
         otlp_endpoint=otlp_endpoint,
         otlp_metrics_endpoint=otlp_metrics_endpoint,
     )
