@@ -315,9 +315,11 @@ ddtrace/internal/remoteconfig       @DataDog/remote-config @DataDog/apm-core-pyt
 tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-python
 
 # Feature Flags
+benchmarks/openfeature_flagevaluation/       @DataDog/feature-flagging-and-experimentation-sdk @DataDog/apm-core-python
 ddtrace/openfeature/                      @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/internal/openfeature/             @DataDog/feature-flagging-and-experimentation-sdk
 ddtrace/internal/settings/openfeature.py  @DataDog/feature-flagging-and-experimentation-sdk
+src/native/ffe.rs                         @DataDog/feature-flagging-and-experimentation-sdk @DataDog/apm-core-python
 tests/openfeature/                        @DataDog/feature-flagging-and-experimentation-sdk
 
 # API SDK
