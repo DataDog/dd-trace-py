@@ -4,8 +4,10 @@ import sys
 import unittest
 
 import botocore
+import botocore.exceptions
 import botocore.session
 import mock
+from moto import mock_events
 from moto import mock_kinesis
 from moto import mock_sns
 from moto import mock_sqs
@@ -60,7 +62,7 @@ class BotocoreDSMTest(TracerTestCase):
         super(BotocoreDSMTest, self).tearDown()
 
         unpatch()
-        self.sqs_client.delete_queue(QueueUrl=self.queue_name)
+        self.sqs_client.delete_queue(QueueUrl=self.sqs_test_queue["QueueUrl"])
 
     def _kinesis_create_stream(self, client, stream_name):
         client.create_stream(StreamName=stream_name, ShardCount=1)
@@ -96,6 +98,19 @@ class BotocoreDSMTest(TracerTestCase):
         assert stats.full_pathway_latency.count >= min_latency_count
         assert stats.edge_latency.count >= min_latency_count
         assert stats.payload_size.count == payload_count
+
+    def _delete_eventbridge_resources(self, bridge, event_bus_name, rule_name, target_id):
+        # Targets and rules must be removed before the bus can be deleted. Ignore
+        # errors so this is safe both as pre-test cleanup and post-test teardown.
+        for cleanup_fn in [
+            lambda: bridge.remove_targets(Rule=rule_name, EventBusName=event_bus_name, Ids=[target_id]),
+            lambda: bridge.delete_rule(Name=rule_name, EventBusName=event_bus_name, Force=True),
+            lambda: bridge.delete_event_bus(Name=event_bus_name),
+        ]:
+            try:
+                cleanup_fn()
+            except botocore.exceptions.ClientError:
+                pass
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
     def test_data_streams_sns_to_sqs(self):
@@ -300,6 +315,68 @@ class BotocoreDSMTest(TracerTestCase):
             _in_hash, in_parent_hash, in_stats = self._entry_for_tags(first, in_tags, expected_parent_hash=out_hash)
             assert in_parent_hash == out_hash
             self._assert_dsm_counts(in_stats, min_latency_count=3, payload_count=3)
+
+    @mock_events
+    @mock_sqs
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))
+    def test_data_streams_eventbridge(self):
+        with mock.patch("time.time") as mt:
+            mt.return_value = 1642544540
+
+            event_bus_name = "a-test-bus-dsm"
+            rule_name = "a-test-bus-dsm-rule"
+            target_id = "%s-target" % rule_name
+            bridge = self.session.create_client("events", region_name="us-east-1", endpoint_url="http://localhost:4566")
+
+            # Guard against a leaked bus from a prior run/retry sharing the same backend.
+            self._delete_eventbridge_resources(bridge, event_bus_name, rule_name, target_id)
+            bridge.create_event_bus(Name=event_bus_name)
+
+            try:
+                entries = [
+                    {
+                        "Source": "some-event-source",
+                        "DetailType": "some-event-detail-type",
+                        "Detail": json.dumps({"foo": "bar"}),
+                        "EventBusName": event_bus_name,
+                    }
+                ]
+                bridge.put_rule(
+                    Name=rule_name,
+                    EventBusName=event_bus_name,
+                    EventPattern="""{"source": [{"prefix": ""}]}""",
+                    State="ENABLED",
+                )
+
+                queue_url = self.sqs_test_queue["QueueUrl"]
+                bridge.put_targets(
+                    Rule=rule_name,
+                    EventBusName=event_bus_name,
+                    Targets=[{"Id": target_id, "Arn": "arn:aws:sqs:us-east-1:000000000000:Test"}],
+                )
+
+                bridge.put_events(Entries=entries)
+
+                messages = self.sqs_client.receive_message(QueueUrl=queue_url, WaitTimeSeconds=2)
+                body = messages["Messages"][0]["Body"]
+                body_obj = json.loads(body)
+                headers = body_obj["detail"]["_datadog"]
+
+                assert PROPAGATION_KEY_BASE_64 in headers
+
+                processor = data_streams_processor()
+                assert processor is not None, "Datastream Monitoring is not enabled"
+                stats = pathway_stats_merged(processor)
+                out_tags = "direction:out,exchange:%s,topic:%s,type:eventbridge" % (
+                    event_bus_name,
+                    entries[0]["DetailType"],
+                )
+
+                out_hash, out_parent_hash, out_stats = self._entry_for_tags(stats, out_tags, expected_parent_hash=0)
+                assert out_parent_hash == 0
+                self._assert_dsm_counts(out_stats, min_latency_count=1, payload_count=1)
+            finally:
+                self._delete_eventbridge_resources(bridge, event_bus_name, rule_name, target_id)
 
     @mock_sqs
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_DATA_STREAMS_ENABLED="True"))

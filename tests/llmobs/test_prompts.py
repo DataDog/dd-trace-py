@@ -480,9 +480,9 @@ class TestPrompts:
         manager = PromptManager(api_key="test-key", base_url="https://api.datadoghq.com", file_cache_enabled=False)
 
         class ImmediateThread:
-            def __init__(self, target=None, daemon=None):
+            def __init__(self, target=None, name=None):
                 self._target = target
-                self.daemon = daemon
+                self.name = name
 
             def start(self):
                 if self._target is not None:
@@ -493,7 +493,7 @@ class TestPrompts:
 
         spec = _PromptRequest(prompt_id="greeting", label="production")
         with patch.object(manager, "_background_refresh", return_value=None) as refresh_mock:
-            with patch("ddtrace.llmobs._prompts.manager.threading.Thread", ImmediateThread):
+            with patch("ddtrace.llmobs._prompts.manager.Thread", ImmediateThread):
                 manager._trigger_background_refresh(spec)
                 assert spec.key not in manager._refresh_threads
                 manager._trigger_background_refresh(spec)

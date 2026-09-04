@@ -12,7 +12,9 @@ from ddtrace.appsec._remoteconfiguration import AppSecCallback
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
+from ddtrace.contrib._events.subprocess import SubprocessCommandEvent
 from ddtrace.contrib.internal.trace_utils import set_http_meta
+from ddtrace.internal import core
 from ddtrace.internal.appsec.product import _disable_asm
 from ddtrace.internal.appsec.product import _enable_asm
 from ddtrace.internal.native import RemoteConfigProduct
@@ -102,20 +104,26 @@ def test_rc_enabled_by_default(tracer):
 
 
 def test_rc_activate_is_active_and_get_processor_tags(tracer, rc_poller, appsec_callback):
-    with override_global_config(dict(_remote_config_enabled=True)):
-        rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
-        appsec_callback([rc_config])
+    with override_global_config(dict(_remote_config_enabled=True, _ep_enabled=True)):
+        assert not core.has_listeners(SubprocessCommandEvent.event_name)
+
+        enable_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
+        appsec_callback([enable_config])
         assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
-        rc_config = build_payload("ASM_FEATURES", None, "config")
-        appsec_callback([rc_config])
+        assert core.has_listeners(SubprocessCommandEvent.event_name)
+
+        disable_config = build_payload("ASM_FEATURES", None, "config")
+        appsec_callback([disable_config])
         result = _set_and_get_appsec_tags(tracer)
         assert result is None
         assert AppSecSpanProcessor._instance is None
-        rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
-        appsec_callback([rc_config])
+        assert not core.has_listeners(SubprocessCommandEvent.event_name)
+
+        appsec_callback([enable_config])
         assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
+        assert core.has_listeners(SubprocessCommandEvent.event_name)
 
 
 @pytest.mark.parametrize(
