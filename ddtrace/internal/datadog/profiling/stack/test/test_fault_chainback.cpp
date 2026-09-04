@@ -6,6 +6,7 @@
 #include <csetjmp>
 #include <csignal>
 #include <cstdint>
+#include <pthread.h>
 #include <sys/mman.h>
 #include <thread>
 #include <unistd.h>
@@ -148,7 +149,8 @@ TEST(FaultChainback, CedesUnarmedFaultWithOriginalSiginfo)
     EXPECT_GT(report.si_code, 0) << "si_code " << report.si_code << " is not a kernel-generated fault";
     EXPECT_EQ(report.fault_addr, outcome.page) << "si_addr did not survive the handoff to the host";
 
-    // After cede, segv_handler_installed() is false and the host handler is restored on top.
+    // Cedes only the faulting signal back to the host. segv_handler_installed() requires
+    // owning both SIGSEGV and SIGBUS, so it must read false even when we still hold the other.
     EXPECT_TRUE(host_handler_owns(delivered)) << "the profiler did not hand the signal back to the host";
     EXPECT_FALSE(segv_handler_installed()) << "the profiler still claims to own both fault signals";
 
@@ -192,4 +194,49 @@ TEST(FaultChainback, SafeMemcpyStillRecoversArmedFault)
     EXPECT_TRUE(segv_handler_installed());
 
     munmap(page, kGuardedPageSize);
+}
+
+// Injected signals have si_code <= 0 and must be re-delivered explicitly after cede;
+// returning would swallow them because no faulting instruction re-executes.
+TEST(FaultChainback, RedeliversInjectedSignalToHost)
+{
+    HostFaultReport report;
+
+    ASSERT_EQ(install_host_handler(SIGSEGV), 0);
+    ASSERT_EQ(install_host_handler(SIGBUS), 0);
+    ASSERT_EQ(init_segv_catcher(), 0);
+    ASSERT_TRUE(segv_handler_installed());
+
+    t_host_report = &report;
+    if (sigsetjmp(t_host_jmpenv, /* save sig mask = */ 1) == 0) {
+        ASSERT_EQ(pthread_kill(pthread_self(), SIGSEGV), 0);
+        FAIL() << "pthread_kill did not reach the host handler";
+    }
+    t_host_report = nullptr;
+
+    ASSERT_TRUE(report.ran) << "the host handler never received the injected signal";
+    EXPECT_EQ(report.signo, SIGSEGV);
+    EXPECT_LE(report.si_code, 0) << "expected an injected delivery, got si_code " << report.si_code;
+}
+
+// A saved SIG_IGN disposition must survive injected deliveries; only synchronous faults
+// upgrade it to SIG_DFL so the faulting instruction can terminate the process.
+TEST(FaultChainback, PreservesSigIgnForInjectedDelivery)
+{
+    struct sigaction ign
+    {};
+    ign.sa_handler = SIG_IGN;
+    sigemptyset(&ign.sa_mask);
+    ASSERT_EQ(sigaction(SIGSEGV, &ign, nullptr), 0);
+    ASSERT_EQ(sigaction(SIGBUS, &ign, nullptr), 0);
+
+    ASSERT_EQ(init_segv_catcher(), 0);
+    ASSERT_TRUE(segv_handler_installed());
+
+    ASSERT_EQ(pthread_kill(pthread_self(), SIGSEGV), 0);
+
+    struct sigaction current
+    {};
+    ASSERT_EQ(sigaction(SIGSEGV, nullptr, &current), 0);
+    EXPECT_EQ(current.sa_handler, reinterpret_cast<void (*)(int)>(SIG_IGN));
 }
