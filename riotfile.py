@@ -23,6 +23,7 @@ SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
+    (3, 15),
 ]
 
 
@@ -73,7 +74,10 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
-MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
+# 3.15 is listed so select_pys(max_version="3.15") can opt in. Default stays
+# 3.14 so uncapped suites do not mix 3.15 hashes into 3.9-3.14 --exitfirst jobs.
+# Wrap-heavy suites stay at the default until wrap() is live on 3.15.
+MAX_PYTHON_VERSION = "3.14"
 
 
 def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
@@ -87,6 +91,8 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     []
     >>> select_pys(min_version='3.9', max_version='3.10')
     ['3.9', '3.10']
+    >>> select_pys(max_version='3.15')
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     """
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
@@ -778,7 +784,7 @@ venv = Venv(
         Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
         ),
         Venv(
             name="ddtracerun",
