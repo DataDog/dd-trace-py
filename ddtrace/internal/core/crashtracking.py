@@ -190,13 +190,16 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
                 # poller, tracer, ..) using this stripped-down env, which is both wasteful and
                 # produces bogus traffic. Strip it so the receiver stays a plain, uninstrumented
                 # script while still finding the ddtrace package via any other PYTHONPATH entries.
+                # Empty components (e.g. PYTHONPATH=:/opt/vendor) mean the current working
+                # directory and must be kept; dropping them can make the receiver fail to
+                # import ddtrace when it is loaded from cwd rather than site-packages.
                 sitecustomize_spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
                 bootstrap_dir = (
                     os.path.dirname(sitecustomize_spec.origin)
                     if sitecustomize_spec is not None and sitecustomize_spec.origin is not None
                     else None
                 )
-                path_entries = [p for p in env_value.split(os.pathsep) if p and p != bootstrap_dir]
+                path_entries = [p for p in env_value.split(os.pathsep) if p != bootstrap_dir]
                 if not path_entries:
                     continue
                 env_value = os.pathsep.join(path_entries)

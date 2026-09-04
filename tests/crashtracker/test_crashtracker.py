@@ -1166,3 +1166,36 @@ def test_crashtracker_receiver_strips_ddtrace_run_bootstrap_from_pythonpath():
     pythonpath_entries = captured["receiver_env"]["PYTHONPATH"].split(os.pathsep)
     assert bootstrap_dir not in pythonpath_entries
     assert other_dir in pythonpath_entries
+
+
+def test_crashtracker_receiver_preserves_empty_pythonpath_components():
+    """Empty PYTHONPATH components mean cwd and must not be dropped.
+
+    PYTHONPATH=:/opt/vendor is interpreted as [cwd, /opt/vendor]. Filtering on
+    truthiness would drop that cwd entry, and if ddtrace is loaded from the
+    working directory rather than site-packages the receiver would fail to
+    import ddtrace.internal.native._native.
+    """
+    import importlib.util
+    import os
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+    other_dir = "/opt/vendor"
+
+    captured = {}
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+        mock.patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join(["", bootstrap_dir, other_dir])}),
+    ):
+        crashtracking._get_args({})
+
+    assert captured["receiver_env"]["PYTHONPATH"] == os.pathsep.join(["", other_dir])
