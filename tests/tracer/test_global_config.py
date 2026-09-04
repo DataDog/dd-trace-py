@@ -1,8 +1,10 @@
+import os
 from unittest import TestCase
 
 import pytest
 
 from ddtrace import config as global_config
+from ddtrace.internal.settings._agentless import AgentlessConfig
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings._config import _integration_default_service_names_from_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -175,3 +177,101 @@ def test_raise_property_bridges_to_native():
         assert config._raise is False
     finally:
         config._raise = original
+
+
+def test_agentless_enabled_requires_an_api_key():
+    with override_env(dict(DD_AGENTLESS_ENABLED="true"), replace_os_env=True):
+        with pytest.raises(ValueError, match="DD_API_KEY"):
+            AgentlessConfig()
+
+
+def test_agentless_enabled_requires_an_api_key_at_import(run_python_code_in_subprocess):
+    """The api key check has to fail the process, not just AgentlessConfig()."""
+    env = os.environ.copy()
+    env["DD_AGENTLESS_ENABLED"] = "true"
+    env.pop("DD_API_KEY", None)
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
+
+    assert status != 0
+    assert b"DD_AGENTLESS_ENABLED is set but DD_API_KEY is not" in stderr
+
+
+def test_agentless_enabled_is_the_default_for_every_product():
+    with override_env(dict(DD_AGENTLESS_ENABLED="true", DD_API_KEY="foobar"), replace_os_env=True):
+        c = AgentlessConfig()
+
+    assert c.enabled is True
+    assert c.apm_tracing is True
+    assert c.llmobs is True
+    assert c.ci_visibility is True
+    assert c.any_enabled is True
+
+
+def test_agentless_disabled_by_default():
+    with override_env(dict(DD_API_KEY="foobar"), replace_os_env=True):
+        c = AgentlessConfig()
+
+    assert c.enabled is False
+    assert c.apm_tracing is False
+    # Left unset, LLM Observability decides at startup instead of here.
+    assert c.llmobs is None
+    assert c.ci_visibility is False
+    assert c.any_enabled is False
+
+
+def test_product_agentless_setting_overrides_the_global_one():
+    with override_env(
+        dict(
+            DD_AGENTLESS_ENABLED="true",
+            DD_API_KEY="foobar",
+            _DD_APM_TRACING_AGENTLESS_ENABLED="false",
+            DD_LLMOBS_AGENTLESS_ENABLED="false",
+        ),
+        replace_os_env=True,
+    ):
+        c = AgentlessConfig()
+
+    assert c.enabled is True
+    assert c.apm_tracing is False
+    assert c.llmobs is False
+    # Untouched products still follow the global setting.
+    assert c.ci_visibility is True
+
+
+def test_a_product_setting_alone_turns_agentless_on():
+    """Products can opt in individually, without the global switch."""
+    with override_env(dict(DD_API_KEY="foobar", DD_CIVISIBILITY_AGENTLESS_ENABLED="true"), replace_os_env=True):
+        c = AgentlessConfig()
+
+    assert c.enabled is False
+    assert c.ci_visibility is True
+    assert c.apm_tracing is False
+    assert c.any_enabled is True
+
+
+def test_config_exposes_what_agentless_resolves():
+    """ddtrace.config must surface AgentlessConfig's answers rather than deriving its own.
+
+    Both are built from the same environment here on purpose: comparing a fresh Config against the
+    import-time singleton would instead measure whichever neighbouring test last touched os.environ.
+    """
+    env = dict(
+        DD_API_KEY="foobar",
+        DD_SITE="datad0g.com",
+        DD_AGENTLESS_ENABLED="true",
+        DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+    )
+    with override_env(env, replace_os_env=True):
+        agentless = AgentlessConfig()
+        c = Config()
+
+    assert c._agentless_enabled is agentless.enabled
+    assert c._trace_agentless_enabled is agentless.apm_tracing
+    assert c._llmobs_agentless_enabled is agentless.llmobs
+    assert c._ci_visibility_agentless_enabled is agentless.ci_visibility
+    assert c._dd_site == agentless.site
+    assert c._dd_api_key == agentless.api_key
+    # ...and the override in that environment is genuinely reflected, not just self-consistent.
+    assert c._agentless_enabled is True
+    assert c._ci_visibility_agentless_enabled is False

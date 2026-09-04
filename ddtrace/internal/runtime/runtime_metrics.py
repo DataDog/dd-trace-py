@@ -16,7 +16,7 @@ from ..logger import get_logger
 from .constants import DEFAULT_RUNTIME_METRICS
 from .constants import DEFAULT_RUNTIME_METRICS_INTERVAL
 from .metric_collectors import GCRuntimeMetricCollector
-from .metric_collectors import PSUtilRuntimeMetricCollector
+from .metric_collectors import NativeProcessMetricCollector
 from .tag_collectors import PlatformTagCollector
 from .tag_collectors import PlatformTagCollectorV2
 from .tag_collectors import ProcessTagCollector
@@ -35,6 +35,10 @@ class RuntimeCollectorsIterable(object):
     def __iter__(self):
         collected = (collector.collect(self._enabled) for collector in self._collectors)
         return itertools.chain.from_iterable(collected)
+
+    def stop(self) -> None:
+        for collector in self._collectors:
+            collector.stop()
 
     def __repr__(self):
         return "{}(enabled={})".format(
@@ -71,7 +75,7 @@ class RuntimeMetrics(RuntimeCollectorsIterable):
     ENABLED = DEFAULT_RUNTIME_METRICS
     COLLECTORS = [
         GCRuntimeMetricCollector,
-        PSUtilRuntimeMetricCollector,
+        NativeProcessMetricCollector,
     ]
 
 
@@ -142,6 +146,10 @@ class RuntimeWorker(periodic.PeriodicService):
 
             cls._instance = runtime_worker
             cls.enabled = True
+
+    def stop(self, *args, **kwargs) -> None:
+        super().stop(*args, **kwargs)
+        self._runtime_metrics.stop()
 
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)

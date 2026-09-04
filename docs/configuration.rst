@@ -291,6 +291,18 @@ Traces
      default: 300
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
 
+   DD_TRACE_PROPAGATION_AS_SPAN_LINKS:
+     type: String
+     default: (empty)
+     description: |
+         Comma-separated list of integration names for which upstream context is attached to the
+         child span as span links instead of being used to parent the span.
+
+         Example: ``DD_TRACE_PROPAGATION_AS_SPAN_LINKS="google_cloud_pubsub,kafka"``.
+
+     version_added:
+       v4.15.0:
+
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
      type: Boolean
      default: False
@@ -1005,6 +1017,29 @@ Agent
         v0.17.0:
         v1.7.0:
 
+   DD_AGENTLESS_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         Submit data directly to the Datadog intake instead of through a Datadog Agent. This
+         covers instrumentation telemetry, traces, Remote Configuration, Dynamic Instrumentation,
+         OpenTelemetry metrics and logs, crash reports, Test Optimization and LLM Observability.
+
+         ``DD_API_KEY`` must be set; enabling agentless submission without one raises an error at
+         startup. ``DD_SITE`` selects the intake to submit to.
+
+         The per-product settings ``DD_CIVISIBILITY_AGENTLESS_ENABLED`` and
+         ``DD_LLMOBS_AGENTLESS_ENABLED`` default to this value and can each be set explicitly to
+         override it for that product. An explicit ``OTEL_EXPORTER_OTLP_ENDPOINT``, or its signal-
+         specific variants, likewise keeps OpenTelemetry data going to your own collector.
+
+         Health metrics, profiling and tracer flares require an agent and thus have no effect
+         in agentless mode.
+
+     version_added:
+        v4.15.0:
+
    DD_DOGSTATSD_URL:
      type: URL
 
@@ -1203,9 +1238,15 @@ Sampling
      type: JSON array
 
      description: |
-         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", and "tags" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+         A JSON array of objects. Each object must have a “sample_rate”, and the “name”, “service”, "resource", "tags", and "discard" fields are optional. The “sample_rate” value must be between 0.0 and 1.0 (inclusive).
+
+         Setting "discard" to ``true`` on a rule fully drops a trace chunk the rule rejects, excluding it from client-side stats and the Agent.
+
+         **Note** that with partial flushing enabled (the default), a chunk is matched against the trace's local root span as it stood when that chunk was flushed, so a rule keyed on data only available later in the request (e.g. a resolved HTTP route) may miss chunks flushed earlier in the same trace.
 
          **Example:** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.5,"service":"my-service","resource":"my-url","tags":{"my-tag":"example"}}]'``
+
+         **Example (fully drop a noisy, unsampled endpoint):** ``DD_TRACE_SAMPLING_RULES='[{"sample_rate":0.0,"resource":"/health","discard":true}]'``
 
          **Note** that the JSON object must be included in single quotes (') to avoid problems with escaping of the double quote (") character.'
 
@@ -1213,6 +1254,7 @@ Sampling
        v1.19.0: added support for "resource"
        v1.20.0: added support for "tags"
        v2.8.0: added lazy sampling support, so that spans are evaluated at the end of the trace, guaranteeing more metadata to evaluate against.
+       v4.15.0: added support for "discard"
 
 Feature Flagging
 ----------------

@@ -65,6 +65,7 @@ components:
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
     - ddtrace/internal/logger.py
+    - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
@@ -104,7 +105,7 @@ components:
   profiling:
     - ddtrace/profiling/*
     - ddtrace/internal/datadog/profiling/*
-    - ddtrace/internal/processor/endpoint_call_counter.py
+    - ddtrace/_trace/processor/endpoint_call_counter.py
     - ddtrace/internal/settings/profiling.py
   remoteconfig:
     - ddtrace/internal/remoteconfig/*
@@ -141,7 +142,6 @@ components:
     - ddtrace/internal/pack_template.h
     - ddtrace/internal/peer_service/*
     - ddtrace/internal/settings/peer_service.py
-    - ddtrace/internal/processor/__init__.py
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
@@ -164,6 +164,8 @@ suites:
     paths:
       - 'conftest.py'
       - '**/conftest.py'
+      - 'tests/_ddtest_conftest_helpers.py'
+      - 'tests/_ddtest_env_helpers.py'
     pattern: meta-testing
     snapshot: false
   ddtracerun:
@@ -186,6 +188,10 @@ suites:
       - 'src/native/*'
       - 'scripts/global-lock-detection.py'
   integration_agent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     parallelism: 2
     paths:
       - '@tracing'
@@ -197,6 +203,10 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
   integration_testagent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -279,8 +289,13 @@ suites:
       - tests/snapshots/tests.telemetry.*
     snapshot: true
   tracer:
+    ddtest: true
+    ddtest_nodes: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
+      DDTEST_SUITE_PATH: tests/tracer
+      DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
@@ -298,6 +313,31 @@ suites:
       - tests/snapshots/test_*
     retry: 2
     venvs_per_job: 1
+    matrix:
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
+      env:
+        DD_CIVISIBILITY_LOG_LEVEL: none
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+        DDTEST_SUITE_PATH: tests/tracer
+        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
+      variants:
+        - name: tracer
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+        - name: tracer-python-optimize
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          env:
+            PYTHONOPTIMIZE: '1'
+        - name: tracer-legacy-attrs
+          python: ['3.9']
+          dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
+        - name: tracer-128-bit-traceid-disabled
+          python: ['3.14']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
+          env:
+            DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
   tracer-uwsgi:
     venvs_per_job: 1
     paths:
@@ -309,6 +349,20 @@ suites:
       - tests/tracer/uwsgi-app.py
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
+    matrix:
+      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+      env:
+        DDTEST_SUITE_PATH: tests/tracer
+        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
+        DD_CIVISIBILITY_LOG_LEVEL: none
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+      variants:
+        - name: tracer-uwsgi
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
   vendor:
     parallelism: 1
     paths:

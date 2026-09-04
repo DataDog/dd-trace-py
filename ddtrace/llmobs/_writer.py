@@ -15,6 +15,8 @@ from urllib.parse import urlparse
 
 from ddtrace import config
 from ddtrace.internal import agent
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_NAME
+from ddtrace.internal.evp_proxy.constants import EVP_NEEDS_APP_KEY_HEADER_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
@@ -47,7 +49,7 @@ from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import _TagOperations
-from ddtrace.llmobs._http import get_connection
+from ddtrace.llmobs._http import HTTPConnection
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.types import ExperimentConfigType
 from ddtrace.llmobs.types import _Meta
@@ -216,7 +218,10 @@ class BaseLLMObsWriter(PeriodicService):
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
         additional_header_str = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "")
         if additional_header_str:
-            self._headers.update(parse_tags_str(additional_header_str))
+            # Explicit comma separator: header values (e.g. "Bearer <token>") may contain a space
+            # with no comma anywhere in the string, which would otherwise fall back to a whitespace
+            # split and corrupt the value.
+            self._headers.update(parse_tags_str(additional_header_str, sep=","))
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
@@ -295,7 +300,7 @@ class BaseLLMObsWriter(PeriodicService):
             )
 
     def _send_payload(self, payload: bytes, num_events: int):
-        conn = get_connection(self._intake, timeout=self._timeout)
+        conn = HTTPConnection(self._intake, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, payload, self._headers)
             resp = conn.getresponse()
@@ -371,6 +376,19 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
+    def _auth_headers(self) -> dict[str, str]:
+        """Our credentials for a direct call, or the headers that make the agent supply them.
+
+        The proxy only attaches an app key when asked, so omitting that header proxies an
+        unauthenticated request and looks like the route is unsupported.
+        """
+        if self._agentless:
+            return {"DD-API-KEY": self._api_key, "DD-APPLICATION-KEY": self._app_key}
+        return {
+            EVP_SUBDOMAIN_HEADER_NAME: self.EVP_SUBDOMAIN_HEADER_VALUE,
+            EVP_NEEDS_APP_KEY_HEADER_NAME: EVP_NEEDS_APP_KEY_HEADER_VALUE,
+        }
+
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         try:
             return self._request_with_retry(method, path, body, timeout)
@@ -387,20 +405,14 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         until=lambda result: isinstance(result, Response) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
-        headers = {
-            "Content-Type": "application/json",
-            "DD-API-KEY": self._api_key,
-            "DD-APPLICATION-KEY": self._app_key,
-        }
-        if not self._agentless:
-            headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+        headers = {"Content-Type": "application/json", **self._auth_headers()}
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(url=self._intake, timeout=timeout)
+        conn = HTTPConnection(self._intake, timeout=timeout)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
-            conn.request(method, url, encoded_body, headers)
+            conn.request(method, self._endpoint + path, encoded_body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -415,17 +427,13 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to publish evaluator {evaluation['eval_name']}: {resp.status}")
 
     def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
-        headers = {
-            "Content-Type": content_type,
-            "DD-API-KEY": self._api_key,
-            "DD-APPLICATION-KEY": self._app_key,
-        }
+        headers = {"Content-Type": content_type, **self._auth_headers()}
 
-        conn = get_connection(url=self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
+        conn = HTTPConnection(self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s, %s", url, content_type)
-            conn.request(method, url, body, headers)
+            conn.request(method, self._endpoint + path, body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -1100,7 +1108,7 @@ class LLMObsAPIClient:
                 params["page[cursor]"] = cursor
             path = "/api/v2/llm-obs/v1/spans/events?{}".format(urllib.parse.urlencode(params))
             logger.debug("LLMObs.get_spans() fetching %s%s", self._base_url, path)
-            conn = get_connection(self._base_url, timeout=self.TIMEOUT)
+            conn = HTTPConnection(self._base_url, timeout=self.TIMEOUT)
             try:
                 conn.request("GET", path, b"", headers)
                 resp = conn.getresponse()

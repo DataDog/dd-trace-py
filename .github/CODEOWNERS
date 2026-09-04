@@ -1,8 +1,5 @@
 # Order matters, the last matched is what is used
 
-# APM Core Python is the default owner of all files
-*                                   @DataDog/apm-core-python
-
 # Core runtime defaults. More-specific rules below override these.
 ddtrace/internal/                   @DataDog/apm-core-python
 ddtrace/errortracking/              @DataDog/apm-core-python
@@ -15,6 +12,7 @@ tests/lib_injection/                @DataDog/apm-core-python
 ddtrace/ext/                        @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/contrib/                    @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/contrib/_events/            @DataDog/apm-core-python @DataDog/apm-idm-python
+/templates/integration/             @DataDog/apm-idm-python
 ddtrace/internal/schema/            @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/_monkey.py                  @DataDog/apm-core-python @DataDog/apm-idm-python
 tests/contrib/                      @DataDog/apm-core-python @DataDog/apm-idm-python
@@ -32,6 +30,7 @@ releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
+.uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
@@ -47,6 +46,8 @@ AGENTS.md                           @DataDog/python-guild
 hooks/                              @DataDog/python-guild
 scripts/**                            @DataDog/python-guild
 tests/vendor/                       @DataDog/python-guild
+/ci/                                @DataDog/python-guild
+/docker/                            @DataDog/python-guild
 
 # Benchmark tooling defaults. Product-specific benchmark rules below take precedence.
 benchmarks/                         @DataDog/apm-core-python
@@ -74,6 +75,21 @@ mypy.ini                            @DataDog/python-guild  @DataDog/apm-core-pyt
 pyproject.toml                      @DataDog/python-guild
 setup.cfg                           @DataDog/python-guild
 setup.py                            @DataDog/python-guild
+/.clang-format                      @DataDog/python-guild
+/.codespellignorelines               @DataDog/python-guild
+/.coveragerc                        @DataDog/python-guild
+/.gitconfig                         @DataDog/python-guild
+/.gitignore                         @DataDog/python-guild
+/code-coverage.datadog.yml          @DataDog/python-guild
+/commitlint.config.js               @DataDog/python-guild
+/LICENSE                            @DataDog/python-guild
+/LICENSE.Apache                     @DataDog/python-guild
+/LICENSE.BSD3                       @DataDog/python-guild
+/MANIFEST.in                        @DataDog/python-guild
+/min_compatible_versions.csv        @DataDog/python-guild
+/NOTICE                             @DataDog/python-guild
+/requirements.csv                   @DataDog/python-guild
+/SECURITY.md                        @DataDog/python-guild
 # ddtrace files
 ddtrace/_logger.py                  @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/auto.py                     @DataDog/python-guild  @DataDog/apm-core-python
@@ -81,6 +97,8 @@ ddtrace/bootstrap/                  @DataDog/python-guild  @DataDog/apm-core-pyt
 ddtrace/commands/                   @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/_file_queue.py     @DataDog/python-guild
 ddtrace/internal/_unpatched.py      @DataDog/python-guild
+ddtrace/__init__.py                 @DataDog/python-guild
+ddtrace/py.typed                    @DataDog/python-guild
 ddtrace/internal/compat.py          @DataDog/python-guild  @DataDog/apm-core-python
 ddtrace/internal/endpoints.py       @DataDog/python-guild  @DataDog/asm-python
 ddtrace/internal/settings/_config.py          @DataDog/python-guild  @DataDog/apm-sdk-capabilities-python
@@ -95,6 +113,18 @@ tests/smoke_test.py                 @DataDog/python-guild
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.yml                 @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
+tests/_ddtest_conftest_helpers.py   @DataDog/python-guild
+tests/_ddtest_env_helpers.py        @DataDog/python-guild
+tests/__init__.py                   @DataDog/python-guild
+tests/README.md                     @DataDog/python-guild
+tests/ddtrace_run.py                @DataDog/python-guild
+tests/subprocesstest.py             @DataDog/python-guild
+tests/webclient.py                  @DataDog/python-guild
+tests/wait-for-services.py          @DataDog/python-guild
+tests/cache/                        @DataDog/python-guild
+tests/meta/                         @DataDog/python-guild
+tests/test_module/                  @DataDog/python-guild
+tests/submod/                       @DataDog/python-guild
 # docs and scripts
 docs/                               @DataDog/python-guild
 
@@ -201,6 +231,9 @@ tests/profiling                                   @DataDog/profiling-python
 .github/workflows/pytorch_gpu_tests.yml           @DataDog/profiling-python
 .github/PULL_REQUEST_TEMPLATE/profiler_change.md  @DataDog/profiling-python
 src/native_heap_gotter/                           @DataDog/profiling-python
+
+# Native build tooling (abseil dependency, shared by ASM + Profiling native code)
+/cmake/                                            @DataDog/asm-python @DataDog/profiling-python
 
 
 # Crashtracker
