@@ -1122,6 +1122,26 @@
       "expected_messages": "SAME",
       "expected_errors": 1
     },
+    {
+      "id": "skip/payload/is-an-empty-object",
+      "description": "Empty but still the wrong type: unlike an empty array, that is a malformed payload.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": {},
+      "expected_messages": "SAME",
+      "expected_errors": 1
+    },
+    {
+      "id": "skip/payload/is-false",
+      "description": "A falsy payload is still a payload: being present and not an array is the error.",
+      "messages": [
+        {"role": "user", "content": "My SSN is 123-45-6789"}
+      ],
+      "redaction_replacements": false,
+      "expected_messages": "SAME",
+      "expected_errors": 1
+    },
 
     {
       "id": "skip/conflict/two-different-values",

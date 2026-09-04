@@ -158,11 +158,14 @@ def redact_messages(messages: list[Message], replacements: object) -> RedactionR
     Copy-on-write: the caller's messages are never mutated, and the very same list object is returned
     when nothing was applied, so callers can use identity to detect whether anything changed.
     """
-    try:
-        # Absent or empty is the service saying there is nothing to redact, not a malformed response.
-        if not replacements:
-            return RedactionResult(messages, 0)
+    # An absent field is the service saying there is nothing to redact. Anything else that is
+    # present, an empty array included, is classified by _collect_replacements.
+    if replacements is None:
+        return RedactionResult(messages, 0)
 
+    errors = 0
+    by_path: dict[str, str] = {}
+    try:
         by_path, errors = _collect_replacements(replacements)
         if not by_path:
             return RedactionResult(messages, errors)
@@ -170,15 +173,18 @@ def redact_messages(messages: list[Message], replacements: object) -> RedactionR
         result = deepcopy(messages)
         root = {"messages": result}
         applied = 0
+        skipped = 0
         for path, replacement in by_path.items():
             # A path that is missing, malformed or not pointing at a redactable string is skipped
             # fail-safe, and reported rather than silently dropped.
             if _set_string_at_path(root, path, replacement):
                 applied += 1
             else:
-                errors += 1
+                skipped += 1
 
-        return RedactionResult(result if applied else messages, errors)
+        return RedactionResult(result if applied else messages, errors + skipped)
     except Exception:
         logger.debug("AI Guard redaction failed", exc_info=True)
-        return RedactionResult(messages, 1)
+        # Nothing is delivered when the pass dies, so every collected path is one more replacement
+        # we failed to apply, on top of the entries that were already unusable.
+        return RedactionResult(messages, max(errors + len(by_path), 1))

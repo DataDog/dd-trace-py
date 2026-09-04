@@ -220,19 +220,37 @@ def test_redacted_is_reported_per_turn(
     assert redacted_tags == ["true", "false"]
 
 
-def test_redaction_never_raises() -> None:
+class Undeepcopyable:
+    """Blows up the copy-on-write step, so the whole redaction pass fails."""
+
+    def __deepcopy__(self, memo: dict[int, Any]) -> Any:
+        raise RuntimeError("boom")
+
+
+@pytest.mark.parametrize(
+    "replacements,expected_errors",
+    [
+        pytest.param([{"path": "messages[0].content", "replacement": "redacted"}], 1, id="one unapplied path"),
+        # Nothing is delivered, so the two unusable entries and the path we never got to all count.
+        pytest.param(
+            [
+                {"path": "messages[0].content", "replacement": "redacted"},
+                {"path": "messages[0].content"},
+                {"replacement": "orphan"},
+            ],
+            3,
+            id="entries already counted are not lost",
+        ),
+    ],
+)
+def test_redaction_never_raises(replacements: list[dict[str, Any]], expected_errors: int) -> None:
     """An unexpected failure degrades to the original messages instead of breaking the caller."""
-
-    class Undeepcopyable:
-        def __deepcopy__(self, memo: dict[int, Any]) -> Any:
-            raise RuntimeError("boom")
-
     messages: list[Any] = [{"role": "user", "content": "My SSN is 123-45-6789", "extra": Undeepcopyable()}]
 
-    result, errors = redact_messages(messages, [{"path": "messages[0].content", "replacement": "redacted"}])
+    result, errors = redact_messages(messages, replacements)
 
     assert result is messages
-    assert errors == 1, "a failed pass is one redaction error, not a silent no-op"
+    assert errors == expected_errors, "a failed pass is at least one redaction error, not a silent no-op"
 
 
 @pytest.mark.parametrize(
