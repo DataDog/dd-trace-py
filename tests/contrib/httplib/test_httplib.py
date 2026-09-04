@@ -691,3 +691,39 @@ class HTTPLibTestCase(HTTPLibBaseMixin, TracerTestCase):
         self.assertEqual(len(spans), 1)
         span = spans[0]
         self.assertEqual(span.name, "http.client.request")
+
+    def test_span_is_finished_when_the_request_raises_a_base_exception(self):
+        """AppSec RASP blocks an outgoing request by raising BlockingException.
+
+        It derives from BaseException so no intermediate handler swallows it, which means an
+        "except Exception" guard here would leave the span unfinished and active forever.
+        """
+        from ddtrace.internal._exceptions import BlockingException
+
+        def blocking_send_request(*args, **kwargs):
+            raise BlockingException({}, "exploit_prevention", "ssrf", "http://blocked/")
+
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            with mock.patch.object(httplib.HTTPConnection, "_send_request", blocking_send_request):
+                with pytest.raises(BlockingException):
+                    conn.request("GET", "/status/200")
+
+            assert conn._datadog_span.duration is not None, "span left unfinished by the block"
+            assert self.tracer.current_span() is None, "span left current by the block"
+
+    def test_span_is_finished_when_putrequest_raises_a_base_exception(self):
+        """Same contract for the putrequest wrapper, which owns the span when used directly."""
+        from ddtrace.internal._exceptions import BlockingException
+
+        def blocking_output(*args, **kwargs):
+            raise BlockingException({}, "exploit_prevention", "ssrf", "http://blocked/")
+
+        conn = self.get_http_connection(SOCKET)
+        with contextlib.closing(conn):
+            with mock.patch.object(httplib.HTTPConnection, "_output", blocking_output):
+                with pytest.raises(BlockingException):
+                    conn.putrequest("GET", "/status/200")
+
+            assert conn._datadog_span.duration is not None, "span left unfinished by the block"
+            assert self.tracer.current_span() is None, "span left current by the block"
