@@ -13,6 +13,8 @@ import subprocess
 import sys
 import time
 
+from _ddtrace_uwsgi import defer_injection
+
 
 Version = namedtuple("Version", ["version", "constraint"])
 
@@ -622,16 +624,27 @@ def _inject():
         RESULT_CLASS = "already_instrumented"
 
 
-try:
+def _run_injection():
     try:
-        _inject()
-    except Exception as e:
-        TELEMETRY_DATA.append(
-            create_count_metric("library_entrypoint.error", ["error_type:main_" + type(e).__name__.lower()])
-        )
-    finally:
-        if TELEMETRY_DATA:
-            payload = gen_telemetry_payload(TELEMETRY_DATA, DDTRACE_VERSION)
-            send_telemetry(payload)
-except Exception:
-    pass  # absolutely never allow exceptions to propagate to the app
+        try:
+            _inject()
+        except Exception as e:
+            TELEMETRY_DATA.append(
+                create_count_metric("library_entrypoint.error", ["error_type:main_" + type(e).__name__.lower()])
+            )
+        finally:
+            if TELEMETRY_DATA:
+                payload = gen_telemetry_payload(TELEMETRY_DATA, DDTRACE_VERSION)
+                send_telemetry(payload)
+    except Exception:
+        pass  # absolutely never allow exceptions to propagate to the app
+
+
+try:
+    deferred = defer_injection(_run_injection)
+except Exception as e:
+    _log("Failed to defer uWSGI injection: %s" % e, level="error")
+    deferred = True
+
+if not deferred:
+    _run_injection()

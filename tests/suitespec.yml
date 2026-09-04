@@ -345,8 +345,8 @@ suites:
       - '@core'
       - '@tracing'
       - '@vendor'
-      - tests/tracer/test_uwsgi_shutdown.py
-      - tests/tracer/uwsgi-app.py
+      - '@lib_injection'
+      - tests/tracer/*uwsgi*
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
     matrix:

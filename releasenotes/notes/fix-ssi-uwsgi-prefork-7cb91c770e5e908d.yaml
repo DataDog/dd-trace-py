@@ -1,0 +1,4 @@
+fixes:
+  - |
+    library injection: Fixes an issue where Single Step Instrumentation does not produce traces
+    from prefork uWSGI workers, including with uWSGI 2.0.18.

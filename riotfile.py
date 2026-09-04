@@ -429,7 +429,10 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            command=(
+                "pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_prefork.py "
+                "--ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/"
+            ),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -481,9 +484,16 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer-uwsgi",
-                    command="pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py",
-                    pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
-                    pkgs={"uwsgi": latest},
+                    command=(
+                        "pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_prefork.py"
+                    ),
+                    venvs=[
+                        Venv(
+                            pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
+                            pkgs={"uwsgi": latest},
+                        ),
+                        Venv(pys=MIN_PYTHON_VERSION, pkgs={"uwsgi": "==2.0.18"}),
+                    ],
                 ),
             ],
         ),

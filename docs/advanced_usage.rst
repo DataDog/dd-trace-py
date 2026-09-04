@@ -496,7 +496,13 @@ uWSGI
 
 **Note:** ``ddtrace-run`` is not supported with uWSGI.
 
-``ddtrace`` only supports `uWSGI <https://uwsgi-docs.readthedocs.io/>`__ when configured with each of the following:
+Single Step Instrumentation supports pre-fork uWSGI and initializes tracing in each worker process.
+Enable the uWSGI master process and threads as described below. The ``lazy-apps`` option is not
+required when using Single Step Instrumentation. When using ``lazy-apps`` with uWSGI versions before
+2.0.30, also enable ``skip-atexit`` to avoid crashes when worker processes terminate.
+
+Without Single Step Instrumentation, ``ddtrace`` only supports
+`uWSGI <https://uwsgi-docs.readthedocs.io/>`__ when configured with each of the following:
 
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.

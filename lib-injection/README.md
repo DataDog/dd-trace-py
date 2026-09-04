@@ -32,13 +32,14 @@ volume mount.
 The files copied to the volume are:
 
 - `sitecustomize.py`: Python module that gets run automatically on interpreter startup when it is detected in the `PYTHONPATH`. When executed, it updates the Python path further to include the compatible `site-packages` directory and then calls `import ddtrace.bootstrap.sitecustomize` which performs automatic instrumentation.
+- `_ddtrace_uwsgi.py`: Startup helper that defers instrumentation until uWSGI worker processes are ready.
 - `ddtrace_pkgs/`: Directory containing the per-Python, per-runtime `site-packages` directories which contain `ddtrace` package and its dependencies.
 
 
 The `PYTHONPATH` environment variable is set to the shared volume directory
-which contains `sitecustomize.py` and `ddtrace_pkgs`. The environment variable
-is injected into the application container. This enables the
-`sitecustomize.py` file to execute on any Python interpreter startup which
+which contains `sitecustomize.py`, `_ddtrace_uwsgi.py`, and `ddtrace_pkgs`. The
+environment variable is injected into the application container. This enables
+the `sitecustomize.py` file to execute on any Python interpreter startup which
 results in the automatic instrumentation being applied to the application.
 
 
