@@ -1038,7 +1038,7 @@ Agent
          in agentless mode.
 
      version_added:
-        v4.13.0:
+        v4.15.0:
 
    DD_DOGSTATSD_URL:
      type: URL
