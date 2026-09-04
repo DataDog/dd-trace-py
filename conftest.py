@@ -10,6 +10,8 @@ import os
 import re
 import sys
 from time import time
+from typing import Callable
+from typing import Optional
 
 import hypothesis
 import pytest
@@ -26,7 +28,7 @@ hypothesis.settings.register_profile("default", suppress_health_check=(hypothesi
 hypothesis.settings.load_profile("default")
 
 
-def _cgroup_root():
+def _cgroup_root() -> tuple[Optional[str], str, str]:
     """Resolve this process's cgroup v2 directory, and which hierarchy version is in use.
 
     /sys/fs/cgroup is the job's own cgroup only under a private cgroup namespace; where the host
@@ -64,7 +66,7 @@ def _cgroup_root():
     return mount, version, f"mount root, {candidate} absent"
 
 
-def _cgroup(root, name):
+def _cgroup(root: Optional[str], name: str) -> str:
     if root is None:
         return "<no cgroup2>"
     try:
@@ -74,14 +76,14 @@ def _cgroup(root, name):
         return f"<{exc.__class__.__name__}>"
 
 
-def _safe(fn, label):
+def _safe(fn: Callable[[], str], label: str) -> str:
     try:
         return fn()
     except Exception as exc:
         return f"{label} = <{exc.__class__.__name__}: {exc}>"
 
 
-def _benchmark_lines():
+def _benchmark_lines() -> list[str]:
     import time as _time
 
     def cpu():
@@ -97,8 +99,8 @@ def _benchmark_lines():
         for _ in range(20_000):
             os.stat(__file__)
 
-    def timed(label, fn):
-        def run():
+    def timed(label: str, fn: Callable[[], None]) -> str:
+        def run() -> str:
             t0 = _time.perf_counter()
             fn()
             return f"BENCH {label} = {_time.perf_counter() - t0:.3f}s"
@@ -108,7 +110,7 @@ def _benchmark_lines():
     return [timed("cpu_loop_5M", cpu), timed("syscall_getpid_200k", getpid), timed("stat_20k", stat)]
 
 
-def _resource_lines():
+def _resource_lines() -> list[str]:
     import time as _time
 
     out = [f"monotonic = {_time.monotonic():.3f}s", _safe(lambda: f"cpu_count = {os.cpu_count()}", "cpu_count")]
@@ -123,7 +125,7 @@ def _resource_lines():
     ]
 
 
-def _env_probe(label, benchmarks_first):
+def _env_probe(label: str, benchmarks_first: bool) -> None:
     """Report what the machine gave this job, so a slow run can be attributed rather than guessed at.
 
     Called at session start and end; most of the value is in diffing the two. Benchmarks run before
@@ -181,7 +183,7 @@ def _env_probe(label, benchmarks_first):
     print("\n" + "\n".join(lines), flush=True)
 
 
-def _probe(config, label, benchmarks_first):
+def _probe(config, label: str, benchmarks_first: bool) -> None:
     """Never let a diagnostic change the outcome of a run that would otherwise have passed."""
     if not _probe_enabled(config):
         return
@@ -191,7 +193,7 @@ def _probe(config, label, benchmarks_first):
         print(f"\n<runtime probe failed: {exc.__class__.__name__}: {exc}>", flush=True)
 
 
-def _probe_enabled(config):
+def _probe_enabled(config) -> bool:
     """Probe once per session on the xdist controller only, in CI or when explicitly asked."""
     if hasattr(config, "workerinput") or os.getenv("DD_TEST_RUNTIME_PROBE") == "0":
         return False
