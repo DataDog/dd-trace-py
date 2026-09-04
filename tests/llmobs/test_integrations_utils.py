@@ -280,11 +280,10 @@ class TestOpenAIFinishReasonMetadata:
         response = SimpleNamespace(choices=[_chat_choice("stop")])
         assert self._metadata_from_chat(tracer, response)["finish_reason"] == "stop"
 
-    def test_chat_multiple_choices_recorded_as_list(self, tracer):
+    def test_chat_multiple_choices_comma_joined(self, tracer):
+        """n > 1 stays a single string key, comma-joined in choice order."""
         response = SimpleNamespace(choices=[_chat_choice("stop"), _chat_choice("content_filter")])
-        metadata = self._metadata_from_chat(tracer, response)
-        assert metadata["finish_reasons"] == ["stop", "content_filter"]
-        assert "finish_reason" not in metadata
+        assert self._metadata_from_chat(tracer, response)["finish_reason"] == "stop,content_filter"
 
     def test_chat_streamed(self, tracer):
         streamed = [{"role": "assistant", "content": "", "finish_reason": "content_filter"}]

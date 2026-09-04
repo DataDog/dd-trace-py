@@ -1,8 +1,5 @@
 ---
 features:
   - |
-    LLM Observability: Adds the reason the model stopped generating to LLM span metadata for the
-    ``openai``, ``litellm``, and ``anthropic`` integrations: ``finish_reason`` for ``openai`` and
-    ``litellm`` (e.g. ``stop``, ``length``, ``content_filter``) and ``stop_reason`` for
-    ``anthropic`` (e.g. ``end_turn``, ``max_tokens``, ``refusal``). Requests that ask for multiple
-    choices record a ``finish_reasons`` list instead.
+    LLM Observability: Adds `finish_reason` to LLM spans to indicate the reason the model stopped generating for the
+    ``openai``, ``litellm``, and ``anthropic`` integrations.

@@ -372,15 +372,14 @@ def get_messages_from_converse_content(role: str, content: list[dict[str, Any]])
 def _openai_finish_reason_metadata(finish_reasons: list[Any]) -> dict[str, Any]:
     """Build metadata for the response-side finish reasons (e.g. "stop", "length", "content_filter").
 
-    Returns a plain ``finish_reason`` string for the single-choice case so it stays a clean facet, and
-    a ``finish_reasons`` list when the request asked for multiple choices.
+    Always a single ``finish_reason`` string so the key keeps one type and stays a clean facet. A
+    request asking for multiple choices comma-joins its reasons in choice order, so an ``n=2``
+    request that hit the token limit on its second choice reads as ``"stop,length"``.
     """
     reasons = [str(reason) for reason in finish_reasons if reason]
     if not reasons:
         return {}
-    if len(reasons) == 1:
-        return {"finish_reason": reasons[0]}
-    return {"finish_reasons": reasons}
+    return {"finish_reason": ",".join(reasons)}
 
 
 def openai_set_meta_tags_from_completion(
