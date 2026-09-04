@@ -4,12 +4,31 @@ use libdd_data_pipeline::trace_exporter::{
     TraceExporterInputFormat, TraceExporterOutputFormat,
 };
 use libdd_shared_runtime::ForkSafeRuntime;
-use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
+use pyo3::{exceptions::PyValueError, ffi, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
 mod agent_response;
 mod exceptions;
 use crate::shared_runtime::SharedRuntimePy;
 use exceptions::TraceExporterErrorPy;
+
+// CPython < 3.13 does not expose the public Py_IsFinalizing; use the private symbol,
+// which returns the finalizing thread state (non-null once finalization has started).
+#[cfg(not(Py_3_13))]
+extern "C" {
+    fn _Py_IsFinalizing() -> *mut ffi::PyThreadState;
+}
+
+// Report whether the interpreter has started finalizing. Safe to call without the GIL.
+fn interpreter_is_finalizing() -> bool {
+    #[cfg(Py_3_13)]
+    {
+        unsafe { ffi::Py_IsFinalizing() != 0 }
+    }
+    #[cfg(not(Py_3_13))]
+    {
+        unsafe { !_Py_IsFinalizing().is_null() }
+    }
+}
 
 /// A wrapper around [TraceExporterBuilder]
 ///
@@ -309,7 +328,17 @@ impl TraceExporterPy {
     /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
     /// sending the traces.
     fn send(&self, py: Python<'_>, data: PyBackedBytes) -> PyResult<String> {
-        py.detach(move || {
+        // Release the GIL for the blocking network send. We manage the thread state by
+        // hand instead of Python::detach so that, if the interpreter starts finalizing
+        // while the GIL is released, we can hang this thread instead of re-acquiring the
+        // GIL. Re-acquiring during finalization drives CPython's take_gil into
+        // PyThread_exit_thread -> pthread_exit, whose forced unwind aborts through
+        // this native worker thread's extern "C"/noexcept frames. CPython 3.14
+        // hangs the thread instead (gh-87135); we replicate that for older runtimes.
+        let _ = py; // proves the GIL is held on entry, as PyEval_SaveThread requires.
+        let save = unsafe { ffi::PyEval_SaveThread() };
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             match self
                 .inner
                 .as_ref()
@@ -324,7 +353,22 @@ impl TraceExporterPy {
                 },
                 Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
-        })
+        }));
+
+        if interpreter_is_finalizing() {
+            // Do not re-acquire the GIL: take_gil would exit this thread via pthread_exit
+            // and abort. Park until the process exits (matches CPython 3.14 gh-87135).
+            loop {
+                std::thread::sleep(Duration::from_secs(3600));
+            }
+        }
+
+        unsafe { ffi::PyEval_RestoreThread(save) };
+
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
     }
 
     /// Report `trace_api.*` health metrics through an externally-owned telemetry worker.
