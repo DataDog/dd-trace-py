@@ -2,6 +2,7 @@
 
 import asyncio
 import os
+import time
 from types import TracebackType
 from typing import Any
 from typing import Coroutine
@@ -42,6 +43,24 @@ def async_run(coro: Coroutine[Any, Any, T]) -> T:
         return uvloop.run(coro)  # type: ignore[no-any-return]
     else:
         return asyncio.run(coro)
+
+
+def wait_for_fast_copy_state(stack_module: Any, want_active: bool, timeout: float = 10.0) -> bool:
+    """Poll the native fast-copy flag until it reports want_active.
+
+    stack_module is the _stack submodule, which is where the underscore-prefixed test
+    introspection lives. Returns False if the state was not observed in time.
+
+    Waiting for False is how a test lands inside the startup warmup window: the library
+    constructor activates safe_memcpy, then the sampling thread drops to the syscall copy
+    for the warmup duration before deciding whether to upgrade.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if stack_module.fast_copy_memory_active() is want_active:
+            return True
+        time.sleep(0.05)
+    return False
 
 
 def uvloop_available() -> bool:
