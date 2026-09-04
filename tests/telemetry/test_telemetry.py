@@ -282,6 +282,58 @@ for _ in range(64):
     assert stderr == b"", stderr
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_rebuild_telemetry_worker_after_fork_fd_close(run_python_code_in_subprocess):
+    """Celery beat closes inherited FDs after Python at-fork hooks return.
+
+    Rebuilding the native telemetry worker must not unpark the inherited Tokio
+    I/O driver, which panics with EBADF once those descriptors are gone.
+    """
+    code = """
+import os
+import warnings
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.trace import tracer
+
+
+assert telemetry_writer._worker is not None
+
+pid = os.fork()
+if pid == 0:
+    keep = {0, 1, 2}
+    try:
+        names = os.listdir("/proc/self/fd")
+    except OSError:
+        names = [str(fd) for fd in range(3, 256)]
+    for name in names:
+        try:
+            fd = int(name)
+        except ValueError:
+            continue
+        if fd in keep:
+            continue
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+    with tracer.trace("celery-beat-like"):
+        pass
+    os._exit(0)
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert b"panic" not in stderr.lower(), stderr
+
+
 def test_trace_exporter_propagates_telemetry_runtime_restart_errors(run_python_code_in_subprocess):
     """An exporter must not retain a telemetry handle when its runtime cannot restart."""
     code = """

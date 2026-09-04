@@ -939,7 +939,9 @@ class TelemetryWriter:
         # restarts. Rebuild lazily on the child's next telemetry call (enable()); the replacement
         # is bound to the child's runtime and session ids and heartbeats without app-started.
         # NOTE: rebuilding here, inside the fork-hook chain, starts Tokio before process managers
-        # such as Celery finish closing inherited file descriptors.
+        # such as Celery finish closing inherited file descriptors. The shared runtime is marked
+        # abandoned instead; the child's first telemetry or exporter call replaces it without
+        # unparking the inherited I/O driver.
         #
         # This hook is registered before the tracer's _child_after_fork (TelemetryWriter is
         # constructed before the tracer), so it always runs before the trace-exporter rebuild
