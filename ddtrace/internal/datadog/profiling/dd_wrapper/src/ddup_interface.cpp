@@ -1,6 +1,7 @@
 #include "ddup_interface.hpp"
 
 #include "defer.hpp"
+#include "gc_monitor.hpp"
 #include "libdatadog_helpers.hpp"
 #include "profile_borrow.hpp"
 #include "profiler_state.hpp"
@@ -87,6 +88,22 @@ ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_set_profiler_settings_json(std::string_view settings_json) // cppcheck-suppress unusedFunction
+{
+    // Store the caller-supplied compact JSON object on ProfilerState
+    // (process-global). It is passed verbatim to libdatadog's exporter via
+    // the `info` channel on each upload, so we only sanity-check that it
+    // looks like a JSON object here. Empty objects and non-object inputs are
+    // dropped silently.
+    auto& info_json = Datadog::ProfilerState::get().profiler_settings_info_json;
+    if (settings_json.size() > 2 && settings_json.front() == '{' && settings_json.back() == '}') {
+        info_json.assign(settings_json);
+    } else {
+        info_json.clear();
+    }
+}
+
+void
 ddup_config_max_nframes(int max_nframes) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::set_max_nframes(max_nframes);
@@ -114,22 +131,6 @@ void
 ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
 {
     Datadog::UploaderBuilder::set_max_timeout_ms(max_timeout_ms);
-}
-
-void
-ddup_set_profiler_settings_json(std::string_view settings_json) // cppcheck-suppress unusedFunction
-{
-    // Store the caller-supplied compact JSON object on ProfilerState
-    // (process-global). It is passed verbatim to libdatadog's exporter via
-    // the `info` channel on each upload, so we only sanity-check that it
-    // looks like a JSON object here. Empty objects and non-object inputs are
-    // dropped silently.
-    auto& info_json = Datadog::ProfilerState::get().profiler_settings_info_json;
-    if (settings_json.size() > 2 && settings_json.front() == '{' && settings_json.back() == '}') {
-        info_json.assign(settings_json);
-    } else {
-        info_json.clear();
-    }
 }
 
 bool
@@ -194,6 +195,22 @@ ddup_upload() // cppcheck-suppress unusedFunction
     bool result = uploader.upload_unlocked();
 
     return result;
+}
+
+void
+ddup_start_gc_monitor(uint64_t interval_ms, // cppcheck-suppress unusedFunction
+                      int survivor_threshold,
+                      int top_n,
+                      bool referrers_enabled,
+                      int max_depth)
+{
+    Datadog::GCMonitor::get().start(interval_ms, survivor_threshold, top_n, referrers_enabled, max_depth);
+}
+
+void
+ddup_stop_gc_monitor() // cppcheck-suppress unusedFunction
+{
+    Datadog::GCMonitor::get().stop();
 }
 
 // Pass by value is intentional: the map may be modified concurrently by other threads,
