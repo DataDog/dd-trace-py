@@ -17,7 +17,7 @@ static const size_t page_size = []() -> size_t {
 
 #ifdef PL_DARWIN
     if (v <= 0) {
-        // Fallback on macOS just in case
+        // sysconf(_SC_PAGESIZE) can return -1; getpagesize() is the BSD API on Darwin
         v = getpagesize();
     }
 #endif
