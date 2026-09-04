@@ -318,13 +318,13 @@ class BaseLLMObsWriter(PeriodicService):
             else:
                 logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
             return Response.from_http_response(resp)
-        except Exception:
-            logger.error(
-                "failed to send %d LLMObs %s events to %s",
+        except Exception as e:
+            logger.debug(
+                "attempt to send %d LLMObs %s events to %s failed, will retry if attempts remain: %r",
                 num_events,
                 self.EVENT_TYPE,
                 self._intake,
-                exc_info=True,
+                e,
                 extra={"send_to_telemetry": False},
             )
             raise
