@@ -2,7 +2,12 @@
 
 import json
 
-import httpx
+
+try:
+    import httpx
+except ImportError:
+    import httpx2 as httpx  # anthropic>=1.0.0 ships httpx2 instead of httpx
+
 import pytest
 
 from ddtrace.aiguard._context import reset_aiguard_context_active
