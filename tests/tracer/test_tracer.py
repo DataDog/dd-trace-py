@@ -740,6 +740,111 @@ class TracerTestCases(TracerTestCase):
         # After shutdown, the wrap executor should be reset
         assert self.tracer._wrap_executor is None
 
+    def test_tracer_defers_writer_recreation_after_fork(self):
+        aggregator = self.tracer._span_aggregator
+        inherited_writer = aggregator.writer
+        with (
+            mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate,
+            mock.patch.object(
+                aggregator, "reset_trace_buffer_after_fork", wraps=aggregator.reset_trace_buffer_after_fork
+            ) as reset_trace_buffer,
+            mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as flush_queue,
+        ):
+            self.tracer._child_after_fork()
+            recreate.assert_not_called()
+            reset_trace_buffer.assert_called_once_with()
+
+            for _ in range(10):
+                with self.trace("child-span"):
+                    pass
+
+            recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
+            reset_trace_buffer.assert_called_once_with()
+            flush_queue.assert_not_called()
+
+    def test_tracer_flush_recreates_writer_after_fork(self):
+        inherited_writer = self.tracer._span_aggregator.writer
+        with (
+            mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate,
+            mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as inherited_flush,
+        ):
+            self.tracer._child_after_fork()
+            self.tracer.flush()
+
+        recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
+        inherited_flush.assert_not_called()
+        assert self.tracer._span_aggregator.writer is not inherited_writer
+        assert not self.tracer._post_fork_writer_pending
+        assert self.tracer._new_process
+
+    def test_tracer_flush_preserves_inherited_context_cleanup_after_fork(self):
+        parent = self.tracer.trace("parent")
+        self.tracer._child_after_fork()
+
+        self.tracer.flush()
+        child = self.tracer.trace("child")
+
+        assert child.parent_id == parent.span_id
+        assert child._parent is None
+        assert child._local_root is child
+        assert not self.tracer._new_process
+
+        child.finish()
+        self.tracer.context_provider.activate(None)
+
+    def test_tracer_post_fork_writer_recreation_is_single_flight(self):
+        self.tracer._child_after_fork()
+        recreate_entered = threading.Event()
+        release_recreate = threading.Event()
+        second_thread_started = threading.Event()
+        recreate_calls = []
+        errors = []
+        recreate = self.tracer._recreate
+
+        def blocking_recreate(*args, **kwargs):
+            recreate_calls.append(1)
+            recreate_entered.set()
+            assert release_recreate.wait(timeout=2)
+            recreate(*args, **kwargs)
+
+        def start_span(started=None):
+            if started is not None:
+                started.set()
+            try:
+                self.tracer.start_span("post-fork-concurrent").finish()
+            except Exception as e:
+                errors.append(e)
+
+        with mock.patch.object(self.tracer, "_recreate", side_effect=blocking_recreate):
+            first = threading.Thread(target=start_span)
+            first.start()
+            assert recreate_entered.wait(timeout=2)
+
+            second = threading.Thread(target=start_span, args=(second_thread_started,))
+            second.start()
+            assert second_thread_started.wait(timeout=2)
+            time.sleep(0.05)
+            release_recreate.set()
+
+            first.join(timeout=2)
+            second.join(timeout=2)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert len(recreate_calls) == 1
+        assert not self.tracer._new_process
+
+    def test_tracer_shutdown_after_fork_does_not_recreate_writer(self):
+        writer = self.tracer._span_aggregator.writer
+        with mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate:
+            self.tracer._child_after_fork()
+            self.tracer.shutdown()
+
+        recreate.assert_not_called()
+        assert self.tracer._span_aggregator.writer is writer
+        assert not self.tracer._new_process
+
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
         self.tracer.context_provider.activate(context)
