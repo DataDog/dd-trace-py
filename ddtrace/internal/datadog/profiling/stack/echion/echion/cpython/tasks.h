@@ -226,13 +226,8 @@ extern "C"
 
 #if PY_VERSION_HEX >= 0x030e0000
     // Python 3.14+: Use stackpointer and _PyStackRef
-
-    inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
+    inline PyObject* PyGen_yf_from_stack(PyObject* frame_addr)
     {
-        if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM) {
-            return nullptr;
-        }
-
         _PyInterpreterFrame frame;
         if (copy_type(frame_addr, frame)) {
             return nullptr;
@@ -283,6 +278,38 @@ extern "C"
         // Per Python 3.14 release notes (gh-123923): clear LSB to recover PyObject* pointer
         return BITS_TO_PTR_MASKED(top_ref);
     }
+
+#if PY_VERSION_HEX >= 0x030f0000
+    // Python 3.15+: FRAME_SUSPENDED_YIELD_FROM_LOCKED is a new frame state
+    // (value 3). The enumerator exists on GIL and free-threaded builds; GIL
+    // runtimes never enter it, so the check below is under Py_GIL_DISABLED.
+    // All other logic is shared with 3.14 (stackpointer/_PyStackRef).
+    static_assert(FRAME_SUSPENDED_YIELD_FROM_LOCKED == 3,
+                  "FRAME_SUSPENDED_YIELD_FROM_LOCKED must exist on 3.15 GIL and free-threaded");
+
+    inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
+    {
+        if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM
+#ifdef Py_GIL_DISABLED
+            && gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM_LOCKED
+#endif
+        ) {
+            return nullptr;
+        }
+
+        return PyGen_yf_from_stack(frame_addr);
+    }
+
+#else
+    inline PyObject* PyGen_yf(PyGenObject* gen, PyObject* frame_addr)
+    {
+        if (gen->gi_frame_state != FRAME_SUSPENDED_YIELD_FROM) {
+            return nullptr;
+        }
+
+        return PyGen_yf_from_stack(frame_addr);
+    }
+#endif
 
 #elif PY_VERSION_HEX >= 0x030d0000
 
