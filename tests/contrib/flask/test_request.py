@@ -141,7 +141,10 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         }
 
         spans = self.get_spans()
-        self.assertEqual(len(spans), 10 - REMOVED_SPANS_2_2_0)
+        # +1 vs. the other tests in this file: bytecode-wrapped jsonify instruments the call even
+        # though this test imports `jsonify` directly (`from flask import jsonify`), unlike wrapt's
+        # module-attribute patch which misses already-bound references.
+        self.assertEqual(len(spans), 11 - REMOVED_SPANS_2_2_0)
 
         root = spans[0]
         assert root.name == "flask.request"

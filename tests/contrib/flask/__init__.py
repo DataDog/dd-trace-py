@@ -3,7 +3,7 @@ from flask.testing import FlaskClient
 
 from ddtrace.contrib.internal.flask.patch import patch
 from ddtrace.contrib.internal.flask.patch import unpatch
-from ddtrace.internal.compat import is_wrapted
+from ddtrace.internal.utils.wrappers import iswrapped
 from tests.utils import TracerTestCase
 
 
@@ -42,10 +42,10 @@ class BaseFlaskTestCase(TracerTestCase):
         unpatch()
 
     def assert_is_wrapped(self, obj):
-        self.assertTrue(is_wrapted(obj), "{} is not wrapped".format(obj))
+        self.assertTrue(iswrapped(obj), "{} is not wrapped".format(obj))
 
     def assert_is_not_wrapped(self, obj):
-        self.assertFalse(is_wrapted(obj), "{} is wrapped".format(obj))
+        self.assertFalse(iswrapped(obj), "{} is wrapped".format(obj))
 
     def find_span_by_name(self, spans, name, required=True):
         """Helper to find the first span with a given name from a list"""
