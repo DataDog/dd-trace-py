@@ -56,6 +56,7 @@ from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.peer_service import _ps_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -171,7 +172,7 @@ class Tracer(object):
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
 
-        if asm_config._apm_opt_out:
+        if standalone_config.apm_opt_out:
             self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
@@ -307,7 +308,7 @@ class Tracer(object):
         span id of the current active span, as well as the configured service, version, and environment names.
         If there is no active span, a dictionary with an empty string for each value will be returned.
         """
-        if active is None and (self.enabled or asm_config._apm_opt_out):
+        if active is None and (self.enabled or standalone_config.apm_opt_out):
             active = self.context_provider.active()
 
         span_id = trace_id = LOG_ATTR_VALUE_ZERO
@@ -360,14 +361,14 @@ class Tracer(object):
             asm_config._iast_enabled = iast_enabled
 
         if apm_tracing_disabled is not None:
-            asm_config._apm_tracing_enabled = not apm_tracing_disabled
+            standalone_config.apm_tracing_enabled = not apm_tracing_disabled
 
-        if asm_config._apm_opt_out:
+        if standalone_config.apm_opt_out:
             config._tracing_enabled = self.enabled = False
             # Disable compute stats (neither agent or tracer should compute them)
             config._trace_compute_stats = False
-            log.debug("ASM standalone mode is enabled, traces will be rate limited at 1 trace per minute")
-        elif asm_config._apm_tracing_enabled:
+            log.debug("Standalone mode is enabled, traces will be rate limited at 1 trace per minute")
+        elif standalone_config.apm_tracing_enabled:
             config._tracing_enabled = self.enabled = True
 
         if compute_stats_enabled is not None:
@@ -383,7 +384,11 @@ class Tracer(object):
             ]
         ):
             self._recreate(
-                trace_processors, compute_stats_enabled, asm_config._apm_opt_out, appsec_enabled, reset_buffer=False
+                trace_processors,
+                compute_stats_enabled,
+                standalone_config.apm_opt_out,
+                appsec_enabled,
+                reset_buffer=False,
             )
 
         if context_provider is not None:
@@ -629,7 +634,7 @@ class Tracer(object):
             self.context_provider.activate(span)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
+        if self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
@@ -680,7 +685,7 @@ class Tracer(object):
                 span._set_attribute(_SERVICE_SOURCE, integration_name)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
-        if self.enabled or asm_config._apm_opt_out or config._llmobs_enabled:
+        if self.enabled or standalone_config.apm_opt_out or config._llmobs_enabled:
             for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)

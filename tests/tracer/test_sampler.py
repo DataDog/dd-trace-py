@@ -946,5 +946,11 @@ def test_ksr_formatting(span, sample_rate, expected_ksr):
     from ddtrace.internal.sampling import SamplingMechanism
     from ddtrace.internal.sampling import _set_sampling_tags
 
-    _set_sampling_tags(span, True, sample_rate, SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE)
+    _set_sampling_tags(
+        span,
+        True,
+        sample_rate,
+        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        probabilistic_decision=True,
+    )
     assert span._get_str_attribute(KNUTH_SAMPLE_RATE_KEY) == expected_ksr
