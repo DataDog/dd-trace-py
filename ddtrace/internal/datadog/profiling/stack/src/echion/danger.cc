@@ -91,6 +91,7 @@ is_synchronous_fault(int signo, const siginfo_t* info)
     }
 #endif
 #endif
+    (void)signo;
     return true;
 }
 

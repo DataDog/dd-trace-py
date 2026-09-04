@@ -19,7 +19,7 @@ struct HostFaultReport
     volatile sig_atomic_t ran = 0;
     volatile sig_atomic_t signo = 0;
     volatile sig_atomic_t si_code = 0;
-    void* si_addr = nullptr;
+    void* fault_addr = nullptr;
 };
 
 thread_local sigjmp_buf t_host_jmpenv;
@@ -31,7 +31,7 @@ host_fault_handler(int signo, siginfo_t* info, void*)
     if (t_host_report != nullptr) {
         t_host_report->signo = signo;
         t_host_report->si_code = info != nullptr ? info->si_code : 0;
-        t_host_report->si_addr = info != nullptr ? info->si_addr : nullptr;
+        t_host_report->fault_addr = info != nullptr ? info->si_addr : nullptr;
         t_host_report->ran = 1;
     }
 
@@ -146,10 +146,9 @@ TEST(FaultChainback, CedesUnarmedFaultWithOriginalSiginfo)
     // A kernel-generated fault has si_code > 0. SI_TKILL (-6) here would mean the signal
     // was re-raised instead of being allowed to re-fault.
     EXPECT_GT(report.si_code, 0) << "si_code " << report.si_code << " is not a kernel-generated fault";
-    EXPECT_EQ(report.si_addr, outcome.page) << "si_addr did not survive the handoff to the host";
+    EXPECT_EQ(report.fault_addr, outcome.page) << "si_addr did not survive the handoff to the host";
 
-    // Having ceded the faulting signal, the profiler no longer owns it, so the sampler's
-    // per-cycle ownership check falls back to the syscall copy.
+    // After cede, segv_handler_installed() is false and the host handler is restored on top.
     EXPECT_TRUE(host_handler_owns(delivered)) << "the profiler did not hand the signal back to the host";
     EXPECT_FALSE(segv_handler_installed()) << "the profiler still claims to own both fault signals";
 
