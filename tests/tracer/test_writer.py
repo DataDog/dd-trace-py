@@ -1010,6 +1010,20 @@ def test_writer_recreate_keeps_response_callback():
     assert writer._response_cb is response_callback
 
 
+def test_native_writer_drops_buffered_traces():
+    writer = NativeWriter("http://dne:1234")
+    try:
+        span = Span("span")
+        writer._clients[0].encoder.put([span])
+        assert len(writer._clients[0].encoder) == 1
+
+        writer.drop_buffered_traces()
+
+        assert len(writer._clients[0].encoder) == 0
+    finally:
+        writer.shutdown_exporter()
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [

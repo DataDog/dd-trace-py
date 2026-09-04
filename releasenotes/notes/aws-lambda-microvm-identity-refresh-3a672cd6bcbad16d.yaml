@@ -2,4 +2,5 @@
 features:
   - |
     wsgi,asgi: Adds support for refreshing the runtime ID when applications
-    start in AWS Lambda MicroVM environments.
+    start in AWS Lambda MicroVM environments. Discards traces buffered before
+    the refresh so they are not sent with a stale runtime ID.

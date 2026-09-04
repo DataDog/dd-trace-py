@@ -571,6 +571,7 @@ class SpanAggregator(SpanProcessor):
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
         flush_writer: Optional[bool] = None,
+        drop_buffered_traces: bool = False,
     ) -> None:
         """
         Resets the internal state of the SpanAggregator, including the writer, sampling processor,
@@ -586,6 +587,8 @@ class SpanAggregator(SpanProcessor):
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
+        elif drop_buffered_traces:
+            self.writer.drop_buffered_traces()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
