@@ -29,6 +29,12 @@ class InvalidLine(Exception):
     """
 
 
+def _effective_line(first_line: int, executable_lines: set[int], line: int) -> int:
+    """Redirect a function header line to its first executable line."""
+    first_executable_line = min(executable_lines, default=first_line)
+    return first_executable_line if first_line <= line < first_executable_line else line
+
+
 if PY >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
@@ -83,6 +89,8 @@ if PY >= (3, 15):
         """
         code: CodeType = get_function_code(f)
         valid_lines: set[int] = linenos(code)
+        if not valid_lines:
+            valid_lines.add(code.co_firstlineno)
         failed: list[HookInfoType] = []
 
         with _line_hook_lock:
@@ -94,10 +102,11 @@ if PY >= (3, 15):
                 new_handler = False
 
             for hook, line, arg in hooks:
-                if line not in valid_lines:
+                effective_line = _effective_line(code.co_firstlineno, valid_lines, line)
+                if effective_line not in valid_lines:
                     failed.append((hook, line, arg))
                     continue
-                handler.add(line, hook, arg)
+                handler.add(effective_line, hook, arg)
 
             if not handler.is_empty:
                 if new_handler:
@@ -150,10 +159,14 @@ if PY >= (3, 15):
             if handler is None:
                 return list(hooks)
 
+            valid_lines: set[int] = linenos(code)
+            if not valid_lines:
+                valid_lines.add(code.co_firstlineno)
             for hook, line, arg in hooks:
-                before: int = len(handler._hooks.get(line, ()))
-                handler.remove(line, hook, arg)
-                if len(handler._hooks.get(line, ())) == before:
+                effective_line = _effective_line(code.co_firstlineno, valid_lines, line)
+                before: int = len(handler._hooks.get(effective_line, ()))
+                handler.remove(effective_line, hook, arg)
+                if len(handler._hooks.get(effective_line, ())) == before:
                     failed.append((hook, line, arg))
 
             if handler.is_empty:
@@ -233,6 +246,13 @@ else:
         identifier for the hook itself. This should be kept in case the hook needs
         to be removed.
         """
+        executable_lines = {
+            item.lineno
+            for item in code
+            if isinstance(item, Instr) and item.lineno is not None and item.lineno != code.first_lineno
+        }
+        lineno = _effective_line(code.first_lineno, executable_lines, lineno)
+
         # DEV: In general there are no guarantees for bytecode to be "linear",
         # meaning that a line number can occur multiple times. We need to find all
         # occurrences and inject the hook at each of them. An example of when this
@@ -285,6 +305,13 @@ else:
         The hook is identified by its argument. This ensures that only the right
         hook is ejected.
         """
+        executable_lines = {
+            item.lineno
+            for item in code
+            if isinstance(item, Instr) and item.lineno is not None and item.lineno != code.first_lineno
+        }
+        line = _effective_line(code.first_lineno, executable_lines, line)
+
         locs: deque[int] = deque()
         for i, item in enumerate(code):
             if not isinstance(item, Instr):

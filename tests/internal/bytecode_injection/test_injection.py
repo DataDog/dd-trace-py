@@ -100,6 +100,35 @@ def test_eject_hook():
     hook.assert_not_called()
 
 
+def test_inject_hook_on_function_declaration():
+    hook = mock.Mock()
+    line = injection_target.__code__.co_firstlineno
+
+    inject_hook(injection_target, hook, line, 42)
+    injection_target(1, 2)
+    hook.assert_called_once_with(42)
+
+    eject_hook(injection_target, hook, line, 42)
+    injection_target(1, 2)
+    hook.assert_called_once_with(42)
+
+
+def test_inject_hook_on_one_line_function():
+    namespace = {}
+    exec("def target(): return 42\n", namespace)
+    target = namespace["target"]
+    hook = mock.Mock()
+    line = target.__code__.co_firstlineno
+
+    inject_hook(target, hook, line, 42)
+    assert target() == 42
+    hook.assert_called_once_with(42)
+
+    eject_hook(target, hook, line, 42)
+    assert target() == 42
+    hook.assert_called_once_with(42)
+
+
 def test_inject_hooks():
     n = 2
     hooks = [mock.Mock("hook%d" % _) for _ in range(n)]
