@@ -106,15 +106,16 @@ def inject_import_hooks(
     else:
         bytecode = code_or_bytecode
 
-    pending_insertions: list[PendingImportHook] = [
-        (event.instruction_index, (0, path, event.import_name), event.line) for event in import_events
-    ]
-
     # INJECTION_ASSEMBLY exists only on the <3.15 bytecode path. This helper is
     # unused on 3.15 (_USE_ACCURATE_IMPORTS is False). Keep this defensive
     # no-op for callers that exercise the helper directly on 3.15.
+    # TODO(py-315): remove this defensive no-op after Python 3.15 GA.
     if PY >= (3, 15):
         return bytecode.to_code()
+
+    pending_insertions: list[PendingImportHook] = [
+        (event.instruction_index, (0, path, event.import_name), event.line) for event in import_events
+    ]
 
     from ddtrace.internal.bytecode_injection import INJECTION_ASSEMBLY
 
