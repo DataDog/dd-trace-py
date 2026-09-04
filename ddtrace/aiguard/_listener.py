@@ -400,11 +400,14 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
     ]
     if parse_version(getattr(anthropic, "__version__", "0")) >= (0, 37):
         beta = anthropic.resources.beta.messages.messages
+        bedrock_beta = anthropic.lib.bedrock._beta_messages
         targets += [
             (beta.Messages, "create", sync_wrapper),
             (beta.Messages, "stream", sync_wrapper),
             (beta.AsyncMessages, "stream", sync_wrapper),
             (beta.AsyncMessages, "create", async_wrapper),
+            (bedrock_beta.Messages, "create", sync_wrapper),
+            (bedrock_beta.AsyncMessages, "create", async_wrapper),
         ]
 
     for owner, attr, wrapper in targets:
