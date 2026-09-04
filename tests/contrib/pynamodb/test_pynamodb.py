@@ -1,5 +1,4 @@
-from moto import mock_dynamodb
-from moto.dynamodb import dynamodb_backend
+from moto import mock_aws
 import pynamodb.connection.base
 from pynamodb.connection.base import Connection
 import pytest
@@ -24,9 +23,21 @@ class PynamodbTest(TracerTestCase):
         super(PynamodbTest, self).tearDown()
         unpatch()
 
-    @mock_dynamodb
+    def _create_table(self):
+        # AIDEV-NOTE: Seed through the underlying Botocore client so these tests avoid Moto's private backend API,
+        # remain idempotent within a shared mock context, and do not produce extra instrumented PynamoDB spans.
+        if "Test" in self.conn.client.list_tables()["TableNames"]:
+            self.conn.client.delete_table(TableName="Test")
+        self.conn.client.create_table(
+            TableName="Test",
+            KeySchema=[{"AttributeName": "content", "KeyType": "HASH"}],
+            AttributeDefinitions=[{"AttributeName": "content", "AttributeType": "S"}],
+            ProvisionedThroughput={"ReadCapacityUnits": 1, "WriteCapacityUnits": 1},
+        )
+
+    @mock_aws
     def test_list_tables(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         spans = self.get_spans()
@@ -53,9 +64,9 @@ class PynamodbTest(TracerTestCase):
         assert len(list_result["TableNames"]) == 1
         assert list_result["TableNames"][0] == "Test"
 
-    @mock_dynamodb
+    @mock_aws
     def test_delete_table(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         delete_result = self.conn.delete_table("Test")
         spans = self.get_spans()
 
@@ -78,12 +89,12 @@ class PynamodbTest(TracerTestCase):
         assert span.duration >= 0
         assert span.error == 0
 
-        assert delete_result["Table"]["TableName"] == "Test"
+        assert delete_result["TableDescription"]["TableName"] == "Test"
         assert len(self.conn.list_tables()["TableNames"]) == 0
 
-    @mock_dynamodb
+    @mock_aws
     def test_scan(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         scan_result = self.conn.scan("Test")
         spans = self.get_spans()
 
@@ -109,7 +120,7 @@ class PynamodbTest(TracerTestCase):
         assert scan_result["ScannedCount"] == 0
         assert len(scan_result["Items"]) == 0
 
-    @mock_dynamodb
+    @mock_aws
     def test_scan_on_error(self):
         with pytest.raises(pynamodb.exceptions.ScanError):
             self.conn.scan("OtherTable")
@@ -135,13 +146,13 @@ class PynamodbTest(TracerTestCase):
         assert span.get_tag("error.type") != ""
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_service_default(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
 
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -150,13 +161,13 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_service_v0(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
 
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -165,13 +176,13 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_service_v1(self):
         from ddtrace import config
 
         assert config.service == "mysvc"
 
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -180,9 +191,9 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict())
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_unspecified_service_default(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -191,9 +202,9 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_unspecified_service_v0(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -202,9 +213,9 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_unspecified_service_v1(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -215,9 +226,9 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v0"))
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_operation_v0(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -226,9 +237,9 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"))
-    @mock_dynamodb
+    @mock_aws
     def test_schematized_operation_v1(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -237,9 +248,9 @@ class PynamodbTest(TracerTestCase):
         assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_PYNAMODB_SERVICE="mypynamodb"))
-    @mock_dynamodb
+    @mock_aws
     def test_env_user_specified_pynamodb_service(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
 
         span = self.get_spans()[0]
@@ -252,7 +263,7 @@ class PynamodbTest(TracerTestCase):
 
         # Global config
         with self.override_config("pynamodb", dict(service="cfg-pynamodb")):
-            dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+            self._create_table()
             list_result = self.conn.list_tables()
             span = self.get_spans()[0]
 
@@ -261,9 +272,9 @@ class PynamodbTest(TracerTestCase):
             assert list_result["TableNames"][0] == "Test"
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="app-svc", DD_PYNAMODB_SERVICE="env-pynamodb"))
-    @mock_dynamodb
+    @mock_aws
     def test_service_precedence(self):
-        dynamodb_backend.create_table("Test", hash_key_attr="content", hash_key_type="S")
+        self._create_table()
         list_result = self.conn.list_tables()
         span = self.get_spans()[0]
         assert span.service == "env-pynamodb", span.service

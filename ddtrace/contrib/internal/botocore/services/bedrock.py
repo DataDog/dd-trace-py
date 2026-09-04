@@ -232,6 +232,7 @@ def _extract_request_params_for_invoke(params: dict[str, Any], provider: str) ->
             "top_k": request_body.get("top_k", ""),
             "max_tokens": request_body.get("max_tokens_to_sample", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
+            "tools": request_body.get("tools", []),
         }
     elif provider == _COHERE and "embed" in model_id:
         return {
