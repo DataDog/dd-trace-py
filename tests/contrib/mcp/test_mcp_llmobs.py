@@ -251,6 +251,33 @@ def test_mcp_v2_server_middleware_restores_context_after_setup_error(mcp_setup, 
 
 
 @pytest.mark.skipif(MCP_VERSION < (2, 0, 0), reason="MCP server request context is only available in MCP v2")
+def test_mcp_v2_server_middleware_preserves_ambient_context(mcp_setup, tracer):
+    """Server middleware keeps MCP server spans nested under the caller's APM span."""
+    from ddtrace.contrib.internal.mcp.patch import traced_server_middleware
+
+    caller_span = tracer.trace("caller")
+    observed_span = None
+
+    class Context:
+        method = "initialize"
+        params = {}
+
+    async def call_next(context):
+        nonlocal observed_span
+        observed_span = tracer.current_span()
+        return {}
+
+    try:
+        with override_config("mcp", dict(distributed_tracing=True)):
+            asyncio.run(traced_server_middleware(Context(), call_next))
+        assert observed_span is not None
+        assert observed_span.parent_id == caller_span.span_id
+        assert tracer.current_span() is caller_span
+    finally:
+        caller_span.finish()
+
+
+@pytest.mark.skipif(MCP_VERSION < (2, 0, 0), reason="MCP server request context is only available in MCP v2")
 def test_mcp_v2_server_middleware_records_http_session_id(mcp_setup, mcp_llmobs):
     """Server LLMObs annotations retain the streamable HTTP session id."""
     from mcp.server.streamable_http import MCP_SESSION_ID_HEADER

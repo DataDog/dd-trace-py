@@ -255,8 +255,12 @@ async def traced_server_middleware(context, call_next):
     try:
         llmobs_context_provider = integration._get_llmobs_context_provider()
         previous_llmobs_context = llmobs_context_provider.active() if llmobs_context_provider else None
-        tracer.context_provider.activate(None)
-        tracer_context_cleared = True
+        # Preserve the ambient APM context for in-process requests without distributed headers.
+        # Clear it when tracing is disabled or before activating an incoming context so the
+        # extracted parent is not mistaken for an already-active trace.
+        if not config.mcp.distributed_tracing:
+            tracer.context_provider.activate(None)
+            tracer_context_cleared = True
         if llmobs_context_provider:
             llmobs_context_provider.activate(None)
             llmobs_context_cleared = True
@@ -265,6 +269,8 @@ async def traced_server_middleware(context, call_next):
             and config.mcp.distributed_tracing
             and (headers := _extract_distributed_headers_from_mcp_request(params or {}))
         ):
+            tracer.context_provider.activate(None)
+            tracer_context_cleared = True
             activate_distributed_headers(tracer, config.mcp, headers)
 
         operation_name = SERVER_TOOL_CALL_OPERATION_NAME if method == "tools/call" else SERVER_REQUEST_OPERATION_NAME
