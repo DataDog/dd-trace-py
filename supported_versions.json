@@ -1015,6 +1015,17 @@
                 },
                 "supportedRange": ">=1.10.0",
                 "tested": [
+                    "2.2.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.15"
+                    ]
+                },
+                "supportedRange": ">=1.10.0",
+                "tested": [
                     "2.2.0"
                 ]
             }

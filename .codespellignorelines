@@ -1,3 +1,6 @@
                 input="thsi si a spelilgn imstkae.",
             input="thsi si a spelilgn imstkae.",
                     "input": "thsi si a spelilgn imstkae.",
+       | grep -qi "^fpr:.*:177F4010FE56CA3336300305F1656F24C74CD1D8:$" \
+         | grep -qi "^fpr:.*:BC528686B50D79E339D3721CEB3E94ADBE1229CF:$" \
+         | grep -qi "^fpr:.*:EB4C1BFD4F042F6DDDCCEC917721F63BD38B4796:$" \
