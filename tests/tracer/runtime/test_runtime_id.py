@@ -669,7 +669,7 @@ def test_tracer_microvm_identity_refresh_recreates_exporter_without_fork_side_ef
         ):
             tracer._refresh_runtime_identity(runtime.get_runtime_id())
 
-        recreate.assert_called_once_with(reset_buffer=False)
+        recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
         store_metadata.assert_called_once_with()
         assert tracer._new_process is False
     finally:
@@ -695,5 +695,74 @@ def test_identity_refresh_hook_notifies_global_tracer():
             (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH),
         )
 
-    recreate.assert_called_once_with(reset_buffer=False)
+    recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
     store_metadata.assert_called_once_with()
+
+
+def test_tracer_microvm_identity_refresh_drops_direct_and_indirect_trace_buffers():
+    """Identity refresh drops queued spans and active traces carrying the old runtime ID."""
+    from unittest import mock
+
+    from ddtrace._trace.tracer import Tracer
+    from ddtrace.internal import runtime
+
+    class BufferedWriter:
+        def __init__(self):
+            self.traces = []
+            self.dropped = False
+
+        def write(self, spans):
+            self.traces.append(spans)
+
+        def drop_buffered_traces(self):
+            self.traces.clear()
+            self.dropped = True
+
+        def recreate(self, **kwargs):
+            self.recreate_kwargs = kwargs
+            return BufferedWriter()
+
+        def flush_queue(self):
+            raise AssertionError("identity refresh must drop buffered traces, not flush them")
+
+        def stop(self, timeout=None):
+            pass
+
+    writers = []
+
+    def create_writer(**kwargs):
+        writer = BufferedWriter()
+        writers.append(writer)
+        return writer
+
+    with (
+        mock.patch("ddtrace._trace.processor.create_trace_writer", side_effect=create_writer),
+        mock.patch("ddtrace._trace.tracer.store_metadata"),
+    ):
+        tracer = Tracer()
+
+    try:
+        old_writer = writers[-1]
+        queued_root = tracer.start_span("queued-root")
+        old_runtime_id = queued_root.get_tag("runtime-id")
+        queued_root.finish()
+
+        active_root = tracer.start_span("active-root")
+        active_child = tracer.start_span("active-child", child_of=active_root)
+        active_child.finish()
+        assert active_root.trace_id in tracer._span_aggregator._traces
+        assert tracer._span_aggregator._traces[active_root.trace_id].spans == [active_root, active_child]
+        assert old_writer.traces
+
+        runtime._refresh_runtime_id()
+        tracer._refresh_runtime_identity(runtime.get_runtime_id())
+
+        assert old_writer.dropped is True
+        assert old_writer.traces == []
+        assert tracer._span_aggregator._traces == {}
+
+        refreshed_root = tracer.start_span("refreshed-root")
+        assert refreshed_root.get_tag("runtime-id") != old_runtime_id
+        refreshed_root.finish()
+    finally:
+        tracer.shutdown()

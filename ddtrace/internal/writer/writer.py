@@ -140,6 +140,10 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
+    def drop_buffered_traces(self) -> None:
+        """Discard traces buffered by the writer without flushing them."""
+        pass
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -476,6 +480,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        for client in self._clients:
+            getattr(client.encoder, "get")()
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
@@ -1154,6 +1162,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        for client in self._clients:
+            getattr(client.encoder, "flush")()
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
