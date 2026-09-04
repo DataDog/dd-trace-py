@@ -1108,23 +1108,6 @@ venv = Venv(
                         "django-q2": latest,
                     },
                 ),
-                Venv(
-                    pys=select_pys(min_version="3.14", max_version="3.14"),
-                    command=(
-                        "pytest {cmdargs} "
-                        "--ignore=tests/contrib/django/test_django_dbm.py "
-                        "--ignore=tests/contrib/django/test_django_snapshots.py "
-                        "-k 'not test_user_name_included and not test_user_name_excluded "
-                        "and not test_cached_view' "
-                        "tests/contrib/django"
-                    ),
-                    pkgs={
-                        "django": latest,
-                        "psycopg": latest,
-                        "channels": latest,
-                        "django-q2": latest,
-                    },
-                ),
             ],
         ),
         Venv(

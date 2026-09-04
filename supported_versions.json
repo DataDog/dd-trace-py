@@ -932,17 +932,6 @@
                     "5.2",
                     "5.2.17"
                 ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
-                        "3.14"
-                    ]
-                },
-                "supportedRange": ">=2.2.8",
-                "tested": [
-                    "6.1"
-                ]
             }
         ]
     },
