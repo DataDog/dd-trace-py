@@ -1,10 +1,16 @@
 import os
+from typing import Optional
 from unittest import mock
 
 import pytest
 
 from ddtrace.internal.runtime.constants import CPU_PERCENT
+from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN0
+from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN1
+from ddtrace.internal.runtime.constants import GC_COLLECTIONS_GEN2
 from ddtrace.internal.runtime.constants import GC_COUNT_GEN0
+from ddtrace.internal.runtime.constants import GC_PAUSE_MAX
+from ddtrace.internal.runtime.constants import GC_PAUSE_TIME
 from ddtrace.internal.runtime.constants import GC_RUNTIME_METRICS
 from ddtrace.internal.runtime.constants import MEM_RSS
 from ddtrace.internal.runtime.constants import NATIVE_PROCESS_RUNTIME_METRICS
@@ -178,30 +184,122 @@ def test_metrics_reflect_child_after_fork():
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
-        for metric_name, value in collector.collect(GC_RUNTIME_METRICS):
-            self.assertIsNotNone(value)
-            self.assertRegex(metric_name, r"^runtime.python\..*")
+        try:
+            for metric_name, value in collector.collect(GC_RUNTIME_METRICS):
+                self.assertIsNotNone(value)
+                self.assertRegex(metric_name, r"^runtime.python\..*")
+            self.assertEqual({name for name, _ in collector.collect(GC_RUNTIME_METRICS)}, GC_RUNTIME_METRICS)
+        finally:
+            collector.stop()
 
     def test_gen1_changes(self):
         # disable gc
         import gc
 
         gc.disable()
-
-        # start collector and get current gc counts
         collector = GCRuntimeMetricCollector()
-        gc.collect()
-        start = gc.get_count()
+        try:
+            gc.collect()
+            start = gc.get_count()
 
-        # create reference
-        a = []
-        collected = collector.collect([GC_COUNT_GEN0])
-        self.assertGreaterEqual(collected[0][1], start[0])
+            # create reference
+            a = []
+            collected = collector.collect([GC_COUNT_GEN0])
+            self.assertGreaterEqual(collected[0][1], start[0])
 
-        # delete reference and collect
-        del a
-        gc.collect()
-        collected_after = collector.collect([GC_COUNT_GEN0])
-        assert len(collected_after) == 1
-        assert collected_after[0][0] == "runtime.python.gc.count.gen0"
-        assert isinstance(collected_after[0][1], int)
+            # delete reference and collect
+            del a
+            gc.collect()
+            collected_after = collector.collect([GC_COUNT_GEN0])
+            assert len(collected_after) == 1
+            assert collected_after[0][0] == "runtime.python.gc.count.gen0"
+            assert isinstance(collected_after[0][1], int)
+        finally:
+            collector.stop()
+            gc.enable()
+
+    def test_collections_and_pause_after_collect(self) -> None:
+        import gc
+
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+        try:
+            collector.collect(GC_RUNTIME_METRICS)
+            gc.collect()
+            raw: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, int]]] = None
+            if raw is not None:
+                collected = [(name, int(value)) for name, value in raw]
+        finally:
+            collector.stop()
+
+        assert collected is not None
+        metrics: dict[str, int] = {name: int(value) for name, value in collected}
+        collections: int = metrics[GC_COLLECTIONS_GEN0] + metrics[GC_COLLECTIONS_GEN1] + metrics[GC_COLLECTIONS_GEN2]
+        assert collections >= 1
+        assert metrics[GC_PAUSE_TIME] > 0
+        assert metrics[GC_PAUSE_MAX] > 0
+        assert metrics[GC_PAUSE_MAX] <= metrics[GC_PAUSE_TIME]
+
+    def test_pause_window_resets_between_flushes(self) -> None:
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+        try:
+            import gc
+
+            gc.collect()
+            collector.collect(GC_RUNTIME_METRICS)
+            raw: Optional[list[tuple[str, str]]] = collector.collect(GC_RUNTIME_METRICS)
+            collected: Optional[list[tuple[str, int]]] = None
+            if raw is not None:
+                collected = [(name, int(value)) for name, value in raw]
+        finally:
+            collector.stop()
+
+        assert collected is not None
+        metrics: dict[str, int] = {name: int(value) for name, value in collected}
+
+        assert metrics[GC_PAUSE_TIME] == 0
+        assert metrics[GC_PAUSE_MAX] == 0
+        assert metrics[GC_COLLECTIONS_GEN0] == 0
+        assert metrics[GC_COLLECTIONS_GEN1] == 0
+        assert metrics[GC_COLLECTIONS_GEN2] == 0
+
+    def test_stop_unregisters_fork_hook(self) -> None:
+        from ddtrace.internal import forksafe
+
+        collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+        try:
+            self.assertIn(collector._reset_state, forksafe._registry)
+        finally:
+            collector.stop()
+        self.assertNotIn(collector._reset_state, forksafe._registry)
+
+    def test_runtime_worker_stop_tears_down_gc_collector(self) -> None:
+        from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+        from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+        worker: RuntimeWorker = RuntimeWorker()
+        worker.start()
+        monitor = gc_pause_monitor()
+        self.assertGreaterEqual(monitor._refcount, 1)
+        worker.stop()
+        self.assertEqual(monitor._refcount, 0)
+
+    def test_init_failure_releases_monitor(self) -> None:
+        import gc
+
+        from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+        from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+
+        monitor: GCPauseMonitor = gc_pause_monitor()
+        before: int = monitor._refcount
+        with mock.patch(
+            "ddtrace.internal.runtime.metric_collectors._read_gc_collections",
+            side_effect=RuntimeError("boom"),
+        ):
+            collector: GCRuntimeMetricCollector = GCRuntimeMetricCollector()
+
+        self.assertFalse(collector.enabled)
+        self.assertIsNone(collector._monitor)
+        self.assertEqual(monitor._refcount, before)
+        if before == 0:
+            self.assertFalse(any(cb is monitor._gc_hook for cb in gc.callbacks))

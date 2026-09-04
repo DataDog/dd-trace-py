@@ -1,18 +1,13 @@
 from pathlib import Path
 import sys
-from types import CodeType
 from types import ModuleType
 
-from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.internal.module import ModuleHookType
 from ddtrace.internal.module import ModuleWatchdog
 
 
 class DebuggerModuleWatchdog(ModuleWatchdog):
     _locations: set[str] = set()
-
-    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
-        return FunctionDiscovery.transformer(code, module)
 
     @classmethod
     def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:

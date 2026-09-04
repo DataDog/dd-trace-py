@@ -36,6 +36,10 @@ class RuntimeCollectorsIterable(object):
         collected = (collector.collect(self._enabled) for collector in self._collectors)
         return itertools.chain.from_iterable(collected)
 
+    def stop(self) -> None:
+        for collector in self._collectors:
+            collector.stop()
+
     def __repr__(self):
         return "{}(enabled={})".format(
             self.__class__.__name__,
@@ -142,6 +146,10 @@ class RuntimeWorker(periodic.PeriodicService):
 
             cls._instance = runtime_worker
             cls.enabled = True
+
+    def stop(self, *args, **kwargs) -> None:
+        super().stop(*args, **kwargs)
+        self._runtime_metrics.stop()
 
     def flush(self) -> None:
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
