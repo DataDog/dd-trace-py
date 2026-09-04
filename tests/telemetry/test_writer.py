@@ -810,6 +810,60 @@ import opentelemetry
     assert "OTEL_EXPORTER_OTLP_TIMEOUT" in configurations
 
 
+def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatch):
+    """MicroVM identity refresh must not leave native telemetry on the old runtime ID."""
+    from ddtrace.internal import runtime
+    import ddtrace.internal.native as native
+    from ddtrace.internal.telemetry.writer import TelemetryWriter
+
+    workers = []
+
+    class FakeTelemetryWorker:
+        def __init__(self, native_runtime, **kwargs):
+            self.native_runtime = native_runtime
+            self.kwargs = kwargs
+            self.start_calls = 0
+            self.stop_calls = []
+            workers.append(self)
+
+        def start(self):
+            self.start_calls += 1
+
+        def stop(self, send_app_closing=True):
+            self.stop_calls.append(send_app_closing)
+
+        def __getattr__(self, name):
+            def _noop(*args, **kwargs):
+                pass
+
+            return _noop
+
+    with (
+        mock.patch.object(telemetry_config, "TELEMETRY_ENABLED", True),
+        mock.patch.object(telemetry_config, "DEPENDENCY_COLLECTION", False),
+        mock.patch.object(native, "TelemetryWorker", FakeTelemetryWorker),
+        mock.patch("ddtrace.internal.native_runtime.get_native_runtime", return_value=object()),
+    ):
+        writer = TelemetryWriter(agentless=False)
+        monkeypatch.setattr(ddtrace.internal.telemetry, "telemetry_writer", writer)
+        try:
+            writer.app_started()
+            first_worker = workers[-1]
+            first_runtime_id = first_worker.kwargs["runtime_id"]
+            assert first_worker.start_calls == 1
+
+            runtime.refresh_identity()
+
+            assert first_worker.stop_calls == [False]
+            assert workers[-1] is writer._worker
+            assert workers[-1].kwargs["runtime_id"] == runtime.get_runtime_id()
+            assert workers[-1].kwargs["session_id"] == runtime.get_runtime_id()
+            assert workers[-1].kwargs["runtime_id"] != first_runtime_id
+            assert workers[-1].start_calls == 1
+        finally:
+            writer.disable()
+
+
 def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):
     """DD_API_KEY and DD_APP_KEY values are excluded from configuration telemetry.
 
