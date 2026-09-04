@@ -1634,7 +1634,7 @@ venv = Venv(
                     # starlette added support for Python 3.9 in 0.14
                     pys="3.9",
                     pkgs={
-                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"],
+                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0", latest],
                         "httpx": "~=0.22.0",
                     },
                 ),
@@ -1642,7 +1642,7 @@ venv = Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
                     pkgs={
-                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest],
+                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0"],
                         "httpx": "~=0.27.0",
                     },
                 ),
@@ -1652,12 +1652,12 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
-                    pkgs={"starlette": latest, "httpx": "~=0.27.0"},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                    pkgs={"starlette": [latest], "httpx": "~=0.22.0"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "starlette": latest,
+                        "httpx2": latest,
+                        "anyio": latest,
+                    },
                 ),
             ],
         ),
