@@ -41,6 +41,7 @@ ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 # Repository tooling defaults. Domain-specific rules below take precedence.
 AGENTS.md                           @DataDog/python-guild
 .claude/                            @DataDog/python-guild
+.llm-validation/                    @DataDog/python-guild
 .cursor/                            @DataDog/python-guild
 .sg/                                @DataDog/python-guild
 hooks/                              @DataDog/python-guild
@@ -113,6 +114,8 @@ tests/smoke_test.py                 @DataDog/python-guild
 tests/suitespec.py                  @DataDog/python-guild  @DataDog/apm-core-python
 tests/suitespec.yml                 @DataDog/python-guild
 tests/utils.py                      @DataDog/python-guild
+tests/_ddtest_conftest_helpers.py   @DataDog/python-guild
+tests/_ddtest_env_helpers.py        @DataDog/python-guild
 tests/__init__.py                   @DataDog/python-guild
 tests/README.md                     @DataDog/python-guild
 tests/ddtrace_run.py                @DataDog/python-guild

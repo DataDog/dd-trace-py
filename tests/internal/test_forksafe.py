@@ -195,6 +195,82 @@ def test_hook_exception():
     assert exit_code == 12
 
 
+@pytest.mark.subprocess(err=None)
+def test_hook_panic_exception():
+    """A native hook can raise pyo3_runtime.PanicException on a Rust panic.
+
+    PanicException subclasses BaseException directly rather than Exception, by
+    pyo3's design. Left uncaught, it would abort run_hooks' loop and silently
+    skip every hook registered after it, so it must be swallowed the same way
+    a plain Exception is; anything else must still propagate.
+    """
+    import os
+
+    from ddtrace.internal import forksafe
+
+    state = []
+
+    class PanicException(BaseException):
+        pass
+
+    PanicException.__module__ = "pyo3_runtime"
+
+    @forksafe.register
+    def panicking_hook():
+        raise PanicException("failed to wake I/O driver")
+
+    @forksafe.register
+    def after_panicking_hook():
+        state.append(1)
+
+    pid = os.fork()
+    if pid == 0:
+        # child
+        assert state == [1]
+        os._exit(12)
+    else:
+        assert state == []
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
+@pytest.mark.subprocess(err=None)
+def test_hook_base_exception_not_a_panic_still_propagates():
+    """A BaseException that is not a pyo3 panic must still propagate and abort
+    the hook loop, unlike the panic-specific case above.
+    """
+    import os
+
+    from ddtrace.internal import forksafe
+
+    state = []
+
+    @forksafe.register
+    def raising_hook():
+        raise SystemExit(7)
+
+    @forksafe.register
+    def after_raising_hook():
+        state.append(1)
+
+    pid = os.fork()
+    if pid == 0:
+        # child: SystemExit isn't a panic, so run_hooks re-raises it, aborting
+        # the loop -- the hook registered after the raising one never runs.
+        # CPython reports the propagated exception as "Exception ignored in"
+        # (PyErr_WriteUnraisable) rather than treating it as fatal.
+        assert state == []
+        os._exit(12)
+    else:
+        assert state == []
+
+    _, status = os.waitpid(pid, 0)
+    exit_code = os.WEXITSTATUS(status)
+    assert exit_code == 12
+
+
 def test_event_basic():
     # type: (...) -> None
     """Check that a forksafe.Event implements the correct threading.Event interface"""
