@@ -20,6 +20,7 @@ from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._patch_utils import _DD_WRAPPING_CONTEXTS
+from ddtrace.appsec._patch_utils import _MODULE_HOOKS
 from ddtrace.appsec._patch_utils import try_unwrap_context
 from ddtrace.appsec._patch_utils import try_wrap_context
 from ddtrace.appsec._utils import DDWaf_result
@@ -222,6 +223,46 @@ def test_http_connection_request_blocks_on_a_waf_block_decision():
         unpatch_common_modules()
 
 
+def test_a_blocked_request_leaves_no_wrapping_storage_behind():
+    """A block leaves through BaseException before the wrapped body starts.
+
+    The blocking context is then absent from the universal context's entered list, so nothing pops
+    the storage its __enter__ pushed and the ContextVar chains a dict per blocked request. Fixed in
+    APPSEC-69960; asserted here because this is the code that raises.
+    """
+    unpatch_common_modules()
+    import http.client
+
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+    from ddtrace.internal.wrapping.context import _UniversalWrappingContext
+
+    httplib_unpatch()
+    try:
+        patch_common_modules()
+        concrete = _DD_WRAPPING_CONTEXTS[("http.client", "HTTPConnection.request")]
+        universal = _UniversalWrappingContext.extract(concrete.__wrapped__)
+
+        for _ in range(3):
+            core.set_item("full_url", "http://127.0.0.1:1/")
+            with (
+                mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+                mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock(downstream_requests=0)),
+                mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()),
+                mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
+            ):
+                conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
+                with pytest.raises(BlockingException):
+                    conn.request("GET", "/")
+
+        # Unset on both, or every blocked request chains another storage dict onto the thread.
+        assert concrete._storage.get() is None
+        assert universal._storage.get() is None
+    finally:
+        core.discard_item("full_url")
+        httplib_unpatch()
+        unpatch_common_modules()
+
+
 def test_http_client_request_traceback_has_no_ddtrace_frames():
     """The same guarantee as for urlopen, for the migrated http.client hooks.
 
@@ -283,6 +324,41 @@ def test_try_wrap_context_survives_a_wrap_failure():
         assert key not in _DD_WRAPPING_CONTEXTS
     finally:
         try_unwrap_context(key[0], key[1])
+
+
+def test_try_wrap_context_rebinds_after_a_module_reload():
+    """A reload gives the class new function objects, and those must get wrapped too.
+
+    Keying only on (module, name) treated the key as proof the current target was wrapped, so the
+    reloaded methods ran without RASP until a full unpatch/patch cycle.
+    """
+    import http.client
+
+    key = ("http.client", "HTTPConnection.putrequest")
+    original = http.client.HTTPConnection.__dict__["putrequest"]
+
+    class _Ctx(WrappingContext):
+        pass
+
+    def reloaded(self, method, url, skip_host=False, skip_accept_encoding=False):
+        return None
+
+    try:
+        try_wrap_context(key[0], key[1], _Ctx)
+        first = _DD_WRAPPING_CONTEXTS[key]
+        assert first.__wrapped__ is original
+
+        # Stand in for a reload: the attribute now holds a different function object.
+        http.client.HTTPConnection.putrequest = reloaded
+        for hook in _MODULE_HOOKS[key]:
+            hook(http.client)
+
+        rebound = _DD_WRAPPING_CONTEXTS[key]
+        assert rebound is not first
+        assert rebound.__wrapped__ is reloaded
+    finally:
+        try_unwrap_context(key[0], key[1])
+        http.client.HTTPConnection.putrequest = original
 
 
 def _entered_context():

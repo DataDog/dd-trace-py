@@ -154,12 +154,22 @@ def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingCont
 
     def _(module: Any) -> None:
         key = (module_name, name)
-        if key in _DD_WRAPPING_CONTEXTS:
-            # Already wrapped. Re-registering the same context type raises, so stay a no-op
-            # like apply_patch does for a repeated wrapt patch.
-            return
         try:
-            context = context_cls(_target_function(module, name))
+            target = _target_function(module, name)
+            installed = _DD_WRAPPING_CONTEXTS.get(key)
+            if installed is not None:
+                if installed.__wrapped__ is target:
+                    # Already wrapped. Re-registering the same context type raises, so stay a
+                    # no-op, like apply_patch does for a repeated wrapt patch.
+                    return
+                # The module was reloaded, so the attribute holds a new function and the installed
+                # context is bound to one nothing references any more. Rebind to what is there now.
+                del _DD_WRAPPING_CONTEXTS[key]
+                try:
+                    installed.unwrap()
+                except Exception:
+                    log.debug("Cannot release the stale context on %s.%s", module_name, name, exc_info=True)
+            context = context_cls(target)
             context.wrap()
             _DD_WRAPPING_CONTEXTS[key] = context
         except Exception:
