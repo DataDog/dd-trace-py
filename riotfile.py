@@ -1031,7 +1031,7 @@ venv = Venv(
             name="ddtrace_api",
             command="pytest {cmdargs} tests/contrib/ddtrace_api",
             pkgs={"ddtrace-api": "==0.0.1", "requests": latest},
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
         ),
         # Django  Python version support
         # 2.2     3.9
@@ -3675,7 +3675,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/sourcecode",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "setuptools": latest,
                 "pytest-randomly": latest,
