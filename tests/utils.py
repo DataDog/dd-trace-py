@@ -83,6 +83,17 @@ _LLMOBS_SHADOW_IGNORES = [
     "metrics._dd.llmobs.total_tokens",
     "metrics._dd.llmobs.cache_read_input_tokens",
     "metrics._dd.llmobs.cache_write_input_tokens",
+    # Same cassette-derived values as the _dd.llmobs.* shadow tags above.
+    "meta.gen_ai.operation.name",
+    "meta.gen_ai.request.model",
+    "meta.gen_ai.provider.name",
+    "meta.gen_ai.application.name",
+    "meta.gen_ai.conversation.id",
+    "metrics.gen_ai.usage.input_tokens",
+    "metrics.gen_ai.usage.output_tokens",
+    "metrics.gen_ai.usage.total_tokens",
+    "metrics.gen_ai.usage.cache_read_input_tokens",
+    "metrics.gen_ai.usage.cache_write_input_tokens",
 ]
 
 
