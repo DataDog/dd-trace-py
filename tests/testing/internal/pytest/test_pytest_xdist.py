@@ -356,6 +356,66 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 # xdist behavior since inline_run + EventCapture cannot cross process boundaries.
 
 
+def _write_manifest_marker_project(test_project: Path, marker_dir: Path) -> None:
+    """Write a project whose conftest/tests record each worker's manifest env and offline mode.
+
+    Used by the manifest-mode regression tests: after the subprocess run, ``marker_dir`` holds one
+    file per worker recording the inherited manifest path and whether that worker actually entered
+    manifest mode, so a test can assert the controller's fetch was shared instead of fanned out.
+    """
+    (test_project / "conftest.py").write_text(
+        textwrap.dedent(f"""\
+            import os
+            from pathlib import Path
+
+            MARKER_DIR = Path({str(marker_dir)!r})
+
+            def pytest_configure(config):
+                worker = os.environ.get("PYTEST_XDIST_WORKER")
+                manifest = os.environ.get("DD_TEST_OPTIMIZATION_MANIFEST_FILE", "")
+                MARKER_DIR.mkdir(exist_ok=True)
+                (MARKER_DIR / (worker or "controller")).write_text(manifest)
+        """)
+    )
+    (test_project / "test_a.py").write_text(
+        textwrap.dedent(f"""\
+            import os
+            from pathlib import Path
+
+            MARKER_DIR = Path({str(marker_dir)!r})
+
+            def _record_test(name):
+                worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
+                with (MARKER_DIR / (worker + "-tests")).open("a") as f:
+                    f.write(name + "\\n")
+                if worker != "controller":
+                    from ddtrace.testing.internal.offline_mode import get_offline_mode
+
+                    offline_mode = get_offline_mode()
+                    (MARKER_DIR / (worker + "-manifest-mode")).write_text(
+                        f"enabled={{offline_mode.manifest_enabled}}\\n"
+                        f"dir={{offline_mode.test_optimization_dir}}\\n"
+                    )
+
+            def test_one():
+                _record_test("test_one")
+                assert True
+
+            def test_two():
+                _record_test("test_two")
+                assert True
+
+            def test_three():
+                _record_test("test_three")
+                assert True
+
+            def test_four():
+                _record_test("test_four")
+                assert True
+        """)
+    )
+
+
 class TestXdistManifestMode:
     def test_controller_generates_manifest_workers_avoid_backend_fanout(
         self, mock_server: MockCIVisibilityServer, test_project: Path
@@ -367,57 +427,7 @@ class TestXdistManifestMode:
         mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
 
         marker_dir = test_project / "xdist_markers"
-        (test_project / "conftest.py").write_text(
-            textwrap.dedent(f"""\
-                import os
-                from pathlib import Path
-
-                MARKER_DIR = Path({str(marker_dir)!r})
-
-                def pytest_configure(config):
-                    worker = os.environ.get("PYTEST_XDIST_WORKER")
-                    manifest = os.environ.get("DD_TEST_OPTIMIZATION_MANIFEST_FILE", "")
-                    MARKER_DIR.mkdir(exist_ok=True)
-                    (MARKER_DIR / (worker or "controller")).write_text(manifest)
-            """)
-        )
-        (test_project / "test_a.py").write_text(
-            textwrap.dedent(f"""\
-                import os
-                from pathlib import Path
-
-                MARKER_DIR = Path({str(marker_dir)!r})
-
-                def _record_test(name):
-                    worker = os.environ.get("PYTEST_XDIST_WORKER", "controller")
-                    with (MARKER_DIR / (worker + "-tests")).open("a") as f:
-                        f.write(name + "\\n")
-                    if worker != "controller":
-                        from ddtrace.testing.internal.offline_mode import get_offline_mode
-
-                        offline_mode = get_offline_mode()
-                        (MARKER_DIR / (worker + "-manifest-mode")).write_text(
-                            f"enabled={{offline_mode.manifest_enabled}}\\n"
-                            f"dir={{offline_mode.test_optimization_dir}}\\n"
-                        )
-
-                def test_one():
-                    _record_test("test_one")
-                    assert True
-
-                def test_two():
-                    _record_test("test_two")
-                    assert True
-
-                def test_three():
-                    _record_test("test_three")
-                    assert True
-
-                def test_four():
-                    _record_test("test_four")
-                    assert True
-            """)
-        )
+        _write_manifest_marker_project(test_project, marker_dir)
         _git_commit(test_project)
 
         env = _make_env(mock_server.url)
@@ -446,6 +456,53 @@ class TestXdistManifestMode:
 
         # The generated manifest cache is a private temp directory, removed when the session ends.
         manifest_dir = Path(worker_manifests[0]).parent
+        assert not manifest_dir.exists(), manifest_dir
+
+    def test_manifest_mode_active_under_worksteal_distribution(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """Manifest mode must still activate under ``--dist worksteal``.
+
+        dd-trace-py's own suites run with ``--dist worksteal`` (see PR #19581).  Worksteal
+        redistributes tests between workers at runtime, but the manifest is read at worker startup
+        (before any stealing happens), so the optimization is unaffected.  This test guards that
+        interaction, which the default-``load`` test above does not exercise.
+
+        It asserts only the manifest-mode and backend-fan-out invariants: under worksteal the
+        per-worker test distribution is dynamic, so a worker may end up running all the tests,
+        which makes the load test's ``1 <= count <= 3`` assertion meaningless here.
+        """
+        settings = _settings_attributes()
+        settings["itr_enabled"] = True
+        settings["tests_skipping"] = True
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        marker_dir = test_project / "xdist_markers"
+        _write_manifest_marker_project(test_project, marker_dir)
+        _git_commit(test_project)
+
+        env = _make_env(mock_server.url)
+        result = _run_pytest_subprocess(test_project, "-n", "2", "--dist", "worksteal", env=env)
+
+        assert result.returncode == 0, f"pytest failed:\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+
+        worker_manifest_modes = [path.read_text() for path in marker_dir.glob("gw*-manifest-mode")]
+        assert len(worker_manifest_modes) == 2, (
+            f"expected 2 workers in manifest mode, got {len(worker_manifest_modes)}: {worker_manifest_modes}"
+        )
+        assert all("enabled=True" in mode for mode in worker_manifest_modes), worker_manifest_modes
+        assert all(XDIST_MANIFEST_DIR_PREFIX in mode for mode in worker_manifest_modes), worker_manifest_modes
+
+        # The controller fetches once; workers read the cache instead of querying the backend.
+        assert mock_server.count_requests("/api/v2/libraries/tests/services/setting") == 1
+        assert mock_server.count_requests("/api/v2/ci/tests/skippable") == 1
+
+        # All four tests ran somewhere (worksteal may concentrate them on one worker).
+        worker_test_counts = [len(path.read_text().splitlines()) for path in marker_dir.glob("gw*-tests")]
+        assert sum(worker_test_counts) == 4, worker_test_counts
+
+        manifest_dir = Path([path.read_text() for path in marker_dir.glob("gw[0-9]")][0]).parent
         assert not manifest_dir.exists(), manifest_dir
 
 
@@ -577,6 +634,24 @@ class TestGenerateXdistManifestFailures:
         assert generate_xdist_manifest(_session_manager_without_errors(), ["-n", "2"]) is None
         assert DD_TEST_OPTIMIZATION_MANIFEST_FILE not in os.environ
         assert created_dirs and not Path(created_dirs[0]).exists()
+
+    def test_logs_warning_on_unexpected_write_failure(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A failure to write the cache silently loses the optimization for the whole session.
+
+        The PR surfaces worker-side degradation at WARNING; the controller's own write failure
+        (read-only TMPDIR, no space left, ...) must be just as visible so a user can tell the
+        optimization is not taking effect without having to enable ``DD_TEST_DEBUG``.
+        """
+        real_mkdtemp = tempfile.mkdtemp
+        monkeypatch.setattr(tempfile, "mkdtemp", lambda **kw: real_mkdtemp(**kw))
+        monkeypatch.setattr(xdist_module, "write_manifest_cache", mock.Mock(side_effect=OSError("no space left")))
+        warning = mock.Mock()
+        monkeypatch.setattr(xdist_module.log, "warning", warning)
+
+        assert generate_xdist_manifest(_session_manager_without_errors(), ["-n", "2"]) is None
+
+        assert warning.call_count == 1, warning.call_args_list
+        assert "Could not write xdist manifest cache" in warning.call_args.args[0]
 
 
 class TestXdistEventDelivery:
