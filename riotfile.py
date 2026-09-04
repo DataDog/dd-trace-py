@@ -619,7 +619,8 @@ venv = Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    # TODO(py-315): 3.15 explicitly opted in for crashtracker native validation.
+                    pys=select_pys(min_version="3.12", max_version="3.14") + ["3.15"],
                     env={
                         "PYTHONWARNINGS": "ignore:This process:DeprecationWarning::",
                     },
