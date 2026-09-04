@@ -183,3 +183,15 @@ def test_install_uses_the_prebound_hook() -> None:
         monitor.release()
 
     assert all(cb is not monitor._gc_hook for cb in gc.callbacks)
+
+
+def test_refcount_keeps_callback_until_last_release() -> None:
+    monitor: GCPauseMonitor = GCPauseMonitor()
+    monitor.acquire()
+    monitor.acquire()
+    try:
+        monitor.release()
+        assert monitor._gc_hook in gc.callbacks
+    finally:
+        monitor.release()
+    assert monitor._gc_hook not in gc.callbacks

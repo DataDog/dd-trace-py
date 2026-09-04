@@ -5,9 +5,12 @@ import logging
 import threading
 import time
 from typing import Callable
+from typing import Optional
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.datadog.profiling import ddup
+from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
+from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
 from ddtrace.profiling import collector
 
 
@@ -26,8 +29,9 @@ _GC_FILE: str = "gc"
 class GCCollector(collector.Collector):
     """Collect CPython GC pause durations and explicit gc.collect() call counts.
 
-    Hooks gc.callbacks for per-collection events and emits a snapshot sample
-    once per profile flush interval.
+    Subscribes to the process-wide GCPauseMonitor so runtime metrics and
+    profiling share one gc.callbacks entry. Emits a snapshot sample once per
+    profile flush interval.
 
     Data emitted:
     - GC time samples (push_gctime) attributed to synthetic gc.collect[gen=N]
@@ -41,16 +45,15 @@ class GCCollector(collector.Collector):
     """
 
     _lock: threading.Lock
-    _start_ns: list[int]
     _pause_count: list[int]
     _pause_total_ns: list[int]
     _explicit_count: int
     _orig_collect: Callable[..., int]
     _installed_collect: Callable[..., int]
+    _monitor: Optional[GCPauseMonitor]
 
     def _start_service(self) -> None:
         self._lock = threading.Lock()
-        self._start_ns = [0] * _GEN_COUNT
         self._pause_count = [0] * _GEN_COUNT
         self._pause_total_ns = [0] * _GEN_COUNT
         self._explicit_count = 0
@@ -59,15 +62,18 @@ class GCCollector(collector.Collector):
         # installed callable so teardown can identity-check it.
         self._installed_collect = self._patched_collect
         gc.collect = self._installed_collect
-        gc.callbacks.append(self._on_gc)
+        self._monitor = gc_pause_monitor()
+        self._monitor.add_listener(self._on_pause)
+        self._monitor.acquire()
         forksafe.register(self._reset_after_fork)
         LOG.debug("GCCollector started")
 
     def _stop_service(self) -> None:
-        try:
-            gc.callbacks.remove(self._on_gc)
-        except ValueError:
-            pass
+        monitor: Optional[GCPauseMonitor] = self._monitor
+        if monitor is not None:
+            monitor.remove_listener(self._on_pause)
+            monitor.release()
+            self._monitor = None
         forksafe.unregister(self._reset_after_fork)
         if gc.collect is self._installed_collect:
             gc.collect = self._orig_collect
@@ -81,7 +87,6 @@ class GCCollector(collector.Collector):
         # Caller holds _lock. In-place zeros so a reentrant GC callback cannot
         # pair a new stop with a stale start from before the reset.
         for i in range(_GEN_COUNT):
-            self._start_ns[i] = 0
             self._pause_count[i] = 0
             self._pause_total_ns[i] = 0
         self._explicit_count = 0
@@ -91,27 +96,13 @@ class GCCollector(collector.Collector):
             self._explicit_count += 1
         return self._orig_collect(generation)
 
-    def _on_gc(self, phase: str, info: dict[str, int]) -> None:
+    def _on_pause(self, gen: int, pause_ns: int) -> None:
         # Do not allocate: object creation in a GC callback can recurse.
-        # A nested same-gen start would overwrite the in-flight timestamp and
-        # drop the outer pause.
-        gen: int = info.get("generation", 0)
         if not 0 <= gen < _GEN_COUNT:
             return
-        if phase == "start":
-            with self._lock:
-                self._start_ns[gen] = time.monotonic_ns()
-            return
-        if phase != "stop":
+        if pause_ns < 0:
             return
         with self._lock:
-            start: int = self._start_ns[gen]
-            if start == 0:
-                return
-            self._start_ns[gen] = 0
-            pause_ns: int = time.monotonic_ns() - start
-            if pause_ns < 0:
-                return
             self._pause_count[gen] += 1
             self._pause_total_ns[gen] += pause_ns
 

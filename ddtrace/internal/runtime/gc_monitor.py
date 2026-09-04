@@ -1,7 +1,8 @@
 """Process-wide CPython GC pause observer.
 
 One gc.callbacks subscriber. Install is refcounted via acquire/release.
-Runtime metrics drain a snapshot on each flush.
+Runtime metrics drain a snapshot on each flush. Profiling can add_listener
+for per-pause events without a second callback.
 """
 
 from __future__ import annotations
@@ -19,6 +20,9 @@ from ddtrace.internal._unpatched import threading_Lock
 
 
 GEN_COUNT: int = 3
+
+# (generation, pause_ns)
+PauseListener = Callable[[int, int], None]
 
 
 def _gc_callbacks_supported() -> bool:
@@ -68,6 +72,7 @@ class GCPauseMonitor:
     _count: int
     _total_ns: int
     _max_ns: int
+    _listeners: list[PauseListener]
 
     def __init__(self) -> None:
         # Forksafe because _on_gc runs on whichever thread triggered the collection,
@@ -85,6 +90,18 @@ class GCPauseMonitor:
         self._count: int = 0
         self._total_ns: int = 0
         self._max_ns: int = 0
+        self._listeners: list[PauseListener] = []
+
+    def add_listener(self, listener: PauseListener) -> None:
+        with self._lock:
+            self._listeners.append(listener)
+
+    def remove_listener(self, listener: PauseListener) -> None:
+        with self._lock:
+            try:
+                self._listeners.remove(listener)
+            except ValueError:
+                pass
 
     def acquire(self) -> None:
         with self._lock:
@@ -163,7 +180,7 @@ class GCPauseMonitor:
         if not 0 <= gen < GEN_COUNT:
             return
 
-        if phase == _GCPhase.START:
+        if phase == "start":
             with self._lock:
                 # A start callback can be waiting here while release() uninstalls.
                 # Storing a timestamp then would leave it to pair with a stop after
@@ -174,9 +191,10 @@ class GCPauseMonitor:
                 self._start_ns[gen] = time.monotonic_ns()
             return
 
-        if phase != _GCPhase.STOP:
+        if phase != "stop":
             return
 
+        listeners: tuple[PauseListener, ...] | None = None
         with self._lock:
             start: int = self._start_ns[gen]
             if start == 0:
@@ -191,6 +209,16 @@ class GCPauseMonitor:
             self._total_ns += pause_ns
             if pause_ns > self._max_ns:
                 self._max_ns = pause_ns
+            if self._listeners:
+                listeners = tuple(self._listeners)
+
+        if listeners is not None:
+            listener: PauseListener
+            for listener in listeners:
+                try:
+                    listener(gen, pause_ns)
+                except Exception:  # nosec B110
+                    pass
 
 
 _MONITOR: Optional[GCPauseMonitor] = None

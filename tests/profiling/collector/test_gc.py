@@ -38,12 +38,15 @@ def _setup_profiler(tmp_path: Path, test_name: str) -> str:
 
 
 def test_gc_callbacks_registered() -> None:
+    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+
+    monitor = gc_pause_monitor()
     col = GCCollector()
-    assert col._on_gc not in gc.callbacks
+    assert monitor._gc_hook not in gc.callbacks
     col.start()
-    assert col._on_gc in gc.callbacks
+    assert monitor._gc_hook in gc.callbacks
     col.stop()
-    assert col._on_gc not in gc.callbacks
+    assert monitor._gc_hook not in gc.callbacks
 
 
 def test_gc_collect_not_patched_after_stop() -> None:
@@ -77,11 +80,10 @@ def test_reset_after_fork_clears_in_flight_state() -> None:
     col.start()
     try:
         gc.collect()
-        col._start_ns[0] = 123
+        col._pause_count[0] = 5
         assert col._explicit_count == 1
         col._reset_after_fork()
         assert col._explicit_count == 0
-        assert col._start_ns == [0, 0, 0]
         assert col._pause_count == [0, 0, 0]
         assert col._pause_total_ns == [0, 0, 0]
     finally:
@@ -128,19 +130,18 @@ def test_explicit_count_resets_on_snapshot() -> None:
 
 def _make_isolated_collector() -> GCCollector:
     """Create a GCCollector with internal state initialized but NOT registered
-    in gc.callbacks.  Use for unit tests that call _on_gc directly to avoid
+    in gc.callbacks.  Use for unit tests that call _on_pause directly to avoid
     interference from real background GC events.
     """
     col = GCCollector()
     col._lock = threading.Lock()
-    col._start_ns = [0, 0, 0]
     col._pause_count = [0, 0, 0]
     col._pause_total_ns = [0, 0, 0]
     col._explicit_count = 0
     return col
 
 
-def test_on_gc_records_pause_gctime() -> None:
+def test_on_pause_records_pause_gctime() -> None:
     col = _make_isolated_collector()
     handles: list[mock.MagicMock] = []
 
@@ -151,8 +152,7 @@ def test_on_gc_records_pause_gctime() -> None:
 
     with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
         mock_ddup.SampleHandle.side_effect = make_handle
-        col._on_gc("start", {"generation": 0})
-        col._on_gc("stop", {"generation": 0, "collected": 5, "uncollectable": 0})
+        col._on_pause(0, 1000)
         mock_ddup.SampleHandle.assert_not_called()
         col.snapshot()
 
@@ -202,16 +202,9 @@ def test_snapshot_gctime_equals_total_pause_ns() -> None:
     pause_handle.push_walltime.assert_not_called()
 
 
-def test_on_gc_stop_without_start_is_noop() -> None:
-    col = _make_isolated_collector()
-    with mock.patch("ddtrace.profiling.collector.gc.ddup") as mock_ddup:
-        col._on_gc("stop", {"generation": 2, "collected": 3, "uncollectable": 0})
-        mock_ddup.SampleHandle.assert_not_called()
-
-
 def test_snapshot_emits_config_sample() -> None:
-    # Isolated: starting the collector registers _on_gc, and a live pause
-    # during snapshot() would also call SampleHandle.push_walltime.
+    # Isolated: starting the collector registers a monitor listener, and a live
+    # pause during snapshot() would also call SampleHandle.push_gctime.
     col: GCCollector = _make_isolated_collector()
     col._explicit_count = 2
 
@@ -279,3 +272,18 @@ def test_gc_collector_enabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
     config: ProfilingConfig = ProfilingConfig()
     assert config.gc.enabled
+
+
+def test_gc_collector_shares_monitor_callback() -> None:
+    from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
+
+    monitor = gc_pause_monitor()
+    col = GCCollector()
+    col.start()
+    try:
+        assert monitor._gc_hook in gc.callbacks
+        assert gc.callbacks.count(monitor._gc_hook) == 1
+        owners = [getattr(cb, "__self__", None) for cb in gc.callbacks]
+        assert not any(type(o).__name__ == "GCCollector" for o in owners)
+    finally:
+        col.stop()
