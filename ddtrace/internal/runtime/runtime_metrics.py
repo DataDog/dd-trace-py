@@ -87,10 +87,6 @@ class RuntimeWorker(periodic.PeriodicService):
         else:
             self.send_metric = self._dogstatsd_client.distribution
 
-        # DEV: runtime-id is appended per flush rather than snapshotted here. A fork gives the
-        # child a new runtime-id, but the child inherits this instance, so a snapshot would make
-        # every pre-fork-enabled worker (gunicorn, uWSGI, SSI) report under the parent's
-        # runtime-id -- collapsing N+1 per-process series into one.
         self._platform_tags = self._format_tags(PlatformTags())
         self._send_runtime_id = config._runtime_metrics_runtime_id_enabled
 
