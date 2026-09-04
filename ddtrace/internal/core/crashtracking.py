@@ -182,17 +182,16 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
                 # ddtrace-run prepends its bootstrap dir (containing sitecustomize.py) to
                 # PYTHONPATH so the traced app auto-instruments on startup. If we inherit it
                 # as-is, the receiver's own interpreter re-triggers that bootstrap and ends up
-                # running a second, independently-configured copy of ddtrace (remote config
-                # poller, tracer, ..) using this stripped-down env, which is both wasteful and
-                # produces bogus traffic. Strip it so the receiver stays a plain, uninstrumented
-                # script while still finding the ddtrace package via any other PYTHONPATH entries.
+                # running a second, independently-configured copy of ddtrace using this stripped-down env.
+                # Strip it so the receiver stays a plain, uninstrumented script while still finding
+                # the ddtrace package via any other PYTHONPATH entries.
                 sitecustomize_spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
                 bootstrap_dir = (
                     os.path.dirname(sitecustomize_spec.origin)
                     if sitecustomize_spec is not None and sitecustomize_spec.origin is not None
                     else None
                 )
-                path_entries = [p for p in env_value.split(os.pathsep) if p and p != bootstrap_dir]
+                path_entries = [p for p in env_value.split(os.pathsep) if p != bootstrap_dir]
                 if not path_entries:
                     continue
                 env_value = os.pathsep.join(path_entries)
