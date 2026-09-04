@@ -225,7 +225,7 @@ impl TelemetryWorkerPy {
             });
         }
 
-        // AIDEV-NOTE: Keep this worker alive across native libc forks. Python-managed before-fork
+        // Keep this worker alive across native libc forks. Python-managed before-fork
         // hooks disable this flag for the child, while native-only forks leave it enabled.
         // The first Python-facing telemetry operation lazily restarts the runtime and resets workers;
         // deferring the restart avoids starting Tokio threads in transient fork+exec children.
