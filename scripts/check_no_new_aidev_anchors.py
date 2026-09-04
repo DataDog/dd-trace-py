@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Fail CI when a branch adds deprecated AIDEV-* anchor comment labels.
 
-The guild deprecated ``AIDEV-NOTE:``, ``AIDEV-TODO:``, and ``AIDEV-QUESTION:``
+The guild deprecated AIDEV-NOTE:, AIDEV-TODO:, and AIDEV-QUESTION:
 in favor of plain inline comments (see AGENTS.md). Existing anchors are
 grandfathered; this check only inspects added diff lines.
 
-Usage::
+Usage:
 
     python scripts/check_no_new_aidev_anchors.py --base-ref FETCH_HEAD
 """
@@ -21,21 +21,32 @@ from typing import Optional
 
 # Match comment introducers only — avoids false positives in prose/docs that
 # mention the old label name in backticks.
-ANCHOR_RE = re.compile(
+ANCHOR_RE: re.Pattern[str] = re.compile(
     r"^\+\s*.*?(?:#|//)\s*AIDEV-(?:NOTE|TODO|QUESTION):",
 )
 
-SKIP_PREFIXES = ("scripts/check_no_new_aidev_anchors.py",)
+SKIP_PREFIXES: tuple[str, ...] = ("scripts/check_no_new_aidev_anchors.py",)
 
 
-def _added_lines(base_ref: str) -> list[tuple[str, str]]:
-    result = subprocess.run(  # nosec B603,B607
-        ["git", "diff", "-U0", base_ref, "--", ".", ":(exclude)scripts/check_no_new_aidev_anchors.py"],
+def _merge_base(base_ref: str) -> str:
+    result: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603, B607
+        ["git", "merge-base", base_ref, "HEAD"],
         capture_output=True,
         check=True,
         text=True,
     )
-    current_file = ""
+    return result.stdout.strip()
+
+
+def _added_lines(base_ref: str) -> list[tuple[str, str]]:
+    merge_base: str = _merge_base(base_ref)
+    result: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603,B607
+        ["git", "diff", "-U0", merge_base, "--", ".", ":(exclude)scripts/check_no_new_aidev_anchors.py"],
+        capture_output=True,
+        check=True,
+        text=True,
+    )
+    current_file: str = ""
     hits: list[tuple[str, str]] = []
     for line in result.stdout.splitlines():
         if line.startswith("+++ b/"):
@@ -49,14 +60,16 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--base-ref", default="origin/main", help="Git ref to diff against.")
-    args = parser.parse_args(argv)
+    args: argparse.Namespace = parser.parse_args(argv)
 
     print(f"Checking for new AIDEV anchors vs base ref: {args.base_ref}")
 
     try:
-        violations = _added_lines(args.base_ref)
+        violations: list[tuple[str, str]] = _added_lines(args.base_ref)
     except subprocess.CalledProcessError as exc:
         print(f"error: failed to compute diff against {args.base_ref}: {exc.stderr}", file=sys.stderr)
         return 1

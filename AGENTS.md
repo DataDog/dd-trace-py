@@ -11,14 +11,13 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 5. **No public API breakage** — Never change public API contracts; real applications depend on them.
 6. **No secrets** — Never commit secrets; use environment variables.
 7. **Don't assume business logic** — Ask when unsure about implementation details.
-8. **No new `AIDEV-*` anchor comments** — The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels. Use plain inline comments (see "Docstrings and Comments"). When editing code that still has an old anchor, convert it to a plain comment; do not add new anchors. CI blocks new anchors on changed lines.
-9. **Test before committing** — Run relevant tests to validate changes before committing.
-10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-11. **Update docs** — Add/update documentation when changing internal or public APIs.
-12. **No stray prints** — Check for and remove unexpected `print()` calls.
-13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
-14. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
-15. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
+8. **Test before committing** — Run relevant tests to validate changes before committing.
+9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
+10. **Update docs** — Add/update documentation when changing internal or public APIs.
+11. **No stray prints** — Check for and remove unexpected `print()` calls.
+12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
+13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
+14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
 
 ## Docstrings and Comments
 
@@ -60,14 +59,6 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Performance-critical code uses C/C++/Cython/Rust** — profile and benchmark when touching these paths.
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
-
-## Inline knowledge comments (formerly AIDEV anchors)
-
-`AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` are **deprecated**. Do not add them on new or edited lines — `scripts/check_no_new_aidev_anchors.py` enforces this in CI.
-
-- Use **plain inline comments** for non-obvious invariants, following "Docstrings and Comments" above.
-- Legacy `AIDEV-*` lines may still exist in the tree; when you touch nearby code, **rewrite them as plain comments** instead of preserving the prefix.
-- Grep for `AIDEV-` only when migrating a file you are already editing; do not run repo-wide anchor-preservation passes.
 
 ## PR Guidelines
 
