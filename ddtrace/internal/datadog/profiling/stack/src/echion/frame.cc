@@ -112,8 +112,8 @@ Frame::read(EchionSampler& echion, PyObject* frame_addr, PyObject** prev_addr)
 
 #if PY_VERSION_HEX >= 0x030c0000
     // _PyInterpreterFrame.owner is stored as char, not the _frameowner enum
-    // itself, so -Wswitch can't enforce exhaustiveness.  test_cpython_layout
-    // _contracts static_asserts the enum values we rely on; an unknown owner
+    // itself, so -Wswitch can't enforce exhaustiveness.  test_cpython_layout_contracts
+    // static_asserts the enum values we rely on; an unknown owner
     // here means CPython grew a new value and is treated as an error.
     switch (frame_addr->owner) {
         case FRAME_OWNED_BY_THREAD:

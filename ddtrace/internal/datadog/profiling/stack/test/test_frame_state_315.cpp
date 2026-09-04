@@ -10,26 +10,14 @@
 // always return failure (-1), which is the correct outcome when no real Python process is
 // attached. All code paths that reach a copy_type call will return nullptr safely.
 
-#define PY_SSIZE_T_CLEAN
-#define Py_BUILD_CORE
-#include <Python.h>
+#include <echion/cpython/tasks.h>
+#include <echion/echion_sampler.h>
+#include <echion/vm.h>
 
 #include <atomic>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-
-#if PY_VERSION_HEX >= 0x030e0000
-#include <cstddef>
-#include <internal/pycore_frame.h>
-#include <internal/pycore_interpframe.h>
-#include <internal/pycore_interpframe_structs.h>
-#include <internal/pycore_stackref.h>
-#endif
-
-#include <echion/cpython/tasks.h>
-#include <echion/echion_sampler.h>
-#include <echion/vm.h>
 
 // Counter tracking how many times copy_memory was invoked. Reset before each
 // PyGen_yf call so tests can assert whether the state guard allowed execution

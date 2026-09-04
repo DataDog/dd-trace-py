@@ -14,23 +14,9 @@
 //   _frameowner   (pycore_interpframe_structs.h, 3.12+)
 //   PyFrameState  (pycore_frame.h, 3.11+)
 
-#define PY_SSIZE_T_CLEAN
-#define Py_BUILD_CORE
-#include <Python.h>
+#include <echion/cpython/tasks.h>
 
 #include <gtest/gtest.h>
-
-#if PY_VERSION_HEX >= 0x030e0000
-// Python 3.14+: frame internals split into separate headers;
-// _frameowner is in pycore_interpframe_structs.h (new in 3.14).
-#include <internal/pycore_frame.h>
-#include <internal/pycore_interpframe.h>
-#include <internal/pycore_interpframe_structs.h>
-#elif PY_VERSION_HEX >= 0x030b0000
-// Python 3.11-3.13: _frameowner enum lives directly in pycore_frame.h.
-// pycore_interpframe_structs.h does not exist on these versions.
-#include <internal/pycore_frame.h>
-#endif
 
 // echion/vm.h defines proc_ref_t, which the stub below requires.
 #include <echion/vm.h>
