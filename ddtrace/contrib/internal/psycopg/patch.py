@@ -60,6 +60,7 @@ config._add(
         _dbapi_span_name_prefix="postgres",
         _dbapi_span_operation_name=schematize_database_operation("postgres.query", database_provider="postgresql"),
         _patched_modules=set(),
+        _query_renderer=None,
         trace_fetch_methods=asbool(env.get("DD_PSYCOPG_TRACE_FETCH_METHODS", default=False)),
         trace_connect=asbool(env.get("DD_PSYCOPG_TRACE_CONNECT", default=False)),
         _dbm_propagator=_DBM_Propagator(0, "query", _psycopg_sql_injector),
@@ -127,6 +128,7 @@ def _patch(psycopg_module):
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
         _get_psycopg3_original_methods()
+        config.psycopg["_query_renderer"] = getattr(psycopg_module.sql, "as_string", None)
 
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))

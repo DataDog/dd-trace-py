@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Union
 
 from ddtrace.internal.core.events import Event
 
@@ -9,5 +10,5 @@ class DbQueryEvent(Event):
 
     event_name = "db.query"
 
-    query: str
+    query: Union[str, bytes]
     span_name_prefix: str

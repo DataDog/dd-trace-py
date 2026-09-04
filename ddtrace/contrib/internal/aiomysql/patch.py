@@ -1,3 +1,7 @@
+from typing import Any
+from typing import Optional
+from typing import Union
+
 import aiomysql
 import wrapt
 
@@ -6,8 +10,8 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
+from ddtrace.contrib import dbapi_async
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
@@ -27,6 +31,7 @@ config._add(
     "aiomysql",
     dict(
         _default_service=schematize_service_name("mysql"),
+        _dbapi_span_name_prefix="mysql",
         _dbm_propagator=_DBM_Propagator(0, "query"),
     ),
 )
@@ -62,13 +67,18 @@ async def patched_connect(connect_func, _, args, kwargs):
     return c
 
 
-class AIOTracedCursor(wrapt.ObjectProxy):
+class AIOTracedCursor(dbapi_async.TracedAsyncCursor):
     """TracedCursor wraps a aiomysql cursor and traces its queries."""
 
     def __init__(self, cursor, pin):
-        super(AIOTracedCursor, self).__init__(cursor)
+        super(AIOTracedCursor, self).__init__(cursor, cfg=config.aiomysql)
         pin.onto(self)
         self._self_datadog_name = schematize_database_operation("mysql.query", database_provider="mysql")
+
+    def _normalize_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
+        if isinstance(query, (str, bytes)):
+            return query
+        return None
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
@@ -107,18 +117,20 @@ class AIOTracedCursor(wrapt.ObjectProxy):
                     s._set_attribute("db.rownumber", self.rownumber)
 
     async def executemany(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="mysql"))
+        resource = self._prepare_dbapi_query(query)
         result = await self._trace_method(
-            self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
+            self.__wrapped__.executemany, resource, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="mysql"))
-        result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+        resource = self._prepare_dbapi_query(query)
+        result = await self._trace_method(self.__wrapped__.execute, resource, {}, query, *args, **kwargs)
         return result
+
+    async def callproc(self, *args: Any, **kwargs: Any) -> Any:
+        # AIDEV-NOTE: Preserve untraced forwarding; the inherited callproc uses an incompatible _trace_method signature.
+        return await self.__wrapped__.callproc(*args, **kwargs)
 
     # Explicitly define `__aenter__` and `__aexit__` since they do not get proxied properly
     async def __aenter__(self):

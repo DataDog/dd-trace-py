@@ -1,3 +1,6 @@
+from typing import Optional
+from typing import Union
+
 from aiopg import __version__
 from aiopg.utils import _ContextManager
 import wrapt
@@ -7,13 +10,12 @@ from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
+from ddtrace.contrib import dbapi_async
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
-from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -24,13 +26,23 @@ from ddtrace.trace import tracer
 AIOPG_VERSION = parse_version(__version__)
 
 
-class AIOTracedCursor(wrapt.ObjectProxy):
+class AIOTracedCursor(dbapi_async.TracedAsyncCursor):
     """TracedCursor wraps a psql cursor and traces its queries."""
 
     def __init__(self, cursor, pin):
-        super(AIOTracedCursor, self).__init__(cursor)
+        super(AIOTracedCursor, self).__init__(cursor, cfg=config.aiopg)
         pin.onto(self)
-        self._datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
+        self._self_datadog_name = schematize_database_operation("postgres.query", database_provider="postgresql")
+
+    def _normalize_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
+        if isinstance(query, (str, bytes)):
+            return query
+        renderer = getattr(query, "as_string", None)
+        if callable(renderer):
+            rendered_query = renderer(getattr(self.__wrapped__, "_impl", self.__wrapped__))
+            if isinstance(rendered_query, str):
+                return rendered_query
+        return None
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)
@@ -39,7 +51,7 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             return result
 
         with tracer.trace(
-            self._datadog_name,
+            self._self_datadog_name,
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
@@ -63,17 +75,15 @@ class AIOTracedCursor(wrapt.ObjectProxy):
     async def executemany(self, query, *args, **kwargs):
         # FIXME[matt] properly handle kwargs here. arg names can be different
         # with different libs.
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
+        resource = self._prepare_dbapi_query(query)
         result = await self._trace_method(
-            self.__wrapped__.executemany, query, {"sql.executemany": "true"}, query, *args, **kwargs
+            self.__wrapped__.executemany, resource, {"sql.executemany": "true"}, query, *args, **kwargs
         )
         return result
 
     async def execute(self, query, *args, **kwargs):
-        if isinstance(query, str):
-            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix="postgres"))
-        result = await self._trace_method(self.__wrapped__.execute, query, {}, query, *args, **kwargs)
+        resource = self._prepare_dbapi_query(query)
+        result = await self._trace_method(self.__wrapped__.execute, resource, {}, query, *args, **kwargs)
         return result
 
     async def callproc(self, proc, args):

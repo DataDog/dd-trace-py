@@ -1,4 +1,5 @@
 import os
+from typing import Any
 
 import aiomysql
 import mock
@@ -68,13 +69,62 @@ async def test_query_is_blocked_before_execution() -> None:
     cursor = mock.AsyncMock()
     traced_cursor = AIOTracedCursor(cursor, Pin())
 
-    for method in ("execute", "executemany"):
-        with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
-            with pytest.raises(BlockingException):
-                await getattr(traced_cursor, method)("SELECT 1")
+    for query in ("SELECT 1", b"SELECT 1"):
+        expected = BlockingException()
 
-        dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="mysql"))
-        getattr(cursor, method).assert_not_awaited()
+        def block(event: DbQueryEvent) -> None:
+            assert event == DbQueryEvent(query=query, span_name_prefix="mysql")
+            raise expected
+
+        for method in ("execute", "executemany"):
+            core.on(DbQueryEvent.event_name, block)
+            try:
+                with pytest.raises(BlockingException) as exc_info:
+                    await getattr(traced_cursor, method)(query)
+            finally:
+                core.reset_listeners(DbQueryEvent.event_name, block)
+
+            assert exc_info.value is expected
+            getattr(cursor, method).assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tracing_enabled", (True, False))
+@pytest.mark.parametrize(
+    ("args", "kwargs"),
+    (
+        (("procedure",), {}),
+        (("procedure", [1]), {}),
+        ((), {"procname": "procedure", "args": [1]}),
+    ),
+)
+@pytest.mark.parametrize("raises", (False, True))
+async def test_callproc_is_forwarded(
+    tracing_enabled: bool,
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    raises: bool,
+    tracer: Any,
+    test_spans: Any,
+) -> None:
+    cursor = mock.create_autospec(aiomysql.Cursor, instance=True)
+    traced_cursor = AIOTracedCursor(cursor, Pin())
+    result = object()
+    cursor.callproc.return_value = result
+    expected_error = RuntimeError("stored procedure failed")
+    if raises:
+        cursor.callproc.side_effect = expected_error
+
+    with mock.patch.object(tracer, "enabled", tracing_enabled):
+        if raises:
+            with pytest.raises(RuntimeError) as exc_info:
+                await traced_cursor.callproc(*args, **kwargs)
+            assert exc_info.value is expected_error
+        else:
+            assert await traced_cursor.callproc(*args, **kwargs) is result
+
+    cursor.callproc.assert_awaited_once_with(*args, **kwargs)
+    assert test_spans.pop() == []
 
 
 @pytest.mark.asyncio
