@@ -8,16 +8,17 @@
 #include <cstdint>
 #include <sys/mman.h>
 #include <thread>
+#include <unistd.h>
 
 namespace {
 
-constexpr size_t kGuardedPageSize = 4096;
+const size_t kGuardedPageSize = static_cast<size_t>(sysconf(_SC_PAGESIZE));
 
 struct HostFaultReport
 {
     volatile sig_atomic_t ran = 0;
-    volatile int signo = 0;
-    volatile int si_code = 0;
+    volatile sig_atomic_t signo = 0;
+    volatile sig_atomic_t si_code = 0;
     void* si_addr = nullptr;
 };
 
