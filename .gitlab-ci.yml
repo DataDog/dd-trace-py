@@ -751,4 +751,4 @@ publishing-gate:
 "llm validation":
   variables:
     LLMVAL_BASE_REF: "main"
-    LLMVAL_PLATFORM_REF: "0f48ca35f0b3dfd19d5c0dc9f92aa977c99bebbf"  # keep identical to the include ref above
+    LLMVAL_PLATFORM_REF: "d59e4af6d6666092f65740b9a4d1bf3651a64321"  # keep identical to the include ref above
