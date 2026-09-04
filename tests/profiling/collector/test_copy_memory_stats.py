@@ -1,3 +1,5 @@
+import sys
+
 import pytest
 
 
@@ -164,6 +166,7 @@ def test_fast_copy_memory_enabled() -> None:
     assert metadata["fast_copy_memory_foreign_takeover"] is False, metadata
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="fork/signal tests not supported on Windows")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_faulthandler_warmup",
@@ -202,6 +205,7 @@ def test_fast_copy_faulthandler_enable_during_warmup() -> None:
     assert upgraded, "faulthandler.enable() during warmup pinned the process to the syscall copy"
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="fork/signal tests not supported on Windows")
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_fast_copy_fork_during_warmup",
