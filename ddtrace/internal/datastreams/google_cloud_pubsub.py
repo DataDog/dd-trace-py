@@ -53,7 +53,7 @@ def dsm_pubsub_receive(subscription: str, message: Any, span: Optional[Any]) -> 
     payload_size += _calculate_byte_size(attributes)
 
     ctx = DsmPathwayCodec.decode(attributes, processor())
-    # AIDEV-NOTE: dd-trace-py uses the `topic:` tag key as the generic destination
+    # dd-trace-py uses the `topic:` tag key as the generic destination
     # identifier for every messaging integration (Kafka, Kinesis, SQS, SNS, RabbitMQ).
     # The *value* on the consumer side is the Pub/Sub subscription path, which
     # preserves fan-out distinction (multiple subscriptions on the same topic each

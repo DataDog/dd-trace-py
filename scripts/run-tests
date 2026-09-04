@@ -715,7 +715,7 @@ class TestRunner:
                 if result.returncode != 0:
                     raise UvTestEnvironmentError(f"build failed for {environment.hash} (exit code {result.returncode})")
 
-            # AIDEV-NOTE: Record current state only after exact sync and environment inspection.
+            # Record current state only after exact sync and environment inspection.
             # This marker is the guard against reusing partial or failed builds.
             self._mark_environment_current(prepared, environment.python)
             return True

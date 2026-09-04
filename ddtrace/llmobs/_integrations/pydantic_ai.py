@@ -161,7 +161,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt", optional=True)
-        # AIDEV-NOTE: When callers like VercelAIAdapter pass all messages via message_history
+        # When callers like VercelAIAdapter pass all messages via message_history
         # without setting user_prompt, we fall back to extracting the last user message from
         # message_history. See https://github.com/DataDog/dd-trace-py/issues/16400
         if user_prompt is None:
@@ -292,7 +292,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _manifest_labels(self, agent: Any) -> AgentManifest:
         """Labels that name the agent. Grouped for failure isolation only; the manifest is flat."""
         fields: AgentManifest = {"framework": FRAMEWORK_NAME}
-        # AIDEV-NOTE: placeholder per review, matching the span name fallback. Two unnamed agents
+        # placeholder per review, matching the span name fallback. Two unnamed agents
         # therefore share it, so name is not an identity.
         agent_name = getattr(agent, "name", None)
         fields["name"] = agent_name if isinstance(agent_name, str) and agent_name else "PydanticAI Agent"
@@ -331,7 +331,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             fields["model"] = declared_name or model
         elif model:
             model_name, _ = self._get_model_and_provider(model)
-            # AIDEV-NOTE: str-only, for the same reason as the tool description read. model_name is
+            # str-only, for the same reason as the tool description read. model_name is
             # annotated str, but a custom Model subclass returns whatever it likes and the encoder
             # reprs what it cannot encode, which can carry a connection string.
             if isinstance(model_name, str):
@@ -429,7 +429,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tools: list[dict[str, Any]] = []
         for tool_name, tool_instance in _iter_agent_tools(agent):
             entry: dict[str, Any] = {"name": tool_name if isinstance(tool_name, str) else str(tool_name)}
-            # AIDEV-NOTE: str-only. pydantic-ai accepts a non-str description and the encoder reprs
+            # str-only. pydantic-ai accepts a non-str description and the encoder reprs
             # what it cannot encode, which can carry credentials.
             description = getattr(tool_instance, "description", None)
             entry["description"] = description if isinstance(description, str) else None
@@ -521,7 +521,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _toolset_name(toolset: Any) -> str:
         """Toolset or MCP server name: the id the user set, else the class name.
 
-        AIDEV-NOTE: never read label. Without an id it falls back to repr(self), which carries the
+        never read label. Without an id it falls back to repr(self), which carries the
         connection config, so only an explicit str id or the class name ships. No URI is emitted at
         all, which is what keeps a credential in a server's userinfo, path or query off the wire.
         """
