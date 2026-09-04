@@ -113,13 +113,21 @@ class _RaspContext(WrappingContext):
         self.set("core_ctx", None)
         return self
 
+    def _locals(self):
+        """The wrapped call's locals.
+
+        Resolving __frame__ takes the wrapping registry lock and scans co_consts, so callers that
+        need several arguments read this once rather than going through _arg repeatedly.
+        """
+        return self.__frame__.f_locals
+
     def _arg(self, name: str, default=None):
-        """Read a parameter of the wrapped call by name.
+        """Read one parameter of the wrapped call by name.
 
         Unlike get_local this tolerates an unbound name: a KeyError raised here would be
         swallowed by the universal context and silently disable the hook.
         """
-        return self.__frame__.f_locals.get(name, default)
+        return self._locals().get(name, default)
 
     def _rasp_active(self) -> bool:
         """True between _open_core_context and _close_core_context, i.e. RASP inspected this call."""
@@ -142,33 +150,42 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
 
     def __enter__(self) -> "_SsrfOpenerDirectorOpen":
         super().__enter__()
+        try:
+            self._handle_enter()
+        except Exception:
+            # A context whose __enter__ raises is left out of the universal context's entered
+            # list, so neither __return__ nor __exit__ runs and the core context would strand.
+            self._close_core_context()
+            log.debug("Error handling SSRF instrumentation enter", exc_info=True)
+        return self
+
+    def _handle_enter(self) -> None:
         if not get_rasp_capability("ssrf"):
-            return self
+            return
         try:
             from ddtrace.appsec._asm_request_context import should_analyze_body_response
         except ImportError:
             # open is used during module initialization
             # and shouldn't be changed at that time
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
-            return self
+            return
 
         url = self._arg("fullurl")
         if url.__class__.__name__ == "Request":
             url = url.get_full_url()
         if not (isinstance(url, str) and url):
-            return self
+            return
 
         ctx = _get_asm_context()
         if ctx is None:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
-            return self
+            return
 
         use_body = should_analyze_body_response(ctx)
         self.set("use_body", use_body)
         # This outgoing request's SSRF_REQ + SSRF_RES WAF calls share one subcontext.
         self._open_core_context("url_open_analysis", full_url=url, use_body=use_body)
         open_rasp_subcontext_scope()
-        return self
 
     def __return__(self, response):
         if self._rasp_active():
@@ -182,8 +199,11 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
                     if self.get("use_body"):
                         addresses["DOWN_RES_BODY"] = _parse_http_response_body(response)
                     call_waf_callback(addresses, rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES)
+            except Exception:
+                # Never fail the customer's call, and never let a raising __return__ reach the
+                # universal context, which suppresses __exit__ and strands this call's storage.
+                log.debug("Error handling SSRF instrumentation return", exc_info=True)
             finally:
-                # Must run before a block raises: a raising __return__ suppresses __exit__.
                 self._close_core_context()
         return super().__return__(response)
 
@@ -205,6 +225,8 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
                             {"DOWN_RES_STATUS": str(status_code), "DOWN_RES_HEADERS": response_headers},
                             rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_RES,
                         )
+            except Exception:
+                log.debug("Error handling SSRF instrumentation exit", exc_info=True)
             finally:
                 self._close_core_context()
         super().__exit__(exc_type, exc_value, exc_tb)
@@ -219,9 +241,10 @@ class _SsrfHttpConnectionRequest(_RaspContext):
         env = _get_asm_context()
         if get_rasp_capability("ssrf") and full_url is not None and env is not None:
             use_body = core.find_item("use_body", False)
-            method = self._arg("method")
-            body = self._arg("body")
-            headers = self._arg("headers", {})
+            frame_locals = self._locals()
+            method = frame_locals.get("method")
+            body = frame_locals.get("body")
+            headers = frame_locals.get("headers", {})
             addresses = {
                 EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url,
                 "DOWN_REQ_METHOD": method,

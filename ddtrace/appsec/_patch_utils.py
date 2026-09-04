@@ -158,7 +158,9 @@ def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingCont
             target = _target_function(module, name)
             installed = _DD_WRAPPING_CONTEXTS.get(key)
             if installed is not None:
-                if installed.__wrapped__ is target:
+                # _wrapped_ref, not __wrapped__: the property raises once the old function has been
+                # collected, which is precisely the reload case this has to handle.
+                if installed._wrapped_ref() is target:
                     # Already wrapped. Re-registering the same context type raises, so stay a
                     # no-op, like apply_patch does for a repeated wrapt patch.
                     return

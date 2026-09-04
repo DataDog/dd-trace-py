@@ -326,6 +326,50 @@ def test_try_wrap_context_survives_a_wrap_failure():
         try_unwrap_context(key[0], key[1])
 
 
+def test_a_failing_enter_does_not_strand_the_core_context():
+    """__enter__ must not raise, or the context is dropped from the universal entered list.
+
+    Neither __return__ nor __exit__ would then run, so an opened core context would never be
+    released and every later core.set_item on that thread would land in the orphan.
+    """
+    import urllib.request
+
+    class _BrokenAfterOpen(_SsrfOpenerDirectorOpen):
+        def _handle_enter(self):
+            self._open_core_context("url_open_analysis", full_url="http://127.0.0.1:1/", use_body=False)
+            raise RuntimeError("bug after the core context is open")
+
+    context = _BrokenAfterOpen(urllib.request.OpenerDirector.open)
+    _RaspContext.__enter__(context)
+    context.__enter__()
+
+    assert core.find_item("full_url") is None
+
+
+def test_a_failing_return_does_not_reach_the_universal_context():
+    """A raising __return__ sets the skip flag and strands this call's storage (APPSEC-69961).
+
+    Swallowing here, as the debugger and selenium contexts do, also keeps a bug in the response
+    analysis from surfacing to the customer.
+    """
+    import urllib.request
+
+    class HTTPResponse:
+        status = 200
+
+        def getheaders(self):
+            raise RuntimeError("bug in the response analysis")
+
+    context = _SsrfOpenerDirectorOpen(urllib.request.OpenerDirector.open)
+    _RaspContext.__enter__(context)
+    context.set("use_body", False)
+    context._open_core_context("url_open_analysis", full_url="http://127.0.0.1:1/", use_body=False)
+
+    # Must not raise, and must still release the core context.
+    context.__return__(HTTPResponse())
+    assert core.find_item("full_url") is None
+
+
 def test_try_wrap_context_rebinds_after_a_module_reload():
     """A reload gives the class new function objects, and those must get wrapped too.
 
