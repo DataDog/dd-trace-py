@@ -18,7 +18,9 @@ from ddtrace.internal.utils.formats import asbool
 config._add(
     "rq",
     dict(
-        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
+        distributed_tracing_enabled=asbool(
+            _get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)
+        ),
         _default_service=schematize_service_name("rq"),
     ),
 )
@@ -26,7 +28,9 @@ config._add(
 config._add(
     "rq_worker",
     dict(
-        distributed_tracing_enabled=asbool(_get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)),
+        distributed_tracing_enabled=asbool(
+            _get_config("DD_RQ_DISTRIBUTED_TRACING_ENABLED", None)
+        ),
         _default_service=schematize_service_name("rq-worker"),
     ),
 )
@@ -53,7 +57,9 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
 
     func_name = job.func_name
     job_inst = job.instance
-    job_inst_str = "%s.%s" % (job_inst.__module__, job_inst.__class__.__name__) if job_inst else ""
+    job_inst_str = (
+        "%s.%s" % (job_inst.__module__, job_inst.__class__.__name__) if job_inst else ""
+    )
 
     if job_inst_str:
         resource = "%s.%s" % (job_inst_str, func_name)
@@ -124,7 +130,11 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 integration_config=config.rq_worker,
                 distributed_headers=job.meta,
                 activate_distributed_headers=True,
-                tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.id},
+                tags={
+                    COMPONENT: config.rq.integration_name,
+                    SPAN_KIND: SpanKind.CONSUMER,
+                    JOB_ID: job.id,
+                },
             ) as ctx,
             span_from_context(ctx),
         ):
@@ -194,6 +204,14 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
         return func(*args, **kwargs)
 
 
+def _worker_perform_job_owner(rq):
+
+    return next(
+        (c for c in rq.worker.Worker.__mro__ if "perform_job" in vars(c)),
+        rq.worker.Worker,
+    )
+
+
 def patch():
     # Avoid importing rq at the module level, eventually will be an import hook
     import rq
@@ -214,7 +232,9 @@ def patch():
 
     # Patch rq.worker.Worker
     Pin().onto(rq.worker.Worker)
-    trace_utils.wrap(rq.worker, "Worker.perform_job", traced_perform_job(rq))
+    trace_utils.wrap(
+        _worker_perform_job_owner(rq), "perform_job", traced_perform_job(rq)
+    )
 
     rq._datadog_patch = True
 
@@ -238,6 +258,6 @@ def unpatch():
 
     # Unpatch rq.worker.Worker
     Pin().remove_from(rq.worker.Worker)
-    trace_utils.unwrap(rq.worker.Worker, "perform_job")
+    trace_utils.unwrap(_worker_perform_job_owner(rq), "perform_job")
 
     rq._datadog_patch = False
