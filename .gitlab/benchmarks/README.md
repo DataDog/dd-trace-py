@@ -142,7 +142,7 @@ Three gates block on performance, and they answer different questions.
 |--|----------------------|---------------|------------------|
 | Job | `check-big-regressions` in the `microbenchmarks` child pipeline | `check-slo-breaches` in the `microbenchmarks` child pipeline | `check-slo-breaches` in the `macrobenchmarks` child pipeline |
 | Compares against | The baseline commit this branch merges into | Fixed thresholds in `bp-runner.microbenchmarks.fail-on-breach.template.yml` | Fixed thresholds in `bp-runner.macrobenchmarks.fail-on-breach.yml` |
-| Fails when | Any metric regressed more than `FAIL_ON_REGRESSION_THRESHOLD` (10%) | A measurement exceeds its absolute SLO | A measurement exceeds its absolute SLO |
+| Fails when | Any metric regressed more than `regression_threshold` (10%) | A measurement exceeds its absolute SLO | A measurement exceeds its absolute SLO |
 | Blocks | Merging the pull request | Merging the pull request | Pushing a release tag or branch |
 | Catches | *This change* making an operation materially slower, even where the absolute SLO still has headroom | An operation that is slow in absolute terms, however it got there | Regression accumulated across many changes, each too small to trip a PR gate |
 | Bypass | `performance/ignore-performance-regression` label on the PR | Raise the breached threshold | Raise the breached threshold |
@@ -154,7 +154,7 @@ regression too small to trip the percentage gate.
 
 ### The percentage-regression gate (`check-big-regressions`)
 
-Runs in the `gate` stage, before `check-slo-breaches`, as a `bp-runner` experiment using the
+Runs in the `gate` stage alongside `check-slo-breaches`, as a `bp-runner` experiment using the
 platform's `fail_on_regression` step. It compares the candidate wheel's results against the
 baseline wheel's, per scenario and metric, and fails when a regression exceeds
 `regression_threshold`, currently **10%**, set in
@@ -177,8 +177,10 @@ and names the missing files rather than quietly gating on the subset it does hav
 re-run the `microbenchmarks` jobs that lack a baseline and then re-run the gate, or simply push a
 commit, which runs both in the right order.
 
-On a branch with no pull request yet there is no baseline to compare against, and the gate passes
-with a warning instead of failing.
+When no baseline wheel was built at all, the gate has nothing to compare against and passes with a
+warning instead of failing. This is the same condition that makes the "missing baseline files"
+failure above possible in the first place: a run with a baseline wheel writes results for it, one
+without simply has nothing there.
 
 ### Reading the gate output
 
