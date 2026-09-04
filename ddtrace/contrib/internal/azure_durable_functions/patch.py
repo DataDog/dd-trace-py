@@ -7,6 +7,8 @@ from azure.durable_functions.models.DurableOrchestrationClient import DurableOrc
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import tracer
+from ddtrace.contrib.internal.azure_functions._worker import patch_worker_context
+from ddtrace.contrib.internal.azure_functions._worker import unpatch_worker_context
 from ddtrace.contrib.internal.azure_functions.shared import patched_get_functions
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
@@ -60,6 +62,7 @@ def patch():
         return
 
     _w("azure.durable_functions", "DFApp.get_functions", patched_get_functions)
+    patch_worker_context()
     if hasattr(DurableOrchestrationClient, "_get_current_activity_context"):
         _w(
             "azure.durable_functions.models.DurableOrchestrationClient",
@@ -82,3 +85,4 @@ def unpatch():
 
     if hasattr(DurableOrchestrationClient, "_get_current_activity_context"):
         _u(DurableOrchestrationClient, "_get_current_activity_context")
+    unpatch_worker_context()

@@ -3,18 +3,17 @@ import os
 import signal
 import subprocess
 import time
+from types import SimpleNamespace
 
 from azure.durable_functions.orchestrator import Orchestrator
 from azure.functions import OrchestrationContext
-from opentelemetry.context import attach
-from opentelemetry.context import detach
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 import pytest
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
 from ddtrace.contrib.internal.azure_durable_functions.patch import patched_get_current_activity_context
+from ddtrace.contrib.internal.azure_functions._worker import _run_sync_with_context
 from ddtrace.contrib.internal.azure_functions.shared import patched_get_functions
 from ddtrace.contrib.internal.azure_functions.shared import wrap_durable_trigger
 from ddtrace.contrib.internal.azure_functions.shared import wrap_orchestration_trigger
@@ -141,18 +140,20 @@ def test_durable_trigger_continues_http_trace_across_invocations():
         if tracestate is not None:
             carrier["tracestate"] = tracestate
 
-        invocation_context = TraceContextTextMapPropagator().extract(carrier)
-        token = attach(invocation_context)
-        try:
+        invocation_context = SimpleNamespace(
+            trace_context=SimpleNamespace(trace_parent=carrier["traceparent"], trace_state=carrier.get("tracestate"))
+        )
+
+        def invoke_trigger(*_):
             wrapped = wrap_durable_trigger(
                 lambda: "ok",
                 "sample_activity",
                 "Activity",
                 "azure.durable_functions.patched_activity",
             )
-            assert wrapped() == "ok"
-        finally:
-            detach(token)
+            return wrapped()
+
+        assert _run_sync_with_context(invoke_trigger, None, ("invocation-id", invocation_context), {}) == "ok"
 
         spans = TracerSpanContainer(tracer).pop()
         activity_span = next(span for span in spans if span.resource == "Activity sample_activity")
@@ -165,22 +166,23 @@ def test_durable_trigger_preserves_propagated_keep_when_host_clears_sampled_flag
         "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
         "tracestate": "dd=s:2",
     }
-    invocation_context = TraceContextTextMapPropagator().extract(carrier)
-    token = attach(invocation_context)
-    try:
-        with scoped_tracer() as tracer:
+    invocation_context = SimpleNamespace(
+        trace_context=SimpleNamespace(trace_parent=carrier["traceparent"], trace_state=carrier["tracestate"])
+    )
+    with scoped_tracer() as tracer:
+
+        def invoke_trigger(*_):
             wrapped = wrap_durable_trigger(
                 lambda: "ok",
                 "sample_activity",
                 "Activity",
                 "azure.durable_functions.patched_activity",
             )
-            assert wrapped() == "ok"
+            return wrapped()
 
-            span = TracerSpanContainer(tracer).pop()[0]
-            assert span.context.sampling_priority == 2
-    finally:
-        detach(token)
+        assert _run_sync_with_context(invoke_trigger, None, ("invocation-id", invocation_context), {}) == "ok"
+        span = TracerSpanContainer(tracer).pop()[0]
+        assert span.context.sampling_priority == 2
 
 
 def _orchestration_context(has_previous_activation: bool = False) -> OrchestrationContext:

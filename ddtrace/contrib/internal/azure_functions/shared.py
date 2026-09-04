@@ -9,7 +9,6 @@ from typing import Optional
 from typing import Union
 
 import azure.functions as azure_functions
-from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
 
 from ddtrace import config
 from ddtrace._trace.context import Context
@@ -24,6 +23,8 @@ from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
+
+from ._worker import get_current_invocation_carrier
 
 
 # Numeric value serialized by Azure for HistoryEventType.ORCHESTRATOR_COMPLETED.
@@ -55,10 +56,9 @@ def create_context(
 
 
 def _get_azure_invocation_context() -> Optional[Context]:
-    # AIDEV-NOTE: The Python worker exposes the host carrier through OpenTelemetry
-    # context, not through durable handler arguments as the JavaScript worker does.
-    carrier: dict[str, str] = {}
-    TraceContextTextMapPropagator().inject(carrier)
+    carrier = get_current_invocation_carrier()
+    if carrier is None:
+        return None
     context = _TraceContext._extract(carrier)
     if context is None or not context.trace_id:
         return None
