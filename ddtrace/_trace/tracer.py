@@ -192,6 +192,7 @@ class Tracer(object):
 
         self._shutdown_lock = Lock()
         self._post_fork_lock = forksafe.Lock()
+        self._post_fork_writer_pending = False
         self._new_process = False
 
         self._store_metadata()
@@ -419,6 +420,7 @@ class Tracer(object):
         # at-fork callbacks return. Recreating the native writer here would start Tokio early
         # enough for those descriptor sweeps to invalidate its I/O driver.
         self._span_aggregator.reset_trace_buffer_after_fork()
+        self._post_fork_writer_pending = True
         self._new_process = True
         self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
@@ -428,13 +430,13 @@ class Tracer(object):
 
     def _ensure_post_fork_writer(self) -> bool:
         """Recreate the inherited writer once after a fork."""
-        if not self._new_process:
+        if not self._post_fork_writer_pending:
             return False
         with self._post_fork_lock:
-            if not self._new_process:
+            if not self._post_fork_writer_pending:
                 return False
             self._recreate(reset_buffer=False, flush_writer=False)
-            self._new_process = False
+            self._post_fork_writer_pending = False
             return True
 
     def _recreate(
@@ -508,9 +510,11 @@ class Tracer(object):
         Note: be sure to finish all spans to avoid memory leaks and incorrect
         parenting of spans.
         """
-        # PERF: keep the normal span-start path to the existing flag check; avoid a helper call
-        # unless this process actually forked.
-        if self._new_process and self._ensure_post_fork_writer():
+        # PERF: avoid a helper call on the normal span-start path.
+        if self._post_fork_writer_pending:
+            self._ensure_post_fork_writer()
+        if self._new_process:
+            self._new_process = False
             # The spans remaining in the context can not and will not be
             # finished in this new process. So to avoid memory leaks the
             # strong span reference (which will never be finished) is replaced
@@ -1010,6 +1014,7 @@ class Tracer(object):
         try:
             # Do not recreate an inherited writer only to shut it down. The span aggregator
             # discards its buffered traces during shutdown.
+            self._post_fork_writer_pending = False
             self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:

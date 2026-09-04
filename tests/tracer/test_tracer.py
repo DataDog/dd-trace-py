@@ -774,7 +774,23 @@ class TracerTestCases(TracerTestCase):
         recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
         inherited_flush.assert_not_called()
         assert self.tracer._span_aggregator.writer is not inherited_writer
+        assert not self.tracer._post_fork_writer_pending
+        assert self.tracer._new_process
+
+    def test_tracer_flush_preserves_inherited_context_cleanup_after_fork(self):
+        parent = self.tracer.trace("parent")
+        self.tracer._child_after_fork()
+
+        self.tracer.flush()
+        child = self.tracer.trace("child")
+
+        assert child.parent_id == parent.span_id
+        assert child._parent is None
+        assert child._local_root is child
         assert not self.tracer._new_process
+
+        child.finish()
+        self.tracer.context_provider.activate(None)
 
     def test_tracer_post_fork_writer_recreation_is_single_flight(self):
         self.tracer._child_after_fork()
