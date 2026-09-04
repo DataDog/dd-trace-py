@@ -1,0 +1,6 @@
+fixes:
+  - |
+    crashtracking: Strips the ddtrace-run bootstrap directory from the inherited
+    PYTHONPATH before spawning the receiver, so it stays an uninstrumented script.
+    Empty PYTHONPATH entries (the current working directory) are preserved so the
+    receiver can still import ddtrace when it is loaded from the working directory.
