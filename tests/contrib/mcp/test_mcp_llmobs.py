@@ -200,16 +200,21 @@ def test_mcp_v2_modern_client_calls_server(mcp_setup, mcp_llmobs, test_spans, mc
 
     async def run_test():
         async with client_context as client:
-            return await client.call_tool("calculator", {"operation": "add", "a": 20, "b": 22})
+            call_kwargs = {"meta": {"custom": "value"}} if MCP_VERSION >= (2, 0, 0) else {}
+            return await client.call_tool("calculator", {"operation": "add", "a": 20, "b": 22}, **call_kwargs)
 
     result = asyncio.run(run_test())
     assert getattr(result, "isError", None) is False or getattr(result, "is_error", None) is False
-    _, client_spans, server_spans = _assert_distributed_trace(test_spans, "calculator")
+    all_spans, client_spans, server_spans = _assert_distributed_trace(test_spans, "calculator")
     assert len(client_spans) == 1
     assert len(server_spans) == 1
     if MCP_VERSION >= (2, 0, 0):
         assert get_llmobs_tags(client_spans[0])["mcp_server_name"] == "TestServer"
         assert get_llmobs_tags(client_spans[0])["mcp_server_version"] == ""
+        assert len([span for span in all_spans if span.name == "mcp.server/discover"]) == 1
+        assert len([span for span in all_spans if span.resource == "ClientSession.send_discover"]) == 1
+        server_input = json.loads(get_llmobs_input_value(server_spans[0]))
+        assert server_input["params"]["_meta"]["custom"] == "value"
 
 
 def test_mcp_v2_server_middleware_restores_context_after_setup_error(mcp_setup, tracer):

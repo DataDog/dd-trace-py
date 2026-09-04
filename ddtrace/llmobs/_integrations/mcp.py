@@ -147,6 +147,8 @@ class MCPIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_client(span, args, kwargs, response)
         elif operation == "initialize":
             self._llmobs_set_tags_initialize(span, args, kwargs, response)
+        elif operation == "discover":
+            self._llmobs_set_tags_discover(span, args, kwargs, response)
         elif operation == SERVER_REQUEST_OPERATION_NAME or operation == SERVER_TOOL_CALL_OPERATION_NAME:
             self._llmobs_set_tags_request_responder_respond(span, args, kwargs, response)
         elif operation == "list_tools":
@@ -188,6 +190,9 @@ class MCPIntegration(BaseLLMIntegration):
             return
 
         self.set_client_session_server_info(span, server_info)
+
+    def _llmobs_set_tags_discover(self, span: Span, args: list[Any], kwargs: dict[str, Any], response: Any) -> None:
+        _annotate_llmobs_span_data(span, name="MCP Client Discover", kind="task", output_value=safe_json(response))
 
     def _set_initialize_request_overrides(self, span: Span, request: "InitializeRequest") -> None:
         """Update span for initialize request specific tags"""

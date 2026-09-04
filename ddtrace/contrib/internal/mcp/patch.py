@@ -1,6 +1,8 @@
 import sys
 from typing import TYPE_CHECKING
+from typing import Any
 from typing import Optional
+import weakref
 
 import mcp
 
@@ -28,6 +30,8 @@ from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
+
+_mcp2_servers: weakref.WeakSet[Any] = weakref.WeakSet()
 
 config._add(
     "mcp",
@@ -73,7 +77,10 @@ def _set_distributed_headers_into_mcp_request(request: "ClientRequest") -> "Clie
         # to attach additional metadata to a request. For more information, see:
         # https://modelcontextprotocol.io/specification/2025-06-18/basic#meta
         existing_meta = _get_attr(request_params, "meta", None)
-        meta_dict = existing_meta.model_dump() if existing_meta else {}
+        if existing_meta and hasattr(existing_meta, "model_dump"):
+            meta_dict = existing_meta.model_dump()
+        else:
+            meta_dict = dict(existing_meta) if existing_meta else {}
 
         meta_dict["_dd_trace_context"] = headers
         params_dict = request_params.model_dump(by_alias=True)
@@ -161,6 +168,18 @@ async def traced_client_session_initialize(func, instance, args: tuple, kwargs: 
             integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="initialize")
 
 
+async def traced_client_session_discover(func, instance, args: tuple, kwargs: dict):
+    integration: MCPIntegration = mcp._datadog_integration
+
+    with integration.trace("%s.%s" % (instance.__class__.__name__, func.__name__), submit_to_llmobs=True) as span:
+        response = None
+        try:
+            response = await func(*args, **kwargs)
+            return response
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="discover")
+
+
 async def traced_client_session_list_tools(func, instance, args: tuple, kwargs: dict):
     integration: MCPIntegration = mcp._datadog_integration
 
@@ -215,7 +234,7 @@ async def traced_server_middleware(context, call_next):
     """Trace server requests handled by mcp 2's middleware pipeline."""
     integration: MCPIntegration = mcp._datadog_integration
     method = _get_attr(context, "method", "unknown")
-    if method not in ("initialize", "tools/call", "tools/list"):
+    if method not in ("server/discover", "initialize", "tools/call", "tools/list"):
         return await call_next(context)
 
     # Tool schema injection is the only server-side handling needed for tools/list.
@@ -280,6 +299,7 @@ def traced_server_init(func, instance, args: tuple, kwargs: dict):
     result = func(*args, **kwargs)
     if traced_server_middleware not in instance.middleware:
         instance.middleware.append(traced_server_middleware)
+    _mcp2_servers.add(instance)
     return result
 
 
@@ -370,10 +390,12 @@ def patch():
 
     from mcp.client.session import ClientSession
 
+    is_mcp2 = False
     try:
         from mcp.shared.session import BaseSession
         from mcp.shared.session import RequestResponder
     except ImportError:
+        is_mcp2 = True
         from mcp.server import Server
 
         wrap(ClientSession, "send_request", traced_send_request)
@@ -389,6 +411,8 @@ def patch():
     wrap(ClientSession, "call_tool", traced_call_tool)
     wrap(ClientSession, "list_tools", traced_client_session_list_tools)
     wrap(ClientSession, "initialize", traced_client_session_initialize)
+    if is_mcp2:
+        wrap(ClientSession, "send_discover", traced_client_session_discover)
 
 
 def unpatch():
@@ -399,14 +423,20 @@ def unpatch():
 
     from mcp.client.session import ClientSession
 
+    is_mcp2 = False
     try:
         from mcp.shared.session import BaseSession
         from mcp.shared.session import RequestResponder
     except ImportError:
+        is_mcp2 = True
         from mcp.server import Server
 
         unwrap(ClientSession, "send_request")
         unwrap(Server, "__init__")
+        for server in _mcp2_servers:
+            if traced_server_middleware in server.middleware:
+                server.middleware.remove(traced_server_middleware)
+        _mcp2_servers.clear()
     else:
         unwrap(BaseSession, "send_request")
         unwrap(RequestResponder, "__enter__")
@@ -418,5 +448,7 @@ def unpatch():
     unwrap(ClientSession, "call_tool")
     unwrap(ClientSession, "list_tools")
     unwrap(ClientSession, "initialize")
+    if is_mcp2:
+        unwrap(ClientSession, "send_discover")
 
     delattr(mcp, "_datadog_integration")
