@@ -773,6 +773,17 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
+        name="Check microbenchmark SLO ownership",
+        command="scripts/lint slo-ownership",
+        paths={
+            ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml",
+            ".gitlab/benchmarks/slo-exceptions.yml",
+            "benchmarks/*",
+            "scripts/check_slo_ownership.py",
+            "scripts/lint",
+        },
+    )
+    check(
         name="Check ddtrace error logs",
         command="scripts/lint error-log-check",
         paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},

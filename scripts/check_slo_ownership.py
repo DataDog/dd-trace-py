@@ -17,15 +17,17 @@ below it) and knows whom to add as a reviewer.
 
 This script makes sure none of those SLOs ever gets orphaned:
 
-  1. Every SLO in the template has an ``# owners:`` comment (no SLO without an
-     owner).
+  1. Every SLO in the template has a well-formed ``# owners: @DataDog/<team>``
+     comment (no SLO without a routable owner).
   2. Every SLO maps to a benchmark class + config that still exists (no SLO
      pointing at a deleted benchmark/config).
   3. Every benchmark config has an SLO entry, unless it is listed as an
      intentional exception in ``.gitlab/benchmarks/slo-exceptions.yml``
      (catches new benchmarks/configs added without a gate).
   4. Every benchmark's scenario class name follows the naming convention
-     (CamelCase, no underscores) so it can be matched to SLO entries.
+     (CamelCase, no underscores) so it can be matched to SLO entries, and no
+     two benchmark dirs share a lowercased class name (the SLO naming scheme
+     derives the scenario prefix from it).
 
 Run via ``scripts/lint slo-ownership``. Exits non-zero if any check fails.
 """
@@ -34,12 +36,23 @@ from pathlib import Path
 import re
 import sys
 
-import yaml
+from ruamel.yaml import YAML
 
 
 ROOT = Path(__file__).parents[1]
 BENCHMARKS = ROOT / "benchmarks"
-SUITESPEC = yaml.safe_load((BENCHMARKS / "suitespec.yml").read_text())
+
+_YAML = YAML()
+
+
+def _load_yaml(path: Path):
+    """Load a YAML file, returning None when it is missing or empty."""
+    if not path.exists():
+        return None
+    return _YAML.load(path.read_text())
+
+
+SUITESPEC = _load_yaml(BENCHMARKS / "suitespec.yml") or {}
 SUITES = SUITESPEC["suites"]
 
 SLO_TEMPLATE = ROOT / ".gitlab" / "benchmarks" / "bp-runner.microbenchmarks.fail-on-breach.template.yml"
@@ -55,9 +68,11 @@ ANY_SCENARIO_CLASS_REGEX = re.compile(r"^class\s+(\w+)\s*\([^)]*\bScenario\b")
 # optional trailing ``# owners:`` comment. The config half is non-whitespace
 # (all configs are single tokens), so the comment is separated cleanly.
 SLO_LINE_REGEX = re.compile(r"^\s*- name: ([a-z0-9]+)-(\S+)(?:\s+#\s*owners:\s*(.+?))?\s*$")
-# GitHub team mentions look like ``@org/team`` (note the slash), so allow
-# word chars, hyphens, and slashes in the team slug.
-OWNER_TOKEN_RE = re.compile(r"^@[\w/-]+$")
+# Owners must be GitHub team mentions of the form ``@DataDog/<team>``: the
+# ``@DataDog/`` prefix is the contract the comments rely on for routing review,
+# and the team slug must be nonempty. Anything looser would let a typo pass
+# while the comment silently fails to route.
+OWNER_TOKEN_RE = re.compile(r"^@DataDog/[A-Za-z0-9][A-Za-z0-9-]*$")
 
 
 def get_benchmark_class(suite_name: str) -> str | None:
@@ -86,14 +101,13 @@ def has_scenario_subclass(suite_name: str) -> bool:
 
 def get_configs(suite_name: str) -> list[str]:
     cfg = BENCHMARKS / suite_name / "config.yaml"
-    if not cfg.exists():
-        return []
-    return list((yaml.safe_load(cfg.read_text()) or {}).keys())
+    data = _load_yaml(cfg)
+    return list((data or {}).keys())
 
 
-def parse_slos() -> list[tuple[str, str, str | None]]:
+def parse_slos() -> list[tuple[str, str | None]]:
     """Return [(scenario_name, owners_raw_or_None)] from the template."""
-    slos: list[tuple[str, str, str | None]] = []
+    slos: list[tuple[str, str | None]] = []
     for line in SLO_TEMPLATE.read_text().splitlines():
         match = SLO_LINE_REGEX.match(line)
         if match:
@@ -103,7 +117,7 @@ def parse_slos() -> list[tuple[str, str, str | None]]:
 
 
 def load_exceptions() -> tuple[set[str], set[str]]:
-    data = yaml.safe_load(SLO_EXCEPTIONS.read_text()) if SLO_EXCEPTIONS.exists() else {}
+    data = _load_yaml(SLO_EXCEPTIONS) or {}
     ungated = set(data.get("ungated", []) or [])
     nonconformant = set(data.get("nonconformant_classnames", []) or [])
     return ungated, nonconformant
@@ -119,12 +133,20 @@ def main() -> int:
 
     errors: list[str] = []
 
-    # Index class_lower -> suite dir, and the set of expected SLO names.
+    # Index class_lower -> suite dir. The SLO naming scheme derives the
+    # scenario prefix from the lowercased class name, so two suites sharing a
+    # class name would emit indistinguishable scenario names; track duplicates
+    # separately so we can reject them instead of silently keeping the first.
     class_to_dir: dict[str, str] = {}
+    duplicate_classes: dict[str, list[str]] = {}
     for suite_name in SUITES:
         cls = get_benchmark_class(suite_name)
-        if cls is not None:
-            class_to_dir.setdefault(cls, suite_name)
+        if cls is None:
+            continue
+        if cls in class_to_dir:
+            duplicate_classes.setdefault(cls, [class_to_dir[cls]]).append(suite_name)
+        else:
+            class_to_dir[cls] = suite_name
 
     slo_names = [name for name, _ in slos]
 
@@ -150,9 +172,14 @@ def main() -> int:
     for suite_name in SUITES:
         cls = get_benchmark_class(suite_name)
         if cls is None:
-            if suite_name in nonconformant_exceptions:
+            has_subclass = has_scenario_subclass(suite_name)
+            # A nonconformant exception only covers the "class name has an
+            # underscore" case. If the Scenario subclass was deleted entirely
+            # that is different breakage and must still error, so only honor
+            # the exception while a subclass is actually present.
+            if suite_name in nonconformant_exceptions and has_subclass:
                 continue
-            if has_scenario_subclass(suite_name):
+            if has_subclass:
                 errors.append(
                     f"benchmarks/{suite_name}/scenario.py class name does not follow the CamelCase "
                     f"convention (no underscores); it cannot be matched to SLO entries"
@@ -170,6 +197,13 @@ def main() -> int:
                 f"benchmark '{suite_name}' config '{config}' has no SLO entry (expected '{expected}') "
                 f"and is not in {SLO_EXCEPTIONS.name}"
             )
+
+    # Check 5: no two benchmark dirs share a lowercased class name.
+    for cls, dirs in sorted(duplicate_classes.items()):
+        errors.append(
+            f"benchmark class prefix '{cls}' is shared by multiple suites {dirs}; "
+            f"the SLO naming scheme requires unique scenario class names"
+        )
 
     # Stale exceptions: an exception that no longer corresponds to anything is
     # a maintenance hazard, so flag it too.
