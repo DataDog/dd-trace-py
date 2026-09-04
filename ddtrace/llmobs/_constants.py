@@ -247,6 +247,7 @@ class LLMOBS_STRUCT:
 SUPPORTED_LLMOBS_INTEGRATIONS: dict[str, str] = {
     "anthropic": "anthropic",
     "bedrock": "botocore",
+    "aiobotocore": "aiobotocore",
     "openai": "openai",
     "langchain": "langchain",
     "google_adk": "google_adk",
