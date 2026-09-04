@@ -24,6 +24,7 @@ use native_proc_macro::ConvertToPyO3Enum;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
+use crate::gil::detach_or_hang_on_finalize;
 use crate::shared_runtime::{ensure_after_fork_child, SharedRuntimePy};
 
 /// An opaque, registered metric context handle returned by
@@ -271,7 +272,7 @@ impl TelemetryWorkerPy {
         if let Some(wh) = worker_handle {
             // Release the GIL while the async teardown runs on the shared
             // runtime. `wh.stop()` pauses the worker then shuts it down.
-            py.detach(|| {
+            detach_or_hang_on_finalize(py, || {
                 let _ = self.shared_runtime.block_on(async {
                     let _ = wh.stop().await;
                 });
@@ -293,7 +294,7 @@ impl TelemetryWorkerPy {
         // (FlushMetricAggr), otherwise FlushData would send no metrics — the
         // worker normally does this on its own 10s cadence, but a forced flush
         // must do it inline so metrics added since the last cadence are sent.
-        py.detach(|| {
+        detach_or_hang_on_finalize(py, || {
             let _ = self.shared_runtime.block_on(async {
                 let _ = self
                     .handle
