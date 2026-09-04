@@ -1031,7 +1031,7 @@ venv = Venv(
             name="ddtrace_api",
             command="pytest {cmdargs} tests/contrib/ddtrace_api",
             pkgs={"ddtrace-api": "==0.0.1", "requests": latest},
-            pys=select_pys(max_version="3.15"),
+            pys=select_pys(),
         ),
         # Django  Python version support
         # 2.2     3.9
