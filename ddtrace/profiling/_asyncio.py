@@ -13,7 +13,6 @@ if typing.TYPE_CHECKING:
     import asyncio as aio
 
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
-from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
@@ -22,9 +21,12 @@ from ddtrace.internal.wrapping import wrap
 
 
 ASYNCIO_IMPORTED: bool = False
-# wrap() raises from NEXT_PY_VERSION_INFO (3.15 on this stack). Keep bytecode
-# wrapping on older CPythons; use sys.monitoring only where wrap() cannot run.
-_USE_WRAP: bool = sys.version_info < NEXT_PY_VERSION_INFO
+# Task-creation uses sys.monitoring PY_RETURN on 3.15+. wrap() still works on
+# 3.15 (wrapping fail-close is 3.16); this gate is the asyncio path, not wrap
+# availability. Other hooks use attribute replacement on 3.15+ because
+# CALL/PY_START do not expose the callee's arguments.
+_ASYNCIO_MONITORING_MIN: tuple[int, int] = (3, 15)
+_USE_WRAP: bool = sys.version_info < _ASYNCIO_MONITORING_MIN
 
 
 def current_task() -> typing.Optional[asyncio.Task[typing.Any]]:
@@ -75,12 +77,12 @@ def link_existing_loop_to_current_thread() -> None:
     _call_init_asyncio(asyncio)
 
 
-# On Python 3.15, wrapping is unavailable, so task-creation tracking uses
-# sys.monitoring PY_RETURN (API since 3.12, PEP 669), which yields the new Task
-# object directly. The version gate is wrapping-unavailability, not API novelty.
-# Other asyncio hooks use attribute replacement on 3.15+ — CALL/PY_START
-# callbacks don't expose the callee's arguments, so they have no advantage over
-# monkey-patching. Below 3.15 every former wrap() site still uses wrap().
+# Task-creation tracking on 3.15+ uses sys.monitoring PY_RETURN (API since 3.12,
+# PEP 669), which yields the new Task object directly. wrap() is still available
+# on 3.15; we do not use it here. Other asyncio hooks use attribute replacement
+# on 3.15+ — CALL/PY_START callbacks don't expose the callee's arguments, so
+# they have no advantage over monkey-patching. Below 3.15 every former wrap()
+# site still uses wrap().
 # TODO(py-315): Evaluate rolling this path out to 3.12–3.14 once #19601's
 # multiplexer (3.12+) is the shared owner and CI covers those versions.
 _monitoring_tool_id: typing.Optional[int] = None
@@ -97,21 +99,23 @@ def _py_return_dispatch(code: CodeType, instruction_offset: int, return_value: o
 def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
     """Register a sys.monitoring PY_RETURN hook for *func*.
 
-    Used on Python 3.15+ because wrapping is unavailable there, not because
-    sys.monitoring is new (it exists since 3.12). Returns True if the hook was
-    installed, False if the caller should fall back to wrap() (below 3.15) or
-    monkey-patching (3.15+ when monitoring cannot be installed).
+    Used on Python 3.15+ as this module's task-creation path, not because wrap()
+    is unavailable there (fail-close is 3.16) and not because sys.monitoring is
+    new (it exists since 3.12). Returns True if the hook was installed, False if
+    the caller should fall back to wrap() (below 3.15) or monkey-patching (3.15+
+    when monitoring cannot be installed).
     """
     global _monitoring_tool_id
 
-    if sys.version_info >= NEXT_PY_VERSION_INFO:
+    if sys.version_info >= _ASYNCIO_MONITORING_MIN:
         m: typing.Any = sys.monitoring  # type: ignore[attr-defined]
 
         if _monitoring_tool_id is None:
-            # Tool IDs 4-5 are free custom slots; 0-3 are reserved (debugger, coverage,
-            # profiler, optimizer). Try from the top to minimise conflicts.
+            # PEP 669 pre-defines 0/1/2/5 (debugger/coverage/profiler/optimizer).
+            # 3 and 4 are the unnamed slots; prefer 4 then 3 to match
+            # ddtrace.internal.monitoring. Exception profiler may already own 4.
             candidate: int
-            for candidate in (5, 4):
+            for candidate in (4, 3):
                 try:
                     m.use_tool_id(candidate, "dd-profiling-asyncio")
                     m.register_callback(candidate, m.events.PY_RETURN, _py_return_dispatch)

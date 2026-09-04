@@ -1,7 +1,7 @@
 """Pin wrap() vs sys.monitoring for profiling asyncio hooks.
 
-These fail if the version split in ``ddtrace.profiling._asyncio`` is reverted:
-below 3.15 hooks must go through ``wrap()`` (in-place bytecode, not a bare
+These fail if the version split in ddtrace.profiling._asyncio is reverted:
+below 3.15 hooks must go through wrap() (in-place bytecode, not a bare
 assignment); on 3.15+ task-creation must use the PY_RETURN monitoring path.
 """
 
@@ -79,6 +79,14 @@ def test_asyncio_task_creation_uses_monitoring_on_315() -> None:
     assert not is_wrapped(create_task)
     assert _asyncio._monitoring_tool_id is not None
     assert id(create_task.__code__) in _asyncio._py_return_handlers
+
+    # Non-create_task hooks must be attribute replacements, not wrap(), on 3.15+.
+    tasks_mod: ModuleType = sys.modules["asyncio.tasks"]
+    assert not is_wrapped(cast(FunctionType, tasks_mod.as_completed))
+    assert not is_wrapped(cast(FunctionType, tasks_mod.shield))
+    assert not is_wrapped(cast(FunctionType, getattr(tasks_mod, "_wait")))
+    gathering_future: type[object] = getattr(tasks_mod, "_GatheringFuture")
+    assert not is_wrapped(cast(FunctionType, gathering_future.__init__))
 
     taskgroups: ModuleType | None = sys.modules.get("asyncio.taskgroups")
     assert taskgroups is not None
