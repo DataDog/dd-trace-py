@@ -42,6 +42,7 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import NativeWriter
@@ -221,12 +222,16 @@ def override_global_config(values: dict[str, Any]):
 
     asm_config_keys = asm_config._asm_config_keys
 
+    # Standalone (APM opt-out) config keys
+    standalone_config_keys = standalone_config._standalone_config_keys
+
     # OpenFeature config keys
     openfeature_config_keys = ffe_config._openfeature_config_keys
 
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
+    standalone_originals = dict((key, getattr(standalone_config, key)) for key in standalone_config_keys)
     openfeature_originals = dict((key, getattr(ffe_config, key)) for key in openfeature_config_keys)
 
     # Override from the passed in keys
@@ -237,6 +242,10 @@ def override_global_config(values: dict[str, Any]):
     for key, value in values.items():
         if key in asm_config_keys:
             setattr(asm_config, key, value)
+    # Override standalone config
+    for key, value in values.items():
+        if key in standalone_config_keys:
+            setattr(standalone_config, key, value)
     # Override openfeature config
     for key, value in values.items():
         if key in openfeature_config_keys:
@@ -275,6 +284,10 @@ def override_global_config(values: dict[str, Any]):
         asm_config.reset()
         for key, value in asm_originals.items():
             setattr(asm_config, key, value)
+
+        standalone_config.reset()
+        for key, value in standalone_originals.items():
+            setattr(standalone_config, key, value)
 
         for key, value in openfeature_originals.items():
             setattr(ffe_config, key, value)
@@ -652,7 +665,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
         kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
-        kwargs["stats_opt_out"] = asm_config._apm_opt_out
+        kwargs["stats_opt_out"] = standalone_config.apm_opt_out
         self._inner_writer = NativeWriter(*args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
 

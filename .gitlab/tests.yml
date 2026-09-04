@@ -168,6 +168,9 @@ include:
       export ${!env_var}
       set +f
       export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
+      # Keep CI Visibility session names tied to the CI job and test command;
+      # ddtest expands {{nodeIndex}}/{{workerIndex}} for each local worker.
+      export DD_TEST_SESSION_NAME="${CI_JOB_NAME}-pytest ${DDTEST_SUITE_PATH} node-{{nodeIndex}}-worker-{{workerIndex}}"
       uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
         --with-requirements "${requirements}" --with "${wheel}" \
         ddtest run --platform python --framework pytest --command "${!command_var}" \

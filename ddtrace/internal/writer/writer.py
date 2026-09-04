@@ -5,7 +5,6 @@ import gzip
 import os
 import socket
 import sys
-import threading
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -19,6 +18,7 @@ from ddtrace.internal.hostname import get_hostname
 import ddtrace.internal.native as native
 from ddtrace.internal.native import AgentResponse
 from ddtrace.internal.native._native import SpanData
+from ddtrace.internal.native.exceptions import is_panic_exception
 from ddtrace.internal.native_runtime import get_native_runtime
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.settings import env
@@ -29,6 +29,7 @@ from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_en
 from ddtrace.internal.settings._opentelemetry import _targets_agentless_intake
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import _human_size
@@ -54,6 +55,7 @@ from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
+from ..threads import RLock
 from ..utils.formats import get_test_session_token
 from ..utils.http import Response
 from ..utils.http import verify_url
@@ -227,7 +229,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
-        self._conn_lck: threading.RLock = threading.RLock()
+        self._conn_lck: RLock = RLock()
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
@@ -942,6 +944,23 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         except Exception:
             log.debug("Failed to re-point the trace exporter at the telemetry worker", exc_info=True)
 
+    @staticmethod
+    def _shutdown_exporter(exporter: native.TraceExporter) -> None:
+        """Shut down a native exporter, swallowing a Rust panic from its tokio I/O driver.
+
+        The exporter can panic here after a fork; since the exporter is always
+        being discarded right after this call, treat that specific panic as
+        non-fatal too. Anything else still propagates.
+        """
+        try:
+            exporter.shutdown(3_000_000_000)
+        except Exception:
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+        except BaseException as e:
+            if not is_panic_exception(e):
+                raise
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
         Set the test session token and recreate the exporter with the new configuration.
@@ -950,17 +969,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._test_session_token = token
         old_exporter = self._exporter
         self._exporter = self._create_exporter()
-        try:
-            old_exporter.shutdown(3_000_000_000)
-        except Exception:
-            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+        self._shutdown_exporter(old_exporter)
 
     def shutdown_exporter(self) -> None:
         """Tear down the native exporter without going through ``stop()``."""
-        try:
-            self._exporter.shutdown(3_000_000_000)
-        except Exception:
-            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+        self._shutdown_exporter(self._exporter)
 
     def recreate(
         self,
@@ -1004,10 +1017,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._api_version = "v0.4"
             old_exporter = self._exporter
             self._exporter = self._create_exporter()
-            try:
-                old_exporter.shutdown(3_000_000_000)
-            except Exception:
-                _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+            self._shutdown_exporter(old_exporter)
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
@@ -1207,7 +1217,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             self.periodic()
         finally:
-            self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
+            self._shutdown_exporter(self._exporter)
 
 
 def _use_log_writer() -> bool:
@@ -1262,7 +1272,7 @@ def _resolve_otlp_metrics_endpoint() -> Optional[str]:
 
 
 def _resolve_agentless_stats_endpoint() -> Optional[str]:
-    if not config._trace_compute_stats or asm_config._apm_opt_out:
+    if not config._trace_compute_stats or standalone_config.apm_opt_out:
         return None
     return compute_agentless_stats_url(config._dd_site.lower())
 
@@ -1303,9 +1313,9 @@ def create_trace_writer(
             sync_mode=_use_sync_mode(),
             compute_stats_enabled=config._trace_compute_stats,
             client_side_stats_obfuscation=config._client_side_stats_obfuscation,
-            report_metrics=not asm_config._apm_opt_out,
+            report_metrics=not standalone_config.apm_opt_out,
             response_callback=response_callback,
-            stats_opt_out=asm_config._apm_opt_out,
+            stats_opt_out=standalone_config.apm_opt_out,
             # There is deliberately no otlp_endpoint: libdatadog rejects OTLP trace export
             # combined with agentless. OTLP trace metrics are permitted, and go to the intake.
             otlp_metrics_endpoint=otlp_metrics_endpoint,
@@ -1320,9 +1330,9 @@ def create_trace_writer(
         sync_mode=_use_sync_mode(),
         compute_stats_enabled=config._trace_compute_stats,
         client_side_stats_obfuscation=config._client_side_stats_obfuscation,
-        report_metrics=not asm_config._apm_opt_out,
+        report_metrics=not standalone_config.apm_opt_out,
         response_callback=response_callback,
-        stats_opt_out=asm_config._apm_opt_out,
+        stats_opt_out=standalone_config.apm_opt_out,
         otlp_endpoint=otlp_endpoint,
         otlp_metrics_endpoint=otlp_metrics_endpoint,
     )
