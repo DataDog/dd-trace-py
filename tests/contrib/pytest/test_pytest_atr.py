@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 import pytest
 
+from ddtrace.contrib.internal.pytest._utils import _get_pytest_version_tuple
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
@@ -332,9 +333,9 @@ class PytestATRTestCase(PytestTestCaseBase):
 
         test_suite = ElementTree.parse(f"{self.testdir}/out.xml").find("testsuite")
 
-        # There are 15 tests, but we get 16 in the JUnit XML output, because a test that passes during call but fails
-        # during teardown is counted twice. This is a bug in pytest, not ddtrace.
-        assert test_suite.attrib["tests"] == "16"
+        # Pytest 9.1 fixed the JUnit XML count for a test that passes during call but fails during teardown.
+        expected_test_count = "15" if _get_pytest_version_tuple() >= (9, 1, 0) else "16"
+        assert test_suite.attrib["tests"] == expected_test_count
         assert test_suite.attrib["failures"] == "4"
         assert test_suite.attrib["skipped"] == "4"
         assert test_suite.attrib["errors"] == "2"
