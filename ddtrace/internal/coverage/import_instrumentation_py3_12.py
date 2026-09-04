@@ -49,13 +49,6 @@ def _decoded_arg_for_history(instr: Instr) -> t.Any:
     return 0
 
 
-def _decoded_import_name(value: t.Any) -> str:
-    # TODO(py-315): bytecode 0.19 decodes Python 3.15 IMPORT_NAME args to (lazy, eager, name).
-    if isinstance(value, tuple) and len(value) == 3:
-        return t.cast(str, value[2])
-    return t.cast(str, value)
-
-
 def iter_import_events(
     code_or_bytecode: CodeType | Bytecode, package: str, code: t.Optional[CodeType] = None
 ) -> list[ImportEvent]:
@@ -85,7 +78,12 @@ def iter_import_events(
         lineno = instr.lineno or code.co_firstlineno
         if instr.name == "IMPORT_NAME":
             import_depth = _decoded_import_depth(previous_previous_arg)
-            current_import_name = _decoded_import_name(instr.arg)
+            # TODO(py-315): bytecode 0.19 decodes Python 3.15 IMPORT_NAME args to (lazy, eager, name).
+            current_import_name = (
+                t.cast(str, instr.arg[2])
+                if isinstance(instr.arg, tuple) and len(instr.arg) == 3
+                else t.cast(str, instr.arg)
+            )
             current_import_package = _resolve_import_package(package, import_depth)
             events.append(ImportEvent(idx, lineno, (current_import_package, (current_import_name,))))
         elif instr.name == "IMPORT_FROM" and current_import_name is not None:
