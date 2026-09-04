@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import importlib
+from typing import Optional
 
 from ddtrace.internal.settings._config import config
 
@@ -12,7 +15,7 @@ required_module_to_integration = {
     "aiokafka": "aiokafka",
     "google.cloud.pubsub_v1": "google_cloud_pubsub",
 }
-_processor = None
+_processor: Optional[object] = None
 
 if config._data_streams_enabled:
     with require_modules(list(required_module_to_integration.keys())) as missing_modules:

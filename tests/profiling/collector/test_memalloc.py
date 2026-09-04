@@ -202,9 +202,10 @@ def test_heap_profiler_large_heap_overhead() -> None:
 
 # one, two, three, and four exist to give us distinct things
 # we can find in the profile without depending on something
-# like the line number at which an allocation happens
-# Python 3.13 changed bytearray to use an allocation domain that we don't
-# currently profile, so we use None instead of bytearray to test.
+# like the line number at which an allocation happens.
+# On Python 3.13+ bytearray's buffer is PYMEM_DOMAIN_MEM. These helpers still
+# use (None,) * N there so sample-count / tracemalloc tests keep a stable
+# OBJ-sized vehicle; MEM coverage for bytearray is test_bytearray_tracked_on_py313.
 def one(size: int) -> Union[tuple[None, ...], bytearray]:
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
@@ -1634,8 +1635,9 @@ def _make_obj_domain_objects(count: int) -> object:
 # label set is exactly {"obj"}, not a subset). Several other tests in this
 # file legitimately enable mem_domain, and pytest-randomly does not guarantee
 # this test runs before them, so it must run in its own process to avoid
-# being polluted by test order.
-@pytest.mark.subprocess()
+# being polluted by test order. Pin the env so the child cannot inherit a
+# True default if the mem_domain_enabled=False kwarg is ever dropped.
+@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED="false"))
 def test_allocator_domain_label_obj_when_mem_domain_disabled() -> None:
     """With mem_domain off, every allocation sample is still labelled, and always with "obj".
 
@@ -1721,6 +1723,56 @@ def test_allocator_domain_label_distinguishes_obj_and_mem(tmp_path: Path) -> Non
     )
 
     del mem_obj, obj
+
+
+@pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
+@pytest.mark.subprocess(
+    env=dict(
+        DD_PROFILING_HEAP_SAMPLE_SIZE=str(512 * 1024),
+        DD_PROFILING_OUTPUT_PPROF="/tmp/test_mem_domain_ga_default_on",
+        # None pops inherited values so this child sees the GA default, not a parent false.
+        DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED=None,
+    )
+)
+def test_mem_domain_enabled_by_default_on_profiler() -> None:
+    """GA contract: Profiler() with no MEM env or kwarg must sample PYMEM_DOMAIN_MEM."""
+    import os
+
+    from ddtrace.profiling.collector import memalloc
+    from ddtrace.profiling.profiler import Profiler
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_memalloc import ALLOCATOR_DOMAIN_KEY
+    from tests.profiling.collector.test_memalloc import ALLOCATOR_DOMAIN_MEM
+    from tests.profiling.collector.test_memalloc import _make_mem_domain_object
+
+    assert os.environ.get("DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED") is None
+
+    pprof_prefix: str = os.environ["DD_PROFILING_OUTPUT_PPROF"]
+    output_filename: str = pprof_prefix + "." + str(os.getpid())
+
+    p: Profiler = Profiler()
+    mem_collectors: list[memalloc.MemoryCollector] = [
+        col for col in p._profiler._collectors if isinstance(col, memalloc.MemoryCollector)
+    ]
+    assert mem_collectors, "Profiler() must install MemoryCollector by default"
+    assert mem_collectors[0].mem_domain_enabled is True
+
+    p.start()
+    mem_obj: object = _make_mem_domain_object(16 * 1024 * 1024)
+    p.stop()
+
+    # Quoted: this body is exec'd as a subprocess module without
+    # `from __future__ import annotations`, and pprof_pb2 is pyi-only.
+    profile: "pprof_pb2.Profile" = pprof_utils.parse_newest_profile(output_filename)
+    samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
+    assert samples, "Expected alloc-space samples"
+    mem_frame_values: list[str] = pprof_utils.get_label_str_values_for_function(
+        profile, samples, ALLOCATOR_DOMAIN_KEY, "_make_mem_domain_object"
+    )
+    assert ALLOCATOR_DOMAIN_MEM in mem_frame_values, (
+        f"GA default must label MEM-domain allocations, got {sorted(set(mem_frame_values))}"
+    )
+    del mem_obj
 
 
 @pytest.mark.skipif(not PY_312_OR_ABOVE, reason="MEM-domain hooks are only installed on Python 3.12+")
