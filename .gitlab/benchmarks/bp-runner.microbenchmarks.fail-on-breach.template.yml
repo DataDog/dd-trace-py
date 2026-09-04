@@ -537,6 +537,32 @@ experiments:
             thresholds:
               - execution_time < 38.50 ms
 
+          # openfeatureflagevaluation
+          - name: openfeatureflagevaluation-aggregate-scale
+            thresholds:
+              - execution_time < 0.064 ms
+          - name: openfeatureflagevaluation-aggregate-stress
+            thresholds:
+              - execution_time < 0.550 ms
+          - name: openfeatureflagevaluation-aggregate-typical
+            thresholds:
+              - execution_time < 0.029 ms
+          - name: openfeatureflagevaluation-hook-enqueue-bounded-adversarial
+            thresholds:
+              - execution_time < 0.380 ms
+          - name: openfeatureflagevaluation-hook-enqueue-scale
+            thresholds:
+              - execution_time < 0.043 ms
+          - name: openfeatureflagevaluation-hook-enqueue-stress
+            thresholds:
+              - execution_time < 0.300 ms
+          - name: openfeatureflagevaluation-hook-enqueue-typical
+            thresholds:
+              - execution_time < 0.033 ms
+          - name: openfeatureflagevaluation-hook-plus-drain-scale
+            thresholds:
+              - execution_time < 0.120 ms
+
           # otelsdkspan
           - name: otelsdkspan-add-event
             thresholds:

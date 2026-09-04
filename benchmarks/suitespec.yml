@@ -387,3 +387,11 @@ suites:
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
+  openfeature_flagevaluation:
+    paths:
+      - ddtrace/internal/openfeature/_flag_eval_evp_hook.py
+      - ddtrace/internal/openfeature/_flagevaluation_writer.py
+      - benchmarks/openfeature_flagevaluation/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'

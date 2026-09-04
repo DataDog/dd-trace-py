@@ -1,0 +1,16 @@
+---
+features:
+  - |
+    openfeature: Datadog now bounds the number, size, and nesting depth of evaluation context
+    fields reported with flag evaluations. At most 256 fields are reported, keys and string
+    values are limited to 256 characters, lists and nested objects are limited to 256 entries,
+    and nesting is limited to 4 levels. Context data beyond these limits is omitted from the
+    reported evaluation; flag resolution itself is unaffected.
+upgrade:
+  - |
+    openfeature: Evaluation context values reported with flag evaluations are now limited to
+    strings, numbers, booleans, and datetimes. Previous versions converted other values, such
+    as ``Decimal``, ``UUID``, and custom objects, to strings; these values are now omitted from
+    the reported evaluation. Null values are also omitted. To keep reporting such a value,
+    convert it to a string in your evaluation context before calling the OpenFeature client.
+    Flag resolution itself is unaffected.
