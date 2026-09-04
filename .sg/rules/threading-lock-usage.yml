@@ -1,0 +1,50 @@
+id: threading-lock-usage
+message: Use ddtrace.internal.threads.Lock/RLock instead of threading.Lock/RLock
+severity: error
+language: python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/internal/threads.py"
+  - "ddtrace/internal/_unpatched.py"
+  - "ddtrace/vendor/**"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+  - "ddtrace/testing/**"
+  - "ddtrace/internal/openfeature/**"
+  - "ddtrace/contrib/internal/pytorch/**"
+  - "ddtrace/llmobs/_integrations/_bedrock_inference_profiles.py"
+  - "ddtrace/appsec/_iast/_overhead_control_engine.py"
+  - "ddtrace/profiling/_faulthandler.py"
+rule:
+  any:
+    - pattern: threading.Lock()
+    - pattern: threading.RLock()
+    - pattern: from threading import Lock
+    - pattern: from threading import RLock
+    - pattern: from threading import Lock as $ALIAS
+    - pattern: from threading import RLock as $ALIAS
+    - pattern: from threading import $$$IMPORTS, Lock
+    - pattern: from threading import $$$IMPORTS, Lock as $ALIAS
+    - pattern: from threading import Lock, $$$IMPORTS
+    - pattern: from threading import Lock as $ALIAS, $$$IMPORTS
+    - pattern: from threading import $$$IMPORTS, RLock
+    - pattern: from threading import $$$IMPORTS, RLock as $ALIAS
+    - pattern: from threading import RLock, $$$IMPORTS
+    - pattern: from threading import RLock as $ALIAS, $$$IMPORTS
+note: |
+  gevent's monkey-patching replaces `threading.Lock`/`threading.RLock` with
+  green (cooperative) equivalents. Mixing those with dd-trace-py's real OS
+  threads causes deadlocks, since a green lock held by a real thread can never
+  be released by a greenlet waiting on the event loop.
+
+  `ddtrace.internal.threads.Lock`/`RLock` grab a reference to the real,
+  unpatched primitives before any monkey-patching library can run, and are
+  fork-safe. Use them instead:
+
+  Before:
+    import threading
+    lock = threading.Lock()
+
+  After:
+    from ddtrace.internal.threads import Lock
+    lock = Lock()

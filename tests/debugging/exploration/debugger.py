@@ -24,6 +24,7 @@ from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._uploader import SignalUploader
 from ddtrace.internal.remoteconfig.worker import RemoteConfigPoller
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
 
 if not config.capture:
@@ -210,6 +211,10 @@ class ExplorationDebugger(Debugger):
         di_config.global_rate_limit = float("inf")
         di_config.metrics = False
 
+        # We are not managed by the product manager, so we have to register
+        # with the shared code collector ourselves, before enabling.
+        ModuleCodeCollector.register("di")
+
         super(ExplorationDebugger, cls).enable()
 
         cls._instance._probe_registry = LightProbeRegistry(cls._instance._status_logger)
@@ -219,8 +224,6 @@ class ExplorationDebugger(Debugger):
         # Register the debugger to be disabled at exit manually because we are
         # not being managed by the product manager.
         atexit.register(cls.disable)
-
-        cls.__watchdog__.install()
 
     @classmethod
     def disable(cls, join: bool = True) -> None:
@@ -236,8 +239,6 @@ class ExplorationDebugger(Debugger):
         log("")
 
         cls.on_disable()
-
-        cls.__watchdog__.uninstall()
 
         failed = False
         if not nprobes:
