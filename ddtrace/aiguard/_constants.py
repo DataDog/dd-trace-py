@@ -49,6 +49,9 @@ class AI_GUARD(metaclass=Constant_Class):
     ERROR_CLIENT: Literal["client_error"] = "client_error"
     ERROR_BAD_STATUS: Literal["bad_status"] = "bad_status"
     ERROR_BAD_RESPONSE: Literal["bad_response"] = "bad_response"
+    # A replacement the service asked for could not be applied. Reported per affected path, and
+    # never fails the evaluation, see the redaction errors addendum of the AI Guard redaction RFC.
+    ERROR_REDACTION: Literal["redaction_error"] = "redaction_error"
 
     # Values of the "source" tag: which call path reached the evaluation. sdk means the
     # customer called evaluate() directly, auto means our AI package instrumentation did.

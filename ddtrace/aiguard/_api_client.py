@@ -149,9 +149,9 @@ class AIGuardClient:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _add_error_to_telemetry(error_type: str, call_path_tags: tuple[tuple[str, str], ...]) -> None:
+    def _add_error_to_telemetry(error_type: str, call_path_tags: tuple[tuple[str, str], ...], count: int = 1) -> None:
         telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, 1, (("type", error_type),) + call_path_tags
+            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, count, (("type", error_type),) + call_path_tags
         )
 
     @staticmethod
@@ -345,7 +345,11 @@ class AIGuardClient:
                     redacted_messages = messages
                     redaction_enabled = aiguard_config._ai_guard_redaction_enabled
                     if redaction_enabled and redaction_replacements:
-                        redacted_messages = redact_messages(messages, redaction_replacements)
+                        redacted_messages, redaction_errors = redact_messages(messages, redaction_replacements)
+                        # A replacement we cannot apply is reported and then forgotten: redaction is
+                        # best effort and must never fail the evaluation it rode in on.
+                        if redaction_errors:
+                            self._add_error_to_telemetry(AI_GUARD.ERROR_REDACTION, call_path_tags, redaction_errors)
                     # redact_messages returns the very same list when nothing was applied.
                     redacted = redacted_messages is not messages
                     if redaction_enabled:

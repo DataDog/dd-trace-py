@@ -2,6 +2,7 @@
 
 The service returns the fully redacted string per location path, so applying it is a verbatim
 overwrite. Never raises: a malformed response degrades to a skip that leaves the message untouched.
+Every skip is counted so the caller can report it, see the redaction errors addendum of the RFC.
 """
 
 from collections.abc import Mapping
@@ -9,6 +10,7 @@ from collections.abc import MutableMapping
 from copy import deepcopy
 import re
 from typing import Any
+from typing import NamedTuple
 from typing import Optional
 from typing import Union
 
@@ -26,12 +28,16 @@ _SEGMENT_RE = re.compile(r"^(?P<name>[A-Za-z0-9_]+)(?:\[(?P<index>[0-9]+)\])?\Z"
 # pointing at an image locator, a role or a tool name can never overwrite it.
 _REDACTABLE_TERMINALS = frozenset({"content", "text", "arguments"})
 
-# Marks a path the backend sent conflicting replacements for: it is skipped rather than guessed.
-_SKIP = object()
-
 Segment = tuple[str, Optional[int]]
 # What a replacement can be written into: everything else resolves read-only.
 Writable = Union[MutableMapping[str, Any], list[Any]]
+
+
+class RedactionResult(NamedTuple):
+    """Messages to use downstream, plus how many replacements could not be applied."""
+
+    messages: list[Message]
+    errors: int
 
 
 def _split_segments(path: str) -> Optional[list[Segment]]:
@@ -112,31 +118,42 @@ def _set_string_at_path(root: dict[str, Any], path: str, value: str) -> bool:
     return True
 
 
-def _collect_replacements(replacements: object) -> dict[str, object]:
-    """Collect one authoritative replacement per path, or _SKIP when the backend contradicts itself."""
-    if not isinstance(replacements, list):
-        return {}
+def _collect_replacements(replacements: object) -> tuple[dict[str, str], int]:
+    """Collect one authoritative replacement per path, plus the number of entries that are unusable.
 
-    by_path: dict[str, object] = {}
+    A path the backend sends contradicting values for is dropped rather than guessed, and counted
+    once however many entries disagree. Identical duplicates agree, so they are not errors.
+    """
+    if not isinstance(replacements, list):
+        # Not even an array: nothing can be applied, so the whole payload counts as one error.
+        return {}, 1
+
+    errors = 0
+    by_path: dict[str, str] = {}
+    conflicting: set[str] = set()
     for entry in replacements:
         if not isinstance(entry, Mapping):
+            errors += 1
             continue
         path = entry.get("path")
         replacement = entry.get("replacement")
         # An empty replacement is valid: it is the customer's "remove" placeholder. A non-string one
         # is not, and would break serialization further down the line.
         if not path or not isinstance(path, str) or not isinstance(replacement, str):
+            errors += 1
             continue
         previous = by_path.get(path)
         if previous is not None and previous != replacement:
-            by_path[path] = _SKIP
-            continue
+            conflicting.add(path)
         by_path[path] = replacement
-    return by_path
+
+    for path in conflicting:
+        del by_path[path]
+    return by_path, errors + len(conflicting)
 
 
-def redact_messages(messages: list[Message], replacements: object) -> list[Message]:
-    """Apply the replacements to the messages and return the redacted list.
+def redact_messages(messages: list[Message], replacements: object) -> RedactionResult:
+    """Apply the replacements to the messages and return them along with the redaction error count.
 
     Copy-on-write: the caller's messages are never mutated, and the very same list object is returned
     when nothing was applied, so callers can use identity to detect whether anything changed.
@@ -144,22 +161,24 @@ def redact_messages(messages: list[Message], replacements: object) -> list[Messa
     try:
         # Absent or empty is the service saying there is nothing to redact, not a malformed response.
         if not replacements:
-            return messages
+            return RedactionResult(messages, 0)
 
-        by_path = _collect_replacements(replacements)
+        by_path, errors = _collect_replacements(replacements)
         if not by_path:
-            return messages
+            return RedactionResult(messages, errors)
 
         result = deepcopy(messages)
         root = {"messages": result}
         applied = 0
         for path, replacement in by_path.items():
-            # _SKIP is not a str, so a contradicted path is skipped along with any path that is
-            # missing, malformed or not pointing at a redactable string.
-            if isinstance(replacement, str) and _set_string_at_path(root, path, replacement):
+            # A path that is missing, malformed or not pointing at a redactable string is skipped
+            # fail-safe, and reported rather than silently dropped.
+            if _set_string_at_path(root, path, replacement):
                 applied += 1
+            else:
+                errors += 1
 
-        return result if applied else messages
+        return RedactionResult(result if applied else messages, errors)
     except Exception:
         logger.debug("AI Guard redaction failed", exc_info=True)
-        return messages
+        return RedactionResult(messages, 1)
