@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -126,6 +127,10 @@ class AIOTracedCursor(dbapi_async.TracedAsyncCursor):
         resource = self._prepare_dbapi_query(query)
         result = await self._trace_method(self.__wrapped__.execute, resource, {}, query, *args, **kwargs)
         return result
+
+    async def callproc(self, *args: Any, **kwargs: Any) -> Any:
+        # AIDEV-NOTE: Preserve untraced forwarding; the inherited callproc uses an incompatible _trace_method signature.
+        return await self.__wrapped__.callproc(*args, **kwargs)
 
     # Explicitly define `__aenter__` and `__aexit__` since they do not get proxied properly
     async def __aenter__(self):

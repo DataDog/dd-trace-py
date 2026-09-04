@@ -57,19 +57,19 @@ class TestVerticaPatching(TracerTestCase):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
 
-    @pytest.mark.parametrize("query", ("SELECT 1", b"SELECT 1"))
-    def test_query_event_can_block(self, query):
-        cases = (("execute", (query,)), ("copy", (query, "1,foo")))
+    def test_query_event_can_block(self):
+        for query in ("SELECT 1", b"SELECT 1"):
+            cases = (("execute", (query,)), ("copy", (query, "1,foo")))
 
-        for method, args in cases:
-            with (
-                mock.patch.object(core, "has_listeners", return_value=True),
-                mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event,
-            ):
-                with pytest.raises(BlockingException):
-                    _dispatch_query_event(method, args, {})
+            for method, args in cases:
+                with (
+                    mock.patch.object(core, "has_listeners", return_value=True),
+                    mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event,
+                ):
+                    with pytest.raises(BlockingException):
+                        _dispatch_query_event(method, args, {})
 
-            dispatch_event.assert_called_once_with(DbQueryEvent(query=args[0], span_name_prefix="vertica"))
+                dispatch_event.assert_called_once_with(DbQueryEvent(query=args[0], span_name_prefix="vertica"))
 
     def test_non_string_query_does_not_dispatch_event(self):
         with mock.patch.object(core, "dispatch_event") as dispatch_event:
