@@ -19,10 +19,10 @@ import sys
 from typing import Optional
 
 
-# Match comment introducers only — avoids false positives in prose/docs that
-# mention the old label name in backticks.
+# Match Python, C/C++, and Rust comment introducers only — avoids false
+# positives in prose/docs that mention the old label name in backticks.
 ANCHOR_RE: re.Pattern[str] = re.compile(
-    r"^\+\s*.*?(?:#|//)\s*AIDEV-(?:NOTE|TODO|QUESTION):",
+    r"^\+\s*.*?(?:#|(?<!/)//[/!]?)\s*AIDEV-(?:NOTE|TODO|QUESTION):",
 )
 
 SKIP_PREFIXES: tuple[str, ...] = ("scripts/check_no_new_aidev_anchors.py",)
@@ -40,7 +40,7 @@ def _merge_base(base_ref: str) -> str:
 
 def _added_lines(base_ref: str) -> list[tuple[str, str]]:
     merge_base: str = _merge_base(base_ref)
-    result: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603,B607
+    result: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603, B607
         ["git", "diff", "-U0", merge_base, "--", ".", ":(exclude)scripts/check_no_new_aidev_anchors.py"],
         capture_output=True,
         check=True,

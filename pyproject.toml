@@ -183,7 +183,6 @@ exclude_dirs = [
   "ddtrace/internal/uwsgi.py",
   "ddtrace/sourcecode/_utils.py",
   "scripts/ext_cache.py",
-  "scripts/check_no_new_aidev_anchors.py",
   "setup.py",
 ]
 
