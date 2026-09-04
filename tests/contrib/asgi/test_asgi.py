@@ -3,6 +3,7 @@ from functools import partial
 import logging
 import os
 import random
+from unittest import mock
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
@@ -11,6 +12,9 @@ import pytest
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib.internal import web
+from ddtrace.contrib.internal.asgi import middleware as asgi_middleware
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.asgi.middleware import _parse_response_cookies
 from ddtrace.contrib.internal.asgi.middleware import span_from_scope
@@ -150,6 +154,66 @@ def _check_span_tags(scope, span):
         or scope["asgi"].get("spec_version") is None
         or span.get_tag("asgi.spec_version") == scope["asgi"]["spec_version"]
     )
+
+
+@pytest.mark.parametrize(
+    "method,path,root_path,in_microvm,dispatches",
+    [
+        ("POST", "/run", "/aws/lambda-microvms/runtime/v1", True, True),
+        ("GET", "/run", "/aws/lambda-microvms/runtime/v1", True, False),
+        ("POST", "/other", "/aws/lambda-microvms/runtime/v1", True, False),
+        ("POST", "/run", "/aws/lambda-microvms/runtime/v1", False, False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_microvm_dispatches_web_request_starting(scope, method, path, root_path, in_microvm, dispatches):
+    scope.update({"method": method, "path": path, "root_path": root_path})
+    app = TraceMiddleware(basic_app)
+    instance = ApplicationCommunicator(app, scope)
+
+    with (
+        mock.patch.object(web, "in_aws_lambda_microvm", return_value=in_microvm),
+        mock.patch.object(web.core, "dispatch", wraps=web.core.dispatch) as dispatch,
+    ):
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+
+    request_starting_calls = [
+        call.args for call in dispatch.call_args_list if call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    ]
+    if dispatches:
+        assert request_starting_calls == [
+            (WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", "/aws/lambda-microvms/runtime/v1/run"))
+        ]
+    else:
+        assert request_starting_calls == []
+
+
+@pytest.mark.asyncio
+async def test_web_request_starting_dispatch_precedes_span_creation(scope):
+    events = []
+    original_span_from_context = asgi_middleware.span_from_context
+
+    def record_request_starting(*args, **kwargs):
+        events.append("request_starting")
+
+    def record_span_from_context(*args, **kwargs):
+        events.append("span")
+        return original_span_from_context(*args, **kwargs)
+
+    app = TraceMiddleware(basic_app)
+    instance = ApplicationCommunicator(app, scope)
+
+    with (
+        mock.patch.object(asgi_middleware, "dispatch_web_request_starting", side_effect=record_request_starting),
+        mock.patch.object(asgi_middleware, "span_from_context", side_effect=record_span_from_context),
+    ):
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+
+    assert events.index("request_starting") < events.index("span")
 
 
 @pytest.mark.asyncio

@@ -1,9 +1,12 @@
 import os
+from unittest import mock
 
 import pytest
 from webtest import TestApp
 
 from ddtrace import config
+from ddtrace.contrib._events.web_framework import WebFrameworkEvents
+from ddtrace.contrib.internal import web
 from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
@@ -83,6 +86,36 @@ class WsgiCustomMiddleware(_DDWSGIMiddlewareBase):
         resp_span.set_tag("response_tag", "resp test tag set")
         resp_span._set_attribute("response_metric", 3)
         resp_span.resource = "response resource was modified"
+
+
+@pytest.mark.parametrize(
+    "method,path,script_name,in_microvm,dispatches",
+    [
+        ("post", "/run", "/aws/lambda-microvms/runtime/v1", True, True),
+        ("get", "/run", "/aws/lambda-microvms/runtime/v1", True, False),
+        ("post", "/other", "/aws/lambda-microvms/runtime/v1", True, False),
+        ("post", "/run", "/aws/lambda-microvms/runtime/v1", False, False),
+    ],
+)
+def test_microvm_dispatches_web_request_starting(tracer, method, path, script_name, in_microvm, dispatches):
+    app = TestApp(DDWSGIMiddleware(application, tracer=tracer))
+
+    with (
+        mock.patch.object(web, "in_aws_lambda_microvm", return_value=in_microvm),
+        mock.patch.object(web.core, "dispatch", wraps=web.core.dispatch) as dispatch,
+    ):
+        resp = getattr(app, method)(path, extra_environ={"SCRIPT_NAME": script_name})
+
+    assert resp.status == "200 OK"
+    request_starting_calls = [
+        call.args for call in dispatch.call_args_list if call.args[0] == WebFrameworkEvents.WEB_REQUEST_STARTING.value
+    ]
+    if dispatches:
+        assert request_starting_calls == [
+            (WebFrameworkEvents.WEB_REQUEST_STARTING.value, ("POST", "/aws/lambda-microvms/runtime/v1/run"))
+        ]
+    else:
+        assert request_starting_calls == []
 
 
 def test_middleware(tracer, test_spans):

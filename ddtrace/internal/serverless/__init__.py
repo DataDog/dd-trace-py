@@ -35,3 +35,9 @@ def in_azure_function():
     # type: () -> bool
     """Returns whether the environment is an Azure Function."""
     return env.get("FUNCTIONS_WORKER_RUNTIME", "") != "" and env.get("FUNCTIONS_EXTENSION_VERSION", "") != ""
+
+
+def in_aws_lambda_microvm():
+    # type: () -> bool
+    """Returns whether the environment is an AWS Lambda MicroVM."""
+    return bool(env.get("AWS_LAMBDA_MICROVM_IMAGE_ARN", "").strip())
