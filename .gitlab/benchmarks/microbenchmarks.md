@@ -79,16 +79,23 @@ Execution, once per pipeline:
    scenarios into jobs — leave it at `1` unless the scenario genuinely needs more.
 
 4. Add an SLO per config to `bp-runner.microbenchmarks.fail-on-breach.template.yml` so
-   `check-slo-breaches` gates on it, keyed `<lowercased class name>-<config name>`:
+   `check-slo-breaches` gates on it, keyed `<lowercased class name>-<config name>`, with a
+   trailing `# owners:` comment naming the team responsible for the gate:
 
    ```yaml
-   - name: <classname>-<config>
+   - name: <classname>-<config>  # owners: @DataDog/<team>
      thresholds:
        - execution_time < 0.05 ms
    ```
 
    Base the number on your local run with a small margin above it (roughly 10%), not on the
    measurement exactly. A scenario with no entry here runs and reports but is not gated.
+
+   The `# owners:` comment is what routes review when a threshold changes: it sits on the
+   SLO's `- name:` line, so editing the threshold below it shows the responsible team in the
+   diff hunk. `scripts/lint slo-ownership` fails if an SLO has no owner comment, so add it in
+   the same PR. If the config is intentionally ungated (e.g. a `baseline`), list it in
+   `.gitlab/benchmarks/slo-exceptions.yml` instead.
 
 5. Verify the generated config before pushing:
 
@@ -143,6 +150,28 @@ reports its numbers, so trends stay visible; it just does not fail the pipeline.
 
 Marking a benchmark flaky is a stopgap, not a resolution: it means nothing is watching that code
 path for regressions. Open an issue to either stabilize the scenario or remove it.
+
+## SLO ownership
+
+Every SLO in `bp-runner.microbenchmarks.fail-on-breach.template.yml` carries a trailing
+`# owners: @DataDog/<team>` comment on its `- name:` line, naming the team responsible for the
+gate. The comment lives on the SLO's identity line so that, when someone edits the threshold
+below it, the responsible team appears in the diff hunk (within the default 3-line context) and
+the reviewer knows whom to add as a reviewer — GitHub CODEOWNERS is file-level, so it cannot
+auto-route per SLO, but the inline comment puts the owner in front of the human reviewer.
+
+`scripts/lint slo-ownership` (`scripts/check_slo_ownership.py`) runs as part of
+`scripts/lint checks` and fails the build if an SLO gets orphaned — specifically if:
+
+- an SLO has no (or malformed) `# owners:` comment,
+- an SLO points at a benchmark class or config that no longer exists, or
+- a benchmark config has no SLO entry and is not listed as an intentional exception.
+
+Intentionally ungated configs (e.g. `baseline` scenarios with nothing to compare against) and
+benchmark directories whose class name violates the CamelCase naming convention are listed in
+`.gitlab/benchmarks/slo-exceptions.yml`. The linter also flags stale exception entries, so the
+list cannot rot silently. When you add, rename, or delete a benchmark scenario, config, or SLO
+threshold, run `scripts/lint slo-ownership` and fix what it reports in the same PR.
 
 ## Rebuilding the CI Docker image
 

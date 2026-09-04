@@ -191,6 +191,21 @@ scripts/lint suitespec-check
 
 **When to use:** After adding new test files or modifying suite specifications.
 
+#### `slo-ownership` - Validate microbenchmark SLO ownership
+Checks that every microbenchmark SLO in
+`.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml` carries an
+`# owners: @DataDog/<team>` comment, that no SLO points at a deleted benchmark/config, and
+that no benchmark config is orphaned (missing a gate). Intentional exceptions live in
+`.gitlab/benchmarks/slo-exceptions.yml`.
+
+**Usage:**
+```bash
+scripts/lint slo-ownership
+```
+
+**When to use:** After adding, renaming, or removing a benchmark scenario, config,
+or SLO threshold entry.
+
 #### `error-log-check` - Validate error log messages
 Ensures error log messages follow project conventions.
 
@@ -281,6 +296,7 @@ This runs:
 - riot validation
 - security checks
 - suitespec validation
+- SLO ownership validation
 - error log validation
 - ast-grep analysis
 

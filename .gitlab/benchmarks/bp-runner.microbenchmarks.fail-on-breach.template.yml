@@ -7,876 +7,876 @@ experiments:
         run: fail_on_breach
         scenarios:
           # coreapiscenario
-          - name: coreapiscenario-has_listeners_no_listeners
+          - name: coreapiscenario-has_listeners_no_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-has_listeners_with_listeners
+          - name: coreapiscenario-has_listeners_with_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_no_listeners
+          - name: coreapiscenario-core_dispatch_no_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_1_listener
+          - name: coreapiscenario-core_dispatch_1_listener  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_listeners
+          - name: coreapiscenario-core_dispatch_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_50_listeners
+          - name: coreapiscenario-core_dispatch_50_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: coreapiscenario-core_dispatch_no_args_no_listeners
+          - name: coreapiscenario-core_dispatch_no_args_no_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_no_args_listeners
+          - name: coreapiscenario-core_dispatch_no_args_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_exception_no_listeners
+          - name: coreapiscenario-core_dispatch_exception_no_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_exception_listeners
+          - name: coreapiscenario-core_dispatch_exception_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: coreapiscenario-core_dispatch_with_results_no_listeners
+          - name: coreapiscenario-core_dispatch_with_results_no_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_with_results_1_listener
+          - name: coreapiscenario-core_dispatch_with_results_1_listener  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-core_dispatch_with_results_listeners
+          - name: coreapiscenario-core_dispatch_with_results_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: coreapiscenario-core_dispatch_with_results_50_listeners
+          - name: coreapiscenario-core_dispatch_with_results_50_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: coreapiscenario-context_with_data_listeners
+          - name: coreapiscenario-context_with_data_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: coreapiscenario-context_with_data_no_listeners
+          - name: coreapiscenario-context_with_data_no_listeners  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-get_item_exists
+          - name: coreapiscenario-get_item_exists  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-get_item_missing
+          - name: coreapiscenario-get_item_missing  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: coreapiscenario-set_item
+          - name: coreapiscenario-set_item  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.03 ms
 
           # djangosimple
-          - name: djangosimple-appsec
+          - name: djangosimple-appsec  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 22.30 ms
-          - name: djangosimple-exception-replay-enabled
+          - name: djangosimple-exception-replay-enabled  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 1.45 ms
-          - name: djangosimple-iast
+          - name: djangosimple-iast  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 22.25 ms
-          - name: djangosimple-profiler
+          - name: djangosimple-profiler  # owners: @DataDog/profiling-python
             thresholds:
               - execution_time < 16.55 ms
-          - name: djangosimple-span-code-origin
+          - name: djangosimple-span-code-origin  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 28.20 ms
-          - name: djangosimple-tracer
+          - name: djangosimple-tracer  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 21.75 ms
-          - name: djangosimple-tracer-minimal
+          - name: djangosimple-tracer-minimal  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 18.50 ms
-          - name: djangosimple-tracer-and-profiler
+          - name: djangosimple-tracer-and-profiler  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 23.50 ms
-          - name: djangosimple-tracer-no-caches
+          - name: djangosimple-tracer-no-caches  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 19.65 ms
-          - name: djangosimple-tracer-no-databases
+          - name: djangosimple-tracer-no-databases  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 21.40 ms
-          - name: djangosimple-tracer-dont-create-db-spans
+          - name: djangosimple-tracer-dont-create-db-spans  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 22.50 ms
-          - name: djangosimple-tracer-no-middleware
+          - name: djangosimple-tracer-no-middleware  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 21.50 ms
-          - name: djangosimple-tracer-no-templates
+          - name: djangosimple-tracer-no-templates  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 22.00 ms
-          - name: djangosimple-resource-renaming
+          - name: djangosimple-resource-renaming  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 21.75 ms
 
           # errortrackingdjangosimple
-          - name: errortrackingdjangosimple-errortracking-enabled-all
+          - name: errortrackingdjangosimple-errortracking-enabled-all  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 19.85 ms
-          - name: errortrackingdjangosimple-errortracking-enabled-user
+          - name: errortrackingdjangosimple-errortracking-enabled-user  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 19.40 ms
-          - name: errortrackingdjangosimple-tracer-enabled
+          - name: errortrackingdjangosimple-tracer-enabled  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 19.45 ms
 
           # errortrackingflasksqli
-          - name: errortrackingflasksqli-errortracking-enabled-all
+          - name: errortrackingflasksqli-errortracking-enabled-all  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 2.34 ms
-          - name: errortrackingflasksqli-errortracking-enabled-user
+          - name: errortrackingflasksqli-errortracking-enabled-user  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 2.85 ms
-          - name: errortrackingflasksqli-tracer-enabled
+          - name: errortrackingflasksqli-tracer-enabled  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 2.33 ms
 
           # flask_simple
-          - name: flasksimple-tracer
+          - name: flasksimple-tracer  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 3.65 ms
-          - name: flasksimple-profiler
+          - name: flasksimple-profiler  # owners: @DataDog/profiling-python
             thresholds:
               - execution_time < 2.10 ms
-          - name: flasksimple-debugger
+          - name: flasksimple-debugger  # owners: @DataDog/debugger-python
             thresholds:
               - execution_time < 2.00 ms
-          - name: flasksimple-iast-get
+          - name: flasksimple-iast-get  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 2.00 ms
-          - name: flasksimple-appsec-get
+          - name: flasksimple-appsec-get  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 4.75 ms
-          - name: flasksimple-appsec-post
+          - name: flasksimple-appsec-post  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 6.75 ms
-          - name: flasksimple-appsec-telemetry
+          - name: flasksimple-appsec-telemetry  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 4.75 ms
-          - name: flasksimple-resource-renaming
+          - name: flasksimple-resource-renaming  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 3.65 ms
 
           # flasksqli
-          - name: flasksqli-appsec-enabled
+          - name: flasksqli-appsec-enabled  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 4.20 ms
-          - name: flasksqli-iast-enabled
+          - name: flasksqli-iast-enabled  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 2.80 ms
-          - name: flasksqli-tracer-enabled
+          - name: flasksqli-tracer-enabled  # owners: @DataDog/apm-idm-python
             thresholds:
               - execution_time < 2.31 ms
 
           # httppropagationextract
-          - name: httppropagationextract-all_styles_all_headers
+          - name: httppropagationextract-all_styles_all_headers  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.10 ms
-          - name: httppropagationextract-b3_headers
+          - name: httppropagationextract-b3_headers  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: httppropagationextract-b3_single_headers
+          - name: httppropagationextract-b3_single_headers  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: httppropagationextract-datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match
+          - name: httppropagationextract-datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.08 ms
-          - name: httppropagationextract-datadog_tracecontext_tracestate_propagated_on_trace_id_match
+          - name: httppropagationextract-datadog_tracecontext_tracestate_propagated_on_trace_id_match  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.08 ms
-          - name: httppropagationextract-empty_headers
+          - name: httppropagationextract-empty_headers  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-full_t_id_datadog_headers
+          - name: httppropagationextract-full_t_id_datadog_headers  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: httppropagationextract-invalid_priority_header
+          - name: httppropagationextract-invalid_priority_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-invalid_span_id_header
+          - name: httppropagationextract-invalid_span_id_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-invalid_tags_header
+          - name: httppropagationextract-invalid_tags_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-invalid_trace_id_header
+          - name: httppropagationextract-invalid_trace_id_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-large_header_no_matches
+          - name: httppropagationextract-large_header_no_matches  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: httppropagationextract-large_valid_headers_all
+          - name: httppropagationextract-large_valid_headers_all  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: httppropagationextract-medium_header_no_matches
+          - name: httppropagationextract-medium_header_no_matches  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: httppropagationextract-medium_valid_headers_all
+          - name: httppropagationextract-medium_valid_headers_all  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: httppropagationextract-none_propagation_style
+          - name: httppropagationextract-none_propagation_style  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-tracecontext_headers
+          - name: httppropagationextract-tracecontext_headers  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: httppropagationextract-valid_headers_all
+          - name: httppropagationextract-valid_headers_all  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-valid_headers_basic
+          - name: httppropagationextract-valid_headers_basic  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-wsgi_empty_headers
+          - name: httppropagationextract-wsgi_empty_headers  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-wsgi_invalid_priority_header
+          - name: httppropagationextract-wsgi_invalid_priority_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-wsgi_invalid_span_id_header
+          - name: httppropagationextract-wsgi_invalid_span_id_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-wsgi_invalid_tags_header
+          - name: httppropagationextract-wsgi_invalid_tags_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-wsgi_invalid_trace_id_header
+          - name: httppropagationextract-wsgi_invalid_trace_id_header  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-wsgi_large_header_no_matches
+          - name: httppropagationextract-wsgi_large_header_no_matches  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: httppropagationextract-wsgi_large_valid_headers_all
+          - name: httppropagationextract-wsgi_large_valid_headers_all  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: httppropagationextract-wsgi_medium_header_no_matches
+          - name: httppropagationextract-wsgi_medium_header_no_matches  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: httppropagationextract-wsgi_medium_valid_headers_all
+          - name: httppropagationextract-wsgi_medium_valid_headers_all  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: httppropagationextract-wsgi_valid_headers_all
+          - name: httppropagationextract-wsgi_valid_headers_all  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: httppropagationextract-wsgi_valid_headers_basic
+          - name: httppropagationextract-wsgi_valid_headers_basic  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
 
           # httppropagationinject
-          - name: httppropagationinject-ids_only
+          - name: httppropagationinject-ids_only  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: httppropagationinject-with_all
+          - name: httppropagationinject-with_all  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: httppropagationinject-with_dd_origin
+          - name: httppropagationinject-with_dd_origin  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: httppropagationinject-with_priority_and_origin
+          - name: httppropagationinject-with_priority_and_origin  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: httppropagationinject-with_sampling_priority
+          - name: httppropagationinject-with_sampling_priority  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: httppropagationinject-with_tags
+          - name: httppropagationinject-with_tags  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: httppropagationinject-with_tags_invalid
+          - name: httppropagationinject-with_tags_invalid  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: httppropagationinject-with_tags_max_size
+          - name: httppropagationinject-with_tags_max_size  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.04 ms
 
           # iastaspects
-          - name: iastaspects-add_aspect
+          - name: iastaspects-add_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.15 ms
-          - name: iastaspects-add_inplace_aspect
+          - name: iastaspects-add_inplace_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.13 ms
-          - name: iastaspects-add_inplace_noaspect
+          - name: iastaspects-add_inplace_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.04 ms
-          - name: iastaspects-add_noaspect
+          - name: iastaspects-add_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.07 ms
-          - name: iastaspects-bytearray_aspect
+          - name: iastaspects-bytearray_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.40 ms
-          - name: iastaspects-bytearray_extend_aspect
+          - name: iastaspects-bytearray_extend_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.90 ms
-          - name: iastaspects-bytearray_extend_noaspect
+          - name: iastaspects-bytearray_extend_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.40 ms
-          - name: iastaspects-bytearray_noaspect
+          - name: iastaspects-bytearray_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-bytes_aspect
+          - name: iastaspects-bytes_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.35 ms
-          - name: iastaspects-bytes_noaspect
+          - name: iastaspects-bytes_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspects-bytesio_aspect
+          - name: iastaspects-bytesio_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 5.00 ms
-          - name: iastaspects-bytesio_noaspect
+          - name: iastaspects-bytesio_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-capitalize_aspect
+          - name: iastaspects-capitalize_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-capitalize_noaspect
+          - name: iastaspects-capitalize_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.35 ms
-          - name: iastaspects-casefold_aspect
+          - name: iastaspects-casefold_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-casefold_noaspect
+          - name: iastaspects-casefold_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-decode_aspect
+          - name: iastaspects-decode_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.13 ms
-          - name: iastaspects-decode_noaspect
+          - name: iastaspects-decode_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspects-encode_aspect
+          - name: iastaspects-encode_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.20 ms
-          - name: iastaspects-encode_noaspect
+          - name: iastaspects-encode_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspects-format_aspect
+          - name: iastaspects-format_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 19.20 ms
-          - name: iastaspects-format_map_aspect
+          - name: iastaspects-format_map_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 21.50 ms
-          - name: iastaspects-format_map_noaspect
+          - name: iastaspects-format_map_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-format_noaspect
+          - name: iastaspects-format_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-index_aspect
+          - name: iastaspects-index_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-index_noaspect
+          - name: iastaspects-index_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-join_aspect
+          - name: iastaspects-join_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-join_noaspect
+          - name: iastaspects-join_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-ljust_aspect
+          - name: iastaspects-ljust_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.80 ms
-          - name: iastaspects-ljust_noaspect
+          - name: iastaspects-ljust_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.45 ms
-          - name: iastaspects-lower_aspect
+          - name: iastaspects-lower_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-lower_noaspect
+          - name: iastaspects-lower_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.35 ms
-          - name: iastaspects-lstrip_aspect
+          - name: iastaspects-lstrip_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 3.00 ms
-          - name: iastaspects-lstrip_noaspect
+          - name: iastaspects-lstrip_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 3.00 ms
-          - name: iastaspects-modulo_aspect
+          - name: iastaspects-modulo_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 18.75 ms
-          - name: iastaspects-modulo_aspect_for_bytearray_bytearray
+          - name: iastaspects-modulo_aspect_for_bytearray_bytearray  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 19.35 ms
-          - name: iastaspects-modulo_aspect_for_bytes
+          - name: iastaspects-modulo_aspect_for_bytes  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 18.90 ms
-          - name: iastaspects-modulo_aspect_for_bytes_bytearray
+          - name: iastaspects-modulo_aspect_for_bytes_bytearray  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 19.15 ms
-          - name: iastaspects-modulo_noaspect
+          - name: iastaspects-modulo_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 3.00 ms
-          - name: iastaspects-replace_aspect
+          - name: iastaspects-replace_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 24.00 ms
-          - name: iastaspects-replace_noaspect
+          - name: iastaspects-replace_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.60 ms
-          - name: iastaspects-repr_aspect
+          - name: iastaspects-repr_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.52 ms
-          - name: iastaspects-repr_noaspect
+          - name: iastaspects-repr_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.09 ms
-          - name: iastaspects-rstrip_aspect
+          - name: iastaspects-rstrip_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.55 ms
-          - name: iastaspects-rstrip_noaspect
+          - name: iastaspects-rstrip_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-slice_aspect
+          - name: iastaspects-slice_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-slice_noaspect
+          - name: iastaspects-slice_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.09 ms
-          - name: iastaspects-stringio_aspect
+          - name: iastaspects-stringio_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 5.00 ms
-          - name: iastaspects-stringio_noaspect
+          - name: iastaspects-stringio_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-strip_aspect
+          - name: iastaspects-strip_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.40 ms
-          - name: iastaspects-strip_noaspect
+          - name: iastaspects-strip_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.30 ms
-          - name: iastaspects-swapcase_aspect
+          - name: iastaspects-swapcase_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-swapcase_noaspect
+          - name: iastaspects-swapcase_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.40 ms
-          - name: iastaspects-title_aspect
+          - name: iastaspects-title_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-title_noaspect
+          - name: iastaspects-title_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.40 ms
-          - name: iastaspects-translate_aspect
+          - name: iastaspects-translate_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspects-translate_noaspect
+          - name: iastaspects-translate_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.55 ms
-          - name: iastaspects-upper_aspect
+          - name: iastaspects-upper_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.50 ms
-          - name: iastaspects-upper_noaspect
+          - name: iastaspects-upper_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.400 ms
 
           # iastaspectsospath
-          - name: iastaspectsospath-ospathbasename_aspect
+          - name: iastaspectsospath-ospathbasename_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathbasename_noaspect
+          - name: iastaspectsospath-ospathbasename_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathjoin_aspect
+          - name: iastaspectsospath-ospathjoin_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.80 ms
-          - name: iastaspectsospath-ospathjoin_noaspect
+          - name: iastaspectsospath-ospathjoin_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.80 ms
-          - name: iastaspectsospath-ospathnormcase_aspect
+          - name: iastaspectsospath-ospathnormcase_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathnormcase_noaspect
+          - name: iastaspectsospath-ospathnormcase_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathsplit_aspect
+          - name: iastaspectsospath-ospathsplit_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathsplit_noaspect
+          - name: iastaspectsospath-ospathsplit_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathsplitdrive_aspect
+          - name: iastaspectsospath-ospathsplitdrive_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathsplitdrive_noaspect
+          - name: iastaspectsospath-ospathsplitdrive_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathsplitext_aspect
+          - name: iastaspectsospath-ospathsplitext_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
-          - name: iastaspectsospath-ospathsplitext_noaspect
+          - name: iastaspectsospath-ospathsplitext_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.70 ms
 
           # iastaspectssplit
-          - name: iastaspectssplit-rsplit_aspect
+          - name: iastaspectssplit-rsplit_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspectssplit-rsplit_noaspect
+          - name: iastaspectssplit-rsplit_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspectssplit-split_aspect
+          - name: iastaspectssplit-split_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspectssplit-split_noaspect
+          - name: iastaspectssplit-split_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspectssplit-splitlines_aspect
+          - name: iastaspectssplit-splitlines_aspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
-          - name: iastaspectssplit-splitlines_noaspect
+          - name: iastaspectssplit-splitlines_noaspect  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.25 ms
 
           # iastpropagation
-          - name: iastpropagation-no-propagation
+          - name: iastpropagation-no-propagation  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.08 ms
-          - name: iastpropagation-propagation_enabled
+          - name: iastpropagation-propagation_enabled  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 0.19 ms
-          - name: iastpropagation-propagation_enabled_100
+          - name: iastpropagation-propagation_enabled_100  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 2.30 ms
-          - name: iastpropagation-propagation_enabled_1000
+          - name: iastpropagation-propagation_enabled_1000  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 38.50 ms
 
           # otelsdkspan
-          - name: otelsdkspan-add-event
+          - name: otelsdkspan-add-event  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 42.00 ms
-          - name: otelsdkspan-add-link
+          - name: otelsdkspan-add-link  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 38.55 ms
-          - name: otelsdkspan-add-metrics
+          - name: otelsdkspan-add-metrics  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 232.00 ms
-          - name: otelsdkspan-add-tags
+          - name: otelsdkspan-add-tags  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 221.60 ms
-          - name: otelsdkspan-get-context
+          - name: otelsdkspan-get-context  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 31.30 ms
-          - name: otelsdkspan-is-recording
+          - name: otelsdkspan-is-recording  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 31.00 ms
-          - name: otelsdkspan-record-exception
+          - name: otelsdkspan-record-exception  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 65.85 ms
-          - name: otelsdkspan-set-status
+          - name: otelsdkspan-set-status  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 34.15 ms
-          - name: otelsdkspan-start
+          - name: otelsdkspan-start  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 30.15 ms
-          - name: otelsdkspan-start-finish
+          - name: otelsdkspan-start-finish  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 35.35 ms
-          - name: otelsdkspan-start-finish-telemetry
+          - name: otelsdkspan-start-finish-telemetry  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 35.45 ms
-          - name: otelsdkspan-update-name
+          - name: otelsdkspan-update-name  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 33.40 ms
 
           # otelspan
-          - name: otelspan-add-event
+          - name: otelspan-add-event  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 47.15 ms
-          - name: otelspan-add-metrics
+          - name: otelspan-add-metrics  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 344.80 ms
-          - name: otelspan-add-tags
+          - name: otelspan-add-tags  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 330.00 ms
-          - name: otelspan-get-context
+          - name: otelspan-get-context  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 92.35 ms
-          - name: otelspan-is-recording
+          - name: otelspan-is-recording  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 44.50 ms
-          - name: otelspan-record-exception
+          - name: otelspan-record-exception  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 67.65 ms
-          - name: otelspan-set-status
+          - name: otelspan-set-status  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 50.40 ms
-          - name: otelspan-start
+          - name: otelspan-start  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 44.50 ms
-          - name: otelspan-start-finish
+          - name: otelspan-start-finish  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 92.00 ms
-          - name: otelspan-start-finish-telemetry
+          - name: otelspan-start-finish-telemetry  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 93.00 ms
-          - name: otelspan-update-name
+          - name: otelspan-update-name  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 45.15 ms
 
           # packagespackageforrootmodulemapping
-          - name: packagespackageforrootmodulemapping-cache_off
+          - name: packagespackageforrootmodulemapping-cache_off  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 372.30 ms
-          - name: packagespackageforrootmodulemapping-cache_on
+          - name: packagespackageforrootmodulemapping-cache_on  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
 
           # packagesupdateimporteddependencies
-          - name: packagesupdateimporteddependencies-import_many
+          - name: packagesupdateimporteddependencies-import_many  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.18 ms
-          - name: packagesupdateimporteddependencies-import_many_cached
+          - name: packagesupdateimporteddependencies-import_many_cached  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.18 ms
-          - name: packagesupdateimporteddependencies-import_many_stdlib
+          - name: packagesupdateimporteddependencies-import_many_stdlib  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 1.75 ms
-          - name: packagesupdateimporteddependencies-import_many_stdlib_cached
+          - name: packagesupdateimporteddependencies-import_many_stdlib_cached  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 1.10 ms
-          - name: packagesupdateimporteddependencies-import_many_unknown
+          - name: packagesupdateimporteddependencies-import_many_unknown  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.96 ms
-          - name: packagesupdateimporteddependencies-import_many_unknown_cached
+          - name: packagesupdateimporteddependencies-import_many_unknown_cached  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.87 ms
-          - name: packagesupdateimporteddependencies-import_one
+          - name: packagesupdateimporteddependencies-import_one  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: packagesupdateimporteddependencies-import_one_cache
+          - name: packagesupdateimporteddependencies-import_one_cache  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: packagesupdateimporteddependencies-import_one_stdlib
+          - name: packagesupdateimporteddependencies-import_one_stdlib  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.03 ms
-          - name: packagesupdateimporteddependencies-import_one_stdlib_cache
+          - name: packagesupdateimporteddependencies-import_one_stdlib_cache  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: packagesupdateimporteddependencies-import_one_unknown
+          - name: packagesupdateimporteddependencies-import_one_unknown  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.051 ms
-          - name: packagesupdateimporteddependencies-import_one_unknown_cache
+          - name: packagesupdateimporteddependencies-import_one_unknown_cache  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.01 ms
 
           # ratelimiter
-          - name: ratelimiter-defaults
+          - name: ratelimiter-defaults  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: ratelimiter-high_rate_limit
+          - name: ratelimiter-high_rate_limit  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: ratelimiter-long_window
+          - name: ratelimiter-long_window  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: ratelimiter-low_rate_limit
+          - name: ratelimiter-low_rate_limit  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: ratelimiter-no_rate_limit
+          - name: ratelimiter-no_rate_limit  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
-          - name: ratelimiter-short_window
+          - name: ratelimiter-short_window  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.01 ms
 
           # recursivecomputation
-          - name: recursivecomputation-deep
+          - name: recursivecomputation-deep  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 320.95 ms
-          - name: recursivecomputation-deep-profiled
+          - name: recursivecomputation-deep-profiled  # owners: @DataDog/profiling-python
             thresholds:
               - execution_time < 359.15 ms
-          - name: recursivecomputation-medium
+          - name: recursivecomputation-medium  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 7.45 ms
-          - name: recursivecomputation-shallow
+          - name: recursivecomputation-shallow  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 1.05 ms
 
           # samplingrules
-          - name: samplingrules-average_match
+          - name: samplingrules-average_match  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.20 ms
-          - name: samplingrules-high_match
+          - name: samplingrules-high_match  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.20 ms
-          - name: samplingrules-low_match
+          - name: samplingrules-low_match  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.13 ms
-          - name: samplingrules-very_low_match
+          - name: samplingrules-very_low_match  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 4.00 ms
           # sethttpmeta
-          - name: sethttpmeta-all-disabled
+          - name: sethttpmeta-all-disabled  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.02 ms
-          - name: sethttpmeta-all-enabled
+          - name: sethttpmeta-all-enabled  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-collectipvariant_exists
+          - name: sethttpmeta-collectipvariant_exists  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-no-collectipvariant
+          - name: sethttpmeta-no-collectipvariant  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-no-useragentvariant
+          - name: sethttpmeta-no-useragentvariant  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-obfuscation-no-query
+          - name: sethttpmeta-obfuscation-no-query  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-obfuscation-regular-case-explicit-query
+          - name: sethttpmeta-obfuscation-regular-case-explicit-query  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.09 ms
-          - name: sethttpmeta-obfuscation-regular-case-implicit-query
+          - name: sethttpmeta-obfuscation-regular-case-implicit-query  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.09 ms
-          - name: sethttpmeta-obfuscation-send-querystring-disabled
+          - name: sethttpmeta-obfuscation-send-querystring-disabled  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.17 ms
-          - name: sethttpmeta-obfuscation-worst-case-explicit-query
+          - name: sethttpmeta-obfuscation-worst-case-explicit-query  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.16 ms
-          - name: sethttpmeta-obfuscation-worst-case-implicit-query
+          - name: sethttpmeta-obfuscation-worst-case-implicit-query  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.17 ms
-          - name: sethttpmeta-useragentvariant_exists_1
+          - name: sethttpmeta-useragentvariant_exists_1  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-useragentvariant_exists_2
+          - name: sethttpmeta-useragentvariant_exists_2  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-useragentvariant_exists_3
+          - name: sethttpmeta-useragentvariant_exists_3  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-useragentvariant_not_exists_1
+          - name: sethttpmeta-useragentvariant_not_exists_1  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
-          - name: sethttpmeta-useragentvariant_not_exists_2
+          - name: sethttpmeta-useragentvariant_not_exists_2  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.05 ms
 
           # span
-          - name: span-add-event
+          - name: span-add-event  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 22.50 ms
-          - name: span-add-metrics
+          - name: span-add-metrics  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 93.50 ms
-          - name: span-add-tags
+          - name: span-add-tags  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 155.00 ms
-          - name: span-get-context
+          - name: span-get-context  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 20.50 ms
-          - name: span-is-recording
+          - name: span-is-recording  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 20.50 ms
-          - name: span-record-exception
+          - name: span-record-exception  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 42.50 ms
-          - name: span-set-status
+          - name: span-set-status  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 22.00 ms
-          - name: span-start
+          - name: span-start  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 20.50 ms
-          - name: span-start-finish
+          - name: span-start-finish  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 60 ms
-          - name: span-start-finish-telemetry
+          - name: span-start-finish-telemetry  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 60.00 ms
-          - name: span-start-finish-traceid128
+          - name: span-start-finish-traceid128  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 62.00 ms
-          - name: span-start-traceid128
+          - name: span-start-traceid128  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 22.50 ms
-          - name: span-update-name
+          - name: span-update-name  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 22.00 ms
 
           # telemetryaddmetric
-          - name: telemetryaddmetric-1-count-metric-1-times
+          - name: telemetryaddmetric-1-count-metric-1-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.005 ms
-          - name: telemetryaddmetric-1-count-metrics-100-times
+          - name: telemetryaddmetric-1-count-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.22 ms
-          - name: telemetryaddmetric-1-distribution-metric-1-times
+          - name: telemetryaddmetric-1-distribution-metric-1-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.005 ms
-          - name: telemetryaddmetric-1-distribution-metrics-100-times
+          - name: telemetryaddmetric-1-distribution-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.22 ms
-          - name: telemetryaddmetric-1-gauge-metric-1-times
+          - name: telemetryaddmetric-1-gauge-metric-1-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.005 ms
-          - name: telemetryaddmetric-1-gauge-metrics-100-times
+          - name: telemetryaddmetric-1-gauge-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.22 ms
-          - name: telemetryaddmetric-1-rate-metric-1-times
+          - name: telemetryaddmetric-1-rate-metric-1-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.005 ms
-          - name: telemetryaddmetric-1-rate-metrics-100-times
+          - name: telemetryaddmetric-1-rate-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.22 ms
-          - name: telemetryaddmetric-100-count-metrics-100-times
+          - name: telemetryaddmetric-100-count-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 22.0 ms
-          - name: telemetryaddmetric-100-distribution-metrics-100-times
+          - name: telemetryaddmetric-100-distribution-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 2.30 ms
-          - name: telemetryaddmetric-100-gauge-metrics-100-times
+          - name: telemetryaddmetric-100-gauge-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 2.25 ms
-          - name: telemetryaddmetric-100-rate-metrics-100-times
+          - name: telemetryaddmetric-100-rate-metrics-100-times  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 2.25 ms
-          - name: telemetryaddmetric-record-1-metric
+          - name: telemetryaddmetric-record-1-metric  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.006 ms
-          - name: telemetryaddmetric-record-100-metrics
+          - name: telemetryaddmetric-record-100-metrics  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 0.23 ms
-          - name: telemetryaddmetric-record-1000-metrics
+          - name: telemetryaddmetric-record-1000-metrics  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 2.30 ms
 
           # telemetrydependencies
-          - name: telemetrydependencies-first-50-deps-sca-off
+          - name: telemetrydependencies-first-50-deps-sca-off  # owners: @DataDog/apm-python
             thresholds:
               - execution_time < 3.50 ms
-          - name: telemetrydependencies-first-50-deps-sca-on
+          - name: telemetrydependencies-first-50-deps-sca-on  # owners: @DataDog/asm-python
             thresholds:
               - execution_time < 3.75 ms
 
           # tracer
-          - name: tracer-large
+          - name: tracer-large  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 34.50 ms
-          - name: tracer-medium
+          - name: tracer-medium  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 3.50 ms
-          - name: tracer-small
+          - name: tracer-small  # owners: @DataDog/apm-sdk-capabilities-python
             thresholds:
               - execution_time < 0.42 ms
 
           # codeprovenancefork
-          - name: codeprovenancefork-fork-10
+          - name: codeprovenancefork-fork-10  # owners: @DataDog/profiling-python
             thresholds:
               - execution_time < 2500 ms
 
           # forktime
-          - name: forktime-baseline
+          - name: forktime-baseline  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 3.00 ms
-          - name: forktime-configured
+          - name: forktime-configured  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 26 ms
 
           # rand
-          - name: rand-rand64bits
+          - name: rand-rand64bits  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.015 ms
-          - name: rand-rand128bits
+          - name: rand-rand128bits  # owners: @DataDog/apm-core-python
             thresholds:
               - execution_time < 0.021 ms
