@@ -62,6 +62,16 @@ pub struct SpanData {
     /// Set from Python during span creation; read natively by the context
     /// provider when walking the ancestor chain in `_update_active`.
     pub _parent: Option<Py<PyAny>>,
+    /// The process-local root span, or `None` when this span is the local root.
+    ///
+    /// This mirrors the Python-facing `_local_root` property while keeping the
+    /// relationship available to native consumers without a Python slot lookup.
+    pub _local_root: Option<Py<SpanData>>,
+    /// The entry span for this service, or `None` when this span is the entry.
+    ///
+    /// Like `_local_root`, `None` represents `self` to preserve the existing
+    /// Python property contract without creating a self-reference.
+    pub _service_entry_span: Option<Py<SpanData>>,
     /// The parent `Context` this span was created under, or `None`.
     pub _parent_context: Option<Py<crate::context::Context>>,
 }
@@ -549,6 +559,134 @@ impl SpanData {
         };
     }
 
+    // _local_root property — the local root Span, or self when this is the root.
+    #[getter(_local_root)]
+    #[inline(always)]
+    fn get_local_root<'py>(slf: &Bound<'py, Self>) -> Bound<'py, SpanData> {
+        slf.borrow()
+            ._local_root
+            .as_ref()
+            .map(|span| span.bind(slf.py()).clone())
+            .unwrap_or_else(|| slf.clone())
+    }
+
+    #[setter(_local_root)]
+    #[inline(always)]
+    fn set_local_root(slf: &Bound<'_, Self>, value: Option<&Bound<'_, SpanData>>) {
+        let value = value
+            .and_then(|value| (!value.as_any().is(slf.as_any())).then(|| value.clone().unbind()));
+        // Releasing the borrow before the replaced reference is dropped avoids
+        // a re-entrant finalizer observing an active mutable SpanData borrow.
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._local_root, value)
+        };
+        drop(replaced);
+    }
+
+    #[deleter(_local_root)]
+    #[inline(always)]
+    fn del_local_root(slf: &Bound<'_, Self>) {
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::take(&mut this._local_root)
+        };
+        drop(replaced);
+    }
+
+    // _service_entry_span property — the service entry Span, or self when this is it.
+    #[getter(_service_entry_span)]
+    #[inline(always)]
+    fn get_service_entry_span<'py>(slf: &Bound<'py, Self>) -> Bound<'py, SpanData> {
+        slf.borrow()
+            ._service_entry_span
+            .as_ref()
+            .map(|span| span.bind(slf.py()).clone())
+            .unwrap_or_else(|| slf.clone())
+    }
+
+    #[setter(_service_entry_span)]
+    #[inline(always)]
+    fn set_service_entry_span(slf: &Bound<'_, Self>, value: Option<&Bound<'_, SpanData>>) {
+        let value = value
+            .and_then(|value| (!value.as_any().is(slf.as_any())).then(|| value.clone().unbind()));
+        // See set_local_root: dropping a Python reference can invoke arbitrary
+        // Python finalizers, so it must happen after releasing the native borrow.
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::replace(&mut this._service_entry_span, value)
+        };
+        drop(replaced);
+    }
+
+    #[deleter(_service_entry_span)]
+    #[inline(always)]
+    fn del_service_entry_span(slf: &Bound<'_, Self>) {
+        let replaced = {
+            let mut this = slf.borrow_mut();
+            std::mem::take(&mut this._service_entry_span)
+        };
+        drop(replaced);
+    }
+
+    /// Attach a newly-created child span and derive its local-root and
+    /// same-service entry relationships in one native operation.
+    #[pyo3(signature = (parent, service=None))]
+    fn _inherit_from_parent(
+        slf: &Bound<'_, Self>,
+        parent: &Bound<'_, SpanData>,
+        service: Option<&Bound<'_, PyAny>>,
+    ) -> pyo3::PyResult<()> {
+        if parent.as_any().is(slf.as_any()) {
+            return Ok(());
+        }
+
+        let py = slf.py();
+        let parent_ref = parent.as_any().clone().unbind();
+        let parent_span_ref = parent.clone().unbind();
+        // Preserve the pre-migration comparison exactly. Service-entry semantics
+        // use the tracer's original resolved service argument, including invalid
+        // values that SpanData gracefully coerces to None.
+        let parent_service = parent.as_any().getattr("service")?;
+        let inherits_service_entry = match service {
+            Some(service) => parent_service.eq(service)?,
+            None => parent_service.is_none(),
+        };
+        let (local_root, service_entry_span) = {
+            let parent = parent.borrow();
+            (
+                parent
+                    ._local_root
+                    .as_ref()
+                    .map(|span| span.clone_ref(py))
+                    .unwrap_or_else(|| parent_span_ref.clone_ref(py)),
+                parent
+                    ._service_entry_span
+                    .as_ref()
+                    .map(|span| span.clone_ref(py))
+                    .unwrap_or_else(|| parent_span_ref.clone_ref(py)),
+            )
+        };
+
+        let replaced = {
+            let mut child = slf.borrow_mut();
+            let old_parent = child._parent.replace(parent_ref);
+            let old_local_root = child._local_root.replace(local_root);
+            (old_parent, old_local_root)
+        };
+        drop(replaced);
+
+        let replaced = {
+            let mut child = slf.borrow_mut();
+            std::mem::replace(
+                &mut child._service_entry_span,
+                inherits_service_entry.then_some(service_entry_span),
+            )
+        };
+        drop(replaced);
+        Ok(())
+    }
+
     // _parent_context property — the parent Context, or None.
     #[getter(_parent_context)]
     #[inline(always)]
@@ -1010,11 +1148,17 @@ impl SpanData {
         if let Some(d) = &self.meta_struct {
             visit.call(d)?;
         }
-        // `_parent` closes span -> parent span -> ... cycles; `_parent_context`
-        // can reach back to the span through the Context. Both must be visited
+        // Span relationships close span -> ancestor cycles; `_parent_context`
+        // can reach back to the span through the Context. All must be visited
         // so the cyclic GC can collect a finished trace.
         if let Some(p) = &self._parent {
             visit.call(p)?;
+        }
+        if let Some(span) = &self._local_root {
+            visit.call(span)?;
+        }
+        if let Some(span) = &self._service_entry_span {
+            visit.call(span)?;
         }
         if let Some(c) = &self._parent_context {
             visit.call(c)?;

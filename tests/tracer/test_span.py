@@ -495,10 +495,14 @@ class SpanTestCase(TracerTestCase):
         parent = self.start_span("parent", service="service1")
         child1 = self.start_span("child1", service="service1", child_of=parent)
         child2 = self.start_span("child2", service="service2", child_of=parent)
+        invalid_service_child = self.start_span("invalid", service=456, child_of=parent)
 
         assert parent._service_entry_span is parent
+        assert child1._parent is parent
         assert child1._service_entry_span is parent
         assert child2._service_entry_span is child2
+        assert invalid_service_child.service is None
+        assert invalid_service_child._service_entry_span is invalid_service_child
 
         # Renaming the service does not change the service entry span
         child1.service = "service3"
@@ -507,6 +511,11 @@ class SpanTestCase(TracerTestCase):
         # Service entry span only works for the immediate parent
         grandchild = self.start_span("grandchild", service="service1", child_of=child2)
         assert grandchild._service_entry_span is grandchild
+
+        # Relationship state is native so native consumers do not have to
+        # re-enter Python to find the local root or service entry span.
+        assert "_local_root_value" not in Span.__slots__
+        assert "_service_entry_span_value" not in Span.__slots__
 
 
 def test_span_ignored_exceptions():
