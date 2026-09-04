@@ -2,7 +2,6 @@ import abc
 from collections import defaultdict
 from itertools import chain
 import logging
-from threading import RLock
 from typing import Optional
 
 from ddtrace._trace.sampler import DatadogSampler
@@ -25,10 +24,11 @@ from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings._config import config
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import create_trace_writer
@@ -343,7 +343,7 @@ class SpanAggregator(SpanProcessor):
         self.partial_flush_min_spans = partial_flush_min_spans
         # Initialize trace processors
         self.sampling_processor = TraceSamplingProcessor(
-            config._trace_compute_stats, get_span_sampling_rules(), asm_config._apm_opt_out
+            config._trace_compute_stats, get_span_sampling_rules(), standalone_config.apm_opt_out
         )
         self.tags_processor = TraceTagsProcessor()
         self.dd_processors = dd_processors or []
