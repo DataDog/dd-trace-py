@@ -65,6 +65,14 @@ if _ACCURATE_IMPORTS_REQUESTED and not _USE_ACCURATE_IMPORTS:
         sys.version.split()[0],
     )
 
+# TODO(py-315): Accurate import-hook injection (_DD_COVERAGE_ACCURATE_IMPORTS) is unsupported on
+# 3.15+ because the `bytecode` library's CALL codegen segfaults on exec under CPython 3.15.0rc1,
+# which is what ddtrace.internal.bytecode_injection.INJECTION_ASSEMBLY relies on to splice hook
+# calls after import opcodes (see import_instrumentation_py3_12.inject_import_hooks). Re-enabling
+# this needs either an upstream `bytecode` fix, or reimplementing injection on sys.monitoring
+# INSTRUCTION events. Static import tracking (iter_import_events/import_names_by_line) already
+# works on 3.15+ and is used as the fallback.
+
 EVENT = sys.monitoring.events.PY_START if _USE_FILE_LEVEL_COVERAGE else sys.monitoring.events.LINE
 
 # NOTE: We try tool slots in priority order (4, 3, 1) to avoid colliding with other tools.
