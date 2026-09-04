@@ -218,3 +218,15 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+def test_all_worker_classes_are_instrumented():
+    """rq 2.7 made SimpleWorker a sibling of Worker rather than a subclass; both must be traced."""
+    from ddtrace.internal.utils.wrappers import iswrapped
+
+    patch()
+    try:
+        assert iswrapped(rq.Worker.perform_job)
+        assert iswrapped(rq.SimpleWorker.perform_job)
+    finally:
+        unpatch()
