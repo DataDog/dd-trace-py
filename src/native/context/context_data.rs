@@ -1,10 +1,11 @@
 use std::sync::OnceLock;
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
+use pyo3::prelude::FromPyObjectOwned;
 use pyo3::{
     exceptions::PyValueError,
     types::{PyAny, PyAnyMethods as _, PyDict, PyDictMethods as _, PyList, PyTuple},
-    Bound, IntoPyObject, Py, PyResult, Python,
+    Bound, FromPyObject, IntoPyObject, Py, PyErr, PyResult, Python,
 };
 
 const ORIGIN_KEY: &str = "_dd.origin";
@@ -23,19 +24,87 @@ type ContextState<'py> = (
     Bound<'py, PyDict>,
     bool,
     bool,
+    Option<f64>,
 );
 
 static W3C_GET_DD_LIST_MEMBER: OnceLock<Py<PyAny>> = OnceLock::new();
+static W3C_BUILD_TRACESTATE_MEMBERS: OnceLock<Py<PyAny>> = OnceLock::new();
+static NORMALIZE_OTEL_TRACESTATE: OnceLock<Py<PyAny>> = OnceLock::new();
+static MATERIALIZE_OTEL_SAMPLING_DECISION: OnceLock<Py<PyAny>> = OnceLock::new();
+static TRACESTATE_MAX_BYTES_CACHE: OnceLock<usize> = OnceLock::new();
 
-fn w3c_get_dd_list_member_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
-    if let Some(v) = W3C_GET_DD_LIST_MEMBER.get() {
+fn cached_fn<'py>(
+    py: Python<'py>,
+    cache: &OnceLock<Py<PyAny>>,
+    module: &str,
+    name: &str,
+) -> PyResult<Bound<'py, PyAny>> {
+    if let Some(v) = cache.get() {
         return Ok(v.bind(py).clone());
     }
-    let f = py
-        .import("ddtrace.internal.utils.http")?
-        .getattr("w3c_get_dd_list_member")?;
-    let _ = W3C_GET_DD_LIST_MEMBER.set(f.clone().unbind());
+    let f = py.import(module)?.getattr(name)?;
+    let _ = cache.set(f.clone().unbind());
     Ok(f)
+}
+
+fn cached_const<T>(py: Python<'_>, cache: &OnceLock<T>, module: &str, name: &str) -> PyResult<T>
+where
+    T: Copy + for<'py> FromPyObjectOwned<'py>,
+    for<'a, 'py> PyErr: From<<T as FromPyObject<'a, 'py>>::Error>,
+{
+    if let Some(value) = cache.get() {
+        return Ok(*value);
+    }
+    let value = py.import(module)?.getattr(name)?.extract()?;
+    let _ = cache.set(value);
+    Ok(value)
+}
+
+fn w3c_get_dd_list_member_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+    cached_fn(
+        py,
+        &W3C_GET_DD_LIST_MEMBER,
+        "ddtrace.internal.utils.http",
+        "w3c_get_dd_list_member",
+    )
+}
+
+fn w3c_build_tracestate_members_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+    cached_fn(
+        py,
+        &W3C_BUILD_TRACESTATE_MEMBERS,
+        "ddtrace.internal.utils.http",
+        "w3c_build_tracestate_members",
+    )
+}
+
+fn normalize_otel_tracestate_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+    cached_fn(
+        py,
+        &NORMALIZE_OTEL_TRACESTATE,
+        "ddtrace.internal.opentelemetry.sampling",
+        "normalize_otel_tracestate",
+    )
+}
+
+fn materialize_otel_sampling_decision_fn(py: Python<'_>) -> PyResult<Bound<'_, PyAny>> {
+    cached_fn(
+        py,
+        &MATERIALIZE_OTEL_SAMPLING_DECISION,
+        "ddtrace.internal.opentelemetry.sampling",
+        "materialize_otel_sampling_decision",
+    )
+}
+
+fn dd_trace_tracestate_max_bytes(py: Python<'_>) -> PyResult<usize> {
+    // AIDEV-NOTE: Python owns the propagation limits. Resolve this lazily to avoid
+    // making ddtrace.internal.constants import the native extension during startup.
+    cached_const::<usize>(
+        py,
+        &TRACESTATE_MAX_BYTES_CACHE,
+        "ddtrace.internal.constants",
+        "DD_TRACE_TRACESTATE_MAX_BYTES",
+    )
 }
 
 #[inline]
@@ -79,6 +148,13 @@ pub struct Context {
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
     pub reactivate: bool,
+    // AIDEV-NOTE: Child contexts point otel_sampling_state_owner at the trace's
+    // owning Context. This keeps pending propagation state visible across copies
+    // without allocating a holder or storing control data in meta/metrics.
+    #[pyo3(get, set, name = "_otel_sampling_state_data")]
+    pub otel_sampling_state_data: Option<f64>,
+    #[pyo3(get, set, name = "_otel_sampling_state_owner")]
+    pub otel_sampling_state_owner: Option<Py<Context>>,
 }
 
 impl Default for Context {
@@ -92,6 +168,8 @@ impl Default for Context {
             span_links: None,
             is_remote: false,
             reactivate: false,
+            otel_sampling_state_data: None,
+            otel_sampling_state_owner: None,
         })
     }
 }
@@ -103,6 +181,127 @@ impl Context {
             Some(v) => Ok(Some(v.extract::<f64>()?)),
             None => Ok(None),
         }
+    }
+
+    fn trace_flags(&mut self, py: Python<'_>) -> PyResult<u8> {
+        let meta = self.get_meta(py);
+        let inherited_flags = meta
+            .get_item(W3C_TRACEPARENT_KEY)?
+            .and_then(|value| value.extract::<String>().ok())
+            .and_then(|value| {
+                value
+                    .get(53..55)
+                    .and_then(|flags| u8::from_str_radix(flags, 16).ok())
+            })
+            .unwrap_or(0)
+            & 0x2;
+        let sampled = self
+            .sampling_priority_f64(py)?
+            .map(|priority| priority > 0.0)
+            .unwrap_or(false) as u8;
+        Ok(inherited_flags | sampled)
+    }
+
+    fn effective_otel_sampling_state(slf: &Bound<'_, Self>) -> Option<f64> {
+        let py = slf.py();
+        let owner = slf
+            .borrow()
+            .otel_sampling_state_owner
+            .as_ref()
+            .map(|owner| owner.clone_ref(py));
+        match owner {
+            Some(owner) => owner.bind(py).borrow().otel_sampling_state_data,
+            None => slf.borrow().otel_sampling_state_data,
+        }
+    }
+
+    fn set_otel_sampling_state(slf: &Bound<'_, Self>, value: Option<f64>) {
+        let py = slf.py();
+        let owner = slf
+            .borrow()
+            .otel_sampling_state_owner
+            .as_ref()
+            .map(|owner| owner.clone_ref(py));
+        match owner {
+            Some(owner) => owner.bind(py).borrow_mut().otel_sampling_state_data = value,
+            None => slf.borrow_mut().otel_sampling_state_data = value,
+        }
+    }
+
+    fn materialize_otel_sampling_decision(slf: &Bound<'_, Self>) -> PyResult<()> {
+        let Some(sample_rate) = Self::effective_otel_sampling_state(slf) else {
+            return Ok(());
+        };
+
+        let py = slf.py();
+        let (trace_id, sampled, meta) = {
+            let mut this = slf.borrow_mut();
+            let sampled = this
+                .sampling_priority_f64(py)?
+                .map(|priority| priority > 0.0)
+                .unwrap_or(false);
+            (this.trace_id, sampled, this.get_meta(py))
+        };
+        let probabilistic_decision = sample_rate >= 0.0;
+        materialize_otel_sampling_decision_fn(py)?.call1((
+            meta,
+            trace_id,
+            sampled,
+            if probabilistic_decision {
+                sample_rate
+            } else {
+                0.0
+            },
+            probabilistic_decision,
+        ))?;
+        Self::set_otel_sampling_state(slf, None);
+        Ok(())
+    }
+
+    fn build_tracestate(slf: &Bound<'_, Self>, parent_id: Option<u128>) -> PyResult<Vec<String>> {
+        Self::materialize_otel_sampling_decision(slf)?;
+        let py = slf.py();
+        let mut dd_list_member: String = w3c_get_dd_list_member_fn(py)?.call1((slf,))?.extract()?;
+        if let Some(parent_id) = parent_id {
+            let parent_member = format!("p:{:016x}", parent_id);
+            dd_list_member = if dd_list_member.is_empty() {
+                parent_member
+            } else {
+                format!("{};{}", parent_member, dd_list_member)
+            };
+        }
+
+        let raw_tracestate = {
+            let mut this = slf.borrow_mut();
+            this.get_meta(py)
+                .get_item(W3C_TRACESTATE_KEY)?
+                .map(|value| value.extract::<String>())
+                .transpose()?
+                .unwrap_or_default()
+        };
+        if raw_tracestate.is_empty() {
+            return Ok(if dd_list_member.is_empty() {
+                Vec::new()
+            } else {
+                vec![format!("dd={}", dd_list_member)]
+            });
+        }
+        if raw_tracestate.starts_with("ot=")
+            && !raw_tracestate.contains(',')
+            && raw_tracestate.is_ascii()
+        {
+            if dd_list_member.is_empty() {
+                return Ok(vec![raw_tracestate]);
+            }
+            let dd_member = format!("dd={}", dd_list_member);
+            if dd_member.len() + raw_tracestate.len() < dd_trace_tracestate_max_bytes(py)? {
+                return Ok(vec![dd_member, raw_tracestate]);
+            }
+            return Ok(vec![dd_member]);
+        }
+        w3c_build_tracestate_members_fn(py)?
+            .call1((raw_tracestate, dd_list_member))?
+            .extract()
     }
 }
 
@@ -151,6 +350,9 @@ impl Context {
         if let Some(sp) = sampling_priority {
             metrics_dict.bind(py).set_item(SAMPLING_PRIORITY_KEY, sp)?;
         }
+        if meta_dict.bind(py).contains(W3C_TRACESTATE_KEY)? {
+            normalize_otel_tracestate_fn(py)?.call1((meta_dict.bind(py),))?;
+        }
         Ok(Self {
             trace_id: extract_trace_id(trace_id),
             span_id: extract_span_id(span_id),
@@ -168,6 +370,8 @@ impl Context {
             ),
             is_remote,
             reactivate: false,
+            otel_sampling_state_data: None,
+            otel_sampling_state_owner: None,
         })
     }
 
@@ -337,13 +541,14 @@ impl Context {
 
     #[getter]
     #[allow(non_snake_case)]
+    fn get__trace_flags(&mut self, py: Python<'_>) -> PyResult<u8> {
+        self.trace_flags(py)
+    }
+
+    #[getter]
+    #[allow(non_snake_case)]
     fn get__traceflags(&mut self, py: Python<'_>) -> PyResult<String> {
-        let sp = self.sampling_priority_f64(py)?;
-        Ok(if sp.map(|v| v > 0.0).unwrap_or(false) {
-            "01".to_string()
-        } else {
-            "00".to_string()
-        })
+        Ok(format!("{:02x}", self.trace_flags(py)?))
     }
 
     #[getter]
@@ -361,39 +566,55 @@ impl Context {
             Some(tp) if !tp.is_empty() => tp.split('-').nth(1).unwrap_or_default().to_string(),
             _ => format!("{:032x}", trace_id),
         };
-        let flags = self.get__traceflags(py)?;
-        Ok(format!("00-{}-{:016x}-{}", trace_id_hex, span_id, flags))
+        Ok(format!(
+            "00-{}-{:016x}-{:02x}",
+            trace_id_hex,
+            span_id,
+            self.trace_flags(py)?
+        ))
     }
 
     #[getter]
     #[allow(non_snake_case)]
     fn get__tracestate(slf: &Bound<'_, Self>) -> PyResult<String> {
-        let py = slf.py();
-        let dd_list_member: String = w3c_get_dd_list_member_fn(py)?.call1((slf,))?.extract()?;
-        let ts = {
-            let mut this = slf.borrow_mut();
-            let meta = this.get_meta(py);
-            meta.get_item(W3C_TRACESTATE_KEY)?
-                .map(|v| v.extract::<String>())
-                .transpose()?
-                .unwrap_or_default()
-        };
-        if !ts.is_empty() && !dd_list_member.is_empty() {
-            let ts_w_out_dd: String = ts
-                .split(',')
-                .filter(|segment| !segment.starts_with("dd="))
-                .collect::<Vec<_>>()
-                .join(",");
-            if ts_w_out_dd.is_empty() {
-                Ok(format!("dd={}", dd_list_member))
+        Ok(Self::build_tracestate(slf, None)?.join(","))
+    }
+
+    #[pyo3(signature = (parent_id=None))]
+    fn _tracestate_entries(
+        slf: &Bound<'_, Self>,
+        parent_id: Option<u128>,
+    ) -> PyResult<Vec<(String, String)>> {
+        Ok(Self::build_tracestate(slf, parent_id)?
+            .into_iter()
+            .map(|member| {
+                let (key, value) = member.split_once('=').unwrap_or((&member, ""));
+                (key.to_string(), value.to_string())
+            })
+            .collect())
+    }
+
+    fn _publish_sampling_decision(
+        slf: &Bound<'_, Self>,
+        sampling_priority: Option<&Bound<'_, PyAny>>,
+        sample_rate: f64,
+        probabilistic_decision: bool,
+    ) -> PyResult<()> {
+        Self::set_otel_sampling_state(
+            slf,
+            Some(if probabilistic_decision && sample_rate > 0.0 {
+                sample_rate
             } else {
-                Ok(format!("dd={},{}", dd_list_member, ts_w_out_dd))
-            }
-        } else if !dd_list_member.is_empty() {
-            Ok(format!("dd={}", dd_list_member))
-        } else {
-            Ok(ts)
+                -1.0
+            }),
+        );
+        let py = slf.py();
+        let metrics = slf.borrow_mut().get_metrics(py);
+        match sampling_priority {
+            Some(priority) => metrics.set_item(SAMPLING_PRIORITY_KEY, priority)?,
+            None => del_item_if_present(&metrics, SAMPLING_PRIORITY_KEY)?,
         }
+        Ok(())
     }
 
     fn set_baggage_item(
@@ -438,12 +659,17 @@ impl Context {
         span_id: &Bound<'py, PyAny>,
     ) -> PyResult<Py<PyAny>> {
         let py = slf.py();
-        let (meta, metrics, baggage);
+        let (meta, metrics, baggage, otel_sampling_state_owner);
         {
             let mut this = slf.borrow_mut();
             meta = this.get_meta(py);
             metrics = this.get_metrics(py);
             baggage = this.get_baggage(py);
+            otel_sampling_state_owner = this
+                .otel_sampling_state_owner
+                .as_ref()
+                .map(|owner| owner.clone_ref(py))
+                .or_else(|| Some(slf.clone().unbind()));
         }
         let new_ctx = Self {
             trace_id: extract_trace_id(Some(trace_id)),
@@ -454,6 +680,8 @@ impl Context {
             span_links: Some(PyList::empty(py).unbind()),
             is_remote: false,
             reactivate: false,
+            otel_sampling_state_data: None,
+            otel_sampling_state_owner,
         };
         Ok(Py::new(py, new_ctx)?.into_any())
     }
@@ -464,7 +692,7 @@ impl Context {
         value: &Bound<'py, PyAny>,
     ) -> PyResult<Py<PyAny>> {
         let py = slf.py();
-        let (trace_id, span_id, meta, metrics, new_baggage);
+        let (trace_id, span_id, meta, metrics, new_baggage, otel_sampling_state_owner);
         {
             let mut this = slf.borrow_mut();
             let baggage = this.get_baggage(py);
@@ -474,6 +702,11 @@ impl Context {
             metrics = this.get_metrics(py);
             trace_id = this.trace_id;
             span_id = this.span_id;
+            otel_sampling_state_owner = this
+                .otel_sampling_state_owner
+                .as_ref()
+                .map(|owner| owner.clone_ref(py))
+                .unwrap_or_else(|| slf.clone().unbind());
         }
         let cls = slf.get_type();
         let kwargs = PyDict::new(py);
@@ -483,6 +716,7 @@ impl Context {
         new_ctx.setattr("_meta", meta)?;
         new_ctx.setattr("_metrics", metrics)?;
         new_ctx.setattr("_baggage", new_baggage)?;
+        new_ctx.setattr("_otel_sampling_state_owner", otel_sampling_state_owner)?;
         Ok(new_ctx.unbind())
     }
 
@@ -529,7 +763,9 @@ impl Context {
         if !self_baggage.eq(other_baggage)? {
             return Ok(false);
         }
-        Ok(slf.borrow().is_remote == other.borrow().is_remote)
+        Ok(slf.borrow().is_remote == other.borrow().is_remote
+            && Self::effective_otel_sampling_state(slf)
+                == Self::effective_otel_sampling_state(other))
     }
 
     fn __repr__(slf: &Bound<'_, Self>) -> PyResult<String> {
@@ -561,16 +797,20 @@ impl Context {
         }
     }
 
-    fn __getstate__<'py>(&mut self, py: Python<'py>) -> ContextState<'py> {
+    fn __getstate__<'py>(slf: &Bound<'py, Self>) -> ContextState<'py> {
+        let py = slf.py();
+        let otel_sampling_state = Self::effective_otel_sampling_state(slf);
+        let mut this = slf.borrow_mut();
         (
-            self.trace_id,
-            self.span_id,
-            self.get_meta(py),
-            self.get_metrics(py),
-            self.get_span_links(py),
-            self.get_baggage(py),
-            self.is_remote,
-            self.reactivate,
+            this.trace_id,
+            this.span_id,
+            this.get_meta(py),
+            this.get_metrics(py),
+            this.get_span_links(py),
+            this.get_baggage(py),
+            this.is_remote,
+            this.reactivate,
+            otel_sampling_state,
         )
     }
 
@@ -583,6 +823,12 @@ impl Context {
         self.baggage = Some(state.get_item(5)?.extract::<Bound<'_, PyDict>>()?.unbind());
         self.is_remote = state.get_item(6)?.extract()?;
         self.reactivate = state.get_item(7)?.extract()?;
+        self.otel_sampling_state_data = if state.len()? > 8 {
+            state.get_item(8)?.extract()?
+        } else {
+            None
+        };
+        self.otel_sampling_state_owner = None;
         Ok(())
     }
 
@@ -594,6 +840,9 @@ impl Context {
         }
         if let Some(l) = &self.span_links {
             visit.call(l)?;
+        }
+        if let Some(owner) = &self.otel_sampling_state_owner {
+            visit.call(owner)?;
         }
         Ok(())
     }

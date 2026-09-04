@@ -1,5 +1,7 @@
 import time
+from types import ModuleType
 from typing import NamedTuple
+from typing import Optional
 
 from .. import forksafe
 from .collector import ValueCollector
@@ -8,11 +10,16 @@ from .constants import CPU_TIME_SYS
 from .constants import CPU_TIME_USER
 from .constants import CTX_SWITCH_INVOLUNTARY
 from .constants import CTX_SWITCH_VOLUNTARY
-from .constants import GC_COUNT_GEN0
-from .constants import GC_COUNT_GEN1
-from .constants import GC_COUNT_GEN2
+from .constants import GC_COLLECTIONS_GENS
+from .constants import GC_COUNT_GENS
+from .constants import GC_PAUSE_MAX
+from .constants import GC_PAUSE_TIME
 from .constants import MEM_RSS
 from .constants import THREAD_COUNT
+from .gc_monitor import GEN_COUNT
+from .gc_monitor import GCPauseMonitor
+from .gc_monitor import GCPauseSnapshot
+from .gc_monitor import gc_pause_monitor
 
 
 class RuntimeMetricCollector(ValueCollector):
@@ -20,23 +27,89 @@ class RuntimeMetricCollector(ValueCollector):
     periodic = True
 
 
-class GCRuntimeMetricCollector(RuntimeMetricCollector):
-    """Collector for garbage collection generational counts
+def _read_gc_collections(gc_mod: ModuleType) -> list[int]:
+    """Return per-generation collections counts from gc.get_stats()."""
+    get_stats = getattr(gc_mod, "get_stats", None)
+    if get_stats is None:
+        return [0] * GEN_COUNT
+    stats: list[dict[str, int]] = get_stats()
+    collections: list[int] = []
+    i: int
+    for i in range(GEN_COUNT):
+        row: dict[str, int] = stats[i] if i < len(stats) else {}
+        collections.append(int(row.get("collections", 0)))
+    return collections
 
-    More information at https://docs.python.org/3/library/gc.html
+
+def _delta(current: list[int], previous: list[int]) -> list[int]:
+    return [max(0, c - p) for c, p in zip(current, previous)]
+
+
+class GCRuntimeMetricCollector(RuntimeMetricCollector):
+    """Collector for CPython GC counts, collection stats, and STW pause time.
+
+    gc.count.genN remains the gc.get_count() allocation counters.
+    Collection/pause metrics are interval deltas, matching CPU time.
     """
 
     required_modules = ["gc"]
+    _monitor: Optional[GCPauseMonitor] = None
+    _prev_collections: list[int]
 
-    def collect_fn(self, keys):
-        gc = self.modules.get("gc")
+    def _on_modules_load(self) -> None:
+        monitor: Optional[GCPauseMonitor] = None
+        try:
+            gc_mod: ModuleType = self.modules["gc"]
+            # Seed collections before gc.callbacks is installed so an enable-time
+            # collection is not a pause without a matching collections delta.
+            self._prev_collections: list[int] = _read_gc_collections(gc_mod)
+            monitor = gc_pause_monitor()
+            monitor.acquire()
+            forksafe.register(self._reset_state)
+        except Exception:
+            if monitor is not None:
+                monitor.release()
+            self.enabled = False
+            return
+        self._monitor = monitor
 
-        counts = gc.get_count()
-        metrics = [
-            (GC_COUNT_GEN0, counts[0]),
-            (GC_COUNT_GEN1, counts[1]),
-            (GC_COUNT_GEN2, counts[2]),
-        ]
+    def _reset_state(self) -> None:
+        gc_mod: Optional[ModuleType] = self.modules.get("gc")
+        if gc_mod is None:
+            return
+        self._prev_collections: list[int] = _read_gc_collections(gc_mod)
+
+    def stop(self) -> None:
+        monitor: Optional[GCPauseMonitor] = self._monitor
+        if monitor is not None:
+            self._monitor = None
+            monitor.release()
+            forksafe.unregister(self._reset_state)
+
+    def collect_fn(self, keys: Optional[set[str]]) -> list[tuple[str, int]]:
+        # Snapshot first so flush allocations are not attributed to this window,
+        # and so stop() cannot None-out _monitor between the check and the call.
+        monitor: Optional[GCPauseMonitor] = self._monitor
+        pause: Optional[GCPauseSnapshot]
+        if monitor is not None:
+            pause = monitor.snapshot_and_reset()
+        else:
+            pause = None
+
+        gc_mod: ModuleType = self.modules["gc"]
+        collections: list[int] = _read_gc_collections(gc_mod)
+        prev: list[int] = self._prev_collections
+        self._prev_collections: list[int] = collections
+
+        metrics: list[tuple[str, int]] = []
+        name: str
+        n: int
+        for name, n in zip(GC_COUNT_GENS, gc_mod.get_count()):
+            metrics.append((name, n))
+        for name, n in zip(GC_COLLECTIONS_GENS, _delta(collections, prev)):
+            metrics.append((name, n))
+        metrics.append((GC_PAUSE_TIME, 0 if pause is None else pause.total_ns))
+        metrics.append((GC_PAUSE_MAX, 0 if pause is None else pause.max_ns))
 
         return metrics
 

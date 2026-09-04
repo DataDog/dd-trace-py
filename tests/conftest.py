@@ -21,8 +21,11 @@ import sys
 from tempfile import NamedTemporaryFile
 from tempfile import mkdtemp
 import time
-from typing import Any  # noqa:F401
-from typing import Generator  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Generator
+from typing import Optional
+from typing import Union
 from unittest import TestCase
 from unittest import mock
 from urllib import parse
@@ -32,10 +35,17 @@ import pytest
 
 import ddtrace
 
-
 # DEV: Consumed by detect_service() during ddtrace import above; unset now so
 # it doesn't leak into tests (e.g. unit tests that call detect_service directly).
-os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+# Save it so pytest_configure can propagate the correct value to xdist workers
+# (the suitespec may set this to the suite-level service, e.g. tests.tracer;
+# detect_service(sys.argv) under ddtest would pick the first file's subpackage).
+# All ddtest-specific logic is in _ddtest_conftest_helpers so it can be removed
+# cleanly if ddtest support is dropped.
+from tests._ddtest_conftest_helpers import pop_and_seed_inferred_service
+
+
+_inferred_service_env = pop_and_seed_inferred_service()
 
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
@@ -174,11 +184,14 @@ def pytest_configure(config):
     # Only set when xdist workers are actually being spawned (numprocesses > 0 or
     # 'auto') and only from the controller (workers have PYTEST_XDIST_WORKER set).
     if not os.environ.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
-        from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
+        if _inferred_service_env:
+            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred_service_env
+        else:
+            from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
 
-        _inferred = _detect_service(sys.argv)
-        if _inferred:
-            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
+            _inferred = _detect_service(sys.argv)
+            if _inferred:
+                os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -384,19 +397,21 @@ class FunctionDefFinder(ast.NodeVisitor):
         return t
 
 
-def is_stream_ok(stream, expected):
+def is_stream_ok(
+    stream: Optional[Union[bytes, str]],
+    expected: Optional[Union[bytes, str, Callable[[Union[str, bytes, None]], bool]]],
+):
     if expected is None:
         return True
 
-    if isinstance(expected, str):
-        ex = expected.encode("utf-8")
-    elif isinstance(expected, bytes):
-        ex = expected
-    else:
-        # Assume it's a callable condition
-        return expected(stream.decode("utf-8"))
+    stream_str = stream.decode("utf-8") if isinstance(stream, bytes) else stream
 
-    return stream == ex
+    if callable(expected):
+        return expected(stream_str)
+
+    expected_str = expected.decode("utf-8") if isinstance(expected, bytes) else expected
+
+    return stream_str == expected_str
 
 
 def run_function_from_file(item, params=None):
@@ -461,10 +476,14 @@ def run_function_from_file(item, params=None):
             # Add any extra requested args
             args.extend(marker.kwargs.get("args", []))
 
-            def _subprocess_wrapper():
+            def _subprocess_wrapper() -> None:
+                out: Union[bytes, str]
+                err: Union[bytes, str]
                 out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
-                xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+                xfailed = (
+                    "_pytest.outcomes.XFailed" in err if isinstance(err, str) else b"_pytest.outcomes.XFailed" in err
+                ) and status == 1
                 if xfailed:
                     pytest.xfail("subprocess test resulted in XFail")
                     return
@@ -480,7 +499,7 @@ def run_function_from_file(item, params=None):
                         "Expected status %s, got %s."
                         "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
                         "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                        % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
+                        % (expected_status, status, out, err)
                     )
 
                 if not is_stream_ok(out, expected_out):
