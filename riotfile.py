@@ -1402,7 +1402,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12", max_version="3.13"),
+                            pys=select_pys(min_version="3.12", max_version="3.14"),
                             pkgs={
                                 "redis": latest,
                             },
@@ -1419,7 +1419,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12", max_version="3.13"),
+                            pys=select_pys(min_version="3.12", max_version="3.14"),
                             pkgs={"redis": latest},
                         ),
                     ],
@@ -2009,7 +2009,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "pytest": [
                             "~=6.0",
@@ -2350,7 +2350,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -2552,7 +2552,7 @@ venv = Venv(
         Venv(
             name="rediscluster",
             command="pytest {cmdargs} tests/contrib/rediscluster",
-            pys=select_pys(max_version="3.11"),
+            pys=select_pys(max_version="3.14"),
             pkgs={"pytest-randomly": latest, "redis-py-cluster": [">=2.0,<2.1", latest]},
         ),
         Venv(
@@ -2964,7 +2964,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pys=select_pys(min_version="3.9", max_version="3.14"),
                     pkgs={
                         "openai": [latest, "<2.0.0", "~=1.76.2", "==1.66.0"],
                         "pillow": latest,
@@ -3158,7 +3158,7 @@ venv = Venv(
                         "langchain-cohere": latest,
                         "langchain-google-genai": latest,
                     },
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                 ),
             ],
         ),
@@ -3568,7 +3568,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9", max_version="3.14"),
             pkgs={
                 "azure.eventhub": ["~=5.12.0", latest],
                 "pytest-asyncio": "==0.23.7",
@@ -3580,7 +3580,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_functions",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9", max_version="3.14"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
                 "requests": latest,
@@ -3592,7 +3592,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_durable_functions",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9", max_version="3.14"),
             pkgs={
                 "azure-functions-durable": ["==1.2.1", latest],
             },
@@ -3988,7 +3988,7 @@ venv = Venv(
         ),
         Venv(
             name="selenium",
-            pys=["3.10", "3.12"],
+            pys=["3.10", "3.12", "3.14"],
             pkgs={
                 "selenium": "~=4.0",
                 "webdriver-manager": latest,
