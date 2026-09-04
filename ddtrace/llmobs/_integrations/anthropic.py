@@ -82,8 +82,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         # the model call errors the span but keeps a valid response (APPSEC-68147).
         if response is not None:
             output_messages = self._extract_output_message(response)
-            # Recorded under "finish_reason" to match the openai/litellm integrations, so one key
-            # answers "why did generation stop" across providers. 
+            # Recorded under "finish_reason" to match openai/litellm
             finish_reason = _get_attr(response, "stop_reason", None) or _get_attr(response, "finish_reason", None)
             if finish_reason:
                 parameters["finish_reason"] = str(finish_reason)
