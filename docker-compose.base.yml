@@ -3,7 +3,7 @@
 # docker-compose.podman.yml.
 services:
     elasticsearch:
-        image: elasticsearch:9.5.1
+        image: elasticsearch:9.5.2
         environment:
             - discovery.type=single-node
             - xpack.security.enabled=false
@@ -66,11 +66,11 @@ services:
     memcached:
         image: memcached:1.6.45-alpine
     moto:
-        image: motoserver/moto:5.2.2
+        image: motoserver/moto:5.2.3
         environment:
             - MOTO_PORT=3000
     rabbitmq:
-        image: rabbitmq:4.3.4-alpine
+        image: rabbitmq:4.3.5-alpine
     ddagent:
         image: datadog/agent:latest
         environment:
@@ -130,7 +130,7 @@ services:
             ACCEPT_EULA: "Y"
             MSSQL_SA_PASSWORD: "Localtestpass1!"
     azurite:
-        image: mcr.microsoft.com/azure-storage/azurite:3.36.0
+        image: mcr.microsoft.com/azure-storage/azurite:3.37.0
     selenium-chrome:
         image: selenium/standalone-chrome:151.0.7922.108
         platform: linux/amd64
@@ -189,7 +189,7 @@ services:
     valkey:
         image: valkey/valkey:9.1-alpine
     pubsub:
-        image: google/cloud-sdk:580.0.0-emulators
+        image: google/cloud-sdk:582.0.0-emulators
         command: gcloud beta emulators pubsub start --host-port=0.0.0.0:8085
     valkeycluster:
         platform: linux/amd64
