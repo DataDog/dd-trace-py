@@ -48,7 +48,7 @@ def test_gc_monitor_detects_leak() -> None:
     with open(gc_files[-1]) as f:
         data = json.load(f)
 
-    assert data["v"] == 1, f"Expected format version 1, got {data['v']}"
+    assert data["v"] == 2, f"Expected format version 2, got {data['v']}"
     assert isinstance(data["ts_ns"], int) and data["ts_ns"] > 0, "ts_ns must be a positive integer"
     assert "gc" in data, "Expected 'gc' block in output"
     assert "tt" in data, "Expected 'tt' type table in output"
@@ -215,7 +215,7 @@ def test_gc_monitor_json_schema() -> None:
     with open(gc_files[-1]) as f:
         data = json.load(f)
 
-    assert isinstance(data["v"], int) and data["v"] == 1
+    assert isinstance(data["v"], int) and data["v"] == 2
     assert isinstance(data["ts_ns"], int) and data["ts_ns"] > 0
 
     gc_block = data["gc"]
@@ -250,21 +250,13 @@ def test_gc_monitor_json_schema() -> None:
     assert len(data["tc"]) == len(data["tt"]), "tc and tt must have the same length"
     assert all(isinstance(c, int) and c > 0 for c in data["tc"]), "All entries in tc must be positive ints"
 
-    # rt -- reference forest (empty when DD_PROFILING_GC_REFERRERS is not set)
-    tt = data["tt"]
-
-    def validate_rt_node(node) -> None:
-        assert isinstance(node["t"], int) and 0 <= node["t"] < len(tt)
-        assert isinstance(node["ic"], int) and node["ic"] > 0
-        assert isinstance(node["ts"], int) and node["ts"] > 0
-        if "ch" in node:
-            assert isinstance(node["ch"], list)
-            for child in node["ch"]:
-                validate_rt_node(child)
-
-    assert isinstance(data["rt"], list)
-    for node in data["rt"]:
-        validate_rt_node(node)
+    # v2: the first-order reference graph (g/tsz/roots) is only emitted when
+    # DD_PROFILING_GC_REFERRERS is set. This test does not enable referrers, so
+    # those keys must be absent and there must be no legacy rt tree.
+    assert "rt" not in data, "v2 must not emit a materialized reference tree"
+    assert "g" not in data and "tsz" not in data and "roots" not in data, (
+        "reference graph must be absent when referrers are disabled"
+    )
 
 
 @pytest.mark.subprocess(
@@ -276,7 +268,7 @@ def test_gc_monitor_json_schema() -> None:
     timeout=30,
 )
 def test_gc_monitor_reference_chains_1() -> None:
-    """With referrers enabled, the reference forest (rt) captures holder -> held edges."""
+    """With referrers enabled, the first-order graph (g) captures holder -> held edges."""
     from dataclasses import dataclass
     import glob
     import json
@@ -350,76 +342,67 @@ def test_gc_monitor_reference_chains_1() -> None:
 
     data = json.loads(raw)
 
+    assert data["v"] == 2, f"Expected format version 2, got {data['v']}"
     tt = data["tt"]
-    assert isinstance(data["rt"], list)
-    assert len(data["rt"]) > 0, "Expected a non-empty reference forest when referrers are enabled"
+    idx_of = {t: i for i, t in enumerate(tt)}
 
-    # MyApp holds Order, Customer, Product; Order holds Customer and Product.
-    def find_root(type_name: str):
-        for root in data["rt"]:
-            if tt[root["t"]] == type_name:
-                return root
-        return None
+    # v2 emits the first-order graph: g (holder idx -> [[held, ic, ts], ...]),
+    # tsz (per-type total shallow bytes, parallel to tt) and roots (root indices).
+    assert isinstance(data["g"], dict) and data["g"], "Expected a non-empty reference graph when referrers are enabled"
+    assert isinstance(data["roots"], list) and data["roots"], "Expected reconstruction roots"
+    assert isinstance(data["tsz"], list) and len(data["tsz"]) == len(tt), "tsz must be parallel to tt"
 
-    myapp_root = find_root("__main__.MyApp")
-    assert myapp_root is not None, f"Expected __main__.MyApp in rt roots. Roots: {[tt[r['t']] for r in data['rt']]}"
+    def edges_of(type_name: str) -> dict:
+        """Return {held_type_name: (ic, ts)} for the given holder type."""
+        i = idx_of.get(type_name)
+        assert i is not None, f"{type_name!r} not in type table"
+        return {tt[e[0]]: (e[1], e[2]) for e in data["g"].get(str(i), [])}
 
-    # MyApp root: exactly one live instance, non-zero retained bytes.
-    assert myapp_root["ic"] == 1, f"Expected exactly one MyApp instance, got ic={myapp_root['ic']}"
-    assert myapp_root["ts"] > 0, "MyApp root ts must be > 0"
+    # MyApp is exposed as a reconstruction root with a positive retained size.
+    root_names = {tt[i] for i in data["roots"]}
+    assert "__main__.MyApp" in root_names, f"Expected __main__.MyApp among roots: {sorted(root_names)}"
+    myapp_ts = data["tsz"][idx_of["__main__.MyApp"]]
+    assert myapp_ts > 0, "MyApp total shallow size must be > 0"
 
     # MyApp holds Order, Customer, Product directly (via its three list fields).
-    myapp_children = {tt[c["t"]]: c for c in myapp_root.get("ch", [])}
+    myapp_edges = edges_of("__main__.MyApp")
     for expected in ("__main__.Order", "__main__.Customer", "__main__.Product"):
-        assert expected in myapp_children, (
-            f"Expected {expected!r} as a direct child of MyApp; children: {sorted(myapp_children)}"
+        assert expected in myapp_edges, (
+            f"Expected {expected!r} as a first-order edge of MyApp; edges: {sorted(myapp_edges)}"
         )
-        edge = myapp_children[expected]
-        assert edge["ic"] > 0, f"Edge MyApp -> {expected} must aggregate at least one reference"
-        assert edge["ts"] > 0, f"Edge MyApp -> {expected} must have a positive retained byte count"
+        ic, ts = myapp_edges[expected]
+        assert ic > 0, f"Edge MyApp -> {expected} must aggregate at least one reference"
+        assert ts > 0, f"Edge MyApp -> {expected} must have a positive retained byte count"
 
     # We appended ~15 orders/customers/products in the loop plus the 2 seeded
     # each; every one is retained by MyApp, so the aggregated ref counts on the
     # collapsed edges must reflect that scale (not e.g. 1 or 2).
-    assert myapp_children["__main__.Order"]["ic"] >= 15, (
-        f"MyApp -> Order aggregated ic should be >= 15, got {myapp_children['__main__.Order']['ic']}"
+    assert myapp_edges["__main__.Order"][0] >= 15, (
+        f"MyApp -> Order ic should be >= 15, got {myapp_edges['__main__.Order'][0]}"
     )
-    assert myapp_children["__main__.Customer"]["ic"] >= 15, (
-        f"MyApp -> Customer aggregated ic should be >= 15, got {myapp_children['__main__.Customer']['ic']}"
+    assert myapp_edges["__main__.Customer"][0] >= 15, (
+        f"MyApp -> Customer ic should be >= 15, got {myapp_edges['__main__.Customer'][0]}"
     )
-    assert myapp_children["__main__.Product"]["ic"] >= 15, (
-        f"MyApp -> Product aggregated ic should be >= 15, got {myapp_children['__main__.Product']['ic']}"
+    assert myapp_edges["__main__.Product"][0] >= 15, (
+        f"MyApp -> Product ic should be >= 15, got {myapp_edges['__main__.Product'][0]}"
     )
 
     # Order retains Customer (via its customer field) and Product (via its
-    # products list), so under MyApp -> Order we must also see those edges.
-    order_edge = myapp_children["__main__.Order"]
-    order_grandchildren = {tt[c["t"]] for c in order_edge.get("ch", [])}
+    # products list): those are Order's own first-order edges.
+    order_edges = edges_of("__main__.Order")
     for expected in ("__main__.Customer", "__main__.Product"):
-        assert expected in order_grandchildren, (
-            f"Expected {expected!r} under MyApp -> Order; grandchildren: {sorted(order_grandchildren)}"
+        assert expected in order_edges, (
+            f"Expected {expected!r} as a first-order edge of Order; edges: {sorted(order_edges)}"
         )
 
-    # Sanity: leaf application types (Customer, Product) should not have
-    # application-type children hanging off them here -- they only reference
-    # str/float, which the excluded-types filter or transparent-stepping
-    # remove. Empty children is fine; nested __main__.* children would be
-    # surprising for these dataclasses.
+    # Sanity: leaf application types (Customer, Product) should not reference any
+    # application types -- they only hold str/float, which the excluded-types
+    # filter and transparent-stepping remove.
     for leaf_name in ("__main__.Customer", "__main__.Product"):
-        leaf_edge = myapp_children[leaf_name]
-        leaf_grandchildren = {tt[c["t"]] for c in leaf_edge.get("ch", [])}
-        unexpected = {g for g in leaf_grandchildren if g.startswith("__main__.")}
-        assert not unexpected, f"Unexpected __main__.* grandchildren under MyApp -> {leaf_name}: {unexpected}"
-
-    # Same for the top-level Order root (if the forest exposes one).
-    order_root = find_root("__main__.Order")
-    if order_root is not None:
-        assert order_root["ic"] >= 15, f"Order root ic should be >= 15, got {order_root['ic']}"
-        top_order_children = {tt[c["t"]] for c in order_root.get("ch", [])}
-        for expected in ("__main__.Customer", "__main__.Product"):
-            assert expected in top_order_children, (
-                f"Expected {expected!r} as a child of the Order root; children: {sorted(top_order_children)}"
-            )
+        leaf_i = idx_of.get(leaf_name)
+        held = {tt[e[0]] for e in data["g"].get(str(leaf_i), [])} if leaf_i is not None else set()
+        unexpected = {h for h in held if h.startswith("__main__.")}
+        assert not unexpected, f"Unexpected __main__.* edges out of {leaf_name}: {unexpected}"
 
 
 @pytest.mark.subprocess(
