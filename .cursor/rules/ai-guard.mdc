@@ -146,7 +146,10 @@ plain dicts *or* SDK objects.
 3. Applies any `redaction_replacements` from the response, then truncates to
    `DD_AI_GUARD_MAX_MESSAGES_LENGTH` / `DD_AI_GUARD_MAX_CONTENT_SIZE` and
    attaches the result as a meta-struct. The service always receives the
-   originals; only what is reported is redacted.
+   originals; only what is reported is redacted. A replacement that cannot be
+   applied (malformed, unresolvable, or conflicting for one path) is skipped
+   and counted on `ai_guard.error` with `type:redaction_error`; it never fails
+   the evaluation.
 4. Tags the span with the action/reason, marks the root span
    (`_aiguard_manual_keep`, `ai_guard` event tag, client IP), and emits
    telemetry.
