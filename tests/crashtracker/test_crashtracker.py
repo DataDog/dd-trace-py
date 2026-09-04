@@ -1131,3 +1131,38 @@ def test_crashtracker_uploads_to_the_agent_without_agentless():
     assert "intake" not in captured["endpoint"]
     assert captured["api_key"] is None
     assert "_DD_DIRECT_SUBMISSION_ENABLED" not in captured["receiver_env"]
+
+
+def test_crashtracker_receiver_strips_ddtrace_run_bootstrap_from_pythonpath():
+    """The receiver must not re-run ddtrace-run's sitecustomize.py bootstrap.
+
+    ddtrace-run prepends its bootstrap dir to PYTHONPATH so the traced app auto-instruments.
+    If the receiver process inherited that entry, its own interpreter would re-trigger the
+    bootstrap and start a second, independently-configured copy of ddtrace (remote config
+    poller, tracer, etc.), producing bogus telemetry/remote-config traffic to the agent.
+    """
+    import importlib.util
+    import os
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+    other_dir = "/some/other/dir"
+
+    captured = {}
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+        mock.patch.dict(os.environ, {"PYTHONPATH": os.pathsep.join([bootstrap_dir, other_dir])}),
+    ):
+        crashtracking._get_args({})
+
+    pythonpath_entries = captured["receiver_env"]["PYTHONPATH"].split(os.pathsep)
+    assert bootstrap_dir not in pythonpath_entries
+    assert other_dir in pythonpath_entries
