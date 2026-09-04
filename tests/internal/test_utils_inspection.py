@@ -54,3 +54,20 @@ def test_wrapped_decoration():
     code = undecorated(f, name="f", path=Path(__file__).resolve()).__code__
     assert code.co_name == "f"
     assert Path(code.co_filename).resolve() == Path(__file__).resolve()
+
+
+def test_undecorated_plain_function_returns_input_directly():
+    # A plain (undecorated) function is the common case. ``undecorated`` must return it
+    # without descending into the BFS / ``__dir__()`` scan: the input itself already
+    # matches. This is the fast path that keeps per-test source-location discovery cheap.
+    def f():
+        pass
+
+    name, path = f.__code__.co_name, Path(__file__).resolve()
+    assert undecorated(f, name, path) is f
+
+    # A function whose name does not match must not short-circuit on the input.
+    def g():
+        pass
+
+    assert undecorated(g, name="does_not_exist", path=path) is g
