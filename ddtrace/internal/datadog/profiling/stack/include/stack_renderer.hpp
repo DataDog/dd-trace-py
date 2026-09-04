@@ -7,6 +7,7 @@
 #include <string_view>
 
 #include "python_headers.hpp"
+#include "span_links.hpp"
 
 #include "dd_wrapper/include/sample.hpp"
 
@@ -73,6 +74,13 @@ class StackRenderer
 
     SampleHandle sample;
     ThreadState thread_state = {};
+    SpanAttribution thread_span;
+    bool span_attribution_resolved = false;
+
+    // Render attribution captured for the physical thread being sampled.
+    void render_thread_span();
+    // Render attribution captured for a task stack. An empty span suppresses physical-thread fallback.
+    void render_task_span(const SpanAttribution& active_span);
 
     // Caches for interned strings and function IDs. These are used to avoid
     // re-interning the same strings and function IDs multiple times (even though libdatadog
@@ -91,7 +99,8 @@ class StackRenderer
     void render_task_begin(std::string_view task_name,
                            bool on_cpu,
                            uint64_t task_id,
-                           std::optional<int64_t> walltime_ns_override = std::nullopt);
+                           std::optional<int64_t> walltime_ns_override,
+                           const TaskSpanContext& task_span_context);
     void render_frame(Frame& frame);
     void render_gc_frame();
     void render_cpu_time(microsecond_t cpu_time_us);

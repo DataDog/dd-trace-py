@@ -19,6 +19,7 @@ from ddtrace.contrib.internal.futures.patch import patch as futures_patch
 from ddtrace.contrib.internal.futures.patch import unpatch as futures_unpatch
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack as stack_module
+from ddtrace.profiling import _span_links
 from ddtrace.profiling.collector import stack
 from ddtrace.trace import Tracer
 from tests.profiling.collector import pprof_utils
@@ -37,7 +38,24 @@ def patch_futures():
         futures_unpatch()
 
 
-def test_link_span_plain_context_uses_span_id_as_local_root(monkeypatch: pytest.MonkeyPatch, tracer: Tracer) -> None:
+@pytest.fixture
+def span_linking_enabled():
+    was_enabled = _span_links._span_linking_enabled
+    generation = _span_links._span_link_generation
+    active_span_link = _span_links._active_span_link.get()
+    _span_links.enable_span_linking()
+    try:
+        yield
+    finally:
+        _span_links.disable_span_linking()
+        _span_links._span_linking_enabled = was_enabled
+        _span_links._span_link_generation = generation
+        _span_links._set_active_span_link(active_span_link)
+
+
+def test_link_span_plain_context_uses_span_id_as_local_root(
+    monkeypatch: pytest.MonkeyPatch, span_linking_enabled: None, tracer: Tracer
+) -> None:
     """A propagated Context without profiler metadata uses its span ID as the local root."""
     if not stack_module.is_available:
         pytest.skip("stack profiler not available")
@@ -45,13 +63,14 @@ def test_link_span_plain_context_uses_span_id_as_local_root(monkeypatch: pytest.
     calls = []
     monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
-    collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
+    stack.StackCollector(tracer=tracer)._link_span(tracer.context_provider, ctx)
 
     assert calls == [(456, 456, None)]
 
 
-def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, tracer: Tracer) -> None:
+def test_link_span_context_reads_profiler_meta(
+    monkeypatch: pytest.MonkeyPatch, span_linking_enabled: None, tracer: Tracer
+) -> None:
     """A propagated Context preserves its copied local-root metadata."""
     from ddtrace.internal.datadog.profiling import context_meta
 
@@ -62,8 +81,7 @@ def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, 
     monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
     context_meta.attach_profiler_link(ctx, local_root_span_id=789, span_type="web")
-    collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
+    stack.StackCollector(tracer=tracer)._link_span(tracer.context_provider, ctx)
 
     assert calls == [(456, 789, "web")]
 
