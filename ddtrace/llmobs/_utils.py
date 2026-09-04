@@ -510,8 +510,15 @@ def _stamp_agent_attribution(meta: dict, agent_name: Optional[str], agent_span_i
       4. neither when even the id would exceed the budget.
 
     ``meta`` must already carry the other ``_dd.p.*`` tags so the budget check sees the full tagset.
+
+    Both keys describe the span being injected, but ``meta`` is trace-scoped and shared by every
+    span in the trace, so a value written by an earlier span outlives it. Whatever does not apply
+    to this span is cleared, or it would be propagated as if it did.
     """
+    if agent_name is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_NAME_KEY, None)
     if agent_span_id is None:
+        meta.pop(PROPAGATED_PARENT_AGENT_ID_KEY, None)
         return
     meta[PROPAGATED_PARENT_AGENT_ID_KEY] = agent_span_id
     if agent_name is not None:
