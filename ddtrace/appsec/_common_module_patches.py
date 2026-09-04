@@ -153,8 +153,8 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
         try:
             self._handle_enter()
         except Exception:
-            # A context whose __enter__ raises is left out of the universal context's entered
-            # list, so neither __return__ nor __exit__ runs and the core context would strand.
+            # AIDEV-NOTE: a context whose __enter__ raises is left out of the universal context's
+            # entered list, so neither __return__ nor __exit__ runs and the core context strands.
             self._close_core_context()
             log.debug("Error handling SSRF instrumentation enter", exc_info=True)
         return self
