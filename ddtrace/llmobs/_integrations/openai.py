@@ -16,6 +16,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
 from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
 from ddtrace.llmobs._integrations.utils import get_openrouter_cost_metrics
+from ddtrace.llmobs._integrations.utils import openai_get_output_messages_from_response
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
@@ -109,17 +110,17 @@ class OpenAIIntegration(BaseLLMIntegration):
 
         model_provider = self._get_model_provider(span)
 
-        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         provider = span.get_tag("openai.request.provider") or "OpenAI"
         span_name = "{}.{}".format(provider, span.resource) if span.resource else None
-        # Set kind before helpers so that input/output messages are routed correctly
+        # Set the span identity before any response extraction. The public caller swallows
+        # extraction errors, so this must happen first or the LLMObs event is dropped for a
+        # missing span kind and its children become orphaned.
         _annotate_llmobs_span_data(
             span,
             name=span_name,
             kind=span_kind,
             model_name=model_name,
             model_provider=model_provider,
-            metrics=metrics,
         )
         if operation == "completion":
             openai_set_meta_tags_from_completion(span, kwargs, response)
@@ -131,6 +132,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             openai_set_meta_tags_from_response(span, kwargs, response, self)
         elif operation == "tool":
             self._llmobs_set_tags_from_tool(span, kwargs, response)
+
+        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
+        if metrics:
+            _annotate_llmobs_span_data(span, metrics=metrics)
 
     @staticmethod
     def _llmobs_set_meta_tags_from_embedding(span: Span, kwargs: dict[str, Any], resp: Any) -> None:
@@ -280,7 +285,10 @@ class OpenAIIntegration(BaseLLMIntegration):
             return metrics
         elif kwargs.get("stream") and resp is not None:
             prompt_tokens = _compute_prompt_tokens(kwargs.get("prompt", None), kwargs.get("messages", None))
-            completion_tokens = _compute_completion_tokens(resp)
+            completion_source = resp
+            if _get_attr(resp, "output", None) is not None:
+                completion_source, _ = openai_get_output_messages_from_response(resp)
+            completion_tokens = _compute_completion_tokens(completion_source)
             total_tokens = prompt_tokens + completion_tokens
 
             return {
