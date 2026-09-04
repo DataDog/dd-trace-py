@@ -62,7 +62,7 @@ PYTHON_TAGS: list[str] = ["cp39", "cp310", "cp311", "cp312", "cp313", "cp314"]
 WIN_ARM64_MIN_MINOR: int = 11
 WIN_ARM64_PYTHON_TAGS: list[str] = [t for t in PYTHON_TAGS if python_tag_minor(t) >= WIN_ARM64_MIN_MINOR]
 
-BASE_PLATFORMS = [
+BASE_PLATFORMS: list[str] = [
     "macosx_14_0_arm64",
     "macosx_14_0_x86_64",
     "manylinux2014_aarch64.manylinux_2_17_aarch64",
@@ -72,7 +72,8 @@ BASE_PLATFORMS = [
     "win32",
     "win_amd64",
 ]
-SERVERLESS_PLATFORMS = [p for p in BASE_PLATFORMS if "linux" in p]
+SERVERLESS_PLATFORMS: list[str] = [p for p in BASE_PLATFORMS if "linux" in p]
+ADMS_PLATFORMS: list[str] = [p for p in BASE_PLATFORMS if "manylinux2014" in p]
 
 
 def check_python_tags_current(repo_root: Path) -> list[str]:
@@ -117,14 +118,19 @@ def build_expected_set(version: str, args: argparse.Namespace) -> set[tuple[str,
     expected: set[tuple[str, str, str, str]] = set()
     for py_tag in PYTHON_TAGS:
         if args.mode == "serverless":
-            for platform in SERVERLESS_PLATFORMS:
-                expected.add((version, py_tag, platform, "_serverless"))
+            platforms: list[str] = SERVERLESS_PLATFORMS
+            flavor: str = "_serverless"
+        elif args.mode == "adms":
+            platforms = ADMS_PLATFORMS
+            flavor = ""
         else:
-            for platform in BASE_PLATFORMS:
-                expected.add((version, py_tag, platform, ""))
-            # Add win_arm64 for Python 3.11+
-            if py_tag in WIN_ARM64_PYTHON_TAGS:
-                expected.add((version, py_tag, "win_arm64", ""))
+            platforms = BASE_PLATFORMS
+            flavor = ""
+
+        for platform in platforms:
+            expected.add((version, py_tag, platform, flavor))
+        if args.mode == "main" and py_tag in WIN_ARM64_PYTHON_TAGS:
+            expected.add((version, py_tag, "win_arm64", ""))
 
     return expected
 
@@ -261,7 +267,7 @@ def main(args: argparse.Namespace) -> None:
 
     # Phase 2: SDist Validation
     sdist_ok = False
-    if args.mode != "serverless":
+    if args.mode == "main":
         print("[Phase 2] SDist Validation")
         sdist_ok, sdist_msg, sdist_name = validate_sdist(wheels_dir, package_version)
         if not sdist_ok:
@@ -367,7 +373,7 @@ def main(args: argparse.Namespace) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="Validate DDTrace Package")
-    parser.add_argument("--mode", choices=["main", "serverless"], default="main")
+    parser.add_argument("--mode", choices=["main", "serverless", "adms"], default="main")
     parser.add_argument("wheels_dir", nargs="?", default="pywheels")
     args = parser.parse_args()
     main(args)

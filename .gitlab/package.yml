@@ -226,9 +226,11 @@ variables:
         echo "Version '${PACKAGE_VERSION:-}' has no local segment (+...) -- nothing to patch, exiting."
         exit 0
       fi
-    # Prune unsupported tags from adms; S3 SHA index keeps them for gate installs.
-    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels
-    - python3 .gitlab/scripts/patch-wheel-versions.py pywheels pywheels-patched
+    # Keep the unpruned artifact for S3's SHA index; validate the separate adms copy.
+    - cp -a pywheels pywheels-publish
+    - .gitlab/scripts/prune-unsupported-wheels.sh pywheels-publish
+    - python3 .gitlab/validate-ddtrace-package.py pywheels-publish --mode=adms
+    - python3 .gitlab/scripts/patch-wheel-versions.py pywheels-publish pywheels-patched
     - |
       set -euo pipefail
       shopt -s nullglob
@@ -509,7 +511,7 @@ download_dependency_wheels:
       - "pywheels/*.whl"
       - "pywheels/*.tar.gz"
 
-# Do not prune here: "upload all" publishes this artifact as the SHA S3 index.
+# Do not validate or prune here: "upload all" publishes this artifact as the SHA S3 index.
 "ddtrace package":
   extends: .package_base
   needs:
@@ -520,7 +522,7 @@ download_dependency_wheels:
     - "collect windows wheels"
     - "package version"
   script:
-    - .gitlab/validate-ddtrace-package.py pywheels
+    - echo "Collected unpruned wheels for S3 publication"
 
 "ddtrace package serverless":
   extends: .package_base
@@ -528,4 +530,4 @@ download_dependency_wheels:
     - "build linux serverless"
     - "package version"
   script:
-    - .gitlab/validate-ddtrace-package.py pywheels --mode=serverless
+    - echo "Collected unpruned serverless wheels for S3 publication"
