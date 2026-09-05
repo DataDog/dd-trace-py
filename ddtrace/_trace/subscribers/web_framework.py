@@ -1,6 +1,13 @@
 from types import TracebackType
 from typing import Optional
 
+from ddtrace import config
+from ddtrace._trace.http_semantics import normalize_http_method
+from ddtrace._trace.http_semantics import set_method_tag
+from ddtrace._trace.http_semantics import set_query_string_tag
+from ddtrace._trace.otel_http_naming import record_initial_instrumentation_resource
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
@@ -27,6 +34,16 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         if event.allow_default_resource:
             event.set_resource = True
 
+        if config._otel_trace_semantics_enabled and event.request_method:
+            span = span_from_context(ctx)
+            set_method_tag(span, event.request_method)
+            # Set the currently known resource before sampling; preserve span-start callback replacements.
+            record_initial_instrumentation_resource(span, event.resource)
+            normalized_method, original_method = normalize_http_method(event.request_method)
+            if event.request_route:
+                span._set_attribute(http.OTEL_ROUTE, event.request_route)
+            set_otel_http_resource(span, normalized_method, original_method, event.request_route)
+
     @classmethod
     def on_ended(
         cls,
@@ -42,9 +59,9 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
 
         # event.resource can be updated at span finish time
         if event.resource:
-            span.resource = event.resource
+            set_instrumentation_resource(span, event.resource)
         elif event.set_resource and status_code is not None:
-            span.resource = f"{method} {status_code}"
+            set_instrumentation_resource(span, f"{method} {status_code}")
 
         try:
             trace_utils.set_http_meta(
@@ -66,7 +83,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         # aiohttp supports per-app trace_query_string overrides that may differ from
         # integration_config.trace_query_string.
         if event.trace_query_string and event.query is not None:
-            span._set_attribute(http.QUERY_STRING, event.query)
+            set_query_string_tag(span, event.query)
 
         _set_inferred_proxy_tags(span, status_code)
         for tk, tv in core.get_item("additional_tags", default=dict()).items():

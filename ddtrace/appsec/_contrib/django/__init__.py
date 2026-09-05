@@ -16,8 +16,10 @@ from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import in_asm_context
 from ddtrace.appsec._asm_request_context import set_block_request_callable
+from ddtrace.appsec._asm_request_context import set_waf_address
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
+from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._trace_utils import track_user_login_failure_event
@@ -277,6 +279,22 @@ def _on_traced_get_response_pre(
     set_block_request_callable(block_callable)
 
 
+def _on_django_resolve_request(resolver_match: Any) -> None:
+    if not asm_config._asm_enabled:
+        return
+    path_params = resolver_match.kwargs or resolver_match.args or None
+    if path_params is not None:
+        set_waf_address(SPAN_DATA_NAMES.REQUEST_PATH_PARAMS, path_params)
+        try:
+            _call_waf_first("Django")
+        except BaseException:
+            if block_config := get_blocked():
+                raise BlockingException(block_config)
+            raise
+        if block_config := get_blocked():
+            raise BlockingException(block_config)
+
+
 def listen() -> None:
     core.on("django.login", _on_django_login)
     core.on("django.auth", _on_django_auth, "user")
@@ -291,3 +309,4 @@ def listen() -> None:
 
     core.on("context.ended.django.traced_get_response", _on_context_ended)
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
+    core.on("django.resolve_request", _on_django_resolve_request)

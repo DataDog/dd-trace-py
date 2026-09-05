@@ -11,6 +11,7 @@ import asyncio
 from inspect import getmro
 from inspect import iscoroutinefunction
 from inspect import unwrap
+from typing import Any
 from typing import cast
 
 import wrapt
@@ -42,6 +43,8 @@ from ddtrace.vendor.packaging.version import parse as parse_version
 
 
 log = get_logger(__name__)
+
+_pre_31_resolve_request_enabled = False
 
 DJANGO_TRACING_MINIMAL = asbool(_get_config("DD_DJANGO_TRACING_MINIMAL", default=True))
 
@@ -235,6 +238,11 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
 
     ret = func(*args, **kwargs)
 
+    if django.VERSION < (3, 1):
+        # AIDEV-NOTE: First-position view middleware is Django <3.1's only post-resolution,
+        # pre-application hook that does not rerun custom converters.
+        instance._view_middleware.insert(0, _dispatch_resolved_request)
+
     # Building a BaseHandler is the earliest reliable signal that this process serves HTTP, so the URLconf import
     # forced here is one the first request would pay anyway. Dynamic per-tenant urlconfs still come from response.py.
     try:
@@ -245,6 +253,16 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
         log.debug("Error collecting Django routes for endpoint discovery", exc_info=True)
 
     return ret
+
+
+def _dispatch_resolved_request(
+    request: Any, _callback: Any, _callback_args: tuple[Any, ...], _callback_kwargs: dict[str, Any]
+) -> None:
+    if not _pre_31_resolve_request_enabled:
+        return
+    resolver_match = getattr(request, "resolver_match", None)
+    if resolver_match is not None:
+        core.dispatch("django.resolve_request", (resolver_match,), allow_raise=True)
 
 
 def instrument_view(django, view):
@@ -527,12 +545,15 @@ def wrap_wsgi_environ(wrapped, _instance, args, kwargs):
 
 
 def patch():
+    global _pre_31_resolve_request_enabled
+
     import django
 
     if getattr(django, "_datadog_patch", False):
         return
     _patch(django)
 
+    _pre_31_resolve_request_enabled = True
     django._datadog_patch = True
 
 
@@ -566,11 +587,14 @@ def _unpatch(django):
 
 
 def unpatch():
+    global _pre_31_resolve_request_enabled
+
     import django
 
     if not getattr(django, "_datadog_patch", False):
         return
 
+    _pre_31_resolve_request_enabled = False
     _unpatch(django)
 
     django._datadog_patch = False
