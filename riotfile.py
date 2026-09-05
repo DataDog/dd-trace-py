@@ -3675,7 +3675,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/sourcecode",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "setuptools": latest,
                 "pytest-randomly": latest,

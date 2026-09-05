@@ -1,4 +1,5 @@
 from collections import deque
+import sys
 from types import CodeType
 from types import FunctionType
 from typing import Any  # noqa:F401
@@ -8,6 +9,7 @@ from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import PY_315_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -29,7 +31,10 @@ class InvalidLine(Exception):
     """
 
 
-if PY >= (3, 15):
+# mypy only folds sys.version_info against literals. PY_315_VERSION_INFO is the
+# runtime floor; the literal keeps this 3.15-only import off the 3.10 checker.
+assert PY_315_VERSION_INFO == (3, 15)  # nosec B101
+if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos
@@ -44,7 +49,7 @@ if PY >= (3, 15):
         def on_py_line(self, code: Any, line_number: int) -> Any:
             hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line_number)
             if not hooks:
-                return _monitoring._DISABLE  # type: ignore[has-type]
+                return _monitoring._DISABLE
             for hook, arg in hooks:
                 hook(arg)
             return None

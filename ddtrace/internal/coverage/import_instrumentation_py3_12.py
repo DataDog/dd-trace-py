@@ -6,7 +6,6 @@ import typing as t
 from bytecode import Bytecode
 from bytecode import Instr
 
-from ddtrace.internal.bytecode_injection import INJECTION_ASSEMBLY
 from ddtrace.internal.bytecode_injection import HookType
 
 
@@ -109,6 +108,11 @@ def inject_import_hooks(
     pending_insertions: list[PendingImportHook] = [
         (event.instruction_index, (0, path, event.import_name), event.line) for event in import_events
     ]
+
+    # INJECTION_ASSEMBLY exists only on the <3.15 bytecode path. This helper is
+    # unused on 3.15 (_USE_ACCURATE_IMPORTS is False); keep the import here so
+    # coverage instrumentation can load when ITR enables it on 3.15.
+    from ddtrace.internal.bytecode_injection import INJECTION_ASSEMBLY
 
     for idx, arg, lineno in reversed(pending_insertions):
         bytecode[idx + 1 : idx + 1] = INJECTION_ASSEMBLY.bind(dict(hook=hook, arg=arg), lineno=lineno)
