@@ -42,7 +42,6 @@ DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_OUT_OF_SESSION_RETRIES_ENABLED": "1",
 }
 NIGHTLY_ENVIRONMENT = {"DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED": "1"}
-UV_TEST_SUITES = ("tracer", "tracer-uwsgi")
 
 
 class MatrixError(ValueError):
@@ -76,6 +75,9 @@ def _collect_suitespecs() -> dict:
 
 
 SUITESPEC = _collect_suitespecs()
+UV_TEST_SUITES = ("tracer", "tracer-uwsgi") + tuple(
+    suite for suite, config in SUITESPEC["suites"].items() if suite.startswith("contrib::") and "matrix" in config
+)
 
 
 @cache
@@ -143,8 +145,11 @@ class TestEnvironment:
 
     suite: str
     name: str
+    integration_name: str
     python: str
     direct_dependencies: tuple[str, ...]
+    # Preserve historical Riot lock hashes when uv requires a different dependency declaration.
+    riot_lock_dependencies: tuple[str, ...]
     runs: tuple[TestRun, ...]
 
     @property
@@ -153,11 +158,12 @@ class TestEnvironment:
 
     @property
     def lock_hash(self) -> str:
-        return _test_environment_hash(self.name, self.python, self.direct_dependencies)
+        return _test_environment_hash(self.name, self.python, self.riot_lock_dependencies)
 
     @property
     def hash(self) -> str:
-        return _test_environment_hash(f"{self.suite}::{self.name}", self.python, self.direct_dependencies)
+        name = f"{self.suite}::{self.name}"
+        return _test_environment_hash(name, self.python, self.direct_dependencies)
 
 
 def _requirement_key(requirement: str) -> str:
@@ -207,7 +213,36 @@ def _runs(
     return tuple(runs)
 
 
-def _expand_suite_matrix(suite: str, suite_config: dict[str, Any], *, nightly: bool) -> tuple[TestEnvironment, ...]:
+def _variant_settings(
+    suite: str,
+    suite_config: dict[str, Any],
+    matrix: dict[str, Any],
+    variant: dict[str, Any],
+    nightly: bool,
+) -> tuple[tuple[str, ...], tuple[str, ...], str, tuple[TestRun, ...]]:
+    dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
+    environment = DEFAULT_ENVIRONMENT.copy()
+    if "env" in matrix:
+        environment.update(matrix["env"])
+    if nightly:
+        environment.update(NIGHTLY_ENVIRONMENT)
+    if "env" in variant:
+        environment.update(variant["env"])
+
+    command = variant.get("command", matrix.get("command"))
+    run_specs = variant.get("runs", matrix.get("runs"))
+    integration = variant.get("integration", suite_config.get("integration", variant["name"].split(":", 1)[0]))
+    riot_lock_dependencies = tuple(variant.get("riot_lock_dependencies", dependencies))
+    return dependencies, riot_lock_dependencies, integration, _runs(command, environment, run_specs)
+
+
+def _expand_suite_matrix(
+    suite: str,
+    suite_config: dict[str, Any],
+    *,
+    nightly: bool,
+) -> tuple[TestEnvironment, ...]:
+    """Expand one compact suite matrix into concrete test environments."""
     matrix = suite_config["matrix"]
     variants = matrix["variants"]
     if not variants:
@@ -218,25 +253,26 @@ def _expand_suite_matrix(suite: str, suite_config: dict[str, Any], *, nightly: b
         name = variant.get("name")
         if not isinstance(name, str) or not name.strip():
             raise MatrixError(f"every variant for {suite} needs a name")
-        python_versions = tuple(variant.get("python", matrix.get("python", DEFAULT_PYTHON_VERSIONS)))
+        python_value = variant.get("python", matrix.get("python", DEFAULT_PYTHON_VERSIONS))
+        python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
-        environment = DEFAULT_ENVIRONMENT.copy()
-        environment.update(matrix.get("env", {}))
-        if nightly:
-            environment.update(NIGHTLY_ENVIRONMENT)
-        environment.update(variant.get("env", {}))
-        command = variant.get("command", matrix.get("command"))
-        run_specs = variant.get("runs", matrix.get("runs"))
-        runs = _runs(command, environment, run_specs)
+        dependencies, riot_lock_dependencies, integration, runs = _variant_settings(
+            suite,
+            suite_config,
+            matrix,
+            variant,
+            nightly,
+        )
         for python in python_versions:
             environments.append(
                 TestEnvironment(
                     suite=suite,
                     name=name,
+                    integration_name=integration,
                     python=python,
                     direct_dependencies=dependencies,
+                    riot_lock_dependencies=riot_lock_dependencies,
                     runs=runs,
                 )
             )
@@ -247,5 +283,8 @@ def _expand_suite_matrix(suite: str, suite_config: dict[str, Any], *, nightly: b
 @cache
 def get_test_environments(*, nightly: bool) -> dict[str, tuple[TestEnvironment, ...]]:
     """Return every concrete test environment declared by suitespec."""
-    suites = get_suites()
-    return {suite: _expand_suite_matrix(suite, suites[suite], nightly=nightly) for suite in UV_TEST_SUITES}
+    return {
+        suite: _expand_suite_matrix(suite, config, nightly=nightly)
+        for suite, config in get_suites().items()
+        if "matrix" in config
+    }

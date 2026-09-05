@@ -928,12 +928,17 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
@@ -3390,6 +3395,7 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", "~=2.54.1"],
@@ -3398,6 +3404,7 @@ venv = Venv(
         Venv(
             name="ray_serve",
             command="pytest {cmdargs} tests/contrib/ray_serve",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "fastapi": latest,
@@ -4816,41 +4823,40 @@ def _is_protected_ci_branch() -> bool:
     return branch == "main" or branch.startswith("mq-")
 
 
-def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
-    python_hint = getattr(inst.py, "_hint", "")
+def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
     python_version = _python_hint_to_version(python_hint)
 
-    # Ensure inst.env is a mutable dict we can update in-place.
-    if not inst.env:
-        inst.env = {}
-
     if python_hint:
-        inst.env["_CI_DD_TAGS"] = (
-            f"test.configuration.riot_hash:{inst.short_hash},test.configuration.python:{python_hint}"
-        )
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash},test.configuration.python:{python_hint}"
     else:
-        inst.env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{inst.short_hash}"
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash}"
 
     # ITR is enabled by default for Python >= 3.12, unless the venv explicitly opts out
     # via DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false.
     if (
-        _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
-        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst.env
+        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in env
         and python_version is not None
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
-        inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
 
         # Test skipping is disabled by default (PREVENT_TEST_SKIPPING=1), unless the venv
         # explicitly opts in via DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB=true.
-        if _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
-            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+        if _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
+            env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
         else:
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
         if _is_protected_ci_branch():
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+            env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+
+def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
+    if not inst.env:
+        inst.env = {}
+    _configure_ci_itr_environment(inst.env, getattr(inst.py, "_hint", ""), inst.short_hash)
 
 
 _venv_instances = venv.instances
