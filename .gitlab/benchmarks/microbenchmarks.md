@@ -127,19 +127,17 @@ Also check whether the gate is already telling you: an `(unstable)` line in the
 ### Recording it
 
 Add the scenario name to `FLAKY_BENCHMARKS_REGEX` in `microbenchmarks.yml`. It is a
-`|`-delimited regex matched against scenario names. A flagged benchmark still runs and still
-reports its numbers, so trends stay visible; it just does not fail the pipeline.
+`|`-delimited regex matched against scenario names, anchored per entry (`^name$`). A flagged
+benchmark still runs and still reports its numbers, so trends stay visible, and the pull request
+comment groups it under its own heading; it just does not fail the pipeline.
 
 > [!NOTE]
-> `FLAKY_BENCHMARKS_REGEX` is not declared in `microbenchmarks.yml` yet, and the gate does not
-> read it yet either — the `check-slo-breaches` job currently runs `bp-runner` against the SLO
-> file and nothing consults a flaky list. Adding the empty variable declaration, and the gate
-> support behind it, is tracked separately.
->
-> This is nonetheless the intended mechanism, so record the name here when the declaration lands
-> rather than reaching for something else. In particular, do not work around it by deleting the
-> scenario's thresholds from the SLO template: that drops the benchmark out of reporting as well as
-> out of gating, so nobody sees the trend either.
+> The regex is read by `benchmark_analyzer convert` in the `microbenchmarks` job, not by the gates.
+> Matching benchmarks get a `flaky: "true"` parameter in their converted results, and both
+> `--fail-on-regression` and `--fail-on-breach` skip flagged benchmarks when deciding whether to
+> fail. Because the marking happens at conversion time, a change to the regex only takes effect on
+> a fresh `microbenchmarks` run: re-running a gate alone re-reads results that were converted
+> under the old regex.
 
 Marking a benchmark flaky is a stopgap, not a resolution: it means nothing is watching that code
 path for regressions. Open an issue to either stabilize the scenario or remove it.

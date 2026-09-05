@@ -61,6 +61,9 @@ variables:
       upload-results-to-s3.sh || :
       # Copy converted JSON reports to common location
       cp $REPORTS_DIR/*.converted.json $(pwd)/reports/
+      # check-big-regressions reads baseline_branch.txt from the flat reports/
+      # directory (ARTIFACTS_DIR), not the per-scenario one run-benchmarks.sh writes it to.
+      cp $REPORTS_DIR/baseline_branch.txt $(pwd)/reports/ 2>/dev/null || :
     done
 
     # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
@@ -211,6 +214,33 @@ benchmarks-pr-comment:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
+
+# Percentage-regression PR gate: fails when this branch made any benchmark
+# more than the configured percentage slower than the branch it merges into.
+# Complements check-slo-breaches, which scores the same results against fixed
+# SLO thresholds instead of against the baseline.
+# Bypass with the 'performance/ignore-performance-regression' label on the PR.
+# @see https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide
+check-big-regressions:
+  extends: .check-slo-breaches
+  stage: gate
+  # Temporary override while benchmarking platform updates their template
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:16a75e4d
+  needs:
+    - pipeline: $PARENT_PIPELINE_ID
+      job: tests-gen
+    - job: microbenchmarks
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - artifacts/
+      - reports/
+    expire_in: 3 months
+  variables:
+    DDOCTOSTS_POLICY: "gitlab.github-access.read"
+    ARTIFACTS_DIR: "reports/"
+    SLO_FILE: ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-regression.yml"
 
 # Unlike pre-release SLO checks that run unconditionally (which have
 # "when: always"), this PR-level check runs only if benchmarks succeed.
