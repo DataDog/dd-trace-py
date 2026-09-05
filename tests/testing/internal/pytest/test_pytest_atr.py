@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import typing as t
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
@@ -24,7 +23,7 @@ class TestATR:
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_pass"),
         }
 
@@ -60,7 +59,7 @@ class TestATR:
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "test_fail"),
         }
 
@@ -108,7 +107,7 @@ class TestATR:
         """
         )
 
-        known_tests: set[t.Union[TestRef, SuiteRef]] = {
+        known_tests: set[TestRef] = {
             TestRef(SuiteRef(ModuleRef(""), "test_foo.py"), "TestFlaky::test_flaky"),
         }
 
