@@ -1016,6 +1016,57 @@ def test_flush_sample_never_passes_zero_to_push_monotonic_ns() -> None:
         assert ts == 0, f"Expected 0 to be passed through to push_monotonic_ns (guard is in C++), got {ts}"
 
 
+def test_sampling_reentrancy_guard() -> None:
+    """Regression test for the per-thread reentrancy guard on the sampling block."""
+    import _thread
+    import threading
+
+    import mock
+
+    from ddtrace.profiling import collector
+    import ddtrace.profiling.collector._lock as _lock_module
+    from tests.profiling.collector.test_utils import init_ddup
+
+    init_ddup("test_sampling_reentrancy_guard")
+
+    real_lock: threading.Lock = threading.Lock()
+    capture_sampler = collector.CaptureSampler(capture_pct=100)
+    profiled_lock: _ProfiledLock = _ProfiledLock(
+        wrapped=real_lock,
+        tracer=None,
+        capture_sampler=capture_sampler,
+    )
+    profiled_lock.name = "test_lock"
+
+    tid: int = _thread.get_ident()
+    assert tid not in _lock_module._SAMPLING_ACTIVE_THREADS, "Guard set must be clean at test start"
+
+    # With the guard already set for this thread, a sampled acquire must not build a sample.
+    _lock_module._SAMPLING_ACTIVE_THREADS.add(tid)
+    try:
+        with mock.patch.object(_lock_module, "ddup") as mock_ddup:
+            mock_ddup.SampleHandle.return_value = mock.MagicMock()
+            profiled_lock.acquire()
+            profiled_lock.release()
+            assert not mock_ddup.SampleHandle.called, (
+                "Reentrant sampling must not build a sample when the current "
+                "thread is already inside the sampling block"
+            )
+    finally:
+        _lock_module._SAMPLING_ACTIVE_THREADS.discard(tid)
+
+    # Once the guard is cleared, sampling runs normally.
+    with mock.patch.object(_lock_module, "ddup") as mock_ddup:
+        mock_ddup.SampleHandle.return_value = mock.MagicMock()
+        profiled_lock.acquire()
+        profiled_lock.release()
+        assert mock_ddup.SampleHandle.called, "Sampling must run normally once the guard is cleared"
+
+    assert tid not in _lock_module._SAMPLING_ACTIVE_THREADS, (
+        "The sampling block must always clear its per-thread guard on exit"
+    )
+
+
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
 

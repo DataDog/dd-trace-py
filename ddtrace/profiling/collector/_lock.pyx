@@ -59,6 +59,12 @@ _ALWAYS_EXCLUDED_MODULES: frozenset = frozenset({
 # are invisible, so the caller's frame is at index 0, not 3.
 cdef int _CALLER_FRAME_INDEX = 0
 
+# Per-thread reentrancy guard for the whole sampling path.
+# A lock acquired from inside profiler sampling on this thread
+# must not re-enter name resolution or sample flushing, or it
+# can dereference half-torn-down frames/objects and crash.
+_SAMPLING_ACTIVE_THREADS: set[int] = set()
+
 
 cdef tuple _current_thread():
     thread_id: int = _thread.get_ident()
@@ -216,14 +222,21 @@ class _ProfiledLock:
 
         cdef long long end = time.monotonic_ns()
         self.acquired_time = end
-        try:
-            self._update_name()
-            self._flush_sample(start, end, True)
-        except AssertionError:
-            if config.enable_asserts:
-                raise
-        except Exception:
-            pass  # nosec
+        # Skip name resolution and flushing if we are already sampling on this
+        # thread (reentrancy from a lock acquired inside the profiler path).
+        tid: int = _thread.get_ident()
+        if tid not in _SAMPLING_ACTIVE_THREADS:
+            _SAMPLING_ACTIVE_THREADS.add(tid)
+            try:
+                self._update_name()
+                self._flush_sample(start, end, True)
+            except AssertionError:
+                if config.enable_asserts:
+                    raise
+            except Exception:
+                pass  # nosec
+            finally:
+                _SAMPLING_ACTIVE_THREADS.discard(tid)
         if error_info is not None:
             err: BaseException
             tb: Optional[TracebackType]
@@ -256,19 +269,27 @@ class _ProfiledLock:
         if start is None:
             return result
 
-        try:
-            self._flush_sample(start, time.monotonic_ns(), False)
-        except AssertionError:
-            if config.enable_asserts:
-                raise
-        except Exception:
-            pass  # nosec
+        # Skip flushing if we are already sampling on this thread (reentrancy
+        # from a lock acquired inside the profiler path).
+        tid: int = _thread.get_ident()
+        if tid not in _SAMPLING_ACTIVE_THREADS:
+            _SAMPLING_ACTIVE_THREADS.add(tid)
+            try:
+                self._flush_sample(start, time.monotonic_ns(), False)
+            except AssertionError:
+                if config.enable_asserts:
+                    raise
+            except Exception:
+                pass  # nosec
+            finally:
+                _SAMPLING_ACTIVE_THREADS.discard(tid)
 
         return result
 
     def _flush_sample(self, long long start, long long end, bint is_acquire) -> None:
         """Push lock profiling data to ddup."""
         cdef long long duration_ns = end - start
+
         try:
             handle: ddup.SampleHandle = ddup.SampleHandle()
 
