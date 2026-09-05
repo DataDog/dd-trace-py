@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import itertools
 import os
-import traceback
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -9,6 +8,7 @@ from typing import Optional
 from typing import Union
 import weakref
 
+from ddtrace.internal._instrumentation_frames import extract_reportable_frames
 from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
@@ -686,7 +686,7 @@ class TelemetryWriter:
         if not exc_traceback:
             return None
 
-        tb = traceback.extract_tb(exc_traceback)
+        tb = extract_reportable_frames(exc_traceback)
         formatted_tb = ["Traceback (most recent call last):"]
         # Only include the last 20 frames
         for filename, lineno, funcname, srcline in tb[-20:]:

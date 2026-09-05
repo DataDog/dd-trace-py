@@ -211,3 +211,36 @@ def test_lfi_normal_exception_pathlib() -> None:
             assert "pathlib" in frames[-1].filename
     finally:
         cmp.unpatch_common_modules()
+
+
+@pytest.mark.parametrize(
+    "opener, wrapper_name",
+    [
+        (lambda: open("/unknown/do_not_exist_test.txt", "w"), "wrapped_builtin_open"),
+        (lambda: Path("/unknown/do_not_exist_test.txt").open("w"), "wrapped_path_open"),
+    ],
+)
+def test_lfi_wrapper_frames_are_not_reported_to_the_crashtracker(opener, wrapper_name) -> None:
+    """APPSEC-69877: the customer keeps the whole traceback, but we stop reporting ourselves.
+
+    Crash intake tags a report crash_datadog:true as soon as a ddtrace path appears in its frames,
+    so a wrapper the exception only passed through gets us blamed for the customer's bug.
+    """
+    from ddtrace.internal._instrumentation_frames import extract_reportable_frames
+
+    try:
+        cmp.patch_common_modules()
+        with pytest.raises(FileNotFoundError) as raised:
+            opener()
+
+        exc = raised.value
+        # The traceback the application sees is untouched: this only changes what we report.
+        assert wrapper_name in [frame.name for frame in traceback.extract_tb(exc.__traceback__)]
+
+        reported = extract_reportable_frames(exc.__traceback__)
+        assert wrapper_name not in [frame.name for frame in reported]
+        assert not any("/ddtrace/" in frame.filename for frame in reported)
+        # Dropping our frame must not cost the customer's own frame.
+        assert __file__ in [frame.filename for frame in reported]
+    finally:
+        cmp.unpatch_common_modules()

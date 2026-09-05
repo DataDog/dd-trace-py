@@ -8,6 +8,7 @@ from typing import Optional
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
+from ddtrace.internal._instrumentation_frames import mark_passthrough
 from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -103,6 +104,10 @@ def try_unwrap(module: Any, name: str) -> None:
 
 
 def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable[..., Any]) -> None:
+    # Every appsec wrapt wrapper goes through here, and each one forwards to the callable it
+    # wraps, so the frame it leaves behind must not be blamed for the customer's exceptions.
+    mark_passthrough(wrapper)
+
     def _(module: Any) -> None:
         try:
             wrap_object(module, name, FunctionWrapper, (wrapper,))
