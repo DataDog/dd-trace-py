@@ -1748,3 +1748,33 @@ def test_otlp_without_an_explicit_endpoint_still_goes_agentless():
     assert writer.agentless is True
     assert writer._otlp_endpoint is None
     assert writer.intake_url == "https://public-trace-http-intake.logs.datadoghq.com/v1/input"
+
+
+def test_native_writer_sets_otlp_trace_context_on_every_span():
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    trace_id = 0xFFF972474538EFFF
+    root = Span("root", trace_id=trace_id, span_id=1)
+    root.context._publish_sampling_decision(1, 0.1, True)
+    child = Span("child", trace_id=trace_id, span_id=2, parent_id=1, context=root.context)
+
+    writer._set_otlp_trace_context([root, child])
+
+    for span in (root, child):
+        assert span.get_metric("_sampling_priority_v1") == 1
+        assert "ot=rv:ef284ace7a91e1;th:e6666666666668" in span.get_tag("tracestate")
+        assert "p:{:016x}".format(span.span_id) in span.get_tag("tracestate")
+
+
+def test_native_writer_forwards_inherited_otel_trace_context():
+    writer = NativeWriter("http://localhost:8126", otlp_endpoint="http://localhost:4318/v1/traces")
+    parent = Span("parent", trace_id=1, span_id=1)
+    parent.context.sampling_priority = 2
+    parent.context._meta["tracestate"] = "dd=s:2;t.dm:-3,ot=rv:ef284ace7a91e1;th:e6666666666668,future=value"
+    child = Span("child", trace_id=1, span_id=2, parent_id=1, context=parent.context)
+
+    writer._set_otlp_trace_context([child])
+
+    assert child.get_metric("_sampling_priority_v1") == 2
+    assert child.get_tag("tracestate") == (
+        "dd=p:0000000000000002;s:2,ot=rv:ef284ace7a91e1;th:e6666666666668,future=value"
+    )

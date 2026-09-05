@@ -320,8 +320,14 @@ class TelemetryWorker:
     def stop(self, send_app_closing: bool) -> None:
         """Flush and shut the worker down, waiting briefly for it to drain.
 
-        :param send_app_closing: when ``True`` emit the app-closing event
-            (origin only); when ``False`` just force a final data flush.
+        Emits app-closing (origin process only) and flushes remaining batches
+        during teardown.
+
+        WARNING: send_app_closing is currently ineffective and ignored. Since
+        the migration to libdatadog's telemetry worker, stop() always emits
+        app-closing in the origin process during teardown. If stopping
+        without app-closing is needed again, the behavior must be fixed in
+        libdatadog first (TODO).
         """
         ...
     def flush(self) -> None:
