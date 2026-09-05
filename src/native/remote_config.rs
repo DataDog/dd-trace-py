@@ -33,6 +33,7 @@ use pyo3::types::PyBytes;
 
 use native_proc_macro::ConvertToPyO3Enum;
 
+use crate::gil::detach_or_hang_on_finalize;
 use crate::rc_shm::{ShmReader, ShmStorage};
 use crate::shared_runtime::SharedRuntimePy;
 
@@ -302,7 +303,7 @@ impl RemoteConfigClient {
         // Unwrap the PyO3 mirror to the libdatadog enum before releasing the GIL.
         let products: Vec<RemoteConfigProductNative> =
             products.into_iter().map(Into::into).collect();
-        let result: Result<Vec<ChangeRecord>, String> = py.detach(move || {
+        let result: Result<Vec<ChangeRecord>, String> = detach_or_hang_on_finalize(py, move || {
             let mut inner = self.lock();
 
             let rc_capabilities: Vec<RemoteConfigCapabilitiesNative> =
@@ -421,7 +422,7 @@ impl RemoteConfigReader {
     /// Returns `True` if woken by a notification, `False` on timeout. On Linux
     /// this is a futex wait on the manifest's generation word; elsewhere it polls.
     fn wait_for_change(&self, py: Python<'_>, timeout_ms: u64) -> bool {
-        py.detach(move || {
+        detach_or_hang_on_finalize(py, move || {
             let mut reader = self.reader.lock().unwrap_or_else(|e| e.into_inner());
             reader.wait_for_change(Duration::from_millis(timeout_ms))
         })
@@ -437,7 +438,7 @@ impl RemoteConfigReader {
     #[pyo3(signature = (enabled_products))]
     fn read(&self, py: Python<'_>, enabled_products: Vec<String>) -> PyResult<Vec<ChangeRecord>> {
         let enabled: HashSet<String> = enabled_products.into_iter().collect();
-        let changes = py.detach(move || {
+        let changes = detach_or_hang_on_finalize(py, move || {
             let mut reader = self.reader.lock().unwrap_or_else(|e| e.into_inner());
             reader.read(enabled)
         });
