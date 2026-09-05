@@ -1143,6 +1143,7 @@ suites:
     snapshot: true
   pytorch:
     venvs_per_job: 1
+    # Pull-only: restore cache download, skip uploading large torch CUDA wheels.
     skip_pip_cache: true
     paths:
       - '@bootstrap'

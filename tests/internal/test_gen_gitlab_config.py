@@ -207,3 +207,28 @@ def test_unmigrated_jobs_keep_using_riot(gen_gitlab_config_mod):
     assert "  extends: .test_base_riot" in config
     assert "    PIP_CACHE_KEY: pip-key" in config
     assert "TEST_ENVIRONMENTS_" not in config
+
+
+def test_jobspec_default_pip_cache_is_pull_push(gen_gitlab_config_mod) -> None:
+    with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
+        config: str = str(gen_gitlab_config_mod.JobSpec(name="suite", stage="core"))
+
+    assert "  cache:" in config
+    assert "      - .cache" in config
+    assert "    policy: pull" not in config
+
+
+def test_jobspec_skip_pip_cache_is_pull_only(gen_gitlab_config_mod) -> None:
+    with mock.patch.object(gen_gitlab_config_mod.subprocess, "check_output", return_value=b"pip-key\n"):
+        config: str = str(gen_gitlab_config_mod.JobSpec(name="pytorch", stage="contrib", skip_pip_cache=True))
+
+    assert "  cache:" in config
+    assert "      - .cache" in config
+    assert "    policy: pull" in config
+
+
+def test_jobspec_uv_jobs_omit_pip_cache(gen_gitlab_config_mod) -> None:
+    config: str = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer", uses_uv=True))
+
+    assert "  cache:" not in config
+    assert "PIP_CACHE_KEY" not in config
