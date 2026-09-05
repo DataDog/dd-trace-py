@@ -138,6 +138,7 @@ ENV_VAR_MAPPINGS: dict[str, tuple[str, Callable[[str], Optional[str]]]] = {
 # https://github.com/open-telemetry/opentelemetry-python/blob/v1.34.1/opentelemetry-sdk/src/opentelemetry/sdk/environment_variables/__init__.py
 SUPPORTED_OTEL_ENV_VARS = {
     "OTEL_PYTHON_CONTEXT",
+    "OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS",
     "OTEL_METRIC_EXPORT_INTERVAL",
     "OTEL_METRIC_EXPORT_TIMEOUT",
     "OTEL_TRACES_SAMPLER_ARG",

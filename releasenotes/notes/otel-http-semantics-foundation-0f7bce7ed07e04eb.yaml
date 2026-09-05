@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    tracing: Extends ``DD_TRACE_OTEL_SEMANTICS_ENABLED`` so enabled mode uses settings required
+    by OpenTelemetry HTTP semantic conventions: OTLP trace export, schema v0, and disabled
+    peer-service defaults. ``OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS`` can replace the default
+    recognized HTTP methods. The option remains disabled by default.

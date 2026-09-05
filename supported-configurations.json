@@ -5645,6 +5645,13 @@
         "default": "10000"
       }
     ],
+    "OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
+      }
+    ],
     "OTEL_LOGS_EXPORTER": [
       {
         "implementation": "A",
