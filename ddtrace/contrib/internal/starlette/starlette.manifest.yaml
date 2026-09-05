@@ -1,0 +1,13 @@
+_v: 1
+name: starlette
+display_name: Starlette
+description: Instruments inbound Starlette HTTP requests with route and response metadata, server-side WebSocket connections
+  and messages, and background task execution.
+packages:
+- name: starlette
+category:
+- http.server
+- task.execution
+- websocket.server
+systems: []
+creation_date: '2020-10-07'

@@ -1,0 +1,11 @@
+_v: 1
+name: falcon
+display_name: Falcon
+description: Instruments inbound HTTP requests handled by Falcon applications, including distributed context extraction, routes,
+  response status, headers, and errors.
+packages:
+- name: falcon
+category:
+- http.server
+systems: []
+creation_date: '2016-08-09'

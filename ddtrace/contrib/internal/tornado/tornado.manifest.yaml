@@ -1,0 +1,12 @@
+_v: 1
+name: tornado
+display_name: Tornado
+description: Instruments inbound HTTP request handling and template rendering in Tornado web applications, capturing request
+  metadata, routes, responses, and errors.
+packages:
+- name: tornado
+category:
+- http.server
+- template.render
+systems: []
+creation_date: '2017-02-05'
