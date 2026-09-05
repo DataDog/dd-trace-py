@@ -27,6 +27,7 @@ from ddtrace.propagation.http import _TraceContext
 from ._worker import get_current_invocation_carrier
 
 
+_EXECUTION_STARTED_EVENT_TYPE = 0
 # Numeric value serialized by Azure for HistoryEventType.ORCHESTRATOR_COMPLETED.
 _ORCHESTRATOR_COMPLETED_EVENT_TYPE = 13
 
@@ -55,10 +56,7 @@ def create_context(
     )
 
 
-def _get_azure_invocation_context() -> Optional[Context]:
-    carrier = get_current_invocation_carrier()
-    if carrier is None:
-        return None
+def _context_from_carrier(carrier: dict[str, str]) -> Optional[Context]:
     context = _TraceContext._extract(carrier)
     if context is None or not context.trace_id:
         return None
@@ -81,6 +79,58 @@ def _get_azure_invocation_context() -> Optional[Context]:
                 context.sampling_priority = propagated_priority
 
     return context
+
+
+def _get_azure_invocation_context() -> Optional[Context]:
+    carrier = get_current_invocation_carrier()
+    return _context_from_carrier(carrier) if carrier is not None else None
+
+
+def _get_orchestration_data(
+    args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
+) -> Optional[dict[str, Any]]:
+    orchestration_context = kwargs.get(trigger_arg_name)
+    if orchestration_context is None and args:
+        orchestration_context = args[0]
+
+    body = getattr(orchestration_context, "body", orchestration_context)
+    try:
+        orchestration_data = json.loads(body) if isinstance(body, (str, bytes, bytearray)) else body
+    except (TypeError, ValueError):
+        return None
+    return orchestration_data if isinstance(orchestration_data, dict) else None
+
+
+def _get_orchestration_parent_context(
+    args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
+) -> Optional[Context]:
+    invocation_context = _get_azure_invocation_context()
+    if invocation_context is not None:
+        return invocation_context
+
+    orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
+    history = orchestration_data.get("history") if orchestration_data is not None else None
+    if not isinstance(history, list):
+        return None
+
+    # AIDEV-NOTE: The Azure Python worker can omit trace_context for an
+    # orchestration invocation. Durable persists the same W3C parent on the
+    # ExecutionStarted history event, so use it as the authoritative fallback.
+    for event in history:
+        if not isinstance(event, dict) or event.get("EventType") != _EXECUTION_STARTED_EVENT_TYPE:
+            continue
+        parent = event.get("ParentTraceContext") or event.get("parentTraceContext")
+        if not isinstance(parent, dict):
+            return None
+        traceparent = parent.get("TraceParent") or parent.get("traceParent")
+        if not isinstance(traceparent, str) or not traceparent:
+            return None
+        carrier = {"traceparent": traceparent}
+        tracestate = parent.get("TraceState") or parent.get("traceState")
+        if isinstance(tracestate, str) and tracestate:
+            carrier["tracestate"] = tracestate
+        return _context_from_carrier(carrier)
+    return None
 
 
 def wrap_function_with_tracing(
@@ -143,20 +193,8 @@ def _has_previous_orchestration_activation(
 ) -> bool:
     # AIDEV-NOTE: isReplaying changes while one activation is evaluated. A completed
     # orchestration episode in history reliably identifies a later host activation.
-    orchestration_context = kwargs.get(trigger_arg_name)
-    if orchestration_context is None and args:
-        orchestration_context = args[0]
-
-    body = getattr(orchestration_context, "body", orchestration_context)
-    try:
-        orchestration_data = json.loads(body) if isinstance(body, (str, bytes, bytearray)) else body
-    except (TypeError, ValueError):
-        return False
-
-    if not isinstance(orchestration_data, dict):
-        return False
-
-    history = orchestration_data.get("history")
+    orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
+    history = orchestration_data.get("history") if orchestration_data is not None else None
     if not isinstance(history, list):
         return False
 
@@ -173,7 +211,8 @@ def wrap_orchestration_trigger(
 
     def invoke_with_tracing(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
         resource_name = f"{trigger_type} {function_name}"
-        with create_context(context_name, resource_name, parent_context=_get_azure_invocation_context()) as ctx:
+        parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name)
+        with create_context(context_name, resource_name, parent_context=parent_context) as ctx:
             core.dispatch(
                 "azure.durable_functions.trigger_call_modifier",
                 (ctx, config.azure_functions, function_name, trigger_type, SpanKind.SERVER),
@@ -190,7 +229,8 @@ def wrap_orchestration_trigger(
             return func(*args, **kwargs)
         except BaseException:
             resource_name = f"{trigger_type} {function_name}"
-            with create_context(context_name, resource_name, parent_context=_get_azure_invocation_context()) as ctx:
+            parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name)
+            with create_context(context_name, resource_name, parent_context=parent_context) as ctx:
                 span_from_context(ctx).start_ns = start_ns
                 core.dispatch(
                     "azure.durable_functions.trigger_call_modifier",

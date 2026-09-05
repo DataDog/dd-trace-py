@@ -185,7 +185,7 @@ def test_durable_trigger_preserves_propagated_keep_when_host_clears_sampled_flag
         assert span.context.sampling_priority == 2
 
 
-def _orchestration_context(has_previous_activation: bool = False) -> OrchestrationContext:
+def _orchestration_context(has_previous_activation: bool = False, parent_carrier=None) -> OrchestrationContext:
     history = [
         {
             "EventType": 12,
@@ -201,6 +201,14 @@ def _orchestration_context(has_previous_activation: bool = False) -> Orchestrati
             "Name": "sample_orchestrator",
             "Input": None,
             "Version": None,
+            "ParentTraceContext": (
+                {
+                    "TraceParent": parent_carrier["traceparent"],
+                    "TraceState": parent_carrier.get("tracestate"),
+                }
+                if parent_carrier is not None
+                else None
+            ),
         },
     ]
     if has_previous_activation:
@@ -256,6 +264,30 @@ def test_orchestration_trigger_wrapper():
         assert span.get_tag(SPAN_KIND) == SpanKind.SERVER
 
 
+def test_orchestration_trigger_uses_parent_from_execution_started_history():
+    def orchestrator(_):
+        return "ok"
+
+    handler = Orchestrator.create(orchestrator)
+    wrapped = wrap_orchestration_trigger(handler, "sample_orchestrator", "context")
+
+    with scoped_tracer() as tracer:
+        with tracer.trace("http.request") as http_span:
+            traceparent, tracestate = patched_get_current_activity_context(lambda: (None, None), None, (), {})
+
+        assert traceparent is not None
+        carrier = {"traceparent": traceparent}
+        if tracestate is not None:
+            carrier["tracestate"] = tracestate
+
+        wrapped(_orchestration_context(parent_carrier=carrier))
+        orchestration_span = next(
+            span for span in TracerSpanContainer(tracer).pop() if span.resource == "Orchestration sample_orchestrator"
+        )
+        assert orchestration_span.trace_id == http_span.trace_id
+        assert orchestration_span.parent_id == http_span.span_id
+
+
 def test_orchestration_trigger_is_wrapped_during_function_discovery():
     def orchestrator(_):
         return "ok"
@@ -290,6 +322,26 @@ def test_orchestration_trigger_is_wrapped_during_function_discovery():
     assert function._func.__wrapped__.__code__ is handler.__code__
 
 
+def test_activity_trigger_wrapper_traces_error():
+    def activity():
+        raise RuntimeError("activity failed")
+
+    wrapped = wrap_durable_trigger(
+        activity,
+        "sample_activity",
+        "Activity",
+        "azure.durable_functions.patched_activity",
+    )
+
+    with scoped_tracer() as tracer:
+        with pytest.raises(RuntimeError, match="activity failed"):
+            wrapped()
+
+        span = TracerSpanContainer(tracer).pop()[0]
+        assert span.resource == "Activity sample_activity"
+        assert span.error == 1
+
+
 def test_orchestration_trigger_wrapper_skips_previous_activation():
     def orchestrator(_):
         return "ok"
@@ -318,16 +370,26 @@ def test_orchestration_trigger_wrapper_traces_error_after_previous_activation():
     wrapped = wrap_orchestration_trigger(handler, "sample_orchestrator", "context")
 
     with scoped_tracer() as tracer:
+        with tracer.trace("http.request") as http_span:
+            traceparent, tracestate = patched_get_current_activity_context(lambda: (None, None), None, (), {})
+        assert traceparent is not None
+        parent_carrier = {"traceparent": traceparent}
+        if tracestate is not None:
+            parent_carrier["tracestate"] = tracestate
+
         with pytest.raises(Exception, match="orchestration failed"):
-            wrapped(context=_orchestration_context(has_previous_activation=True))
+            wrapped(context=_orchestration_context(has_previous_activation=True, parent_carrier=parent_carrier))
 
         assert calls == 1
         spans = TracerSpanContainer(tracer).pop()
-        assert len(spans) == 1
-        span = spans[0]
+        orchestration_spans = [span for span in spans if span.resource == "Orchestration sample_orchestrator"]
+        assert len(orchestration_spans) == 1
+        span = orchestration_spans[0]
         assert span.resource == "Orchestration sample_orchestrator"
         assert span.get_tag(SPAN_KIND) == SpanKind.SERVER
         assert span.error == 1
+        assert span.trace_id == http_span.trace_id
+        assert span.parent_id == http_span.span_id
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
