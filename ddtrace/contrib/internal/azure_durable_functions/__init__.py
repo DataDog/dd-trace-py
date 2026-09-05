@@ -1,5 +1,5 @@
 """
-The azure_durable_functions integration traces durable activity and entity functions.
+The azure_durable_functions integration traces durable orchestration, activity, and entity functions.
 
 Enabling
 ~~~~~~~~

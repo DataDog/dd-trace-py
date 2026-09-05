@@ -1,5 +1,7 @@
 import functools
 import inspect
+import json
+import time
 from typing import Any
 from typing import Callable
 from typing import Coroutine
@@ -9,6 +11,8 @@ from typing import Union
 import azure.functions as azure_functions
 
 from ddtrace import config
+from ddtrace._trace.context import Context
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -18,10 +22,21 @@ from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.propagation.http import _TraceContext
+
+from ._worker import get_current_invocation_carrier
+
+
+_EXECUTION_STARTED_EVENT_TYPE = 0
+# Numeric value serialized by Azure for HistoryEventType.ORCHESTRATOR_COMPLETED.
+_ORCHESTRATOR_COMPLETED_EVENT_TYPE = 13
 
 
 def create_context(
-    context_name: str, resource: Optional[str] = None, headers: Optional[dict] = None
+    context_name: str,
+    resource: Optional[str] = None,
+    headers: Optional[dict] = None,
+    parent_context: Optional[Context] = None,
 ) -> core.ExecutionContext:
     operation_name = schematize_cloud_faas_operation(
         "azure.functions.invoke", cloud_provider="azure", cloud_service="functions"
@@ -33,9 +48,89 @@ def create_context(
         service=int_service(None, config.azure_functions),
         span_type=SpanTypes.SERVERLESS,
         distributed_headers=headers,
+        child_of=parent_context,
+        call_trace=parent_context is None,
+        activate=parent_context is not None,
         integration_config=config.azure_functions,
         activate_distributed_headers=True,
     )
+
+
+def _context_from_carrier(carrier: dict[str, str]) -> Optional[Context]:
+    context = _TraceContext._extract(carrier)
+    if context is None or not context.trace_id:
+        return None
+
+    traceparent = carrier.get("traceparent")
+    tracestate = carrier.get("tracestate")
+    if traceparent and tracestate:
+        try:
+            _, _, sampled = _TraceContext._get_traceparent_values(traceparent)
+            propagated_priority, _, _, _ = _TraceContext._get_tracestate_values(
+                [member.strip() for member in tracestate.split(",")]
+            )
+        except (TypeError, ValueError):
+            pass
+        else:
+            # The Durable host can clear the W3C sampled flag while retaining a
+            # Datadog keep decision in tracestate. Preserve that decision, as the
+            # JavaScript tracer does, so the reconnected trace is not dropped.
+            if sampled == 0 and propagated_priority is not None and propagated_priority >= AUTO_KEEP:
+                context.sampling_priority = propagated_priority
+
+    return context
+
+
+def _get_azure_invocation_context() -> Optional[Context]:
+    carrier = get_current_invocation_carrier()
+    return _context_from_carrier(carrier) if carrier is not None else None
+
+
+def _get_orchestration_data(
+    args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
+) -> Optional[dict[str, Any]]:
+    orchestration_context = kwargs.get(trigger_arg_name)
+    if orchestration_context is None and args:
+        orchestration_context = args[0]
+
+    body = getattr(orchestration_context, "body", orchestration_context)
+    try:
+        orchestration_data = json.loads(body) if isinstance(body, (str, bytes, bytearray)) else body
+    except (TypeError, ValueError):
+        return None
+    return orchestration_data if isinstance(orchestration_data, dict) else None
+
+
+def _get_orchestration_parent_context(
+    args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
+) -> Optional[Context]:
+    invocation_context = _get_azure_invocation_context()
+    if invocation_context is not None:
+        return invocation_context
+
+    orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
+    history = orchestration_data.get("history") if orchestration_data is not None else None
+    if not isinstance(history, list):
+        return None
+
+    # AIDEV-NOTE: The Azure Python worker can omit trace_context for an
+    # orchestration invocation. Durable persists the same W3C parent on the
+    # ExecutionStarted history event, so use it as the authoritative fallback.
+    for event in history:
+        if not isinstance(event, dict) or event.get("EventType") != _EXECUTION_STARTED_EVENT_TYPE:
+            continue
+        parent = event.get("ParentTraceContext") or event.get("parentTraceContext")
+        if not isinstance(parent, dict):
+            return None
+        traceparent = parent.get("TraceParent") or parent.get("traceParent")
+        if not isinstance(traceparent, str) or not traceparent:
+            return None
+        carrier = {"traceparent": traceparent}
+        tracestate = parent.get("TraceState") or parent.get("traceState")
+        if isinstance(tracestate, str) and tracestate:
+            carrier["tracestate"] = tracestate
+        return _context_from_carrier(carrier)
+    return None
 
 
 def wrap_function_with_tracing(
@@ -82,7 +177,7 @@ def wrap_function_with_tracing(
 def wrap_durable_trigger(func, function_name, trigger_type, context_name):
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        return create_context(context_name, resource_name)
+        return create_context(context_name, resource_name, parent_context=_get_azure_invocation_context())
 
     def pre_dispatch(ctx, kwargs):
         return (
@@ -91,6 +186,59 @@ def wrap_durable_trigger(func, function_name, trigger_type, context_name):
         )
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
+
+
+def _has_previous_orchestration_activation(
+    args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
+) -> bool:
+    # AIDEV-NOTE: isReplaying changes while one activation is evaluated. A completed
+    # orchestration episode in history reliably identifies a later host activation.
+    orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
+    history = orchestration_data.get("history") if orchestration_data is not None else None
+    if not isinstance(history, list):
+        return False
+
+    return any(
+        isinstance(event, dict) and event.get("EventType") == _ORCHESTRATOR_COMPLETED_EVENT_TYPE for event in history
+    )
+
+
+def wrap_orchestration_trigger(
+    func: Callable[..., Any], function_name: str, trigger_arg_name: str
+) -> Callable[..., Any]:
+    trigger_type = "Orchestration"
+    context_name = "azure.durable_functions.patched_orchestration"
+
+    def invoke_with_tracing(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+        resource_name = f"{trigger_type} {function_name}"
+        parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name)
+        with create_context(context_name, resource_name, parent_context=parent_context) as ctx:
+            core.dispatch(
+                "azure.durable_functions.trigger_call_modifier",
+                (ctx, config.azure_functions, function_name, trigger_type, SpanKind.SERVER),
+            )
+            return func(*args, **kwargs)
+
+    @functools.wraps(func)
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
+        if not _has_previous_orchestration_activation(args, kwargs, trigger_arg_name):
+            return invoke_with_tracing(args, kwargs)
+
+        start_ns = time.time_ns()
+        try:
+            return func(*args, **kwargs)
+        except BaseException:
+            resource_name = f"{trigger_type} {function_name}"
+            parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name)
+            with create_context(context_name, resource_name, parent_context=parent_context) as ctx:
+                span_from_context(ctx).start_ns = start_ns
+                core.dispatch(
+                    "azure.durable_functions.trigger_call_modifier",
+                    (ctx, config.azure_functions, function_name, trigger_type, SpanKind.SERVER),
+                )
+                raise
+
+    return wrapper
 
 
 def wrap_http_trigger(func, function_name, trigger_arg_name):
@@ -306,7 +454,6 @@ def patched_get_functions(wrapped, instance, args, kwargs):
         elif trigger_type == "cosmosDBTrigger":
             function._func = wrap_cosmos_trigger(func, function_name)
         elif trigger_type == "orchestrationTrigger":
-            # Orchestration triggers are explicitly skipped as they are not traced
-            continue
+            function._func = wrap_orchestration_trigger(func, function_name, trigger_arg_name)
 
     return functions
