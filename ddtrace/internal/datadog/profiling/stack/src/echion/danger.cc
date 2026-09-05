@@ -17,7 +17,7 @@ static const size_t page_size = []() -> size_t {
 
 #ifdef PL_DARWIN
     if (v <= 0) {
-        // Fallback on macOS just in case
+        // sysconf(_SC_PAGESIZE) can return -1; getpagesize() is the BSD API on Darwin
         v = getpagesize();
     }
 #endif
@@ -39,11 +39,10 @@ thread_local ThreadAltStack t_altstack;
 thread_local sigjmp_buf t_jmpenv;
 thread_local volatile sig_atomic_t t_handler_armed = 0;
 
-// Guards against a signal-handler chaining cycle. The unarmed path below chains
-// to the previously installed handler and re-raises; if that handler chains back
-// to us (e.g. profiler <-> crashtracker pointing at each other), we would loop
-// forever and hang the process. If we re-enter the unarmed path while already
-// chaining, fall through to the default disposition so termination is guaranteed.
+// Set once this thread has ceded a fault signal to its previous owner. Re-entering the
+// unarmed path afterwards means something reinstalled us and the fault is not making
+// progress, so we fall through to the default disposition and termination is guaranteed
+// instead of looping forever.
 thread_local volatile sig_atomic_t t_in_unarmed_chain = 0;
 
 static inline void
@@ -61,33 +60,98 @@ disarm_fault_handler()
 }
 
 static void
-segv_handler(int signo, siginfo_t*, void*)
+install_default_disposition(int signo)
+{
+    struct sigaction dfl
+    {};
+    dfl.sa_handler = SIG_DFL;
+    sigemptyset(&dfl.sa_mask);
+    dfl.sa_flags = 0;
+    sigaction(signo, &dfl, nullptr);
+}
+
+// Kernel-generated faults that re-execute the faulting instruction when the handler
+// returns. Injected signals (si_code <= 0) and a few positive Linux codes that are
+// still asynchronous must be re-delivered explicitly instead.
+static bool
+is_synchronous_fault(int signo, const siginfo_t* info)
+{
+    if (info == nullptr || info->si_code <= 0) {
+        return false;
+    }
+#if defined PL_LINUX
+#ifdef SEGV_MTEAERR
+    if (signo == SIGSEGV && info->si_code == SEGV_MTEAERR) {
+        return false;
+    }
+#endif
+#ifdef BUS_MCEERR_AO
+    if (signo == SIGBUS && info->si_code == BUS_MCEERR_AO) {
+        return false;
+    }
+#endif
+#endif
+    (void)signo;
+    return true;
+}
+
+// Hands signo back to whoever owned it before us, removing us from the chain.
+//
+// A saved SIG_IGN disposition is replaced by SIG_DFL only for synchronous faults:
+// ignoring one leaves the faulting instruction to re-execute forever, so honoring it
+// would hang the process instead of terminating it. Asynchronous deliveries keep SIG_IGN.
+static void
+cede_fault_signal(int signo, const siginfo_t* info)
+{
+    const struct sigaction* saved = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
+
+    if ((saved->sa_flags & SA_SIGINFO) == 0 && saved->sa_handler == SIG_IGN) {
+        if (is_synchronous_fault(signo, info)) {
+            install_default_disposition(signo);
+            return;
+        }
+        sigaction(signo, saved, nullptr);
+        return;
+    }
+
+    sigaction(signo, saved, nullptr);
+}
+
+static void
+segv_handler(int signo, siginfo_t* info, void*)
 {
     if (!t_handler_armed) {
         if (t_in_unarmed_chain) {
-            // We are being re-entered while already chaining to a previous
-            // handler: the handler chain has cycled back to us. Restore the
-            // default disposition and re-raise to guarantee the process
-            // terminates instead of looping forever.
-            struct sigaction dfl
-            {};
-            dfl.sa_handler = SIG_DFL;
-            sigemptyset(&dfl.sa_mask);
-            dfl.sa_flags = 0;
-            sigaction(signo, &dfl, nullptr);
-            pthread_kill(pthread_self(), signo);
+            // We already ceded this signal on this thread, so something reinstalled us
+            // and the fault is not making progress. Force the default disposition to
+            // guarantee the process terminates instead of looping forever.
+            install_default_disposition(signo);
+            if (!is_synchronous_fault(signo, info)) {
+                pthread_kill(pthread_self(), signo);
+            }
             return;
         }
         t_in_unarmed_chain = 1;
 
-        struct sigaction* old = (signo == SIGSEGV) ? &g_old_segv : &g_old_bus;
-        // Restore the previous handler and re-raise so default/old handling occurs.
-        // Use pthread_kill(pthread_self(), signo): thread-directed (targets the
-        // faulting thread, which is guaranteed to be the current thread for
-        // synchronous signals like SIGSEGV/SIGBUS) and async-signal-safe per POSIX,
-        // unlike raise which acquires a lock internally.
-        sigaction(signo, old, nullptr);
-        pthread_kill(pthread_self(), signo);
+        // This fault is not one of ours to recover, so give the signal back to its
+        // previous owner and return without re-raising. For a synchronous kernel fault
+        // returning re-executes the faulting instruction, so the new owner receives a
+        // genuine signal carrying the original si_code, si_addr and fault PC.
+        //
+        // Re-raising with pthread_kill instead delivers si_code == SI_TKILL with no fault
+        // address and a PC inside this handler. Hosts that read siginfo to classify a
+        // fault cannot recover from that: the Go runtime turns it into a fatal error
+        // rather than the nil-dereference panic it would otherwise raise (PROF-15342).
+        cede_fault_signal(signo, info);
+
+        if (!is_synchronous_fault(signo, info)) {
+            // Not a synchronous fault (SI_USER, SI_QUEUE, SI_TKILL, ...): no instruction
+            // will re-execute, so returning would swallow the signal. Re-deliver it
+            // thread-directed, which is async-signal-safe per POSIX unlike raise. The
+            // signal was already injected, so there is no fault siginfo to preserve.
+            pthread_kill(pthread_self(), signo);
+        }
+
         return;
     }
 

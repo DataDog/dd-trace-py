@@ -1,0 +1,5 @@
+fixes:
+  - |
+    profiling: Fixes an issue where a fault that the stack sampler could not recover from was passed
+    to the application's own signal handler with the fault address and cause replaced,
+    so the application crashed instead of handling the fault.
