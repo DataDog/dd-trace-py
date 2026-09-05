@@ -97,6 +97,33 @@ LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
+# gen_ai.* attributes written onto the APM span itself. The APM trace UI reproduces these keys
+# today by querying the LLMObs track and merging the result into the span client-side; values it
+# merges in are displayable but not searchable. Emitting them here makes them real APM tags, so
+# they can be filtered, faceted, and monitored on.
+#
+# AIDEV-NOTE: deliberately scalars only. gen_ai.input, gen_ai.output, gen_ai.tool.definitions and
+# gen_ai.retrieval.documents stay off the APM span: they are unbounded message bodies that would
+# bloat every APM payload, and a serialized conversation is not usefully queryable anyway. The UI
+# keeps joining the LLMObs track for those.
+GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
+GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
+GEN_AI_PROVIDER_NAME_TAG_KEY = "gen_ai.provider.name"
+GEN_AI_APPLICATION_NAME_TAG_KEY = "gen_ai.application.name"
+GEN_AI_CONVERSATION_ID_TAG_KEY = "gen_ai.conversation.id"
+
+# AIDEV-NOTE: gen_ai.operation.name carries the raw LLMObs span kind (llm, workflow, agent, tool,
+# task, embedding, retrieval, guardrail) rather than the OpenTelemetry gen_ai enum (chat,
+# embeddings, execute_tool, invoke_agent, ...). This matches what the APM trace UI already puts in
+# the key during client-side enrichment, so the tracer-emitted value and the enriched value agree
+# for a span. Changing this to the OTel enum is a coordinated tracer + UI break.
+
+GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY = "gen_ai.usage.total_tokens"
+GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_read_input_tokens"
+GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_write_input_tokens"
+
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
 TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"

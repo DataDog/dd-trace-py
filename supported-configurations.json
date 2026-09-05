@@ -2435,6 +2435,13 @@
         "default": "5000000"
       }
     ],
+    "DD_LLMOBS_GEN_AI_APM_TAGS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_LLMOBS_INSTRUMENTED_PROXY_URLS": [
       {
         "implementation": "A",
