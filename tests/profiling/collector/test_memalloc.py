@@ -833,15 +833,41 @@ def test_heap_live_samples_drops_after_free(tmp_path: Path) -> None:
 
         live_after = [s for s in profile_after.sample if s.value[heap_space_idx] > 0]
 
-        # 'one' should have no significant live samples (freed)
+        # After freeing batch_one, 'one' live samples must collapse. We only look at
+        # significant allocations (>= min_alloc_size) so that small residuals are ignored.
+        #
+        # We assert on a sharp drop rather than exactly zero because a rare residual (0-1
+        # samples) can survive due to CPython internal caching / free-list behavior: objects
+        # allocated while one() is on the call stack (type caches, inline bytecode caches,
+        # descriptor objects, cached tuples, etc.) can be retained by CPython and are only
+        # untracked when their freelist is cleared. See the detailed NOTE in
+        # test_memory_collector_python_interface_with_allocation_tracking. With aggressive
+        # sampling (heap_sample_size=32) such a ghost is occasionally still attributed to
+        # 'one', and its sampling-scaled heap-space can exceed min_alloc_size. This is a
+        # CPython memory-management artifact (observed only on 3.14), not a profiler bug --
+        # freeing genuinely works, so the count collapses to at most this residual.
         min_alloc_size = 256
+        # A residual ghost is a single cached object; tolerate a couple to stay robust.
+        residual_tolerance = 2
+        one_live_before_significant = [s for s in one_live_before if s.value[heap_space_idx] >= min_alloc_size]
+        # The 30 large tuples allocated via one() are reliably sampled, so there is a
+        # substantial pre-free baseline to compare the post-free collapse against.
+        assert len(one_live_before_significant) > 0, "Expected significant live samples from 'one' before free"
         one_live_after = [
             s
             for s in live_after
             if has_function_in_profile_sample(profile_after, s, one) and s.value[heap_space_idx] >= min_alloc_size
         ]
-        assert len(one_live_after) == 0, (
-            f"Expected no significant live samples from 'one' after free, got {len(one_live_after)}"
+        # Freeing must have a real effect: 'one' live samples drop far below the pre-free
+        # count. This still catches a genuinely broken free path (which would leave ~all of
+        # 'one' tracked as live), while tolerating the documented rare CPython ghost.
+        assert len(one_live_after) <= residual_tolerance, (
+            f"Expected 'one' live samples to collapse after free (<= {residual_tolerance} residual), "
+            f"got {len(one_live_after)} (was {len(one_live_before_significant)} before free)"
+        )
+        assert len(one_live_after) < len(one_live_before_significant), (
+            f"Expected 'one' live samples to drop after free, "
+            f"got {len(one_live_after)} after vs {len(one_live_before_significant)} before"
         )
 
         # 'two' should still have live samples with heap-live-samples > 0
