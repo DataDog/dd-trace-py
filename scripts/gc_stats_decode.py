@@ -179,6 +179,18 @@ def expand_forest(
     hit_total_cap = False
     expanded_types: set[Any] = set()  # dedupe: types whose children were already emitted
 
+    if dedupe:
+        # Expand roots whose type is never referenced as a child first, so a type
+        # that IS referenced (e.g. BundleIndex under SignalBundler) becomes the
+        # canonical expansion inside its referrer's subtree rather than at its own
+        # standalone root. Its standalone root then turns into a "ref" and is
+        # pruned, instead of surviving as a duplicate top-level entry.
+        referenced_types: set[Any] = set()
+        for kids in canonical.values():
+            for kid in kids:
+                referenced_types.add(kid["t"])
+        rt = sorted(rt, key=lambda r: r.get("t") in referenced_types)  # stable: unreferenced first
+
     def build_root(root: dict[str, Any]) -> dict[str, Any]:
         # Level-order (BFS) expansion so that every node at depth d gets its
         # direct children reserved before any depth d+1 work. A per-node
