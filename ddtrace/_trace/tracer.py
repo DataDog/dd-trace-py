@@ -434,7 +434,7 @@ class Tracer(object):
             core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
     def _refresh_runtime_identity(self, _runtime_id: str) -> None:
-        self._recreate(reset_buffer=True, drop_buffered_traces=True)
+        self._recreate(reset_buffer=True, flush_writer=False, drop_buffered_traces=True)
         self._store_metadata()
 
     def _recreate(

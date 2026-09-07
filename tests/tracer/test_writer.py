@@ -72,6 +72,22 @@ class DummyOutput:
         pass
 
 
+def test_native_writer_drop_buffered_traces_does_not_flush():
+    writer = NativeWriter("http://asdf:1234")
+    try:
+        writer._encoder.put([Span("buffered")])
+        assert len(writer._encoder) == 1
+
+        with mock.patch.object(writer, "_send_payload") as send_payload:
+            writer.drop_buffered_traces()
+            writer.flush_queue()
+
+        assert len(writer._encoder) == 0
+        send_payload.assert_not_called()
+    finally:
+        writer.shutdown_exporter()
+
+
 class NativeWriterTests(BaseTestCase):
     N_TRACES = 11
     WRITER_CLASS = NativeWriter

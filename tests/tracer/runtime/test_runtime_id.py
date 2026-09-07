@@ -259,7 +259,9 @@ def test_get_process_role_spawn_child() -> None:
 
 
 def test_refresh_identity_changes_runtime_id(run_python_code_in_subprocess):
-    """refresh_identity() is the non-fork trigger for a new logical process instance."""
+    """refresh_identity() is the MicroVM trigger for a new logical process instance."""
+    import os
+
     code = """
 from ddtrace.internal import runtime
 
@@ -271,7 +273,34 @@ assert isinstance(new_runtime_id, str)
 assert new_runtime_id != runtime_id
 assert new_runtime_id == runtime.get_runtime_id()
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    env = os.environ.copy()
+    env["AWS_LAMBDA_MICROVM_IMAGE_ARN"] = "arn:aws:lambda:us-east-1::runtime:python3.12"
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, err
+
+
+def test_refresh_identity_is_noop_outside_microvm(run_python_code_in_subprocess):
+    """Identity refresh must not affect ordinary non-MicroVM processes."""
+    import os
+
+    code = """
+from ddtrace.internal import runtime
+
+seen_id_changes = []
+seen_identity_refreshes = []
+runtime.on_runtime_id_change(seen_id_changes.append)
+runtime.on_runtime_identity_refresh(seen_identity_refreshes.append)
+
+runtime_id = runtime.get_runtime_id()
+runtime.refresh_identity()
+
+assert runtime.get_runtime_id() == runtime_id
+assert seen_id_changes == []
+assert seen_identity_refreshes == []
+"""
+    env = os.environ.copy()
+    env["AWS_LAMBDA_MICROVM_IMAGE_ARN"] = ""
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
 
 
@@ -289,6 +318,7 @@ def test_refresh_identity_does_not_record_fork_lineage(run_python_code_in_subpro
             "_DD_ROOT_PY_SESSION_ID": None,
             "_DD_PARENT_PY_SESSION_ID": None,
             "DD_TRACE_SUBPROCESS_ENABLED": "false",
+            "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
         }
     )
     code = """
@@ -317,6 +347,7 @@ def test_refresh_identity_preserves_spawned_lineage(run_python_code_in_subproces
             "_DD_ROOT_PY_SESSION_ID": "ancestor-session-id",
             "_DD_PARENT_PY_SESSION_ID": "parent-session-id",
             "DD_TRACE_SUBPROCESS_ENABLED": "false",
+            "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
         }
     )
     code = """
@@ -345,6 +376,7 @@ def test_refresh_identity_preserves_fork_lineage(run_python_code_in_subprocess):
             "_DD_ROOT_PY_SESSION_ID": None,
             "_DD_PARENT_PY_SESSION_ID": None,
             "DD_TRACE_SUBPROCESS_ENABLED": "false",
+            "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
         }
     )
     code = """
@@ -378,6 +410,8 @@ assert os.WEXITSTATUS(status) == 42
 
 
 def test_refresh_identity_notifies_subscribers(run_python_code_in_subprocess):
+    import os
+
     code = """
 from ddtrace.internal import runtime
 
@@ -396,7 +430,9 @@ runtime.refresh_identity()
 
 assert seen == [runtime.get_runtime_id()]
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    env = os.environ.copy()
+    env["AWS_LAMBDA_MICROVM_IMAGE_ARN"] = "arn:aws:lambda:us-east-1::runtime:python3.12"
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
 
 
@@ -629,6 +665,8 @@ assert runtime.get_runtime_id() == runtime_id
 
 
 def test_refresh_identity_notifies_refresh_subscribers(run_python_code_in_subprocess):
+    import os
+
     code = """
 from ddtrace.internal import runtime
 
@@ -647,7 +685,9 @@ runtime.refresh_identity()
 
 assert seen == [runtime.get_runtime_id()]
 """
-    _, err, status, _ = run_python_code_in_subprocess(code)
+    env = os.environ.copy()
+    env["AWS_LAMBDA_MICROVM_IMAGE_ARN"] = "arn:aws:lambda:us-east-1::runtime:python3.12"
+    _, err, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
 
 
@@ -669,7 +709,7 @@ def test_tracer_microvm_identity_refresh_recreates_exporter_without_fork_side_ef
         ):
             tracer._refresh_runtime_identity(runtime.get_runtime_id())
 
-        recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
+        recreate.assert_called_once_with(reset_buffer=True, flush_writer=False, drop_buffered_traces=True)
         store_metadata.assert_called_once_with()
         assert tracer._new_process is False
     finally:
@@ -695,7 +735,7 @@ def test_identity_refresh_hook_notifies_global_tracer():
             (runtime.MICROVM_RUN_HOOK_METHOD, runtime.MICROVM_RUN_HOOK_PATH),
         )
 
-    recreate.assert_called_once_with(reset_buffer=True, drop_buffered_traces=True)
+    recreate.assert_called_once_with(reset_buffer=True, flush_writer=False, drop_buffered_traces=True)
     store_metadata.assert_called_once_with()
 
 

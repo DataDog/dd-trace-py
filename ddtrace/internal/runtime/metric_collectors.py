@@ -19,6 +19,10 @@ class RuntimeMetricCollector(ValueCollector):
     value = []  # type: list[tuple[str, str]]
     periodic = True
 
+    def reset(self):
+        """Reset state that must not cross a logical runtime boundary."""
+        return
+
 
 class GCRuntimeMetricCollector(RuntimeMetricCollector):
     """Collector for garbage collection generational counts
@@ -94,6 +98,9 @@ class NativeProcessMetricCollector(RuntimeMetricCollector):
             CTX_SWITCH_INVOLUNTARY: process_metrics.ctx_switches_involuntary,
         }
         self._last_wall_time = time.monotonic()
+
+    def reset(self):
+        self._reset_state()
 
     def collect_fn(self, keys):
         native = self.modules["ddtrace.internal.native"]

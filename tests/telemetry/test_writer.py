@@ -812,6 +812,8 @@ import opentelemetry
 
 def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatch):
     """MicroVM identity refresh must not leave native telemetry on the old runtime ID."""
+    monkeypatch.setenv("AWS_LAMBDA_MICROVM_IMAGE_ARN", "arn:aws:lambda:us-east-1::runtime:python3.12")
+
     from ddtrace.internal import runtime
     import ddtrace.internal.native as native
     from ddtrace.internal.telemetry.writer import TelemetryWriter
@@ -844,6 +846,8 @@ def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatc
         mock.patch.object(native, "TelemetryWorker", FakeTelemetryWorker),
         mock.patch("ddtrace.internal.native_runtime.get_native_runtime", return_value=object()),
     ):
+        tracer_refresh_callback = ddtrace.tracer._refresh_runtime_identity
+        runtime._ON_RUNTIME_IDENTITY_REFRESH.discard(tracer_refresh_callback)
         writer = TelemetryWriter(agentless=False)
         monkeypatch.setattr(ddtrace.internal.telemetry, "telemetry_writer", writer)
         try:
@@ -861,6 +865,7 @@ def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatc
             assert workers[-1].kwargs["runtime_id"] != first_runtime_id
             assert workers[-1].start_calls == 1
         finally:
+            runtime._ON_RUNTIME_IDENTITY_REFRESH.add(tracer_refresh_callback)
             writer.disable()
 
 
