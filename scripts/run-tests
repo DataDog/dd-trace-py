@@ -3,6 +3,7 @@
 # /// script
 # requires-python = ">=3.8"
 # dependencies = [
+#     "packaging",
 #     "ruamel.yaml>=0.17.21",
 # ]
 # ///
@@ -32,6 +33,9 @@ import subprocess
 import sys
 import tempfile
 from typing import Iterator
+
+from packaging.version import InvalidVersion
+from packaging.version import Version
 
 
 # Add the project root to import the test configuration.
@@ -75,6 +79,45 @@ DDTRACE_TEST_WHEEL_ROOT = Path(".cache/ddtrace-test-wheels")
 UV_ENVIRONMENT_ROOT = Path(".cache/uv-test-environments")
 UV_ENVIRONMENT_STATE = ".ddtrace-test-environment.json"
 UV_ENVIRONMENT_STATE_VERSION = 1
+_ITR_MIN_PYTHON_VERSION = Version("3.12")
+
+
+def _is_true(value: str) -> bool:
+    return value.lower() in ("true", "1")
+
+
+def _python_hint_to_version(hint: str) -> Version | None:
+    try:
+        return Version(hint)
+    except InvalidVersion:
+        return None
+
+
+def _is_protected_ci_branch() -> bool:
+    branch = os.environ.get("CI_COMMIT_BRANCH", "")
+    return branch == "main" or branch.startswith("mq-")
+
+
+def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
+    python_version = _python_hint_to_version(python_hint)
+    tags = f"test.configuration.riot_hash:{environment_hash}"
+    env["_CI_DD_TAGS"] = f"{tags},test.configuration.python:{python_hint}" if python_hint else tags
+
+    if (
+        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in env
+        and python_version is not None
+        and python_version >= _ITR_MIN_PYTHON_VERSION
+    ):
+        env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        if _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
+            env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+        else:
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+        if _is_protected_ci_branch():
+            env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
 
 class UvTestEnvironmentError(RuntimeError):
@@ -596,7 +639,7 @@ class TestRunner:
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
         if self.in_ci:
-            riotfile._configure_ci_itr_environment(run_env, environment.python, environment.lock_hash)
+            _configure_ci_itr_environment(run_env, environment.python, environment.lock_hash)
         return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
 
     def _run_uv_suite(
