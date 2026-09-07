@@ -197,6 +197,19 @@ def _after_fork_child():
 
     _forking = False
 
+    # Clean up child-ineligible workers now and remove them from the pending set.
+    # A nested fork may promote the timer to the parent-side force policy, which must only apply
+    # to workers that were actually running in that intermediate parent.
+    for thread in _threads_to_restart_after_fork.copy():
+        if not getattr(thread, "__autorestart__", True):
+            log.debug("Cleaning up non-restartable thread %s after fork in child", thread.name)
+            try:
+                thread._after_fork()
+            except Exception as e:
+                log.error("failed to clean up periodic thread %s after fork: %s", thread.name, e)
+            finally:
+                _threads_to_restart_after_fork.discard(thread)
+
     # Process managers can close inherited file descriptors after Python's at-fork callbacks
     # return. Delay autorestarting periodic threads so none of them rebuilds a native runtime
     # before that cleanup completes. ThreadRestartTimer forces eligible child threads to restart
