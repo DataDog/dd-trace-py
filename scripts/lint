@@ -58,6 +58,7 @@ case "$cmd" in
     "$SCRIPT_DIR/lint" riot
     "$SCRIPT_DIR/lint" security
     "$SCRIPT_DIR/lint" suitespec-check
+    "$SCRIPT_DIR/lint" slo-ownership
     "$SCRIPT_DIR/lint" profiling-native-check
     "$SCRIPT_DIR/lint" error-log-check
     "$SCRIPT_DIR/lint" supported-config-check
@@ -95,6 +96,9 @@ case "$cmd" in
     ;;
   suitespec-check)
     uv_lint python scripts/check_suitespec_coverage.py "$@"
+    ;;
+  slo-ownership)
+    uv_lint python scripts/check_slo_ownership.py "$@"
     ;;
   profiling-native-check)
     uv_lint python scripts/check_profiling_native_coverage.py "$@"
@@ -177,6 +181,7 @@ Subcommands:
   riot [args]               python -m doctest riotfile.py
   fmt-snapshots [path]      ddapm-test-agent-fmt
   suitespec-check           Check suitespec coverage
+  slo-ownership             Check microbenchmark SLO ownership (no orphaned SLOs)
   profiling-native-check    Check profiling native coverage
   error-log-check           Check constant log messages
   supported-config-check    Check supported-configurations.json is in sync and complete
