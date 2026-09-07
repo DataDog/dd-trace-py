@@ -76,6 +76,12 @@ include:
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
 
+# Temporary override for validating the supported versions WIP job on this branch.
+generate-supported-versions:
+  rules:
+    - when: manual
+      allow_failure: true
+
 "pipeline variables":
   stage: .pre
   tags: [ "arch:amd64" ]
