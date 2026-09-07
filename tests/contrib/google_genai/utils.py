@@ -42,7 +42,7 @@ MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING = types.GenerateContentResponse(
             content=types.Content(
                 role="model",
                 parts=[
-                    types.Part.from_text(text="Let me think about this..."),
+                    types.Part(text="Let me think about this...", thought=True),
                     types.Part.from_text(text="The sky is blue due to rayleigh scattering"),
                 ],
             )
@@ -52,6 +52,39 @@ MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING = types.GenerateContentResponse(
         prompt_token_count=8, candidates_token_count=9, thoughts_token_count=5, total_token_count=22
     ),
 )
+
+MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING_STREAM = [
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(content=types.Content(role="model", parts=[types.Part(text="Let me think", thought=True)]))
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(role="model", parts=[types.Part(text=" about this...", thought=True)])
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
+    ),
+    types.GenerateContentResponse(
+        candidates=[types.Candidate(content=types.Content(role="model", parts=[types.Part.from_text(text="The sky")]))],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=8, total_token_count=8),
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model", parts=[types.Part.from_text(text=" is blue due to rayleigh scattering")]
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=8, candidates_token_count=9, thoughts_token_count=5, total_token_count=22
+        ),
+    ),
+]
 
 MOCK_GENERATE_CONTENT_RESPONSE_STREAM = [
     types.GenerateContentResponse(
