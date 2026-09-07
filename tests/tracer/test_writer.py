@@ -1010,6 +1010,20 @@ def test_writer_recreate_keeps_response_callback():
     assert writer._response_cb is response_callback
 
 
+def test_native_writer_drops_buffered_traces():
+    writer = NativeWriter("http://dne:1234")
+    try:
+        span = Span("span")
+        writer._clients[0].encoder.put([span])
+        assert len(writer._clients[0].encoder) == 1
+
+        writer.drop_buffered_traces()
+
+        assert len(writer._clients[0].encoder) == 0
+    finally:
+        writer.shutdown_exporter()
+
+
 @pytest.mark.parametrize(
     "sys_platform, api_version, ddtrace_api_version, raises_error, expected",
     [
@@ -1171,6 +1185,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_tracer_version",
         "set_git_commit_sha",
         "set_client_computed_top_level",
+        "set_runtime_id",
         "set_input_format",
         "set_output_format",
         "enable_telemetry",
@@ -1181,6 +1196,7 @@ def test_writer_telemetry_enabled_on_linux(
         with override_global_config(dict(_telemetry_enabled=config_value)):
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
+            mock_builder.set_runtime_id.assert_called_once_with(get_runtime_id())
             if expected_enabled:
                 mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
             else:
@@ -1209,6 +1225,7 @@ def test_otlp_metric_tags_configured():
         "set_tracer_version",
         "set_git_commit_sha",
         "set_client_computed_top_level",
+        "set_runtime_id",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 

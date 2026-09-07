@@ -140,6 +140,10 @@ class TraceWriter(metaclass=abc.ABCMeta):
     def flush_queue(self) -> None:
         pass
 
+    def drop_buffered_traces(self) -> None:
+        """Discard traces buffered by the writer without flushing them."""
+        pass
+
 
 class LogWriter(TraceWriter):
     def __init__(
@@ -477,6 +481,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         finally:
             self._set_drop_rate()
 
+    def drop_buffered_traces(self) -> None:
+        for client in self._clients:
+            getattr(client.encoder, "get")()
+
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
         # Snapshot the number of buffered spans before encoding so we can attribute spans_dropped
@@ -699,6 +707,7 @@ def _build_base_exporter_builder(
         .set_language_version(compat.PYTHON_VERSION)
         .set_language_interpreter(compat.PYTHON_INTERPRETER)
         .set_tracer_version(__version__)
+        .set_runtime_id(get_runtime_id())
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
@@ -1153,6 +1162,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
+
+    def drop_buffered_traces(self) -> None:
+        for client in self._clients:
+            getattr(client.encoder, "flush")()
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)

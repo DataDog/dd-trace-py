@@ -433,6 +433,10 @@ class Tracer(object):
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        self._recreate(reset_buffer=True, drop_buffered_traces=True)
+        self._store_metadata()
+
     def _recreate(
         self,
         trace_processors: Optional[list[TraceProcessor]] = None,
@@ -442,6 +446,7 @@ class Tracer(object):
         llmobs_enabled: Optional[bool] = None,
         reset_buffer: bool = True,
         flush_writer: Optional[bool] = None,
+        drop_buffered_traces: bool = False,
     ) -> None:
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
@@ -454,6 +459,7 @@ class Tracer(object):
             llmobs_enabled=llmobs_enabled,
             reset_buffer=reset_buffer,
             flush_writer=flush_writer,
+            drop_buffered_traces=drop_buffered_traces,
         )
         self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,

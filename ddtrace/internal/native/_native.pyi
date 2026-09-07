@@ -849,6 +849,9 @@ class TraceExporterBuilder:
         :param restart_after_fork: Whether inherited workers restart in the child.
         """
         ...
+    def set_runtime_id(self, runtime_id: str) -> TraceExporterBuilder:
+        """Set the runtime id of the TraceExporter."""
+        ...
     def build(self, shared_runtime: SharedRuntime) -> TraceExporter:
         """
         Build and return a TraceExporter instance with the configured settings.
