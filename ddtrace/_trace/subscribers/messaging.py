@@ -1,5 +1,4 @@
 from types import TracebackType
-from typing import MutableMapping
 from typing import Optional
 from typing import cast
 
@@ -30,7 +29,7 @@ class MessagingTracingSubscriber(TracingSubscriber[MessagingEvent]):
         ):
             HTTPPropagator.inject(
                 span_from_context(ctx).context,
-                cast(MutableMapping[str, str], event.distributed_headers),
+                cast(dict[str, str], event.distributed_headers),
             )
 
     @classmethod

@@ -8,11 +8,6 @@ from typing import Optional
 from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.constants import MESSAGING_BATCH_COUNT
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
-from ddtrace.internal.constants import MESSAGING_OPERATION
-from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.core.events import event_field
 
 
@@ -35,14 +30,6 @@ class MessagingEvent(TracingEvent):
 
     def __post_init__(self) -> None:
         self.operation_name = self.operation
-        self.tags.setdefault(MESSAGING_SYSTEM, self.system)
-        self.tags.setdefault(MESSAGING_OPERATION, self.messaging_operation)
-        if self.destination is not None:
-            self.tags.setdefault(MESSAGING_DESTINATION_NAME, self.destination)
-        if self.message_id is not None:
-            self.tags.setdefault(MESSAGING_MESSAGE_ID, self.message_id)
-        if self.batch_count is not None:
-            self.tags.setdefault(MESSAGING_BATCH_COUNT, str(self.batch_count))
 
 
 @dataclass

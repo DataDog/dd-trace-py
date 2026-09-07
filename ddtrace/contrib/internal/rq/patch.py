@@ -2,16 +2,16 @@ from typing import Any
 from typing import Callable
 
 from ddtrace import config
-from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.messaging import MessagingProcessEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
-from ddtrace.ext import SpanKind
 from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
@@ -91,19 +91,17 @@ def traced_queue_fetch_job(
     func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     job_id = get_argument_value(args, kwargs, 0, "job_id")
-    with core.context_with_event(
-        TracingEvent.create(
-            component=config.rq.integration_name,
-            integration_config=config.rq,
-            operation_name=schematize_messaging_operation(
+    with (
+        core.context_with_data(
+            "rq.traced_queue_fetch_job",
+            span_name=schematize_messaging_operation(
                 "rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING
             ),
             service=trace_utils.int_service(None, config.rq),
-            span_type="",
-            span_kind=SpanKind.INTERNAL,
-            measured=False,
-            tags={JOB_ID: job_id},
-        )
+            tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
+            integration_config=config.rq,
+        ) as ctx,
+        span_from_context(ctx),
     ):
         return func(*args, **kwargs)
 
@@ -159,17 +157,15 @@ def traced_job_perform(func: Callable[..., Any], instance: Any, args: tuple[Any,
     # Inherit the service name from whatever parent exists.
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
-    with core.context_with_event(
-        TracingEvent.create(
-            component=config.rq.integration_name,
-            integration_config=config.rq,
-            operation_name="rq.job.perform",
+    with (
+        core.context_with_data(
+            "rq.job.perform",
+            span_name="rq.job.perform",
             resource=job.func_name,
-            span_type="",
-            span_kind=SpanKind.INTERNAL,
-            measured=False,
-            tags={JOB_ID: job.id},
-        )
+            tags={COMPONENT: config.rq.integration_name, JOB_ID: job.id},
+            integration_config=config.rq,
+        ) as ctx,
+        span_from_context(ctx),
     ):
         return func(*args, **kwargs)
 
@@ -179,19 +175,17 @@ def traced_job_fetch_many(
 ) -> Any:
     """Trace rq.Job.fetch_many(...)"""
     job_ids = get_argument_value(args, kwargs, 0, "job_ids")
-    with core.context_with_event(
-        TracingEvent.create(
-            component=config.rq.integration_name,
-            integration_config=config.rq_worker,
-            operation_name=schematize_messaging_operation(
+    with (
+        core.context_with_data(
+            "rq.job.fetch_many",
+            span_name=schematize_messaging_operation(
                 "rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING
             ),
             service=trace_utils.ext_service(None, config.rq_worker),
-            span_type="",
-            span_kind=SpanKind.INTERNAL,
-            measured=False,
-            tags={JOB_ID: job_ids},
-        )
+            tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
+            integration_config=config.rq_worker,
+        ) as ctx,
+        span_from_context(ctx),
     ):
         return func(*args, **kwargs)
 
