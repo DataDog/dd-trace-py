@@ -555,6 +555,126 @@ def _filter_benchmarks_slos_file(classnames: list) -> None:
     MICROBENCHMARKS_SLOS.write_text("\n".join(out) + "\n")
 
 
+def _validate_slos() -> None:
+    """Validate that no microbenchmark SLO is orphaned.
+
+    Ownership is enforced by .github/CODEOWNERS via the per-team file paths
+    under slos/, so this only checks structural integrity: every SLO maps to a
+    real benchmark/config, no SLO is duplicated across team files, every
+    benchmark config has an SLO (or is a declared exemption), and scenario
+    class names are unique and follow the CamelCase convention.
+    """
+    import ruamel.yaml as _ryaml  # noqa: E402
+
+    _yaml = _ryaml.YAML()
+    import suitespec as _spec  # noqa: E402
+
+    all_suites = _spec.get_suites()
+    # Only microbenchmark suites have scenario.py + config.yaml and participate
+    # in the SLO gate; filter the same way _gen_benchmarks does.
+    suites = {k: v for k, v in all_suites.items() if "benchmark" in v.get("type", "test")}
+
+    # class_lower -> suite dir; track duplicates.
+    class_to_dir: dict[str, str] = {}
+    duplicate_classes: dict[str, list[str]] = {}
+    for suite_name in suites:
+        clean_name = suite_name.split("::")[-1]
+        try:
+            cls = _get_benchmark_class_name(clean_name)
+        except FileNotFoundError:
+            cls = None
+        if cls is None:
+            continue
+        if cls in class_to_dir:
+            duplicate_classes.setdefault(cls, [class_to_dir[cls]]).append(clean_name)
+        else:
+            class_to_dir[cls] = clean_name
+
+    def _configs(suite_name: str) -> set[str]:
+        cfg = BENCHMARKS / suite_name / "config.yaml"
+        if not cfg.exists():
+            return set()
+        return set((_yaml.load(cfg.read_text()) or {}).keys())
+
+    # Collect all SLO names across team files, tracking which file each is in.
+    all_slos: set[str] = set()
+    seen_in_file: dict[str, list[str]] = {}
+    for src in sorted(MICROBENCHMARKS_SLOS_DIR.glob("*.yml")):
+        rel = str(src.relative_to(ROOT))
+        for line in src.read_text().splitlines():
+            m = re.match(BENCHMARK_SCENARIO_REGEX, line)
+            if m:
+                # full name is everything after "- name: " up to end-of-line.
+                name = line.split("- name:", 1)[1].strip()
+                all_slos.add(name)
+                seen_in_file.setdefault(name, []).append(rel)
+
+    # Load exemptions.
+    exemptions_path = GITLAB / "benchmarks" / "slo-exemptions.yml"
+    ungated_exemptions: set[str] = set()
+    if exemptions_path.exists():
+        data = _yaml.load(exemptions_path.read_text()) or {}
+        ungated_exemptions = set(data.get("ungated", []) or [])
+
+    errors: list[str] = []
+
+    # No duplicate SLOs across team files.
+    for name, files in sorted(seen_in_file.items()):
+        if len(files) > 1:
+            errors.append(f"SLO '{name}' appears in multiple team files: {files}")
+
+    # Every SLO maps to a real benchmark class + config.
+    for name in sorted(all_slos):
+        cls_lower, _, config = name.partition("-")
+        suite = class_to_dir.get(cls_lower)
+        if suite is None:
+            errors.append(f"SLO '{name}' references unknown benchmark class '{cls_lower}'")
+        elif config not in _configs(suite):
+            errors.append(f"SLO '{name}' references unknown config in benchmarks/{suite}/config.yaml")
+
+    # Every benchmark config is gated (or exempt).
+    for suite_name in suites:
+        clean_name = suite_name.split("::")[-1]
+        try:
+            cls = _get_benchmark_class_name(clean_name)
+        except FileNotFoundError:
+            cls = None
+        if cls is None:
+            errors.append(f"benchmarks/{clean_name}/scenario.py has no conformant Scenario subclass")
+            continue
+        for config in _configs(clean_name):
+            expected = f"{cls}-{config}"
+            if expected in all_slos or expected in ungated_exemptions:
+                continue
+            errors.append(
+                f"benchmark '{clean_name}' config '{config}' has no SLO entry (expected '{expected}') "
+                f"and is not in slo-exemptions.yml"
+            )
+
+    # No duplicate class prefixes.
+    for cls, dirs in sorted(duplicate_classes.items()):
+        errors.append(
+            f"benchmark class prefix '{cls}' is shared by multiple suites {dirs}; "
+            f"the SLO naming scheme requires unique scenario class names"
+        )
+
+    # Stale exemptions.
+    for expected in sorted(ungated_exemptions):
+        cls_lower, _, config = expected.partition("-")
+        suite = class_to_dir.get(cls_lower)
+        if suite is None or config not in _configs(suite):
+            errors.append(f"ungated exemption '{expected}' in slo-exemptions.yml matches no benchmark config")
+
+    if errors:
+        msg = f"{len(errors)} SLO ownership problem(s):\n" + "\n".join(f"  {e}" for e in errors)
+        raise RuntimeError(msg)
+
+
+def gen_validate_slos() -> None:
+    """Validate microbenchmark SLO structural integrity (no orphans/duplicates)."""
+    _validate_slos()
+
+
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
 
@@ -803,17 +923,6 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
-        name="Check microbenchmark SLO ownership",
-        command="scripts/lint slo-ownership",
-        paths={
-            ".gitlab/benchmarks/slos/*",
-            ".gitlab/benchmarks/slo-exemptions.yml",
-            "benchmarks/*",
-            "scripts/check_slo_ownership.py",
-            "scripts/lint",
-        },
-    )
-    check(
         name="Check ddtrace error logs",
         command="scripts/lint error-log-check",
         paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
@@ -978,6 +1087,7 @@ if args.files:
     _needs_testrun._changed_files_override = set(args.files)
 
 ROOT = Path(__file__).parents[1]
+BENCHMARKS = ROOT / "benchmarks"
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"

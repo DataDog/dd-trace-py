@@ -1,22 +1,13 @@
-# Benchmarks/configs that are intentionally not gated by an SLO entry.
+# Benchmark configs that are intentionally not gated by an SLO entry.
 #
-# scripts/check_slo_ownership.py (run via `scripts/lint slo-ownership`) errors
-# on any benchmark config that has no SLO entry in any per-team file under
-# .gitlab/benchmarks/slos/ unless it is listed here, and also errors on any
-# entry here that no longer corresponds to a real config (so this list cannot
-# go stale silently).
+# gen_gitlab_config.py errors on any benchmark config that has no SLO entry in
+# any per-team file under .gitlab/benchmarks/slos/ unless it is listed here,
+# and also errors on any entry here that no longer corresponds to a real
+# config (so this list cannot go stale silently).
 #
 # Entries are SLO scenario names: `<lowercased benchmark class>-<config>`.
 
-# "baseline" configs measure the un-instrumented framework, so there is nothing
-# for a regression gate to compare against. These are permanent.
 ungated:
-  - djangosimple-baseline
-  - errortrackingdjangosimple-baseline
-  - errortrackingflasksqli-baseline
-  - flasksimple-baseline
-  - flasksqli-baseline
-
   # TODO: the `startup` benchmark measures import/startup overhead rather
   # than a hot loop and is not yet wired into the fail-on-breach gate. Add SLO
   # entries for these configs and remove them from this list.
@@ -40,13 +31,3 @@ ungated:
   # TODO: add an SLO entry for this config (or confirm it is intentional)
   # and remove it from this list.
   - sethttpmeta-obfuscation-disabled
-
-# Benchmark directories whose scenario.py class name violates the naming
-# convention (CamelCase with no underscores, so that lowercasing it yields the
-# SLO scenario prefix). These cannot be matched to SLO entries until the class
-# is renamed, so the ungated check is skipped for them.
-#
-# TODO: rename the class (e.g. IAST_Aspects -> IASTAspectsREModule), add
-# SLO entries, and remove the directory from this list.
-nonconformant_classnames:
-  - appsec_iast_aspects_re_module

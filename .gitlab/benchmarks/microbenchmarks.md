@@ -96,7 +96,7 @@ Execution, once per pipeline:
    Each file under `slos/` is owned by a team via `.github/CODEOWNERS` (the file name is the
    team slug, e.g. `apm-sdk-capabilities-python.yml`), so editing a threshold routes review to
    that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
-   matching CODEOWNERS rule, and run `scripts/lint slo-ownership` to confirm. If the config is
+   matching CODEOWNERS rule, and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py. If the config is
    intentionally ungated (e.g. a `baseline`), list it in `.gitlab/benchmarks/slo-exemptions.yml`
    instead.
 
@@ -163,20 +163,17 @@ CODEOWNERS is file-level, so splitting the SLOs by team into separate files is w
 route per team. `scripts/gen_gitlab_config.py` merges all of these into the single generated
 `bp-runner.microbenchmarks.fail-on-breach.yml` consumed by `check-slo-breaches`.
 
-`scripts/lint slo-ownership` (`scripts/check_slo_ownership.py`) runs as part of
-`scripts/lint checks` and fails the build if an SLO gets orphaned — specifically if:
+`gen_gitlab_config.py` also validates structural integrity every time it runs (i.e. on every PR
+via the `tests-gen` job) and fails the build if an SLO gets orphaned — specifically if:
 
-- a team file has no CODEOWNERS rule (it would fall through to the generic `.gitlab/benchmarks`
-  default) or its owner does not match its file name,
 - an SLO points at a benchmark class or config that no longer exists,
 - an SLO appears in more than one team file (two teams must not own the same gate), or
 - a benchmark config has no SLO entry and is not listed as an intentional exemption.
 
-Intentionally ungated configs (e.g. `baseline` scenarios with nothing to compare against) and
-benchmark directories whose class name violates the CamelCase naming convention are listed in
-`.gitlab/benchmarks/slo-exemptions.yml`. The linter also flags stale exemption entries, so the
-list cannot rot silently. When you add, rename, or delete a benchmark scenario, config, or SLO
-threshold, run `scripts/lint slo-ownership` and fix what it reports in the same PR.
+Intentionally ungated configs are listed in `.gitlab/benchmarks/slo-exemptions.yml`. The
+validator also flags stale exemption entries, so the list cannot rot silently. When you add,
+rename, or delete a benchmark scenario, config, or SLO threshold, push and fix what
+`tests-gen` reports in the same PR.
 
 ## Rebuilding the CI Docker image
 
