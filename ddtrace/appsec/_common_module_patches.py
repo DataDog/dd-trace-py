@@ -1,11 +1,15 @@
 import io
 import json
+from types import TracebackType
+from typing import Any
 from typing import Iterable
+from typing import Optional
 from typing import Union
 from urllib.parse import urlunparse
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
+from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
@@ -17,8 +21,6 @@ from ddtrace.appsec._contrib.subprocess.patch import patch as patch_subprocess_f
 from ddtrace.appsec._contrib.subprocess.patch import unpatch as unpatch_subprocess_for_appsec
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
-from ddtrace.appsec._patch_utils import try_unwrap_context
-from ddtrace.appsec._patch_utils import try_wrap_context
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
@@ -26,6 +28,8 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.hooks import try_unwrap_context
+from ddtrace.internal.wrapping.hooks import try_wrap_context
 
 
 log = get_logger(__name__)
@@ -104,48 +108,54 @@ def _parse_http_response_body(response):
 
 
 class _RaspContext(WrappingContext):
-    """Base for RASP wrapping contexts: argument access by name, plus a core context held
-    open across the wrapped call.
+    """Base for RASP wrapping contexts: reads the wrapped call's arguments by name."""
+
+    def _locals(self) -> dict[str, Any]:
+        """The wrapped call's locals, to read its arguments by name.
+
+        Read them with .get rather than get_local: an unbound name raises KeyError, which the
+        universal context swallows, silently disabling the hook.
+        """
+        return self.__frame__.f_locals
+
+
+class _ScopedRaspContext(_RaspContext):
+    """A RASP context that also holds a core context open across the wrapped call.
+
+    __enter__ and __return__/__exit__ are separate calls, so a with statement cannot span them.
     """
 
-    def __enter__(self) -> "_RaspContext":
+    def __enter__(self) -> "_ScopedRaspContext":
         super().__enter__()
         self.set("core_ctx", None)
         return self
 
-    def _locals(self):
-        """The wrapped call's locals.
+    def _core_context(self) -> Any:
+        """The core context this call holds open, if any.
 
-        Resolving __frame__ takes the wrapping registry lock and scans co_consts, so callers that
-        need several arguments read this once rather than going through _arg repeatedly.
+        Read the storage directly: BaseWrappingContext.get is strict, and __exit__ reaching this
+        after __return__ already popped would raise TypeError past the callers' try blocks.
         """
-        return self.__frame__.f_locals
-
-    def _arg(self, name: str, default=None):
-        """Read one parameter of the wrapped call by name.
-
-        Unlike get_local this tolerates an unbound name: a KeyError raised here would be
-        swallowed by the universal context and silently disable the hook.
-        """
-        return self._locals().get(name, default)
+        storage = self._storage.get()
+        return None if storage is None else storage.get("core_ctx")
 
     def _rasp_active(self) -> bool:
         """True between _open_core_context and _close_core_context, i.e. RASP inspected this call."""
-        return self.get("core_ctx") is not None
+        return self._core_context() is not None
 
-    def _open_core_context(self, name: str, **kwargs) -> None:
+    def _open_core_context(self, name: str, **kwargs: Any) -> None:
         core_ctx = core.context_with_data(name, **kwargs)
         core_ctx.__enter__()
         self.set("core_ctx", core_ctx)
 
     def _close_core_context(self) -> None:
-        core_ctx = self.get("core_ctx")
+        core_ctx = self._core_context()
         if core_ctx is not None:
             self.set("core_ctx", None)
             core_ctx.__exit__(None, None, None)
 
 
-class _SsrfOpenerDirectorOpen(_RaspContext):
+class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     """RASP SSRF analysis around urllib.request.OpenerDirector.open."""
 
     def __enter__(self) -> "_SsrfOpenerDirectorOpen":
@@ -170,13 +180,13 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
             return
 
-        url = self._arg("fullurl")
+        url: Any = self._locals().get("fullurl")
         if url.__class__.__name__ == "Request":
             url = url.get_full_url()
         if not (isinstance(url, str) and url):
             return
 
-        ctx = _get_asm_context()
+        ctx = get_active_asm_context()
         if ctx is None:
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, False)
             return
@@ -187,7 +197,7 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
         self._open_core_context("url_open_analysis", full_url=url, use_body=use_body)
         open_rasp_subcontext_scope()
 
-    def __return__(self, response):
+    def __return__(self, response: Any) -> Any:
         if self._rasp_active():
             try:
                 # api10 response handler for regular responses
@@ -207,17 +217,23 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
                 self._close_core_context()
         return super().__return__(response)
 
-    def __exit__(self, exc_type, exc_value, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[type[BaseException]],
+        exc_value: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         if self._rasp_active():
             try:
                 # api10 response handler for error responses
                 if exc_value is not None and exc_value.__class__.__name__ == "HTTPError":
+                    http_error: Any = exc_value
                     try:
-                        status_code = exc_value.code
+                        status_code = http_error.code
                     except Exception:
                         status_code = None
                     try:
-                        response_headers = _build_headers(exc_value.headers.items())
+                        response_headers = _build_headers(http_error.headers.items())
                     except Exception:
                         response_headers = None
                     if status_code is not None or response_headers is not None:
@@ -232,19 +248,41 @@ class _SsrfOpenerDirectorOpen(_RaspContext):
         super().__exit__(exc_type, exc_value, exc_tb)
 
 
+def _absolute_downstream_url(connection: Any, path: str) -> str:
+    """Rebuild an absolute URL from the connection when only a request path is available.
+
+    SSRF is a decision about the host, so a bare path is not something the WAF can evaluate.
+    """
+    try:
+        scheme = "https" if connection.default_port == 443 else "http"
+        port = connection.port
+        netloc = connection.host if port in (None, connection.default_port) else f"{connection.host}:{port}"
+        return f"{scheme}://{netloc}{path}"
+    except Exception:
+        return path
+
+
 class _SsrfHttpConnectionRequest(_RaspContext):
     """RASP SSRF + API10 downstream-request analysis around http.client.HTTPConnection.request."""
 
     def __enter__(self) -> "_SsrfHttpConnectionRequest":
         super().__enter__()
+        # Cheapest and most selective gate first: it is two config reads, whereas the two lookups
+        # below cost a core context walk each on every instrumented downstream request.
+        if not get_rasp_capability("ssrf"):
+            return self
         full_url = core.find_item("full_url")
-        env = _get_asm_context()
-        if get_rasp_capability("ssrf") and full_url is not None and env is not None:
+        env = get_active_asm_context()
+        if full_url is not None and env is not None:
             use_body = core.find_item("use_body", False)
             frame_locals = self._locals()
             method = frame_locals.get("method")
-            body = frame_locals.get("body")
+            body: Any = frame_locals.get("body")
             headers = frame_locals.get("headers", {})
+            if "://" not in full_url:
+                # An enclosing republish can shadow the outer client's absolute URL with just the
+                # request path, and SSRF cannot be judged without a host. See APPSEC-70046.
+                full_url = _absolute_downstream_url(frame_locals.get("self"), frame_locals.get("url") or full_url)
             addresses = {
                 EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url,
                 "DOWN_REQ_METHOD": method,
@@ -259,8 +297,9 @@ class _SsrfHttpConnectionRequest(_RaspContext):
             res = call_waf_callback(
                 addresses,
                 # A wrapping context runs inside the target's own frame, so the crop anchor is the
-                # wrapped function rather than a wrapper.
-                crop_trace=self.__wrapped__.__name__,
+                # wrapped function rather than a wrapper. co_name, not __name__: report_stack
+                # matches on f_code.co_name, and functools.wraps copies __name__ onto decorators.
+                crop_trace=self.__wrapped__.__code__.co_name,
                 rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
             )
             env.downstream_requests += 1
@@ -278,10 +317,13 @@ class _SsrfHttpConnectionGetresponse(WrappingContext):
     Inspects only the return value, so it needs neither argument access nor a core context.
     """
 
-    def __return__(self, response):
-        env = _get_asm_context()
+    def __return__(self, response: Any) -> Any:
+        # See the note in _SsrfHttpConnectionRequest.__enter__ on the check order.
+        if not get_rasp_capability("ssrf"):
+            return super().__return__(response)
+        env = get_active_asm_context()
         try:
-            if get_rasp_capability("ssrf") and response.__class__.__name__ == "HTTPResponse" and env is not None:
+            if response.__class__.__name__ == "HTTPResponse" and env is not None:
                 status = response.getcode()
                 if 300 <= status < 400:
                     # api10 for redirected response status and headers in urllib

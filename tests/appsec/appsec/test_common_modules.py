@@ -8,7 +8,7 @@ import pytest
 from wrapt import FunctionWrapper
 
 import ddtrace.appsec._common_module_patches as cmp
-from ddtrace.appsec._common_module_patches import _RaspContext
+from ddtrace.appsec._common_module_patches import _ScopedRaspContext
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionGetresponse
 from ddtrace.appsec._common_module_patches import _SsrfHttpConnectionRequest
 from ddtrace.appsec._common_module_patches import _SsrfOpenerDirectorOpen
@@ -19,16 +19,17 @@ from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
-from ddtrace.appsec._patch_utils import _DD_WRAPPING_CONTEXTS
-from ddtrace.appsec._patch_utils import _MODULE_HOOKS
-from ddtrace.appsec._patch_utils import try_unwrap_context
-from ddtrace.appsec._patch_utils import try_wrap_context
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.appsec._utils import _observator
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
+from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
+from ddtrace.internal.wrapping.hooks import try_unwrap_context
+from ddtrace.internal.wrapping.hooks import try_wrap_context
 
 
 def test_patch_read():
@@ -135,7 +136,7 @@ def test_opener_director_open_reads_fullurl_by_name():
 
     class _Recorder(_SsrfOpenerDirectorOpen):
         def __enter__(self):
-            seen.append(self._arg("fullurl"))
+            seen.append(self._locals().get("fullurl"))
             return super().__enter__()
 
     try:
@@ -165,7 +166,7 @@ def test_rasp_context_releases_its_core_context(path):
     context = _SsrfOpenerDirectorOpen(urllib.request.OpenerDirector.open)
     # Drive the lifecycle directly: RASP is inactive in this suite, so __enter__ would return
     # before opening a core context and the release paths would never be reached.
-    _RaspContext.__enter__(context)
+    _ScopedRaspContext.__enter__(context)
     context.set("use_body", False)
     context._open_core_context("url_open_analysis", full_url="http://127.0.0.1:1/", use_body=False)
     assert core.find_item("full_url") == "http://127.0.0.1:1/"
@@ -206,7 +207,7 @@ def test_http_connection_request_blocks_on_a_waf_block_decision():
         core.set_item("full_url", "http://127.0.0.1:1/")
         with (
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
-            mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
             mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()) as call_waf,
             mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
         ):
@@ -239,14 +240,14 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     httplib_unpatch()
     try:
         patch_common_modules()
-        concrete = _DD_WRAPPING_CONTEXTS[("http.client", "HTTPConnection.request")]
+        concrete = _WRAPPING_CONTEXTS[("http.client", "HTTPConnection.request")]
         universal = _UniversalWrappingContext.extract(concrete.__wrapped__)
 
         for _ in range(3):
             core.set_item("full_url", "http://127.0.0.1:1/")
             with (
                 mock.patch.object(cmp, "get_rasp_capability", return_value=True),
-                mock.patch.object(cmp, "_get_asm_context", return_value=mock.Mock(downstream_requests=0)),
+                mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
                 mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()),
                 mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
             ):
@@ -321,7 +322,7 @@ def test_try_wrap_context_survives_a_wrap_failure():
     try:
         # http.client is already imported, so the module hook fires immediately.
         try_wrap_context(key[0], key[1], _Unwrappable)
-        assert key not in _DD_WRAPPING_CONTEXTS
+        assert key not in _WRAPPING_CONTEXTS
     finally:
         try_unwrap_context(key[0], key[1])
 
@@ -340,7 +341,7 @@ def test_a_failing_enter_does_not_strand_the_core_context():
             raise RuntimeError("bug after the core context is open")
 
     context = _BrokenAfterOpen(urllib.request.OpenerDirector.open)
-    _RaspContext.__enter__(context)
+    _ScopedRaspContext.__enter__(context)
     context.__enter__()
 
     assert core.find_item("full_url") is None
@@ -361,7 +362,7 @@ def test_a_failing_return_does_not_reach_the_universal_context():
             raise RuntimeError("bug in the response analysis")
 
     context = _SsrfOpenerDirectorOpen(urllib.request.OpenerDirector.open)
-    _RaspContext.__enter__(context)
+    _ScopedRaspContext.__enter__(context)
     context.set("use_body", False)
     context._open_core_context("url_open_analysis", full_url="http://127.0.0.1:1/", use_body=False)
 
@@ -389,7 +390,7 @@ def test_try_wrap_context_rebinds_after_a_module_reload():
 
     try:
         try_wrap_context(key[0], key[1], _Ctx)
-        first = _DD_WRAPPING_CONTEXTS[key]
+        first = _WRAPPING_CONTEXTS[key]
         assert first.__wrapped__ is original
 
         # Stand in for a reload: the attribute now holds a different function object.
@@ -397,7 +398,7 @@ def test_try_wrap_context_rebinds_after_a_module_reload():
         for hook in _MODULE_HOOKS[key]:
             hook(http.client)
 
-        rebound = _DD_WRAPPING_CONTEXTS[key]
+        rebound = _WRAPPING_CONTEXTS[key]
         assert rebound is not first
         assert rebound.__wrapped__ is reloaded
     finally:
@@ -410,7 +411,7 @@ def _entered_context():
     import urllib.request
 
     context = _SsrfOpenerDirectorOpen(urllib.request.OpenerDirector.open)
-    _RaspContext.__enter__(context)
+    _ScopedRaspContext.__enter__(context)
     context.set("use_body", False)
     context._open_core_context("url_open_analysis", full_url="http://127.0.0.1:1/", use_body=False)
     return context
@@ -488,10 +489,10 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
             httplib_patch()
             patch_common_modules()
 
-        request_ctx = _DD_WRAPPING_CONTEXTS.get(("http.client", "HTTPConnection.request"))
+        request_ctx = _WRAPPING_CONTEXTS.get(("http.client", "HTTPConnection.request"))
         assert isinstance(request_ctx, _SsrfHttpConnectionRequest)
         assert isinstance(
-            _DD_WRAPPING_CONTEXTS.get(("http.client", "HTTPConnection.getresponse")),
+            _WRAPPING_CONTEXTS.get(("http.client", "HTTPConnection.getresponse")),
             _SsrfHttpConnectionGetresponse,
         )
 
@@ -502,7 +503,8 @@ def test_http_client_context_coexists_with_httplib_contrib(appsec_first):
         class _Probe(_SsrfHttpConnectionRequest):
             def __enter__(self):
                 result = super().__enter__()
-                entered.append((self._arg("method"), self._arg("url")))
+                frame_locals = self._locals()
+                entered.append((frame_locals.get("method"), frame_locals.get("url")))
                 return result
 
         request_fn = request_ctx.__wrapped__
@@ -721,3 +723,90 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
     assert inspected, "no downstream request was inspected"
     # The redirected hop must be inspected as an absolute URL carrying the target host.
     assert inspected[-1] == "http://127.0.0.1:{}/target".format(port), inspected
+
+
+def test_the_getresponse_context_releases_storage_when_rasp_is_off():
+    """The early return for the disabled path must still chain to super().
+
+    Returning the value directly instead would chain one storage dict per call onto the context
+    variable for the lifetime of the thread, which is what #20069 fixed in the selenium context.
+    """
+    import http.client
+
+    context = _SsrfHttpConnectionGetresponse(http.client.HTTPConnection.getresponse)
+    WrappingContext.__enter__(context)
+    assert context._storage.get() is not None
+
+    context.__return__(object())
+
+    assert context._storage.get() is None
+
+
+def test_exit_after_return_does_not_raise():
+    """__return__ pops this call's storage, so a later __exit__ finds none.
+
+    The core-context helpers went through the strict BaseWrappingContext.get, and in __exit__ the
+    _rasp_active() call sits outside the try, so a TypeError escaped to the caller.
+    """
+    import urllib.request
+
+    context = _SsrfOpenerDirectorOpen(urllib.request.OpenerDirector.open)
+    _ScopedRaspContext.__enter__(context)
+    context.__return__(object())
+
+    context.__exit__(ValueError, ValueError("boom"), None)
+
+
+def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib():
+    """The address must carry a host: an enclosing republish can shadow it with the bare path.
+
+    A wrapping context is always innermost, so it always sees whatever the httplib integration
+    republished. See APPSEC-70046 for the republish itself.
+    """
+    unpatch_common_modules()
+    import http.client
+
+    from ddtrace.appsec import _asm_request_context as arc
+    from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    seen = []
+    httplib_unpatch()
+    # _wrap_request only routes through the appsec wrapper, which is what republishes full_url,
+    # when both flags are on. Without them the republish never happens and this is vacuous.
+    was_asm, was_ep = asm_config._asm_enabled, asm_config._ep_enabled
+    asm_config._asm_enabled = asm_config._ep_enabled = True
+    try:
+        httplib_patch()
+        patch_common_modules()
+        core.set_item("full_url", "http://127.0.0.1:1/real/path?q=1")
+        env = mock.Mock(downstream_requests=0)
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=env),
+            # The shared wrapt wrapper resolves these through a deferred import.
+            mock.patch.object(arc, "_get_asm_context", return_value=env),
+            mock.patch.object(arc, "should_analyze_body_response", return_value=False),
+            mock.patch.object(arc, "call_waf_callback", return_value=None),
+            mock.patch.object(
+                cmp,
+                "call_waf_callback",
+                side_effect=lambda addresses=None, **kwargs: seen.append(
+                    (addresses or {}).get(EXPLOIT_PREVENTION.ADDRESS.SSRF)
+                )
+                and None,
+            ),
+        ):
+            conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
+            with contextlib.suppress(Exception):
+                conn.request("GET", "/real/path?q=1")
+    finally:
+        asm_config._asm_enabled, asm_config._ep_enabled = was_asm, was_ep
+        core.discard_item("full_url")
+        unpatch_common_modules()
+        with contextlib.suppress(Exception):
+            httplib_unpatch()
+
+    addresses = [address for address in seen if address is not None]
+    assert addresses, "no downstream request was inspected"
+    assert addresses[-1] == "http://127.0.0.1:1/real/path?q=1", addresses
