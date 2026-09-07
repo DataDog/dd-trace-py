@@ -1566,6 +1566,11 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
+    # NOTE: This must run before the _is_enabled_early guard. The tracer initialises
+    # on import (before CLI parsing), so its _atexit handler fires regardless of
+    # whether --ddtrace is passed. If this line moves below the guard, ddtrace logs
+    # will propagate to user-configured root handlers whose streams pytest closes
+    # during teardown, reintroducing the "I/O operation on closed file" error (#16712).
     logging.getLogger("ddtrace").propagate = False
 
     if not _is_enabled_early(early_config, args):

@@ -1,17 +1,17 @@
 """Regression tests for ddtrace logger propagation during pytest sessions.
 
-When a user configures a custom root logger via ``logging.config.dictConfig`` with
-``disable_existing_loggers: False`` and a ``StreamHandler`` pointing to ``ext://sys.stdout``,
-ddtrace log records emitted at interpreter shutdown (via ``Tracer._atexit``) propagate to
+When a user configures a custom root logger via logging.config.dictConfig with
+disable_existing_loggers: False and a StreamHandler pointing to ext://sys.stdout,
+ddtrace log records emitted at interpreter shutdown (via Tracer._atexit) propagate to
 the root logger's handler.  By that point pytest has already closed its captured
-``sys.stdout``, so the handler raises ``ValueError: I/O operation on closed file``.
+sys.stdout, so the handler raises ValueError: I/O operation on closed file.
 
-The fix sets ``logging.getLogger("ddtrace").propagate = False`` in
-``pytest_load_initial_conftests`` (before the ``--ddtrace`` early-enable guard), mirroring
-the old plugin's unconditional ``take_over_logger_stream_handler()`` call.
+The fix sets logging.getLogger("ddtrace").propagate = False in
+pytest_load_initial_conftests (before the --ddtrace early-enable guard), mirroring
+the old plugin's unconditional take_over_logger_stream_handler() call.
 
-These tests use ``runpytest_subprocess`` because the bug only manifests at interpreter
-shutdown (``atexit``), which does not fire in ``inline_run``.
+These tests use runpytest_subprocess because the bug only manifests at interpreter
+shutdown (atexit), which does not fire in inline_run.
 """
 
 from __future__ import annotations
@@ -27,9 +27,9 @@ import pytest
 # ---------------------------------------------------------------------------
 
 # A conftest.py that installs a custom root logger handler pointing to sys.stdout,
-# replicating the user's ``dictConfig`` with ``disable_existing_loggers: False``.
-# The fixture runs ``dictConfig`` during test setup so the handler is active when
-# the test session finishes and the tracer's ``_atexit`` fires.
+# replicating the user's dictConfig with disable_existing_loggers: False.
+# The fixture runs dictConfig during test setup so the handler is active when
+# the test session finishes and the tracer's _atexit fires.
 _CONFTEST_WITH_ROOT_STREAM_HANDLER = textwrap.dedent(
     """\
     from logging.config import dictConfig
@@ -66,7 +66,7 @@ _CONFTEST_WITH_ROOT_STREAM_HANDLER = textwrap.dedent(
 
 # A simple failing test that triggers the fixture.  We use a failing assertion so
 # the test session has a non-trivial exit code, but the key assertion is in the
-# subprocess stderr inspection (no ``--- Logging error ---``).
+# subprocess stderr inspection (no --- Logging error ---).
 _TEST_FAIL = textwrap.dedent(
     """\
     def test_dummy(configure_root_logger):
@@ -75,7 +75,7 @@ _TEST_FAIL = textwrap.dedent(
 )
 
 # A passing test that verifies the ddtrace logger's propagate attribute is False
-# at test-run time (i.e. after ``pytest_load_initial_conftests`` has run).
+# at test-run time (i.e. after pytest_load_initial_conftests has run).
 _TEST_PROPAGATE_IS_FALSE = textwrap.dedent(
     """\
     import logging
@@ -90,9 +90,9 @@ _TEST_PROPAGATE_IS_FALSE = textwrap.dedent(
 )
 
 
-# Infrastructure mock plugin — loaded via ``-p dd_log_prop_infra``.
+# Infrastructure mock plugin — loaded via -p dd_log_prop_infra.
 # Sets up mocks in the subprocess so the plugin can initialise without a real agent.
-# Mirrors the approach in ``test_pytest_log_correlation.py``.
+# Mirrors the approach in test_pytest_log_correlation.py.
 _INFRA_PLUGIN = textwrap.dedent(
     """\
     from unittest.mock import Mock
@@ -115,7 +115,7 @@ _INFRA_PLUGIN = textwrap.dedent(
 
 
 def _assert_no_logging_error(result) -> None:
-    """Assert that no ``--- Logging error ---`` traceback appears in stderr."""
+    """Assert that no --- Logging error --- traceback appears in stderr."""
     stderr = "\n".join(result.errlines)
     assert "--- Logging error ---" not in stderr, f"Expected no logging error in stderr, but found one:\n{stderr}"
     assert "I/O operation on closed file" not in stderr, (
@@ -129,7 +129,7 @@ def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     Force agentless mode with a fake API key so that SessionManager.detect_setup()
     succeeds without network calls and get_settings() falls back to defaults on
-    auth failure.  This mirrors the approach in ``test_pytest_log_correlation.py``.
+    auth failure.  This mirrors the approach in test_pytest_log_correlation.py.
     """
     monkeypatch.delenv("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER", raising=False)
     monkeypatch.delenv("_CI_DD_API_KEY", raising=False)
@@ -146,11 +146,11 @@ class TestDdtraceLoggerPropagation:
     """Verify that the ddtrace logger does not propagate to user-configured root handlers."""
 
     def test_no_logging_error_without_ddtrace_flag(self, pytester: Pytester) -> None:
-        """Without ``--ddtrace``, the plugin still loads and must prevent the logging error.
+        """Without --ddtrace, the plugin still loads and must prevent the logging error.
 
-        The tracer is initialised on import (before CLI parsing), so its ``_atexit``
-        handler fires regardless of whether ``--ddtrace`` is passed.  The fix must
-        therefore run before the ``_is_enabled_early`` guard.
+        The tracer is initialised on import (before CLI parsing), so its _atexit
+        handler fires regardless of whether --ddtrace is passed.  The fix must
+        therefore run before the _is_enabled_early guard.
         """
         pytester.makeconftest(_CONFTEST_WITH_ROOT_STREAM_HANDLER)
         pytester.makepyfile(test_file=_TEST_FAIL)
@@ -170,7 +170,7 @@ class TestDdtraceLoggerPropagation:
     def test_no_logging_error_with_ddtrace_flag(
         self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, subprocess_env: None
     ) -> None:
-        """With ``--ddtrace``, the logging error must also not appear."""
+        """With --ddtrace, the logging error must also not appear."""
         pytester.makeconftest(_CONFTEST_WITH_ROOT_STREAM_HANDLER)
         pytester.makepyfile(dd_log_prop_infra=_INFRA_PLUGIN)
         pytester.makepyfile(test_file=_TEST_FAIL)
@@ -181,10 +181,10 @@ class TestDdtraceLoggerPropagation:
         _assert_no_logging_error(result)
 
     def test_ddtrace_logger_propagate_is_false(self, pytester: Pytester) -> None:
-        """The ddtrace logger must have ``propagate = False`` during the test session.
+        """The ddtrace logger must have propagate = False during the test session.
 
-        This holds even without ``--ddtrace`` because the fix runs unconditionally
-        in ``pytest_load_initial_conftests``.
+        This holds even without --ddtrace because the fix runs unconditionally
+        in pytest_load_initial_conftests.
         """
         pytester.makepyfile(test_file=_TEST_PROPAGATE_IS_FALSE)
 

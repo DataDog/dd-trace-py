@@ -1,8 +1,11 @@
 ---
 fixes:
   - |
-    CI Visibility: Fixes an issue where the ddtrace pytest plugin could emit
+    CI Visibility: Fixes a regression where the ddtrace pytest plugin could emit
     ``--- Logging error ---`` tracebacks with ``ValueError: I/O operation on closed
     file`` at the end of a test session when a custom logging configuration
     installed via ``logging.config.dictConfig`` (or similar) replaces the root
-    logger handlers with a stream that pytest closes during teardown.
+    logger handlers with a stream that pytest closes during teardown. This issue
+    was introduced when the new pytest plugin became the default in v4.5.0; the
+    previous plugin already prevented ddtrace logs from propagating to the root
+    logger.
