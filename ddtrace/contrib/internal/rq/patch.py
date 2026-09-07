@@ -67,9 +67,6 @@ def traced_queue_enqueue_job(
         operation=schematize_messaging_operation(
             "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
         ),
-        system="rq",
-        destination=instance.name,
-        message_id=job.id,
         distributed_headers=job.meta if instance.is_async else None,
         component=config.rq.integration_name,
         integration_config=config.rq,
@@ -113,9 +110,6 @@ def traced_perform_job(func: Callable[..., Any], instance: Any, args: tuple[Any,
 
     event = MessagingProcessEvent(
         operation="rq.worker.perform_job",
-        system="rq",
-        destination=job.origin,
-        message_id=job.id,
         distributed_headers=job.meta,
         component=config.rq.integration_name,
         integration_config=config.rq_worker,

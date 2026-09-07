@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-from typing import ClassVar
 from typing import MutableMapping
 from typing import Optional
 
@@ -21,12 +20,7 @@ class MessagingEvent(TracingEvent):
     """Shared tracing data for messaging operations."""
 
     operation: str = event_field()
-    system: str = event_field()
-    destination: Optional[str] = event_field(default=None)
-    message_id: Optional[str] = event_field(default=None)
-    batch_count: Optional[int] = event_field(default=None)
     distributed_headers: Optional[MutableMapping[str, Any]] = event_field(default=None)
-    messaging_operation: ClassVar[str]
 
     def __post_init__(self) -> None:
         self.operation_name = self.operation
@@ -37,7 +31,6 @@ class MessagingProducerEvent(MessagingEvent):
     event_name = MessagingEvents.PRODUCE.value
     span_kind = SpanKind.PRODUCER
     span_type = SpanTypes.WORKER
-    messaging_operation = "send"
 
 
 @dataclass
@@ -45,7 +38,6 @@ class MessagingProcessEvent(MessagingEvent):
     event_name = MessagingEvents.PROCESS.value
     span_kind = SpanKind.CONSUMER
     span_type = SpanTypes.WORKER
-    messaging_operation = "process"
 
     activate_distributed_headers: bool = event_field(default=True)
     failed: bool = event_field(default=False)
