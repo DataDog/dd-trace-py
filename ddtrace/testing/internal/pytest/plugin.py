@@ -1566,6 +1566,8 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
+    logging.getLogger("ddtrace").propagate = False
+
     if not _is_enabled_early(early_config, args):
         yield
         return
