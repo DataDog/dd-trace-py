@@ -1,6 +1,4 @@
 from typing import Any
-from typing import Optional
-from typing import Union
 
 import aiomysql
 import wrapt
@@ -74,11 +72,6 @@ class AIOTracedCursor(dbapi_async.TracedAsyncCursor):
         super(AIOTracedCursor, self).__init__(cursor, cfg=config.aiomysql)
         pin.onto(self)
         self._self_datadog_name = schematize_database_operation("mysql.query", database_provider="mysql")
-
-    def _normalize_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
-        if isinstance(query, (str, bytes)):
-            return query
-        return None
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
         pin = Pin.get_from(self)

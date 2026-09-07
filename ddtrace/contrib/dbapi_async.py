@@ -1,9 +1,6 @@
 import inspect
-from typing import Optional
-from typing import Union
 
 from ddtrace import config
-from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -31,25 +28,6 @@ def get_version():
 
 
 class TracedAsyncCursor(TracedCursor):
-    def _prepare_dbapi_query(self, query: object) -> object:
-        has_listeners = core.has_listeners(DbQueryEvent.event_name)
-        normalized_query: Optional[Union[str, bytes]] = None
-        should_normalize = isinstance(query, (str, bytes)) or has_listeners or is_tracing_enabled()
-
-        if should_normalize:
-            try:
-                normalized_query = self._normalize_dbapi_query(query)
-            except Exception:
-                log.debug("Failed to normalize database query", exc_info=True)
-
-        resource = normalized_query if normalized_query is not None else query
-        self._self_last_execute_operation = resource
-        if has_listeners and normalized_query is not None:
-            core.dispatch_event(
-                DbQueryEvent(query=normalized_query, span_name_prefix=self._self_dbapi_span_name_prefix)
-            )
-        return resource
-
     async def __aenter__(self):
         # previous versions of the dbapi didn't support context managers. let's
         # reference the func that would be called to ensure that error

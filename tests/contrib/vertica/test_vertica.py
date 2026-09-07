@@ -2,6 +2,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -21,6 +22,39 @@ from tests.utils import assert_is_measured
 
 
 TEST_TABLE = "test_table"
+
+
+@pytest.mark.parametrize("method, keyword", [("execute", "operation"), ("copy", "sql")])
+@pytest.mark.parametrize("use_keyword", [False, True])
+@pytest.mark.parametrize("trace_enabled", [False, True])
+def test_patched_query_bytes_block_before_driver(method, keyword, use_keyword, trace_enabled, monkeypatch):
+    from vertica_python.vertica.cursor import Cursor
+
+    unpatch()
+    driver = mock.Mock()
+
+    def operation(self, *args, **kwargs):
+        return driver(*args, **kwargs)
+
+    monkeypatch.setattr(Cursor, method, operation)
+    patch()
+    cursor = Cursor.__new__(Cursor)
+    Pin(_config={"routines": {method: {"trace_enabled": trace_enabled}}}).onto(cursor)
+    query = b"SELECT 1"
+    args, kwargs = ((), {keyword: query}) if use_keyword else ((query,), {})
+    expected = BlockingException()
+    listener = mock.Mock(side_effect=expected)
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        with pytest.raises(BlockingException) as exc_info:
+            getattr(cursor, method)(*args, **kwargs)
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+        unpatch()
+
+    assert exc_info.value is expected
+    listener.assert_called_once_with(DbQueryEvent(query=query, span_name_prefix="vertica"))
+    driver.assert_not_called()
 
 
 @pytest.fixture(scope="function")

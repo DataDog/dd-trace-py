@@ -33,28 +33,6 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
 
-    @mark_asyncio
-    async def test_query_is_blocked_before_execution(self):
-        for query in ("SELECT 1", b"SELECT 1"):
-            expected = BlockingException()
-
-            def block(event: DbQueryEvent) -> None:
-                assert event == DbQueryEvent(query=query, span_name_prefix="postgres")
-                raise expected
-
-            for method in ("execute", "executemany"):
-                core.on(DbQueryEvent.event_name, block)
-                try:
-                    with pytest.raises(BlockingException) as exc_info:
-                        await getattr(
-                            TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"}), method
-                        )(query)
-                finally:
-                    core.reset_listeners(DbQueryEvent.event_name, block)
-
-                assert exc_info.value is expected
-                getattr(self.cursor, method).assert_not_awaited()
-
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     @mark_asyncio
     async def test_dbm_propagation_not_supported(self):
@@ -697,3 +675,98 @@ class TestTracedAsyncConnection(AsyncioTestCase):
         await cursor.execute("query")
         spans = self.pop_spans()
         assert len(spans) == 1
+
+
+@pytest.mark.parametrize("method", ["execute", "executemany"])
+@pytest.mark.parametrize("normalization_error", [False, True])
+@pytest.mark.parametrize("driver_error", [False, True])
+@pytest.mark.asyncio
+async def test_query_normalization_fail_open(method, normalization_error, driver_error, tracer):
+    query, parameters, option, result = object(), object(), object(), object()
+    expected = RuntimeError("driver error")
+    driver = mock.AsyncMock(rowcount=0)
+    operation = getattr(driver, method)
+    operation.return_value = result
+    if driver_error:
+        operation.side_effect = expected
+    normalize = mock.Mock(return_value=None, side_effect=ValueError("cannot render") if normalization_error else None)
+
+    class NormalizingCursor(TracedAsyncCursor):
+        def _normalize_dbapi_query(self, query):
+            return normalize(query)
+
+    cursor = NormalizingCursor(driver, cfg={})
+    listener = mock.Mock()
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        if driver_error:
+            with pytest.raises(RuntimeError) as exc_info:
+                await getattr(cursor, method)(query, parameters, option=option)
+            assert exc_info.value is expected
+        else:
+            assert await getattr(cursor, method)(query, parameters, option=option) is result
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+
+    normalize.assert_called_once_with(query)
+    listener.assert_not_called()
+    operation.assert_awaited_once_with(query, parameters, option=option)
+    assert operation.call_args.args[0] is query
+    assert operation.call_args.args[1] is parameters
+    assert operation.call_args.kwargs["option"] is option
+    assert cursor._self_last_execute_operation is query
+
+
+@pytest.mark.parametrize("method", ["execute", "executemany"])
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+@pytest.mark.parametrize("has_listener", [False, True])
+@pytest.mark.asyncio
+async def test_query_normalization_enablement(method, tracing_enabled, has_listener, tracer, test_spans):
+    tracer.enabled = tracing_enabled
+    query = object()
+    normalize = mock.Mock(return_value="SELECT 1")
+
+    class NormalizingCursor(TracedAsyncCursor):
+        def _normalize_dbapi_query(self, query):
+            return normalize(query)
+
+    driver = mock.AsyncMock(rowcount=0)
+    listener = mock.Mock()
+    cursor = NormalizingCursor(driver, cfg={})
+    # Isolate the no-listener case from product subscribers registered by the test harness.
+    with mock.patch.object(core, "has_listeners", return_value=has_listener):
+        if has_listener:
+            core.on(DbQueryEvent.event_name, listener)
+        try:
+            await getattr(cursor, method)(query)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+    assert normalize.call_count == int(tracing_enabled or has_listener)
+    if has_listener:
+        listener.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="sql"))
+    else:
+        listener.assert_not_called()
+    assert [span.resource for span in test_spans.spans] == (["SELECT 1"] if tracing_enabled else [])
+    getattr(driver, method).assert_awaited_once_with(query)
+
+
+@pytest.mark.parametrize("method", ["execute", "executemany"])
+@pytest.mark.parametrize("query", ["SELECT 1", b"SELECT 1"])
+@pytest.mark.parametrize("tracing_enabled", [False, True])
+@pytest.mark.asyncio
+async def test_query_is_blocked_before_execution(method, query, tracing_enabled, tracer):
+    tracer.enabled = tracing_enabled
+    driver = mock.AsyncMock(rowcount=0)
+    expected = BlockingException()
+    listener = mock.Mock(side_effect=expected)
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        with pytest.raises(BlockingException) as exc_info:
+            await getattr(TracedAsyncCursor(driver, cfg={}), method)(query)
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+
+    assert exc_info.value is expected
+    listener.assert_called_once_with(DbQueryEvent(query=query, span_name_prefix="sql"))
+    getattr(driver, method).assert_not_called()
