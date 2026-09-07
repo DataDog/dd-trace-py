@@ -239,6 +239,34 @@ suites:
       - tests/cache/*
       - tests/snapshots/tests.internal.*
     snapshot: true
+    matrix:
+      command: pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/
+      env:
+        DD_CIVISIBILITY_ITR_ENABLED: '0'
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        # uWSGI leaves native objects in uv's shared source cache across Python builds.
+        # Disable that cache only for internal-suite environment construction.
+        UV_NO_CACHE: '1'
+      variants:
+        - name: internal
+          python: ['3.9', '3.10', '3.11']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
+        - name: internal
+          python: ['3.9', '3.10', '3.11']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82']
+        - name: internal
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
+          env:
+            PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
+        - name: internal
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
+          env:
+            PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
+        - name: internal
+          command: pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, pyarmor]
   wrapping:
     venvs_per_job: 6
     paths:

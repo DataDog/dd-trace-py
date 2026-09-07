@@ -659,6 +659,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "UV_NO_CACHE": "1",
             },
             command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
