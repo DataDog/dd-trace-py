@@ -419,3 +419,8 @@ scripts/integration_registry/                   @DataDog/apm-idm-python
 .gitlab/benchmarks/slos/apm-idm-python.yml               @DataDog/apm-idm-python
 .gitlab/benchmarks/slos/profiling-python.yml             @DataDog/profiling-python
 .gitlab/benchmarks/slos/debugger-python.yml              @DataDog/debugger-python
+
+# SLO exception list (intentionally ungated configs / non-conformant class
+# names). This is governance for the lint tooling itself, not a product
+# threshold, so it routes to the python guild.
+.gitlab/benchmarks/slo-exceptions.yml                    @DataDog/python-guild
