@@ -578,20 +578,29 @@ class SessionManager:
         return Path(workspace_path) / ".git" / _UPLOAD_LOCK_FILENAME
 
     def cleanup_upload_artifacts(self) -> None:
-        """Delete the upload sentinel and lock files left in .git/.
+        """Delete the upload sentinel file left in .git/.
 
         Safe to call once the session is finishing — by that point all workers
-        have already run upload_git_data() during their __init__, so neither
-        file is needed any more. Should be called only from the controller
+        have already run upload_git_data() during their __init__, so the sentinel
+        is no longer needed. Should be called only from the controller
         process (not xdist workers) so we don't race with a slow-starting peer.
+
+        The lock file (dd-trace-py.upload.lock) is intentionally not
+        removed. If multiple pytest controllers share the same workspace
+        (e.g. a CI matrix that reuses a checkout), deleting the lock file while
+        another controller's worker still holds an flock on it causes the next
+        opener to get a new inode. Locks on the old and new inodes are
+        independent, so two workers can each believe they hold the exclusive
+        lock and unshallow concurrently — reintroducing the very race the lock
+        is meant to prevent. The lock file is a zero-byte placeholder; leaving
+        it in .git/ is harmless.
         """
-        for path in (self._upload_sentinel_path(), self._upload_lock_path()):
-            if path is None:
-                continue
+        sentinel = self._upload_sentinel_path()
+        if sentinel is not None:
             try:
-                path.unlink(missing_ok=True)
+                sentinel.unlink(missing_ok=True)
             except OSError as e:
-                log.debug("Could not remove upload artifact %s: %s", path, e)
+                log.debug("Could not remove upload sentinel %s: %s", sentinel, e)
 
     @contextlib.contextmanager
     def _upload_lock(self) -> t.Iterator[bool]:

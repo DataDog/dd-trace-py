@@ -9,7 +9,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.settings.aiguard import aiguard_config
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 
@@ -49,31 +49,31 @@ class TestAIGuardStandalone:
     """
 
     def test_apm_opt_out_enabled_when_ai_guard_enabled_and_apm_disabled(self):
-        """AI Guard alone (no AppSec/IAST/SCA) with APM disabled triggers _apm_opt_out."""
+        """AI Guard alone (no AppSec/IAST/SCA) with APM disabled triggers standalone mode."""
         with override_ai_guard_config(_STANDALONE_AI_GUARD_CONFIG):
-            original = asm_config._apm_tracing_enabled
+            original = standalone_config.apm_tracing_enabled
             try:
-                asm_config._apm_tracing_enabled = False
+                standalone_config.apm_tracing_enabled = False
                 assert aiguard_config._ai_guard_enabled
-                assert asm_config._apm_opt_out is True
+                assert standalone_config.apm_opt_out is True
             finally:
-                asm_config._apm_tracing_enabled = original
+                standalone_config.apm_tracing_enabled = original
 
     def test_apm_opt_out_disabled_when_apm_tracing_enabled(self):
         """AI Guard enabled but APM tracing enabled must NOT opt out of APM billing."""
         with override_ai_guard_config(_STANDALONE_AI_GUARD_CONFIG):
-            original = asm_config._apm_tracing_enabled
+            original = standalone_config.apm_tracing_enabled
             try:
-                asm_config._apm_tracing_enabled = True
+                standalone_config.apm_tracing_enabled = True
                 assert aiguard_config._ai_guard_enabled
-                assert asm_config._apm_opt_out is False
+                assert standalone_config.apm_opt_out is False
             finally:
-                asm_config._apm_tracing_enabled = original
+                standalone_config.apm_tracing_enabled = original
 
     def test_standalone_sets_apm_enabled_metric(self, ai_guard_standalone_tracer):
         """In standalone mode every span gets the _dd.apm.enabled=0 metric (no APM billing)."""
         tracer = ai_guard_standalone_tracer
-        assert asm_config._apm_opt_out is True
+        assert standalone_config.apm_opt_out is True
 
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(span, {}, raw_uri="http://example.com/", status_code="200")
@@ -85,7 +85,7 @@ class TestAIGuardStandalone:
         """After evaluate(), the service-entry span is kept (USER_KEEP) with the AI_GUARD decision maker."""
         mock_execute_request.return_value = mock_evaluate_response("ALLOW")
         tracer = ai_guard_standalone_tracer
-        assert asm_config._apm_opt_out is True
+        assert standalone_config.apm_opt_out is True
 
         from ddtrace.aiguard import new_ai_guard_client
 
