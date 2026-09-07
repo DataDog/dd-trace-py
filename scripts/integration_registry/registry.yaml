@@ -95,7 +95,7 @@ integrations:
   tested_versions_by_dependency:
     anyio:
       min: 3.4.0
-      max: 4.14.2
+      max: 4.15.0
 
 - integration_name: aredis
   is_external_package: true
