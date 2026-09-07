@@ -36,6 +36,7 @@ suites:
         pytest --ddtrace -n auto --dist=worksteal {cmdargs} tests/ci_visibility --ignore=tests/ci_visibility/api/test_api_fake_runners.py
       env:
         DD_AGENT_PORT: '9126'
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
       variants:
         - name: ci_visibility
@@ -60,6 +61,7 @@ suites:
       command: pytest --ddtrace {cmdargs} tests/ci_visibility/api/test_api_fake_runners.py
       env:
         DD_AGENT_PORT: '9126'
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
       variants:
         - name: ci_visibility:snapshot
@@ -99,6 +101,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_PYTEST_USE_NEW_PLUGIN: 'false'
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants:
         - name: pytest
           python: ['3.9']
@@ -139,6 +142,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_PYTEST_USE_NEW_PLUGIN: 'false'
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants:
         - name: pytest:snapshot
           python: ['3.9']
@@ -174,6 +178,8 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py
+      env:
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants:
         - name: pytest_benchmark
           dependencies: [msgpack, pytest-randomly, 'pytest-benchmark>=3.1.0,<=4.0.0']
@@ -196,6 +202,8 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py
+      env:
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants:
         - name: pytest_bdd
           python: ['3.9']
@@ -222,10 +230,12 @@ suites:
     pattern: 'pytest:flaky'
     matrix:
       command: pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py
+      env:
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants:
         - name: pytest:flaky
+          integration: pytest
           dependencies: [flaky, pytest-randomly]
-    integration: pytest
   testing:
     retry: 2
     venvs_per_job: 1
@@ -247,6 +257,7 @@ suites:
       env:
         DD_AGENT_PORT: '9126'
         DD_CIVISIBILITY_CODE_COVERAGE_REPORT_UPLOAD_ENABLED: 'false'
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
         _DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER: '0'
       variants:
         - name: testing
