@@ -1877,6 +1877,8 @@ venv = Venv(
                 "webtest": [latest],
                 "tests/contrib/pyramid/pserve_app": [latest],
                 "pytest-randomly": latest,
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -2939,6 +2941,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={
                 "pytest-randomly": latest,
+                # Only latest is exercised. The surface the context-switch shim wraps has held
+                # from 0.14.0 (the oldest release supporting a Python this tracer supports)
+                # through 0.22.1, and tests/contrib/asyncio/test_context_switch.py fails if a
+                # release stops delegating call_at to call_later.
+                "uvloop": latest,
             },
             venvs=[
                 Venv(
