@@ -6,6 +6,7 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.messaging import MessagingProcessEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
+from ddtrace.ext import SpanKind
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -64,7 +65,7 @@ def traced_queue_enqueue_job(
 
     event = MessagingProducerEvent(
         operation=schematize_messaging_operation(
-                "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
+            "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
         ),
         system="rq",
         destination=instance.name,
@@ -99,7 +100,7 @@ def traced_queue_fetch_job(
             ),
             service=trace_utils.int_service(None, config.rq),
             span_type="",
-            span_kind="",
+            span_kind=SpanKind.INTERNAL,
             measured=False,
             tags={JOB_ID: job_id},
         )
@@ -107,9 +108,7 @@ def traced_queue_fetch_job(
         return func(*args, **kwargs)
 
 
-def traced_perform_job(
-    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
+def traced_perform_job(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Trace rq.Worker.perform_job"""
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
@@ -167,7 +166,7 @@ def traced_job_perform(func: Callable[..., Any], instance: Any, args: tuple[Any,
             operation_name="rq.job.perform",
             resource=job.func_name,
             span_type="",
-            span_kind="",
+            span_kind=SpanKind.INTERNAL,
             measured=False,
             tags={JOB_ID: job.id},
         )
@@ -189,7 +188,7 @@ def traced_job_fetch_many(
             ),
             service=trace_utils.ext_service(None, config.rq_worker),
             span_type="",
-            span_kind="",
+            span_kind=SpanKind.INTERNAL,
             measured=False,
             tags={JOB_ID: job_ids},
         )
