@@ -45,10 +45,12 @@ Generate the skeleton: `riot run reno new <slug>` (slug: lowercase, hyphenated, 
 that apply — one Reno fragment per change.
 
 Format: `<scope>: <sentence(s)>.` Scope is the component name (see
-:ref:`release_notes_scope` in docs/releasenotes.rst — `tracing`, `profiling`, `ASM`,
+:ref:`release_notes_scope` in docs/releasenotes.rst — `tracing`, `profiling`, `AAP`,
 `dynamic instrumentation`, `CI visibility`, or the integration name). Use `internal` when the
 change genuinely isn't tied to one product (e.g. core threading/fork-safety affecting several
 products) — that's a legitimate scope, not a placeholder for when you didn't pick one.
+
+Use `AAP` for Application and API Protection release notes. `ASM` is retired terminology.
 
 **Fix** — state the customer-visible symptom, not the root cause, in present tense:
 `Fixes an issue where <symptom> occurs when <condition>.`
