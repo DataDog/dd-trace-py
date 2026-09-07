@@ -740,6 +740,38 @@ class TracerTestCases(TracerTestCase):
         # After shutdown, the wrap executor should be reset
         assert self.tracer._wrap_executor is None
 
+    def test_tracer_defers_writer_recreation_after_fork(self):
+        aggregator = self.tracer._span_aggregator
+        inherited_writer = aggregator.writer
+        with (
+            mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate,
+            mock.patch.object(
+                aggregator, "reset_trace_buffer_after_fork", wraps=aggregator.reset_trace_buffer_after_fork
+            ) as reset_trace_buffer,
+            mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as flush_queue,
+        ):
+            self.tracer._child_after_fork()
+            recreate.assert_not_called()
+            reset_trace_buffer.assert_called_once_with()
+
+            for _ in range(10):
+                with self.trace("child-span"):
+                    pass
+
+            recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
+            reset_trace_buffer.assert_called_once_with()
+            flush_queue.assert_not_called()
+
+    def test_tracer_shutdown_after_fork_does_not_recreate_writer(self):
+        writer = self.tracer._span_aggregator.writer
+        with mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate:
+            self.tracer._child_after_fork()
+            self.tracer.shutdown()
+
+        recreate.assert_not_called()
+        assert self.tracer._span_aggregator.writer is writer
+        assert not self.tracer._new_process
+
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
         self.tracer.context_provider.activate(context)
@@ -2139,7 +2171,8 @@ def test_activate_context_nesting_and_restoration(tracer):
     1. A context can be activated and its values are accessible
     2. A nested context can be activated and its values override the outer context
     3. When the nested context exits, the outer context is properly restored
-    4. When all contexts exit, the active context is None
+    4. An empty nested context clears and then restores the outer context
+    5. When all contexts exit, the active context is None
     """
 
     with tracer._activate_context(Context(trace_id=1, span_id=1)):
@@ -2155,5 +2188,10 @@ def test_activate_context_nesting_and_restoration(tracer):
         active = tracer.context_provider.active()
         assert active.trace_id == 1
         assert active.span_id == 1
+
+        with tracer._activate_context(None):
+            assert tracer.context_provider.active() is None
+
+        assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None

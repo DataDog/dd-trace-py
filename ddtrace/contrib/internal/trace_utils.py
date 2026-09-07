@@ -38,10 +38,12 @@ from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.constants import _SERVICE_SOURCE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.utils.http import w3c_get_tracestate_list_member
 from ddtrace.internal.utils.wrappers import iswrapped  # noqa: F401
 from ddtrace.internal.utils.wrappers import unwrap  # noqa: F401
 from ddtrace.propagation.http import HTTPPropagator
@@ -617,6 +619,15 @@ def _copy_trace_level_tags(target_span: Span, parent: Span):
 
     if parent.context.sampling_priority is not None:
         target_span.context.sampling_priority = parent.context.sampling_priority
+
+    # Materialize a deferred local decision before detaching it from the parent trace.
+    _ = parent.context._tracestate
+    raw_tracestate = parent.context._meta.get(W3C_TRACESTATE_KEY, "")
+    ot_value = w3c_get_tracestate_list_member(raw_tracestate, "ot")
+    if ot_value is not None:
+        # AIDEV-NOTE: WebSocket message spans start independent traces. Copy only canonical ot=
+        # sampling data; other vendor members describe the parent trace.
+        target_span.context._meta[W3C_TRACESTATE_KEY] = "ot=" + ot_value
 
     if parent.context._meta.get(_ORIGIN_KEY):
         target_span._set_attribute(_ORIGIN_KEY, parent.context._meta[_ORIGIN_KEY])

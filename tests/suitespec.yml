@@ -67,6 +67,7 @@ components:
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
     - ddtrace/internal/logger.py
+    - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
@@ -187,6 +188,8 @@ suites:
     paths:
       - 'conftest.py'
       - '**/conftest.py'
+      - 'tests/_ddtest_conftest_helpers.py'
+      - 'tests/_ddtest_env_helpers.py'
     pattern: meta-testing
     snapshot: false
     matrix:
@@ -234,6 +237,10 @@ suites:
         DD_RUNTIME_METRICS_ENABLED: '1'
       variants: [{name: detect_global_locks}]
   integration_agent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     parallelism: 2
     paths:
       - '@tracing'
@@ -251,10 +258,21 @@ suites:
         - name: integration-latest
           dependencies: [msgpack, pytest-randomly]
           command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
+          env:
+            DDTEST_SUITE_PATH: tests/integration
+            DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
+            DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-latest-civisibility
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
+          env:
+            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
+            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
   integration_testagent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -273,9 +291,16 @@ suites:
         - name: integration-snapshot
           dependencies: [msgpack, pytest-randomly]
           command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
+          env:
+            DDTEST_SUITE_PATH: tests/integration
+            DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
+            DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-snapshot-civisibility
           dependencies: [msgpack, pytest-randomly]
           command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
+          env:
+            DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
+            DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
   integration_registry:
     parallelism: 1
     paths:
@@ -415,8 +440,13 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, 'httpretty<1.1', pytest-randomly, xmltodict, django, 'flask<=2.2.3', 'werkzeug<2.0', 'markupsafe<2.0']
   tracer:
+    ddtest: true
+    ddtest_nodes: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
+      DDTEST_SUITE_PATH: tests/tracer
+      DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
@@ -440,6 +470,10 @@ suites:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+        DDTEST_SUITE_PATH: tests/tracer
+        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
@@ -450,15 +484,36 @@ suites:
         - name: tracer-legacy-attrs
           python: ['3.9']
           dependencies: [msgpack, 'attrs==22.1.0', structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, 'cattrs<23.2.0']
-        - name: tracer-uwsgi
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
-          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
-          command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
         - name: tracer-128-bit-traceid-disabled
           python: ['3.14']
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
           env:
             DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED: 'false'
+  tracer-uwsgi:
+    venvs_per_job: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@vendor'
+      - tests/tracer/test_uwsgi_shutdown.py
+      - tests/tracer/uwsgi-app.py
+      - tests/contrib/uwsgi/__init__.py
+    pattern: tracer-uwsgi
+    matrix:
+      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+      env:
+        DDTEST_SUITE_PATH: tests/tracer
+        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
+        DD_CIVISIBILITY_LOG_LEVEL: none
+        DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
+        _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+      variants:
+        - name: tracer-uwsgi
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun, uwsgi]
   wait:
     type: helper
     paths:

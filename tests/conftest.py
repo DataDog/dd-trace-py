@@ -32,10 +32,17 @@ import pytest
 
 import ddtrace
 
-
 # DEV: Consumed by detect_service() during ddtrace import above; unset now so
 # it doesn't leak into tests (e.g. unit tests that call detect_service directly).
-os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+# Save it so pytest_configure can propagate the correct value to xdist workers
+# (the suitespec may set this to the suite-level service, e.g. tests.tracer;
+# detect_service(sys.argv) under ddtest would pick the first file's subpackage).
+# All ddtest-specific logic is in _ddtest_conftest_helpers so it can be removed
+# cleanly if ddtest support is dropped.
+from tests._ddtest_conftest_helpers import pop_and_seed_inferred_service
+
+
+_inferred_service_env = pop_and_seed_inferred_service()
 
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
@@ -174,11 +181,14 @@ def pytest_configure(config):
     # Only set when xdist workers are actually being spawned (numprocesses > 0 or
     # 'auto') and only from the controller (workers have PYTEST_XDIST_WORKER set).
     if not os.environ.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
-        from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
+        if _inferred_service_env:
+            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred_service_env
+        else:
+            from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
 
-        _inferred = _detect_service(sys.argv)
-        if _inferred:
-            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
+            _inferred = _detect_service(sys.argv)
+            if _inferred:
+                os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
 
 
 @pytest.fixture(autouse=True, scope="function")

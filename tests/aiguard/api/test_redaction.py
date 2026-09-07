@@ -296,7 +296,9 @@ def test_redaction_survives_message_truncation(
     assert struct_messages[-1]["content"] == "message 19 ssn <REDACTED>"
     assert struct_messages[0]["content"] == "message 4 ssn 123-45-6789"
     # Truncating twice must not be reported twice.
-    assert _metrics(add_count_metric, AI_GUARD.TRUNCATED_METRIC) == [(1, (("type", "messages"),))]
+    assert _metrics(add_count_metric, AI_GUARD.TRUNCATED_METRIC) == [
+        (1, (("type", "messages"), ("source", AI_GUARD.SOURCE_SDK), ("integration", AI_GUARD.INTEGRATION_NONE)))
+    ]
 
 
 @patch("ddtrace.aiguard._api_client.AIGuardClient._execute_request")

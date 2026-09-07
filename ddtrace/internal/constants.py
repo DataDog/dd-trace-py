@@ -176,6 +176,17 @@ class SamplingMechanism(object):
     AI_GUARD = 13
 
 
+PROBABILISTIC_SAMPLING_MECHANISMS = frozenset(
+    (
+        SamplingMechanism.DEFAULT,
+        SamplingMechanism.AGENT_RATE_BY_SERVICE,
+        SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
+        SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
+    )
+)
+
+
 class TraceSource(object):
     """Bit values for the _dd.p.ts (trace source) propagation tag.
 

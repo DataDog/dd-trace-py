@@ -4,7 +4,7 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._ddwaf import DDWafSqlTokenizer
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.core.subscriber import Subscriber
 
@@ -19,10 +19,10 @@ _SPAN_NAME_PREFIX_TO_SQL_TOKENIZER: dict[str, DDWafSqlTokenizer] = {
 
 
 class AppSecDbApiSubscriber(Subscriber):
-    event_names = (DbApiEvent.event_name,)
+    event_names = (DbQueryEvent.event_name,)
 
     @classmethod
-    def on_event(cls, event: DbApiEvent) -> None:
+    def on_event(cls, event: DbQueryEvent) -> None:
         if not get_rasp_capability("sqli") or not event.query:
             return
 

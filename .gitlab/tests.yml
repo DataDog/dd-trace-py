@@ -75,4 +75,89 @@ include:
     - !reference [.test_base_gpu, before_script]
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
 
+# AIDEV-NOTE: DDTest must receive the complete suitespec command. Falling back
+# to bare pytest bypasses per-suite exclusions and can select unavailable tools.
+.ddtest_base_uv:
+  extends: .test_base
+
+.ddtest_base_uv_snapshot:
+  extends: .test_base_snapshot
+
+.ddtest_base_uv_gpu:
+  extends: .test_base_gpu
+
+.ddtest_base_uv_gpu_snapshot:
+  extends: .test_base_gpu_snapshot
+
+.ddtest_plan_uv:
+  extends: .ddtest_base_uv
+  script:
+    - |
+      set -euo pipefail
+      for metadata in ${TEST_ENVIRONMENT_HASH_PYTHON}; do
+        IFS=: read -r environment_hash python_version lockfile tests_location <<< "${metadata}"
+        command_var="DDTEST_UV_COMMAND_${environment_hash}"
+        env_var="DDTEST_UV_ENV_${environment_hash}"
+        requirements="$(mktemp)"
+        grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
+        wheel="$(find ".cache/ddtrace-test-wheels/${python_version}" -name 'ddtrace-*.whl' -print -quit)"
+        set -f
+        export ${!env_var}
+        set +f
+        uv run --isolated --no-project --python "python${python_version}" --no-python-downloads \
+          --with-requirements "${requirements}" --with "${wheel}" \
+          ddtest plan --platform python --framework pytest --command "${!command_var}" \
+          --tests-location "${tests_location}" --min-parallelism "${DDTEST_NODES}" --max-parallelism "${DDTEST_NODES}"
+        rm -f "${requirements}"
+        mv .testoptimization ".testoptimization-${environment_hash}"
+      done
+  artifacts:
+    when: always
+    paths:
+      - .testoptimization-*/
+    expire_in: 1 week
+
+.ddtest_plan_uv_gpu:
+  extends:
+    - .ddtest_plan_uv
+    - .ddtest_base_uv_gpu
+
+.ddtest_run_uv:
+  extends: .ddtest_base_uv
+  script:
+    - |
+      set -euo pipefail
+      rm -rf .testoptimization
+      mv ".testoptimization-${TEST_ENVIRONMENT_HASH}" .testoptimization
+      command_var="DDTEST_UV_COMMAND_${TEST_ENVIRONMENT_HASH}"
+      env_var="DDTEST_UV_ENV_${TEST_ENVIRONMENT_HASH}"
+      requirements="$(mktemp)"
+      grep -vi '^ddtrace==' "${TEST_ENVIRONMENT_LOCKFILE}" > "${requirements}"
+      wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
+      set -f
+      export ${!env_var}
+      set +f
+      export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
+      uv run --isolated --no-project --python "python${PYTHON_VERSION}" --no-python-downloads \
+        --with-requirements "${requirements}" --with "${wheel}" \
+        ddtest run --platform python --framework pytest --command "${!command_var}" \
+          --ci-node "${CI_NODE_INDEX}" --ci-node-workers 1
+      rm -f "${requirements}"
+      coverage combine || true
+
+.ddtest_run_uv_snapshot:
+  extends:
+    - .ddtest_run_uv
+    - .ddtest_base_uv_snapshot
+
+.ddtest_run_uv_gpu:
+  extends:
+    - .ddtest_run_uv
+    - .ddtest_base_uv_gpu
+
+.ddtest_run_uv_gpu_snapshot:
+  extends:
+    - .ddtest_run_uv
+    - .ddtest_base_uv_gpu_snapshot
+
 # Required jobs will appear here

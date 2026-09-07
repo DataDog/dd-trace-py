@@ -1754,7 +1754,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ),
         ]
         + [
-            ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
+            ("ssrf", {f"url_{p1}_1": "127.0.0.1:1", f"url_{p2}_2": "127.0.0.1:2"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
                     ("urlopen_string", "do_open"),

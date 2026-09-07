@@ -120,6 +120,7 @@ suites:
     matrix:
       command: pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py
       env:
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
         DD_IAST_ENABLED: 'true'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.,scripts.iast.
       python: ['3.10', '3.11', '3.12']
@@ -447,7 +448,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
+      command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -457,40 +458,40 @@ suites:
       variants:
         - name: appsec_threats_django_no_iast
           python: ['3.9']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=2.2']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=2.2']
         - name: appsec_threats_django_no_iast
           python: ['3.9']
-          dependencies: [requests, httpx, httpx2, 'django~=2.2']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=2.2']
         - name: appsec_threats_django_no_iast
           python: ['3.9', '3.10']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=3.2']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=3.2']
         - name: appsec_threats_django_no_iast
           python: ['3.9', '3.10']
-          dependencies: [requests, httpx, httpx2, 'django~=3.2']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=3.2']
         - name: appsec_threats_django_no_iast
           python: ['3.10']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django==4.0.10']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django==4.0.10']
         - name: appsec_threats_django_no_iast
           python: ['3.10']
-          dependencies: [requests, httpx, httpx2, 'django==4.0.10']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django==4.0.10']
         - name: appsec_threats_django_no_iast
           python: ['3.11', '3.13']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=4.2']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=4.2']
         - name: appsec_threats_django_no_iast
           python: ['3.11', '3.13']
-          dependencies: [requests, httpx, httpx2, 'django~=4.2']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=4.2']
         - name: appsec_threats_django_no_iast
           python: ['3.10', '3.13']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
         - name: appsec_threats_django_no_iast
           python: ['3.10', '3.13']
-          dependencies: [requests, httpx, httpx2, 'django~=5.1']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=5.1']
         - name: appsec_threats_django_no_iast
           python: ['3.12', '3.14']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=6.0']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=6.0']
         - name: appsec_threats_django_no_iast
           python: ['3.12', '3.14']
-          dependencies: [requests, httpx, httpx2, 'django~=6.0']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_iast:
     venvs_per_job: 1
     paths:
@@ -507,7 +508,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
+      command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -520,40 +521,40 @@ suites:
       variants:
         - name: appsec_threats_django_iast
           python: ['3.9']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=2.2']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=2.2']
         - name: appsec_threats_django_iast
           python: ['3.9']
-          dependencies: [requests, httpx, httpx2, 'django~=2.2']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=2.2']
         - name: appsec_threats_django_iast
           python: ['3.9', '3.10']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=3.2']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=3.2']
         - name: appsec_threats_django_iast
           python: ['3.9', '3.10']
-          dependencies: [requests, httpx, httpx2, 'django~=3.2']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=3.2']
         - name: appsec_threats_django_iast
           python: ['3.10']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django==4.0.10']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django==4.0.10']
         - name: appsec_threats_django_iast
           python: ['3.10']
-          dependencies: [requests, httpx, httpx2, 'django==4.0.10']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django==4.0.10']
         - name: appsec_threats_django_iast
           python: ['3.11', '3.13']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=4.2']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=4.2']
         - name: appsec_threats_django_iast
           python: ['3.11', '3.13']
-          dependencies: [requests, httpx, httpx2, 'django~=4.2']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=4.2']
         - name: appsec_threats_django_iast
           python: ['3.10', '3.13']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=5.1']
         - name: appsec_threats_django_iast
           python: ['3.10', '3.13']
-          dependencies: [requests, httpx, httpx2, 'django~=5.1']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=5.1']
         - name: appsec_threats_django_iast
           python: ['3.12', '3.14']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'django~=6.0']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'django~=6.0']
         - name: appsec_threats_django_iast
           python: ['3.12', '3.14']
-          dependencies: [requests, httpx, httpx2, 'django~=6.0']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'django~=6.0']
   appsec_threats_django_rc:
     venvs_per_job: 1
     paths:
@@ -598,7 +599,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
+      command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -610,25 +611,25 @@ suites:
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
           # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.94.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', httpx2]
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.94.1', httpx2]
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi~=0.114.2', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', httpx2]
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi~=0.114.2', httpx2]
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.14']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_no_iast
           python: ['3.10', '3.14']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_iast:
     venvs_per_job: 1
     paths:
@@ -646,7 +647,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
+      command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -660,25 +661,25 @@ suites:
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
           # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.86.0', 'anyio==3.7.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.94.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.94.1', httpx2]
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.94.1', httpx2]
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi~=0.114.2', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi~=0.114.2', httpx2]
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi~=0.114.2', httpx2]
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.14']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', 'httpx2~=2.0.0']
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', 'httpx2~=2.0.0']
         - name: appsec_threats_fastapi_iast
           python: ['3.10', '3.14']
-          dependencies: [hypothesis, requests, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
+          dependencies: [pytest-xdist, requests, hypothesis, 'httpx<0.28.0', 'fastapi==0.141.1', httpx2]
   appsec_threats_fastapi_rc:
     venvs_per_job: 1
     paths:
@@ -724,7 +725,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
+      command: pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -734,28 +735,28 @@ suites:
       variants:
         - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=1.1', 'MarkupSafe~=1.1']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=1.1', 'MarkupSafe~=1.1']
         - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=1.1', 'MarkupSafe~=1.1']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=1.1', 'MarkupSafe~=1.1']
         - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask==2.1.3', 'Werkzeug<3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_no_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
         - name: appsec_threats_flask_no_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=2.3']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_no_iast
           python: ['3.11', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
         - name: appsec_threats_flask_no_iast
           python: ['3.11', '3.13']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_iast:
     venvs_per_job: 1
     paths:
@@ -772,7 +773,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
+      command: pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -785,28 +786,28 @@ suites:
       variants:
         - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=1.1', 'MarkupSafe~=1.1']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=1.1', 'MarkupSafe~=1.1']
         - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=1.1', 'MarkupSafe~=1.1']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=1.1', 'MarkupSafe~=1.1']
         - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask==2.1.3', 'Werkzeug<3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_iast
           python: ['3.9']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask==2.1.3', 'Werkzeug<3.0']
         - name: appsec_threats_flask_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=2.3']
         - name: appsec_threats_flask_iast
           python: ['3.10', '3.13']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=2.3']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=2.3']
         - name: appsec_threats_flask_iast
           python: ['3.11', '3.13']
-          dependencies: [hypothesis, requests, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, 'httpx2~=2.0.0', 'flask~=3.0']
         - name: appsec_threats_flask_iast
           python: ['3.11', '3.13']
-          dependencies: [hypothesis, requests, httpx, httpx2, 'flask~=3.0']
+          dependencies: [pytest-xdist, requests, hypothesis, httpx, httpx2, 'flask~=3.0']
   appsec_threats_flask_rc:
     venvs_per_job: 1
     paths:
@@ -851,32 +852,33 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
+      command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
         DD_APPSEC_ENABLED: 'true'
         DD_IAST_ENABLED: 'false'
         DD_TRACE_AGENT_URL: http://testagent:9126
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.3']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.3']
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, httpx2, 'tornado~=6.3']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.3']
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.4']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.4']
         - name: appsec_threats_tornado_no_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, httpx2, 'tornado~=6.4']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.4']
         - name: appsec_threats_tornado_no_iast
           python: ['3.10', '3.14']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
         - name: appsec_threats_tornado_no_iast
           python: ['3.10', '3.14']
-          dependencies: [requests, httpx, httpx2, 'tornado~=6.5']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_iast:
     venvs_per_job: 1
     paths:
@@ -893,7 +895,7 @@ suites:
       - tests/appsec/contrib_appsec/*
     retry: 2
     matrix:
-      command: pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
+      command: pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}
       env:
         AGENT_VERSION: testagent
         DD_API_SECURITY_SAMPLE_DELAY: '0'
@@ -903,25 +905,26 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         DD_IAST_WEAK_HASH_ALGORITHMS: NOTexist
         DD_TRACE_AGENT_URL: http://testagent:9126
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.3']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.3']
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, httpx2, 'tornado~=6.3']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.3']
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.4']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.4']
         - name: appsec_threats_tornado_iast
           python: ['3.9', '3.12']
-          dependencies: [requests, httpx, httpx2, 'tornado~=6.4']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.4']
         - name: appsec_threats_tornado_iast
           python: ['3.10', '3.14']
-          dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
+          dependencies: [pytest-xdist, requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
         - name: appsec_threats_tornado_iast
           python: ['3.10', '3.14']
-          dependencies: [requests, httpx, httpx2, 'tornado~=6.5']
+          dependencies: [pytest-xdist, requests, httpx, httpx2, 'tornado~=6.5']
   appsec_threats_tornado_rc:
     venvs_per_job: 1
     paths:
@@ -997,6 +1000,8 @@ suites:
     venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/appsec/sca/
+      env:
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: sca
           dependencies: [jsonschema]

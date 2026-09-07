@@ -50,6 +50,32 @@ class AI_GUARD(metaclass=Constant_Class):
     ERROR_BAD_STATUS: Literal["bad_status"] = "bad_status"
     ERROR_BAD_RESPONSE: Literal["bad_response"] = "bad_response"
 
+    # Values of the "source" tag: which call path reached the evaluation. sdk means the
+    # customer called evaluate() directly, auto means our AI package instrumentation did.
+    SOURCE_SDK: Literal["sdk"] = "sdk"
+    SOURCE_AUTO: Literal["auto"] = "auto"
+
+    # Values of the "integration" tag: the auto-instrumented AI package name, or none when
+    # the evaluation came from a direct SDK call.
+    INTEGRATION_NONE: Literal["none"] = "none"
+    INTEGRATION_OPENAI: Literal["openai"] = "openai"
+    INTEGRATION_ANTHROPIC: Literal["anthropic"] = "anthropic"
+    INTEGRATION_LANGCHAIN: Literal["langchain"] = "langchain"
+    INTEGRATION_LITELLM: Literal["litellm"] = "litellm"
+    INTEGRATION_STRANDS: Literal["strands"] = "strands"
+
+    # Closed tag sets: anything else reaching the metrics is clamped back to these defaults,
+    # so a bad value from a caller cannot invent telemetry series.
+    SOURCES: tuple[str, ...] = (SOURCE_SDK, SOURCE_AUTO)
+    INTEGRATIONS: tuple[str, ...] = (
+        INTEGRATION_NONE,
+        INTEGRATION_OPENAI,
+        INTEGRATION_ANTHROPIC,
+        INTEGRATION_LANGCHAIN,
+        INTEGRATION_LITELLM,
+        INTEGRATION_STRANDS,
+    )
+
     # environment variables
     ENV_ENABLED: Literal["DD_AI_GUARD_ENABLED"] = "DD_AI_GUARD_ENABLED"
     ENV_ENDPOINT: Literal["DD_AI_GUARD_ENDPOINT"] = "DD_AI_GUARD_ENDPOINT"
