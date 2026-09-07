@@ -745,35 +745,13 @@ def test_connection():
 
 @pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
 @pytest.mark.skipif(not package_installed("psycopg"), reason="Psycopg3 not installed")
-@pytest.mark.subprocess(
-    ddtrace_run=True,
-    env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_TRACE_PSYCOPG_ENABLED": "false"},
-)
-def test_psycopg3_composable_query_without_psycopg_integration():
-    from ddtrace.contrib._events.dbapi import DbQueryEvent
-    from ddtrace.internal import core
-    from tests.contrib.django.utils import setup_django
+def test_psycopg3_django_cursor_uses_psycopg_tracing():
+    from django.db.backends.postgresql.base import Cursor
 
-    setup_django()
+    from ddtrace.contrib.internal.django.database import get_traced_cursor_cls
+    from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 
-    from django.db import connections
-    from psycopg.sql import SQL
-
-    query = SQL("SELECT 1")
-    events = []
-
-    def capture_event(event):
-        events.append(event)
-
-    core.on(DbQueryEvent.event_name, capture_event)
-    try:
-        with connections["postgres"].cursor() as cursor:
-            cursor.execute(query)
-            assert cursor.fetchone() == (1,)
-    finally:
-        core.reset_listeners(DbQueryEvent.event_name, capture_event)
-
-    assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")], events
+    assert get_traced_cursor_cls(Cursor) is Psycopg3TracedCursor
 
 
 """

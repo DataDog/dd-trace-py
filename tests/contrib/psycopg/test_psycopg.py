@@ -214,7 +214,8 @@ class PsycopgCore(TracerTestCase):
         django_cursor.execute.assert_called_once_with(query)
 
     def test_query_is_stringified_once_for_tracing_and_appsec(self) -> None:
-        cursor = mock.Mock(rowcount=0)
+        cursor = mock.Mock(spec=["execute", "fetchone", "rowcount"])
+        cursor.rowcount = 0
 
         class StringifiableQuery:
             def __init__(self) -> None:

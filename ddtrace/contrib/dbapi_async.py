@@ -3,7 +3,6 @@ from typing import Optional
 from typing import Union
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -35,11 +34,7 @@ class TracedAsyncCursor(TracedCursor):
     def _prepare_dbapi_query(self, query: object) -> object:
         has_listeners = core.has_listeners(DbQueryEvent.event_name)
         normalized_query: Optional[Union[str, bytes]] = None
-        if isinstance(query, (str, bytes)) or has_listeners:
-            should_normalize = True
-        else:
-            pin = Pin.get_from(self)
-            should_normalize = pin.enabled() if pin is not None else is_tracing_enabled()
+        should_normalize = isinstance(query, (str, bytes)) or has_listeners or is_tracing_enabled()
 
         if should_normalize:
             try:
