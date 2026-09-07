@@ -2,6 +2,8 @@ import math
 
 import bm
 
+# TEMP: trigger this benchmark on CI to verify the SLO breach gate (revert me).
+
 
 class RateLimiter(bm.Scenario):
     rate_limit: int

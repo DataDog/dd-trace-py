@@ -209,7 +209,7 @@ experiments:
           # ratelimiter
           - name: ratelimiter-defaults
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.001 ms
           - name: ratelimiter-high_rate_limit
             thresholds:
               - execution_time < 0.01 ms

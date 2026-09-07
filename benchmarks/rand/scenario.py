@@ -1,5 +1,7 @@
 import bm
 
+# TEMP: trigger this benchmark on CI to verify the SLO breach gate (revert me).
+
 
 class Rand(bm.Scenario):
     func: str  # "rand64bits" or "rand128bits"
