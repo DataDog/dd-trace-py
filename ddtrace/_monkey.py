@@ -47,6 +47,7 @@ PATCH_MODULES = {
     "gevent": True,
     "graphql": True,
     "grpc": True,
+    "httpx2": True,
     "httpx": True,
     "kafka": True,
     "langgraph": True,

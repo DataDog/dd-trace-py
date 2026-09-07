@@ -307,6 +307,11 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             }
             auto& task = current_task.get();
 
+            // Only the emitted leaf task can own the GC marker. Every other task in the chain is
+            // context for that leaf, and must not make a suspended leaf look like the collection
+            // ran in it.
+            const bool leaf_owns_gc_marker = task_chain_depth == 1 && stack_info->on_cpu;
+
             // Look up the pre-computed coroutine stack for this task.
             // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
             // python_stack must be appended before coroutine frames.
@@ -338,18 +343,25 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
                                           : 0;
                 // These frames should render before the coroutine frames. Append them first in leaf-to-root order.
                 for (size_t i = 0; i < frames_to_push; i++) {
-                    const auto& python_frame = python_stack[i];
+                    auto python_frame = python_stack[i];
 
                     // Skip the uvloop wrapper frame if present in the Python stack
                     if (is_uvloop_wrapper_frame(echion, using_uvloop, python_frame)) {
                         continue;
+                    }
+                    if (!leaf_owns_gc_marker) {
+                        python_frame.is_in_gc = false;
                     }
                     stack.push_back(python_frame);
                 }
             }
             if (task_stack != nullptr) {
                 for (size_t i = 0; i < task_frames_to_push; i++) {
-                    stack.push_back((*task_stack)[i]);
+                    auto task_frame = (*task_stack)[i];
+                    if (!leaf_owns_gc_marker) {
+                        task_frame.is_in_gc = false;
+                    }
+                    stack.push_back(task_frame);
                 }
             }
 
@@ -400,7 +412,10 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             start_index = python_stack.size() - upper_python_stack_size;
         }
         for (size_t i = start_index; i < python_stack.size(); i++) {
-            const auto& python_frame = python_stack[i];
+            auto python_frame = python_stack[i];
+            if (!stack_info->on_cpu) {
+                python_frame.is_in_gc = false;
+            }
             stack.push_back(python_frame);
         }
 
@@ -781,10 +796,15 @@ ThreadInfo::unwind_greenlets(EchionSampler& echion,
         ++snap_idx;
 
         GreenletInfo temp(snap.greenlet_id, snap.frame, snap.name);
-        temp.unwind(echion, snap.frame, tstate, stack);
+        {
+            auto gc_frame = echion.use_gc_frame(on_cpu ? echion.current_gc_frame() : nullptr);
+            temp.unwind(echion, snap.frame, tstate, stack);
+        }
 
         for (auto& [parent_name, parent_frame] : snap.parent_chain) {
             GreenletInfo parent_temp(0, parent_frame, parent_name);
+            // No GC marker: only the running greenlet can hold the on-CPU frame.
+            auto gc_frame = echion.use_gc_frame(nullptr);
             parent_temp.unwind(echion, parent_frame, tstate, stack);
         }
 
@@ -878,9 +898,10 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         return ErrorKind::CpuTimeError;
     }
 
+    this->unwind(echion, tstate, delta);
+
     renderer.render_cpu_time(cpu_time - previous_cpu_time);
 
-    this->unwind(echion, tstate, delta);
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();

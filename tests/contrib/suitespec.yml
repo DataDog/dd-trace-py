@@ -120,6 +120,8 @@ components:
     - ddtrace/contrib/internal/httplib/*
   httpx:
     - ddtrace/contrib/internal/httpx/*
+  httpx2:
+    - ddtrace/contrib/internal/httpx2/*
   integration_registry:
     - scripts/integration_registry/*
   jinja2:
@@ -896,6 +898,20 @@ suites:
     services:
       - httpbin
     snapshot: true
+  httpx2:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@httpx2'
+      - ddtrace/contrib/internal/httpx/common.py
+      - tests/contrib/httpx2/*
+      - tests/snapshots/tests.contrib.httpx2.*
+    services:
+      - httpbin
+    snapshot: true
   integration_registry:
     paths:
       - '@bootstrap'
@@ -1179,6 +1195,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
+      - '@ray_serve'
       - tests/contrib/ray_serve/*
       - tests/contrib/ray_serve/multi_app/*
       - tests/snapshots/tests.contrib.ray_serve.*

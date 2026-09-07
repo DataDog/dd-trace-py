@@ -5,8 +5,13 @@ import mock
 import pymysql
 import pytest
 
+from ddtrace._trace.pin import Pin
+from ddtrace.contrib._events.dbapi import DbQueryEvent
+from ddtrace.contrib.internal.aiomysql.patch import AIOTracedCursor
 from ddtrace.contrib.internal.aiomysql.patch import patch
 from ddtrace.contrib.internal.aiomysql.patch import unpatch
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
 from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
@@ -56,6 +61,20 @@ async def test_queries(snapshot_conn):
     cur = await db.cursor()
     with pytest.raises(pymysql.err.ProgrammingError):
         await cur.execute(q)
+
+
+@pytest.mark.asyncio
+async def test_query_is_blocked_before_execution() -> None:
+    cursor = mock.AsyncMock()
+    traced_cursor = AIOTracedCursor(cursor, Pin())
+
+    for method in ("execute", "executemany"):
+        with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+            with pytest.raises(BlockingException):
+                await getattr(traced_cursor, method)("SELECT 1")
+
+        dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="mysql"))
+        getattr(cursor, method).assert_not_awaited()
 
 
 @pytest.mark.asyncio
