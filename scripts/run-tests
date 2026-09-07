@@ -595,6 +595,8 @@ class TestRunner:
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
+        if self.in_ci:
+            riotfile._configure_ci_itr_environment(run_env, environment.python, environment.lock_hash)
         return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
 
     def _run_uv_suite(

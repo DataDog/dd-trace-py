@@ -75,6 +75,7 @@ def _collect_suitespecs() -> dict:
 
 
 SUITESPEC = _collect_suitespecs()
+UV_TEST_SUITES = tuple(suite for suite, config in SUITESPEC["suites"].items() if "matrix" in config)
 
 
 @cache

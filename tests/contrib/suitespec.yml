@@ -2208,16 +2208,16 @@ suites:
       variants:
         - name: pyramid
           python: ['3.9']
-          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'pyramid~=1.10']
+          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', 'pyramid~=1.10']
         - name: pyramid
           python: ['3.9']
-          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'pyramid~=2.0']
+          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', 'pyramid~=2.0']
         - name: pyramid
           python: ['3.9', '3.10', '3.11', '3.12']
-          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, pyramid]
+          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid]
         - name: pyramid
           python: ['3.13', '3.14']
-          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, pyramid, legacy-cgi]
+          dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid, legacy-cgi]
   ray:
     parallelism: 3
     paths:
@@ -2596,12 +2596,12 @@ suites:
         - name: asyncio
           python: ['3.9', '3.10', '3.11', '3.12']
           integration: asyncio
-          dependencies: [pytest-randomly, 'pytest-asyncio==0.21.1']
+          dependencies: [pytest-randomly, uvloop, 'pytest-asyncio==0.21.1']
           command: pytest {cmdargs} tests/contrib/asyncio
         - name: asyncio
           python: ['3.13', '3.14']
           integration: asyncio
-          dependencies: [pytest-randomly, 'pytest-asyncio>=1.0.0']
+          dependencies: [pytest-randomly, uvloop, 'pytest-asyncio>=1.0.0']
           command: pytest {cmdargs} tests/contrib/asyncio
   structlog:
     parallelism: 1
