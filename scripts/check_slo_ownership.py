@@ -19,8 +19,8 @@ This script makes sure none of those SLOs ever gets orphaned:
   3. No SLO is duplicated across team files (two teams must not own the same
      gate).
   4. Every benchmark config has an SLO entry in some team file, unless it is
-     listed as an intentional exception in
-     ``.gitlab/benchmarks/slo-exceptions.yml`` (catches new benchmarks/configs
+     listed as an intentional exemption in
+     ``.gitlab/benchmarks/slo-exemptions.yml`` (catches new benchmarks/configs
      added without a gate).
   5. Every benchmark's scenario class name follows the naming convention
      (CamelCase, no underscores) so it can be matched to SLO entries, and no
@@ -40,7 +40,7 @@ from ruamel.yaml import YAML
 ROOT = Path(__file__).parents[1]
 BENCHMARKS = ROOT / "benchmarks"
 SLOS_DIR = ROOT / ".gitlab" / "benchmarks" / "slos"
-SLO_EXCEPTIONS = ROOT / ".gitlab" / "benchmarks" / "slo-exceptions.yml"
+SLO_EXCEPTIONS = ROOT / ".gitlab" / "benchmarks" / "slo-exemptions.yml"
 
 # codeowners.py lives in ddtrace/internal; load it the same way
 # check_suitespec_coverage.py does.
@@ -113,7 +113,7 @@ def parse_slos(path: Path) -> list[str]:
     return names
 
 
-def load_exceptions() -> tuple[set[str], set[str]]:
+def load_exemptions() -> tuple[set[str], set[str]]:
     data = _load_yaml(SLO_EXCEPTIONS) or {}
     ungated = set(data.get("ungated", []) or [])
     nonconformant = set(data.get("nonconformant_classnames", []) or [])
@@ -128,7 +128,7 @@ def main() -> int:
         print(f"❌ no per-team SLO files found under {SLOS_DIR}")
         return 1
 
-    ungated_exceptions, nonconformant_exceptions = load_exceptions()
+    ungated_exemptions, nonconformant_exemptions = load_exemptions()
 
     # Index class_lower -> suite dir. The SLO naming scheme derives the
     # scenario prefix from the lowercased class name, so two suites sharing a
@@ -187,11 +187,11 @@ def main() -> int:
         cls = get_benchmark_class(suite_name)
         if cls is None:
             has_subclass = has_scenario_subclass(suite_name)
-            # A nonconformant exception only covers the "class name has an
+            # A nonconformant exemption only covers the "class name has an
             # underscore" case. If the Scenario subclass was deleted entirely
             # that is different breakage and must still error, so only honor
-            # the exception while a subclass is actually present.
-            if suite_name in nonconformant_exceptions and has_subclass:
+            # the exemption while a subclass is actually present.
+            if suite_name in nonconformant_exemptions and has_subclass:
                 continue
             if has_subclass:
                 errors.append(
@@ -205,7 +205,7 @@ def main() -> int:
             expected = f"{cls}-{config}"
             if expected in all_slo_names:
                 continue
-            if expected in ungated_exceptions:
+            if expected in ungated_exemptions:
                 continue
             errors.append(
                 f"benchmark '{suite_name}' config '{config}' has no SLO entry (expected '{expected}') "
@@ -219,19 +219,19 @@ def main() -> int:
             f"the SLO naming scheme requires unique scenario class names"
         )
 
-    # Stale exceptions: an exception that no longer corresponds to anything is
+    # Stale exemptions: an exemption that no longer corresponds to anything is
     # a maintenance hazard, so flag it too.
-    for expected in sorted(ungated_exceptions):
+    for expected in sorted(ungated_exemptions):
         cls_lower, _, config = expected.partition("-")
         suite = class_to_dir.get(cls_lower)
         if suite is None or config not in get_configs(suite):
-            errors.append(f"ungated exception '{expected}' in {SLO_EXCEPTIONS.name} matches no benchmark config")
-    for suite_name in sorted(nonconformant_exceptions):
+            errors.append(f"ungated exemption '{expected}' in {SLO_EXCEPTIONS.name} matches no benchmark config")
+    for suite_name in sorted(nonconformant_exemptions):
         if suite_name not in SUITES:
-            errors.append(f"nonconformant exception '{suite_name}' in {SLO_EXCEPTIONS.name} matches no benchmark")
+            errors.append(f"nonconformant exemption '{suite_name}' in {SLO_EXCEPTIONS.name} matches no benchmark")
         elif get_benchmark_class(suite_name) is not None:
             errors.append(
-                f"nonconformant exception '{suite_name}' is no longer non-conformant; "
+                f"nonconformant exemption '{suite_name}' is no longer non-conformant; "
                 f"remove it from {SLO_EXCEPTIONS.name}"
             )
 

@@ -97,7 +97,7 @@ Execution, once per pipeline:
    team slug, e.g. `apm-sdk-capabilities-python.yml`), so editing a threshold routes review to
    that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
    matching CODEOWNERS rule, and run `scripts/lint slo-ownership` to confirm. If the config is
-   intentionally ungated (e.g. a `baseline`), list it in `.gitlab/benchmarks/slo-exceptions.yml`
+   intentionally ungated (e.g. a `baseline`), list it in `.gitlab/benchmarks/slo-exemptions.yml`
    instead.
 
 5. Verify the generated config before pushing:
@@ -170,11 +170,11 @@ route per team. `scripts/gen_gitlab_config.py` merges all of these into the sing
   default) or its owner does not match its file name,
 - an SLO points at a benchmark class or config that no longer exists,
 - an SLO appears in more than one team file (two teams must not own the same gate), or
-- a benchmark config has no SLO entry and is not listed as an intentional exception.
+- a benchmark config has no SLO entry and is not listed as an intentional exemption.
 
 Intentionally ungated configs (e.g. `baseline` scenarios with nothing to compare against) and
 benchmark directories whose class name violates the CamelCase naming convention are listed in
-`.gitlab/benchmarks/slo-exceptions.yml`. The linter also flags stale exception entries, so the
+`.gitlab/benchmarks/slo-exemptions.yml`. The linter also flags stale exemption entries, so the
 list cannot rot silently. When you add, rename, or delete a benchmark scenario, config, or SLO
 threshold, run `scripts/lint slo-ownership` and fix what it reports in the same PR.
 
