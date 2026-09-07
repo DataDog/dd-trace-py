@@ -166,6 +166,9 @@ experiments:
           - name: sethttpmeta-no-useragentvariant
             thresholds:
               - execution_time < 0.05 ms
+          - name: sethttpmeta-obfuscation-disabled
+            thresholds:
+              - execution_time < 10000 ms
           - name: sethttpmeta-obfuscation-no-query
             thresholds:
               - execution_time < 0.05 ms
@@ -213,3 +216,53 @@ experiments:
           - name: rand-rand128bits
             thresholds:
               - execution_time < 0.021 ms
+
+          # startup (class Startup) — import/startup overhead, loose gate.
+          - name: startup-baseline
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-baseline_flask
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-baseline_django
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_flask
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_django
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_auto
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_auto_flask
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-import_ddtrace_auto_django
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_appsec
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_profiling
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_telemetry_enabled
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_telemetry_disabled
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_send_span
+            thresholds:
+              - execution_time < 10000 ms
+          - name: startup-ddtrace_run_runtime_metrics
+            thresholds:
+              - execution_time < 10000 ms

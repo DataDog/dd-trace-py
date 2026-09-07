@@ -194,8 +194,7 @@ scripts/lint suitespec-check
 #### `slo-ownership` - Validate microbenchmark SLO ownership
 Checks that no microbenchmark SLO is orphaned: every SLO in
 `.gitlab/benchmarks/slos/` maps to a real benchmark/config, no SLO is
-duplicated across team files, and every benchmark config has an SLO (or is a
-declared exemption in `.gitlab/benchmarks/slo-exemptions.yml`).
+duplicated across team files, and every benchmark config has an SLO.
 `scripts/gen_gitlab_config.py` calls the same validator so `tests-gen` enforces
 it in CI.
 

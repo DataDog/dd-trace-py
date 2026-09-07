@@ -8,8 +8,7 @@ orphaned:
 
   1. Every SLO maps to a benchmark class + config that still exists.
   2. No SLO is duplicated across team files.
-  3. Every benchmark config has an SLO entry, unless it is a declared
-     exemption in ``.gitlab/benchmarks/slo-exemptions.yml``.
+  3. Every benchmark config has an SLO entry.
   4. Scenario class names are unique and follow the CamelCase convention.
 
 Ownership itself is enforced by CODEOWNERS via the file paths, so this script
@@ -30,7 +29,6 @@ from ruamel.yaml import YAML
 ROOT = Path(__file__).parents[1]
 BENCHMARKS = ROOT / "benchmarks"
 SLOS_DIR = ROOT / ".gitlab" / "benchmarks" / "slos"
-EXEMPTIONS = ROOT / ".gitlab" / "benchmarks" / "slo-exemptions.yml"
 
 _YAML = YAML()
 
@@ -92,12 +90,6 @@ def validate() -> None:
                 all_slos.add(name)
                 seen_in_file.setdefault(name, []).append(rel)
 
-    # Load exemptions.
-    ungated_exemptions: set[str] = set()
-    if EXEMPTIONS.exists():
-        data = _YAML.load(EXEMPTIONS.read_text()) or {}
-        ungated_exemptions = set(data.get("ungated", []) or [])
-
     errors: list[str] = []
 
     for name, files in sorted(seen_in_file.items()):
@@ -120,24 +112,15 @@ def validate() -> None:
             continue
         for config in _configs(clean_name):
             expected = f"{cls}-{config}"
-            if expected in all_slos or expected in ungated_exemptions:
+            if expected in all_slos:
                 continue
-            errors.append(
-                f"benchmark '{clean_name}' config '{config}' has no SLO entry (expected '{expected}') "
-                f"and is not in slo-exemptions.yml"
-            )
+            errors.append(f"benchmark '{clean_name}' config '{config}' has no SLO entry (expected '{expected}')")
 
     for cls, dirs in sorted(duplicate_classes.items()):
         errors.append(
             f"benchmark class prefix '{cls}' is shared by multiple suites {dirs}; "
             f"the SLO naming scheme requires unique scenario class names"
         )
-
-    for expected in sorted(ungated_exemptions):
-        cls_lower, _, config = expected.partition("-")
-        suite = class_to_dir.get(cls_lower)
-        if suite is None or config not in _configs(suite):
-            errors.append(f"ungated exemption '{expected}' in slo-exemptions.yml matches no benchmark config")
 
     if errors:
         raise RuntimeError(f"{len(errors)} SLO ownership problem(s):\n" + "\n".join(f"  {e}" for e in errors))

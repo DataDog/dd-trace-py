@@ -819,7 +819,6 @@ def gen_pre_checks() -> None:
         command="scripts/lint slo-ownership",
         paths={
             ".gitlab/benchmarks/slos/*",
-            ".gitlab/benchmarks/slo-exemptions.yml",
             "benchmarks/*",
             "scripts/check_slo_ownership.py",
             "scripts/lint",

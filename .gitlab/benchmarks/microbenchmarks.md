@@ -96,9 +96,7 @@ Execution, once per pipeline:
    Each file under `slos/` is owned by a team via `.github/CODEOWNERS` (the file name is the
    team slug, e.g. `apm-sdk-capabilities-python.yml`), so editing a threshold routes review to
    that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
-   matching CODEOWNERS rule, and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py. If the config is
-   intentionally ungated (e.g. a `baseline`), list it in `.gitlab/benchmarks/slo-exemptions.yml`
-   instead.
+   matching CODEOWNERS rule, and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py.
 
 5. Verify the generated config before pushing:
 
@@ -168,12 +166,10 @@ via the `tests-gen` job) and fails the build if an SLO gets orphaned — specifi
 
 - an SLO points at a benchmark class or config that no longer exists,
 - an SLO appears in more than one team file (two teams must not own the same gate), or
-- a benchmark config has no SLO entry and is not listed as an intentional exemption.
+- a benchmark config has no SLO entry.
 
-Intentionally ungated configs are listed in `.gitlab/benchmarks/slo-exemptions.yml`. The
-validator also flags stale exemption entries, so the list cannot rot silently. When you add,
-rename, or delete a benchmark scenario, config, or SLO threshold, push and fix what
-`tests-gen` reports in the same PR.
+When you add, rename, or delete a benchmark scenario, config, or SLO threshold, push and fix
+what `tests-gen` reports in the same PR.
 
 ## Rebuilding the CI Docker image
 
