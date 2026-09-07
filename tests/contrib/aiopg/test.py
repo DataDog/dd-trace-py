@@ -68,10 +68,11 @@ class AiopgTestCase(AsyncioTestCase):
             query.as_string.assert_called_once_with(cursor._impl)
             getattr(cursor, method).assert_not_awaited()
 
-    @pytest.mark.asyncio
+    @mark_asyncio
     async def test_composable_query_is_normalized(self):
-        conn = await self._get_conn()
-        cursor = await conn.cursor()
+        self._conn = await aiopg.connect(**POSTGRES_CONFIG)
+        raw_cursor = await self._conn.cursor()
+        cursor = AIOTracedCursor(raw_cursor, Pin())
         query = SQL("SELECT 1 AS {}").format(Identifier("result"))
         events = []
 
@@ -85,7 +86,7 @@ class AiopgTestCase(AsyncioTestCase):
         finally:
             core.reset_listeners(DbQueryEvent.event_name, capture_event)
 
-        assert events == [DbQueryEvent(query=query.as_string(cursor.__wrapped__._impl), span_name_prefix="postgres")]
+        assert events == [DbQueryEvent(query=query.as_string(raw_cursor._impl), span_name_prefix="postgres")]
 
     @pytest.mark.asyncio
     async def _get_conn(self):
