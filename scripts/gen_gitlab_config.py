@@ -282,21 +282,22 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
             continue
         environments = uv_environments[suite]
         uv_metadata = {}
-        for environment in environments:
-            if len(environment.runs) != 1:
-                raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
-            run = environment.runs[0]
-            # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
-            # the command directly, so preserve that runner argument explicitly.
-            command = run.command.replace("{cmdargs}", "--ddtrace")
-            for name, value in run.environment.items():
-                command = command.replace(f"${{{{{name}}}}}", value)
-            uv_metadata[environment.hash] = (
-                environment.lockfile,
-                run.environment.get("DDTEST_TESTS_LOCATION", ""),
-                command,
-                " ".join(f"{name}={value}" for name, value in run.environment.items()),
-            )
+        if suite_configs[suite].get("ddtest"):
+            for environment in environments:
+                if len(environment.runs) != 1:
+                    raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
+                run = environment.runs[0]
+                # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
+                # the command directly, so preserve that runner argument explicitly.
+                command = run.command.replace("{cmdargs}", "--ddtrace")
+                for name, value in run.environment.items():
+                    command = command.replace(f"${{{{{name}}}}}", value)
+                uv_metadata[environment.hash] = (
+                    environment.lockfile,
+                    run.environment.get("DDTEST_TESTS_LOCATION", ""),
+                    command,
+                    " ".join(f"{name}={value}" for name, value in run.environment.items()),
+                )
         result[suite] = SuiteVenvInfo(
             venv_count=len(environments),
             python_versions={environment.python for environment in environments},

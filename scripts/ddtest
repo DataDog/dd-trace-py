@@ -109,6 +109,38 @@ if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
         # variables, so pass its endpoint to snapshot tests.
         RUN_ARGS+=(-e "DD_TRACE_AGENT_URL=$DD_TRACE_AGENT_URL")
     fi
+
+    # The remote Podman wrapper disables automatic proxy propagation. Forward
+    # both casings because curl accepts only lowercase http_proxy and callers
+    # can provide different NO_PROXY and no_proxy values.
+    for variable in HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
+        if [ -n "${!variable+x}" ]; then
+            RUN_ARGS+=(-e "${variable}=${!variable}")
+        fi
+    done
+
+    # Mount a caller-provided CA bundle only when it is a regular host file.
+    # Without one, use the testrunner image's own system trust store so Podman
+    # remains usable on hosts with different CA bundle locations.
+    for variable in REQUESTS_CA_BUNDLE SSL_CERT_FILE PIP_CERT; do
+        candidate="${!variable:-}"
+        if [ -f "$candidate" ]; then
+            CA_BUNDLE="$candidate"
+            break
+        fi
+    done
+    if [ -n "${CA_BUNDLE:-}" ]; then
+        CONTAINER_CA_BUNDLE=/etc/ssl/certs/ddtrace-test-runner-ca.pem
+        RUN_ARGS+=(
+            -v "${CA_BUNDLE}:${CONTAINER_CA_BUNDLE}:ro"
+            -e "SSL_CERT_FILE=${CONTAINER_CA_BUNDLE}"
+            -e "REQUESTS_CA_BUNDLE=${CONTAINER_CA_BUNDLE}"
+            -e "PIP_CERT=${CONTAINER_CA_BUNDLE}"
+            -e "CURL_CA_BUNDLE=${CONTAINER_CA_BUNDLE}"
+            -e "GIT_SSL_CAINFO=${CONTAINER_CA_BUNDLE}"
+        )
+    fi
+
     # Preserve service settings selected by scripts/run-tests. Unlike Docker's
     # normal Compose path, the Podman path constructs its own run arguments.
     for variable in $(compgen -e); do
