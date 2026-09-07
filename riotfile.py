@@ -1877,6 +1877,8 @@ venv = Venv(
                 "webtest": [latest],
                 "tests/contrib/pyramid/pserve_app": [latest],
                 "pytest-randomly": latest,
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
