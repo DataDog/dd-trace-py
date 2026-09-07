@@ -1,10 +1,10 @@
-# Benchmarks/configs that are intentionally not gated by an SLO entry in
-# bp-runner.microbenchmarks.fail-on-breach.template.yml.
+# Benchmarks/configs that are intentionally not gated by an SLO entry.
 #
 # scripts/check_slo_ownership.py (run via `scripts/lint slo-ownership`) errors
-# on any benchmark config that has no SLO entry unless it is listed here, and
-# also errors on any entry here that no longer corresponds to a real config (so
-# this list cannot go stale silently).
+# on any benchmark config that has no SLO entry in any per-team file under
+# .gitlab/benchmarks/slos/ unless it is listed here, and also errors on any
+# entry here that no longer corresponds to a real config (so this list cannot
+# go stale silently).
 #
 # Entries are SLO scenario names: `<lowercased benchmark class>-<config>`.
 

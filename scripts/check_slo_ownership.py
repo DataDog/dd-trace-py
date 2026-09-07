@@ -2,36 +2,34 @@
 """Lint SLO ownership for the microbenchmark performance gates.
 
 The fail-on-breach gate (``check-slo-breaches`` CI job) scores benchmark
-results against the SLOs declared in
-``.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml``.
-Each SLO is one scenario config named ``<lowercased benchmark class>-<config>``
-(see ``scripts/gen_gitlab_config.py``).
-
-Ownership is recorded as a trailing comment on each SLO's ``- name:`` line::
-
-    - name: span-start-finish  # owners: @DataDog/apm-sdk-capabilities-python
-
-so that anyone editing a threshold sees the responsible team in the diff hunk
-(the comment sits within the default 3-line context of the threshold line
-below it) and knows whom to add as a reviewer.
+results against SLOs that ``scripts/gen_gitlab_config.py`` merges from one
+per-team source file under ``.gitlab/benchmarks/slos/`` into the single
+generated ``bp-runner.microbenchmarks.fail-on-breach.yml``. Each source file
+is named ``<team-slug>.yml`` and lives on a path owned by that team in
+``.github/CODEOWNERS``, so editing a threshold routes review to the team
+automatically -- no inline owner comment is needed.
 
 This script makes sure none of those SLOs ever gets orphaned:
 
-  1. Every SLO in the template has a well-formed ``# owners: @DataDog/<team>``
-     comment (no SLO without a routable owner).
+  1. Every team file is owned by a team in CODEOWNERS (it does not silently
+     fall through to the generic ``.gitlab/benchmarks`` default), and the
+     owner matches the file name.
   2. Every SLO maps to a benchmark class + config that still exists (no SLO
      pointing at a deleted benchmark/config).
-  3. Every benchmark config has an SLO entry, unless it is listed as an
-     intentional exception in ``.gitlab/benchmarks/slo-exceptions.yml``
-     (catches new benchmarks/configs added without a gate).
-  4. Every benchmark's scenario class name follows the naming convention
+  3. No SLO is duplicated across team files (two teams must not own the same
+     gate).
+  4. Every benchmark config has an SLO entry in some team file, unless it is
+     listed as an intentional exception in
+     ``.gitlab/benchmarks/slo-exceptions.yml`` (catches new benchmarks/configs
+     added without a gate).
+  5. Every benchmark's scenario class name follows the naming convention
      (CamelCase, no underscores) so it can be matched to SLO entries, and no
-     two benchmark dirs share a lowercased class name (the SLO naming scheme
-     derives the scenario prefix from it).
+     two benchmark dirs share a lowercased class name.
 
 Run via ``scripts/lint slo-ownership``. Exits non-zero if any check fails.
 """
 
+from collections import defaultdict
 from pathlib import Path
 import re
 import sys
@@ -41,12 +39,22 @@ from ruamel.yaml import YAML
 
 ROOT = Path(__file__).parents[1]
 BENCHMARKS = ROOT / "benchmarks"
+SLOS_DIR = ROOT / ".gitlab" / "benchmarks" / "slos"
+SLO_EXCEPTIONS = ROOT / ".gitlab" / "benchmarks" / "slo-exceptions.yml"
+
+# codeowners.py lives in ddtrace/internal; load it the same way
+# check_suitespec_coverage.py does.
+sys.path.insert(0, str(ROOT / "ddtrace" / "internal"))
+sys.path.insert(0, str(ROOT))
+from codeowners import Codeowners  # noqa: E402
+
+
+CODEOWNERS = Codeowners()
 
 _YAML = YAML()
 
 
 def _load_yaml(path: Path):
-    """Load a YAML file, returning None when it is missing or empty."""
     if not path.exists():
         return None
     return _YAML.load(path.read_text())
@@ -55,24 +63,15 @@ def _load_yaml(path: Path):
 SUITESPEC = _load_yaml(BENCHMARKS / "suitespec.yml") or {}
 SUITES = SUITESPEC["suites"]
 
-SLO_TEMPLATE = ROOT / ".gitlab" / "benchmarks" / "bp-runner.microbenchmarks.fail-on-breach.template.yml"
-SLO_EXCEPTIONS = ROOT / ".gitlab" / "benchmarks" / "slo-exceptions.yml"
-
 # Mirrors scripts/gen_gitlab_config.py so the names we compute match the ones
 # the generator writes into the filtered SLO file.
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 # A looser check used to tell "class name has an underscore" apart from "no
 # Scenario subclass at all".
 ANY_SCENARIO_CLASS_REGEX = re.compile(r"^class\s+(\w+)\s*\([^)]*\bScenario\b")
-# Matches an SLO's ``- name:`` line and splits the scenario name from an
-# optional trailing ``# owners:`` comment. The config half is non-whitespace
-# (all configs are single tokens), so the comment is separated cleanly.
-SLO_LINE_REGEX = re.compile(r"^\s*- name: ([a-z0-9]+)-(\S+)(?:\s+#\s*owners:\s*(.+?))?\s*$")
-# Owners must be GitHub team mentions of the form ``@DataDog/<team>``: the
-# ``@DataDog/`` prefix is the contract the comments rely on for routing review,
-# and the team slug must be nonempty. Anything looser would let a typo pass
-# while the comment silently fails to route.
-OWNER_TOKEN_RE = re.compile(r"^@DataDog/[A-Za-z0-9][A-Za-z0-9-]*$")
+# Matches an SLO's ``- name:`` line. The config half is non-whitespace (all
+# configs are single tokens).
+SLO_LINE_REGEX = re.compile(r"^\s*- name: ([a-z0-9]+)-(\S+)\s*$")
 
 
 def get_benchmark_class(suite_name: str) -> str | None:
@@ -100,20 +99,18 @@ def has_scenario_subclass(suite_name: str) -> bool:
 
 
 def get_configs(suite_name: str) -> list[str]:
-    cfg = BENCHMARKS / suite_name / "config.yaml"
-    data = _load_yaml(cfg)
+    data = _load_yaml(BENCHMARKS / suite_name / "config.yaml")
     return list((data or {}).keys())
 
 
-def parse_slos() -> list[tuple[str, str | None]]:
-    """Return [(scenario_name, owners_raw_or_None)] from the template."""
-    slos: list[tuple[str, str | None]] = []
-    for line in SLO_TEMPLATE.read_text().splitlines():
+def parse_slos(path: Path) -> list[str]:
+    """Return the scenario names declared in one team SLO file."""
+    names: list[str] = []
+    for line in path.read_text().splitlines():
         match = SLO_LINE_REGEX.match(line)
         if match:
-            prefix, config, owners = match.group(1), match.group(2), match.group(3)
-            slos.append((f"{prefix}-{config}", owners))
-    return slos
+            names.append(f"{match.group(1)}-{match.group(2)}")
+    return names
 
 
 def load_exceptions() -> tuple[set[str], set[str]]:
@@ -124,14 +121,14 @@ def load_exceptions() -> tuple[set[str], set[str]]:
 
 
 def main() -> int:
-    slos = parse_slos()
-    if not slos:
-        print("❌ no SLO scenarios found in template")
+    errors: list[str] = []
+
+    team_files = sorted(SLOS_DIR.glob("*.yml"))
+    if not team_files:
+        print(f"❌ no per-team SLO files found under {SLOS_DIR}")
         return 1
 
     ungated_exceptions, nonconformant_exceptions = load_exceptions()
-
-    errors: list[str] = []
 
     # Index class_lower -> suite dir. The SLO naming scheme derives the
     # scenario prefix from the lowercased class name, so two suites sharing a
@@ -148,19 +145,36 @@ def main() -> int:
         else:
             class_to_dir[cls] = suite_name
 
-    slo_names = [name for name, _ in slos]
+    # Check 1: every team file is owned in CODEOWNERS by the team matching its
+    # name, and not by the generic .gitlab/benchmarks default.
+    all_slo_names: set[str] = set()
+    seen_in_file: dict[str, list[str]] = defaultdict(list)
+    for f in team_files:
+        slug = f.stem  # e.g. apm-sdk-capabilities-python
+        expected = f"@DataDog/{slug}"
+        rel = str(f.relative_to(ROOT))
+        owners = CODEOWNERS.of(rel)
+        if not owners:
+            errors.append(
+                f"team file {rel} has no CODEOWNERS rule; it would fall through to the "
+                f"generic .gitlab/benchmarks default"
+            )
+        elif expected not in owners:
+            errors.append(
+                f"team file {rel} is owned by {owners} but its name implies {expected}; "
+                f"add a CODEOWNERS rule mapping it to {expected}"
+            )
+        for name in parse_slos(f):
+            all_slo_names.add(name)
+            seen_in_file[name].append(rel)
 
-    # Check 1: every SLO has a well-formed, non-empty owner comment.
-    for name, owners in slos:
-        if owners is None:
-            errors.append(f"SLO '{name}' has no '# owners:' comment in {SLO_TEMPLATE.name}")
-            continue
-        tokens = owners.split()
-        if not tokens or not all(OWNER_TOKEN_RE.match(t) for t in tokens):
-            errors.append(f"SLO '{name}' has malformed owners comment: {owners!r}")
+    # Check 3: no SLO is duplicated across team files.
+    for name, files in sorted(seen_in_file.items()):
+        if len(files) > 1:
+            errors.append(f"SLO '{name}' appears in multiple team files: {files}")
 
     # Check 2: every SLO maps to a real benchmark class + config.
-    for name, _ in slos:
+    for name in sorted(all_slo_names):
         cls_lower, _, config = name.partition("-")
         suite = class_to_dir.get(cls_lower)
         if suite is None:
@@ -168,7 +182,7 @@ def main() -> int:
         elif config not in get_configs(suite):
             errors.append(f"SLO '{name}' references unknown config in benchmarks/{suite}/config.yaml")
 
-    # Check 3 + 4: every benchmark is conformant and every config is gated.
+    # Check 4 + 5: every benchmark is conformant and every config is gated.
     for suite_name in SUITES:
         cls = get_benchmark_class(suite_name)
         if cls is None:
@@ -189,7 +203,7 @@ def main() -> int:
             continue
         for config in get_configs(suite_name):
             expected = f"{cls}-{config}"
-            if expected in slo_names:
+            if expected in all_slo_names:
                 continue
             if expected in ungated_exceptions:
                 continue
@@ -198,7 +212,7 @@ def main() -> int:
                 f"and is not in {SLO_EXCEPTIONS.name}"
             )
 
-    # Check 5: no two benchmark dirs share a lowercased class name.
+    # Check 5b: no two benchmark dirs share a lowercased class name.
     for cls, dirs in sorted(duplicate_classes.items()):
         errors.append(
             f"benchmark class prefix '{cls}' is shared by multiple suites {dirs}; "
@@ -227,7 +241,7 @@ def main() -> int:
             print(f"    {e}")
         return 1
 
-    print(f"✨ 🍰 ✨ All {len(slos)} microbenchmark SLOs have owners and no orphans")
+    print(f"✨ 🍰 ✨ All {len(all_slo_names)} microbenchmark SLOs have owners and no orphans")
     return 0
 
 

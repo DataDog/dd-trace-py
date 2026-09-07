@@ -499,30 +499,60 @@ def _get_benchmark_class_name(suite_name: str) -> str:
             return match.group(1).lower()
 
 
-def _filter_benchmarks_slos_file(classnames: list) -> None:
-    in_scenario_to_keep = True
-    new_contents = []
-    kept_scenarios = 0
-    contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
+def _iter_slo_scenarios(text: str):
+    """Yield (class_prefix, block_lines) for each scenario in an SLO source file.
 
-    for line in contents.split("\n")[1:]:
+    block_lines is the ``- name: ...`` line plus its ``thresholds`` lines,
+    verbatim, so the generated file preserves the exact threshold text.
+    """
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines) and lines[i].strip() != "scenarios:":
+        i += 1
+    body = lines[i + 1 :]
+    j = 0
+    while j < len(body):
+        line = body[j]
         match = re.match(BENCHMARK_SCENARIO_REGEX, line)
         if match:
-            class_on_line = match.group(1)
-            if class_on_line in classnames:
-                in_scenario_to_keep = True
-                kept_scenarios += 1
-            else:
-                in_scenario_to_keep = False
-        if line.strip().startswith("#"):
-            in_scenario_to_keep = False
-        if in_scenario_to_keep:
-            new_contents.append(line)
+            block = [line]
+            k = j + 1
+            while k < len(body):
+                nxt = body[k]
+                # Stop at the next scenario, a group comment, or a blank line;
+                # threshold lines are indented and none of those.
+                if re.match(BENCHMARK_SCENARIO_REGEX, nxt) or nxt.strip().startswith("#") or not nxt.strip():
+                    break
+                block.append(nxt)
+                k += 1
+            yield match.group(1), block
+            j = k
+        else:
+            j += 1
 
-    if kept_scenarios == 0:
-        new_contents[-1] = "scenarios: []"
 
-    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
+def _filter_benchmarks_slos_file(classnames: list) -> None:
+    # Merge the per-team SLO source files under slos/ (each owned by a team via
+    # CODEOWNERS) into the single generated file consumed by check-slo-breaches,
+    # keeping only scenarios whose benchmark class is in this pipeline.
+    kept_blocks: list[list[str]] = []
+    for src in sorted(MICROBENCHMARKS_SLOS_DIR.glob("*.yml")):
+        for class_prefix, block in _iter_slo_scenarios(src.read_text()):
+            if class_prefix in classnames:
+                kept_blocks.append(block)
+
+    header = [
+        "experiments:",
+        "  - name: SLO Check",
+        "    steps:",
+        "      - name: SLO Check",
+        "        run: fail_on_breach",
+        "        scenarios: []" if not kept_blocks else "        scenarios:",
+    ]
+    out = header
+    for block in kept_blocks:
+        out.extend(block)
+    MICROBENCHMARKS_SLOS.write_text("\n".join(out) + "\n")
 
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
@@ -776,7 +806,7 @@ def gen_pre_checks() -> None:
         name="Check microbenchmark SLO ownership",
         command="scripts/lint slo-ownership",
         paths={
-            ".gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml",
+            ".gitlab/benchmarks/slos/*",
             ".gitlab/benchmarks/slo-exceptions.yml",
             "benchmarks/*",
             "scripts/check_slo_ownership.py",
@@ -953,7 +983,10 @@ TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
-MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
+# Source-of-truth SLO thresholds live in one per-team file under slos/, each
+# owned by its team via .github/CODEOWNERS. gen_gitlab_config merges these into
+# the single generated MICROBENCHMARKS_SLOS file consumed by check-slo-breaches.
+MICROBENCHMARKS_SLOS_DIR = GITLAB / "benchmarks" / "slos"
 
 # Compute a short hash of the testrunner image so cache keys are automatically
 # invalidated whenever the image changes (e.g. Python patch version bumps).
