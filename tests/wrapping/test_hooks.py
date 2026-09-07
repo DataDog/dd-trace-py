@@ -16,6 +16,7 @@ import wrapt
 from ddtrace.internal.wrapping.context import _STORAGE_PREV
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.internal.wrapping.hooks import _MODULE_HOOKS
+from ddtrace.internal.wrapping.hooks import _SUPERSEDED_CONTEXTS
 from ddtrace.internal.wrapping.hooks import _WRAPPING_CONTEXTS
 from ddtrace.internal.wrapping.hooks import target_function
 from ddtrace.internal.wrapping.hooks import try_unwrap_context
@@ -37,6 +38,7 @@ class Blocked(BaseException):
 def restore_globals():
     """Both registries and the target module are process-global, so put them back afterwards."""
     contexts = dict(_WRAPPING_CONTEXTS)
+    superseded = {key: list(value) for key, value in _SUPERSEDED_CONTEXTS.items()}
     hooks = {key: list(value) for key, value in _MODULE_HOOKS.items()}
     original_method = hooks_target.Target.__dict__["method"]
     original_function = hooks_target.function
@@ -47,6 +49,8 @@ def restore_globals():
             try_unwrap_context(module_name, name)
         _WRAPPING_CONTEXTS.clear()
         _WRAPPING_CONTEXTS.update(contexts)
+        _SUPERSEDED_CONTEXTS.clear()
+        _SUPERSEDED_CONTEXTS.update(superseded)
         _MODULE_HOOKS.clear()
         _MODULE_HOOKS.update(hooks)
         hooks_target.Target.method = original_method
@@ -391,11 +395,11 @@ def test_binding_peels_through_a_functools_wraps_decorator():
     assert calls == [("enter", 7), ("return", 7)]
 
 
-def test_rebinding_leaves_the_old_function_uninstrumented():
-    """Pins the reload trade-off: the stale context is released rather than left in place.
+def test_rebinding_keeps_the_old_function_instrumented():
+    """A reload rebinds the attribute; it does not touch what already holds the old function.
 
-    Imported aliases and already-constructed instances that still reference the old function go
-    uninstrumented, which is the opposite of what a wrapt wrapper on the attribute would do.
+    Imported aliases, subclasses and already-constructed instances keep calling it, so releasing
+    the superseded context here would silently drop instrumentation for all of them.
     """
 
     def stale_function(value):
@@ -415,7 +419,60 @@ def test_rebinding_leaves_the_old_function_uninstrumented():
 
     calls.clear()
     assert stale_function(1) == 0
-    assert calls == [], "the old function is still instrumented after the rebind"
+    assert calls == [("enter", 1), ("return", 1)], "the alias lost its instrumentation"
 
+    calls.clear()
     assert hooks_target.function(1) == 101
     assert calls == [("enter", 1), ("return", 1)]
+
+
+def test_unwrapping_releases_the_superseded_contexts_too():
+    """Retaining the old function's context is only safe if unpatch still reaches it."""
+
+    def stale_function(value):
+        return value - 1
+
+    hooks_target.function = stale_function
+    calls = []
+    try_wrap_context(MODULE, "function", recorder(calls))
+    key = (MODULE, "function")
+
+    def reloaded(value):
+        return value + 100
+
+    hooks_target.function = reloaded
+    for hook in _MODULE_HOOKS[key]:
+        hook(hooks_target)
+    assert len(_SUPERSEDED_CONTEXTS[key]) == 1
+
+    try_unwrap_context(MODULE, "function")
+
+    calls.clear()
+    assert stale_function(1) == 0
+    assert reloaded(1) == 101
+    assert calls == [], "unpatching left a function instrumented"
+    assert key not in _SUPERSEDED_CONTEXTS
+
+
+def test_repeated_reloads_do_not_accumulate_superseded_contexts():
+    """Collected functions are pruned, so a module reloaded in a loop does not grow the list."""
+    key = (MODULE, "function")
+
+    def make(offset):
+        def generated(value):
+            return value + offset
+
+        return generated
+
+    hooks_target.function = make(0)
+    try_wrap_context(MODULE, "function", recorder([]))
+
+    for offset in range(1, 6):
+        hooks_target.function = make(offset)
+        for hook in _MODULE_HOOKS[key]:
+            hook(hooks_target)
+        gc.collect()
+
+    # Only the immediately previous function is still referenced, by the registry entry we just
+    # replaced; the earlier ones were collected and pruned.
+    assert len(_SUPERSEDED_CONTEXTS[key]) <= 2, _SUPERSEDED_CONTEXTS[key]

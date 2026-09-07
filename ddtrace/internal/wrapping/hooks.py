@@ -24,6 +24,9 @@ _MODULE_HOOKS: dict[tuple[str, str], list[Callable[[Any], None]]] = {}
 # Wrapping contexts currently installed, keyed by (module_name, name), so unwrap can use the
 # instance that did the wrapping instead of re-resolving a possibly re-patched attribute.
 _WRAPPING_CONTEXTS: dict[tuple[str, str], WrappingContext] = {}
+# Contexts a reload superseded. Their functions stay wrapped, so aliases, subclasses and live
+# instances that still hold them keep their instrumentation; retained so unwrap releases them too.
+_SUPERSEDED_CONTEXTS: dict[tuple[str, str], list[WrappingContext]] = {}
 
 
 def _module_name(module: Any) -> str:
@@ -79,13 +82,16 @@ def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingCont
                     # Already wrapped. Re-registering the same context type raises, so stay a
                     # no-op, the way a repeated wrapt patch does.
                     return
-                # The module was reloaded, so the attribute holds a new function and the installed
-                # context is bound to one nothing references any more. Rebind to what is there now.
+                # The module was reloaded, so the attribute holds a new function. Rebind to it,
+                # but leave the old one wrapped: a reload rebinds the attribute without touching
+                # aliases, subclasses or already-constructed instances, and unwrapping here would
+                # silently drop instrumentation for every one of those. Retained so unwrap can
+                # still release it, and pruned of collected functions so a module reloaded many
+                # times does not accumulate.
                 del _WRAPPING_CONTEXTS[key]
-                try:
-                    installed.unwrap()
-                except Exception:
-                    log.debug("Cannot release the stale context on %s.%s", module_name, name, exc_info=True)
+                superseded = _SUPERSEDED_CONTEXTS.setdefault(key, [])
+                superseded[:] = [c for c in superseded if c._wrapped_ref() is not None]
+                superseded.append(installed)
             context = context_cls(target)
             context.wrap()
             _WRAPPING_CONTEXTS[key] = context
@@ -107,10 +113,14 @@ def try_unwrap_context(module: Any, name: str) -> None:
     The next patch would then rewrite on top of it until the bytecode library fails to parse it.
     """
     _unregister_module_hooks(module, name)
-    context = _WRAPPING_CONTEXTS.pop((_module_name(module), name), None)
-    if context is None:
-        return
-    try:
-        context.unwrap()
-    except Exception:
-        log.debug("ERROR unwrapping context %s.%s ", module, name, exc_info=True)
+    key = (_module_name(module), name)
+    contexts = _SUPERSEDED_CONTEXTS.pop(key, [])
+    current = _WRAPPING_CONTEXTS.pop(key, None)
+    if current is not None:
+        contexts.append(current)
+    for context in contexts:
+        try:
+            context.unwrap()
+        except Exception:
+            # A superseded context whose function has already been collected raises here.
+            log.debug("ERROR unwrapping context %s.%s ", module, name, exc_info=True)
