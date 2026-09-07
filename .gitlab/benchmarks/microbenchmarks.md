@@ -23,8 +23,11 @@ CPUs one run needs. This is what decides whether your commit runs a given scenar
 which need a live Datadog agent alongside the benchmark. Everything else goes straight to the
 platform's `run-benchmarks.sh`.
 
-**`bp-runner.microbenchmarks.fail-on-breach.template.yml`** — The SLOs the `check-slo-breaches` gate
-checks results against: one threshold per scenario config. Scenario names here are
+**`bp-runner.microbenchmarks.fail-on-breach.template.yml`** is no longer the source of truth;
+the SLOs now live in one per-team file under **`.gitlab/benchmarks/slos/`** (see [SLO ownership](#slo-ownership)).
+`scripts/gen_gitlab_config.py` merges those into the single generated
+`bp-runner.microbenchmarks.fail-on-breach.yml` that the `check-slo-breaches` gate checks results
+against: one threshold per scenario config. Scenario names are
 `<lowercased scenario class name>-<config name>` — the `start-finish` config of the `Span` class in
 `benchmarks/span/` is `span-start-finish`.
 
@@ -78,24 +81,24 @@ Execution, once per pipeline:
    `type: 'microbenchmark'` is required; the generator selects on it. `cpus_per_run` groups
    scenarios into jobs — leave it at `1` unless the scenario genuinely needs more.
 
-4. Add an SLO per config to `bp-runner.microbenchmarks.fail-on-breach.template.yml` so
-   `check-slo-breaches` gates on it, keyed `<lowercased class name>-<config name>`, with a
-   trailing `# owners:` comment naming the team responsible for the gate:
+4. Add an SLO per config to your team's file under `.gitlab/benchmarks/slos/` so
+   `check-slo-breaches` gates on it, keyed `<lowercased class name>-<config name>`:
 
    ```yaml
-   - name: <classname>-<config>  # owners: @DataDog/<team>
+   - name: <classname>-<config>
      thresholds:
        - execution_time < 0.05 ms
    ```
 
    Base the number on your local run with a small margin above it (roughly 10%), not on the
-   measurement exactly. A scenario with no entry here runs and reports but is not gated.
+   measurement exactly. A scenario with no entry runs and reports but is not gated.
 
-   The `# owners:` comment is what routes review when a threshold changes: it sits on the
-   SLO's `- name:` line, so editing the threshold below it shows the responsible team in the
-   diff hunk. `scripts/lint slo-ownership` fails if an SLO has no owner comment, so add it in
-   the same PR. If the config is intentionally ungated (e.g. a `baseline`), list it in
-   `.gitlab/benchmarks/slo-exceptions.yml` instead.
+   Each file under `slos/` is owned by a team via `.github/CODEOWNERS` (the file name is the
+   team slug, e.g. `apm-sdk-capabilities-python.yml`), so editing a threshold routes review to
+   that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
+   matching CODEOWNERS rule, and run `scripts/lint slo-ownership` to confirm. If the config is
+   intentionally ungated (e.g. a `baseline`), list it in `.gitlab/benchmarks/slo-exceptions.yml`
+   instead.
 
 5. Verify the generated config before pushing:
 
@@ -153,18 +156,20 @@ path for regressions. Open an issue to either stabilize the scenario or remove i
 
 ## SLO ownership
 
-Every SLO in `bp-runner.microbenchmarks.fail-on-breach.template.yml` carries a trailing
-`# owners: @DataDog/<team>` comment on its `- name:` line, naming the team responsible for the
-gate. The comment lives on the SLO's identity line so that, when someone edits the threshold
-below it, the responsible team appears in the diff hunk (within the default 3-line context) and
-the reviewer knows whom to add as a reviewer — GitHub CODEOWNERS is file-level, so it cannot
-auto-route per SLO, but the inline comment puts the owner in front of the human reviewer.
+SLO thresholds live in one per-team file under `.gitlab/benchmarks/slos/`, named
+`<team-slug>.yml` (e.g. `apm-sdk-capabilities-python.yml`). Each file is owned by its team via
+`.github/CODEOWNERS`, so editing a threshold routes review to that team automatically — GitHub
+CODEOWNERS is file-level, so splitting the SLOs by team into separate files is what lets the gate
+route per team. `scripts/gen_gitlab_config.py` merges all of these into the single generated
+`bp-runner.microbenchmarks.fail-on-breach.yml` consumed by `check-slo-breaches`.
 
 `scripts/lint slo-ownership` (`scripts/check_slo_ownership.py`) runs as part of
 `scripts/lint checks` and fails the build if an SLO gets orphaned — specifically if:
 
-- an SLO has no (or malformed) `# owners:` comment,
-- an SLO points at a benchmark class or config that no longer exists, or
+- a team file has no CODEOWNERS rule (it would fall through to the generic `.gitlab/benchmarks`
+  default) or its owner does not match its file name,
+- an SLO points at a benchmark class or config that no longer exists,
+- an SLO appears in more than one team file (two teams must not own the same gate), or
 - a benchmark config has no SLO entry and is not listed as an intentional exception.
 
 Intentionally ungated configs (e.g. `baseline` scenarios with nothing to compare against) and
