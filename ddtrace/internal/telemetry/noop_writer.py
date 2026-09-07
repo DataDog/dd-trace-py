@@ -108,6 +108,9 @@ class NoOpTelemetryWriter(object):
     def _restart_sequence(self) -> None:
         pass
 
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        pass
+
     def _fork_writer(self) -> None:
         pass
 
