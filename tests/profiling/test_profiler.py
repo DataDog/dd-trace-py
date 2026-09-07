@@ -387,6 +387,30 @@ def test_stack_failure_telemetry_logging_with_auto():
         assert "mock failure message" in message
 
 
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err=None,
+)
+def test_unsupported_platform_disables_profiling_quietly():
+    # On platforms where the native profiling extensions are never built (e.g.
+    # Windows), profiling must be disabled quietly. We should NOT attempt the
+    # native imports nor emit ERROR-level "Failed to load ... module" telemetry
+    # for what is an expected, advertised-as-unsupported condition.
+    from unittest import mock
+
+    with (
+        mock.patch("platform.system", return_value="Windows"),
+        mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log,
+    ):
+        from ddtrace.internal.settings.profiling import config
+
+        assert config.enabled is False
+        assert config.stack.enabled is False
+
+        for call in mock_add_log.call_args_list:
+            assert "Failed to load" not in call.args[1]
+
+
 @pytest.mark.subprocess(err=None)
 def test_profiling_auto_degrades_when_unavailable():
     """import ddtrace.profiling.auto must not crash when native extensions are missing."""

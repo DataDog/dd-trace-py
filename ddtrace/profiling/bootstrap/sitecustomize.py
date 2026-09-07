@@ -5,6 +5,7 @@ import platform
 import sys
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings.profiling import _is_platform_supported
 import ddtrace.profiling as profiling
 from ddtrace.profiling import bootstrap
 
@@ -32,6 +33,8 @@ def start_profiler() -> None:
     bootstrap.profiler.start()  # type: ignore[attr-defined]  # pyright: ignore[reportCallIssue]
 
 
+_platform_unsupported_msg, _platform_is_supported = _is_platform_supported()
+
 if platform.system() == "Linux" and not (sys.maxsize > (1 << 32)):
     LOG.error(
         "The Datadog Profiler is not supported on 32-bit Linux systems. "
@@ -45,6 +48,17 @@ elif platform.system() == "Windows":
         "To use the profiler, please use a 64-bit Linux or macOS system. "
         "If you need assistance related to Windows support for the Profiler, please open a ticket at "
         "https://github.com/DataDog/dd-trace-py/issues"
+    )
+elif not _platform_is_supported:
+    # Catch-all for any other unsupported platform (e.g. 32-bit macOS or a
+    # Python version without native extensions) so we never attempt to start
+    # the profiler where the native extensions do not exist.
+    LOG.error(
+        "The Datadog Profiler is not supported on this platform: %s. "
+        "To use the profiler, please use a 64-bit Linux or macOS system. "
+        "If you believe this is an error or need assistance, please report it at "
+        "https://github.com/DataDog/dd-trace-py/issues",
+        _platform_unsupported_msg,
     )
 else:
     start_profiler()
