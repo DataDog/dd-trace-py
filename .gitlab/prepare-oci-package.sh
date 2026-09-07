@@ -46,7 +46,17 @@ cp -r ../pywheels-dep/site-packages* sources/ddtrace_pkgs
 cp ../lib-injection/sources/* sources/
 
 if ! type rdfind &> /dev/null; then
-  clean-apt install rdfind
+  for attempt in 1 2 3; do
+    if clean-apt install rdfind; then
+      break
+    fi
+    if [ "$attempt" -eq 3 ]; then
+      echo "clean-apt install rdfind failed after 3 attempts" >&2
+      exit 1
+    fi
+    echo "clean-apt install rdfind failed (attempt $attempt/3), retrying in 5s..."
+    sleep 5
+  done
 fi
 echo "Deduplicating package files"
 cd ./sources
