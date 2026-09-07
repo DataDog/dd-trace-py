@@ -7,6 +7,7 @@ from ddtrace.contrib._events.messaging import MessagingProcessEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -15,6 +16,9 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import tracer
+
+
+log = get_logger(__name__)
 
 
 config._add(
@@ -37,6 +41,14 @@ config._add(
 JOB_ID = "job.id"
 QUEUE_NAME = "queue.name"
 JOB_FUNC_NAME = "job.func_name"
+
+
+def _safe_flush() -> None:
+    """Flush completed spans without allowing transport errors to affect jobs."""
+    try:
+        tracer.flush()
+    except Exception:
+        log.debug("rq: tracer flush after job raised", exc_info=True)
 
 
 def get_version() -> str:
@@ -141,7 +153,7 @@ def traced_perform_job(func: Callable[..., Any], instance: Any, args: tuple[Any,
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        tracer.flush()
+        _safe_flush()
 
 
 def traced_job_perform(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:

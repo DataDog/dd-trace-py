@@ -1,13 +1,17 @@
 import os
 import subprocess
 import time
+from unittest import mock
 
 import pytest
 import redis
 import rq
 
 from ddtrace.contrib.internal.rq.patch import patch
+from ddtrace.contrib.internal.rq.patch import traced_perform_job
 from ddtrace.contrib.internal.rq.patch import unpatch
+from ddtrace.trace import tracer
+from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
@@ -20,7 +24,12 @@ from .jobs import job_fail
 
 
 # Span data which isn't static to ignore in the snapshots.
-snapshot_ignores = ["meta.job.id", "meta.error.stack", "meta.traceparent", "meta.tracestate"]
+snapshot_ignores = [
+    "meta.job.id",
+    "meta.error.stack",
+    "meta.traceparent",
+    "meta.tracestate",
+]
 
 rq_version = tuple(int(x) for x in rq.__version__.split(".")[:3])
 
@@ -55,7 +64,18 @@ def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
 
 
-@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
+def test_and_implement_get_version():
+    version = get_version()
+    assert type(version) is str
+    assert version != ""
+
+    emit_integration_and_version_to_test_agent("rq", version)
+
+
+@snapshot(
+    ignores=snapshot_ignores,
+    variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)},
+)
 def test_queue_failing_job(sync_queue):
     # Exception raising behavior was changed in 1.10.1
     # https://github.com/rq/rq/commit/93f34c796f541ea4b1c156426d6524df05753826
@@ -133,12 +153,17 @@ def test_custom_job_id_in_span_tags(sync_queue):
 @pytest.mark.parametrize("distributed_tracing_enabled", [False, None])
 @pytest.mark.parametrize("worker_service_name", [None, "custom-worker-service"])
 def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
-    token = "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s" % (
-        distributed_tracing_enabled,
-        worker_service_name,
+    token = (
+        "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s"
+        % (
+            distributed_tracing_enabled,
+            worker_service_name,
+        )
     )
     num_traces_expected = 2 if distributed_tracing_enabled is False else 1
-    with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
+    with snapshot_context(
+        token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected
+    ):
         env = os.environ.copy()
         env["DD_TRACE_REDIS_ENABLED"] = "false"
         if distributed_tracing_enabled is not None:
@@ -208,3 +233,49 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+def test_all_worker_classes_are_instrumented():
+    """rq 2.7 made SimpleWorker a sibling of Worker rather than a subclass; both must be traced."""
+    from ddtrace.internal.utils.wrappers import iswrapped
+
+    patch()
+    try:
+        assert iswrapped(rq.Worker.perform_job)
+        assert iswrapped(rq.SimpleWorker.perform_job)
+    finally:
+        unpatch()
+
+
+def test_perform_job_ignores_flush_error():
+    job = mock.Mock(
+        meta={},
+        func_name="tests.contrib.rq.jobs.job_add1",
+        id="job-id",
+        is_failed=False,
+        origin="q",
+    )
+    job.get_status.return_value = "finished"
+
+    with mock.patch.object(tracer, "flush", side_effect=RuntimeError("flush failed")):
+        assert traced_perform_job(lambda *_args, **_kwargs: 2, None, (job,), {}) == 2
+
+
+def test_perform_job_flush_error_does_not_mask_job_error():
+    job = mock.Mock(
+        meta={},
+        func_name="tests.contrib.rq.jobs.job_fail",
+        id="job-id",
+        is_failed=True,
+        origin="q",
+    )
+    job.get_status.return_value = "failed"
+
+    def fail(*_args, **_kwargs):
+        raise MyException()
+
+    with (
+        mock.patch.object(tracer, "flush", side_effect=RuntimeError("flush failed")),
+        pytest.raises(MyException),
+    ):
+        traced_perform_job(fail, None, (job,), {})
