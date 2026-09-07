@@ -164,6 +164,8 @@ suites:
     paths:
       - 'conftest.py'
       - '**/conftest.py'
+      - 'tests/_ddtest_conftest_helpers.py'
+      - 'tests/_ddtest_env_helpers.py'
     pattern: meta-testing
     snapshot: false
   ddtracerun:
@@ -186,6 +188,10 @@ suites:
       - 'src/native/*'
       - 'scripts/global-lock-detection.py'
   integration_agent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     parallelism: 2
     paths:
       - '@tracing'
@@ -197,6 +203,10 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-latest*
   integration_testagent:
+    ddtest_nodes: 2
+    ddtest: true
+    env:
+      _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -279,8 +289,13 @@ suites:
       - tests/snapshots/tests.telemetry.*
     snapshot: true
   tracer:
+    ddtest: true
+    ddtest_nodes: 2
     env:
       DD_TRACE_AGENT_URL: http://localhost:8126
+      DDTEST_SUITE_PATH: tests/tracer
+      DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
@@ -304,6 +319,10 @@ suites:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
+        DDTEST_SUITE_PATH: tests/tracer
+        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
           dependencies: [msgpack, attrs, structlog, httpretty, wheel, fastapi, 'httpx<0.28.0', pytest-randomly, setuptools, boto3, freezegun]
@@ -333,6 +352,10 @@ suites:
     matrix:
       command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
       env:
+        DDTEST_SUITE_PATH: tests/tracer
+        DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
