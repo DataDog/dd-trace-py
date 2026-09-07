@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: Experiment ``LLMJudge`` evaluators can emit a linked judge span via
+    ``emit_judge_trace`` (default ``False``). The judge run's ids are recorded on the experiment
+    evaluation metric so the score links back to it.

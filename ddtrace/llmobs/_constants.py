@@ -205,6 +205,9 @@ EVAL_NAME_TAG = "eval_name"
 EVALUATED_ML_APP_TAG = "evaluated_ml_app"
 EVALUATED_SPAN_ID_TAG = "evaluated_span_id"
 EVALUATED_TRACE_ID_TAG = "evaluated_trace_id"
+# Lets the UI resolve the back-link, since experiment task spans live in the experiments index.
+# Deliberately not the reserved experiment_id tag, which would move the judge span into that index too.
+EVALUATED_EXPERIMENT_ID_TAG = "evaluated_experiment_id"
 EVAL_SOURCE_TYPE_TAG = "eval_source_type"
 JUDGE_TRACE_ID_KEY = "judge_trace_id"
 JUDGE_SPAN_ID_KEY = "judge_span_id"

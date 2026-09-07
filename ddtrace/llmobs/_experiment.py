@@ -56,10 +56,13 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._constants import JUDGE_SPAN_ID_KEY
+from ddtrace.llmobs._constants import JUDGE_TRACE_ID_KEY
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import get_asyncio
 from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
+from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_tags_list
 from ddtrace.version import __version__
@@ -109,6 +112,7 @@ class EvaluatorResult:
         assessment: Optional[str] = None,
         metadata: Optional[dict[str, JSONType]] = None,
         tags: Optional[dict[str, JSONType]] = None,
+        judge_span: Optional["ExportedLLMObsSpan"] = None,
     ) -> None:
         """Initialize an EvaluatorResult.
 
@@ -117,12 +121,28 @@ class EvaluatorResult:
         :param assessment: Optional categorical assessment (e.g., "pass", "fail", "good", "bad")
         :param metadata: Optional dictionary of additional metadata about the evaluation
         :param tags: Optional dictionary of tags to categorize or label the evaluation
+        :param judge_span: Optional exported judge span of shape {'span_id': str, 'trace_id': str}
+                           (from ``LLMObs.export_span`` of a span opened with ``LLMObs.evaluation``).
+                           Its ids are folded into the emitted metric's metadata as
+                           ``judge_trace_id``/``judge_span_id``, so the score can deep-link to the
+                           judge trace. This is the experiment-path counterpart of
+                           ``LLMObs.submit_evaluation(judge_span=...)``.
         """
+        if judge_span is not None and not (
+            isinstance(judge_span, dict)
+            and isinstance(judge_span.get("span_id"), str)
+            and isinstance(judge_span.get("trace_id"), str)
+        ):
+            raise TypeError(
+                "`judge_span` must be a dictionary containing both span_id and trace_id keys. "
+                "LLMObs.export_span() can be used to generate this dictionary from a given span."
+            )
         self.value = value
         self.reasoning = reasoning
         self.assessment = assessment
         self.metadata = metadata
         self.tags = tags
+        self.judge_span = judge_span
 
 
 class RemoteEvaluatorResult(EvaluatorResult):
@@ -234,6 +254,12 @@ class EvaluatorContext:
                     Optional string.
     :param trace_id: The trace ID associated with the task execution, if available (read-only).
                      Optional string.
+    :param evaluated_ml_app: The ml_app of the application under evaluation (read-only). Optional string.
+                             Pass through to ``LLMObs.evaluation(evaluated_ml_app=...)`` when emitting a
+                             judge trace, so the judge trace can be grouped with the app it judges.
+    :param evaluated_experiment_id: The id of the experiment the evaluated task span belongs to
+                                    (read-only). Recorded on the judge span as a scope hint so the UI
+                                    can resolve the evaluated span in the experiments index.
     """
 
     input_data: JSONType
@@ -242,6 +268,8 @@ class EvaluatorContext:
     metadata: dict[str, Any] = field(default_factory=dict)
     span_id: Optional[str] = None
     trace_id: Optional[str] = None
+    evaluated_ml_app: Optional[str] = None
+    evaluated_experiment_id: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -2328,6 +2356,15 @@ class Experiment:
                 extra_return_values["metadata"] = eval_result.metadata
             if eval_result.tags:
                 extra_return_values["tags"] = eval_result.tags
+            # The experiment metric path is a separate intake that submit_evaluation never reaches,
+            # so mirror its judge_span= handling here.
+            judge_span = getattr(eval_result, "judge_span", None)
+            if judge_span is not None:
+                extra_return_values["metadata"] = {
+                    **cast(dict, extra_return_values.get("metadata") or {}),
+                    JUDGE_TRACE_ID_KEY: judge_span["trace_id"],
+                    JUDGE_SPAN_ID_KEY: judge_span["span_id"],
+                }
             if isinstance(eval_result, RemoteEvaluatorResult) and eval_result.status:
                 extra_return_values["status"] = eval_result.status
             return eval_result.value, extra_return_values
@@ -2832,6 +2869,10 @@ class Experiment:
         output_data = task_result["output"]
         expected_output = record["expected_output"]
         metadata = record.get("metadata", {})
+        # The ml_app the experiment's task spans were recorded under. Experiment spans are
+        # experiment-scoped rather than ml_app-scoped, so this is resolved the same way
+        # `_experiment()` resolves it (no explicit agent_service is passed there).
+        evaluated_ml_app = resolve_ml_app()
 
         async def _run_single_evaluator(
             evaluator: Union[EvaluatorType, AsyncEvaluatorType],
@@ -2859,6 +2900,8 @@ class Experiment:
                                 metadata=combined_metadata,
                                 span_id=task_result.get("span_id"),
                                 trace_id=task_result.get("trace_id"),
+                                evaluated_ml_app=evaluated_ml_app,
+                                evaluated_experiment_id=self._id,
                             )
                             eval_result = await evaluator.evaluate(context)
                         elif asyncio.iscoroutinefunction(evaluator):
@@ -2881,6 +2924,8 @@ class Experiment:
                                 metadata=combined_metadata,
                                 span_id=task_result.get("span_id"),
                                 trace_id=task_result.get("trace_id"),
+                                evaluated_ml_app=evaluated_ml_app,
+                                evaluated_experiment_id=self._id,
                             )
                             eval_result = await asyncio.to_thread(
                                 evaluator.evaluate,  # type: ignore[union-attr]
