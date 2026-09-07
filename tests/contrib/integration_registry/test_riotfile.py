@@ -1,4 +1,5 @@
 import importlib
+import os
 import pathlib
 import shlex
 import sys
@@ -41,7 +42,10 @@ def test_uv_suitespec_matches_riot():
         "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
         "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
     }
-    suitespec = suitespec_module.get_test_environments(nightly=False)
+    # riotfile injects the nightly-only coverage env var into every venv when NIGHTLY_BUILD is set,
+    # so mirror that here to keep the comparison valid on both regular and nightly CI pipelines.
+    nightly = os.environ.get("NIGHTLY_BUILD") == "true"
+    suitespec = suitespec_module.get_test_environments(nightly=nightly)
 
     riot_environments = {}
     for environment in riotfile.venv.instances():
