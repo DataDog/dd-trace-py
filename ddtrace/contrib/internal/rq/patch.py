@@ -1,17 +1,19 @@
+from typing import Any
+from typing import Callable
+
 from ddtrace import config
-from ddtrace.constants import SPAN_KIND
+from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.messaging import MessagingProcessEvent
+from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings._config import _get_config
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.trace import tracer
 
 
 config._add(
@@ -46,7 +48,9 @@ def _supported_versions() -> dict[str, str]:
     return {"rq": ">=1.8"}
 
 
-def traced_queue_enqueue_job(func, instance, args, kwargs):
+def traced_queue_enqueue_job(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     job = get_argument_value(args, kwargs, 0, "f")
 
     func_name = job.func_name
@@ -58,77 +62,77 @@ def traced_queue_enqueue_job(func, instance, args, kwargs):
     else:
         resource = func_name
 
-    with (
-        core.context_with_data(
-            "rq.queue.enqueue_job",
-            span_name=schematize_messaging_operation(
+    event = MessagingProducerEvent(
+        operation=schematize_messaging_operation(
                 "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
-            ),
-            service=trace_utils.int_service(None, config.rq),
-            resource=resource,
-            span_type=SpanTypes.WORKER,
-            integration_config=config.rq,
-            tags={
-                COMPONENT: config.rq.integration_name,
-                SPAN_KIND: SpanKind.PRODUCER,
-                QUEUE_NAME: instance.name,
-                JOB_ID: job.id,
-                JOB_FUNC_NAME: job.func_name,
-            },
-        ) as ctx,
-        span_from_context(ctx),
-    ):
-        # If the queue is_async then add distributed tracing headers to the job
-        if instance.is_async:
-            core.dispatch("rq.queue.enqueue_job", (ctx, job.meta))
+        ),
+        system="rq",
+        destination=instance.name,
+        message_id=job.id,
+        distributed_headers=job.meta if instance.is_async else None,
+        component=config.rq.integration_name,
+        integration_config=config.rq,
+        service=trace_utils.int_service(None, config.rq),
+        resource=resource,
+        measured=False,
+        tags={
+            QUEUE_NAME: instance.name,
+            JOB_ID: job.id,
+            JOB_FUNC_NAME: job.func_name,
+        },
+    )
+
+    with core.context_with_event(event):
         return func(*args, **kwargs)
 
 
-def traced_queue_fetch_job(func, instance, args, kwargs):
+def traced_queue_fetch_job(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     job_id = get_argument_value(args, kwargs, 0, "job_id")
-    with (
-        core.context_with_data(
-            "rq.traced_queue_fetch_job",
-            span_name=schematize_messaging_operation(
+    with core.context_with_event(
+        TracingEvent.create(
+            component=config.rq.integration_name,
+            integration_config=config.rq,
+            operation_name=schematize_messaging_operation(
                 "rq.queue.fetch_job", provider="rq", direction=SpanDirection.PROCESSING
             ),
             service=trace_utils.int_service(None, config.rq),
-            tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
-            integration_config=config.rq,
-        ) as ctx,
-        span_from_context(ctx),
+            span_type="",
+            span_kind="",
+            measured=False,
+            tags={JOB_ID: job_id},
+        )
     ):
         return func(*args, **kwargs)
 
 
-def traced_perform_job(func, instance, args, kwargs):
+def traced_perform_job(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     """Trace rq.Worker.perform_job"""
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
 
+    event = MessagingProcessEvent(
+        operation="rq.worker.perform_job",
+        system="rq",
+        destination=job.origin,
+        message_id=job.id,
+        distributed_headers=job.meta,
+        component=config.rq.integration_name,
+        integration_config=config.rq_worker,
+        service=trace_utils.int_service(None, config.rq_worker),
+        resource=job.func_name,
+        measured=False,
+        tags={JOB_ID: job.id},
+    )
+
     try:
-        with (
-            core.context_with_data(
-                "rq.worker.perform_job",
-                span_name="rq.worker.perform_job",
-                service=trace_utils.int_service(None, config.rq_worker),
-                span_type=SpanTypes.WORKER,
-                resource=job.func_name,
-                integration_config=config.rq_worker,
-                distributed_headers=job.meta,
-                activate_distributed_headers=True,
-                tags={
-                    COMPONENT: config.rq.integration_name,
-                    SPAN_KIND: SpanKind.CONSUMER,
-                    JOB_ID: job.id,
-                },
-            ) as ctx,
-            span_from_context(ctx),
-        ):
+        with core.context_with_event(event):
             try:
                 return func(*args, **kwargs)
             finally:
-                # call _after_perform_job handler for job status and origin
                 # In RQ 2.x, get_status() raises InvalidJobOperation when the
                 # job key no longer exists in Redis (e.g. result_ttl=0).
                 # is_failed calls get_status() internally, so it can raise too.
@@ -137,52 +141,58 @@ def traced_perform_job(func, instance, args, kwargs):
                 except Exception:
                     status = None
                 try:
-                    job_failed = job.is_failed
+                    event.failed = job.is_failed
                 except Exception:
-                    job_failed = False
-                span_tags = {"job.status": status or "None", "job.origin": job.origin}
-                core.dispatch("rq.worker.perform_job", (ctx, job_failed, span_tags))
+                    event.failed = False
+                event.result_tags["job.status"] = status or "None"
+                event.result_tags["job.origin"] = job.origin
 
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        core.dispatch("rq.worker.after.perform.job", (ctx,))
+        tracer.flush()
 
 
-def traced_job_perform(func, instance, args, kwargs):
+def traced_job_perform(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Trace rq.Job.perform(...)"""
     job = instance
 
     # Inherit the service name from whatever parent exists.
     # eg. in a worker, a perform_job parent span will exist with the worker
     #     service.
-    with (
-        core.context_with_data(
-            "rq.job.perform",
-            span_name="rq.job.perform",
-            resource=job.func_name,
-            tags={COMPONENT: config.rq.integration_name, JOB_ID: job.id},
+    with core.context_with_event(
+        TracingEvent.create(
+            component=config.rq.integration_name,
             integration_config=config.rq,
-        ) as ctx,
-        span_from_context(ctx),
+            operation_name="rq.job.perform",
+            resource=job.func_name,
+            span_type="",
+            span_kind="",
+            measured=False,
+            tags={JOB_ID: job.id},
+        )
     ):
         return func(*args, **kwargs)
 
 
-def traced_job_fetch_many(func, instance, args, kwargs):
+def traced_job_fetch_many(
+    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
     """Trace rq.Job.fetch_many(...)"""
     job_ids = get_argument_value(args, kwargs, 0, "job_ids")
-    with (
-        core.context_with_data(
-            "rq.job.fetch_many",
-            span_name=schematize_messaging_operation(
+    with core.context_with_event(
+        TracingEvent.create(
+            component=config.rq.integration_name,
+            integration_config=config.rq_worker,
+            operation_name=schematize_messaging_operation(
                 "rq.job.fetch_many", provider="rq", direction=SpanDirection.PROCESSING
             ),
             service=trace_utils.ext_service(None, config.rq_worker),
-            tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
-            integration_config=config.rq_worker,
-        ) as ctx,
-        span_from_context(ctx),
+            span_type="",
+            span_kind="",
+            measured=False,
+            tags={JOB_ID: job_ids},
+        )
     ):
         return func(*args, **kwargs)
 
