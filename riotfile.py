@@ -4823,40 +4823,41 @@ def _is_protected_ci_branch() -> bool:
     return branch == "main" or branch.startswith("mq-")
 
 
-def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
+def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
+    python_hint = getattr(inst.py, "_hint", "")
     python_version = _python_hint_to_version(python_hint)
 
+    # Ensure inst.env is a mutable dict we can update in-place.
+    if not inst.env:
+        inst.env = {}
+
     if python_hint:
-        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash},test.configuration.python:{python_hint}"
+        inst.env["_CI_DD_TAGS"] = (
+            f"test.configuration.riot_hash:{inst.short_hash},test.configuration.python:{python_hint}"
+        )
     else:
-        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash}"
+        inst.env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{inst.short_hash}"
 
     # ITR is enabled by default for Python >= 3.12, unless the venv explicitly opts out
     # via DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false.
     if (
-        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
-        and "DD_CIVISIBILITY_ITR_ENABLED" not in env
+        _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst.env
         and python_version is not None
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
-        env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
 
         # Test skipping is disabled by default (PREVENT_TEST_SKIPPING=1), unless the venv
         # explicitly opts in via DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB=true.
-        if _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
-            env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+        if _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
+            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
         else:
-            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
         if _is_protected_ci_branch():
-            env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
-            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
-
-
-def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
-    if not inst.env:
-        inst.env = {}
-    _configure_ci_itr_environment(inst.env, getattr(inst.py, "_hint", ""), inst.short_hash)
+            inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
 
 _venv_instances = venv.instances

@@ -1,4 +1,5 @@
 import importlib
+import os
 import pathlib
 import re
 import shlex
@@ -33,10 +34,13 @@ def _load_suitespec():
         return importlib.import_module("tests.suitespec")
 
 
-def test_suitespec_matches_riot():
+def test_uv_suitespec_matches_riot():
     suitespec_module = _load_suitespec()
-    suitespec = suitespec_module.get_test_environments(nightly=False)
     uv_suites = set(suitespec_module.UV_TEST_SUITES)
+    # riotfile injects the nightly-only coverage env var into every venv when NIGHTLY_BUILD is set,
+    # so mirror that here to keep the comparison valid on both regular and nightly CI pipelines.
+    nightly = os.environ.get("NIGHTLY_BUILD") == "true"
+    suitespec = suitespec_module.get_test_environments(nightly=nightly)
     assert not uv_suites - set(suitespec), f"uv suites missing environment definitions: {uv_suites - set(suitespec)}"
 
     suite_patterns = tuple(
@@ -44,7 +48,7 @@ def test_suitespec_matches_riot():
     )
     riot_environments = set()
     riot_lockfiles = set()
-    for environment in riotfile.venv.instances():
+    for environment in riotfile._venv_instances():
         if not any(environment.matches_pattern(pattern) for pattern in suite_patterns):
             continue
         riot_environments.add(
@@ -61,15 +65,13 @@ def test_suitespec_matches_riot():
     for suite in uv_suites:
         for environment in suitespec[suite]:
             for run in environment.runs:
-                run_environment = dict(run.env)
-                riotfile._configure_ci_itr_environment(run_environment, environment.python, environment.lock_hash)
                 suitespec_environments.add(
                     (
                         environment.name,
                         environment.python,
                         tuple(shlex.split(run.command)),
                         frozenset(environment.riot_lock_dependencies),
-                        frozenset(run_environment.items()),
+                        frozenset(run.environment.items()),
                     )
                 )
 
