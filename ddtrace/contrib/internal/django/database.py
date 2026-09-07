@@ -42,12 +42,17 @@ DB_CONN_ATTR_BY_TAG = {
 def get_traced_cursor_cls(cursor_type: type[Any]) -> type[dbapi.TracedCursor]:
     traced_cursor_cls = dbapi.TracedCursor
     try:
-        if cursor_type.__module__.startswith("psycopg2.") or cursor_type.__name__ == "PsycopgTracedCursor":
+        cursor_modules = tuple(base.__module__ for base in cursor_type.__mro__)
+        if any(module.startswith("psycopg2.") for module in cursor_modules) or cursor_type.__name__ == (
+            "PsycopgTracedCursor"
+        ):
             # Import lazily to avoid importing psycopg if not already imported.
             from ddtrace.contrib.internal.psycopg.cursor import PsycopgTracedCursor
 
             traced_cursor_cls = PsycopgTracedCursor
-        elif cursor_type.__module__.startswith("psycopg.") or cursor_type.__name__ == "Psycopg3TracedCursor":
+        elif any(module.startswith("psycopg.") for module in cursor_modules) or cursor_type.__name__ == (
+            "Psycopg3TracedCursor"
+        ):
             # Import lazily to avoid importing psycopg if not already imported.
             from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
 

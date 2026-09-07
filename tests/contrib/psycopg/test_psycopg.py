@@ -197,6 +197,7 @@ class PsycopgCore(TracerTestCase):
         cursor = mock.Mock(rowcount=0)
         cursor.connection.pgconn._encoding = "utf-8"
         cursor.connection.pgconn.parameter_status.return_value = b"UTF8"
+        django_cursor = mock.Mock(cursor=cursor, rowcount=0)
         query = SQL("SELECT ") + SQL("1")
         events: list[DbQueryEvent] = []
 
@@ -205,12 +206,12 @@ class PsycopgCore(TracerTestCase):
 
         core.on(DbQueryEvent.event_name, capture_event)
         try:
-            Psycopg3TracedCursor(cursor, cfg=config.psycopg).execute(query)
+            Psycopg3TracedCursor(django_cursor, cfg=config.psycopg).execute(query)
         finally:
             core.reset_listeners(DbQueryEvent.event_name, capture_event)
 
         assert events == [DbQueryEvent(query=query.as_string(cursor), span_name_prefix="postgres")]
-        cursor.execute.assert_called_once_with(query)
+        django_cursor.execute.assert_called_once_with(query)
 
     def test_query_is_stringified_once_for_tracing_and_appsec(self) -> None:
         cursor = mock.Mock(rowcount=0)
@@ -246,6 +247,7 @@ class PsycopgCore(TracerTestCase):
     def test_template_query_event_is_stringified(self) -> None:
         cursor = mock.Mock(rowcount=0)
         cursor.connection.pgconn._encoding = "utf-8"
+        django_cursor = mock.Mock(cursor=cursor, rowcount=0)
         query = eval('t"SELECT 1"')
         events: list[DbQueryEvent] = []
 
@@ -254,12 +256,12 @@ class PsycopgCore(TracerTestCase):
 
         core.on(DbQueryEvent.event_name, capture_event)
         try:
-            Psycopg3TracedCursor(cursor, cfg=config.psycopg).execute(query)
+            Psycopg3TracedCursor(django_cursor, cfg=config.psycopg).execute(query)
         finally:
             core.reset_listeners(DbQueryEvent.event_name, capture_event)
 
         assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")]
-        cursor.execute.assert_called_once_with(query)
+        django_cursor.execute.assert_called_once_with(query)
 
     def test_composed_query(self):
         """Checks whether execution of composed SQL string is traced"""

@@ -10,13 +10,16 @@ class PsycopgTracedCursor(dbapi.TracedCursor):
     def __init__(self, cursor, cfg, *args, **kwargs):
         super(PsycopgTracedCursor, self).__init__(cursor, cfg=cfg, *args, **kwargs)
 
+    def _query_rendering_context(self) -> object:
+        return getattr(self.__wrapped__, "cursor", self.__wrapped__)
+
     def _normalize_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
         normalized_query = super(PsycopgTracedCursor, self)._normalize_dbapi_query(query)
         if normalized_query is not None:
             return normalized_query
         renderer = getattr(query, "as_string", None)
         if callable(renderer):
-            rendered_query = renderer(self.__wrapped__)
+            rendered_query = renderer(self._query_rendering_context())
             if isinstance(rendered_query, str):
                 return rendered_query
         return None
@@ -34,7 +37,7 @@ class Psycopg3TracedCursor(PsycopgTracedCursor):
         ):
             renderer = self._self_config.get("_query_renderer")
             if callable(renderer):
-                rendered_query = renderer(query, self.__wrapped__)
+                rendered_query = renderer(query, self._query_rendering_context())
                 if isinstance(rendered_query, str):
                     return rendered_query
         return None

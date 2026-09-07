@@ -41,6 +41,7 @@ from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 from tests.utils import override_http_config
+from tests.utils import package_installed
 
 
 @pytest.fixture(autouse=True)
@@ -740,6 +741,39 @@ def test_connection():
         assert span.span_type == "sql"
         assert span.get_tag("django.db.vendor") == "sqlite"
         assert span.get_tag("django.db.alias") == "default"
+
+
+@pytest.mark.skipif(django.VERSION < (4, 2, 0), reason="Psycopg3 not supported in django<4.2")
+@pytest.mark.skipif(not package_installed("psycopg"), reason="Psycopg3 not installed")
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={"DD_DJANGO_INSTRUMENT_DATABASES": "true", "DD_TRACE_PSYCOPG_ENABLED": "false"},
+)
+def test_psycopg3_composable_query_without_psycopg_integration():
+    from ddtrace.contrib._events.dbapi import DbQueryEvent
+    from ddtrace.internal import core
+    from tests.contrib.django.utils import setup_django
+
+    setup_django()
+
+    from django.db import connections
+    from psycopg.sql import SQL
+
+    query = SQL("SELECT 1")
+    events = []
+
+    def capture_event(event):
+        events.append(event)
+
+    core.on(DbQueryEvent.event_name, capture_event)
+    try:
+        with connections["postgres"].cursor() as cursor:
+            cursor.execute(query)
+            assert cursor.fetchone() == (1,)
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+    assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")], events
 
 
 """
