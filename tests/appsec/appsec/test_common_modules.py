@@ -810,3 +810,31 @@ def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib():
     addresses = [address for address in seen if address is not None]
     assert addresses, "no downstream request was inspected"
     assert addresses[-1] == "http://127.0.0.1:1/real/path?q=1", addresses
+
+
+@pytest.mark.parametrize(
+    "host, port, secure, expected",
+    [
+        ("127.0.0.1", 8080, False, "http://127.0.0.1:8080/p?q=1"),
+        ("example.com", None, False, "http://example.com/p?q=1"),
+        ("example.com", None, True, "https://example.com/p?q=1"),
+        # http.client stores IPv6 literals unbracketed, and an unbracketed authority does not parse.
+        ("::1", 8080, False, "http://[::1]:8080/p?q=1"),
+        ("[::1]", None, False, "http://[::1]/p?q=1"),
+        # A bare IPv6 literal with no port must be bracketed by the caller: http.client itself
+        # parses "::1" as host ":" port 1, long before we see it.
+        ("[::1]", None, True, "https://[::1]/p?q=1"),
+    ],
+)
+def test_absolute_downstream_url(host, port, secure, expected):
+    import http.client
+    from urllib.parse import urlparse
+
+    connection_cls = http.client.HTTPSConnection if secure else http.client.HTTPConnection
+    connection = connection_cls(host, port) if port is not None else connection_cls(host)
+
+    url = cmp._absolute_downstream_url(connection, "/p?q=1")
+
+    assert url == expected
+    # The point of the address is the host, so it has to survive parsing.
+    assert urlparse(url).hostname == host.strip("[]")

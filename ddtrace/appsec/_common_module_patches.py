@@ -255,8 +255,13 @@ def _absolute_downstream_url(connection: Any, path: str) -> str:
     """
     try:
         scheme = "https" if connection.default_port == 443 else "http"
+        host = connection.host
+        if ":" in host:
+            # http.client stores an IPv6 literal unbracketed, but a URL needs the brackets back or
+            # the authority does not parse and the WAF skips the address entirely.
+            host = f"[{host}]"
         port = connection.port
-        netloc = connection.host if port in (None, connection.default_port) else f"{connection.host}:{port}"
+        netloc = host if port in (None, connection.default_port) else f"{host}:{port}"
         return f"{scheme}://{netloc}{path}"
     except Exception:
         return path
