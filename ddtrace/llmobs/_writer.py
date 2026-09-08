@@ -223,9 +223,11 @@ class BaseLLMObsWriter(PeriodicService):
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            # Retry on 5xx server errors and connection failures; return immediately on 2xx/4xx.
-            until=lambda result: isinstance(result, Response) and result.status < 500,
+            initial_wait=0.618 * self._timeout / (1.618**self.RETRY_ATTEMPTS) / 2,
+            # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
+            until=lambda result: (
+                isinstance(result, Response) and result.status not in (408, 429) and result.status < 500
+            ),
         )(self._send_payload)
 
     def start(self, *args, **kwargs):
@@ -385,16 +387,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         try:
             return self._request_with_retry(method, path, body, timeout)
         except RetryError as e:
-            # Return the last response if all retries were exhausted on 5xx
+            # Return the last response if all retries were exhausted on a retryable HTTP error.
             if isinstance(e.args[0], Response):
                 return e.args[0]
             raise
 
     @fibonacci_backoff_with_jitter(
         attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
-        # Retries on 5xx server errors and connection failures, returns immediately on 2xx/4xx
+        # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
         initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
-        until=lambda result: isinstance(result, Response) and result.status < 500,
+        until=lambda result: isinstance(result, Response) and result.status not in (408, 429) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {

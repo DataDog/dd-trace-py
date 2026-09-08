@@ -35,7 +35,6 @@ def retry(
             for s in after_iter:
                 try:
                     result = f(*args, **kwargs)
-                    exception = None
                 except Exception as e:
                     exception = e
                     result = e

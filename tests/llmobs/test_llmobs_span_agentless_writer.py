@@ -143,9 +143,10 @@ def test_send_chat_completion_event(mock_writer_logs):
     mock_writer_logs.debug.assert_has_calls([mock.call("encoded %d LLMObs %s events to be sent", 1, "span")])
 
 
+@pytest.mark.parametrize("retryable_status", [408, 429, 502])
 @mock.patch("ddtrace.llmobs._writer.BaseLLMObsWriter._send_payload")
-def test_send_completion_retries_server_error(mock_send_payload, mock_writer_logs):
-    mock_send_payload.side_effect = [Response(status=502), Response(status=200)]
+def test_send_completion_retries_retryable_status(mock_send_payload, mock_writer_logs, retryable_status):
+    mock_send_payload.side_effect = [Response(status=retryable_status), Response(status=200)]
     llmobs_span_writer = LLMObsSpanWriter(0, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     llmobs_span_writer.enqueue(_completion_event())
 
