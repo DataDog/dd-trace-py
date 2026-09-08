@@ -124,8 +124,15 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         log.error("Invalid stacktrace_resolver value: %s", crashtracker_config.stacktrace_resolver)
         stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
 
+    # Do not manually compute an url. The crashtracker receiver has this handling,
+    # given DD_API_KEY and DD_SITE. Nothing to do for us here.
+    # We even cannot do so, otherwise we'll pin crashtracking to a single host,
+    # instead of dedicated error-reporting and crashtracking hosts.
+    crash_agentless = config._agentless_enabled and config._dd_api_key
+    upload_url = None if crash_agentless else agent_config.trace_agent_url
+
     # Create crashtracker configuration
-    config = CrashtrackerConfiguration(
+    crashtracker_configuration = CrashtrackerConfiguration(
         [],  # additional_files
         crashtracker_config.create_alt_stack,
         crashtracker_config.use_alt_stack,
@@ -133,12 +140,18 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         stacktrace_resolver,
         crashtracker_config.collect_all_threads,
         crashtracker_config.max_threads,
-        crashtracker_config.debug_url or agent_config.trace_agent_url,
+        crashtracker_config.debug_url or upload_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
+        None,
     )
 
     receiver_env = {}
+
+    if crash_agentless:
+        receiver_env["_DD_DIRECT_SUBMISSION_ENABLED"] = "true"
+        receiver_env["DD_API_KEY"] = config._dd_api_key
+        receiver_env["DD_SITE"] = config._dd_site
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
@@ -153,6 +166,13 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         "LD_LIBRARY_PATH",  # for loading native ext (Linux)
         "DYLD_LIBRARY_PATH",  # for loading native ext (macOS)
         "PYTHONPATH",  # for loading Python, for the receiver script
+        # Make sure the crashtracker respects proxying envs
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "NO_PROXY",
+        "https_proxy",
+        "http_proxy",
+        "no_proxy",
     ]
     for env_var in inherited_env_vars:
         env_value = env.get(env_var)
@@ -172,7 +192,7 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     metadata = CrashtrackerMetadata("dd-trace-py", version.__version__, "python", tags)
 
-    return config, receiver_config, metadata
+    return crashtracker_configuration, receiver_config, metadata
 
 
 def _unhandled_exception_reporter(

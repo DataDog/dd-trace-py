@@ -7,6 +7,7 @@ from typing import cast
 from ddtrace.debugging._function.discovery import FullyNamed
 from ddtrace.internal.bytecode_injection import HookInfoType
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.bytecode_injection import eject_all_hooks
 from ddtrace.internal.bytecode_injection import eject_hooks
 from ddtrace.internal.bytecode_injection import inject_hooks
 from ddtrace.internal.wrapping import get_function_code
@@ -78,10 +79,15 @@ class FunctionStore(object):
         return not not self.eject_hooks(function, [(hook, line, arg)])
 
     def wrap(self, function: FunctionType, wrapping_context: WrappingContext) -> None:
-        """Wrap a function with a hook."""
+        """Wrap a function with a hook.
+
+        Raises ObfuscatedCodeError if the function's code is obfuscated and
+        cannot be safely rewritten; the function is left untouched in that
+        case and is not tracked for restoration.
+        """
         self._store(function)
-        self._wrapper_map[function] = wrapping_context
         wrapping_context.wrap()
+        self._wrapper_map[function] = wrapping_context
 
     def unwrap(self, function: FullyNamedContextWrappedFunction) -> None:
         """Unwrap a hook around a wrapped function."""
@@ -89,5 +95,14 @@ class FunctionStore(object):
 
     def restore_all(self) -> None:
         """Restore all the patched functions to their original form."""
+        for function, wrapping_context in list(self._wrapper_map.items()):
+            wrapping_context.unwrap()
+
         for function, code in self._code_map.items():
+            # Restoring __code__ alone would leave 3.15+ line hooks (keyed by
+            # code object) still firing.
+            eject_all_hooks(function)
             function.__code__ = code
+
+        self._code_map.clear()
+        self._wrapper_map.clear()

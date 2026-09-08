@@ -8,6 +8,7 @@ from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._opentelemetry import otel_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -206,12 +207,42 @@ def _exclude_self_telemetry_from_otlp_handler(preexisting_handler_ids: set[int])
             handler.addFilter(telemetry_filter)
 
 
+def _prepare_agentless_export(endpoint_env_var: str, headers_env_var: str, protocol: str, signal: str) -> None:
+    """Set up a direct-to-intake OTLP export, or warn when it cannot work."""
+    if not agentless_config.enabled:
+        return
+    if env.get("OTEL_EXPORTER_OTLP_ENDPOINT") or env.get(endpoint_env_var):
+        return
+
+    if protocol.lower() not in ("http/json", "http/protobuf"):
+        log.warning(
+            "Agentless mode exports OpenTelemetry %s to the Datadog OTLP intake over HTTP, but the "
+            "%r protocol is configured. Set OTEL_EXPORTER_OTLP_PROTOCOL to http/protobuf, or point "
+            "OTEL_EXPORTER_OTLP_ENDPOINT at a collector that speaks %r.",
+            signal,
+            protocol,
+            protocol,
+        )
+
+    if not agentless_config.api_key:
+        return
+    # Signal-specific headers win over the global ones, so carry those over rather than drop them.
+    configured = env.get(headers_env_var) or env.get("OTEL_EXPORTER_OTLP_HEADERS") or ""
+    if "dd-api-key" in configured.lower():
+        return
+    api_key_header = f"dd-api-key={agentless_config.api_key}"
+    env[headers_env_var] = f"{configured},{api_key_header}" if configured else api_key_header
+
+
 def _initialize_logging(exporter_class, protocol, resource):
     """Configures and sets up the OpenTelemetry Logs exporter."""
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
         # Ensure logs exporter is configured to send payloads to a Datadog Agent.
+        _prepare_agentless_export(
+            "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "OTEL_EXPORTER_OTLP_LOGS_HEADERS", protocol, "logs"
+        )
         if "OTEL_EXPORTER_OTLP_ENDPOINT" not in env and "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT" not in env:
             env["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
         preexisting_handler_ids = {id(handler) for handler in logging.getLogger().handlers}

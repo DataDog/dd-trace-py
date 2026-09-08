@@ -40,7 +40,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
             interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False
         )
         self._client = RemoteConfigClient()
-        self._state = self._agent_check
+        # Agentless fetches go straight to the Remote Config backend, so there is
+        # no agent to negotiate the v0.7/config endpoint with.
+        self._state = self._online if self._client.agentless else self._agent_check
         self._parent_id = os.getpid()
         self._capabilities_map: "dict[RemoteConfigCapabilities, RemoteConfigProduct]" = dict()
         self._consecutive_failures = 0
@@ -74,21 +76,31 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def _online(self) -> None:
         with StopWatch() as sw:
-            if not self._client.request():
-                self._consecutive_failures += 1
-                if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
-                    self._state = self._agent_check
-                    self._consecutive_failures = 0
-                return
+            succeeded = self._client.request()
+
+        # The interval is the backend's to decide in agentless mode: it recommends
+        # a cadence on every successful fetch and a backoff after a failed one.
+        interval = self._client.refresh_interval()
+        if interval is not None and interval != self.interval:
+            log.debug("Remote Config poll interval set to %.3fs by the backend", interval)
+            self.interval = interval
+
+        if not succeeded:
+            self._consecutive_failures += 1
+            # Without an agent there is nothing to fall back to, so keep retrying
+            # on the backoff the native client asked for.
+            if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES and not self._client.agentless:
+                self._state = self._agent_check
+                self._consecutive_failures = 0
+            return
 
         self._consecutive_failures = 0
-        elapsed = sw.elapsed()
         log.debug(
             "[%d][P: %d] Datadog Remote Config Poller sent request to %s in %.5fs",
             os.getpid(),
             os.getppid(),
-            self._client.agent_url,
-            elapsed,
+            "the Remote Config intake" if self._client.agentless else self._client.agent_url,
+            sw.elapsed(),
         )
 
     def periodic(self) -> None:
@@ -114,6 +126,19 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             return True
         return False
+
+    def switch_to_agentless(self) -> bool:
+        if self._client.agentless:
+            return True
+        if not ddconfig._dd_api_key:
+            log.debug("Cannot switch remote configuration to agentless mode: no Datadog API key found")
+            return False
+
+        self._client.switch_to_agentless()
+        # There is no agent left to negotiate the v0.7/config endpoint with.
+        self._state = self._online
+        log.debug("Remote configuration switched to the intake")
+        return True
 
     def _before_fork(self) -> None:
         """Origin hook: enable SHM before forking so children inherit the SHM."""

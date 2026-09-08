@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AAP: Adds SSRF exploit prevention and OWASP API Top 10 security risk analysis for the
+    ``httpx2`` client.

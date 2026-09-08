@@ -25,6 +25,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
 log = get_logger(__name__)
@@ -152,6 +153,14 @@ def _rearm_all_events() -> None:
     this no longer depends on careful timing to be safe — it cannot affect any other tool's
     disabled-event state regardless of when it runs.
     """
+    # Nothing to re-arm unless we actually own a registered tool slot. set_local_events() requires
+    # an integer tool id, so a None _DD_TOOL_ID (no slot ever claimed, or the slot was freed) would
+    # otherwise raise "'NoneType' object cannot be interpreted as an integer". In production this
+    # only happens when nothing was instrumented (so _CODE_HOOKS is empty and the loop is a no-op
+    # anyway); the guard also keeps us safe if our slot was released out from under us.
+    if _DD_TOOL_ID is None or sys.monitoring.get_tool(_DD_TOOL_ID) != "datadog":
+        return
+
     for code in _CODE_HOOKS:
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, 0)
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)
@@ -317,7 +326,7 @@ def _instrument_with_monitoring(
     # objects, not on the original nested constants that may be replaced below.
     new_consts: t.Optional[list[t.Any]] = None
     for const_index, nested_code in enumerate(code.co_consts):
-        if isinstance(nested_code, CodeType):
+        if isinstance(nested_code, CodeType) and not is_obfuscated_code(nested_code):
             new_nested_code, nested_lines = instrument_all_lines(nested_code, hook, path, package)
             lines.update(nested_lines)
             if new_nested_code is not nested_code:

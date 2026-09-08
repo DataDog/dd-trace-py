@@ -56,7 +56,7 @@ Each integration entry in the `integrations` list adheres to the schema defined 
 The registry is automatically updated through two main mechanisms:
 
 1. **Test Suite Execution**:
-   * Running a riot test suite for an integration automatically updates its version information in the registry (if updates are deemed necessary)
+   * Running an integration test suite automatically updates its version information in the registry when needed
    * This happens through the [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py) which tracks patched dependencies and their tested versions during test execution
 
 2. **Manual Update Script**:
@@ -73,12 +73,12 @@ The registry is automatically updated through two main mechanisms:
   
   ***Registry Update Example (Incorrect Workflow)***:
   - Add support for new `integration_a`, including patch files and tests
-  - Manually run `python scripts/integration_registry/update_and_format_registry.py` WITHOUT running riot test suite for `integration_a`.
+  - Manually run `python scripts/integration_registry/update_and_format_registry.py` without running the test suite for `integration_a`.
   - **OUTCOME**: Existing integration and dependencies are updated, but the new `integration_a` and its dependencies will not be added to `registry.yaml`.
   
   ***Registry Update Example (Correct Workflow)***:
   - Add support for new `integration_a`, including patch files and tests
-  -  Do a full riot test run of the newly added `integration_a` test suite. This is needed because we cannot reliably map dependency name to the integration name if they are not equal (such as integration == `rediscluster` and dependency name == `redis-py-cluster`). Instead, during the riot test suite run, we rely on collecting the patched module, along with the integration name via the [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py). With the patched module, we can map the patched module to the dependency name using `importlib.metadata`, and in the `rediscluster` case, we get: `redis-py-cluster` as a dependency. Then we can update the registry since we now know the dependency name of interest, and the related integration name. 
+  - Run the full `integration_a` test suite. Integration and dependency names do not always match, such as `rediscluster` and `redis-py-cluster`. During the test run, the [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py) records the integration name and patched module. It then uses `importlib.metadata` to map the module to its package so the registry can update the correct dependency.
   - **OUTCOME**: After running our new test suite for `integration_a`, the new integration along with its dependencies are automatically added to `registry.yaml`. Existing integrations amd dependencies are also updated.
 
   **FURTHER-NOTE: [`IntegrationRegistryManager`](../../../tests/contrib/integration_registry/registry_update_helpers/integration_registry_manager.py#158) relies on the use of `_datadog_patch` to collect patched modules. Please ensure this attribute is set on the patched module within the integration's patch function. Here is an example for the `aiohttp` integration [`aiohttp patch.py`](../../../ddtrace/contrib/internal/aiohttp/patch.py#139)**
@@ -120,10 +120,10 @@ The registry has a test suite in [`tests/contrib/integration_registry/`](../../.
 
 * [`test_riotfile.py`](../../../tests/contrib/integration_registry/test_riotfile.py):
   * Verifies every integration has corresponding test environments in `riotfile.py`:
-    * Checks that each integration directory has a matching riot environment
+    * Checks that each integration directory has a matching test environment
     * Excludes explicitly untested integrations
     * Reports missing test environment definitions
-  * Validates test paths in riot environments:
+  * Validates test paths in test environments:
     * Ensures test paths under `tests/contrib` correspond to actual integrations
     * Handles special cases for utility test environments
     * Verifies proper organization of integration-specific tests
@@ -136,7 +136,7 @@ If you need to debug or manually run the integration registry update process, th
 
 1.  Navigate to the [code section containing the local run logic](tests/contrib/integration_registry/registry_update_helpers/integration_update_orchestrator.py#L175-L183).
 2.  Uncomment the Python code block as indicated and comment out the the lines previous that run the updater in a subprocess.
-3.  Ensure the required dependencies (`filelock`, `pyyaml`) are installed in the riot environment you are running. You need to temporarily add them to the relevant environment definition in `riotfile.py`. 
+3. Ensure the required dependencies (`filelock`, `pyyaml`) are installed in the test environment you are running. Add them temporarily to the relevant `Venv` in `riotfile.py`.
 4.  Execute the test suite, and place a breakpoint in your choice of code for the `IntegrationRegistryUpdater`.
 
 ## Related Files
