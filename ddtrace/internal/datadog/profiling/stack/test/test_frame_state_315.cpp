@@ -1,19 +1,28 @@
-// Unit tests for Python 3.15 frame-state guard changes.
+// Unit tests for Python 3.15 frame-state and await-stack changes.
 //
 // Covered:
 //   1. PyGen_yf returns nullptr for FRAME_SUSPENDED_YIELD_FROM_LOCKED in GIL builds (3.15+).
-//   2. PyGen_yf enters the body for FRAME_SUSPENDED_YIELD_FROM after the 3.15 guard change.
-//   3. PyGen_yf returns nullptr for all non-suspended states (3.15+).
+//   2. PyGen_yf returns nullptr for all non-suspended states (3.15+).
+//   3. PyGen_yf reads the awaited object from stackpointer[-2] on a frame suspended in
+//      YIELD_FROM, and rejects a stack too short to hold that slot.
 //
-// Memory stub: copy_type/copy_generic call echion_fuzz_copy_memory. We define it here to
-// always return failure (-1), which is the correct outcome when no real Python process is
-// attached. All code paths that reach a copy_type call will return nullptr safely.
+// Memory stub: copy_type/copy_generic call echion_fuzz_copy_memory, which we route to the
+// buffer-backed fake process image shared with the fuzz harnesses (fuzz_memory_image.h).
+// Tests that only exercise the frame-state guard leave the image detached, so every read
+// fails and PyGen_yf bails out at the first copy_type; the await-stack tests attach an
+// image so the reads succeed and the returned pointer is meaningful.
 
 #include <echion/cpython/tasks.h>
 #include <echion/echion_sampler.h>
 #include <echion/vm.h>
 
+#include "fuzz_memory_image.h"
+
 #include <atomic>
+#include <cstddef>
+#include <cstring>
+#include <utility>
+#include <vector>
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -26,10 +35,10 @@
 static std::atomic<int> g_copy_attempts{ 0 };
 
 extern "C" int
-echion_fuzz_copy_memory(proc_ref_t /*proc_ref*/, const void* /*addr*/, ssize_t /*len*/, void* /*buf*/)
+echion_fuzz_copy_memory(proc_ref_t /*proc_ref*/, const void* addr, ssize_t len, void* buf)
 {
     g_copy_attempts.fetch_add(1, std::memory_order_relaxed);
-    return -1; // always fail — no live process attached
+    return echion_fuzz_memory_image_read(addr, len, buf);
 }
 
 #if PY_VERSION_HEX >= 0x030f0000
@@ -101,5 +110,138 @@ INSTANTIATE_TEST_SUITE_P(NonSuspendedStates,
                                            FRAME_EXECUTING, // 4
                                            FRAME_CLEARED    // 5
                                            ));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Await-stack layout tests (3.15+)
+//
+// 3.15.0a8 gave _SEND_GEN_FRAME a `null` operand, so a frame suspended in
+// YIELD_FROM holds PyStackRef_NULL at stackpointer[-1] and the awaited object at
+// stackpointer[-2] (CPython reads it as _PyFrame_StackPeek(&gen->gi_iframe, 2)).
+// These tests build that layout in the fake process image and let the reads
+// succeed, so they fail if PyGen_yf goes back to the pre-3.15 [-1] offset.
+// ─────────────────────────────────────────────────────────────────────────────
+
+static_assert(sizeof(_PyStackRef) == sizeof(uintptr_t), "the fake image writes stack slots as raw pointer-sized words");
+
+// Image layout, all offsets relative to kRemoteBase. The frame region is padded
+// past sizeof(_PyInterpreterFrame) so the data stack that follows localsplus is
+// in bounds.
+static constexpr size_t kFrameOff = 0;
+static constexpr size_t kCodeOff = sizeof(_PyInterpreterFrame) + 8 * sizeof(_PyStackRef);
+static constexpr size_t kImageSize = kCodeOff + sizeof(PyCodeObject) + 8 * sizeof(_PyStackRef);
+
+// The awaited object itself is never dereferenced, so it can sit outside the
+// image. Its low bits must be clear: PyGen_yf returns BITS_TO_PTR_MASKED(slot),
+// which strips the stackref tag bit(s).
+static constexpr uintptr_t kAwaitedAddr = kRemoteBase + 0x01000000ULL;
+
+static void
+poke_word(std::vector<uint8_t>& image, size_t off, uintptr_t value)
+{
+    ASSERT_LE(off + sizeof(value), image.size());
+    std::memcpy(image.data() + off, &value, sizeof(value));
+}
+
+// Builds a fake process image holding a generator frame suspended in YIELD_FROM
+// with `stack_entries` values on its data stack, laid out the way CPython 3.15
+// leaves it.
+static std::vector<uint8_t>
+make_await_image(int stack_entries)
+{
+    std::vector<uint8_t> image(kImageSize, 0);
+
+    // co_nlocalsplus == 0 puts the data stack base right at localsplus.
+    const int nlocalsplus = 0;
+    std::memcpy(image.data() + kCodeOff + offsetof(PyCodeObject, co_nlocalsplus), &nlocalsplus, sizeof(nlocalsplus));
+
+    const size_t stackbase_off = kFrameOff + offsetof(_PyInterpreterFrame, localsplus);
+    poke_word(image, kFrameOff + offsetof(_PyInterpreterFrame, f_executable), kRemoteBase + kCodeOff);
+    poke_word(image,
+              kFrameOff + offsetof(_PyInterpreterFrame, stackpointer),
+              kRemoteBase + stackbase_off + static_cast<size_t>(stack_entries) * sizeof(_PyStackRef));
+
+    // Top of stack: PyStackRef_NULL, copied verbatim so we depend on CPython's
+    // own encoding rather than reproducing it.
+    _PyStackRef null_ref = PyStackRef_NULL;
+    std::memcpy(image.data() + stackbase_off + static_cast<size_t>(stack_entries - 1) * sizeof(_PyStackRef),
+                &null_ref,
+                sizeof(null_ref));
+
+    if (stack_entries >= 2) {
+        poke_word(image, stackbase_off + static_cast<size_t>(stack_entries - 2) * sizeof(_PyStackRef), kAwaitedAddr);
+    }
+
+    return image;
+}
+
+// Attaches an image to the fake process for the duration of a test.
+class AttachedImage
+{
+  public:
+    explicit AttachedImage(std::vector<uint8_t> image)
+      : image_(std::move(image))
+    {
+        set_memory_image(image_.data(), image_.size());
+    }
+
+    ~AttachedImage() { set_memory_image(nullptr, 0); }
+
+    AttachedImage(const AttachedImage&) = delete;
+    AttachedImage& operator=(const AttachedImage&) = delete;
+
+  private:
+    std::vector<uint8_t> image_;
+};
+
+static PyObject*
+fake_frame_addr()
+{
+    return reinterpret_cast<PyObject*>(kRemoteBase + kFrameOff);
+}
+
+TEST(PyGenYf315AwaitStack, TopSlotMasksToNull)
+{
+    // Pins the property the fix rests on: the pre-3.15 stackpointer[-1] read
+    // lands on PyStackRef_NULL, which masks to nullptr, so the await chain would
+    // truncate at the outermost coroutine. This mirrors BITS_TO_PTR_MASKED
+    // without expanding it here, since its C-style cast trips -Wold-style-cast
+    // outside the SYSTEM-included echion/CPython headers.
+    _PyStackRef null_ref = PyStackRef_NULL;
+    uintptr_t bits = 0;
+    std::memcpy(&bits, &null_ref, sizeof(bits));
+    EXPECT_EQ(bits & ~static_cast<uintptr_t>(Py_TAG_REFCNT), uintptr_t{ 0 });
+}
+
+TEST(PyGenYf315AwaitStack, ReturnsAwaitedObjectFromSecondFromTopSlot)
+{
+    AttachedImage image(make_await_image(2));
+    g_copy_attempts.store(0, std::memory_order_relaxed);
+
+    auto gen = make_fake_gen(FRAME_SUSPENDED_YIELD_FROM);
+    PyObject* result = PyGen_yf(&gen, fake_frame_addr());
+
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(result), kAwaitedAddr)
+      << "the awaited object lives at stackpointer[-2] on 3.15; [-1] is PyStackRef_NULL";
+    EXPECT_GT(g_copy_attempts.load(std::memory_order_relaxed), 0);
+}
+
+TEST(PyGenYf315AwaitStack, ReadsSecondFromTopRegardlessOfStackDepth)
+{
+    // Extra values below the await pair must not shift which slot is read.
+    AttachedImage image(make_await_image(5));
+
+    auto gen = make_fake_gen(FRAME_SUSPENDED_YIELD_FROM);
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(PyGen_yf(&gen, fake_frame_addr())), kAwaitedAddr);
+}
+
+TEST(PyGenYf315AwaitStack, RejectsStackTooShortForAwaitedSlot)
+{
+    // A single-entry stack cannot hold stackpointer[-2]; the guard must reject it
+    // rather than read below the stack base.
+    AttachedImage image(make_await_image(1));
+
+    auto gen = make_fake_gen(FRAME_SUSPENDED_YIELD_FROM);
+    EXPECT_EQ(PyGen_yf(&gen, fake_frame_addr()), nullptr);
+}
 
 #endif // PY_VERSION_HEX >= 0x030f0000

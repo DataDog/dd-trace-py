@@ -228,7 +228,18 @@ extern "C"
     // Python 3.15+: FRAME_SUSPENDED_YIELD_FROM_LOCKED is a new frame state
     // (value 3). The enumerator exists on GIL and free-threaded builds; GIL
     // runtimes never enter it, so the check below is under Py_GIL_DISABLED.
-    // All other logic is identical to 3.14 (stackpointer/_PyStackRef).
+    //
+    // 3.15.0a8 also moved the awaited object on a suspended frame's data stack.
+    // _SEND_GEN_FRAME gained a `null` operand in Python/bytecodes.c
+    // (`receiver, null, v -- receiver, null, gen_frame`), so on a frame
+    // suspended in YIELD_FROM the top slot holds PyStackRef_NULL and the
+    // awaited object sits one slot below it. _PyFrame_StackPeek grew a `depth`
+    // argument for this (Include/internal/pycore_interpframe.h), CPython calls
+    // _PyFrame_StackPeek(&gen->gi_iframe, 2) in gen_getyieldfrom
+    // (Objects/genobject.c), and the remote unwinder reads
+    // stackpointer_addr - sizeof(void*) * 2
+    // (Modules/_remote_debugging/asyncio.c). Reading [-1] here yields nullptr,
+    // which truncates the await chain in PyGen_yf's caller.
     static_assert(FRAME_SUSPENDED_YIELD_FROM_LOCKED == 3,
                   "FRAME_SUSPENDED_YIELD_FROM_LOCKED must exist on 3.15 GIL and free-threaded");
 
@@ -262,17 +273,19 @@ extern "C"
             return nullptr;
         }
 
+        // The awaited object is at stackpointer[-2], so the stack must hold at
+        // least two entries for the read below to be in bounds.
         int stacktop = static_cast<int>((stackpointer_addr - stackbase_addr) / sizeof(_PyStackRef));
-        if (stacktop < 1 || stacktop > MAX_STACK_SIZE) {
+        if (stacktop < 2 || stacktop > MAX_STACK_SIZE) {
             return nullptr;
         }
 
-        _PyStackRef top_ref;
-        if (copy_type(reinterpret_cast<void*>(stackpointer_addr - sizeof(_PyStackRef)), top_ref)) {
+        _PyStackRef awaited_ref;
+        if (copy_type(reinterpret_cast<void*>(stackpointer_addr - 2 * sizeof(_PyStackRef)), awaited_ref)) {
             return nullptr;
         }
 
-        return BITS_TO_PTR_MASKED(top_ref);
+        return BITS_TO_PTR_MASKED(awaited_ref);
     }
 
 #elif PY_VERSION_HEX >= 0x030e0000
