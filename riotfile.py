@@ -2568,6 +2568,12 @@ venv = Venv(
                         "jinja2": ["~=3.0.0", latest],
                     },
                 ),
+                Venv(
+                    pys="3.15",
+                    pkgs={
+                        "jinja2": "==3.1.5",
+                    },
+                ),
             ],
             command="pytest {cmdargs} tests/contrib/jinja2",
         ),

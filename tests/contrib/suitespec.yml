@@ -1679,6 +1679,9 @@ suites:
         - name: jinja2
           dependencies: [pytest-randomly, 'jinja2~=3.0.0']
         - name: jinja2
+          python: ['3.15']
+          dependencies: [pytest-randomly, 'jinja2==3.1.5']
+        - name: jinja2
           dependencies: [pytest-randomly, jinja2]
   kafka:
     retry: 2
