@@ -31,11 +31,14 @@ from ddtrace.debugging._redaction import REDACTED_PLACEHOLDER
 from ddtrace.debugging._redaction import redact
 from ddtrace.debugging._redaction import redact_type
 from ddtrace.debugging._safety import get_fields
+from ddtrace.debugging._safety import get_namedtuple_fields
+from ddtrace.debugging._safety import safe_get_type_attr
 from ddtrace.debugging._safety import safe_getattr
 from ddtrace.debugging._safety import safe_qualname
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.cache import cached
 
 
 EXCLUDED_FIELDS = frozenset(["__class__", "__dict__", "__weakref__", "__doc__", "__module__", "__hash__"])
@@ -109,21 +112,38 @@ def _(numpy: ModuleType) -> None:
     ARRAY_TYPES = frozenset((list, deque)) | ndarray_set
 
 
-def _is_namedtuple_type(cls: type) -> bool:
+@cached(maxsize=1024)
+def _namedtuple_fields_of_type(cls: type) -> Optional[tuple[str, ...]]:
+    """Namedtuple field names of cls, or None if cls is not namedtuple-like.
+
+    Detection and field resolution are deliberately a single step: callers then
+    cannot observe a _fields that disagrees with the one the check validated.
+    Memoized per type because this runs on every captured value.
+    """
     mro = safe_getattr(cls, "__mro__", None)
     if type(mro) is not tuple or len(mro) < 3:
-        return False
+        return None
 
     if not (mro[-2] is tuple or (mro[-2] is Generic and mro[-3] is tuple)):
-        return False
+        return None
 
-    fields = safe_getattr(cls, "_fields", None)
-    return type(fields) is tuple and all(type(f) is str for f in fields)
+    # Static MRO lookup, so a namedtuple subclass inheriting _fields is
+    # recognized without ever invoking a descriptor to read it.
+    fields = safe_get_type_attr(cls, "_fields")
+    if type(fields) is not tuple or not all(type(f) is str for f in fields):
+        return None
+
+    return fields
+
+
+def _is_namedtuple_type(cls: type) -> bool:
+    return _namedtuple_fields_of_type(cls) is not None
 
 
 def _fields_of(value: Any) -> dict[str, Any]:
-    if _is_namedtuple_type(type(value)):
-        return dict(zip(value._fields, value))
+    fields = _namedtuple_fields_of_type(type(value))
+    if fields is not None:
+        return get_namedtuple_fields(value, fields)
 
     return get_fields(value)
 
@@ -183,12 +203,17 @@ def serialize(
     elif type(value) in {set, frozenset}:
         return _serialize_collection(value, r"{}", level, maxsize, maxlen, maxfields) if value else "set()"
 
+    try:
+        fields = _fields_of(value)
+    except Exception:
+        return object.__repr__(value)
+
     return "%s(%s)" % (
         type(value).__name__,
         ", ".join(
             (
                 "=".join((k, serialize(v, level - 1, maxsize, maxlen, maxfields)))
-                for k, v in islice(_fields_of(value).items(), maxfields)
+                for k, v in islice(fields.items(), maxfields)
                 if not redact(k)
             )
         ),
@@ -426,7 +451,13 @@ def capture_value(
             "notCapturedReason": cond.__name__,
         }
 
-    fields = _fields_of(value)
+    try:
+        fields = _fields_of(value)
+    except Exception:
+        return {
+            "type": _type.__qualname__,
+            "notCapturedReason": "unresolvableFields",
+        }
 
     # Capture exception chain for exceptions
     if _isinstance(value, BaseException):

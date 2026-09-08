@@ -194,3 +194,59 @@ def test_getattr_or_exception_missing_attribute():
     """getattr_or_exception returns AttributeError for missing attributes."""
     result = _safety.getattr_or_exception(object(), "nonexistent")
     assert isinstance(result, AttributeError)
+
+
+# ---- Static type attribute lookup ----
+
+
+def test_safe_get_type_attr_walks_mro():
+    """Inherited class attributes are found, nearest definition first."""
+
+    class A:
+        marker = "a"
+
+    class B(A):
+        pass
+
+    class C(B):
+        marker = "c"
+
+    assert _safety.safe_get_type_attr(B, "marker") == "a"
+    assert _safety.safe_get_type_attr(C, "marker") == "c"
+    assert _safety.safe_get_type_attr(A, "missing", "fallback") == "fallback"
+
+
+def test_safe_get_type_attr_does_not_invoke_descriptors():
+    """A descriptor holding the name is returned, not called."""
+
+    class WithDescriptor:
+        attr = SideEffects()
+
+    result = _safety.safe_get_type_attr(WithDescriptor, "attr")
+    assert isinstance(result, SideEffects)
+
+
+def test_safe_get_type_attr_refuses_hostile_mapping():
+    """A non-builtin __dict__ is skipped rather than indexed.
+
+    safe_get_type_attr is generic, so it may be handed something that only
+    claims to be a class. Indexing a mapping with a Python __getitem__ would
+    run arbitrary code, which is exactly what this module exists to avoid.
+    """
+
+    class HostileMapping:
+        def __getitem__(self, name):
+            raise SideEffects.SideEffect()
+
+    class Impostor:
+        __mro__ = ()
+        __dict__ = HostileMapping()  # pyright: ignore[reportAssignmentType]
+
+    impostor = Impostor()
+    impostor.__mro__ = (impostor,)
+
+    # Sanity check: the mapping really would raise if it were indexed.
+    with pytest.raises(SideEffects.SideEffect):
+        object.__getattribute__(impostor, "__dict__")["anything"]
+
+    assert _safety.safe_get_type_attr(impostor, "anything", "fallback") == "fallback"
