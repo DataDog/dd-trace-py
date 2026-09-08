@@ -942,11 +942,27 @@ venv = Venv(
                 ),
                 Venv(
                     command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
+                    pys="3.14",
+                    pkgs={"bottle": latest},
+                ),
+                Venv(
+                    command=(
                         "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
                     ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
+                ),
+                Venv(
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
+                    env={"DD_SERVICE": "bottle-app"},
+                    pys="3.14",
+                    pkgs={"bottle": latest},
                 ),
             ],
         ),
@@ -1630,6 +1646,10 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.10", max_version="3.12"),
                     pkgs={"moto": "==5.2.3"},
+                ),
+                Venv(
+                    pys="3.14",
+                    pkgs={"moto": "==5.2.3", "pynamodb": "<6.0"},
                 ),
             ],
         ),
@@ -2668,6 +2688,7 @@ venv = Venv(
                     pys="3.10",
                     pkgs={"yaaredis": latest},
                 ),
+                Venv(pys="3.14", pkgs={"yaaredis": latest}),
             ],
         ),
         Venv(
@@ -2730,6 +2751,13 @@ venv = Venv(
                     pkgs={
                         "sanic": ["~=23.12"],
                         "sanic-testing": "~=23.12.0",
+                    },
+                ),
+                Venv(
+                    pys="3.14",
+                    pkgs={
+                        "sanic": latest,
+                        "sanic-testing": latest,
                     },
                 ),
             ],
@@ -3335,6 +3363,7 @@ venv = Venv(
                         "torch": ["~=2.8.0", "~=2.9.0", "~=2.10.0", "~=2.11.0", "~=2.12.0", latest],
                     },
                 ),
+                Venv(pys="3.14", pkgs={"torch": latest}),
             ],
         ),
         Venv(

@@ -747,6 +747,17 @@
                     "0.12.25",
                     "0.13.4"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=0.12",
+                "tested": [
+                    "0.13.4"
+                ]
             }
         ]
     },
@@ -2995,7 +3006,8 @@
                         "3.9",
                         "3.10",
                         "3.11",
-                        "3.12"
+                        "3.12",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=5.5.1",
@@ -3218,6 +3230,17 @@
                     "2.10.0",
                     "2.11.0",
                     "2.12.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=2.0",
+                "tested": [
+                    "2.14.0"
                 ]
             }
         ]
@@ -3483,9 +3506,19 @@
                 "tested": [
                     "23.12.2"
                 ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=20.12.0",
+                "tested": [
+                    "25.12.1"
+                ]
             }
-        ],
-        "pinned": true
+        ]
     },
     {
         "dependencyName": "snowflake-connector-python",
@@ -4019,7 +4052,8 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.10"
+                        "3.10",
+                        "3.14"
                     ]
                 },
                 "supportedRange": ">=2.0.0",
