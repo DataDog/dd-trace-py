@@ -113,13 +113,13 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-mock==2.0.0', 'pytest-cov==2.12.0', pytest-randomly, pytest-xdist, msgpack, 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: pytest
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest~=6.0', pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: pytest
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest~=7.0', pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
         - name: pytest
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, msgpack, 'asynctest==0.13.0', 'more_itertools<8.11.0', 'httpx<0.28.0']
   pytest:snapshot:
     venvs_per_job: 1
@@ -304,7 +304,7 @@ suites:
       variants:
         - name: selenium-pytest
           dependencies: ['selenium~=4.0', webdriver-manager]
-          python: ['3.10', '3.12']
+          python: ['3.10', '3.12', '3.14']
   unittest:
     parallelism: 2
     paths:

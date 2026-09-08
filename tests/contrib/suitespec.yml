@@ -627,10 +627,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['azure.eventhub~=5.12.0', 'pytest-asyncio==0.23.7']
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [azure.eventhub, 'pytest-asyncio==0.23.7']
   azure_durable_functions:
     venvs_per_job: 3
@@ -654,10 +654,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['azure-functions-durable==1.2.1']
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [azure-functions-durable]
   azure_functions:
     parallelism: 4
@@ -679,10 +679,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions
       variants:
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['azure.functions~=1.10.1', requests]
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
     venvs_per_job: 1
@@ -1376,19 +1376,19 @@ suites:
           integration: flask_cache
           dependencies: [python-memcached, 'redis~=2.0', blinker, pytest-randomly, flask, flask-caching]
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, 'flask~=1.1.0', 'flask-caching~=1.10.0', 'itsdangerous<2.0', 'markupsafe<2.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, 'flask~=1.1.0', flask-caching, 'itsdangerous<2.0', 'markupsafe<2.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, 'flask-caching~=1.10.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, flask-caching]
   gevent:
@@ -2323,10 +2323,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/rediscluster
       variants:
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, 'redis-py-cluster>=2.0,<2.1']
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
     parallelism: 1
@@ -2383,7 +2383,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq, 'click==7.1.2']
         - name: rq
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq]
   sanic:
     paths:
