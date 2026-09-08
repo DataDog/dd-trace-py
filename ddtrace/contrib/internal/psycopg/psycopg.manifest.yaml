@@ -1,0 +1,13 @@
+_v: 1
+name: psycopg
+display_name: Psycopg
+description: Instruments synchronous and asynchronous Psycopg database connections, queries, transactions, and optional result
+  fetching for PostgreSQL.
+packages:
+- name: psycopg
+- name: psycopg2-binary
+category:
+- db.client
+systems:
+- postgresql
+creation_date: '2016-06-20'

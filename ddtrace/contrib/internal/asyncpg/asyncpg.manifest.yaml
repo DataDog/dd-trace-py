@@ -1,0 +1,12 @@
+_v: 1
+name: asyncpg
+display_name: asyncpg
+description: Instruments asynchronous PostgreSQL connection establishment and query execution through asyncpg, covering direct
+  and pooled connections.
+packages:
+- name: asyncpg
+category:
+- db.client
+systems:
+- postgresql
+creation_date: '2022-03-14'
