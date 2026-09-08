@@ -25,6 +25,8 @@ permissions:
   id-token: write
   contents: read
 
+# Freeze for incident-57565
+# - September 8th 2026 : teams below 95% on test health
 
 jobs:
   team-freeze-guard:
@@ -39,4 +41,9 @@ jobs:
             bug
             CI
             ci-reliability
-          frozen-teams: ""
+          frozen-teams: |
+            @DataDog/apm-core-python
+            @DataDog/debugger-python
+            @DataDog/apm-sdk-capabilities-python
+            @DataDog/apm-python
+            @DataDog/apm-idm-python
