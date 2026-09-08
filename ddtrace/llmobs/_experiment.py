@@ -490,7 +490,7 @@ class RemoteEvaluator(BaseEvaluator):
         self._eval_name = eval_name.strip()
         self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
 
-        # AIDEV-NOTE: Use the registered class to avoid importing the public package back
+        # NOTE: Use the registered class to avoid importing the public package back
         # from the experiment engine, while still following LLMObs._instance replacements.
         self._llmobs_service = get_llmobs_service()
 
