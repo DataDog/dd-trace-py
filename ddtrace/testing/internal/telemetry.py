@@ -179,6 +179,10 @@ class TelemetryAPI:
     def record_test_management_tests_count(self, count: int) -> None:
         self.add_distribution_metric("test_management_tests.response_tests", count)
 
+    def record_dynamic_atr_retries(self, has_custom_buckets: bool) -> None:
+        """Record that dynamic, duration-based ATR retries are enabled for this session."""
+        self.add_count_metric("dynamic_atr_retries.enabled", 1, {"has_custom_buckets": has_custom_buckets})
+
     def record_git_command(self, command: GitTelemetry, elapsed_seconds: float, exit_code: int) -> None:
         tags = {"command": command.value}
         self.add_count_metric("git.command", 1, tags)
