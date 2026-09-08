@@ -140,4 +140,4 @@ def _wrap_urlopen(func, instance, args, kwargs):
             return response
         finally:
             if response is not None:
-                ctx.event.set_response_attributes(response)
+                ctx.event.set_response(response)

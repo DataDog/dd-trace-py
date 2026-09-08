@@ -132,21 +132,39 @@ class AIGuardClient:
         self._timeout = aiguard_config._ai_guard_timeout // 1000
 
     @staticmethod
+    def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
+        """Tags identifying the call path that reached the evaluation, required on every metric.
+
+        Clamped to the declared values: the spec pins integration to none for direct SDK calls,
+        and evaluate is public API, so an off-spec value must not reach telemetry as a new series.
+        """
+        if source not in AI_GUARD.SOURCES:
+            source = AI_GUARD.SOURCE_SDK
+        if source != AI_GUARD.SOURCE_AUTO or integration not in AI_GUARD.INTEGRATIONS:
+            integration = AI_GUARD.INTEGRATION_NONE
+        return (("source", source), ("integration", integration))
+
+    @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _add_error_to_telemetry(error_type: str) -> None:
+    def _add_error_to_telemetry(error_type: str, call_path_tags: tuple[tuple[str, str], ...], count: int = 1) -> None:
         telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, 1, (("type", error_type),)
+            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, count, (("type", error_type),) + call_path_tags
         )
 
     @staticmethod
-    def _messages_for_meta_struct(messages: list[Message]) -> list[Message]:
+    def _messages_for_meta_struct(
+        messages: list[Message], call_path_tags: tuple[tuple[str, str], ...]
+    ) -> list[Message]:
         max_messages_length = aiguard_config._ai_guard_max_messages_length
         if len(messages) > max_messages_length:
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "messages"),)
+                TELEMETRY_NAMESPACE.AI_GUARD,
+                AI_GUARD.TRUNCATED_METRIC,
+                1,
+                (("type", "messages"),) + call_path_tags,
             )
         messages = messages[-max_messages_length:]
 
@@ -175,7 +193,10 @@ class AIGuardClient:
         result = [truncate_message(message) for message in messages]
         if content_truncated:
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
+                TELEMETRY_NAMESPACE.AI_GUARD,
+                AI_GUARD.TRUNCATED_METRIC,
+                1,
+                (("type", "content"),) + call_path_tags,
             )
         return result
 
@@ -227,7 +248,13 @@ class AIGuardClient:
             return True
         return options.get("block", True)
 
-    def evaluate(self, messages: list[Message], options: Optional[Options] = None) -> Evaluation:
+    def evaluate(
+        self,
+        messages: list[Message],
+        options: Optional[Options] = None,
+        source: str = AI_GUARD.SOURCE_SDK,
+        integration: str = AI_GUARD.INTEGRATION_NONE,
+    ) -> Evaluation:
         """Evaluate if the list of messages are safe to execute.
 
         Args:
@@ -235,6 +262,11 @@ class AIGuardClient:
             options: Optional configuration with 'block' parameter. By default, block follows
                 the AI Guard response is_blocking_enabled setting; set block=False to force
                 non-blocking behavior.
+            source: Which call path triggered the evaluation, reported as the source telemetry
+                tag. Defaults to sdk (a direct customer call); our AI package
+                auto-instrumentation passes auto.
+            integration: Name of the auto-instrumented AI package, reported as the integration
+                telemetry tag. Only meaningful when source is auto; otherwise reported as none.
 
         Returns:
             EvaluationResult containing action and reason
@@ -251,6 +283,7 @@ class AIGuardClient:
         # Classifies the error metric when a raise below escapes. Transport failures and
         # unexpected internal errors keep the default; response-driven raises narrow it.
         error_type: str = AI_GUARD.ERROR_CLIENT
+        call_path_tags = self._call_path_tags(source, integration)
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             try:
@@ -290,8 +323,8 @@ class AIGuardClient:
                         sds_findings = attributes.get("sds_findings") or []
                         blocking_enabled = attributes.get("is_blocking_enabled", False)
                         tag_probs = attributes.get("tag_probs")
-                        # Presence of a non-empty array is the signal to redact; sds_findings are
-                        # detection metadata only and never drive redaction.
+                        # Presence of the field is the signal to redact; sds_findings are detection
+                        # metadata only and never drive redaction.
                         redaction_replacements = attributes.get("redaction_replacements")
                     except Exception as e:
                         error_type = AI_GUARD.ERROR_BAD_RESPONSE
@@ -311,14 +344,19 @@ class AIGuardClient:
                     span.set_tag(AI_GUARD.ACTION_TAG, action)
                     redacted_messages = messages
                     redaction_enabled = aiguard_config._ai_guard_redaction_enabled
-                    if redaction_enabled and redaction_replacements:
-                        redacted_messages = redact_messages(messages, redaction_replacements)
+                    # Not truthiness: a present but malformed payload has redaction errors to report.
+                    if redaction_enabled and redaction_replacements is not None:
+                        redacted_messages, redaction_errors = redact_messages(messages, redaction_replacements)
+                        # A replacement we cannot apply is reported and then forgotten: redaction is
+                        # best effort and must never fail the evaluation it rode in on.
+                        if redaction_errors:
+                            self._add_error_to_telemetry(AI_GUARD.ERROR_REDACTION, call_path_tags, redaction_errors)
                     # redact_messages returns the very same list when nothing was applied.
                     redacted = redacted_messages is not messages
                     if redaction_enabled:
                         span.set_tag(AI_GUARD.REDACTED_TAG, "true" if redacted else "false")
 
-                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages)}
+                    meta_struct = {"messages": self._messages_for_meta_struct(redacted_messages, call_path_tags)}
                     span._set_struct_tag(AI_GUARD.STRUCT, meta_struct)
 
                     if tags:
@@ -346,6 +384,7 @@ class AIGuardClient:
                 # No tag at all when redaction is off, so absent is distinguishable from "nothing redacted".
                 if redaction_enabled:
                     telemetry_tags.append(("redacted", "true" if redacted else "false"))
+                telemetry_tags.extend(call_path_tags)
                 self._add_request_to_telemetry(tuple(telemetry_tags))
                 root_span = span_bus.get_root_span()
                 if root_span:
@@ -391,8 +430,8 @@ class AIGuardClient:
                 raise
 
             except Exception:
-                self._add_request_to_telemetry((("error", "true"),))
-                self._add_error_to_telemetry(error_type)
+                self._add_request_to_telemetry((("error", "true"),) + call_path_tags)
+                self._add_error_to_telemetry(error_type, call_path_tags)
                 # Log the size only: the messages may carry sensitive data that redaction would have
                 # removed, and this runs before any redaction decision is known.
                 logger.debug("AI Guard evaluation failed for %d messages", len(messages), exc_info=True)

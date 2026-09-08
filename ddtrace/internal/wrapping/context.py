@@ -19,6 +19,8 @@ from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import WrappedFunction
 from ddtrace.internal.wrapping import Wrapper
 from ddtrace.internal.wrapping import get_function_code
@@ -591,9 +593,9 @@ class WrappingContext(BaseWrappingContext):
             raise ValueError(msg)
 
     def wrap(self) -> None:
-        t.cast(
-            _UniversalWrappingContext, _UniversalWrappingContext.wrapped(t.cast(FunctionType, self.__wrapped__))
-        ).register(self)
+        f = t.cast(FunctionType, self.__wrapped__)
+        context = t.cast(_UniversalWrappingContext, _UniversalWrappingContext.wrapped(f))
+        context.register(self)
 
     def unwrap(self) -> None:
         f = t.cast(FunctionType, self.__wrapped__)
@@ -707,6 +709,32 @@ else:
     _UWC_BASES = (BaseWrappingContext,)
 
 
+# Below 3.11 the wrapped function enters through a real `with` statement, and Python does not call
+# __exit__ when __enter__ raises, so a propagating __enter__ is the only place left to clean up.
+# From 3.11 the injected exception handler reaches _exit() instead, which does it.
+_ENTER_MUST_RELEASE_ON_RAISE = sys.version_info < (3, 11)
+
+
+def _held_storage(contexts: "list[WrappingContext]") -> dict[int, t.Any]:
+    """Snapshot the storage each context currently holds, to detect which ones still hold it."""
+    return {id(context): context._storage.get() for context in contexts}
+
+
+def _release_storage(contexts: "list[WrappingContext]", held: dict[int, t.Any]) -> None:
+    """Pop the storage of contexts that never got to pop their own.
+
+    Identity comparison against the snapshot is what makes this safe: a context that already
+    popped now holds a different object, so popping again would discard an outer re-entrant
+    call's storage.
+    """
+    for context in contexts:
+        if context._storage.get() is held.get(id(context)):
+            try:
+                context._pop_storage()
+            except Exception:  # nosec: cleanup must not mask the original exception
+                log.debug("Failed to release storage for wrapping context %r", context, exc_info=True)
+
+
 # This class provides an interface between single bytecode wrapping and multiple
 # logical context wrapping
 class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
@@ -757,9 +785,24 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
         entered: list[WrappingContext] = []
         storage["__contexts__"] = entered
         for context in self._contexts:
+            # A context that raises is left out of `entered`, so its __exit__ never runs. If its
+            # __enter__ pushed storage before failing, nothing else would ever pop it and the
+            # ContextVar would chain one dict per call. Compare identity to pop only what this
+            # call pushed, leaving an outer re-entrant call's storage alone.
+            before = context._storage.get()
             try:
                 context.__enter__()
-            except Exception:
+            except BaseException as exc:
+                if context._storage.get() is not before:
+                    context._pop_storage()
+                if not isinstance(exc, Exception):
+                    if _ENTER_MUST_RELEASE_ON_RAISE:
+                        # Nothing downstream will run, so release what this call pushed: the
+                        # contexts that did enter, and this universal context itself.
+                        _release_storage(entered, _held_storage(entered))
+                        self._pop_storage()
+                    # A BaseException (e.g. a deliberate blocking decision) is the caller's to see.
+                    raise
                 log.debug("Failed to enter wrapping context %r", context, exc_info=True)
                 continue
             entered.append(context)
@@ -812,6 +855,12 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
             # wrapped function body -- it never gets to run, so __exit__ must
             # not run for it either. See _exit and on_py_unwind, which consume
             # this flag on the bytecode and sys.monitoring paths respectively.
+            #
+            # NOTE: this path still leaks the storage of this call, including the universal one
+            # holding __frame__, because the suppressed __exit__ was what would have popped it.
+            # Releasing it here is not correct: _exit and on_py_unwind read the flag back off
+            # this same storage, so popping first makes them act on the enclosing call's storage
+            # instead. Tracked in APPSEC-69961.
             storage[_SKIP_EXIT_KEY] = True
             raise
 
@@ -970,6 +1019,10 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                     raise ValueError("Function already wrapped")
 
                 code = get_function_code(f)
+                if is_obfuscated_code(code):
+                    raise ObfuscatedCodeError(
+                        f"Cannot wrap {code.co_name!r}: code object appears to be obfuscated (e.g. by PyArmor)"
+                    )
 
                 # Closures created from repeated calls to the same factory share
                 # the same code object: _build_template is memoized so the

@@ -79,10 +79,15 @@ class FunctionStore(object):
         return not not self.eject_hooks(function, [(hook, line, arg)])
 
     def wrap(self, function: FunctionType, wrapping_context: WrappingContext) -> None:
-        """Wrap a function with a hook."""
+        """Wrap a function with a hook.
+
+        Raises ObfuscatedCodeError if the function's code is obfuscated and
+        cannot be safely rewritten; the function is left untouched in that
+        case and is not tracked for restoration.
+        """
         self._store(function)
-        self._wrapper_map[function] = wrapping_context
         wrapping_context.wrap()
+        self._wrapper_map[function] = wrapping_context
 
     def unwrap(self, function: FullyNamedContextWrappedFunction) -> None:
         """Unwrap a hook around a wrapped function."""
