@@ -1234,6 +1234,107 @@ def test_crashtracker_receiver_pythonpath_isolation(monkeypatch):
     assert result.returncode == 0, result.stderr
 
 
+def test_crashtracker_receiver_trailing_bootstrap_pythonpath_preserves_cwd():
+    """Stripping bootstrap from a trailing-colon PYTHONPATH must not produce PYTHONPATH="".
+
+    PYTHONPATH=<bootstrap>: splits into ["<bootstrap>", ""], and after removing the
+    bootstrap entry only [""] remains. os.pathsep.join([""])  == "", and Python ignores
+    PYTHONPATH="" (treats it as unset), so the receiver would lose the cwd entry.
+    The fix substitutes "." so cwd remains reachable.
+    """
+    import importlib.util
+    import os
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+
+    captured = {}
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    # PYTHONPATH is exactly <bootstrap>: — one trailing colon representing cwd
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+        mock.patch.dict(os.environ, {"PYTHONPATH": bootstrap_dir + os.pathsep}),
+    ):
+        crashtracking._get_args({})
+
+    pythonpath = captured["receiver_env"].get("PYTHONPATH", "")
+    assert pythonpath, "PYTHONPATH must not be empty — cwd entry was lost"
+    entries = pythonpath.split(os.pathsep)
+    assert bootstrap_dir not in entries
+    # "." and "" are both valid cwd representations; the fix produces "."
+    assert any(e in ("", ".") for e in entries), (
+        f"Expected a cwd entry ('.' or '') in PYTHONPATH entries, got {entries!r}"
+    )
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_receiver_cwd_module_importable_with_trailing_bootstrap_pythonpath(tmp_path):
+    """Receiver launched when PYTHONPATH=<bootstrap>: can still import a cwd-only module.
+
+    Regression test for the case where stripping the bootstrap entry leaves PYTHONPATH=""
+    which Python ignores, making any module that lives only in the working directory
+    unreachable from the receiver subprocess.
+    """
+    import importlib.util
+    import subprocess
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    # Place a unique sentinel module only inside tmp_path
+    module_name = "cwd_sentinel_module_for_crashtracker_test"
+    (tmp_path / f"{module_name}.py").write_text("value = 42\n")
+
+    spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
+    bootstrap_dir = os.path.dirname(spec.origin)
+
+    receiver_args = None
+    receiver_env = None
+
+    def capture(args, env, *rest):
+        nonlocal receiver_args, receiver_env
+        receiver_args = list(args)
+        receiver_env = dict(env)
+        return mock.MagicMock()
+
+    # Simulate ddtrace-run: PYTHONPATH=<bootstrap>:
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", capture),
+        mock.patch.dict(os.environ, {"PYTHONPATH": bootstrap_dir + os.pathsep}),
+    ):
+        crashtracking._get_args(None)
+
+    assert receiver_args is not None, "CrashtrackerReceiverConfig was never called"
+
+    # The probe script must live outside tmp_path
+    probe_dir = tmp_path / "probe"
+    probe_dir.mkdir()
+    probe_script = probe_dir / "probe.py"
+    probe_script.write_text(f"import {module_name}; assert {module_name}.value == 42\n")
+
+    # Run from tmp_path (where the sentinel module lives) with the script outside it.
+    # Without the fix PYTHONPATH="" is ignored, cwd is not in sys.path, import fails.
+    result = subprocess.run(
+        [receiver_args[0], str(probe_script)],
+        env=receiver_env,
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"cwd-only module not importable in receiver.\n"
+        f"PYTHONPATH in receiver env: {receiver_env.get('PYTHONPATH')!r}\n"
+        f"stderr: {result.stderr}"
+    )
+
+
 def test_crashtracker_receiver_preserves_empty_pythonpath_components():
     """Empty PYTHONPATH components mean cwd and must not be dropped.
 

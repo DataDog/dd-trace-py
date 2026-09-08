@@ -193,6 +193,13 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
                 if not path_entries:
                     continue
                 env_value = os.pathsep.join(path_entries)
+                # PYTHONPATH="" is ignored by Python (treated as unset), but "" entries
+                # inside PYTHONPATH mean "current working directory". This happens when
+                # bootstrap stripping leaves only cwd entries. PYTHONPATH=<bootstrap>:
+                # becomes [""] which joins to "". So, we substitute "." so the receiver's
+                # interpreter still finds modules in cwd.
+                if not env_value:
+                    env_value = "."
             receiver_env[env_var] = env_value
 
     # This is equivalent to: python /path/to/_dd_crashtracker_receiver.py
