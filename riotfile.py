@@ -429,7 +429,10 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            command=(
+                "pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py "
+                "--ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/"
+            ),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -447,7 +450,7 @@ venv = Venv(
             env={
                 "DDTEST_SUITE_PATH": "tests/tracer",
                 "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
-                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_shutdown.py",
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_*.py",
                 "_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.tracer",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
@@ -481,7 +484,9 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer-uwsgi",
-                    command="pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py",
+                    command=(
+                        "pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py"
+                    ),
                     pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
                     pkgs={"uwsgi": latest},
                 ),
