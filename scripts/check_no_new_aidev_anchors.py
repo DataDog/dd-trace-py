@@ -19,12 +19,13 @@ import sys
 from typing import Optional
 
 
-# Match Python, C/C++, and Rust comment introducers only — avoids false
-# positives in prose/docs that mention the old label name in backticks.
+# Match Python, C/C++, and Rust comment introducers, plus a bare anchor at the
+# start of a line for anchors inside multiline Python docstrings. The latter
+# also catches block-comment continuation lines.
 ANCHOR_RE: re.Pattern[str] = re.compile(
-    r"(?:#|(?<![\w/:])//[/!]?|/\*)\s*AIDEV-(?:NOTE|TODO|QUESTION):"
-    r"|^\s*\*\s*AIDEV-(?:NOTE|TODO|QUESTION):"
-    r"|^\s*AIDEV-(?:NOTE|TODO|QUESTION):(?=\s*[^*]*\*/)",
+    r"(?:#|(?<![\w/:])//[/!]?|/\*)\s*AIDEV-[A-Z][A-Z0-9_-]*:"
+    r"|^\s*\*\s*AIDEV-[A-Z][A-Z0-9_-]*:"
+    r"|^\s*AIDEV-[A-Z][A-Z0-9_-]*:",
 )
 STRING_RE: re.Pattern[str] = re.compile(r"""(["'`])(?:\\.|(?!\1).)*\1""")
 
@@ -56,6 +57,8 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
             current_file = line[6:]
             continue
         if not current_file or any(current_file.startswith(prefix) for prefix in SKIP_PREFIXES):
+            continue
+        if not line.startswith("+") or line.startswith("+++"):
             continue
         if _is_anchor_line(line):
             hits.append((current_file, line[1:].rstrip()))

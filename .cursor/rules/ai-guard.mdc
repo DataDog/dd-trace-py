@@ -223,8 +223,9 @@ re-exported lazily from `ai_guard/__init__.py` via a module-level
   the provider listener honor `is_aiguard_context_active()`.
 - **Preserve invariant comments** (including any legacy `AIDEV-*` anchors) for
   lazy import timing, stream counter lifecycle, and legacy message translation
-  when editing nearby code. Convert an old anchor only when explicitly asked or
-  as part of a dedicated migration, preserving its substantive text; do not
-  add new `AIDEV-*` labels (deprecated — see AGENTS.md).
+  when editing nearby code. An explicit request or dedicated migration may
+  replace only an old label with plain comment syntax; never delete the
+  protected comment, and preserve its substantive text. Do not add new
+  `AIDEV-*` labels (deprecated — see AGENTS.md).
 - **Tests** live under `tests/aiguard/`. Use the `run-tests` skill;
   never run `pytest` directly.
