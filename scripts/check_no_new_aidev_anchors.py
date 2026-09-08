@@ -22,8 +22,11 @@ from typing import Optional
 # Match Python, C/C++, and Rust comment introducers only — avoids false
 # positives in prose/docs that mention the old label name in backticks.
 ANCHOR_RE: re.Pattern[str] = re.compile(
-    r"^\+\s*.*?(?:#|(?<!/)//[/!]?)\s*AIDEV-(?:NOTE|TODO|QUESTION):",
+    r"(?:#|(?<![\w/:])//[/!]?|/\*)\s*AIDEV-(?:NOTE|TODO|QUESTION):"
+    r"|^\s*\*\s*AIDEV-(?:NOTE|TODO|QUESTION):"
+    r"|^\s*AIDEV-(?:NOTE|TODO|QUESTION):(?=\s*[^*]*\*/)",
 )
+STRING_RE: re.Pattern[str] = re.compile(r"""(["'`])(?:\\.|(?!\1).)*\1""")
 
 SKIP_PREFIXES: tuple[str, ...] = ("scripts/check_no_new_aidev_anchors.py",)
 
@@ -54,9 +57,15 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
             continue
         if not current_file or any(current_file.startswith(prefix) for prefix in SKIP_PREFIXES):
             continue
-        if ANCHOR_RE.match(line):
+        if _is_anchor_line(line):
             hits.append((current_file, line[1:].rstrip()))
     return hits
+
+
+def _is_anchor_line(line: str) -> bool:
+    content: str = line[1:] if line.startswith("+") else line
+    content_without_strings: str = STRING_RE.sub("", content)
+    return ANCHOR_RE.search(content_without_strings) is not None
 
 
 def main(argv: Optional[list[str]] = None) -> int:
