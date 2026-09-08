@@ -1,0 +1,11 @@
+_v: 1
+name: structlog
+display_name: Structlog
+description: Instruments structlog processor chains to inject Datadog trace correlation context into structured log event
+  dictionaries.
+packages:
+- name: structlog
+category:
+- other
+systems: []
+creation_date: '2023-10-17'

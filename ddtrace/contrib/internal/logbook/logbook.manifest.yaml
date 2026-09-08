@@ -1,0 +1,11 @@
+_v: 1
+name: logbook
+display_name: Logbook
+description: Instruments Logbook record processing to inject Datadog trace correlation identifiers and configured service,
+  environment, and version metadata.
+packages:
+- name: logbook
+category:
+- other
+systems: []
+creation_date: '2023-11-13'
