@@ -11,18 +11,23 @@ class TestRQPatch(PatchTestCase.Base):
     __unpatch_func__ = unpatch
     __get_version__ = get_version
 
-    def _assert_patch_state(self, assertion, rq):
-        assertion(rq.job.Job.perform)
-        assertion(rq.queue.Queue.enqueue_job)
-        assertion(rq.queue.Queue.fetch_job)
-        assertion(rq.Worker.perform_job)
-        assertion(rq.SimpleWorker.perform_job)
-
     def assert_module_patched(self, rq):
-        self._assert_patch_state(self.assert_wrapped, rq)
+        self.assert_wrapped(rq.job.Job.perform)
+        self.assert_wrapped(rq.queue.Queue.enqueue_job)
+        self.assert_wrapped(rq.queue.Queue.fetch_job)
+        self.assert_wrapped(rq.Worker.perform_job)
+        self.assert_wrapped(rq.SimpleWorker.perform_job)
 
     def assert_not_module_patched(self, rq):
-        self._assert_patch_state(self.assert_not_wrapped, rq)
+        self.assert_not_wrapped(rq.job.Job.perform)
+        self.assert_not_wrapped(rq.queue.Queue.enqueue_job)
+        self.assert_not_wrapped(rq.queue.Queue.fetch_job)
+        self.assert_not_wrapped(rq.Worker.perform_job)
+        self.assert_not_wrapped(rq.SimpleWorker.perform_job)
 
     def assert_not_module_double_patched(self, rq):
-        self._assert_patch_state(self.assert_not_double_wrapped, rq)
+        self.assert_not_double_wrapped(rq.job.Job.perform)
+        self.assert_not_double_wrapped(rq.queue.Queue.enqueue_job)
+        self.assert_not_double_wrapped(rq.queue.Queue.fetch_job)
+        self.assert_not_double_wrapped(rq.Worker.perform_job)
+        self.assert_not_double_wrapped(rq.SimpleWorker.perform_job)
