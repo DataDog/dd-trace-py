@@ -83,13 +83,13 @@ def test_asyncio_task_creation_uses_monitoring_on_315() -> None:
     assert _asyncio._monitoring_tool_id is not None
     assert id(create_task.__code__) in _asyncio._py_return_handlers
 
-    # Non-create_task hooks must be attribute replacements, not wrap(), on 3.15+.
+    # Non-task hooks continue using wrap(), including on 3.15+.
     tasks_mod: ModuleType = sys.modules["asyncio.tasks"]
-    assert not is_wrapped(cast(FunctionType, tasks_mod.as_completed))
-    assert not is_wrapped(cast(FunctionType, tasks_mod.shield))
-    assert not is_wrapped(cast(FunctionType, getattr(tasks_mod, "_wait")))
+    assert is_wrapped(cast(FunctionType, tasks_mod.as_completed))
+    assert is_wrapped(cast(FunctionType, tasks_mod.shield))
+    assert is_wrapped(cast(FunctionType, getattr(tasks_mod, "_wait")))
     gathering_future: type[object] = getattr(tasks_mod, "_GatheringFuture")
-    assert not is_wrapped(cast(FunctionType, gathering_future.__init__))
+    assert is_wrapped(cast(FunctionType, gathering_future.__init__))
 
     taskgroups: ModuleType | None = sys.modules.get("asyncio.taskgroups")
     assert taskgroups is not None
