@@ -42,9 +42,8 @@ def _unregister_module_hooks(module: Any, name: str) -> None:
 def target_function(module: Any, name: str) -> Any:
     """Resolve module.name to the plain function a wrapping context can bind to.
 
-    An integration may already hold a wrapt wrapper on the attribute, and binding to that proxy is
-    not recoverable: getattr returns a fresh BoundFunctionWrapper on every access, so the
-    registration can never be found again and unwrap silently leaves the code object rewritten.
+    Binding to a wrapt proxy is unrecoverable: getattr builds a fresh BoundFunctionWrapper every
+    time, so the registration can never be found again and unwrap leaves the bytecode rewritten.
     """
     (parent, attribute, original) = resolve_path(module, name)
     # Read what the owner actually holds; getattr would run the descriptor protocol.
@@ -53,9 +52,8 @@ def target_function(module: Any, name: str) -> Any:
     except (AttributeError, KeyError, TypeError):
         pass
     for _ in range(_MAX_PROXY_DEPTH):
-        # Peel first, test second: a functools.wraps decorator is itself a FunctionType, so
-        # stopping at the first function would bind to the decorator. Its frame holds only
-        # args/kwargs, and every argument read by name would come back as None.
+        # Peel the whole chain: a functools.wraps decorator is a function too, so stopping at the
+        # first one binds to it, and its frame holds only args/kwargs.
         wrapped = getattr(original, "__wrapped__", None)
         if wrapped is None:
             break
@@ -82,12 +80,8 @@ def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingCont
                     # Already wrapped. Re-registering the same context type raises, so stay a
                     # no-op, the way a repeated wrapt patch does.
                     return
-                # The module was reloaded, so the attribute holds a new function. Rebind to it,
-                # but leave the old one wrapped: a reload rebinds the attribute without touching
-                # aliases, subclasses or already-constructed instances, and unwrapping here would
-                # silently drop instrumentation for every one of those. Retained so unwrap can
-                # still release it, and pruned of collected functions so a module reloaded many
-                # times does not accumulate.
+                # Reloaded: rebind, but leave the old function wrapped, since aliases and live
+                # instances still call it. Retained so unwrap reaches it, pruned once collected.
                 del _WRAPPING_CONTEXTS[key]
                 superseded = _SUPERSEDED_CONTEXTS.setdefault(key, [])
                 superseded[:] = [c for c in superseded if c._wrapped_ref() is not None]
@@ -107,10 +101,8 @@ def try_wrap_context(module_name: str, name: str, context_cls: type[WrappingCont
 def try_unwrap_context(module: Any, name: str) -> None:
     """Release the wrapping context installed on module.name by try_wrap_context.
 
-    Unwraps the retained context instance rather than re-resolving the attribute: another
-    integration may have installed a wrapt wrapper over it meanwhile, and resolving that proxy
-    yields a different object, so unwrap would silently no-op and leave the code object rewritten.
-    The next patch would then rewrite on top of it until the bytecode library fails to parse it.
+    Unwraps the retained instances, not the attribute: an integration may have wrapt-wrapped over
+    it, and unwrapping that proxy no-ops, leaving bytecode that the next patch rewrites again.
     """
     _unregister_module_hooks(module, name)
     key = (_module_name(module), name)

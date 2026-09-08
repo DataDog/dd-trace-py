@@ -67,6 +67,12 @@ def chain_depth(context):
     return depth
 
 
+def replay_module_hooks(key):
+    """Re-run the registered hooks for a target, which is what an import or a reload triggers."""
+    for hook in _MODULE_HOOKS[key]:
+        hook(hooks_target)
+
+
 def recorder(calls):
     """A context that records the argument it saw, reading it through per-call storage."""
 
@@ -136,7 +142,7 @@ def test_binding_looks_through_a_wrapt_proxy_on_the_attribute():
         return wrapped(*args, **kwargs)
 
     hooks_target.Target.method = wrapt.FunctionWrapper(plain, passthrough)
-    # isinstance would say True here, which is exactly why the helper tests type() instead.
+    # isinstance lies here: a wrapt proxy forwards __class__, so the peel cannot test the type.
     assert isinstance(hooks_target.Target.__dict__["method"], wrapt.FunctionWrapper)
 
     assert target_function(hooks_target, "Target.method") is plain
@@ -204,8 +210,7 @@ def test_the_context_rebinds_when_the_module_is_reloaded():
         return value + 100
 
     hooks_target.function = reloaded
-    for hook in _MODULE_HOOKS[key]:
-        hook(hooks_target)
+    replay_module_hooks(key)
 
     rebound = _WRAPPING_CONTEXTS[key]
     assert rebound is not first
@@ -239,8 +244,7 @@ def test_rebinding_works_once_the_old_function_is_collected():
     gc.collect()
     assert stale._wrapped_ref() is None, "the old function is still referenced; test is vacuous"
 
-    for hook in _MODULE_HOOKS[key]:
-        hook(hooks_target)
+    replay_module_hooks(key)
 
     assert _WRAPPING_CONTEXTS[key]._wrapped_ref() is reloaded
     assert hooks_target.function(1) == 101
@@ -414,8 +418,7 @@ def test_rebinding_keeps_the_old_function_instrumented():
         return value + 100
 
     hooks_target.function = reloaded
-    for hook in _MODULE_HOOKS[key]:
-        hook(hooks_target)
+    replay_module_hooks(key)
 
     calls.clear()
     assert stale_function(1) == 0
@@ -441,8 +444,7 @@ def test_unwrapping_releases_the_superseded_contexts_too():
         return value + 100
 
     hooks_target.function = reloaded
-    for hook in _MODULE_HOOKS[key]:
-        hook(hooks_target)
+    replay_module_hooks(key)
     assert len(_SUPERSEDED_CONTEXTS[key]) == 1
 
     try_unwrap_context(MODULE, "function")
@@ -469,8 +471,7 @@ def test_repeated_reloads_do_not_accumulate_superseded_contexts():
 
     for offset in range(1, 6):
         hooks_target.function = make(offset)
-        for hook in _MODULE_HOOKS[key]:
-            hook(hooks_target)
+        replay_module_hooks(key)
         gc.collect()
 
     # Only the immediately previous function is still referenced, by the registry entry we just

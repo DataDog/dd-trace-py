@@ -227,9 +227,8 @@ def test_http_connection_request_blocks_on_a_waf_block_decision():
 def test_a_blocked_request_leaves_no_wrapping_storage_behind():
     """A block leaves through BaseException before the wrapped body starts.
 
-    The blocking context is then absent from the universal context's entered list, so nothing pops
-    the storage its __enter__ pushed and the ContextVar chains a dict per blocked request. Fixed in
-    APPSEC-69960; asserted here because this is the code that raises.
+    The context is then absent from the universal context's entered list, so nothing pops the
+    storage its __enter__ pushed and the ContextVar chains a dict per blocked request.
     """
     unpatch_common_modules()
     import http.client
@@ -540,10 +539,8 @@ def _code_sizes():
 def test_context_unpatch_restores_the_original_bytecode():
     """Unpatching must really release the function, whatever else is wrapped on the attribute.
 
-    Resolving the attribute at unwrap time returns a contrib wrapt proxy rather than the object
-    that was wrapped, so unwrap silently no-ops and leaves the rewritten code in place. The next
-    patch then rewrites on top of it, growing the code object every cycle until the bytecode
-    library can no longer parse it, which surfaces far away as a KeyError from an unrelated test.
+    Unwrapping a contrib proxy instead no-ops, so each cycle rewrites on top of the last until the
+    bytecode library cannot parse it - which surfaces as a KeyError in some unrelated test.
     """
     from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
     from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
@@ -664,11 +661,10 @@ def test_other_builtin_functions(builtin_function_name):
 
 
 def test_urllib3_poolmanager_redirect_inspects_absolute_target():
-    """Functional regression test for APPSEC-68569: drive a real urllib3 PoolManager redirect and
-    assert the URL handed to the downstream SSRF/API10 wrapper is the absolute redirected target.
+    """The URL handed to the downstream hook must be the absolute redirected target.
 
-    PoolManager calls HTTPConnectionPool.urlopen with the relative URI, so the buggy wrapper stored
-    the body or None with no host; the fix rebuilds the absolute URL.
+    PoolManager calls HTTPConnectionPool.urlopen with the relative URI, so a naive read stores a
+    value with no host at all. Drives a real redirect rather than mocking the hop.
     """
     urllib3 = pytest.importorskip("urllib3")
     from http.server import BaseHTTPRequestHandler

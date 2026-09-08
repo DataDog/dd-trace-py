@@ -301,9 +301,8 @@ class _SsrfHttpConnectionRequest(_RaspContext):
                     pass  # nosec
             res = call_waf_callback(
                 addresses,
-                # A wrapping context runs inside the target's own frame, so the crop anchor is the
-                # wrapped function rather than a wrapper. co_name, not __name__: report_stack
-                # matches on f_code.co_name, and functools.wraps copies __name__ onto decorators.
+                # No wrapper frame to anchor on, so use the target's own. co_name, not __name__:
+                # report_stack matches f_code.co_name, and wraps copies __name__ onto decorators.
                 crop_trace=self.__wrapped__.__code__.co_name,
                 rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
             )
