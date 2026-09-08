@@ -3,13 +3,13 @@ from typing import Any
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
+from ddtrace.appsec._shared._iast_context import _get_iast_context_id
 from tests.appsec.iast.iast_utils import TEXT_TYPE
 from tests.appsec.iast.iast_utils import _iast_patched_module
 

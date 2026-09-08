@@ -7,12 +7,12 @@ def test_taint_pyobject_in_copied_context_returns_owned_reference():
     import os
     import sys
 
-    from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import initialize_native_state
     from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
     from ddtrace.appsec._iast._taint_tracking._context import start_request_context
     from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+    from ddtrace.appsec._shared._iast_context import IAST_CONTEXT
 
     initialize_native_state()
     context_id = start_request_context()

@@ -30,4 +30,5 @@ __all__ = [
     "debug_context_array_size",
     "debug_context_array_free_slots_number",
     "is_in_taint_map",
+    "_num_objects_tainted_in_request",
 ]

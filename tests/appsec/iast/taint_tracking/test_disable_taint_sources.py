@@ -15,13 +15,13 @@ import pytest
 
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._iast import _iast_request_context_base
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import iast_suppress_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._shared import _iast_context
+from ddtrace.appsec._shared._iast_context import _get_iast_context_id
+from ddtrace.appsec._shared._iast_context import iast_suppress_context
 
 
 @pytest.fixture(params=[iast_suppress_context, iast_disabled_taint_sources])
@@ -117,18 +117,10 @@ def test_taint_source_suppression_is_context_local(suppress_taint_sources):
     assert _iast_context._is_iast_taint_source_enabled()
 
 
-@pytest.mark.parametrize(
-    "name",
-    [
-        "IAST_CONTEXT",
-        "_get_iast_context_id",
-        "_is_iast_taint_source_enabled",
-        "iast_suppress_context",
-        "is_iast_request_enabled",
-    ],
-)
-def test_context_primitives_are_shared(name):
-    assert getattr(_iast_request_context_base, name) is getattr(_iast_context, name)
+def test_is_iast_request_enabled_re_export_is_shared():
+    # _iast_request_context_base re-exports this one symbol for the taint sinks and handlers;
+    # they must see the same object the owning module defines.
+    assert _iast_request_context_base.is_iast_request_enabled is _iast_context.is_iast_request_enabled
 
 
 def test_get_ranges_uses_shared_request_context(iast_context_defaults):
