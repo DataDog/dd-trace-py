@@ -34,44 +34,68 @@ _monitoring_tool_id: typing.Optional[int] = None
 _py_return_handlers: dict[int, typing.Callable[[object], None]] = {}
 
 
+class _AsyncioReturnHookDispatch:
+    """PY_RETURN dispatch for the asyncio task-creation hooks.
+
+    Kept outside the version gate so it can be instantiated and exercised on
+    interpreters below 3.15; _AsyncioMonitoringHandler adds the 3.15-only
+    MonitoringEventHandler base.
+    """
+
+    def __init__(self) -> None:
+        self.handlers: dict[int, typing.Callable[[object], None]] = _py_return_handlers
+
+    def on_py_return(self, code: CodeType, instruction_offset: int, return_value: object) -> None:
+        handler: typing.Optional[typing.Callable[[object], None]] = self.handlers.get(id(code))
+        if handler is not None:
+            handler(return_value)
+
+
 if sys.version_info >= _ASYNCIO_MONITORING_MIN:
 
-    class _AsyncioMonitoringHandler(_monitoring.MonitoringEventHandler):
-        def __init__(self) -> None:
-            self.handlers: dict[int, typing.Callable[[object], None]] = _py_return_handlers
-
-        def on_py_return(self, code: CodeType, instruction_offset: int, return_value: object) -> None:
-            handler: typing.Optional[typing.Callable[[object], None]] = self.handlers.get(id(code))
-            if handler is not None:
-                handler(return_value)
+    class _AsyncioMonitoringHandler(_AsyncioReturnHookDispatch, _monitoring.MonitoringEventHandler):
+        pass
 
     _monitoring_handler: typing.Optional[_AsyncioMonitoringHandler] = None
 
 
-def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
+def _do_register_return_hook(
+    monitoring_handler: _AsyncioMonitoringHandler,
+    func: typing.Callable[..., typing.Any],
+    handler: typing.Callable[[object], None],
+) -> bool:
+    """Point *monitoring_handler* at *handler* for the code object of *func*.
+
+    Split out of _register_return_hook, which owns the version gate, so the
+    registration and unwinding paths stay testable below 3.15.
+    """
     global _monitoring_tool_id
 
+    code: typing.Optional[CodeType] = None
+    try:
+        code = func.__code__
+        monitoring_handler.handlers[id(code)] = handler
+        _monitoring.register(code, monitoring_handler)
+        _monitoring_tool_id = _monitoring.get_tool_id()
+        return True
+    except Exception:
+        if code is not None:
+            monitoring_handler.handlers.pop(id(code), None)
+            try:
+                _monitoring.unregister(code, monitoring_handler)
+            except Exception:  # nosec B110 — unwinding an already-failed registration
+                pass
+        return False  # best-effort monitoring; fall back to wrap()
+
+
+def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
     if sys.version_info >= _ASYNCIO_MONITORING_MIN:
         global _monitoring_handler
 
         if _monitoring_handler is None:
             _monitoring_handler = _AsyncioMonitoringHandler()
 
-        code: typing.Optional[CodeType] = None
-        try:
-            code = func.__code__
-            _monitoring_handler.handlers[id(code)] = handler
-            _monitoring.register(code, _monitoring_handler)
-            _monitoring_tool_id = _monitoring.get_tool_id()
-            return True
-        except Exception:
-            if code is not None:
-                _monitoring_handler.handlers.pop(id(code), None)
-                try:
-                    _monitoring.unregister(code, _monitoring_handler)
-                except Exception:  # nosec B110 — unwinding an already-failed registration
-                    pass
-            return False  # best-effort monitoring; fall back to wrap()
+        return _do_register_return_hook(_monitoring_handler, func, handler)
 
     return False
 

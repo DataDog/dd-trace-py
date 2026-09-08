@@ -3,16 +3,66 @@
 These fail if the version split in ddtrace.profiling._asyncio is reverted:
 below 3.15 hooks must go through wrap() (in-place bytecode, not a bare
 assignment); on 3.15+ task-creation must use the PY_RETURN monitoring path.
+
+The registration helper and the PY_RETURN dispatch are deliberately kept
+outside that version gate, so the tests at the bottom of this file exercise
+them on every supported interpreter with a stubbed monitoring module.
 """
 
 from __future__ import annotations
 
+import functools
 import sys
 from types import CodeType
 from typing import Any
 from typing import Callable
+from typing import Iterator
 
 import pytest
+
+
+class _StubMonitoring:
+    """Stand-in for ddtrace.internal.monitoring, which only imports on 3.15+."""
+
+    def __init__(
+        self,
+        register_error: BaseException | None = None,
+        unregister_error: BaseException | None = None,
+    ) -> None:
+        self.register_error: BaseException | None = register_error
+        self.unregister_error: BaseException | None = unregister_error
+        self.registered: list[tuple[CodeType, Any]] = []
+        self.unregistered: list[tuple[CodeType, Any]] = []
+
+    def register(self, code: CodeType, handler: Any) -> None:
+        self.registered.append((code, handler))
+        if self.register_error is not None:
+            raise self.register_error
+
+    def unregister(self, code: CodeType, handler: Any) -> None:
+        self.unregistered.append((code, handler))
+        if self.unregister_error is not None:
+            raise self.unregister_error
+
+    def get_tool_id(self) -> int:
+        return 4
+
+
+@pytest.fixture
+def asyncio_module() -> Iterator[Any]:
+    """Yield ddtrace.profiling._asyncio with its monitoring globals isolated."""
+    from ddtrace.profiling import _asyncio
+
+    previous_tool_id: int | None = _asyncio._monitoring_tool_id
+    previous_handlers: dict[int, Callable[[object], None]] = _asyncio._py_return_handlers.copy()
+    _asyncio._monitoring_tool_id = None
+    _asyncio._py_return_handlers.clear()
+    try:
+        yield _asyncio
+    finally:
+        _asyncio._monitoring_tool_id = previous_tool_id
+        _asyncio._py_return_handlers.clear()
+        _asyncio._py_return_handlers.update(previous_handlers)
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 15), reason="wrap() is the <3.15 path")
@@ -59,6 +109,9 @@ def test_asyncio_hooks_use_wrap_below_315() -> None:
         assert is_wrapped(cast(FunctionType, taskgroups.TaskGroup.create_task))
 
 
+# TODO: the two 3.15-gated tests below never execute in CI today -- riotfile.py
+# caps MAX_PYTHON_VERSION at 3.14 and only the smoke_test venv opts into 3.15,
+# so the profiling suite is never collected on a 3.15 interpreter.
 @pytest.mark.skipif(sys.version_info < (3, 15), reason="sys.monitoring is the 3.15+ path")
 @pytest.mark.subprocess(err=None)
 def test_asyncio_task_creation_uses_monitoring_on_315() -> None:
@@ -127,9 +180,113 @@ def test_asyncio_return_hook_uses_ddtrace_monitoring_api(monkeypatch: pytest.Mon
     try:
         assert _asyncio._register_return_hook(function, callback)
         assert registered == [(function.__code__, _asyncio._monitoring_handler)]
+        assert _asyncio._py_return_handlers[id(function.__code__)] is callback
         assert _asyncio._monitoring_tool_id == 4
     finally:
         _asyncio._monitoring_handler = old_handler
         _asyncio._monitoring_tool_id = old_tool_id
         _asyncio._py_return_handlers.clear()
         _asyncio._py_return_handlers.update(old_handlers)
+
+
+def test_register_return_hook_unwinds_a_failed_register(asyncio_module: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed register() leaves no handler entry behind and unregisters the code."""
+    monitoring: _StubMonitoring = _StubMonitoring(register_error=RuntimeError("register exploded"))
+    monkeypatch.setattr(asyncio_module, "_monitoring", monitoring, raising=False)
+    dispatch: Any = asyncio_module._AsyncioReturnHookDispatch()
+
+    def function() -> None:
+        pass
+
+    def callback(return_value: object) -> None:
+        pass
+
+    assert asyncio_module._do_register_return_hook(dispatch, function, callback) is False
+    assert id(function.__code__) not in asyncio_module._py_return_handlers
+    assert monitoring.unregistered == [(function.__code__, dispatch)]
+    assert asyncio_module._monitoring_tool_id is None
+
+
+def test_register_return_hook_handles_func_without_code_object(
+    asyncio_module: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A func with no __code__ returns False instead of raising UnboundLocalError."""
+    monitoring: _StubMonitoring = _StubMonitoring()
+    monkeypatch.setattr(asyncio_module, "_monitoring", monitoring, raising=False)
+    dispatch: Any = asyncio_module._AsyncioReturnHookDispatch()
+
+    def callback(return_value: object) -> None:
+        pass
+
+    codeless: Any = functools.partial(lambda: None)
+    assert not hasattr(codeless, "__code__")
+
+    assert asyncio_module._do_register_return_hook(dispatch, codeless, callback) is False
+    # len() is a builtin, so it has no __code__ either.
+    assert asyncio_module._do_register_return_hook(dispatch, len, callback) is False
+    assert asyncio_module._py_return_handlers == {}
+    assert monitoring.registered == []
+    assert monitoring.unregistered == []
+
+
+def test_register_return_hook_swallows_a_failing_unregister(
+    asyncio_module: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second failure while unwinding must not escape the helper."""
+    monitoring: _StubMonitoring = _StubMonitoring(
+        register_error=RuntimeError("register exploded"),
+        unregister_error=RuntimeError("unregister exploded"),
+    )
+    monkeypatch.setattr(asyncio_module, "_monitoring", monitoring, raising=False)
+    dispatch: Any = asyncio_module._AsyncioReturnHookDispatch()
+
+    def function() -> None:
+        pass
+
+    def callback(return_value: object) -> None:
+        pass
+
+    assert asyncio_module._do_register_return_hook(dispatch, function, callback) is False
+    assert monitoring.unregistered == [(function.__code__, dispatch)]
+    assert id(function.__code__) not in asyncio_module._py_return_handlers
+
+
+def test_on_py_return_invokes_the_registered_callback(asyncio_module: Any) -> None:
+    dispatch: Any = asyncio_module._AsyncioReturnHookDispatch()
+    assert dispatch.handlers is asyncio_module._py_return_handlers
+
+    def function() -> None:
+        pass
+
+    seen: list[object] = []
+    dispatch.handlers[id(function.__code__)] = seen.append
+
+    dispatch.on_py_return(function.__code__, 0, "return value")
+
+    assert seen == ["return value"]
+
+
+def test_on_py_return_ignores_unregistered_code(asyncio_module: Any) -> None:
+    dispatch: Any = asyncio_module._AsyncioReturnHookDispatch()
+
+    def unrelated() -> None:
+        pass
+
+    dispatch.on_py_return(unrelated.__code__, 0, "return value")
+
+    assert asyncio_module._py_return_handlers == {}
+
+
+@pytest.mark.skipif(sys.version_info >= (3, 15), reason="the monitoring path is live on 3.15+")
+def test_register_return_hook_is_gated_off_below_315(asyncio_module: Any) -> None:
+    """Pin the gate's contract, not just the wrap() fallback it produces."""
+
+    def function() -> None:
+        pass
+
+    def callback(return_value: object) -> None:
+        pass
+
+    assert asyncio_module._register_return_hook(function, callback) is False
+    assert asyncio_module._py_return_handlers == {}
+    assert asyncio_module._monitoring_tool_id is None

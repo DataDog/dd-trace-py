@@ -19,6 +19,8 @@ import pytest
 # The module only imports on 3.15+ (it raises ImportError below that). On older
 # interpreters importorskip skips the whole module at collection time. Under a
 # type checker we import it directly so member/base-class references resolve.
+# TODO: that means this whole module is skipped in CI today -- riotfile.py caps
+# MAX_PYTHON_VERSION at 3.14 and only the smoke_test venv opts into 3.15.
 if TYPE_CHECKING:
     from ddtrace.internal import monitoring
 else:
@@ -82,6 +84,16 @@ def test_setup_fails_without_a_free_candidate(monkeypatch: pytest.MonkeyPatch) -
         assert fake_monitoring.claimed == []
     finally:
         monitoring._tool_id = previous_tool_id
+
+
+def test_get_tool_id_returns_the_shared_setup_tool_id() -> None:
+    """get_tool_id() is the public face of _setup(): the same ID, and idempotent."""
+    tool_id: int = monitoring.get_tool_id()
+
+    assert tool_id in monitoring._CANDIDATE_TOOL_IDS  # type: ignore[has-type]
+    assert monitoring._tool_id == tool_id
+    assert monitoring._setup() == tool_id
+    assert monitoring.get_tool_id() == tool_id
 
 
 class UnwindHandler(monitoring.MonitoringEventHandler):
