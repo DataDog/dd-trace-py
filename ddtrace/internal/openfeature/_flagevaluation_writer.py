@@ -68,7 +68,7 @@ MAX_FIELD_LENGTH = MAX_VALUE_LENGTH
 MAX_LIST_ELEMENTS = 256
 MAX_STRUCTURE_PROPERTIES = 256
 MAX_SNAPSHOT_DEPTH = 4
-# Total nodes one traversal may inspect, matching dd-trace-rb's MAX_VISITED_NODES.
+# Total nodes one traversal may inspect.
 # The other caps do not bound total work: omitted leaves (nulls especially) never grow
 # output, so the global field cap never trips, and the width caps are per-container.
 # Without this, cost is width**(depth+1) -- ~1.1e12 nodes at these caps -- on a
