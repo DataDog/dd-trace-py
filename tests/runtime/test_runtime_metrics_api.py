@@ -232,7 +232,13 @@ def test_runtime_metrics_experimental_runtime_tag():
         )
 
 
-@pytest.mark.subprocess(env={"DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true"}, err=None)
+@pytest.mark.subprocess(
+    env={
+        "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true",
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+    },
+    err=None,
+)
 def test_runtime_metrics_refresh_identity_updates_runtime_id_tag():
     """Runtime metrics must not keep reporting the pre-refresh runtime-id tag."""
     from ddtrace.internal import runtime
@@ -252,6 +258,34 @@ def test_runtime_metrics_refresh_identity_updates_runtime_id_tag():
         new_runtime_id = runtime.get_runtime_id()
         assert f"runtime-id:{new_runtime_id}" in worker._platform_tags
         assert f"runtime-id:{old_runtime_id}" not in worker._platform_tags
+    finally:
+        RuntimeWorker.disable()
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED": "true",
+        "AWS_LAMBDA_MICROVM_IMAGE_ARN": "arn:aws:lambda:us-east-1::runtime:python3.12",
+    },
+    err=None,
+)
+def test_runtime_metrics_refresh_identity_rebases_collectors():
+    """MicroVM identity refresh resets runtime metric collector state."""
+    from unittest import mock
+
+    from ddtrace.internal import runtime
+    from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+
+    RuntimeWorker.enable()
+    try:
+        worker = RuntimeWorker._instance
+        assert worker is not None
+        collector = worker._runtime_metrics._collectors[1]
+
+        with mock.patch.object(collector, "reset", wraps=collector.reset) as reset:
+            runtime.refresh_identity()
+
+        reset.assert_called_once_with()
     finally:
         RuntimeWorker.disable()
 

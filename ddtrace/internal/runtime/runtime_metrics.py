@@ -4,6 +4,7 @@ from typing import Optional  # noqa:F401
 
 from ddtrace.internal import atexit
 from ddtrace.internal.constants import EXPERIMENTAL_FEATURES
+from ddtrace.internal.runtime import on_runtime_identity_refresh
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.threads import Lock
@@ -87,6 +88,7 @@ class RuntimeWorker(periodic.PeriodicService):
         self.dogstatsd_url: Optional[str] = dogstatsd_url
         self._dogstatsd_client: DogStatsd = get_dogstatsd_client(self.dogstatsd_url or agent_config.dogstatsd_url)
         self._runtime_metrics: RuntimeMetrics = RuntimeMetrics()
+        self._metrics_lock = Lock()
         if EXPERIMENTAL_FEATURES.RUNTIME_METRICS in config._experimental_features_enabled:
             # Enables sending runtime metrics as gauges (instead of distributions with a new metric name)
             self.send_metric = self._dogstatsd_client.gauge
@@ -140,20 +142,32 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = True
 
     def flush(self) -> None:
-        # Refresh runtime-id tags when enabled; service/env/version are collected below via TracerTags().
-        if config._runtime_metrics_runtime_id_enabled:
-            self._platform_tags = self._collect_platform_tags()
-        runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
-        # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
-        # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
-        constant_tags = list(dict.fromkeys(self._client_constant_tags + runtime_tags))
-        log.debug("Sending runtime metrics with the following tags: %s", constant_tags)
-        self._dogstatsd_client.constant_tags = constant_tags
+        with self._metrics_lock:
+            # Refresh runtime-id tags when enabled; service/env/version are collected below via TracerTags().
+            if config._runtime_metrics_runtime_id_enabled:
+                self._platform_tags = self._collect_platform_tags()
+            runtime_tags = self._format_tags(TracerTags()) + self._platform_tags + self._process_tags
+            # Re-add dd.internal.entity_id on every flush, deduping in case it also arrives via
+            # TracerTags() (e.g. a DD_TAGS=dd.internal.entity_id:... workaround).
+            constant_tags = list(dict.fromkeys(self._client_constant_tags + runtime_tags))
+            log.debug("Sending runtime metrics with the following tags: %s", constant_tags)
+            self._dogstatsd_client.constant_tags = constant_tags
 
-        with self._dogstatsd_client:
-            for key, value in self._runtime_metrics:
-                log.debug("Sending ddtrace runtime metric %s:%s", key, value)
-                self.send_metric(key, value)
+            with self._dogstatsd_client:
+                for key, value in self._runtime_metrics:
+                    log.debug("Sending ddtrace runtime metric %s:%s", key, value)
+                    self.send_metric(key, value)
+
+    def _refresh_runtime_identity(self, _runtime_id: str) -> None:
+        with self._metrics_lock:
+            self._runtime_metrics.reset()
+            if config._runtime_metrics_runtime_id_enabled:
+                self._platform_tags = self._collect_platform_tags()
+
+    @classmethod
+    def _on_runtime_identity_refresh(cls, runtime_id: str) -> None:
+        if cls._instance is not None:
+            cls._instance._refresh_runtime_identity(runtime_id)
 
     def _collect_platform_tags(self) -> list[str]:
         if config._runtime_metrics_runtime_id_enabled:
@@ -166,3 +180,6 @@ class RuntimeWorker(periodic.PeriodicService):
 
     periodic = flush
     on_shutdown = flush
+
+
+on_runtime_identity_refresh(RuntimeWorker._on_runtime_identity_refresh)

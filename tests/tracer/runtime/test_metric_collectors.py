@@ -97,6 +97,33 @@ class TestNativeProcessMetricCollector(BaseTestCase):
         # matching `TestRuntimeMetricCollector.test_failed_module_load_collect`'s contract.
         self.assertEqual(collector.collect(), [])
 
+    def test_reset_rebases_delta_metrics(self):
+        """A logical runtime refresh must discard the pre-refresh delta baseline."""
+        with (
+            mock.patch(
+                "ddtrace.internal.native.process_metrics",
+                side_effect=[
+                    (100, 200, 10, 20, 1, 1000),
+                    (150, 250, 15, 25, 1, 1000),
+                    (1000, 2000, 100, 200, 1, 1000),
+                    (1010, 2010, 101, 201, 1, 1000),
+                ],
+            ),
+            mock.patch(
+                "ddtrace.internal.runtime.metric_collectors.time.monotonic",
+                side_effect=[0.0, 1.0, 10.0, 11.0],
+            ),
+        ):
+            collector = NativeProcessMetricCollector()
+            before_refresh = dict(collector.collect_fn(None))
+            collector.reset()
+            after_refresh = dict(collector.collect_fn(None))
+
+        self.assertAlmostEqual(before_refresh["runtime.python.cpu.time.user"], 50e-9)
+        self.assertAlmostEqual(after_refresh["runtime.python.cpu.time.user"], 10e-9)
+        self.assertEqual(before_refresh["runtime.python.cpu.ctx_switch.voluntary"], 5)
+        self.assertEqual(after_refresh["runtime.python.cpu.ctx_switch.voluntary"], 1)
+
 
 @pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork()")
 @pytest.mark.subprocess(env={"PYTHONWARNINGS": "ignore::DeprecationWarning"})

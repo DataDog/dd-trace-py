@@ -80,14 +80,19 @@ def _set_runtime_id():
 
 
 def refresh_identity() -> None:
-    """Regenerate the runtime ID without recording fork lineage.
+    """Refresh the runtime ID for an AWS Lambda MicroVM start.
 
     Unlike a fork, this does not update _PARENT_RUNTIME_ID / _ANCESTOR_RUNTIME_ID:
     the previous runtime ID was not a real parent process, so recording it there
     would make get_process_role() and friends misreport a fork lineage that never
-    existed. Use this when a new logical process instance is created by a mechanism
-    other than fork().
+    existed.
+
+    This operation is intentionally a no-op outside AWS Lambda MicroVMs. It is
+    tied to the MicroVM /run lifecycle and must not alter ordinary processes.
     """
+    if not in_aws_lambda_microvm():
+        return
+
     # Notify consumers that only need the new ID first. The explicit refresh
     # callbacks below are for components that must rebuild restore-sensitive
     # state, which is different from the fork handling in _set_runtime_id().
@@ -114,7 +119,7 @@ def listen_for_identity_refresh_hooks(
 
 def maybe_refresh_identity(method: t.Optional[str], path: t.Optional[str]) -> None:
     """Call refresh_identity() if this request is the AWS Lambda MicroVM /run hook."""
-    if not method or not path:
+    if not in_aws_lambda_microvm() or not method or not path:
         return
     if method != MICROVM_RUN_HOOK_METHOD or path != MICROVM_RUN_HOOK_PATH:
         return

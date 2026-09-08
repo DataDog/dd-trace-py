@@ -141,8 +141,8 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     def drop_buffered_traces(self) -> None:
-        """Discard traces buffered by the writer without flushing them."""
-        pass
+        """Discard writer-owned trace buffers without transmitting them."""
+        return
 
 
 class LogWriter(TraceWriter):
@@ -178,6 +178,18 @@ class LogWriter(TraceWriter):
 
     def flush_queue(self) -> None:
         pass
+
+
+def _drop_buffered_encoders(clients: Sequence[WriterClientBase]) -> None:
+    for client in clients:
+        # ListBufferedEncoder exposes get(), while the msgpack encoders expose
+        # flush(). Both operations clear their buffers; their returned payload
+        # is intentionally ignored during identity invalidation.
+        clear = getattr(client.encoder, "get", None)
+        if clear is None:
+            clear = getattr(client.encoder, "flush", None)
+        if clear is not None:
+            clear()
 
 
 class HTTPWriter(periodic.PeriodicService, TraceWriter):
@@ -482,8 +494,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._set_drop_rate()
 
     def drop_buffered_traces(self) -> None:
-        for client in self._clients:
-            getattr(client.encoder, "get")()
+        _drop_buffered_encoders(self._clients)
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
@@ -1164,8 +1175,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._set_drop_rate()
 
     def drop_buffered_traces(self) -> None:
-        for client in self._clients:
-            getattr(client.encoder, "flush")()
+        _drop_buffered_encoders(self._clients)
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)

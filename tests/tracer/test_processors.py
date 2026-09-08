@@ -1,3 +1,5 @@
+from threading import Event
+from threading import Thread
 from typing import Any  # noqa:F401
 
 import mock
@@ -423,6 +425,55 @@ def test_aggregator_reset_with_args():
     assert aggr.sampling_processor._compute_stats_enabled is True
     assert aggr.writer._api_version == "v0.5"
     assert span.trace_id in aggr._traces
+
+
+def test_aggregator_identity_reset_drops_active_trace_and_writer_buffer():
+    writer = mock.Mock()
+    writer.recreate.return_value = writer
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = writer
+
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    assert span.trace_id in aggr._traces
+
+    aggr.reset(reset_buffer=True, flush_writer=False, drop_buffered_traces=True)
+
+    writer.drop_buffered_traces.assert_called_once_with()
+    assert span.trace_id not in aggr._traces
+
+    span.finish()
+    writer.write.assert_not_called()
+
+
+def test_aggregator_identity_reset_drops_trace_finishing_during_refresh():
+    processing_started = Event()
+    allow_processing = Event()
+
+    class BlockingProcessor(TraceProcessor):
+        def process_trace(self, trace):
+            processing_started.set()
+            assert allow_processing.wait(5)
+            return trace
+
+    writer = mock.Mock()
+    writer.recreate.return_value = writer
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, dd_processors=[BlockingProcessor()])
+    aggr.writer = writer
+
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    finish = Thread(target=span.finish)
+    finish.start()
+    try:
+        assert processing_started.wait(5)
+        aggr.reset(reset_buffer=True, flush_writer=False, drop_buffered_traces=True)
+    finally:
+        allow_processing.set()
+        finish.join(5)
+
+    assert not finish.is_alive()
+    writer.write.assert_not_called()
 
 
 def test_aggregator_bad_processor():

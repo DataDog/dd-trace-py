@@ -356,6 +356,7 @@ class SpanAggregator(SpanProcessor):
         )
         # Initialize the trace buffer and lock
         self._traces: defaultdict[int, _Trace] = defaultdict(lambda: _Trace())
+        self._buffer_generation = 0
         self._lock: RLock = RLock()
         super(SpanAggregator, self).__init__()
 
@@ -403,6 +404,7 @@ class SpanAggregator(SpanProcessor):
                 return
 
             trace = self._traces[trace_id]
+            buffer_generation = self._buffer_generation
             trace.num_finished += 1
             num_buffered = len(trace.spans)
             is_trace_complete = trace.num_finished >= num_buffered
@@ -482,7 +484,13 @@ class SpanAggregator(SpanProcessor):
                     sampling_mechanism,
                     should_partial_flush,
                 )
-            self.writer.write(spans)
+            # Identity refresh can discard the trace buffer while processors run outside the
+            # aggregator lock. Re-check the generation while holding the same lock as reset so
+            # a pre-refresh trace cannot be written after the discard boundary.
+            with self._lock:
+                if buffer_generation != self._buffer_generation:
+                    return
+                self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
@@ -581,16 +589,22 @@ class SpanAggregator(SpanProcessor):
         Arguments that are None will not override existing values. By default, the writer is
         flushed only when preserving the trace buffer.
         """
-        if flush_writer is None:
+        if drop_buffered_traces:
+            flush_writer = False
+        elif flush_writer is None:
             flush_writer = not reset_buffer
         if flush_writer:
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
             # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
-        elif drop_buffered_traces:
-            self.writer.drop_buffered_traces()
-        # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
+
+        with self._lock:
+            if drop_buffered_traces:
+                drop = getattr(self.writer, "drop_buffered_traces", None)
+                if drop is not None:
+                    drop()
+            # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
+            self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
@@ -605,7 +619,13 @@ class SpanAggregator(SpanProcessor):
         # Useful when forking to prevent sending duplicate spans from parent and child processes.
         if reset_buffer:
             self.reset_trace_buffer_after_fork()
+        else:
+            self._buffer_generation += 1
 
     def reset_trace_buffer_after_fork(self) -> None:
         """Discard inherited traces without touching the fork-unsafe writer."""
+        # This method runs from the post-fork hook and must not acquire a lock
+        # inherited from another thread. The caller that needs synchronization
+        # during identity refresh holds _lock around this operation.
         self._traces = defaultdict(lambda: _Trace())
+        self._buffer_generation += 1
