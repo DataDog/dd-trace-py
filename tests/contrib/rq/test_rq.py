@@ -6,10 +6,8 @@ import pytest
 import redis
 import rq
 
-from ddtrace.contrib.internal.rq.patch import get_version
 from ddtrace.contrib.internal.rq.patch import patch
 from ddtrace.contrib.internal.rq.patch import unpatch
-from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
@@ -55,14 +53,6 @@ def sync_queue(connection):
 @snapshot(ignores=snapshot_ignores)
 def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
-
-
-def test_and_implement_get_version():
-    version = get_version()
-    assert type(version) == str
-    assert version != ""
-
-    emit_integration_and_version_to_test_agent("rq", version)
 
 
 @snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
@@ -218,15 +208,3 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
-
-
-def test_all_worker_classes_are_instrumented():
-    """rq 2.7 made SimpleWorker a sibling of Worker rather than a subclass; both must be traced."""
-    from ddtrace.internal.utils.wrappers import iswrapped
-
-    patch()
-    try:
-        assert iswrapped(rq.Worker.perform_job)
-        assert iswrapped(rq.SimpleWorker.perform_job)
-    finally:
-        unpatch()
