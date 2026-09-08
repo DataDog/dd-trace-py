@@ -2097,6 +2097,10 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_AGENT_PORT": "9126",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
+                # Enable dynamic ATR so CI Visibility exercises the duration-based retry
+                # budgets (gated behind DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED) in our own
+                # CI, mirroring how customers opt into the feature.
+                "DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": "1",
                 # Disable coverage report upload for this suite: these tests exercise the
                 # coverage upload functionality themselves, so having the plugin also run
                 # coverage upload concurrently causes interference (the plugin's global

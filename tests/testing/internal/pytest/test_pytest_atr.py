@@ -3,6 +3,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
+import pytest
 
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
@@ -14,6 +15,12 @@ from tests.testing.mocks import setup_standard_mocks
 
 
 class TestATR:
+    @pytest.fixture(autouse=True)
+    def _disable_dynamic_atr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # These tests exercise the flat-limit ATR path. Unset the dynamic feature flag so they
+        # stay on that path even when the riotfile enables dynamic ATR globally for dogfooding.
+        monkeypatch.delenv("DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED", raising=False)
+
     def test_atr_passing_test_not_retried(self, pytester: Pytester) -> None:
         """Test that a passing test is not retried by ATR."""
         pytester.makepyfile(
