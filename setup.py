@@ -384,6 +384,12 @@ class ExtensionHashes(build_ext):
                                 str(CARGO_TARGET_DIR / "include" / "datadog" / f),
                             )
                         )
+                    for generated in [
+                        CARGO_TARGET_DIR / "include" / "libdd-profiling" / "src" / "cxx.rs.h",
+                        CARGO_TARGET_DIR / "include" / "rust" / "cxx.h",
+                        CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc",
+                    ]:
+                        entries.append((ext.name, hash_digest, str(generated)))
 
                 # Include any dependencies that might have been built alongside
                 # the extension.
@@ -441,6 +447,40 @@ class CustomBuildRust(build_rust):
 
             cargo_install_with_retry()
 
+    def copy_profiling_cxx_bridge(self) -> None:
+        """Copy libdd-profiling CXX bridge artifacts to stable paths for CMake."""
+        source_headers = sorted(
+            CARGO_TARGET_DIR.glob("*/build/libdd-profiling-*/out/cxxbridge/include/libdd-profiling/src/cxx.rs.h"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        source_files = sorted(
+            CARGO_TARGET_DIR.glob("*/build/libdd-profiling-*/out/cxxbridge/sources/libdd-profiling/src/cxx.rs.cc"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+
+        if not source_headers:
+            raise RuntimeError("Unable to find generated libdd-profiling CXX bridge header")
+        if not source_files:
+            raise RuntimeError("Unable to find generated libdd-profiling CXX bridge source")
+
+        cxxbridge_out = source_headers[0].parents[3]
+        include_src = cxxbridge_out / "include"
+        include_dst = CARGO_TARGET_DIR / "include"
+        include_dst.mkdir(parents=True, exist_ok=True)
+        for item in include_src.iterdir():
+            destination = include_dst / item.name
+            if item.is_dir():
+                shutil.copytree(item, destination, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, destination)
+
+        source_src = source_files[0]
+        source_dst = CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc"
+        source_dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_src, source_dst)
+
     def run(self) -> None:
         """Run the build process with additional post-processing."""
 
@@ -457,6 +497,7 @@ class CustomBuildRust(build_rust):
 
         # Check if profiling is enabled and run dedup_headers
         if has_profiling_feature:
+            self.copy_profiling_cxx_bridge()
             self.install_dedup_headers()
 
             # Add cargo binary folder to PATH
@@ -939,14 +980,23 @@ class CustomBuildExt(build_ext):
                     newest_source_time = max(newest_source_time, src_file.stat().st_mtime)
 
             required_headers = ["common.h"]
+            required_generated_files: list[Path] = []
             if "profiling" in rust_features:
                 required_headers.append("profiling.h")
+                required_generated_files.extend(
+                    [
+                        CARGO_TARGET_DIR / "include" / "libdd-profiling" / "src" / "cxx.rs.h",
+                        CARGO_TARGET_DIR / "include" / "rust" / "cxx.h",
+                        CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc",
+                    ]
+                )
 
             include_dir = CARGO_TARGET_DIR / "include" / "datadog"
             headers_exist = include_dir.exists() and all((include_dir / header).exists() for header in required_headers)
+            generated_files_exist = all(path.exists() for path in required_generated_files)
 
-            # Only rebuild if source files are newer than the destination OR if any required header is missing
-            should_build = newest_source_time > library_mtime or not headers_exist
+            # Only rebuild if source files are newer than the destination OR if any required generated file is missing
+            should_build = newest_source_time > library_mtime or not headers_exist or not generated_files_exist
 
         if should_build:
             # Create and run the CustomBuildRust command
@@ -992,7 +1042,9 @@ class CustomBuildExt(build_ext):
 
         # Check if we need to build libdd_wrapper by checking if sources are newer
         should_build = True
-        if wrapper_library.exists():
+        if self.force:
+            should_build = True
+        elif wrapper_library.exists():
             wrapper_mtime = wrapper_library.stat().st_mtime
 
             # Check dd_wrapper source files
@@ -1017,6 +1069,10 @@ class CustomBuildExt(build_ext):
             cmake_build_dir.mkdir(parents=True, exist_ok=True)
 
             cmake_args = self._get_common_cmake_args(dd_wrapper_dir, cmake_build_dir, wrapper_output_dir, wrapper_name)
+            if BUILD_PROFILING_NATIVE_TESTS:
+                cmake_args += ["-DBUILD_TESTING=ON"]
+            else:
+                cmake_args += ["-DBUILD_TESTING=OFF"]
 
             build_args = [f"--config {COMPILE_MODE}"]
             if "CMAKE_BUILD_PARALLEL_LEVEL" not in os.environ:

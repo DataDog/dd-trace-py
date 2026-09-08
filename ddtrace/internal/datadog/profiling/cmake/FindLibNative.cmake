@@ -23,13 +23,26 @@ message(WARNING "LIBRARY_NAME: ${LIBRARY_NAME}")
 
 # We expect the native extension to be built and installed the headers in the following directory. It is configured in
 # setup.py by setting CARGO_TARGET_DIR environment variable.
-set(SOURCE_INCLUDE_DIR
-    ${CMAKE_SOURCE_DIR}/../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+if(DEFINED RUST_GENERATED_HEADERS_DIR)
+    set(SOURCE_INCLUDE_DIR ${RUST_GENERATED_HEADERS_DIR})
+else()
+    set(SOURCE_INCLUDE_DIR
+        ${CMAKE_SOURCE_DIR}/../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
+endif()
+
+get_filename_component(SOURCE_NATIVE_TARGET_DIR "${SOURCE_INCLUDE_DIR}/.." ABSOLUTE)
+set(SOURCE_CXXBRIDGE_DIR ${SOURCE_NATIVE_TARGET_DIR}/cxxbridge)
 
 set(DEST_LIB_DIR ${CMAKE_CURRENT_BINARY_DIR})
 set(DEST_INCLUDE_DIR ${DEST_LIB_DIR}/include)
+set(DEST_CXXBRIDGE_DIR ${DEST_LIB_DIR}/cxxbridge)
 
 file(COPY ${SOURCE_INCLUDE_DIR} DESTINATION ${DEST_LIB_DIR})
+if(EXISTS ${SOURCE_CXXBRIDGE_DIR})
+    file(COPY ${SOURCE_CXXBRIDGE_DIR} DESTINATION ${DEST_LIB_DIR})
+endif()
+
+set(LIBDD_PROFILING_CXX_SOURCE ${DEST_CXXBRIDGE_DIR}/sources/libdd-profiling/src/cxx.rs.cc)
 
 file(GLOB LIB_FILES "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
 
