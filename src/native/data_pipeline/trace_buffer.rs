@@ -202,7 +202,7 @@ impl TraceBufferPy {
         // A v0.5 output makes the exporter convert the v0.4 span, and that conversion copies the
         // span-link flags verbatim, so the "flags present" bit must not reach it.
 
-        let runtime = shared_runtime.as_arc().clone();
+        let runtime = shared_runtime.as_arc()?.clone();
         let inner = builder
             .builder
             .take()

@@ -25,6 +25,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.inspection import resolved_code_origin
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
 log = get_logger(__name__)
@@ -585,6 +586,13 @@ class ModuleCodeCollector(ModuleWatchdog):
             del self._import_time_contexts[_module.__file__]
 
     def instrument_code(self, code: CodeType, package) -> CodeType:
+        if is_obfuscated_code(code):
+            log.warning(
+                "Cannot instrument %r for coverage: code object appears to be obfuscated (e.g. by PyArmor)",
+                code.co_name,
+            )
+            return code
+
         # Avoid instrumenting the same code object multiple times
         if (code, code.co_filename) in self.seen:
             return code

@@ -80,6 +80,9 @@ class ValueCollector(object):
         self.value_loaded = True
         return self.value
 
+    def stop(self) -> None:
+        """Release process-wide resources. Base is a no-op."""
+
     def __repr__(self):
         return "<{}(enabled={},periodic={},required_modules={})>".format(
             self.__class__.__name__,
