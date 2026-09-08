@@ -3590,3 +3590,79 @@ class TestExperimentScope:
         with llmobs.task(name="standalone_task") as span:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
             assert "scope" not in data.get("_dd", {})
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agentless_via_keyword_argument_repoints_remote_configuration():
+    """Remote Configuration read the environment at import; the keyword argument came later."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True)
+
+    assert remoteconfig_poller._client.agentless is True
+    assert remoteconfig_poller._state == remoteconfig_poller._online
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": None,
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_an_api_key_passed_in_code_repoints_remote_configuration():
+    """The key exists nowhere in the environment, so only the late switch can supply it."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True, api_key="a-key-from-code")
+
+    assert remoteconfig_poller._client.agentless is True
+
+    captured = {}
+
+    def _fake_native(_runtime, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    import ddtrace.internal.native as native_mod
+
+    native_mod.RemoteConfigClient = _fake_native
+    remoteconfig_poller._client.ensure_native()
+    assert captured["api_key"] == "a-key-from-code"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agent_bound_llmobs_leaves_remote_configuration_on_the_agent():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+
+    assert remoteconfig_poller._client.agentless is False
+    assert remoteconfig_poller._state == remoteconfig_poller._agent_check
