@@ -161,6 +161,14 @@ def _rearm_all_events() -> None:
     this no longer depends on careful timing to be safe — it cannot affect any other tool's
     disabled-event state regardless of when it runs.
     """
+    # Nothing to re-arm unless we actually own a registered tool slot. set_local_events() requires
+    # an integer tool id, so a None _DD_TOOL_ID (no slot ever claimed, or the slot was freed) would
+    # otherwise raise "'NoneType' object cannot be interpreted as an integer". In production this
+    # only happens when nothing was instrumented (so _CODE_HOOKS is empty and the loop is a no-op
+    # anyway); the guard also keeps us safe if our slot was released out from under us.
+    if _DD_TOOL_ID is None or sys.monitoring.get_tool(_DD_TOOL_ID) != "datadog":
+        return
+
     for code in _CODE_HOOKS:
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, 0)
         sys.monitoring.set_local_events(_DD_TOOL_ID, code, EVENT)
