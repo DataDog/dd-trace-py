@@ -84,7 +84,10 @@ def generate_xdist_manifest(session_manager: SessionManager, args: list[str]) ->
             session_manager.itr_correlation_id,
         )
     except Exception as e:
-        log.debug("Could not write xdist manifest cache %s: %s", manifest_dir, e)
+        # An unexpected failure here (read-only TMPDIR, no space left, ...) means the workers will each fall back to
+        # querying the backend and the optimization is silently lost for this session.  Say so out loud, matching the
+        # WARNING already emitted on the worker side when a worker cannot read its controller's manifest.
+        log.warning("Could not write xdist manifest cache %s: %s", manifest_dir, e)
         if manifest_dir is not None:
             shutil.rmtree(manifest_dir, ignore_errors=True)
         return None
@@ -122,8 +125,17 @@ def resolve_inherited_manifest_env() -> None:
     (``pytest.main()``, ``pytester.inline_run()``) shares the worker's pid, so it looks like the manifest's rightful
     owner and reads the outer session's cache. Dropping the env var would not help either: ``OfflineMode`` is a
     process-wide singleton that the worker already resolved. Fixing it properly means scoping offline mode to a
-    session rather than a process. In practice the nested run usually has the plugin disabled, and ``tests/testing``
-    clears the variable for the in-process cases that do enable it.
+    session rather than a process.
+
+    Investigated and left as-is: ``OfflineMode`` is first resolved during ``SessionManager.__init__`` (via
+    ``env_tags.get_env_tags()`` and ``BackendConnectorSetup.detect_setup()``), i.e. *before* any session object
+    exists, which is exactly why it is a process singleton today. Scoping it to a session means threading a resolved
+    value through ``env_tags``/``session_manager``/``plugin``/``writer`` instead of reading a module global, and
+    reworking the early-init order so the session exists before the first resolution. That is a cross-cutting refactor
+    of five modules with real test-isolation risk (the singleton is also what lets ``tests/testing/conftest.py`` reset
+    state between tests). The practical impact is narrow -- the nested run usually has the plugin disabled, and
+    ``tests/testing`` clears the variable for the in-process cases that do enable it -- so the cost does not yet
+    justify the risk. Revisit if in-process nested pytest under xdist becomes a supported workflow.
     """
     manifest_env = os.environ.get(DD_TEST_OPTIMIZATION_MANIFEST_FILE)
     if not manifest_env:
