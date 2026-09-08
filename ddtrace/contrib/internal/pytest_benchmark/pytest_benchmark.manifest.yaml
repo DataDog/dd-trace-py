@@ -1,0 +1,11 @@
+_v: 1
+name: pytest_benchmark
+display_name: pytest-benchmark
+description: Instruments pytest-benchmark results by attaching timing statistics and benchmark identity to pytest test spans
+  and events.
+packages:
+- name: pytest_benchmark
+category:
+- other
+systems: []
+creation_date: '2023-08-07'

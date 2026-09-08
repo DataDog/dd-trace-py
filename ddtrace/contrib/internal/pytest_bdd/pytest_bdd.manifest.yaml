@@ -1,0 +1,11 @@
+_v: 1
+name: pytest_bdd
+display_name: pytest-bdd
+description: Instruments pytest-bdd scenario and step execution, enriching scenario test metadata and tracing step parameters,
+  code ownership, and failures.
+packages:
+- name: pytest-bdd
+category:
+- test.execution
+systems: []
+creation_date: '2022-06-02'
