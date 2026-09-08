@@ -32,6 +32,7 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
+from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
@@ -1566,12 +1567,12 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
-    # NOTE: This must run before the _is_enabled_early guard. The tracer initialises
-    # on import (before CLI parsing), so its _atexit handler fires regardless of
-    # whether --ddtrace is passed. If this line moves below the guard, ddtrace logs
-    # will propagate to user-configured root handlers whose streams pytest closes
-    # during teardown, reintroducing the "I/O operation on closed file" error (#16712).
-    logging.getLogger("ddtrace").propagate = False
+    # AIDEV-NOTE: Register before the enablement guard: importing the tracer also
+    # registers its exit hook without --ddtrace (#16712). Cleanup runs in LIFO order,
+    # so registering before capture starts lets this rescan run after capture cleanup
+    # and include handlers installed by later hooks. Never disable propagation: healthy
+    # root handlers must still receive tracer diagnostics, including at shutdown.
+    early_config.add_cleanup(protect_ddtrace_stream_handlers)
 
     if not _is_enabled_early(early_config, args):
         yield
@@ -1611,6 +1612,20 @@ def pytest_load_initial_conftests(
     if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
 
+    yield
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_sessionfinish() -> t.Generator[None, None, None]:
+    # Fixture capture streams can already be closed when session teardown starts.
+    protect_ddtrace_stream_handlers()
+    yield
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_unconfigure() -> t.Generator[None, None, None]:
+    # This also runs after collection errors and includes sessionfinish reconfiguration.
+    protect_ddtrace_stream_handlers()
     yield
 
 

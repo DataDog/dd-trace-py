@@ -6,9 +6,8 @@ ddtrace log records emitted at interpreter shutdown (via Tracer._atexit) propaga
 the root logger's handler.  By that point pytest has already closed its captured
 sys.stdout, so the handler raises ValueError: I/O operation on closed file.
 
-The fix sets logging.getLogger("ddtrace").propagate = False in
-pytest_load_initial_conftests (before the --ddtrace early-enable guard), mirroring
-the old plugin's unconditional take_over_logger_stream_handler() call.
+Teardown protects closed stream destinations while preserving delivery to healthy
+handlers and leaving user-configured propagation unchanged.
 
 These tests use runpytest_subprocess because the bug only manifests at interpreter
 shutdown (atexit), which does not fire in inline_run.
@@ -75,22 +74,6 @@ _TEST_FAIL = textwrap.dedent(
     """
 )
 
-# A passing test that verifies the ddtrace logger's propagate attribute is False
-# at test-run time (i.e. after pytest_load_initial_conftests has run).
-_TEST_PROPAGATE_IS_FALSE = textwrap.dedent(
-    """\
-    import logging
-
-
-    def test_ddtrace_logger_propagate_is_false():
-        ddtrace_logger = logging.getLogger("ddtrace")
-        assert ddtrace_logger.propagate is False, (
-            f"ddtrace logger propagate should be False, got {ddtrace_logger.propagate}"
-        )
-    """
-)
-
-
 # Infrastructure mock plugin — loaded via -p dd_log_prop_infra.
 # Sets up mocks in the subprocess so the plugin can initialise without a real agent.
 # Mirrors the approach in test_pytest_log_correlation.py.
@@ -144,7 +127,7 @@ def subprocess_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestDdtraceLoggerPropagation:
-    """Verify that the ddtrace logger does not propagate to user-configured root handlers."""
+    """Verify shutdown safety without overriding the user's logging configuration."""
 
     def test_no_logging_error_without_ddtrace_flag(self, pytester: Pytester) -> None:
         """Without --ddtrace, the plugin still loads and must prevent the logging error.
@@ -181,15 +164,20 @@ class TestDdtraceLoggerPropagation:
         result.assert_outcomes(failed=1)
         _assert_no_logging_error(result)
 
-    def test_ddtrace_logger_propagate_is_false(self, pytester: Pytester) -> None:
-        """The ddtrace logger must have propagate = False during the test session.
+    @pytest.mark.parametrize("propagate", [False, True])
+    def test_ddtrace_logger_propagation_is_preserved(
+        self, pytester: Pytester, logging_probe_env: None, propagate: bool
+    ) -> None:
+        pytester.makepyfile(early_logging=f"import logging\nlogging.getLogger('ddtrace').propagate = {propagate!r}")
+        pytester.makepyfile(
+            test_file=f"""\
+            import logging
 
-        This holds even without --ddtrace because the fix runs unconditionally
-        in pytest_load_initial_conftests.
-        """
-        pytester.makepyfile(test_file=_TEST_PROPAGATE_IS_FALSE)
-
-        result = pytester.runpytest_subprocess("-v")
+            def test_propagation():
+                assert logging.getLogger("ddtrace").propagate is {propagate!r}
+            """
+        )
+        result = _run_logging_probe(pytester, "-p", "early_logging")
         result.assert_outcomes(passed=1)
 
     def test_no_logging_error_without_custom_logger(self, pytester: Pytester) -> None:
@@ -327,10 +315,10 @@ def test_direct_handler(logger):
 
 @pytest.mark.usefixtures("logging_probe_env")
 class TestLoggingDeliveryCompatibility:
-    """Preservation probes: tracer-to-root cases should fail with PR #20101's blanket cutoff.
+    """Preservation probes that catch a blanket propagation cutoff.
 
     These intentionally assert delivery, not the implementation's propagate value.
-    Application and direct-handler cases are unaffected controls, not expected failures.
+    Application and direct-handler cases are unaffected controls.
     """
 
     @pytest.mark.parametrize("logger_name", ["ddtrace._trace.tracer", "application"])
@@ -446,6 +434,116 @@ class TestLoggingDeliveryCompatibility:
 
 @pytest.mark.usefixtures("logging_probe_env")
 class TestLoggingDeliveryControls:
+    @pytest.mark.parametrize("capture", ["fd", "sys", "no"])
+    @pytest.mark.parametrize("destination", ["root", "ddtrace", "ddtrace._trace.tracer"])
+    def test_shutdown_preserves_healthy_root_handler(self, pytester: Pytester, capture: str, destination: str) -> None:
+        """A dead destination must not suppress a record at a healthy root handler."""
+        pytester.makepyfile(
+            test_shutdown=f"""\
+            import atexit
+            import logging
+            import sys
+
+            def test_shutdown():
+                root = logging.getLogger()
+                root.setLevel(logging.DEBUG)
+                root.addHandler(logging.FileHandler("root.log"))
+                destination = root if {destination!r} == "root" else logging.getLogger({destination!r})
+                destination.addHandler(logging.StreamHandler(sys.stdout))
+                logger = logging.getLogger("ddtrace._trace.tracer")
+                logger.error("during test delivery")
+                atexit.register(logger.error, "shutdown delivery")
+            """
+        )
+        result = _run_logging_probe(pytester, f"--capture={capture}")
+        result.assert_outcomes(passed=1)
+        output = (pytester.path / "root.log").read_text()
+        assert "during test delivery" in output
+        assert "shutdown delivery" in output
+        _assert_no_logging_error(result)
+
+    def test_handler_installed_during_unconfigure(self, pytester: Pytester) -> None:
+        pytester.makeconftest(
+            """\
+            import atexit
+            import io
+            import logging
+
+            def pytest_unconfigure(config):
+                stream = io.StringIO()
+                root = logging.getLogger()
+                root.addHandler(logging.StreamHandler(stream))
+                root.addHandler(logging.FileHandler("late.log"))
+                config.add_cleanup(stream.close)
+                atexit.register(logging.getLogger("ddtrace._trace.tracer").error, "late shutdown delivery")
+            """
+        )
+        pytester.makepyfile("def test_pass(): pass")
+        result = _run_logging_probe(pytester)
+        result.assert_outcomes(passed=1)
+        assert "late shutdown delivery" in (pytester.path / "late.log").read_text()
+        _assert_no_logging_error(result)
+
+    def test_collection_error_still_protects_shutdown(self, pytester: Pytester) -> None:
+        pytester.makeconftest(
+            """\
+            import atexit
+            import logging
+            import sys
+
+            root = logging.getLogger()
+            root.addHandler(logging.StreamHandler(sys.stdout))
+            root.addHandler(logging.FileHandler("collection.log"))
+            atexit.register(logging.getLogger("ddtrace._trace.tracer").error, "collection shutdown delivery")
+            """
+        )
+        pytester.makepyfile("raise RuntimeError('collection failure')")
+        result = _run_logging_probe(pytester)
+        result.assert_outcomes(errors=1)
+        assert "collection shutdown delivery" in (pytester.path / "collection.log").read_text()
+        _assert_no_logging_error(result)
+
+    def test_repeated_pytest_main_preserves_logging_and_tracer(self, pytester: Pytester) -> None:
+        pytester.makepyfile(
+            test_session="""\
+            import logging
+            import sys
+
+            def test_session():
+                logging.getLogger().addHandler(logging.StreamHandler(sys.stdout))
+                logging.getLogger("ddtrace._trace.tracer").error("during session")
+            """
+        )
+        script = pytester.makepyfile(
+            run_sessions="""\
+            import logging
+            import pytest
+            import ddtrace
+            from ddtrace.testing.internal.logging import _DDTraceClosedStreamFilter
+
+            root = logging.getLogger()
+            root.setLevel(logging.DEBUG)
+            root.addHandler(logging.FileHandler("sessions.log"))
+            for _ in range(2):
+                assert pytest.main([
+                    "-p", "ddtrace.testing.internal.pytest.entry_point",
+                    "--confcutdir=.", "-q", "test_session.py",
+                ]) == 0
+                assert ddtrace.tracer.enabled
+                assert logging.getLogger("ddtrace").propagate is True
+                for handler in root.handlers:
+                    if type(handler) is logging.StreamHandler:
+                        assert sum(isinstance(f, _DDTraceClosedStreamFilter) for f in handler.filters) == 1
+                logging.getLogger("ddtrace._trace.tracer").error("after session")
+            """
+        )
+        result = pytester.runpython(script)
+        assert result.ret == 0
+        output = (pytester.path / "sessions.log").read_text()
+        assert output.count("during session") == 2
+        assert output.count("after session") == 2
+        _assert_no_logging_error(result)
+
     @pytest.mark.parametrize("debug", [False, True])
     def test_tracer_file_logging(self, pytester: Pytester, monkeypatch: pytest.MonkeyPatch, debug: bool) -> None:
         log_file = pytester.path / "tracer.log"
