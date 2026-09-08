@@ -490,53 +490,13 @@ microbenchmark-noop:
     _filter_benchmarks_slos_file(benchmark_classnames)
 
 
-def _get_benchmark_class_name(suite_name: str) -> str:
-    contents = Path(f"benchmarks/{suite_name}/scenario.py").read_text()
-    for line in contents.split("\n"):
-        match = re.match(BENCHMARK_CLASS_REGEX, line)
-        if match:
-            return match.group(1).lower()
-
-
-def _iter_slo_scenarios(text: str):
-    """Yield (class_prefix, block_lines) for each scenario in an SLO source file.
-
-    block_lines is the ``- name: ...`` line plus its ``thresholds`` lines,
-    verbatim, so the generated file preserves the exact threshold text.
-    """
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines) and lines[i].strip() != "scenarios:":
-        i += 1
-    body = lines[i + 1 :]
-    j = 0
-    while j < len(body):
-        line = body[j]
-        match = re.match(BENCHMARK_SCENARIO_REGEX, line)
-        if match:
-            block = [line]
-            k = j + 1
-            while k < len(body):
-                nxt = body[k]
-                # Stop at the next scenario, a group comment, or a blank line;
-                # threshold lines are indented and none of those.
-                if re.match(BENCHMARK_SCENARIO_REGEX, nxt) or nxt.strip().startswith("#") or not nxt.strip():
-                    break
-                block.append(nxt)
-                k += 1
-            yield match.group(1), block
-            j = k
-        else:
-            j += 1
-
-
 def _filter_benchmarks_slos_file(classnames: list) -> None:
     # Merge the per-team SLO source files under slos/ (each owned by a team via
     # CODEOWNERS) into the single generated file consumed by check-slo-breaches,
     # keeping only scenarios whose benchmark class is in this pipeline.
     kept_blocks: list[list[str]] = []
     for src in sorted(MICROBENCHMARKS_SLOS_DIR.glob("*.yml")):
-        for class_prefix, block in _iter_slo_scenarios(src.read_text()):
+        for class_prefix, block in iter_slo_scenarios(src.read_text()):
             if class_prefix in classnames:
                 kept_blocks.append(block)
 
@@ -1019,8 +979,8 @@ sys.path.append(str(ROOT / "tests"))
 # Single source of truth for the benchmark SLO naming regexes lives in
 # check_slo_ownership.py; import them here so both this generator and the
 # linter stay in sync.
-from check_slo_ownership import BENCHMARK_CLASS_REGEX  # noqa: E402
-from check_slo_ownership import BENCHMARK_SCENARIO_REGEX  # noqa: E402
+from check_slo_ownership import _get_benchmark_class_name  # noqa: E402
+from check_slo_ownership import iter_slo_scenarios  # noqa: E402
 
 
 def template(name: str, **params):

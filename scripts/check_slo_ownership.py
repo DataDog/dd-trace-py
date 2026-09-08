@@ -50,6 +50,38 @@ def _get_benchmark_class_name(suite_name: str) -> str | None:
     return None
 
 
+def iter_slo_scenarios(text: str):
+    """Yield (class_prefix, block_lines) for each scenario in an SLO source file.
+
+    block_lines is the ``- name: ...`` line plus its ``thresholds`` lines,
+    verbatim, so the generated file preserves the exact threshold text.
+    """
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines) and lines[i].strip() != "scenarios:":
+        i += 1
+    body = lines[i + 1 :]
+    j = 0
+    while j < len(body):
+        line = body[j]
+        match = re.match(BENCHMARK_SCENARIO_REGEX, line)
+        if match:
+            block = [line]
+            k = j + 1
+            while k < len(body):
+                nxt = body[k]
+                # Stop at the next scenario, a group comment, or a blank line;
+                # threshold lines are indented and none of those.
+                if re.match(BENCHMARK_SCENARIO_REGEX, nxt) or nxt.strip().startswith("#") or not nxt.strip():
+                    break
+                block.append(nxt)
+                k += 1
+            yield match.group(1), block
+            j = k
+        else:
+            j += 1
+
+
 def _configs(suite_name: str) -> set[str]:
     cfg = BENCHMARKS / suite_name / "config.yaml"
     if not cfg.exists():
@@ -84,12 +116,11 @@ def validate() -> None:
     seen_in_file: dict[str, list[str]] = {}
     for src in sorted(SLOS_DIR.glob("*.yml")):
         rel = str(src.relative_to(ROOT))
-        for line in src.read_text().splitlines():
-            m = re.match(BENCHMARK_SCENARIO_REGEX, line)
-            if m:
-                name = line.split("- name:", 1)[1].strip()
-                all_slos.add(name)
-                seen_in_file.setdefault(name, []).append(rel)
+        for _class_prefix, block in iter_slo_scenarios(src.read_text()):
+            # The full scenario name is everything after "- name: " on the first line.
+            name = block[0].split("- name:", 1)[1].strip()
+            all_slos.add(name)
+            seen_in_file.setdefault(name, []).append(rel)
 
     errors: list[str] = []
 
