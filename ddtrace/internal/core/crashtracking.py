@@ -179,7 +179,7 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         env_value = env.get(env_var)
         if env_value is not None:
             if env_var == "PYTHONPATH":
-                # ddtrace-run prepends its bootstrap dir (containing sitecustomize.py) to
+                # ddtrace-run and SSI prepends its bootstrap dir (containing sitecustomize.py) to
                 # PYTHONPATH so the traced app auto-instruments on startup. If we inherit it
                 # as-is, the receiver's own interpreter re-triggers that bootstrap and ends up
                 # running a second, independently-configured copy of ddtrace using this stripped-down env.
