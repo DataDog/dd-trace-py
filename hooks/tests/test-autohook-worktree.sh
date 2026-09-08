@@ -10,6 +10,10 @@ AUTOHOOK="$(cd "$(dirname "$0")/.." && pwd)/autohook.sh"
 PASS=0
 FAIL=0
 
+# Do not let user or system Git configuration affect setup or probes.
+export GIT_CONFIG_GLOBAL=/dev/null
+export GIT_CONFIG_SYSTEM=/dev/null
+
 TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
@@ -29,6 +33,7 @@ WT="$TMPDIR_TEST/wt"
 git init -q "$REPO"
 git -C "$REPO" config user.email "hook-test@example.com"
 git -C "$REPO" config user.name "hook-test"
+git -C "$REPO" config extensions.worktreeConfig true
 mkdir -p "$REPO/hooks/pre-commit"
 cp "$AUTOHOOK" "$REPO/hooks/autohook.sh"
 chmod +x "$REPO/hooks/autohook.sh"
@@ -37,9 +42,10 @@ chmod +x "$REPO/hooks/pre-commit/00-noop"
 git -C "$REPO" add hooks
 git -C "$REPO" commit -q -m init
 
-# The skip this install exists to undo: relative hooksPath in the *common* config.
+# The install below must remove the old value from both common and worktree config.
 git -C "$REPO" config --local core.hooksPath .git/hooks
 git -C "$REPO" worktree add -q "$WT"
+git -C "$WT" config --worktree core.hooksPath .git/hooks
 
 # ---- without fix: old $repo_root/.git/hooks + relative hooksPath ----
 # Old install wrote $repo_root/.git/hooks. In a worktree that path is not a
@@ -50,6 +56,7 @@ mkdir -p "$REPO/.git/hooks"
 printf '%s\n' '#!/bin/sh' "echo HOOK_RAN > '$WITHOUT_MARK'" 'exit 1' \
     > "$REPO/.git/hooks/pre-commit"
 chmod +x "$REPO/.git/hooks/pre-commit"
+ln -s "$TMPDIR_TEST/missing-hook" "$REPO/.git/hooks/post-merge"
 
 check "without fix: worktree .git is a file" "test -f '$WT/.git'"
 check "without fix: old \$repo_root/.git/hooks is not a directory" \
@@ -77,6 +84,7 @@ check "without fix: sentinel never written (silent skip)" \
 
 COMMON_HOOKS="$(cd "$(git -C "$WT" rev-parse --git-common-dir)" && pwd)/hooks"
 COMMON_CONFIG="$(cd "$(git -C "$WT" rev-parse --git-common-dir)" && pwd)/config"
+WORKTREE_CONFIG="$(git -C "$WT" rev-parse --path-format=absolute --git-path config.worktree)"
 
 check "install writes pre-commit into the common hooks dir" \
     "test -L '$COMMON_HOOKS/pre-commit'"
@@ -84,13 +92,26 @@ check "install writes post-merge into the common hooks dir" \
     "test -L '$COMMON_HOOKS/post-merge'"
 check "install writes post-checkout into the common hooks dir" \
     "test -L '$COMMON_HOOKS/post-checkout'"
+check "install replaces a dangling hook symlink" \
+    "test -L '$COMMON_HOOKS/post-merge' && test -e '$COMMON_HOOKS/post-merge'"
 check "install unsets relative core.hooksPath from the common config" \
     "! git config --file '$COMMON_CONFIG' --get core.hooksPath"
+check "install unsets old core.hooksPath from worktree config" \
+    "! git config --file '$WORKTREE_CONFIG' --get core.hooksPath"
 check "worktree repo config has no relative core.hooksPath" \
-    "test -z \"\$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -C '$WT' config --get core.hooksPath || true)\""
+    "test -z \"\$(git -C '$WT' config --get core.hooksPath || true)\""
 
-# ---- with fix: common-dir hooks + unset hooksPath → hook runs ----
-# Autohook reads $worktree/hooks/<type>, not the main checkout's copy.
+# A valid relative path is preserved and remains the effective hook directory.
+git -C "$WT" config --local core.hooksPath .githooks
+( cd "$WT" && ./hooks/autohook.sh install >/dev/null )
+CUSTOM_HOOKS="$WT/.githooks"
+check "install preserves a valid relative core.hooksPath" \
+    "[ \"\$(git -C '$WT' config --get core.hooksPath)\" = .githooks ]"
+check "install writes valid custom hook symlink" \
+    "test -L '$CUSTOM_HOOKS/pre-commit' && test -e '$CUSTOM_HOOKS/pre-commit'"
+
+# ---- with fix: resolved hooksPath + hook runs ----
+# Autohook reads the worktree's configured hooks path.
 WITH_MARK="$TMPDIR_TEST/with-hook-ran"
 printf '%s\n' '#!/bin/sh' "echo HOOK_RAN > '$WITH_MARK'" 'exit 1' \
     > "$WT/hooks/pre-commit/01-sentinel"

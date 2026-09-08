@@ -29,7 +29,7 @@
 
 
 echo() {
-    builtin echo "[Autohook] $@";
+    builtin echo "[Autohook] $*";
 }
 
 
@@ -40,45 +40,46 @@ install() {
         "post-checkout"
     )
 
-    # Install into git-common-dir/hooks; a worktree's .git is a file.
-    git_common_dir=$(cd "$(git rev-parse --git-common-dir)" && pwd)
-    hooks_dir="$git_common_dir/hooks"
+    # Remove only the old relative override before resolving Git's effective hook
+    # path. Valid custom paths such as .githooks must remain in effect.
+    drop_broken_hooks_path
+    hooks_dir=$(git rev-parse --path-format=absolute --git-path hooks)
     mkdir -p "$hooks_dir"
-    autohook_linktarget="../../hooks/autohook.sh"
+    autohook_path=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/autohook.sh
     for hook_type in "${hook_types[@]}"
     do
         hook_symlink="$hooks_dir/$hook_type"
-        ln -sf $autohook_linktarget $hook_symlink
+        if [[ -e "$hook_symlink" || -L "$hook_symlink" ]]
+        then
+            rm -f "$hook_symlink"
+        fi
+        ln -s "$autohook_path" "$hook_symlink"
     done
-
-    drop_relative_hooks_path "$git_common_dir"
 }
 
 
-# Unset a relative core.hooksPath in repo-scoped config; it does not resolve in a worktree.
-drop_relative_hooks_path() {
-    git_common_dir="$1"
-    git_dir=$(cd "$(git rev-parse --git-dir)" && pwd)
-    # Repo-scoped files only; leave absolute / --global hooksPath alone.
-    for scope_file in "$git_dir/config" "$git_common_dir/config"
+# Unset the old relative core.hooksPath value from repo/worktree config.
+drop_broken_hooks_path() {
+    config_files=(
+        "$(git rev-parse --path-format=absolute --git-path config)"
+        "$(git rev-parse --path-format=absolute --git-path config.worktree)"
+    )
+    for scope_file in "${config_files[@]}"
     do
-        [[ -f $scope_file ]] || continue
-        configured=$(git config --file "$scope_file" --get core.hooksPath 2>/dev/null) || continue
-        [[ -n $configured ]] || continue
-        if [[ $configured == /* ]]
+        [[ -f "$scope_file" ]] || continue
+        if git config --file "$scope_file" --get-regexp '^core\.hookspath$' 2>/dev/null |
+            grep -Fxq 'core.hookspath .git/hooks'
         then
-            echo "core.hooksPath in $scope_file is '$configured'; leaving it alone."
-            continue
+            git config --file "$scope_file" --unset-all core.hooksPath '^\.git/hooks$'
+            echo "Removed old core.hooksPath=.git/hooks from $scope_file."
         fi
-        git config --file "$scope_file" --unset-all core.hooksPath
-        echo "Removed relative core.hooksPath ('$configured') from $scope_file; it never resolves inside a worktree."
     done
 }
 
 
 main() {
-    git config --local include.path ../.gitconfig
-    calling_file=$(basename $0)
+    git config --local include.path "../.gitconfig"
+    calling_file=$(basename "$0")
 
     if [[ $calling_file == "autohook.sh" ]]
     then
@@ -95,7 +96,7 @@ main() {
         number_of_symlinks="${#files[@]}"
         if [[ $number_of_symlinks == 1 ]]
         then
-            if [[ "$(basename ${files[0]})" == "*" ]]
+            if [[ "$(basename "${files[0]}")" == "*" ]]
             then
                 number_of_symlinks=0
             fi
@@ -107,7 +108,7 @@ main() {
             failed_scripts=()
             for file in "${files[@]}"
             do
-                scriptname=$(basename $file)
+                scriptname=$(basename "$file")
                 echo "BEGIN $scriptname"
                 "$file" "$@"
                 script_exit_code="$?"

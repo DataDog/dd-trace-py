@@ -166,12 +166,14 @@ git commit --no-verify  # Skip pre-commit hooks
 
 To disable specific hooks:
 ```bash
-chmod -x .git/hooks/<hook-type>
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+chmod -x "$HOOKS_DIR/<hook-type>"
 ```
 
 To re-enable:
 ```bash
-chmod +x .git/hooks/<hook-type>
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+chmod +x "$HOOKS_DIR/<hook-type>"
 ```
 
 ## Troubleshooting
@@ -179,7 +181,8 @@ chmod +x .git/hooks/<hook-type>
 ### Hook Not Running
 Check if hooks are installed:
 ```bash
-ls -la .git/hooks/
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+ls -la "$HOOKS_DIR/"
 ```
 
 If missing, run:
