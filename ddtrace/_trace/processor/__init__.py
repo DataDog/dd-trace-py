@@ -2,7 +2,6 @@ import abc
 from collections import defaultdict
 from itertools import chain
 import logging
-from threading import RLock
 from typing import Optional
 
 from ddtrace._trace.sampler import DatadogSampler
@@ -29,6 +28,7 @@ from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics import MetricRecorder
 from ddtrace.internal.telemetry.metrics import get_metric_recorder
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import create_trace_writer
