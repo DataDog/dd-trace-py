@@ -154,6 +154,10 @@ components:
 suites:
   crashtracker:
     venvs_per_job: 6
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@crashtracker'
       - '@core'
@@ -207,6 +211,9 @@ suites:
     ddtest: true
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -221,6 +228,10 @@ suites:
   internal:
     retry: 2
     venvs_per_job: 2
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@core'
       - '@remoteconfig'
@@ -268,6 +279,10 @@ suites:
     pattern: ^openfeature$
   telemetry:
     parallelism: 1
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@bootstrap'
       - '@contrib'
