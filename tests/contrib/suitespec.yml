@@ -212,6 +212,8 @@ components:
     - ddtrace/contrib/internal/subprocess/*
   tornado:
     - ddtrace/contrib/internal/tornado/*
+  trio:
+    - ddtrace/contrib/internal/trio/*
   urllib3:
     - ddtrace/contrib/internal/urllib3/*
   valkey:
@@ -2708,6 +2710,18 @@ suites:
         - name: tornado
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'tornado==6.4.1']
+  trio:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@trio'
+      - tests/contrib/trio/*
+    services:
+      - testagent
+    snapshot: false
+    venvs_per_job: 2
   urllib3:
     parallelism: 2
     env:

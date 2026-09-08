@@ -1,9 +1,11 @@
+from contextvars import ContextVar
 import sys
 
 from ddtrace.internal import core
 
 
 PYTHON_CONTEXT_SWITCH_EVENT = "python.context.switch"
+CONTEXT_SWITCH_WORKER_INSTRUMENTED = ContextVar("context_switch_worker_instrumented", default=False)
 
 
 if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
