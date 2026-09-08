@@ -6,7 +6,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use datadog_live_debugger::sender::{self, Config as SenderConfig};
+use libdd_live_debugger::sender::{self, Config as SenderConfig};
 use libdd_common::Endpoint;
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::exceptions::PyValueError;
