@@ -154,6 +154,10 @@ components:
 suites:
   crashtracker:
     venvs_per_job: 6
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@crashtracker'
       - '@core'
@@ -207,6 +211,9 @@ suites:
     ddtest: true
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -218,14 +225,13 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
     snapshot: true
-  integration_registry:
-    parallelism: 1
-    paths:
-      - '@contrib'
-      - scripts/integration_registry/*
   internal:
     retry: 2
     venvs_per_job: 2
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@core'
       - '@remoteconfig'
@@ -273,6 +279,10 @@ suites:
     pattern: ^openfeature$
   telemetry:
     parallelism: 1
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -295,7 +305,7 @@ suites:
       DD_TRACE_AGENT_URL: http://localhost:8126
       DDTEST_SUITE_PATH: tests/tracer
       DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
@@ -314,14 +324,14 @@ suites:
     retry: 2
     venvs_per_job: 1
     matrix:
-      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
       env:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
         DDTEST_SUITE_PATH: tests/tracer
         DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
@@ -346,15 +356,17 @@ suites:
       - '@tracing'
       - '@vendor'
       - tests/tracer/test_uwsgi_shutdown.py
+      - tests/tracer/test_uwsgi_fork_hooks.py
       - tests/tracer/uwsgi-app.py
+      - tests/tracer/uwsgi-fork-smoke-app.py
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
     matrix:
-      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py
       env:
         DDTEST_SUITE_PATH: tests/tracer
         DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
