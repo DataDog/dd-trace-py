@@ -16,7 +16,8 @@ def _num_objects_tainted_in_request() -> int:
     """
     context_id = _get_iast_context_id()
     if context_id is not None:
-        return debug_num_tainted_objects(context_id)
+        num_objects: int = debug_num_tainted_objects(context_id)
+        return num_objects
     return 0
 
 

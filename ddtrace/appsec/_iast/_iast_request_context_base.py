@@ -1,6 +1,6 @@
 """IAST request lifecycle and environment helpers.
 
-Context-local primitives remain re-exported here for existing internal callers.
+Context-local primitives remain explicitly re-exported for existing internal callers and type checkers.
 Low-level consumers import them from ddtrace.appsec._iast_context directly.
 """
 
@@ -11,15 +11,17 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
+from ddtrace.appsec._iast._taint_tracking._context import (
+    _num_objects_tainted_in_request as _num_objects_tainted_in_request,
+)
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
-from ddtrace.appsec._iast_context import IAST_CONTEXT
-from ddtrace.appsec._iast_context import _get_iast_context_id
+from ddtrace.appsec._iast_context import IAST_CONTEXT as IAST_CONTEXT
+from ddtrace.appsec._iast_context import _get_iast_context_id as _get_iast_context_id
 from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled as _is_iast_taint_source_enabled
 from ddtrace.appsec._iast_context import iast_suppress_context as iast_suppress_context
-from ddtrace.appsec._iast_context import is_iast_request_enabled
+from ddtrace.appsec._iast_context import is_iast_request_enabled as is_iast_request_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
