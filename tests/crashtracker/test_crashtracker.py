@@ -1073,10 +1073,13 @@ def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
 
 @pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
 def test_crashtracker_uploads_to_the_intake_when_agentless():
-    """Crash reports ride the telemetry intake, so agentless has to supply a key with the URL.
+    """Agentless must not pin crashtracking to a single, explicitly-computed endpoint.
 
-    libdatadog only resolves the direct intake path over the agent's telemetry proxy path when the
-    endpoint carries an API key *and* the receiver has direct submission enabled.
+    The crash-report (telemetry intake) and errors-intake uploads go to genuinely different
+    hosts. Forcing one endpoint on both would send the errors-intake upload to the wrong host,
+    so we pass no endpoint/api_key at all here - the receiver resolves both independently from
+    DD_API_KEY/DD_SITE/_DD_DIRECT_SUBMISSION_ENABLED, which must be forwarded to it explicitly
+    since its environment is not inherited (it's spawned via a raw execve).
     """
     from unittest import mock
 
@@ -1099,9 +1102,11 @@ def test_crashtracker_uploads_to_the_intake_when_agentless():
     ):
         crashtracking._get_args({})
 
-    assert captured["endpoint"] == "https://instrumentation-telemetry-intake.datadoghq.com/"
-    assert captured["api_key"] == "foobarkey"
+    assert captured["endpoint"] is None
+    assert captured["api_key"] is None
     assert captured["receiver_env"]["_DD_DIRECT_SUBMISSION_ENABLED"] == "true"
+    assert captured["receiver_env"]["DD_API_KEY"] == "foobarkey"
+    assert captured["receiver_env"]["DD_SITE"] == "datadoghq.com"
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey"})
