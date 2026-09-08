@@ -1840,7 +1840,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
