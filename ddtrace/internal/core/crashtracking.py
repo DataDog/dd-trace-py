@@ -185,12 +185,10 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
                 # running a second, independently-configured copy of ddtrace using this stripped-down env.
                 # Strip it so the receiver stays a plain, uninstrumented script while still finding
                 # the ddtrace package via any other PYTHONPATH entries.
-                sitecustomize_spec = importlib.util.find_spec("ddtrace.bootstrap.sitecustomize")
-                bootstrap_dir = (
-                    os.path.dirname(sitecustomize_spec.origin)
-                    if sitecustomize_spec is not None and sitecustomize_spec.origin is not None
-                    else None
-                )
+                # receiver_script_path is .../ddtrace/commands/_dd_crashtracker_receiver.py,
+                # so two dirname() calls reach the ddtrace package root and "bootstrap"
+                # names the sibling directory that sitecustomize.py lives in.
+                bootstrap_dir = os.path.join(os.path.dirname(os.path.dirname(receiver_script_path)), "bootstrap")
                 path_entries = [p for p in env_value.split(os.pathsep) if p != bootstrap_dir]
                 if not path_entries:
                     continue
