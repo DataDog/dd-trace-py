@@ -12,12 +12,18 @@ if typing.TYPE_CHECKING:
     import asyncio
     import asyncio as aio
 
+    from ddtrace.internal import monitoring as _monitoring
+
 from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace.internal.datadog.profiling import stack
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import wrap
+
+
+if sys.version_info >= (3, 15):
+    from ddtrace.internal import monitoring as _monitoring
 
 
 ASYNCIO_IMPORTED: bool = False
@@ -86,14 +92,22 @@ def link_existing_loop_to_current_thread() -> None:
 # TODO(py-315): Evaluate rolling this path out to 3.12–3.14 once #19601's
 # multiplexer (3.12+) is the shared owner and CI covers those versions.
 _monitoring_tool_id: typing.Optional[int] = None
-# Maps id(code) -> handler(return_value) for PY_RETURN dispatch
+# Compatibility/debug view of the registered PY_RETURN handlers.
 _py_return_handlers: dict[int, typing.Callable[[object], None]] = {}
 
 
-def _py_return_dispatch(code: CodeType, instruction_offset: int, return_value: object) -> None:
-    handler: typing.Optional[typing.Callable[[object], None]] = _py_return_handlers.get(id(code))
-    if handler is not None:
-        handler(return_value)
+if sys.version_info >= _ASYNCIO_MONITORING_MIN:
+
+    class _AsyncioMonitoringHandler(_monitoring.MonitoringEventHandler):
+        def __init__(self) -> None:
+            self.handlers: dict[int, typing.Callable[[object], None]] = _py_return_handlers
+
+        def on_py_return(self, code: CodeType, instruction_offset: int, return_value: object) -> None:
+            handler: typing.Optional[typing.Callable[[object], None]] = self.handlers.get(id(code))
+            if handler is not None:
+                handler(return_value)
+
+    _monitoring_handler: typing.Optional[_AsyncioMonitoringHandler] = None
 
 
 def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typing.Callable[[object], None]) -> bool:
@@ -108,30 +122,19 @@ def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typin
     global _monitoring_tool_id
 
     if sys.version_info >= _ASYNCIO_MONITORING_MIN:
-        m: typing.Any = sys.monitoring  # type: ignore[attr-defined]
+        global _monitoring_handler
 
-        if _monitoring_tool_id is None:
-            # PEP 669 pre-defines 0/1/2/5 (debugger/coverage/profiler/optimizer).
-            # 3 and 4 are the unnamed slots; prefer 4 then 3 to match
-            # ddtrace.internal.monitoring. Exception profiler may already own 4.
-            candidate: int
-            for candidate in (4, 3):
-                try:
-                    m.use_tool_id(candidate, "dd-profiling-asyncio")
-                    m.register_callback(candidate, m.events.PY_RETURN, _py_return_dispatch)
-                    _monitoring_tool_id = candidate
-                    break
-                except ValueError:
-                    continue
-            if _monitoring_tool_id is None:
-                return False
+        if _monitoring_handler is None:
+            _monitoring_handler = _AsyncioMonitoringHandler()
 
         try:
             code: CodeType = func.__code__
-            _py_return_handlers[id(code)] = handler
-            m.set_local_events(_monitoring_tool_id, code, m.events.PY_RETURN)
+            _monitoring_handler.handlers[id(code)] = handler
+            _monitoring.register(code, _monitoring_handler)
+            _monitoring_tool_id = _monitoring.get_tool_id()
             return True
         except Exception:
+            _monitoring_handler.handlers.pop(id(code), None)
             return False  # nosec B110 — best-effort monitoring; fall back to wrap/patch
 
     return False
