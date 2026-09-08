@@ -32,7 +32,8 @@ SLOS_DIR = ROOT / ".gitlab" / "benchmarks" / "slos"
 
 _YAML = YAML()
 
-# Mirrors scripts/gen_gitlab_config.py.
+# Single source of truth for the benchmark SLO naming regexes; gen_gitlab_config.py
+# imports these from here so the two stay in sync.
 BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 

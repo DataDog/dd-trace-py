@@ -141,7 +141,7 @@ Two gates block on performance, and they answer different questions.
 |  | PR gate | Pre-release gate |
 |--|---------|------------------|
 | Job | `check-slo-breaches` in the `microbenchmarks` child pipeline | `check-slo-breaches` in the `macrobenchmarks` child pipeline |
-| Thresholds | `.gitlab/benchmarks/slos/<team>.yml` | `bp-runner.microbenchmarks.fail-on-breach.yml` |
+| Thresholds | `.gitlab/benchmarks/slos/<team>.yml` | `bp-runner.macrobenchmarks.fail-on-breach.yml` |
 | Blocks | Merging the pull request | Pushing a release tag or branch |
 | Catches | A single change making an operation obviously slower | Regression accumulated across many changes, each too small to trip the PR gate |
 

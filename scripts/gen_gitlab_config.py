@@ -29,8 +29,6 @@ import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
-BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
-BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
 
 def _ddtest_module():
@@ -1017,6 +1015,12 @@ TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+# Single source of truth for the benchmark SLO naming regexes lives in
+# check_slo_ownership.py; import them here so both this generator and the
+# linter stay in sync.
+from check_slo_ownership import BENCHMARK_CLASS_REGEX  # noqa: E402
+from check_slo_ownership import BENCHMARK_SCENARIO_REGEX  # noqa: E402
 
 
 def template(name: str, **params):
