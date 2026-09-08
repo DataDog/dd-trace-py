@@ -43,6 +43,7 @@ if(EXISTS ${SOURCE_CXXBRIDGE_DIR})
 endif()
 
 set(LIBDD_PROFILING_CXX_SOURCE ${DEST_CXXBRIDGE_DIR}/sources/libdd-profiling/src/cxx.rs.cc)
+set(LIBDD_PROFILING_CXXBRIDGE_LIB ${DEST_CXXBRIDGE_DIR}/lib/libcxxbridge1.a)
 
 file(GLOB LIB_FILES "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
 

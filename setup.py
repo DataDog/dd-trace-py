@@ -388,6 +388,7 @@ class ExtensionHashes(build_ext):
                         CARGO_TARGET_DIR / "include" / "libdd-profiling" / "src" / "cxx.rs.h",
                         CARGO_TARGET_DIR / "include" / "rust" / "cxx.h",
                         CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc",
+                        CARGO_TARGET_DIR / "cxxbridge" / "lib" / "libcxxbridge1.a",
                     ]:
                         entries.append((ext.name, hash_digest, str(generated)))
 
@@ -459,11 +460,18 @@ class CustomBuildRust(build_rust):
             key=lambda path: path.stat().st_mtime,
             reverse=True,
         )
+        support_libraries = sorted(
+            CARGO_TARGET_DIR.glob("*/build/cxx-*/out/libcxxbridge1.a"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
 
         if not source_headers:
             raise RuntimeError("Unable to find generated libdd-profiling CXX bridge header")
         if not source_files:
             raise RuntimeError("Unable to find generated libdd-profiling CXX bridge source")
+        if not support_libraries:
+            raise RuntimeError("Unable to find generated CXX bridge support library")
 
         cxxbridge_out = source_headers[0].parents[3]
         include_src = cxxbridge_out / "include"
@@ -480,6 +488,10 @@ class CustomBuildRust(build_rust):
         source_dst = CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc"
         source_dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source_src, source_dst)
+
+        support_library_dst = CARGO_TARGET_DIR / "cxxbridge" / "lib" / "libcxxbridge1.a"
+        support_library_dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(support_libraries[0], support_library_dst)
 
     def run(self) -> None:
         """Run the build process with additional post-processing."""
@@ -988,6 +1000,7 @@ class CustomBuildExt(build_ext):
                         CARGO_TARGET_DIR / "include" / "libdd-profiling" / "src" / "cxx.rs.h",
                         CARGO_TARGET_DIR / "include" / "rust" / "cxx.h",
                         CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc",
+                        CARGO_TARGET_DIR / "cxxbridge" / "lib" / "libcxxbridge1.a",
                     ]
                 )
 
