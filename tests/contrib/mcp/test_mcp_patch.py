@@ -1,7 +1,13 @@
+from importlib.metadata import version
+
 from ddtrace.contrib.internal.mcp.patch import get_version
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from tests.contrib.patch import PatchTestCase
+
+
+MCP_VERSION = parse_version(version("mcp"))
 
 
 class TestMCPPatch(PatchTestCase.Base):
@@ -13,48 +19,93 @@ class TestMCPPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, module):
         from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
 
-        self.assert_wrapped(BaseSession.send_request)
+        try:
+            from mcp.shared.session import BaseSession
+            from mcp.shared.session import RequestResponder
+        except ImportError:
+            from mcp.server import Server
+
+            self.assert_wrapped(ClientSession.send_request)
+            self.assert_wrapped(Server.__init__)
+            self.assert_wrapped(ClientSession.send_discover)
+        else:
+            self.assert_wrapped(BaseSession.send_request)
+            self.assert_wrapped(RequestResponder.__enter__)
+            self.assert_wrapped(RequestResponder.__exit__)
+            self.assert_wrapped(RequestResponder.respond)
+
         self.assert_wrapped(ClientSession.call_tool)
         self.assert_wrapped(ClientSession.__aenter__)
         self.assert_wrapped(ClientSession.__aexit__)
         self.assert_wrapped(ClientSession.list_tools)
         self.assert_wrapped(ClientSession.initialize)
-        self.assert_wrapped(RequestResponder.__enter__)
-        self.assert_wrapped(RequestResponder.__exit__)
-        self.assert_wrapped(RequestResponder.respond)
 
     def assert_not_module_patched(self, module):
         from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
 
-        self.assert_not_wrapped(BaseSession.send_request)
+        try:
+            from mcp.shared.session import BaseSession
+            from mcp.shared.session import RequestResponder
+        except ImportError:
+            from mcp.server import Server
+
+            self.assert_not_wrapped(ClientSession.send_request)
+            self.assert_not_wrapped(Server.__init__)
+            self.assert_not_wrapped(ClientSession.send_discover)
+        else:
+            self.assert_not_wrapped(BaseSession.send_request)
+            self.assert_not_wrapped(RequestResponder.__enter__)
+            self.assert_not_wrapped(RequestResponder.__exit__)
+            self.assert_not_wrapped(RequestResponder.respond)
+
         self.assert_not_wrapped(ClientSession.call_tool)
         self.assert_not_wrapped(ClientSession.__aenter__)
         self.assert_not_wrapped(ClientSession.__aexit__)
         self.assert_not_wrapped(ClientSession.list_tools)
         self.assert_not_wrapped(ClientSession.initialize)
-        self.assert_not_wrapped(RequestResponder.__enter__)
-        self.assert_not_wrapped(RequestResponder.__exit__)
-        self.assert_not_wrapped(RequestResponder.respond)
 
     def assert_not_module_double_patched(self, module):
         from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
 
-        self.assert_not_double_wrapped(BaseSession.send_request)
+        try:
+            from mcp.shared.session import BaseSession
+            from mcp.shared.session import RequestResponder
+        except ImportError:
+            from mcp.server import Server
+
+            self.assert_not_double_wrapped(ClientSession.send_request)
+            self.assert_not_double_wrapped(Server.__init__)
+            self.assert_not_double_wrapped(ClientSession.send_discover)
+        else:
+            self.assert_not_double_wrapped(BaseSession.send_request)
+            self.assert_not_double_wrapped(RequestResponder.__enter__)
+            self.assert_not_double_wrapped(RequestResponder.__exit__)
+            self.assert_not_double_wrapped(RequestResponder.respond)
+
         self.assert_not_double_wrapped(ClientSession.call_tool)
         self.assert_not_double_wrapped(ClientSession.__aenter__)
         self.assert_not_double_wrapped(ClientSession.__aexit__)
         self.assert_not_double_wrapped(ClientSession.list_tools)
         self.assert_not_double_wrapped(ClientSession.initialize)
-        self.assert_not_double_wrapped(RequestResponder.__enter__)
-        self.assert_not_double_wrapped(RequestResponder.__exit__)
-        self.assert_not_double_wrapped(RequestResponder.respond)
+
+
+def test_mcp_server_middleware_unpatch():
+    """Unpatching MCP v2 removes middleware from servers created while patched."""
+    from mcp.server import Server
+
+    from ddtrace.contrib.internal.mcp.patch import traced_server_middleware
+
+    server = Server("test")
+    if MCP_VERSION < (2, 0, 0):
+        assert not hasattr(server, "middleware")
+        return
+    assert traced_server_middleware in server.middleware
+
+    unpatch()
+    assert traced_server_middleware not in server.middleware
+
+    patch()
 
 
 def test_mcp_auto_patch_during_experiment_import(run_python_code_in_subprocess):
