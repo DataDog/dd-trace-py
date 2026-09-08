@@ -11,7 +11,6 @@ from ddtrace.contrib.internal.rq.patch import patch
 from ddtrace.contrib.internal.rq.patch import traced_perform_job
 from ddtrace.contrib.internal.rq.patch import unpatch
 from ddtrace.trace import tracer
-from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
@@ -62,14 +61,6 @@ def sync_queue(connection):
 @snapshot(ignores=snapshot_ignores)
 def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
-
-
-def test_and_implement_get_version():
-    version = get_version()
-    assert type(version) is str
-    assert version != ""
-
-    emit_integration_and_version_to_test_agent("rq", version)
 
 
 @snapshot(
@@ -153,17 +144,12 @@ def test_custom_job_id_in_span_tags(sync_queue):
 @pytest.mark.parametrize("distributed_tracing_enabled", [False, None])
 @pytest.mark.parametrize("worker_service_name", [None, "custom-worker-service"])
 def test_enqueue(queue, distributed_tracing_enabled, worker_service_name):
-    token = (
-        "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s"
-        % (
-            distributed_tracing_enabled,
-            worker_service_name,
-        )
+    token = "tests.contrib.rq.test_rq.test_enqueue_distributed_tracing_enabled_%s_worker_service_%s" % (
+        distributed_tracing_enabled,
+        worker_service_name,
     )
     num_traces_expected = 2 if distributed_tracing_enabled is False else 1
-    with snapshot_context(
-        token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected
-    ):
+    with snapshot_context(token, ignores=snapshot_ignores, wait_for_num_traces=num_traces_expected):
         env = os.environ.copy()
         env["DD_TRACE_REDIS_ENABLED"] = "false"
         if distributed_tracing_enabled is not None:
@@ -233,18 +219,6 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
-
-
-def test_all_worker_classes_are_instrumented():
-    """rq 2.7 made SimpleWorker a sibling of Worker rather than a subclass; both must be traced."""
-    from ddtrace.internal.utils.wrappers import iswrapped
-
-    patch()
-    try:
-        assert iswrapped(rq.Worker.perform_job)
-        assert iswrapped(rq.SimpleWorker.perform_job)
-    finally:
-        unpatch()
 
 
 def test_perform_job_ignores_flush_error():

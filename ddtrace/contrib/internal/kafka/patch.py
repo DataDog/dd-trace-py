@@ -6,15 +6,11 @@ import confluent_kafka
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.messaging import MessagingProcessEvent
+from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
@@ -22,13 +18,13 @@ from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTPPropagator as Propagator
-from ddtrace.trace import tracer
 
 
 _Producer = confluent_kafka.Producer
@@ -195,11 +191,17 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
-    with tracer.trace(
-        schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.WORKER,
-    ) as span:
-        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
+
+    event = MessagingProducerEvent(
+        operation=schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
+        distributed_headers=None,
+        component=config.kafka.integration_name,
+        integration_config=config.kafka,
+        service=trace_utils.ext_service(pin, config.kafka),
+    )
+
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
         cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
         if cluster_id:
@@ -208,8 +210,6 @@ def traced_produce(func, instance, args, kwargs):
         core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
 
         span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span._set_attribute(COMPONENT, config.kafka.integration_name)
-        span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
         span._set_attribute(kafkax.TOPIC, topic)
         if topic:
             # Should fall back to broker id if topic is not provided but it is not readily available here
@@ -224,16 +224,14 @@ def traced_produce(func, instance, args, kwargs):
 
         span.set_tag(kafkax.PARTITION, partition)
         span._set_attribute(kafkax.TOMBSTONE, str(value is None))
-        span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if instance._dd_bootstrap_servers is not None:
             span._set_attribute(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
 
-        # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
-            # inject headers with Datadog tags:
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
             Propagator.inject(span.context, headers)
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
+
         return func(*args, **kwargs)
 
 
@@ -266,9 +264,9 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 
 def _instrument_message(messages, pin, start_ns, instance, err):
-    ctx = None
-    links = []
     first_message = messages[0] if len(messages) else None
+    request_headers = None
+    links = []
     if config.kafka.distributed_tracing_enabled:
         if config.kafka.propagation_as_span_links:
             # Relate the consume span to every message's producer via span links rather
@@ -284,16 +282,21 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         elif first_message is not None and first_message.headers():
             # First message is used to extract context and enrich datadog spans
             # This approach aligns with the opentelemetry confluent kafka semantics
-            ctx = Propagator.extract(dict(first_message.headers()))
-    with tracer.start_span(
-        name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
-        span_type=SpanTypes.WORKER,
-        child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
-        activate=True,
-    ) as span:
+            request_headers = dict(first_message.headers())
+
+    event = MessagingProcessEvent(
+        operation=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+        request_headers=request_headers,
+        component=config.kafka.integration_name,
+        integration_config=config.kafka,
+        service=trace_utils.ext_service(pin, config.kafka),
+    )
+
+    with core.context_with_event(event) as event_ctx:
+        span = span_from_context(event_ctx)
         if links:
             core.dispatch("kafka.consume.link_spans", (span, links))
-        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
+
         # reset span start time to before function call
         span.start_ns = start_ns
         cluster_id = None
@@ -306,8 +309,6 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 core.dispatch("kafka.consume.start", (instance, message, span))
 
         span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span._set_attribute(COMPONENT, config.kafka.integration_name)
-        span._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
         if cluster_id:
             span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
         span._set_attribute(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
@@ -335,7 +336,6 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 pass
             span._set_attribute(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
         if err is not None:
             span.set_exc_info(*sys.exc_info())

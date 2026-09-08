@@ -1,5 +1,3 @@
-from types import TracebackType
-from typing import Optional
 from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
@@ -31,21 +29,3 @@ class MessagingTracingSubscriber(TracingSubscriber[MessagingEvent]):
                 span_from_context(ctx).context,
                 cast(dict[str, str], event.distributed_headers),
             )
-
-    @classmethod
-    def on_ended(
-        cls,
-        ctx: core.ExecutionContext[MessagingEvent],
-        exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    ) -> None:
-        event = ctx.event
-
-        if not isinstance(event, MessagingProcessEvent):
-            return
-
-        span = span_from_context(ctx)
-        if event.failed:
-            span.error = 1
-
-        for key, value in event.result_tags.items():
-            span._set_attribute(key, value)

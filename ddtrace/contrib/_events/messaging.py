@@ -20,7 +20,6 @@ class MessagingEvent(TracingEvent):
     """Shared tracing data for messaging operations."""
 
     operation: str = event_field()
-    distributed_headers: Optional[MutableMapping[str, Any]] = event_field(default=None)
 
     def __post_init__(self) -> None:
         self.operation_name = self.operation
@@ -32,6 +31,8 @@ class MessagingProducerEvent(MessagingEvent):
     span_kind = SpanKind.PRODUCER
     span_type = SpanTypes.WORKER
 
+    distributed_headers: Optional[MutableMapping[str, Any]] = event_field(default=None)
+
 
 @dataclass
 class MessagingProcessEvent(MessagingEvent):
@@ -39,6 +40,5 @@ class MessagingProcessEvent(MessagingEvent):
     span_kind = SpanKind.CONSUMER
     span_type = SpanTypes.WORKER
 
+    request_headers: Optional[MutableMapping[str, Any]] = event_field(default=None)
     activate_distributed_headers: bool = event_field(default=True)
-    failed: bool = event_field(default=False)
-    result_tags: dict[str, Any] = event_field(default_factory=dict)

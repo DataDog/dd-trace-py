@@ -1,6 +1,3 @@
-from typing import Any
-from typing import Callable
-
 from ddtrace import config
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.messaging import MessagingProcessEvent
@@ -61,9 +58,7 @@ def _supported_versions() -> dict[str, str]:
     return {"rq": ">=1.8"}
 
 
-def traced_queue_enqueue_job(
-    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
+def traced_queue_enqueue_job(func, instance, args, kwargs):
     job = get_argument_value(args, kwargs, 0, "f")
 
     func_name = job.func_name
@@ -96,9 +91,7 @@ def traced_queue_enqueue_job(
         return func(*args, **kwargs)
 
 
-def traced_queue_fetch_job(
-    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
+def traced_queue_fetch_job(func, instance, args, kwargs):
     job_id = get_argument_value(args, kwargs, 0, "job_id")
     with (
         core.context_with_data(
@@ -115,14 +108,14 @@ def traced_queue_fetch_job(
         return func(*args, **kwargs)
 
 
-def traced_perform_job(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+def traced_perform_job(func, instance, args, kwargs):
     """Trace rq.Worker.perform_job"""
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
 
     event = MessagingProcessEvent(
         operation="rq.worker.perform_job",
-        distributed_headers=job.meta,
+        request_headers=job.meta,
         component=config.rq.integration_name,
         integration_config=config.rq_worker,
         service=trace_utils.int_service(None, config.rq_worker),
@@ -132,7 +125,7 @@ def traced_perform_job(func: Callable[..., Any], instance: Any, args: tuple[Any,
     )
 
     try:
-        with core.context_with_event(event):
+        with core.context_with_event(event) as ctx:
             try:
                 return func(*args, **kwargs)
             finally:
@@ -144,11 +137,14 @@ def traced_perform_job(func: Callable[..., Any], instance: Any, args: tuple[Any,
                 except Exception:
                     status = None
                 try:
-                    event.failed = job.is_failed
+                    job_failed = job.is_failed
                 except Exception:
-                    event.failed = False
-                event.result_tags["job.status"] = status or "None"
-                event.result_tags["job.origin"] = job.origin
+                    job_failed = False
+                span = span_from_context(ctx)
+                if job_failed:
+                    span.error = 1
+                span._set_attribute("job.status", status or "None")
+                span._set_attribute("job.origin", job.origin)
 
     finally:
         # Force flush to agent since the process `os.exit()`s
@@ -156,7 +152,7 @@ def traced_perform_job(func: Callable[..., Any], instance: Any, args: tuple[Any,
         _safe_flush()
 
 
-def traced_job_perform(func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+def traced_job_perform(func, instance, args, kwargs):
     """Trace rq.Job.perform(...)"""
     job = instance
 
@@ -176,9 +172,7 @@ def traced_job_perform(func: Callable[..., Any], instance: Any, args: tuple[Any,
         return func(*args, **kwargs)
 
 
-def traced_job_fetch_many(
-    func: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
+def traced_job_fetch_many(func, instance, args, kwargs):
     """Trace rq.Job.fetch_many(...)"""
     job_ids = get_argument_value(args, kwargs, 0, "job_ids")
     with (
