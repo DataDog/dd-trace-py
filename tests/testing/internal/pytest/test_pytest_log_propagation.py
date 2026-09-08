@@ -223,7 +223,7 @@ def logging_probe_env(pytester: Pytester, monkeypatch: pytest.MonkeyPatch) -> No
 
 
 def _run_logging_probe(pytester: Pytester, *args: str) -> RunResult:
-    # AIDEV-NOTE: Use stock pytest in a subprocess. tests/conftest.py overrides caplog
+    # NOTE: Use stock pytest in a subprocess. tests/conftest.py overrides caplog
     # to restore ddtrace propagation, which would hide the compatibility regression.
     return pytester.runpytest_subprocess(
         "-p",

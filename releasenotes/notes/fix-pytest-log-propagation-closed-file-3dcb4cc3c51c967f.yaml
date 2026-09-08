@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    CI visibility: Fixes ``ValueError: I/O operation on closed file`` logging
+    CI Visibility: Fixes ``ValueError: I/O operation on closed file`` logging
     tracebacks at the end of pytest sessions when standard stream handlers point
     to streams closed by pytest. Tracer logs continue to reach healthy root
     handlers, including file output and log forwarding.

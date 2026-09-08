@@ -43,7 +43,7 @@ def protect_ddtrace_stream_handlers() -> None:
     )
     for logger in loggers:
         for handler in list(logger.handlers):
-            # AIDEV-NOTE: File handlers can reopen their streams, and custom handlers
+            # NOTE: File handlers can reopen their streams, and custom handlers
             # own their error handling. Only protect the standard StreamHandler.
             if type(handler) is logging.StreamHandler and not any(
                 isinstance(f, _DDTraceClosedStreamFilter) for f in handler.filters

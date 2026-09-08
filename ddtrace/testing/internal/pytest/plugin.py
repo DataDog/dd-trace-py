@@ -1567,7 +1567,7 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
-    # AIDEV-NOTE: Register before the enablement guard: importing the tracer also
+    # NOTE: Register before the enablement guard: importing the tracer also
     # registers its exit hook without --ddtrace (#16712). Cleanup runs in LIFO order,
     # so registering before capture starts lets this rescan run after capture cleanup
     # and include handlers installed by later hooks. Never disable propagation: healthy
