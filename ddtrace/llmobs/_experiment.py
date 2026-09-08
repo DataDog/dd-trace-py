@@ -56,6 +56,7 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import get_asyncio
@@ -489,9 +490,9 @@ class RemoteEvaluator(BaseEvaluator):
         self._eval_name = eval_name.strip()
         self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
 
-        from ddtrace.llmobs import LLMObs
-
-        self._llmobs_service = LLMObs
+        # AIDEV-NOTE: Use the registered class to avoid importing the public package back
+        # from the experiment engine, while still following LLMObs._instance replacements.
+        self._llmobs_service = get_llmobs_service()
 
     def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
         """Evaluate using the remote LLM-as-Judge evaluator.

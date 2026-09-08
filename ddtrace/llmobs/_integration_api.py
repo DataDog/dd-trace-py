@@ -1,8 +1,8 @@
-"""Minimal LLMObs API used by integrations during their import-time setup.
+"""Minimal LLMObs API shared by integrations and evaluators.
 
 Integrations can be imported while the full LLMObs service is initializing. Keep
-this module independent from ``_llmobs`` so integration setup does not recursively
-import the service through ``BaseLLMIntegration``.
+this module independent from _llmobs so consumers can access the registered
+service without recursively importing it through the public package.
 """
 
 from __future__ import annotations
@@ -27,6 +27,11 @@ def register_llmobs_service(service: type[LLMObs]) -> None:
     """Register the concrete LLMObs service after it has finished importing."""
     global _llmobs_service
     _llmobs_service = service
+
+
+def get_llmobs_service() -> Optional[type[LLMObs]]:
+    """Return the registered service class, or None before registration."""
+    return _llmobs_service
 
 
 def is_enabled() -> bool:
