@@ -545,10 +545,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/aws_lambda
       variants:
         - name: aws_lambda
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [boto3, 'datadog-lambda>=6.105.0', 'pytest-asyncio==0.21.1', pytest-randomly]
         - name: aws_lambda
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
   aws_durable_execution_sdk_python:
     venvs_per_job: 2
@@ -1709,7 +1709,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, pytest-xdist, 'confluent-kafka~=1.9.2']
         - name: kafka
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
     parallelism: 1
@@ -1837,7 +1837,7 @@ suites:
           python: ['3.10', '3.11']
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82']
         - name: mlflow
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     parallelism: 2
