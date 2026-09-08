@@ -21,6 +21,7 @@ from typing import Optional
 from typing import Union
 from typing import cast
 
+from ddtrace.internal import forksafe as _forksafe
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.settings.profiling import config
@@ -64,6 +65,13 @@ cdef int _CALLER_FRAME_INDEX = 0
 # must not re-enter name resolution or sample flushing, or it
 # can dereference half-torn-down frames/objects and crash.
 _SAMPLING_ACTIVE_THREADS: set[int] = set()
+
+
+def _clear_sampling_active_threads() -> None:
+    _SAMPLING_ACTIVE_THREADS.clear()
+
+
+_forksafe.register(_clear_sampling_active_threads)
 
 
 cdef tuple _current_thread():

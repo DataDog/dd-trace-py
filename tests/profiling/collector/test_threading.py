@@ -1067,6 +1067,48 @@ def test_sampling_reentrancy_guard() -> None:
     )
 
 
+def test_task_frame_skipped_when_coroutine_running() -> None:
+    """When a coroutine is marked running, get_task must return None for the frame."""
+    from unittest.mock import MagicMock
+
+    from ddtrace.profiling.collector._task import get_task
+
+    coro_mock = MagicMock()
+    coro_mock.cr_frame = MagicMock(spec=type(sys._getframe()))
+    coro_mock.cr_running = True
+
+    task_mock = MagicMock()
+    task_mock._coro = coro_mock
+
+    with mock.patch("ddtrace.profiling._asyncio.get_running_loop", return_value=MagicMock()):
+        with mock.patch("ddtrace.profiling._asyncio.current_task", return_value=task_mock):
+            _, _, frame = get_task()
+
+    assert frame is None, "frame must be None when coroutine is running"
+
+
+def test_sampling_active_threads_cleared_after_fork() -> None:
+    """After fork, _SAMPLING_ACTIVE_THREADS in the child must be empty.
+
+    On glibc, thread IDs can be reused. A stale ID inherited from the parent
+    would silently disable lock profiling for any new child thread that gets the
+    same ID, because the guard would appear active and never be cleared.
+    """
+    import ddtrace.profiling.collector._lock as _lock_module
+
+    stale_ids = {12345, 99999}
+    _lock_module._SAMPLING_ACTIVE_THREADS.update(stale_ids)
+    try:
+        _lock_module._clear_sampling_active_threads()
+        assert _lock_module._SAMPLING_ACTIVE_THREADS == set(), (
+            "_SAMPLING_ACTIVE_THREADS must be empty after the fork child hook runs"
+        )
+    finally:
+        # Ensure the parent state is restored regardless of outcome.
+        _lock_module._SAMPLING_ACTIVE_THREADS.discard(12345)
+        _lock_module._SAMPLING_ACTIVE_THREADS.discard(99999)
+
+
 def test_semaphore_and_bounded_semaphore_collectors_coexist() -> None:
     """Test that Semaphore and BoundedSemaphore collectors can run simultaneously.
 

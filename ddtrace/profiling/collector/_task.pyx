@@ -36,13 +36,26 @@ cpdef uintptr_t task_object_address(object task):
 cdef _asyncio_task_get_frame(task):
     coro = task._coro
     if hasattr(coro, "cr_frame"):
-        # async def
+        # async def.
+        # Skip when the coroutine is currently executing: _PyFrame_ClearExceptCode
+        # can run while the task is still "current" (e.g. during a __del__ 
+        # triggered by frame teardown).
+        # In that window
+        # the internal frame is partially cleared, and passing it to
+        # push_pyframes can crash. The caller (_flush_sample) falls back to
+        # sys._getframe() which gives a safe frame instead.
+        if coro.cr_running:
+            return None
         return coro.cr_frame
     elif hasattr(coro, "gi_frame"):
         # legacy coroutines
+        if getattr(coro, "gi_running", False):
+            return None
         return coro.gi_frame
     elif hasattr(coro, "ag_frame"):
         # async generators
+        if getattr(coro, "ag_running", False):
+            return None
         return coro.ag_frame
     # unknown
     return None
