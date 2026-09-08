@@ -301,7 +301,7 @@ def _convert_openai_response_input(instructions: Any, input_: Any, prompt: Any =
       - Unknown / forward-incompatible types are silently dropped (the
         converter fails open so SDK calls don't break on new payload shapes).
 
-    fail-open security tradeoff. Per-item exceptions are
+    Fail-open security tradeoff. Per-item exceptions are
     swallowed (``logger.debug`` only) and items with unrecognised shape are
     dropped. If the entire ``input`` list is unconvertible — or yields only
     a ``system`` message from ``instructions`` — the before-hook returns

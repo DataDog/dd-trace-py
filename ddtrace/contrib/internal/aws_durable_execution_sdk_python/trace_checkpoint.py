@@ -7,7 +7,7 @@ reads the highest N from ``InitialExecutionState.Operations`` to re-activate the
 Only runs on the suspend path; no-op when stable headers (``HTTP_HEADER_PARENT_ID``
 excluded) match the most recent prior checkpoint.
 
-only Datadog-style headers are written — both writer and reader are
+Only Datadog-style headers are written — both writer and reader are
 Datadog code (this integration and ``datadog-lambda-python``), so W3C/B3 headers
 would just bloat the payload.
 
