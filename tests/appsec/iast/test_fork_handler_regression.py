@@ -365,7 +365,7 @@ def test_early_fork_keeps_iast_enabled():
     from ddtrace.appsec._iast._taint_tracking import initialize_native_state
     from ddtrace.appsec._iast._taint_tracking import is_tainted
     from ddtrace.appsec._iast._taint_tracking._context import clear_all_request_context_slots
-    from ddtrace.appsec._shared._iast_context import IAST_CONTEXT
+    from ddtrace.appsec._iast_context import IAST_CONTEXT
     from ddtrace.internal.settings.asm import config as asm_config
 
     # Ensure IAST is enabled but NO context is active (simulating early fork)

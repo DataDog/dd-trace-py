@@ -26,7 +26,7 @@ from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as un
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
-from ddtrace.appsec._shared._iast_context import IAST_CONTEXT
+from ddtrace.appsec._iast_context import IAST_CONTEXT
 from ddtrace.internal import core
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection

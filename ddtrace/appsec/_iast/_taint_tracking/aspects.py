@@ -49,7 +49,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_w
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import taint_structure
-from ddtrace.appsec._shared._iast_context import is_iast_request_enabled
+from ddtrace.appsec._iast_context import is_iast_request_enabled
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]

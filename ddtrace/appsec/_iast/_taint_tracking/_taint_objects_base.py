@@ -8,7 +8,7 @@ from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._context import is_in_taint_map
-from ddtrace.appsec._shared._iast_context import _get_iast_context_id
+from ddtrace.appsec._iast_context import _get_iast_context_id
 
 
 def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None, contextid=None) -> Any:

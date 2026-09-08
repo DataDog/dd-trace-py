@@ -2,7 +2,7 @@
 
 is_iast_request_enabled is deliberately re-exported here: the taint sinks and handlers import it from
 this module. Everything else takes the context-local primitives from their owners directly
-(ddtrace.appsec._shared._iast_context, ddtrace.appsec._iast._taint_tracking._context) — do not add new
+(ddtrace.appsec._iast_context, ddtrace.appsec._iast._taint_tracking._context) — do not add new
 re-exports, they are what tied this module to its low-level consumers in the first place.
 """
 
@@ -17,9 +17,9 @@ from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_i
 from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
-from ddtrace.appsec._shared._iast_context import IAST_CONTEXT
-from ddtrace.appsec._shared._iast_context import _get_iast_context_id
-from ddtrace.appsec._shared._iast_context import is_iast_request_enabled as is_iast_request_enabled
+from ddtrace.appsec._iast_context import IAST_CONTEXT
+from ddtrace.appsec._iast_context import _get_iast_context_id
+from ddtrace.appsec._iast_context import is_iast_request_enabled as is_iast_request_enabled
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config

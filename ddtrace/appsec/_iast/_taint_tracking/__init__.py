@@ -47,7 +47,7 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import taint_ra
 # AIDEV-NOTE: Request identifiers live outside the IAST lifecycle/reporting
 # modules so these native wrappers can import the accessor without circular
 # bootstrap. Do not redirect this to _iast_request_context_base.
-from ddtrace.appsec._shared._iast_context import _get_iast_context_id
+from ddtrace.appsec._iast_context import _get_iast_context_id
 from ddtrace.internal.logger import get_logger
 
 

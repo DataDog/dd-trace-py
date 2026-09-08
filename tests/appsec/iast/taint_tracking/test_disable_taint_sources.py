@@ -13,15 +13,15 @@ import contextvars
 
 import pytest
 
+from ddtrace.appsec import _iast_context
 from ddtrace.appsec._asm_request_context import iast_disabled_taint_sources
 from ddtrace.appsec._iast import _iast_request_context_base
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
-from ddtrace.appsec._shared import _iast_context
-from ddtrace.appsec._shared._iast_context import _get_iast_context_id
-from ddtrace.appsec._shared._iast_context import iast_suppress_context
+from ddtrace.appsec._iast_context import _get_iast_context_id
+from ddtrace.appsec._iast_context import iast_suppress_context
 
 
 @pytest.fixture(params=[iast_suppress_context, iast_disabled_taint_sources])

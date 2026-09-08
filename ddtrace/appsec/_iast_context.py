@@ -13,6 +13,9 @@ from typing import Optional
 # and also loads the native taint-tracking extension. Moving these primitives
 # under _iast would therefore re-create the import cycle this module broke, and
 # would make ASM initialize IAST just to suppress taint sources.
+# It must also stay out of ddtrace/appsec/_shared/: _asm_request_context imports
+# this module at module level, and the Lambda layer does not ship _shared, so
+# relocating it there breaks every serverless runtime at import time.
 IAST_CONTEXT: contextvars.ContextVar[Optional[int]] = contextvars.ContextVar("iast_var", default=None)
 
 # Keep source suppression separate from IAST_CONTEXT. Clearing the

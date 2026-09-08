@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
-from ddtrace.appsec._shared._iast_context import _get_iast_context_id
+from ddtrace.appsec._iast_context import _get_iast_context_id
 from tests.appsec.iast.iast_utils import TEXT_TYPE
 from tests.appsec.iast.iast_utils import _iast_patched_module
 

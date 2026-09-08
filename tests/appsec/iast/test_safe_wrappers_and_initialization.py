@@ -122,7 +122,7 @@ class TestNativeStateInitialization:
         from ddtrace.appsec._iast._taint_tracking._context import start_request_context
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
-        from ddtrace.appsec._shared._iast_context import IAST_CONTEXT
+        from ddtrace.appsec._iast_context import IAST_CONTEXT
         from ddtrace.internal.settings.asm import config as asm_config
         from tests.utils import override_env
 
