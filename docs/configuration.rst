@@ -847,6 +847,32 @@ Test Visibility
      version_added:
         v1.13.0:
 
+   DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+        Enables dynamic, duration-based Auto Test Retries budgets. When enabled, the number of retries
+        allowed for a test is determined by the duration of its initial attempt, using the same duration
+        buckets as Early Flake Detection, instead of the flat per-test retry limit. Requires Auto Test
+        Retries to be enabled by the backend.
+
+     version_added:
+        v4.15.0:
+
+   DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS:
+     type: String
+     default: ""
+
+     description: |
+        Comma-separated list of five positive integers in ``[1, 20]`` overriding the five duration-based
+        Auto Test Retries budgets (for the 5s, 10s, 30s, 5m, and >5m buckets respectively). When unset or
+        empty, the Early Flake Detection retry settings from the backend are used. Only takes effect when
+        ``DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED`` is enabled.
+
+     version_added:
+        v4.15.0:
+
    DD_CIVISIBILITY_ITR_ENABLED:
      type: Boolean
      default: True
