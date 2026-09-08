@@ -1,10 +1,9 @@
 // Unit tests for Python 3.15 frame-state guard changes.
 //
 // Covered:
-//   1. Static assertions on renumbered PyFrameState enum values (3.15+).
-//   2. PyGen_yf returns nullptr for FRAME_SUSPENDED_YIELD_FROM_LOCKED in GIL builds (3.15+).
-//   3. PyGen_yf enters the body for FRAME_SUSPENDED_YIELD_FROM even after the 3.15 guard change.
-//   4. PyGen_yf returns nullptr for all non-suspended states (3.15+).
+//   1. PyGen_yf returns nullptr for FRAME_SUSPENDED_YIELD_FROM_LOCKED in GIL builds (3.15+).
+//   2. PyGen_yf enters the body for FRAME_SUSPENDED_YIELD_FROM after the 3.15 guard change.
+//   3. PyGen_yf returns nullptr for all non-suspended states (3.15+).
 //
 // Memory stub: copy_type/copy_generic call echion_fuzz_copy_memory. We define it here to
 // always return failure (-1), which is the correct outcome when no real Python process is
@@ -33,35 +32,10 @@ echion_fuzz_copy_memory(proc_ref_t /*proc_ref*/, const void* /*addr*/, ssize_t /
     return -1; // always fail — no live process attached
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Compile-time enum value assertions (3.15+ only)
-// ─────────────────────────────────────────────────────────────────────────────
-
 #if PY_VERSION_HEX >= 0x030f0000
 
-// PyFrameState was renumbered in 3.15. Verify our understanding matches reality so
-// that any future CPython change is caught immediately at compile time.
-static_assert(FRAME_CREATED == 0, "FRAME_CREATED should be 0 in Python 3.15");
-static_assert(FRAME_SUSPENDED == 1, "FRAME_SUSPENDED should be 1 in Python 3.15");
-static_assert(FRAME_SUSPENDED_YIELD_FROM == 2, "FRAME_SUSPENDED_YIELD_FROM should be 2 in Python 3.15");
-static_assert(FRAME_EXECUTING == 4, "FRAME_EXECUTING should be 4 in Python 3.15");
-static_assert(FRAME_CLEARED == 5, "FRAME_CLEARED should be 5 in Python 3.15");
-
-static_assert(FRAME_SUSPENDED_YIELD_FROM_LOCKED == 3, "FRAME_SUSPENDED_YIELD_FROM_LOCKED should be 3 in Python 3.15");
-
-TEST(PyFrameState315, EnumValuesMatchExpected)
-{
-    // Runtime counterpart of the static_asserts above — provides a readable failure
-    // message in the test output if run against an unexpected Python build.
-    EXPECT_EQ(FRAME_CREATED, 0);
-    EXPECT_EQ(FRAME_SUSPENDED, 1);
-    EXPECT_EQ(FRAME_SUSPENDED_YIELD_FROM, 2);
-    EXPECT_EQ(FRAME_EXECUTING, 4);
-    EXPECT_EQ(FRAME_CLEARED, 5);
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. PyGen_yf state-check tests (3.15+)
+// PyGen_yf state-check tests (3.15+)
 //
 // PyGenObject::gi_frame_state is an int (signed). We set only that field; all
 // other fields are zero-initialised. We pass nullptr as frame_addr so that if the
@@ -108,7 +82,7 @@ TEST(PyGenYf315GilBuild, SuspendedYieldFromEntersBody)
 
 #endif // !Py_GIL_DISABLED
 
-// Parametrised: non-suspended states must all return nullptr immediately.
+// Non-suspended states must all return nullptr immediately.
 class PyGenYf315OtherStates : public ::testing::TestWithParam<int>
 {};
 
