@@ -19,9 +19,6 @@ from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 
 
-_context_switch_instrumentation_patched = False
-
-
 def get_version() -> str:
     return version("anyio")
 
@@ -32,28 +29,20 @@ def _supported_versions() -> dict[str, str]:
 
 def patch() -> None:
     """Patch AnyIO worker calls when the native context watcher is unavailable."""
-    global _context_switch_instrumentation_patched
-
-    if getattr(anyio, "_datadog_patch", False):
+    if getattr(anyio, "_datadog_patch", False) or not context_switches_require_fallback():
         return
 
+    wrap(anyio.to_thread.run_sync, _wrapped_run_sync)
     anyio._datadog_patch = True
-    if context_switches_require_fallback():
-        wrap(anyio.to_thread.run_sync, _wrapped_run_sync)
-        _context_switch_instrumentation_patched = True
 
 
 def unpatch() -> None:
     """Remove AnyIO worker-call instrumentation."""
-    global _context_switch_instrumentation_patched
-
     if not getattr(anyio, "_datadog_patch", False):
         return
 
+    unwrap(anyio.to_thread.run_sync, _wrapped_run_sync)
     anyio._datadog_patch = False
-    if _context_switch_instrumentation_patched:
-        unwrap(anyio.to_thread.run_sync, _wrapped_run_sync)
-        _context_switch_instrumentation_patched = False
 
 
 def _run_with_context_switches(func: Callable[..., Any], *args: Any) -> Any:
@@ -66,9 +55,6 @@ def _run_with_context_switches(func: Callable[..., Any], *args: Any) -> Any:
 
 
 def _wrapped_run_sync(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    if not core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
-        return wrapped(*args, **kwargs)
-
     func = cast(Callable[..., Any], get_argument_value(args, kwargs, 0, "func"))
     args, kwargs = set_argument_value(args, kwargs, 0, "func", partial(_run_with_context_switches, func))
     return wrapped(*args, **kwargs)

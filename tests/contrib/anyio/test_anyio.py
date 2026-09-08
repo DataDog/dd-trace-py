@@ -32,10 +32,12 @@ def test_patch_follows_runtime_capability(clean_patch, monkeypatch, fallback_req
     anyio_patch.patch()
     anyio_patch.patch()
 
+    assert getattr(anyio, "_datadog_patch", False) is fallback_required
     assert is_wrapped_with(anyio.to_thread.run_sync, anyio_patch._wrapped_run_sync) is fallback_required
 
     anyio_patch.unpatch()
     anyio_patch.unpatch()
+    assert not getattr(anyio, "_datadog_patch", False)
     assert not is_wrapped_with(anyio.to_thread.run_sync, anyio_patch._wrapped_run_sync)
 
 
@@ -68,9 +70,7 @@ def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, fa
     monkeypatch.setattr(
         anyio_patch,
         "core",
-        SimpleNamespace(
-            dispatch=record_context_switch, has_listeners=lambda event: event == PYTHON_CONTEXT_SWITCH_EVENT
-        ),
+        SimpleNamespace(dispatch=record_context_switch),
     )
     anyio_patch.patch()
     anyio.run(exercise, backend=backend)

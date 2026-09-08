@@ -1,6 +1,7 @@
 from ddtrace.contrib.internal.anyio.patch import get_version
 from ddtrace.contrib.internal.anyio.patch import patch
 from ddtrace.contrib.internal.anyio.patch import unpatch
+from ddtrace.internal._context_watcher import context_switches_require_fallback
 from tests.contrib.patch import PatchTestCase
 
 
@@ -12,10 +13,16 @@ class TestAnyIOPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, module):
-        assert module._datadog_patch
+        if context_switches_require_fallback():
+            self.assert_wrapped(module.to_thread.run_sync)
+        else:
+            self.assert_not_wrapped(module.to_thread.run_sync)
 
     def assert_not_module_patched(self, module):
-        assert not getattr(module, "_datadog_patch", False)
+        self.assert_not_wrapped(module.to_thread.run_sync)
 
     def assert_not_module_double_patched(self, module):
-        assert module._datadog_patch
+        if context_switches_require_fallback():
+            self.assert_not_double_wrapped(module.to_thread.run_sync)
+        else:
+            self.assert_not_wrapped(module.to_thread.run_sync)
