@@ -606,6 +606,12 @@ class SpanAggregator(SpanProcessor):
             # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
             self.writer = self.writer.recreate(appsec_enabled=appsec_enabled, llmobs_enabled=llmobs_enabled)
 
+            # MicroVM identity refresh discards all pre-refresh state. Keep writer replacement
+            # and buffer invalidation in one critical section so an old trace cannot be written
+            # through the replacement writer.
+            if drop_buffered_traces and reset_buffer:
+                self.reset_trace_buffer_after_fork()
+
         if compute_stats is not None:
             self.sampling_processor._compute_stats_enabled = compute_stats
 
@@ -615,11 +621,10 @@ class SpanAggregator(SpanProcessor):
         if user_processors is not None:
             self.user_processors = user_processors
 
-        # Reset the trace buffer.
-        # Useful when forking to prevent sending duplicate spans from parent and child processes.
-        if reset_buffer:
+        # Preserve the existing reset ordering for ordinary reconfiguration and fork handling.
+        if reset_buffer and not drop_buffered_traces:
             self.reset_trace_buffer_after_fork()
-        else:
+        elif not reset_buffer:
             self._buffer_generation += 1
 
     def reset_trace_buffer_after_fork(self) -> None:

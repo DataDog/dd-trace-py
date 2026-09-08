@@ -355,6 +355,15 @@ impl TraceExporterPy {
         Ok(())
     }
 
+    fn shutdown_without_flush(&mut self) -> PyResult<()> {
+        if let Some(exporter) = self.inner.take() {
+            exporter
+                .shutdown_without_flush()
+                .map_err(TraceExporterErrorPy::from)?;
+        }
+        Ok(())
+    }
+
     fn drop(&mut self) -> PyResult<()> {
         drop(self.inner.take());
         Ok(())

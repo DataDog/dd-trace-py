@@ -1176,6 +1176,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def drop_buffered_traces(self) -> None:
         _drop_buffered_encoders(self._clients)
+        try:
+            self._exporter.shutdown_without_flush()
+        except Exception:
+            _safelog(log.warning, "failed to discard exporter buffers", exc_info=True)
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)

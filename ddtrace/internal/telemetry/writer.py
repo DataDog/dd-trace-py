@@ -923,9 +923,11 @@ class TelemetryWriter:
         was_started = self.started
         if self._worker is not None:
             try:
-                self._worker.stop(send_app_closing=False)
+                self._worker.discard()
             except Exception:
-                log.debug("Failed to stop the native telemetry worker while refreshing runtime identity", exc_info=True)
+                log.debug(
+                    "Failed to discard the native telemetry worker while refreshing runtime identity", exc_info=True
+                )
             self._worker = None
             self.started = False
             _unbind_metric_recorders(self)
