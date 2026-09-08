@@ -1,0 +1,12 @@
+_v: 1
+name: redis
+display_name: Redis
+description: Instruments synchronous and asynchronous Redis command and pipeline execution across standalone and clustered
+  redis-py clients.
+packages:
+- name: redis
+category:
+- db.client
+systems:
+- redis
+creation_date: '2016-06-27'

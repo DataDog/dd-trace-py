@@ -1,0 +1,11 @@
+_v: 1
+name: protobuf
+display_name: Protobuf
+description: Instruments Google Protobuf message serialization and deserialization to attach sampled schema definitions and
+  metadata to active spans.
+packages:
+- name: protobuf
+category:
+- other
+systems: []
+creation_date: '2024-09-12'

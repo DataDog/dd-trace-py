@@ -1,0 +1,12 @@
+_v: 1
+name: flask_cache
+display_name: Flask Cache
+description: Instruments cache reads, writes, additions, deletions, clears, and bulk operations through Flask-Cache and Flask-Caching
+  APIs.
+packages:
+- name: flask-cache
+- name: flask-caching
+category:
+- db.client
+systems: []
+creation_date: '2016-08-18'
