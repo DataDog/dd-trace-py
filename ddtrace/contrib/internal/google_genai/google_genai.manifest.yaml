@@ -1,0 +1,13 @@
+_v: 1
+name: google_genai
+display_name: Google GenAI
+description: Instruments Google GenAI content generation, streaming responses, and embedding operations for Gemini and Vertex
+  AI models.
+packages:
+- name: google-genai
+category:
+- gen_ai
+systems:
+- gcp.gemini
+- gcp.vertex_ai
+creation_date: '2025-06-25'

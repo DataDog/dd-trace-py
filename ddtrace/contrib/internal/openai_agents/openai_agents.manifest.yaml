@@ -1,0 +1,12 @@
+_v: 1
+name: openai_agents
+display_name: OpenAI Agents
+description: Instruments OpenAI Agents SDK workflows, agent invocations, model responses, tool calls, handoffs, guardrails,
+  and custom operations.
+packages:
+- name: openai-agents
+category:
+- gen_ai
+systems:
+- openai
+creation_date: '2025-04-04'

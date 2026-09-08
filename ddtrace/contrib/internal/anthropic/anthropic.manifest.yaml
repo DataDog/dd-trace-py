@@ -1,0 +1,12 @@
+_v: 1
+name: anthropic
+display_name: Anthropic
+description: Instruments synchronous and asynchronous Anthropic Messages API calls, including streamed responses, to capture
+  prompts, model outputs, tool activity, and token usage.
+packages:
+- name: anthropic
+category:
+- gen_ai
+systems:
+- anthropic
+creation_date: '2024-06-04'

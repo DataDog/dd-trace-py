@@ -1,0 +1,14 @@
+_v: 1
+name: ray
+display_name: Ray
+description: Instruments Ray job lifecycles, remote task and actor method submission and execution, optional core object APIs,
+  and Ray Serve inbound HTTP and gRPC proxy requests, deployment handle calls, and deployment execution.
+packages:
+- name: ray
+category:
+- http.server
+- rpc.server
+- task.execution
+systems:
+- grpc
+creation_date: '2025-10-02'

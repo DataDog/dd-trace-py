@@ -1,0 +1,15 @@
+_v: 1
+name: ray_serve
+display_name: Ray Serve
+description: Instruments inbound HTTP and gRPC proxy requests, deployment-handle calls, request routing and replica handling,
+  and Ray Serve deployment execution.
+packages:
+- name: ray
+category:
+- http.server
+- rpc.client
+- rpc.server
+- task.execution
+systems:
+- grpc
+creation_date: '2026-06-19'
