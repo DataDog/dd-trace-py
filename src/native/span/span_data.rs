@@ -18,6 +18,7 @@ use libdd_trace_utils::span::{
     SpanText as _,
 };
 
+use super::span_link::SPAN_LINK_FLAGS_PRESENT;
 use super::utils::{
     extract_backed_string_or_default, extract_backed_string_or_none, extract_i32_or_default,
     extract_i64_or_default, extract_time_unix_nano, wall_clock_ns,
@@ -80,6 +81,7 @@ impl SpanData {
 }
 
 const HTTP_STATUS_CODE_KEY: &str = "http.status_code";
+const W3C_PROPAGATION_STATE_KEYS: [&str; 2] = ["traceparent", "tracestate"];
 
 /// Convert one Python key/value pair to native attribute storage.
 ///
@@ -146,6 +148,7 @@ fn set_default_attribute(
     slf: &Bound<'_, SpanData>,
     key: &Bound<'_, PyAny>,
     value: &Bound<'_, PyAny>,
+    excluded_keys: Option<&[&str]>,
 ) {
     let Ok(key_str) = key.cast::<PyString>() else {
         return;
@@ -153,6 +156,9 @@ fn set_default_attribute(
     let Ok(key_text) = key_str.to_str() else {
         return;
     };
+    if excluded_keys.is_some_and(|keys| keys.contains(&key_text)) {
+        return;
+    }
     if slf.borrow().attributes.contains_key(key_text) {
         return;
     }
@@ -774,8 +780,7 @@ impl SpanData {
     /// (routing str→meta, numeric→metrics). Keys that already exist are skipped.
     ///
     /// Accepts any Python dict (fast path) or mapping. Bails silently on bad input.
-    /// Used by callers that previously called `_update_tags_from_context`.
-    /// Callers handle any locking on the source dict themselves.
+    /// The source dictionaries are shared trace-level state.
     #[pyo3(name = "_set_default_attributes")]
     fn set_default_attributes(
         slf: &Bound<'_, Self>,
@@ -783,7 +788,7 @@ impl SpanData {
     ) -> pyo3::PyResult<()> {
         if let Ok(d) = values.cast_exact::<PyDict>() {
             for (k, v) in d.iter() {
-                set_default_attribute(slf, &k, &v);
+                set_default_attribute(slf, &k, &v, None);
             }
         } else if let Ok(m) = values.cast::<PyMapping>() {
             if let Ok(items) = m.items() {
@@ -797,12 +802,27 @@ impl SpanData {
                     let Ok(v) = pair.get_item(1) else {
                         continue;
                     };
-                    set_default_attribute(slf, &k, &v);
+                    set_default_attribute(slf, &k, &v, None);
                 }
             }
         }
         // Not a dict or mapping — bail silently.
         Ok(())
+    }
+
+    /// Copy shared Context state while excluding propagation-only W3C state.
+    #[pyo3(name = "_set_default_context_attributes")]
+    fn set_default_context_attributes(
+        slf: &Bound<'_, Self>,
+        meta: &Bound<'_, PyDict>,
+        metrics: &Bound<'_, PyDict>,
+    ) {
+        for (k, v) in meta.iter() {
+            set_default_attribute(slf, &k, &v, Some(&W3C_PROPAGATION_STATE_KEYS));
+        }
+        for (k, v) in metrics.iter() {
+            set_default_attribute(slf, &k, &v, None);
+        }
     }
     // meta_struct methods
 
@@ -1093,10 +1113,9 @@ fn build_native_link(
 ) -> NativeSpanLink<PyTraceData> {
     let trace_id_low = trace_id as u64;
     let trace_id_high = (trace_id >> 64) as u64;
-    // Encode "flags present" using bit 31: None -> 0, Some(f) -> f as u32 | 0x8000_0000.
     let flags = match flags {
         None => 0u32,
-        Some(f) => (f as u32) | 0x8000_0000u32,
+        Some(f) => (f as u32) | SPAN_LINK_FLAGS_PRESENT,
     };
     NativeSpanLink {
         trace_id: trace_id_low,
@@ -1220,9 +1239,8 @@ fn native_span_link_to_py(
     } else {
         Some(link.tracestate.clone_ref(py))
     };
-    // Bit 31 of native flags encodes "flags present": 0 means None, otherwise strip bit 31.
-    let flags = if link.flags & 0x8000_0000 != 0 {
-        Some((link.flags & 0x7FFF_FFFF) as i64)
+    let flags = if link.flags & SPAN_LINK_FLAGS_PRESENT != 0 {
+        Some((link.flags & !SPAN_LINK_FLAGS_PRESENT) as i64)
     } else {
         None
     };
