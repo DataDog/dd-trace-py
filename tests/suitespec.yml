@@ -218,11 +218,6 @@ suites:
       - tests/snapshots/tests.integration.*
     pattern: integration-snapshot*
     snapshot: true
-  integration_registry:
-    parallelism: 1
-    paths:
-      - '@contrib'
-      - scripts/integration_registry/*
   internal:
     retry: 2
     venvs_per_job: 2
@@ -295,7 +290,7 @@ suites:
       DD_TRACE_AGENT_URL: http://localhost:8126
       DDTEST_SUITE_PATH: tests/tracer
       DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
@@ -314,14 +309,14 @@ suites:
     retry: 2
     venvs_per_job: 1
     matrix:
-      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
       env:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
         DDTEST_SUITE_PATH: tests/tracer
         DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
@@ -346,15 +341,17 @@ suites:
       - '@tracing'
       - '@vendor'
       - tests/tracer/test_uwsgi_shutdown.py
+      - tests/tracer/test_uwsgi_fork_hooks.py
       - tests/tracer/uwsgi-app.py
+      - tests/tracer/uwsgi-fork-smoke-app.py
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
     matrix:
-      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py
       env:
         DDTEST_SUITE_PATH: tests/tracer
         DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'

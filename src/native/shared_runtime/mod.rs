@@ -22,6 +22,8 @@ static CHILD_RESTART_PENDING: AtomicBool = AtomicBool::new(false);
 static CHILD_RESTART_DEFERRED: AtomicBool = AtomicBool::new(false);
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 static CHILD_ABANDON_INHERITED: AtomicBool = AtomicBool::new(false);
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+static CHILD_RESTART_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
 
 struct SharedRuntimeState {
     runtime: RwLock<Arc<ForkSafeRuntime>>,
@@ -44,6 +46,10 @@ fn atfork_runtime() -> Option<&'static Arc<SharedRuntimeState>> {
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
 unsafe extern "C" fn before_fork() {
+    CHILD_RESTART_DEFERRED.store(true, Ordering::Release);
+    while CHILD_RESTART_IN_PROGRESS.load(Ordering::Acquire) {
+        std::thread::yield_now();
+    }
     if let Some(state) = atfork_runtime() {
         let runtime = state.current();
         let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
@@ -60,6 +66,7 @@ unsafe extern "C" fn after_fork_parent() {
             let _ = runtime.after_fork_parent();
         }));
     }
+    CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
 }
 
 #[cfg(any(target_os = "linux", target_os = "macos"))]
@@ -67,7 +74,49 @@ unsafe extern "C" fn after_fork_child() {
     // AIDEV-NOTE: Do not rebuild Tokio here. This callback also runs in fork+exec children,
     // where exec closes the new runtime's descriptors while its worker thread is using them.
     // The next Python-facing runtime or telemetry operation performs the restart instead.
+    CHILD_RESTART_IN_PROGRESS.store(false, Ordering::Release);
     CHILD_RESTART_PENDING.store(true, Ordering::Release);
+    CHILD_RESTART_DEFERRED.store(false, Ordering::Release);
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+struct ChildRestartGuard;
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+impl Drop for ChildRestartGuard {
+    fn drop(&mut self) {
+        CHILD_RESTART_IN_PROGRESS.store(false, Ordering::Release);
+    }
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn acquire_child_restart() -> PyResult<Option<ChildRestartGuard>> {
+    loop {
+        if !CHILD_RESTART_PENDING.load(Ordering::Acquire) {
+            return Ok(None);
+        }
+        if CHILD_RESTART_DEFERRED.load(Ordering::Acquire) {
+            return Err(PyRuntimeError::new_err(
+                "native runtime restart is deferred until child fork hooks complete",
+            ));
+        }
+        if CHILD_RESTART_IN_PROGRESS
+            .compare_exchange_weak(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            let guard = ChildRestartGuard;
+            if !CHILD_RESTART_PENDING.load(Ordering::Acquire) {
+                return Ok(None);
+            }
+            if CHILD_RESTART_DEFERRED.load(Ordering::Acquire) {
+                return Err(PyRuntimeError::new_err(
+                    "native runtime restart is deferred until child fork hooks complete",
+                ));
+            }
+            return Ok(Some(guard));
+        }
+        std::thread::yield_now();
+    }
 }
 
 #[pyclass(name = "SharedRuntime", subclass)]
@@ -95,19 +144,14 @@ pub(crate) fn ensure_after_fork_child(runtime: &Arc<ForkSafeRuntime>) -> PyResul
         if !CHILD_RESTART_PENDING.load(Ordering::Acquire) {
             return Ok(());
         }
-        if CHILD_RESTART_DEFERRED.load(Ordering::Acquire) {
-            return Err(PyRuntimeError::new_err(
-                "native runtime restart is deferred until child fork hooks complete",
-            ));
-        }
-        if CHILD_RESTART_PENDING.swap(false, Ordering::AcqRel) {
+        if let Some(_restart_guard) = acquire_child_restart()? {
             if let Err(e) = runtime.after_fork_child() {
-                CHILD_RESTART_PENDING.store(true, Ordering::Release);
                 return Err(shared_runtime_error_to_pyerr(e));
             }
             if let Some(state) = atfork_runtime() {
                 state.pid.store(std::process::id(), Ordering::Release);
             }
+            CHILD_RESTART_PENDING.store(false, Ordering::Release);
         } else if let Some(state) = atfork_runtime() {
             if state.pid.load(Ordering::Acquire) != std::process::id() {
                 return Err(PyRuntimeError::new_err(
@@ -128,11 +172,7 @@ fn ensure_shared_runtime_after_fork(
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
-    if CHILD_RESTART_DEFERRED.load(Ordering::Acquire) {
-        return Err(PyRuntimeError::new_err(
-            "native runtime restart is deferred until child fork hooks complete",
-        ));
-    }
+    let restart_guard = acquire_child_restart()?;
 
     let mut runtime = state.runtime.write().unwrap_or_else(|e| e.into_inner());
     if state.pid.load(Ordering::Acquire) == current_pid {
@@ -140,21 +180,19 @@ fn ensure_shared_runtime_after_fork(
     }
 
     #[cfg(any(target_os = "linux", target_os = "macos"))]
-    {
+    if restart_guard.is_some() {
         // Python-managed forks drop and rebuild workers in Python. Calling after_fork_child()
         // here would unpark the inherited Tokio I/O driver, which panics with EBADF once
         // process managers such as Celery have closed inherited descriptors.
-        if CHILD_ABANDON_INHERITED.swap(false, Ordering::AcqRel) {
+        if CHILD_ABANDON_INHERITED.load(Ordering::Acquire) {
             return replace_inherited_runtime(&mut runtime, state, current_pid);
         }
-        if CHILD_RESTART_PENDING.swap(false, Ordering::AcqRel) {
-            if let Err(e) = runtime.after_fork_child() {
-                CHILD_RESTART_PENDING.store(true, Ordering::Release);
-                return Err(shared_runtime_error_to_pyerr(e));
-            }
-            state.pid.store(current_pid, Ordering::Release);
-            return Ok(runtime.clone());
+        if let Err(e) = runtime.after_fork_child() {
+            return Err(shared_runtime_error_to_pyerr(e));
         }
+        state.pid.store(current_pid, Ordering::Release);
+        CHILD_RESTART_PENDING.store(false, Ordering::Release);
+        return Ok(runtime.clone());
     }
 
     // A Python-managed fork can run without invoking pthread_atfork on some runtimes.
