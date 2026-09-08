@@ -580,7 +580,7 @@ class Tracer(object):
 
             # Extra attributes when from a local parent
             if parent:
-                span._inherit_from_parent(parent, service)
+                span._inherit_from_parent(parent)
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers

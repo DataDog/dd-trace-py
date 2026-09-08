@@ -631,30 +631,19 @@ impl SpanData {
 
     /// Attach a newly-created child span and derive its local-root and
     /// same-service entry relationships in one native operation.
-    #[pyo3(signature = (parent, service=None))]
-    fn _inherit_from_parent(
-        slf: &Bound<'_, Self>,
-        parent: &Bound<'_, SpanData>,
-        service: Option<&Bound<'_, PyAny>>,
-    ) -> pyo3::PyResult<()> {
-        if parent.as_any().is(slf.as_any()) {
-            return Ok(());
+    fn _inherit_from_parent(slf: &Bound<'_, Self>, parent: &Bound<'_, SpanData>) {
+        if parent.is(slf) {
+            return;
         }
 
         let py = slf.py();
-        let parent_ref = parent.as_any().clone().unbind();
+        let parent_ref = parent.clone().unbind().into_any();
         let parent_span_ref = parent.clone().unbind();
-        // Preserve the pre-migration comparison exactly. Service-entry semantics
-        // use the tracer's original resolved service argument, including invalid
-        // values that SpanData gracefully coerces to None.
-        let parent_service = parent.as_any().getattr("service")?;
-        let inherits_service_entry = match service {
-            Some(service) => parent_service.eq(service)?,
-            None => parent_service.is_none(),
-        };
-        let (local_root, service_entry_span) = {
+        let (inherits_service_entry, local_root, service_entry_span) = {
+            let child = slf.borrow();
             let parent = parent.borrow();
             (
+                parent.service == child.service,
                 parent
                     ._local_root
                     .as_ref()
@@ -667,24 +656,17 @@ impl SpanData {
                     .unwrap_or_else(|| parent_span_ref.clone_ref(py)),
             )
         };
+        let service_entry_span = inherits_service_entry.then_some(service_entry_span);
 
         let replaced = {
             let mut child = slf.borrow_mut();
             let old_parent = child._parent.replace(parent_ref);
             let old_local_root = child._local_root.replace(local_root);
-            (old_parent, old_local_root)
+            let old_service_entry_span =
+                std::mem::replace(&mut child._service_entry_span, service_entry_span);
+            (old_parent, old_local_root, old_service_entry_span)
         };
         drop(replaced);
-
-        let replaced = {
-            let mut child = slf.borrow_mut();
-            std::mem::replace(
-                &mut child._service_entry_span,
-                inherits_service_entry.then_some(service_entry_span),
-            )
-        };
-        drop(replaced);
-        Ok(())
     }
 
     // _parent_context property — the parent Context, or None.

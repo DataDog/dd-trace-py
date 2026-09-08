@@ -492,10 +492,10 @@ class SpanTestCase(TracerTestCase):
         assert span_log.warning.call_count == 4
 
     def test_service_entry_span(self):
-        parent = self.start_span("parent", service="service1")
-        child1 = self.start_span("child1", service="service1", child_of=parent)
-        child2 = self.start_span("child2", service="service2", child_of=parent)
-        invalid_service_child = self.start_span("invalid", service=456, child_of=parent)
+        parent = self.tracer.start_span("parent", service="service1")
+        child1 = self.tracer.start_span("child1", service="service1", child_of=parent)
+        child2 = self.tracer.start_span("child2", service="service2", child_of=parent)
+        invalid_service_child = self.tracer.start_span("invalid", service=456, child_of=parent)
 
         assert parent._service_entry_span is parent
         assert child1._parent is parent
@@ -509,7 +509,7 @@ class SpanTestCase(TracerTestCase):
         assert child1._service_entry_span is parent
 
         # Service entry span only works for the immediate parent
-        grandchild = self.start_span("grandchild", service="service1", child_of=child2)
+        grandchild = self.tracer.start_span("grandchild", service="service1", child_of=child2)
         assert grandchild._service_entry_span is grandchild
 
         # Relationship state is native so native consumers do not have to
