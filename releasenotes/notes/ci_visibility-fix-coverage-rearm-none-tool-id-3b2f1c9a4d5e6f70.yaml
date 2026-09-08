@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: Fixes an issue where collecting coverage could abort the session
+    with a ``TypeError``.
