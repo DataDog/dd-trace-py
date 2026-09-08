@@ -323,6 +323,7 @@ suites:
       - '@tracing'
       - '@vendor'
       - ddtrace/internal/*
+      - scripts/check_no_new_aidev_anchors.py
       - scripts/gen_gitlab_config.py
       - tests/internal/*
       - tests/submod/*

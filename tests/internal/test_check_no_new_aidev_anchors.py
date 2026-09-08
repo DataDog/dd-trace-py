@@ -1,14 +1,17 @@
 """Tests for scripts/check_no_new_aidev_anchors.py."""
 
+from __future__ import annotations
+
 import importlib.util
 import pathlib
 import types
+from typing import Optional
 
 import pytest
 
 
 _SCRIPT_PATH: pathlib.Path = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "check_no_new_aidev_anchors.py"
-_SPEC: importlib.machinery.ModuleSpec | None = importlib.util.spec_from_file_location(
+_SPEC: Optional[importlib.machinery.ModuleSpec] = importlib.util.spec_from_file_location(
     "check_no_new_aidev_anchors", _SCRIPT_PATH
 )
 assert _SPEC is not None and _SPEC.loader is not None
@@ -25,6 +28,8 @@ _SPEC.loader.exec_module(_MODULE)
         "+ /* AIDEV-NOTE: block comment */",
         "+ * AIDEV-TODO: block continuation",
         "+ AIDEV-QUESTION: block continuation */",
+        "+ AIDEV-NOTE: multiline docstring anchor",
+        "+ # AIDEV-CONTEXT: future anchor type",
     ],
 )
 def test_is_anchor_line_detects_comment_forms(line: str) -> None:
@@ -43,3 +48,35 @@ def test_is_anchor_line_detects_comment_forms(line: str) -> None:
 )
 def test_is_anchor_line_ignores_prose_and_strings(line: str) -> None:
     assert not _MODULE._is_anchor_line(line)
+
+
+def test_added_lines_ignores_deleted_anchors(monkeypatch: pytest.MonkeyPatch) -> None:
+    diff: str = "\n".join(
+        [
+            "diff --git a/example.py b/example.py",
+            "--- a/example.py",
+            "+++ b/example.py",
+            "@@ -1,2 +1,1 @@",
+            "-# AIDEV-NOTE: legacy anchor",
+            " unchanged",
+        ]
+    )
+
+    def fake_merge_base(base_ref: str) -> str:
+        return "base"
+
+    def fake_run(
+        command: list[str],
+        *,
+        capture_output: bool,
+        check: bool,
+        text: bool,
+    ) -> types.SimpleNamespace:
+        return types.SimpleNamespace(stdout=diff)
+
+    monkeypatch.setattr(_MODULE, "_merge_base", fake_merge_base)
+    monkeypatch.setattr(_MODULE.subprocess, "run", fake_run)
+
+    violations: list[tuple[str, str]] = _MODULE._added_lines("origin/main")
+
+    assert violations == []
