@@ -41,7 +41,7 @@ endif()
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
     target_include_directories(${name} PRIVATE ../include $<TARGET_PROPERTY:_native,INTERFACE_INCLUDE_DIRECTORIES>)
-    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper ${Python3_LIBRARIES})
+    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper _native ${Python3_LIBRARIES})
     add_ddup_config(${name})
     if(NOT APPLE)
         target_link_options(${name} PRIVATE -Wl,--no-as-needed)
@@ -55,12 +55,16 @@ function(dd_wrapper_add_test name)
         set(_rpath_prefix "$ORIGIN")
     endif()
 
+    get_target_property(_native_location _native IMPORTED_LOCATION)
+    get_filename_component(_native_dir "${_native_location}" DIRECTORY)
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/.."
-                                                 BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(
+            ${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/..;${_native_dir}"
+                               BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/..;${_native_dir}"
+                                                 BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
     gtest_discover_tests(
@@ -71,9 +75,13 @@ function(dd_wrapper_add_test name)
                    ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp")
 
     if(LIB_INSTALL_DIR)
-        get_filename_component(_test_install_dir "${LIB_INSTALL_DIR}" DIRECTORY)
-        set(_test_install_dir "${_test_install_dir}/test")
-        install(TARGETS ${name} RUNTIME DESTINATION ${_test_install_dir})
+        get_filename_component(_lib_install_name "${LIB_INSTALL_DIR}" NAME)
+        if(_lib_install_name STREQUAL "lib")
+            get_filename_component(_test_install_root "${LIB_INSTALL_DIR}" DIRECTORY)
+        else()
+            set(_test_install_root "${LIB_INSTALL_DIR}")
+        endif()
+        install(TARGETS ${name} RUNTIME DESTINATION "${_test_install_root}/test")
     endif()
 endfunction()
 
@@ -83,3 +91,15 @@ dd_wrapper_add_test(test_api test_api.cpp)
 dd_wrapper_add_test(test_threading test_threading.cpp)
 dd_wrapper_add_test(test_forking test_forking.cpp)
 dd_wrapper_add_test(test_cleanup_race test_cleanup_race.cpp)
+
+if(EXISTS "${LIBDD_PROFILING_CXX_SOURCE}" AND EXISTS "${LIBDD_PROFILING_CXXBRIDGE_LIB}")
+    set_source_files_properties(test_cxx_bridge.cpp "${LIBDD_PROFILING_CXX_SOURCE}" PROPERTIES COMPILE_FLAGS
+                                                                                               "-Wno-old-style-cast")
+    dd_wrapper_add_test(test_cxx_bridge test_cxx_bridge.cpp "${LIBDD_PROFILING_CXX_SOURCE}")
+    target_link_libraries(test_cxx_bridge PRIVATE "${LIBDD_PROFILING_CXXBRIDGE_LIB}")
+else()
+    message(
+        FATAL_ERROR
+            "Generated libdd-profiling CXX bridge artifacts not found: ${LIBDD_PROFILING_CXX_SOURCE}; ${LIBDD_PROFILING_CXXBRIDGE_LIB}"
+    )
+endif()
