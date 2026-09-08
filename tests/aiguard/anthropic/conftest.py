@@ -4,9 +4,9 @@ import json
 
 
 try:
-    import httpx
-except ImportError:
     import httpx2 as httpx  # anthropic>=1.0.0 ships httpx2 instead of httpx
+except ImportError:
+    import httpx
 
 import pytest
 

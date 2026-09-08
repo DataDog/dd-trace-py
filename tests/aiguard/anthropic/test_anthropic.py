@@ -1587,9 +1587,9 @@ def anthropic_client_replay(anthropic_sdk):
     replays.
     """
     try:
-        import httpx
-    except ImportError:
         import httpx2 as httpx  # anthropic>=1.0.0 ships httpx2 instead of httpx
+    except ImportError:
+        import httpx
 
     def _factory(response_bytes):
         class _ReplayTransport(httpx.BaseTransport):
