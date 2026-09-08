@@ -1246,11 +1246,16 @@ class HTTPPropagator(object):
             if config._propagation_extract_first:
                 # loop through the extract propagation styles specified in order, return whatever context we get first
                 for prop_style in config._propagation_style_extract:
+                    # AIDEV-NOTE: Baggage is independent of trace selection and must not stop fallback.
+                    if prop_style == _PROPAGATION_STYLE_BAGGAGE:
+                        continue
                     propagator = _PROP_STYLES[prop_style]
-                    context = propagator._extract(normalized_headers)
+                    extracted_context = propagator._extract(normalized_headers)
+                    if not extracted_context:
+                        continue
+                    context = extracted_context
                     style = prop_style
-                    if context:
-                        _record_http_telemetry("context_header_style.extracted", prop_style)
+                    _record_http_telemetry("context_header_style.extracted", prop_style)
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break

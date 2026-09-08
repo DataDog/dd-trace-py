@@ -2703,6 +2703,104 @@ def test_propagation_extract_w_config(
             assert context == Context(**copied_expectation, meta={"tracestate": tracestate})
 
 
+@pytest.mark.parametrize("datadog_headers", [{}, {HTTP_HEADER_TRACE_ID: "invalid"}])
+@pytest.mark.parametrize("baggage_first", [False, True])
+@pytest.mark.parametrize(
+    "style,headers",
+    [
+        (
+            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            {_HTTP_HEADER_TRACEPARENT: "00-0000000000000000000000000000007b-00000000000001c8-01"},
+        ),
+        (
+            PROPAGATION_STYLE_B3_MULTI,
+            {
+                _HTTP_HEADER_B3_TRACE_ID: "000000000000007b",
+                _HTTP_HEADER_B3_SPAN_ID: "00000000000001c8",
+                _HTTP_HEADER_B3_SAMPLED: "1",
+            },
+        ),
+        (PROPAGATION_STYLE_B3_SINGLE, {_HTTP_HEADER_B3_SINGLE: "000000000000007b-00000000000001c8-1"}),
+    ],
+)
+def test_extract_first_falls_back_to_valid_context(datadog_headers, baggage_first, style, headers):
+    styles = [PROPAGATION_STYLE_DATADOG, style]
+    styles.insert(0 if baggage_first else len(styles), _PROPAGATION_STYLE_BAGGAGE)
+    with override_global_config(
+        dict(_propagation_style_extract=styles, _propagation_extract_first=True, _propagation_http_baggage_enabled=True)
+    ):
+        context = HTTPPropagator.extract({**datadog_headers, **headers, "ot-baggage-legacy": "value"})
+
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context.sampling_priority == 1
+    assert context.get_baggage_item("legacy") == "value"
+    assert context._span_links == []
+
+
+@pytest.mark.parametrize("baggage_first", [False, True])
+def test_extract_first_preserves_precedence_and_baggage(baggage_first):
+    styles = [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT]
+    styles.insert(0 if baggage_first else len(styles), _PROPAGATION_STYLE_BAGGAGE)
+    headers = {
+        HTTP_HEADER_TRACE_ID: "123",
+        HTTP_HEADER_PARENT_ID: "456",
+        _HTTP_HEADER_TRACEPARENT: "00-00000000000000000000000000000315-0000000000000001-01",
+        _HTTP_HEADER_BAGGAGE: "customer=alice",
+    }
+    with override_global_config(dict(_propagation_style_extract=styles, _propagation_extract_first=True)):
+        context = HTTPPropagator.extract(headers)
+
+    assert context.trace_id == 123
+    assert context.span_id == 456
+    assert context.get_baggage_item("customer") == "alice"
+    assert context._span_links == []
+    assert W3C_TRACEPARENT_KEY not in context._meta
+
+
+@pytest.mark.parametrize("headers", [{"unrelated": "value"}, {HTTP_HEADER_TRACE_ID: "invalid"}])
+def test_extract_first_without_valid_context(headers):
+    with override_global_config(
+        dict(
+            _propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+            _propagation_extract_first=True,
+        )
+    ):
+        assert HTTPPropagator.extract(headers) == Context()
+
+
+def test_extract_first_fallback_with_restart():
+    with override_global_config(
+        dict(
+            _propagation_style_extract=[
+                PROPAGATION_STYLE_DATADOG,
+                _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+                _PROPAGATION_STYLE_BAGGAGE,
+            ],
+            _propagation_extract_first=True,
+            _propagation_behavior_extract=_PROPAGATION_BEHAVIOR_RESTART,
+        )
+    ):
+        context = HTTPPropagator.extract(
+            {
+                _HTTP_HEADER_TRACEPARENT: "00-0000000000000000000000000000007b-00000000000001c8-01",
+                _HTTP_HEADER_BAGGAGE: "customer=alice",
+            }
+        )
+
+    assert context.trace_id is None
+    assert context.span_id is None
+    assert context.get_baggage_item("customer") == "alice"
+    assert len(context._span_links) == 1
+    link = context._span_links[0]
+    assert link.trace_id == 123
+    assert link.span_id == 456
+    assert link.attributes == {
+        "reason": "propagation_behavior_extract",
+        "context_headers": _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+    }
+
+
 EXTRACT_OVERRIDE_FIXTURES = [
     (
         "valid_all_headers_b3_single_override",
