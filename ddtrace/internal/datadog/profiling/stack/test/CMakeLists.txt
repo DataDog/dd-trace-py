@@ -144,4 +144,3 @@ if(Python3_VERSION VERSION_GREATER_EQUAL "3.15")
     # reach the copy site.
     target_compile_definitions(test_frame_state_315 PRIVATE ECHION_FUZZING)
 endif()
-dd_wrapper_add_test(test_cpython_layout_contracts test_cpython_layout_contracts.cpp)

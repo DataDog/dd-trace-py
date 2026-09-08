@@ -60,10 +60,11 @@ add_library(${EXTENSION_NAME} SHARED ${DDUP_CPP_SRC})
 add_ddup_config(${EXTENSION_NAME})
 
 # Cython generates code that produces errors for the following, so relax compile options
-# -Wno-missing-field-initializers: Python 3.15 added _tp_iteritem to PyTypeObject; Cython doesn't initialize it yet
-# TODO(py-315): remove once Cython initializes _tp_iteritem.
-target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address
-                                                 -Wno-missing-field-initializers)
+target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-old-style-cast -Wno-shadow -Wno-address)
+if(Python3_VERSION VERSION_GREATER_EQUAL "3.15")
+    # Python 3.15 added _tp_iteritem; Cython does not initialize it yet.
+    target_compile_options(${EXTENSION_NAME} PRIVATE -Wno-missing-field-initializers)
+endif()
 
 # cmake may mutate the name of the library (e.g., lib- and -.so for dynamic libraries). This suppresses that behavior,
 # which is required to ensure all paths can be inferred correctly by setup.py.
