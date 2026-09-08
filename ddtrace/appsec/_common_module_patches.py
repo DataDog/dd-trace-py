@@ -20,6 +20,8 @@ from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appse
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
 from ddtrace.appsec._contrib.subprocess.patch import patch as patch_subprocess_for_appsec
 from ddtrace.appsec._contrib.subprocess.patch import unpatch as unpatch_subprocess_for_appsec
+from ddtrace.appsec._contrib.webbrowser.patch import patch as patch_webbrowser_for_appsec
+from ddtrace.appsec._contrib.webbrowser.patch import unpatch as unpatch_webbrowser_for_appsec
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
@@ -56,6 +58,7 @@ def patch_common_modules() -> None:
     patch_filesystem_for_appsec()
     patch_stripe_for_appsec()
     patch_subprocess_for_appsec()
+    patch_webbrowser_for_appsec()
 
     log.debug("Patching common modules: builtins and urllib.request")
     _is_patched = True
@@ -76,6 +79,7 @@ def unpatch_common_modules():
     unpatch_filesystem_for_appsec()
     unpatch_stripe_for_appsec()
     unpatch_subprocess_for_appsec()
+    unpatch_webbrowser_for_appsec()
 
     log.debug("Unpatching common modules subprocess, builtins and urllib.request")
     _is_patched = False

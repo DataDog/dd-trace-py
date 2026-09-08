@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ASM: Fixes an issue where Exploit Prevention never evaluates SSRF rules against the URL
+    passed to ``webbrowser.open``, so calls to it were not protected. Calls through
+    ``urllib.request.urlopen`` were already evaluated correctly and are unaffected.

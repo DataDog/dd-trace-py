@@ -878,3 +878,79 @@ def test_absolute_downstream_url_follows_a_connect_tunnel(tunnel_host, tunnel_po
 )
 def test_carries_a_host(url, carries_host):
     assert cmp._carries_a_host(url) is carries_host
+
+
+def test_webbrowser_open_inspects_the_url_and_not_the_new_argument():
+    """webbrowser.open is open(url, new=0, autoraise=True).
+
+    The shared wrapt shim read the second positional argument, so RASP inspected `new` and the
+    hook never had a URL at all. A block in __enter__ also keeps this test from launching a browser.
+    """
+    import webbrowser
+
+    from ddtrace.appsec._contrib.webbrowser import patch as wb
+
+    unpatch_common_modules()
+    seen = []
+    try:
+        patch_common_modules()
+        with (
+            mock.patch.object(wb, "get_rasp_capability", return_value=True),
+            mock.patch.object(wb, "get_active_asm_context", return_value=mock.Mock()),
+            mock.patch.object(wb, "open_rasp_subcontext_scope"),
+            mock.patch.object(wb, "get_blocked", return_value={"status_code": 403}),
+            mock.patch.object(
+                wb,
+                "call_waf_callback",
+                side_effect=lambda addresses=None, **kwargs: seen.append(addresses) or _blocking_waf_result(),
+            ),
+        ):
+            with pytest.raises(BlockingException) as raised:
+                webbrowser.open("http://127.0.0.1:1/probe", 2)
+    finally:
+        unpatch_common_modules()
+
+    assert seen == [{EXPLOIT_PREVENTION.ADDRESS.SSRF: "http://127.0.0.1:1/probe"}]
+    assert raised.value.args[3] == "http://127.0.0.1:1/probe"
+
+
+def test_webbrowser_open_is_wrapped_with_a_context_not_wrapt():
+    """A wrapt wrapper would put a frame of ours in the traceback of any error passing through."""
+    import webbrowser
+
+    from ddtrace.appsec._contrib.webbrowser.patch import _SsrfWebbrowserOpen
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        assert _SsrfWebbrowserOpen.is_wrapped(webbrowser.open)
+        assert not isinstance(webbrowser.open, FunctionWrapper)
+
+        # Re-patching must stay a no-op rather than registering the context twice.
+        patch_common_modules()
+        assert _SsrfWebbrowserOpen.is_wrapped(webbrowser.open)
+    finally:
+        unpatch_common_modules()
+
+    assert not _SsrfWebbrowserOpen.is_wrapped(webbrowser.open)
+
+
+def test_urlopen_is_not_wrapt_wrapped_and_is_still_inspected_via_the_opener():
+    """urlopen always routes through OpenerDirector.open, which the context already covers.
+
+    The contrib install on urlopen read the second positional argument, which is `data`, so it
+    never had a URL - and it was a duplicate inspection of a path already covered correctly.
+    """
+    import urllib.request
+
+    from ddtrace.contrib.internal.urllib.patch import patch as urllib_patch
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        urllib_patch()
+
+        assert not isinstance(urllib.request.urlopen, FunctionWrapper)
+        assert _SsrfOpenerDirectorOpen.is_wrapped(urllib.request.OpenerDirector.open)
+    finally:
+        unpatch_common_modules()
