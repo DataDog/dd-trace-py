@@ -18,7 +18,7 @@ variables:
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
   # Automatically managed, use scripts/update-system-tests-version to update
-  SYSTEM_TESTS_REF: "4f13cf1b6222d42804d012326fd4f6881026ba46"
+  SYSTEM_TESTS_REF: "6bcdc71f0db7d262a02541a07546630784e7acdf"
 
   # Profiling native build image (built from dd/images/dd-trace-py/profiling_native)
   PROFILING_NATIVE_IMAGE: "registry.ddbuild.io/dd-trace-py:v103334885-be1888c-profiling_native"
@@ -58,6 +58,9 @@ workflow:
     - when: always
 
 include:
+  - project: 'DataDog/llm-validation-platform'
+    ref: 0f48ca35f0b3dfd19d5c0dc9f92aa977c99bebbf
+    file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
@@ -744,3 +747,8 @@ deploy_to_reliability_env:
 # stage-based ordering and waits for all prior stages before publishing.
 publishing-gate:
   needs: null
+
+"llm validation":
+  variables:
+    LLMVAL_BASE_REF: "main"
+    LLMVAL_PLATFORM_REF: "0f48ca35f0b3dfd19d5c0dc9f92aa977c99bebbf"  # keep identical to the include ref above
