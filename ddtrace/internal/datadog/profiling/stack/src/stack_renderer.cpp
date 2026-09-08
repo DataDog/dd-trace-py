@@ -193,15 +193,16 @@ StackRenderer::render_frame(Frame& frame)
         filename_id = maybe_filename_id->second;
     }
 
+    const internal::StringIdPair function_key{ name_id, filename_id };
     function_id function_id;
-    auto maybe_function_id = function_id_cache.find({ name_id, filename_id });
+    auto maybe_function_id = function_id_cache.find(function_key);
     if (maybe_function_id == function_id_cache.end()) {
         auto maybe_interned_function_id = Datadog::intern_function(name_id, filename_id);
         if (!maybe_interned_function_id) {
             return;
         }
         function_id = *maybe_interned_function_id;
-        function_id_cache.insert({ { static_cast<void*>(name_id), static_cast<void*>(filename_id) }, function_id });
+        function_id_cache.insert({ function_key, function_id });
     } else {
         function_id = maybe_function_id->second;
     }
@@ -245,15 +246,16 @@ StackRenderer::render_native_frame(const std::string& name, const std::string& m
     auto filename_id = *maybe_filename_id;
 
     // Reuse the same function_id_cache as render_frame to avoid redundant intern_function calls
+    const internal::StringIdPair function_key{ name_id, filename_id };
     function_id fid;
-    auto cached = function_id_cache.find({ name_id, filename_id });
+    auto cached = function_id_cache.find(function_key);
     if (cached == function_id_cache.end()) {
         auto maybe_fid = Datadog::intern_function(name_id, filename_id);
         if (!maybe_fid) {
             return;
         }
         fid = *maybe_fid;
-        function_id_cache.insert({ { static_cast<void*>(name_id), static_cast<void*>(filename_id) }, fid });
+        function_id_cache.insert({ function_key, fid });
     } else {
         fid = cached->second;
     }
@@ -311,7 +313,7 @@ Datadog::StackRenderer::postfork_child()
     // in an inconsistent state.
     new (&string_id_cache) std::unordered_map<StringTable::Key, string_id>();
     new (&function_id_cache)
-      std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq>();
+      std::unordered_map<internal::StringIdPair, function_id, internal::StringIdPairHash, internal::StringIdPairEq>();
 
     // The vanished sampling thread may have been mutating this Sample when fork captured it. Clearing or returning the
     // child copy could traverse inconsistent vectors, so intentionally abandon at most this one in-flight child copy.

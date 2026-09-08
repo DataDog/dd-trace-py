@@ -57,10 +57,12 @@ function(dd_wrapper_add_test name)
 
     get_target_property(EXISTING_INSTALL_RPATH ${name} INSTALL_RPATH)
     if(EXISTING_INSTALL_RPATH)
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/.."
-                                                 BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(
+            ${name} PROPERTIES INSTALL_RPATH "${EXISTING_INSTALL_RPATH};${_rpath_prefix}/..;${DD_WRAPPER_DIR}"
+                               BUILD_WITH_INSTALL_RPATH TRUE)
     else()
-        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/.." BUILD_WITH_INSTALL_RPATH TRUE)
+        set_target_properties(${name} PROPERTIES INSTALL_RPATH "${_rpath_prefix}/..;${DD_WRAPPER_DIR}"
+                                                 BUILD_WITH_INSTALL_RPATH TRUE)
     endif()
 
     gtest_discover_tests(${name} DISCOVERY_MODE PRE_TEST) # Delay test discovery until test execution to avoid running

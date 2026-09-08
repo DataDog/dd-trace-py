@@ -1,16 +1,15 @@
 #pragma once
 
 #include "constants.hpp"
+#include "libdatadog_helpers.hpp"
 #include "profiler_stats.hpp"
 #include "types.hpp"
 
+#include <cstdint>
 #include <mutex>
+#include <optional>
+#include <string_view>
 #include <vector>
-
-extern "C"
-{
-#include "datadog/profiling.h"
-}
 
 namespace Datadog {
 
@@ -24,14 +23,14 @@ class Profile
   private:
     // Serialization for static state
     // - string table
-    // - ddog_profile
+    // - profile
     std::once_flag init_once{};
     std::mutex profile_mtx{};
 
     // Configuration
     SampleType type_mask{ 0 };
     unsigned int max_nframes{ g_default_max_nframes };
-    ddog_prof_Period default_period{};
+    ddprof::Period default_period{};
 
     // Sampler setup
     void setup_samplers();
@@ -40,15 +39,15 @@ class Profile
     ValueIndex val_idx{};
 
     // Configuration for the pprof exporter
-    std::vector<ddog_prof_SampleType> samplers{};
+    std::vector<ddprof::SampleType> samplers{};
 
     // The profile object is initialized here as a skeleton object, but it
     // cannot be used until it's initialized by libdatadog
-    ddog_prof_Profile cur_profile{};
+    std::optional<rust::Box<ddprof::Profile>> cur_profile{};
     Datadog::ProfilerStats cur_profiler_stats{};
 
     // Internal access methods - not for direct use
-    ddog_prof_Profile& profile_borrow_internal();
+    ddprof::Profile& profile_borrow_internal();
     void profile_release();
 
     void one_time_init_impl(SampleType type, unsigned int _max_nframes);
@@ -70,7 +69,11 @@ class Profile
     // constref getters
     const ValueIndex& val();
 
+    std::vector<std::uint8_t> serialize_to_vec();
+    bool add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint);
+    bool add_endpoint_count(std::string_view endpoint, std::int64_t value);
+
     // collect
-    bool collect(const ddog_prof_Sample2& sample, int64_t endtime_ns);
+    bool collect(const ddprof::Sample2& sample, int64_t endtime_ns);
 };
 } // namespace Datadog

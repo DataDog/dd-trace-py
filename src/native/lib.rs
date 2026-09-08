@@ -2,6 +2,8 @@
 mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
+#[cfg(feature = "profiling")]
+pub use libdd_profiling::cxx as profiling_cxx;
 mod config;
 mod context;
 mod context_provider;

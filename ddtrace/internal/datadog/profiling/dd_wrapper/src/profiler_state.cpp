@@ -29,64 +29,57 @@ ProfilerState::get()
 bool
 ProfilerState::init_profiles_dictionary()
 {
-    // Guard against double-initialization: dict_handle_ must be null before we create a new one.
+    // Guard against double-initialization: profiles_dictionary must be empty before we create a new one.
     // This is guaranteed by call_once in start() for the initial call, and by release_profiles_dictionary()
     // being called before this in postfork_child().
-    if (dict_handle_.load(std::memory_order_acquire) != nullptr) {
+    const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
+    if (profiles_dictionary.has_value()) {
         std::cerr << "profiles dictionary already initialized" << std::endl;
         return false;
     }
 
-    ddog_prof_ProfilesDictionaryHandle temp = nullptr;
-    auto result = ddog_prof_ProfilesDictionary_new(&temp);
-    if (result.flags) {
-        std::cerr << "could not initialise profiles dictionary: " << result.err << std::endl;
+    try {
+        profiles_dictionary.emplace(ddprof::ProfilesDictionary::create());
+    } catch (const std::exception& err) {
+        std::cerr << "could not initialise CXX profiles dictionary: " << err.what() << std::endl;
         return false;
     }
 
-    dict_handle_.store(temp, std::memory_order_release);
     return true;
 }
 
-std::optional<ddog_prof_ProfilesDictionaryHandle>
+ddprof::ProfilesDictionary*
 ProfilerState::get_profiles_dictionary()
 {
-    auto handle = dict_handle_.load(std::memory_order_acquire);
-    if (handle == nullptr) {
-        return std::nullopt;
+    const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
+    if (!profiles_dictionary.has_value()) {
+        return nullptr;
     }
-    return handle;
+    return &profiles_dictionary.value().operator*();
 }
 
 void
 ProfilerState::release_profiles_dictionary()
 {
-    // Atomically swap out the handle before dropping, so concurrent callers of
-    // get_profiles_dictionary() see nullptr rather than a pointer to freed memory.
-    ddog_prof_ProfilesDictionaryHandle temp = dict_handle_.exchange(nullptr, std::memory_order_acq_rel);
-    if (temp != nullptr) {
-        ddog_prof_ProfilesDictionary_drop(&temp);
-    }
+    const std::lock_guard<std::mutex> lock(profiles_dictionary_mtx);
+    profiles_dictionary.reset();
 }
 
 bool
 ProfilerState::init_interned_strings()
 {
-    auto maybe_dict = get_profiles_dictionary();
-    if (!maybe_dict) {
+    auto* dict = get_profiles_dictionary();
+    if (dict == nullptr) {
         return false;
     }
 
-    // Intern the empty string, which is used frequently
-    ddog_prof_StringId2 string_id;
-    auto result = ddog_prof_ProfilesDictionary_insert_str(
-      &string_id, maybe_dict.value(), to_slice(""), ddog_prof_Utf8Option::DDOG_PROF_UTF8_OPTION_CONVERT_LOSSY);
-
-    if (result.flags) {
-        std::cerr << "Error interning empty string: " << result.err << std::endl;
+    try {
+        // Intern the empty string, which is used frequently.
+        cached_empty_string_id = dict->insert_string("");
+    } catch (const std::exception& err) {
+        std::cerr << "Error interning empty string: " << err.what() << std::endl;
         return false;
     }
-    cached_empty_string_id = string_id;
 
     return true;
 }
@@ -95,12 +88,12 @@ void
 ProfilerState::reset_key_caches()
 {
     for (auto& entry : tag_cache) {
-        entry.store(nullptr, std::memory_order_relaxed);
+        entry.store({ nullptr }, std::memory_order_relaxed);
     }
     for (auto& entry : label_cache) {
-        entry.store(nullptr, std::memory_order_relaxed);
+        entry.store({ nullptr }, std::memory_order_relaxed);
     }
-    cached_empty_string_id = nullptr;
+    cached_empty_string_id = { nullptr };
 }
 
 void

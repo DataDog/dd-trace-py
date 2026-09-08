@@ -5,7 +5,7 @@
 
 namespace Datadog::internal {
 
-std::optional<ddog_prof_StringId2>
+std::optional<ddprof::StringId2>
 to_interned_string(ExportTagKey key)
 {
     auto& state = ProfilerState::get();
@@ -17,7 +17,7 @@ to_interned_string(ExportTagKey key)
 
     // Check cache first (relaxed is fine - benign race, worst case is interning twice)
     auto string_id = state.tag_cache[idx].load(std::memory_order_relaxed);
-    if (string_id == nullptr) {
+    if (string_id.handle == nullptr) {
         auto interned = intern_string(to_string(key));
         if (!interned) {
             return std::nullopt;
@@ -29,7 +29,7 @@ to_interned_string(ExportTagKey key)
     return string_id;
 }
 
-std::optional<ddog_prof_StringId2>
+std::optional<ddprof::StringId2>
 to_interned_string(ExportLabelKey key)
 {
     auto& state = ProfilerState::get();
@@ -41,7 +41,7 @@ to_interned_string(ExportLabelKey key)
 
     // Check cache first (relaxed is fine - benign race, worst case is interning twice)
     auto string_id = state.label_cache[idx].load(std::memory_order_relaxed);
-    if (string_id == nullptr) {
+    if (string_id.handle == nullptr) {
         auto interned = intern_string(to_string(key));
         if (!interned) {
             return std::nullopt;

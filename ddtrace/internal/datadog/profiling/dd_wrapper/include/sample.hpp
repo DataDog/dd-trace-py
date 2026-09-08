@@ -65,8 +65,8 @@ struct StringArena
 
 } // namespace internal
 
-using string_id = ddog_prof_StringId2;
-using function_id = ddog_prof_FunctionId2;
+using string_id = ddprof::StringId2;
+using function_id = ddprof::FunctionId2;
 
 std::optional<string_id>
 intern_string(std::string_view s);
@@ -86,13 +86,13 @@ class Sample
     std::string errmsg;
 
     // Keeps temporary buffer of frames in the stack
-    std::vector<ddog_prof_Location2> locations;
+    std::vector<ddprof::Location2> locations;
     size_t dropped_frames = 0;
     bool has_dropped_frames_indicator = false;
     uint64_t samples = 0;
 
     // Storage for labels
-    std::vector<ddog_prof_Label2> labels{};
+    std::vector<ddprof::Label2> labels{};
 
     // Storage for values
     std::vector<int64_t> values = {};
@@ -150,10 +150,7 @@ class Sample
 
     // Assumes frames are pushed in leaf-order
     void push_frame(std::string_view name, std::string_view filename, uint64_t address, int64_t line);
-    void push_frame(function_id function_id, // for ddog_prof_Location
-                    uint64_t address,        // for ddog_prof_Location
-                    int64_t line             // for ddog_prof_Location
-    );
+    void push_frame(function_id function_id, uint64_t address, int64_t line);
 
     // Explicitly mark that one or more frames were dropped without attempting to push them.
     // This is useful for callers that perform their own frame-limit checks and want to

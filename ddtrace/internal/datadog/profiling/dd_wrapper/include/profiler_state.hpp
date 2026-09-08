@@ -9,6 +9,7 @@
 #include <array>
 #include <atomic>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 
@@ -44,7 +45,7 @@ class ProfilerState
     // ========================================================================
     // Profiles Dictionary state
     // ========================================================================
-    std::optional<ddog_prof_ProfilesDictionaryHandle> get_profiles_dictionary();
+    ddprof::ProfilesDictionary* get_profiles_dictionary();
     void release_profiles_dictionary();
 
     // ========================================================================
@@ -106,10 +107,10 @@ class ProfilerState
     // ========================================================================
     static constexpr size_t kNumTagKeys = static_cast<size_t>(ExportTagKey::Length_);
     static constexpr size_t kNumLabelKeys = static_cast<size_t>(ExportLabelKey::Length_);
-    std::array<std::atomic<ddog_prof_StringId2>, kNumTagKeys> tag_cache{};
-    std::array<std::atomic<ddog_prof_StringId2>, kNumLabelKeys> label_cache{};
+    std::array<std::atomic<ddprof::StringId2>, kNumTagKeys> tag_cache{};
+    std::array<std::atomic<ddprof::StringId2>, kNumLabelKeys> label_cache{};
     // Written only during single-threaded init/postfork; read freely after initialized_ is set
-    ddog_prof_StringId2 cached_empty_string_id{ nullptr };
+    ddprof::StringId2 cached_empty_string_id{ nullptr };
 
     // Internal helpers
     bool init_profiles_dictionary();
@@ -131,7 +132,8 @@ class ProfilerState
     std::once_flag init_flag_;
 
     // Profiles Dictionary handle
-    std::atomic<ddog_prof_ProfilesDictionaryHandle> dict_handle_{ nullptr };
+    std::mutex profiles_dictionary_mtx{};
+    std::optional<rust::Box<ddprof::ProfilesDictionary>> profiles_dictionary{};
 };
 
 } // namespace Datadog

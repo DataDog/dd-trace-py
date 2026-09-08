@@ -7,12 +7,15 @@
 #include <string>
 #include <string_view>
 
+#include <libdd-profiling/src/cxx.rs.h>
+
 extern "C"
 {
 #include "datadog/profiling.h"
 }
 
 namespace Datadog {
+namespace ddprof = datadog::profiling;
 
 // Intern a string into libdatadog, returning a string ID
 // (or nullopt if interning failed).
@@ -21,7 +24,7 @@ namespace Datadog {
 // Note: although this function is a wrapper around libdatadog utilities,
 // it maintains a local cache of string -> string ID mappings to avoid
 // redundant FFI boundary-crossing calls.
-std::optional<ddog_prof_StringId2>
+std::optional<ddprof::StringId2>
 intern_string(std::string_view s);
 
 // There's currently no need to offer custom tags, so there's no interface for
@@ -159,10 +162,10 @@ namespace internal {
 
 // Fork-safe cached interning for tag and label keys
 // Caches are stored in the ProfilerState singleton and reset on fork
-std::optional<ddog_prof_StringId2>
+std::optional<ddprof::StringId2>
 to_interned_string(ExportTagKey key);
 
-std::optional<ddog_prof_StringId2>
+std::optional<ddprof::StringId2>
 to_interned_string(ExportLabelKey key);
 
 } // namespace internal

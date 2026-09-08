@@ -37,10 +37,23 @@ Datadog::ProfileBorrow::operator=(ProfileBorrow&& other) noexcept
     return *this;
 }
 
-ddog_prof_Profile&
-Datadog::ProfileBorrow::profile()
+std::vector<std::uint8_t>
+Datadog::ProfileBorrow::serialize_to_vec()
 {
-    return profile_ptr->cur_profile;
+    auto encoded = profile_ptr->cur_profile.value()->serialize_to_vec();
+    return std::vector<std::uint8_t>(encoded.data(), encoded.data() + encoded.size());
+}
+
+bool
+Datadog::ProfileBorrow::add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint)
+{
+    return profile_ptr->add_endpoint(local_root_span_id, endpoint);
+}
+
+bool
+Datadog::ProfileBorrow::add_endpoint_count(std::string_view endpoint, std::int64_t value)
+{
+    return profile_ptr->add_endpoint_count(endpoint, value);
 }
 
 Datadog::ProfilerStats&

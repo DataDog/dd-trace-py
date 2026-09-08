@@ -23,27 +23,30 @@ enum class MetricType : std::uint8_t
 
 namespace internal {
 
-struct PtrPair
+struct StringIdPair
 {
-    void* a;
-    void* b;
+    string_id name;
+    string_id filename;
 };
 
-struct PtrPairHash
+struct StringIdPairHash
 {
     // Hash combining using the golden ratio constant (2^64 / phi).
     // This is a standard technique similar to boost::hash_combine.
-    inline size_t operator()(const PtrPair& p) const noexcept
+    inline size_t operator()(const StringIdPair& p) const noexcept
     {
-        uintptr_t h1 = reinterpret_cast<uintptr_t>(p.a);
-        uintptr_t h2 = reinterpret_cast<uintptr_t>(p.b);
+        uintptr_t h1 = reinterpret_cast<uintptr_t>(p.name.handle);
+        uintptr_t h2 = reinterpret_cast<uintptr_t>(p.filename.handle);
         return h1 ^ (h2 * 0x9e3779b97f4a7c15ULL);
     }
 };
 
-struct PtrPairEq
+struct StringIdPairEq
 {
-    inline bool operator()(const PtrPair& x, const PtrPair& y) const noexcept { return x.a == y.a && x.b == y.b; }
+    inline bool operator()(const StringIdPair& x, const StringIdPair& y) const noexcept
+    {
+        return x.name.handle == y.name.handle && x.filename.handle == y.filename.handle;
+    }
 };
 
 } // namespace internal
@@ -79,7 +82,8 @@ class StackRenderer
     // deduplicates entries, keeping track of which items have been interned is faster than
     // trying to re-intern them).
     std::unordered_map<StringTable::Key, string_id> string_id_cache;
-    std::unordered_map<internal::PtrPair, function_id, internal::PtrPairHash, internal::PtrPairEq> function_id_cache;
+    std::unordered_map<internal::StringIdPair, function_id, internal::StringIdPairHash, internal::StringIdPairEq>
+      function_id_cache;
 
   public:
     StackRenderer();

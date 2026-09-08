@@ -205,18 +205,10 @@ ddup_profile_set_endpoints(
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
-    ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
-        ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
-        auto res = ddog_prof_Profile_set_endpoint(&profile, span_id, trace_endpoint_slice);
-        if (!res.ok) {
-            auto err = res.err;
-            if (!already_warned) {
-                already_warned = true;
-                const std::string errmsg = Datadog::err_to_msg(&err, "Error setting endpoint");
-                std::cerr << errmsg << std::endl;
-            }
-            ddog_Error_drop(&err);
+        if (!borrowed.add_endpoint(span_id, trace_endpoint) && !already_warned) {
+            already_warned = true;
+            std::cerr << "Error setting endpoint" << std::endl;
         }
     }
 }
@@ -230,18 +222,10 @@ ddup_profile_add_endpoint_counts(
 {
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
-    ddog_prof_Profile& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {
-        ddog_CharSlice trace_endpoint_slice = Datadog::to_slice(trace_endpoint);
-        auto res = ddog_prof_Profile_add_endpoint_count(&profile, trace_endpoint_slice, count);
-        if (!res.ok) {
-            auto err = res.err;
-            if (!already_warned) {
-                already_warned = true;
-                const std::string errmsg = Datadog::err_to_msg(&err, "Error adding endpoint count");
-                std::cerr << errmsg << std::endl;
-            }
-            ddog_Error_drop(&err);
+        if (!borrowed.add_endpoint_count(trace_endpoint, count) && !already_warned) {
+            already_warned = true;
+            std::cerr << "Error adding endpoint count" << std::endl;
         }
     }
 }
