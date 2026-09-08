@@ -12,8 +12,8 @@ Key design properties:
   contexts always produce distinct keys with no collisions.
 - Context snapshotting: one bounded pass with inline field, key, value, container-width,
   depth, cycle, and visited-node caps. A retained leaf sits at no more than
-  MAX_SNAPSHOT_DEPTH path segments, and null leaves are omitted — both matching
-  dd-trace-rb's bounded_flatten.
+  MAX_SNAPSHOT_DEPTH path segments, and explicit null leaves remain distinct from
+  absent fields.
 - Caps: GLOBAL_CAP=131_072 (full-tier), PER_FLAG_CAP=10_000 (per-flag full-tier),
   DEGRADED_CAP=32_768 (degraded-tier). Beyond the degraded cap: drop-and-count.
 - Eval-time from metadata key "dd.eval.timestamp_ms"; fallback to enqueue-time.
@@ -69,8 +69,8 @@ MAX_LIST_ELEMENTS = 256
 MAX_STRUCTURE_PROPERTIES = 256
 MAX_SNAPSHOT_DEPTH = 4
 # Total nodes one traversal may inspect.
-# The other caps do not bound total work: omitted leaves (nulls especially) never grow
-# output, so the global field cap never trips, and the width caps are per-container.
+# The other caps do not bound total work: omitted unsupported leaves never grow output,
+# so the global field cap never trips, and the width caps are per-container.
 # Without this, cost is width**(depth+1) -- ~1.1e12 nodes at these caps -- on a
 # caller-supplied mapping, inline on the evaluation path.
 MAX_VISITED_NODES = MAX_CONTEXT_FIELDS * (MAX_SNAPSHOT_DEPTH + 1)
@@ -97,9 +97,6 @@ CONTEXT_TRUNCATION_SNAPSHOT_ERROR = "snapshot_error"
 # aggregation bucket per language. Do not delete this for the sake of reason-vocabulary
 # parity without also removing the visibility it provides.
 CONTEXT_TRUNCATION_UNSUPPORTED_VALUE = "unsupported_value"
-# Internal sentinel, never a telemetry reason. A null attribute is omitted by design
-# rather than truncated, so dropping it must not inflate the truncation counter.
-_LEAF_OMITTED_NULL = "null_value"
 
 _EMPTY_CONTEXT: typing.Mapping[str, typing.Any] = MappingProxyType({})
 
@@ -208,8 +205,7 @@ def _encode_context_value(v: typing.Any) -> bytes:
         tag = _TAG_FLOAT
         raw = float.__repr__(v).encode("ascii")
     elif v is None:
-        # A snapshot omits null leaves, so this is only reachable for a directly
-        # supplied context. Encode it as dd-trace-rb does: tag "o" with no bytes.
+        # A retained null must remain distinct from an absent context field.
         tag = _TAG_OTHER
         raw = b""
     elif type(v) is _JSONSafeOtherString:
@@ -399,9 +395,7 @@ def _flatten_mapping(
                 output[child_prefix] = child_value
             continue
         if child_value is None:
-            # A null attribute carries no value, so it is omitted rather than retained.
-            # dd-trace-rb drops nil leaves the same way; keeping them here would put the
-            # same caller context in a different aggregation bucket per language.
+            output[child_prefix] = None
             continue
         if leaf_type is int or leaf_type is bool:
             output[child_prefix] = child_value
@@ -471,7 +465,7 @@ def _flatten_sequence(
                 output[child_prefix] = child_value
             continue
         if child_value is None:
-            # See the null-leaf note in _flatten_mapping.
+            output[child_prefix] = None
             continue
         if leaf_type is int or leaf_type is bool:
             output[child_prefix] = child_value
@@ -494,8 +488,7 @@ def _validated_leaf(value: typing.Any) -> typing.Any:
     bool-like subclasses are common in real evaluation context.
     """
     if value is None:
-        # Null leaves are omitted, matching the inline fast paths and dd-trace-rb.
-        raise ValueError(_LEAF_OMITTED_NULL)
+        return None
     # bool before int: bool is an int subclass, so the order preserves True/False
     # on the wire instead of encoding them as 1/0.
     if isinstance(value, bool):
@@ -572,9 +565,6 @@ def _flatten_bounded(
         output[prefix] = _validated_leaf(value)
     except ValueError as exc:
         # Each reason drops this one field and leaves the rest of the walk intact.
-        if exc.args == (_LEAF_OMITTED_NULL,):
-            # Omitted by design, so no truncation reason is recorded.
-            return
         if exc.args in (
             (CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,),
             (CONTEXT_TRUNCATION_UNSUPPORTED_VALUE,),

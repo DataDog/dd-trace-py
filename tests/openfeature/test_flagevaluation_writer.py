@@ -160,6 +160,11 @@ class TestCanonicalContextKey:
         assert canonical_context_key({}) == ""
         assert canonical_context_key(None) == ""
 
+    def test_null_value_is_distinct_from_an_absent_field(self):
+        snapshot, _ = flatten_and_prune_context({"region": None})
+
+        assert canonical_context_key(snapshot) != canonical_context_key({})
+
     def test_same_dict_same_key(self):
         attrs = {"user": "alice", "tier": "premium"}
         assert canonical_context_key(attrs) == canonical_context_key(attrs)
@@ -309,29 +314,31 @@ class TestFlattenAndPruneContext:
             "a": "1",
             "b": 2,
             "enabled": True,
+            "missing": None,
             "user.id": "u1",
             "user.seen_at": timestamp.isoformat(),
         }
         assert reasons == frozenset()
 
-    def test_null_leaves_are_omitted_without_a_truncation_reason(self):
-        """A null attribute carries no value, so it is omitted rather than retained.
-
-        dd-trace-rb's bounded_flatten drops nil leaves the same way. Retaining them
-        here would place the identical caller context in a different aggregation
-        bucket per language. Omission is by design, so no truncation is reported.
-        """
+    def test_null_leaves_are_retained_without_a_truncation_reason(self):
         snapshot, reasons = flatten_and_prune_context(
             {"kept": 1, "missing": None, "nested": {"gone": None, "here": "v"}, "items": [None, "v"]}
         )
 
-        assert dict(snapshot) == {"kept": 1, "nested.here": "v", "items[1]": "v"}
+        assert dict(snapshot) == {
+            "kept": 1,
+            "missing": None,
+            "nested.gone": None,
+            "nested.here": "v",
+            "items[0]": None,
+            "items[1]": "v",
+        }
         assert reasons == frozenset()
 
-    def test_null_only_context_snapshots_empty(self):
+    def test_null_only_context_retains_fields(self):
         snapshot, reasons = flatten_and_prune_context({"a": None, "b": None})
 
-        assert dict(snapshot) == {}
+        assert dict(snapshot) == {"a": None, "b": None}
         assert reasons == frozenset()
 
     def test_current_list_notation_is_explicitly_bracket_indexes(self):
@@ -517,8 +524,8 @@ class TestFlattenAndPruneContext:
         assert len(snapshot) < MAX_CONTEXT_FIELDS
         assert CONTEXT_TRUNCATION_MAX_VISITED_NODES in reasons
 
-    def test_omitted_null_leaves_cannot_drive_an_unbounded_walk(self):
-        """Null leaves are omitted, so no output-derived cap can bound this shape.
+    def test_empty_containers_cannot_drive_an_unbounded_walk(self):
+        """Empty containers produce no leaves, so no output-derived cap bounds this shape.
 
         Without the visited-node budget the walk costs MAX_STRUCTURE_PROPERTIES **
         (MAX_SNAPSHOT_DEPTH + 1) nodes: output never grows, so the global field cap never
@@ -526,7 +533,8 @@ class TestFlattenAndPruneContext:
         the input stays cheap to build; aliasing siblings is not a cycle, so the cycle cap
         does not fire either.
         """
-        level: typing.Any = {f"leaf-{i}": None for i in range(MAX_STRUCTURE_PROPERTIES)}
+        empty_leaf: dict[str, typing.Any] = {}
+        level: typing.Any = {f"leaf-{i}": empty_leaf for i in range(MAX_STRUCTURE_PROPERTIES)}
         for _ in range(MAX_SNAPSHOT_DEPTH):
             level = {f"k{i}": level for i in range(MAX_STRUCTURE_PROPERTIES)}
 
@@ -766,8 +774,7 @@ class TestFlattenAndPruneContext:
     def test_non_string_scalars_do_not_get_an_unapproved_length_cap(self, writer):
         large_integer = 10 ** (MAX_VALUE_LENGTH + 1)
         writer.enqueue(_make_event(attrs={"value": large_integer, "missing": None}))
-        # The null is omitted, and omitting it is not a truncation.
-        assert writer._queue.get_nowait().attrs == {"value": large_integer}
+        assert writer._queue.get_nowait().attrs == {"value": large_integer, "missing": None}
         assert writer._context_truncated == {}
 
     @pytest.mark.parametrize(
@@ -932,6 +939,15 @@ class TestAggregation:
         writer._aggregate(e_int)
         writer._aggregate(e_str)
         assert len(writer._full) == 2
+
+    def test_null_and_absent_contexts_produce_two_buckets(self, writer):
+        writer.enqueue(_make_event(attrs={}))
+        writer.enqueue(_make_event(attrs={"region": None}))
+
+        writer._drain_queue()
+
+        contexts = {tuple(entry.context_attrs.items()) for entry in writer._full.values()}
+        assert contexts == {(), (("region", None),)}
 
     def test_pre_queue_json_conversion_preserves_other_vs_string_bucket_distinction(self, writer):
         timestamp = datetime(2026, 6, 23, 12, 30, tzinfo=timezone.utc)
@@ -1168,6 +1184,19 @@ class TestPeriodicFlush:
         assert evals[0]["evaluation_count"] == 2
         assert "reason" not in evals[0]
         assert evals[0]["first_evaluation"] <= evals[0]["last_evaluation"]
+
+    def test_null_and_absent_contexts_emit_separate_rows(self, writer):
+        writer.enqueue(_make_event(attrs={}))
+        writer.enqueue(_make_event(attrs={"region": None}))
+
+        with mock.patch.object(writer, "_send_payload") as mock_send:
+            writer.periodic()
+
+        rows = json.loads(mock_send.call_args[0][0])["flagEvaluations"]
+        assert len(rows) == 2
+        assert [row["evaluation_count"] for row in rows] == [1, 1]
+        assert sum("context" not in row for row in rows) == 1
+        assert [row["context"]["evaluation"] for row in rows if "context" in row] == [{"region": None}]
 
     def test_openfeature_datetime_context_value_is_json_serialized(self, writer):
         """OpenFeature allows datetime context values; payload JSON should stringify them."""
