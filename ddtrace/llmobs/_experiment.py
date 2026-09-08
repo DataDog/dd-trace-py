@@ -17,6 +17,7 @@ from typing import Iterator
 from typing import Literal
 from typing import Mapping
 from typing import Optional
+from typing import Protocol
 from typing import Sequence
 from typing import TypedDict
 from typing import Union
@@ -56,6 +57,8 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._integration_api import _LLMObsService
+from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import get_asyncio
@@ -68,7 +71,7 @@ from ddtrace.version import __version__
 if TYPE_CHECKING:
     import pandas as pd
 
-    from ddtrace.llmobs import LLMObs
+    from ddtrace._trace.span import Span
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
     from ddtrace.llmobs.types import ExportedLLMObsSpan
@@ -81,6 +84,31 @@ ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
 TaskType = Callable[..., JSONType]
 AsyncTaskType = Callable[..., Awaitable[JSONType]]
+
+
+class _ExperimentService(_LLMObsService, Protocol):
+    """The experiment engine's service contract, independent of concrete LLMObs."""
+
+    @property
+    def _dne_client(self) -> "LLMObsExperimentsClient": ...
+
+    def flush(self) -> None: ...
+
+    def export_span(self, span: Optional["Span"] = None) -> Optional["ExportedLLMObsSpan"]: ...
+
+    def _experiment(
+        self,
+        *,
+        name: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        run_iteration: Optional[int] = None,
+        dataset_name: Optional[str] = None,
+        dataset_id: Optional[str] = None,
+        project_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        experiment_name: Optional[str] = None,
+    ) -> "Span": ...
 
 
 class EvaluatorResult:
@@ -489,9 +517,9 @@ class RemoteEvaluator(BaseEvaluator):
         self._eval_name = eval_name.strip()
         self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
 
-        from ddtrace.llmobs import LLMObs
-
-        self._llmobs_service = LLMObs
+        # NOTE: Keep the registered class so LLMObs._instance replacements are observed
+        # without importing the public package back from the experiment engine.
+        self._llmobs_service = get_llmobs_service()
 
     def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
         """Evaluate using the remote LLM-as-Judge evaluator.
@@ -2032,7 +2060,7 @@ class Experiment:
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        _llmobs_instance: Optional["LLMObs"] = None,
+        _llmobs_instance: Optional[_ExperimentService] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
         is_distributed: Optional[bool] = False,
@@ -3332,7 +3360,7 @@ class SyncExperiment:
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        _llmobs_instance: Optional["LLMObs"] = None,
+        _llmobs_instance: Optional[_ExperimentService] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
         _experiment: Optional["Experiment"] = None,

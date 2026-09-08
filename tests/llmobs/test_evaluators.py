@@ -1,10 +1,16 @@
 """Tests for LLMObs evaluator classes."""
 
+import ast
 import asyncio
+import builtins
+import inspect
 from unittest import mock
 
 import pytest
 
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs import _experiment
+from ddtrace.llmobs import _integration_api
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import Dataset
@@ -14,6 +20,17 @@ from ddtrace.llmobs._experiment import RemoteEvaluator
 from ddtrace.llmobs._experiment import RemoteEvaluatorError
 from ddtrace.llmobs._experiment import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
+
+
+@pytest.mark.parametrize("module", [_experiment, _integration_api])
+def test_service_dependencies_do_not_import_concrete_llmobs(module):
+    # NOTE: TYPE_CHECKING blocks and function bodies both contribute edges to the import graph.
+    forbidden = {"ddtrace.llmobs", "ddtrace.llmobs._llmobs"}
+    for node in ast.walk(ast.parse(inspect.getsource(module))):
+        if isinstance(node, ast.ImportFrom):
+            assert node.module not in forbidden
+        elif isinstance(node, ast.Import):
+            assert not forbidden.intersection(alias.name for alias in node.names)
 
 
 class SimpleEvaluator(BaseEvaluator):
@@ -305,6 +322,43 @@ class TestSummaryEvaluatorIntegration:
 
 class TestRemoteEvaluator:
     """Tests for RemoteEvaluator class."""
+
+    def test_init_does_not_import_llmobs(self):
+        original_import = builtins.__import__
+
+        def import_without_llmobs(name, *args, **kwargs):
+            if name in ("ddtrace.llmobs", "ddtrace.llmobs._llmobs"):
+                raise AssertionError("RemoteEvaluator must use the registered service")
+            return original_import(name, *args, **kwargs)
+
+        with mock.patch("builtins.__import__", side_effect=import_without_llmobs):
+            evaluator = RemoteEvaluator(eval_name="test-eval")
+
+        assert evaluator._llmobs_service is LLMObs
+
+    def test_evaluate_uses_current_service_instance(self):
+        context = EvaluatorContext(input_data="input", output_data="output")
+        with mock.patch.object(_integration_api, "_llmobs_service") as service:
+            previous_client = service._instance._dne_client
+            evaluator = RemoteEvaluator(eval_name="test-eval")
+            assert evaluator._llmobs_service is service
+            service._instance = mock.Mock()
+            current_client = service._instance._dne_client
+            current_client.evaluator_infer.return_value = {"value": True}
+
+            assert evaluator.evaluate(context) is True
+
+        previous_client.evaluator_infer.assert_not_called()
+        current_client.evaluator_infer.assert_called_once_with(
+            eval_name="test-eval", context={"span_input": "input", "span_output": "output"}
+        )
+
+    def test_evaluate_without_client(self):
+        evaluator = RemoteEvaluator(eval_name="test-eval")
+        context = EvaluatorContext(input_data="input", output_data="output")
+        with mock.patch.object(LLMObs._instance, "_dne_client", None):
+            with pytest.raises(ValueError, match="LLMObs experiments client is not initialized"):
+                evaluator.evaluate(context)
 
     def test_init_valid(self):
         """Test valid RemoteEvaluator initialization."""
