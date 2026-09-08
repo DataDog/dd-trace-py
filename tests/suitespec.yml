@@ -20,8 +20,6 @@ components:
     - tests/wait-for-services.py
     - tests/webclient.py
     - tests/test_module/*
-    - .gitlab-ci.yml
-    - .gitlab/*
   $setup:
     - setup.py
     - setup.cfg
@@ -39,6 +37,14 @@ components:
     - tests/crashtracker/*
   ci:
     - ddtrace/ext/ci/*
+  ci_test_harness:
+    - .gitlab-ci.yml
+    - .gitlab/ci-templates.yml
+    - .gitlab/one-pipeline.locked.yml
+    - .gitlab/services.yml
+    - .gitlab/testrunner.yml
+    - .gitlab/tests.yml
+    - .gitlab/templates/*
   codeowners:
     - ddtrace/internal/codeowners.py
   core:
@@ -234,6 +240,7 @@ suites:
       DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@core'
+      - '@ci_test_harness'
       - '@remoteconfig'
       - '@symbol_db'
       - '@tracing'

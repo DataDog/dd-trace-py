@@ -17,6 +17,7 @@ import json
 import logging
 import os
 from pathlib import Path
+import re
 from subprocess import check_output
 import sys
 import typing as t
@@ -207,6 +208,29 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     return bool(matches)
 
 
+def _get_merge_queue_pr_number(ref_name: str, commit_message: str) -> t.Optional[int]:
+    """Get the pull request number recorded by a devflow merge-queue commit.
+
+    >>> message = '''[mq] working branch
+    ...
+    ... {"baseBranch":"main","pullRequestNumber":"19881"}'''
+    >>> _get_merge_queue_pr_number("mq-working-branch-main-deadbee", message)
+    19881
+    >>> _get_merge_queue_pr_number("feature-branch", message) is None
+    True
+    >>> _get_merge_queue_pr_number("mq-working-branch-main-deadbee", "not json") is None
+    True
+    """
+    if re.fullmatch(r"mq-working-branch-.+-[0-9a-f]{7,40}", ref_name) is None:
+        return None
+
+    try:
+        metadata = json.loads(commit_message.rsplit("\n\n", 1)[-1])
+        return int(metadata["pullRequestNumber"])
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        return None
+
+
 @cache
 def _get_pr_number() -> int:
     # CircleCI
@@ -221,6 +245,11 @@ def _get_pr_number() -> int:
     # GitLab
     ref_name = os.environ.get("CI_COMMIT_REF_NAME")
     if ref_name is not None:
+        # AIDEV-NOTE: Devflow merge-queue branches have no matching GitHub head ref.
+        # Their commit metadata preserves the original pull request number.
+        commit_message = os.environ.get("CI_COMMIT_MESSAGE") or get_latest_commit_message()
+        if (pr_number := _get_merge_queue_pr_number(ref_name, commit_message)) is not None:
+            return pr_number
         return int(github_api("/pulls", {"head": f"datadog:{ref_name}"})[0]["number"])
 
     raise RuntimeError("Could not determine PR number")

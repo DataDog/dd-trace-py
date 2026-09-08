@@ -1,5 +1,9 @@
 ---
 components:
+  ci_benchmark_harness:
+    - .gitlab-ci.yml
+    - .gitlab/benchmarks/*.yml
+    - .gitlab/benchmarks/steps/*
   bootstrap:
     - ddtrace/bootstrap/*
     - ddtrace/commands/*
@@ -93,6 +97,7 @@ suites:
   span:
     paths:
       - '@bootstrap'
+      - '@ci_benchmark_harness'
       - '@core'
       - '@tracing'
       - '@vendor'
