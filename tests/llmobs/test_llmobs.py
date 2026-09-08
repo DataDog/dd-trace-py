@@ -1333,6 +1333,23 @@ def test_whole_trace_shares_one_decision(llmobs, llmobs_events):
 
 
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_a_child_finishing_does_not_freeze_the_decision(llmobs, llmobs_events):
+    """Resolution waits for the root, not for the first span to finish.
+
+    Every span runs through _on_span_finish, so without the root check a child finishing would
+    freeze the decision while the root is still running and still being annotated -- which is
+    what happens here.
+    """
+    with llmobs.workflow("parent") as parent:
+        with llmobs.task("child"):
+            pass
+        llmobs.annotate(parent, tags={"tier": "gold"})
+    assert len(llmobs_events) == 2
+    decisions = {(e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("0", "0")}
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
 def test_decision_frozen_at_injection_is_not_revised(llmobs, llmobs_events):
     """Once the decision has left the process it must not change, even if a later tag would match.
 
