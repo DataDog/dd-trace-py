@@ -826,6 +826,11 @@ def gen_pre_checks() -> None:
         },
     )
     check(
+        name="Check suitespec duplicates",
+        command="scripts/lint suitespec-duplicates",
+        paths={"*"},
+    )
+    check(
         name="Check ddtrace error logs",
         command="scripts/lint error-log-check",
         paths={"ddtrace/*", "scripts/check_constant_log_message.py", "scripts/lint"},
