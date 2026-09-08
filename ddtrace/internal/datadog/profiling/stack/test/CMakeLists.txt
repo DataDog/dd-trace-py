@@ -36,16 +36,15 @@ if(DO_VALGRIND)
 endif()
 
 function(dd_wrapper_add_test name)
-    cmake_parse_arguments(_ARG "" "INSTALL_SUBDIR" "" ${ARGN})
-    set(_SOURCES ${_ARG_UNPARSED_ARGUMENTS})
-    add_executable(${name} ${_SOURCES})
+    add_executable(${name} ${ARGN})
     # Replicate the include dirs that ${EXTENSION_NAME} sets PRIVATE (so they don't propagate to test targets): stack's
     # own headers, the profiling root (for "dd_wrapper/include/sample.hpp"), Python, echion, and the libdatadog
-    # Rust-generated headers (NATIVE_HEADERS_DIR, set by the parent CMakeLists).
-    target_include_directories(${name} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../include"
-                                               "${CMAKE_CURRENT_SOURCE_DIR}/../..")
-    target_include_directories(${name} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} "${CMAKE_CURRENT_SOURCE_DIR}/../echion"
-                                                      "${NATIVE_HEADERS_DIR}")
+    # Rust-generated headers.
+    target_include_directories(${name} PRIVATE ../include ../..)
+    target_include_directories(
+        ${name} SYSTEM
+        PRIVATE ${Python3_INCLUDE_DIRS} ../echion
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
     # this has to refer to the stack extension name to properly link against
     target_link_libraries(${name} PRIVATE gmock gtest_main ${EXTENSION_NAME})
 
@@ -88,11 +87,7 @@ function(dd_wrapper_add_test name)
     endif()
 
     if(LIB_INSTALL_DIR)
-        if(_ARG_INSTALL_SUBDIR)
-            install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test/${_ARG_INSTALL_SUBDIR})
-        else()
-            install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
-        endif()
+        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
     endif()
 endfunction()
 
@@ -102,8 +97,10 @@ dd_wrapper_add_test(test_origin_task_links test_origin_task_links.cpp)
 
 function(configure_stack_internal_test name)
     target_include_directories(${name} PRIVATE ../..)
-    target_include_directories(${name} SYSTEM PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored
-                                                      ../include/util "${NATIVE_HEADERS_DIR}")
+    target_include_directories(
+        ${name} SYSTEM
+        PRIVATE ${Python3_INCLUDE_DIRS} ../echion ../include/vendored ../include/util
+                ../../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include)
     target_compile_definitions(${name} PRIVATE "$<TARGET_PROPERTY:${EXTENSION_NAME},COMPILE_DEFINITIONS>")
     if(LIB_INSTALL_DIR)
         set_property(
@@ -135,12 +132,9 @@ configure_stack_internal_test(test_embedded_fast_copy)
 # 3.15. All test bodies are gated on PY_VERSION_HEX >= 0x030f0000, so building on older versions would produce an empty
 # test binary.
 if(Python3_VERSION VERSION_GREATER_EQUAL "3.15")
-    # INSTALL_SUBDIR py315 keeps this binary out of the shared test/ directory. build_base_venvs runs in parallel for
-    # all Python versions; GitLab merges their artifacts into one directory for downstream jobs.  Without isolation the
-    # py3.15-compiled binary (RPATH -> libpython3.15) would crash when the pytest gtest plugin tried to run it in a
-    # py3.10 environment.
-    dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp INSTALL_SUBDIR py315)
-    # Route copy_memory through echion_fuzz_copy_memory so tests can assert whether the state guard allows execution to
-    # reach the copy site.
+    dd_wrapper_add_test(test_frame_state_315 test_frame_state_315.cpp)
+    # Route copy_memory through echion_fuzz_copy_memory so the tests can drive it with a buffer-backed fake process
+    # image (fuzz/fuzz_memory_image.h) and observe how far PyGen_yf got.
     target_compile_definitions(test_frame_state_315 PRIVATE ECHION_FUZZING)
+    target_include_directories(test_frame_state_315 PRIVATE ../fuzz)
 endif()
