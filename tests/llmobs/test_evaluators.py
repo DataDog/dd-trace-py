@@ -9,8 +9,13 @@ from unittest import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs import _event_types
 from ddtrace.llmobs import _experiment
 from ddtrace.llmobs import _integration_api
+from ddtrace.llmobs import _prompt_optimization
+from ddtrace.llmobs import _telemetry
+from ddtrace.llmobs import _utils
+from ddtrace.llmobs import _writer
 from ddtrace.llmobs._experiment import BaseEvaluator
 from ddtrace.llmobs._experiment import BaseSummaryEvaluator
 from ddtrace.llmobs._experiment import Dataset
@@ -22,7 +27,7 @@ from ddtrace.llmobs._experiment import SummaryEvaluatorContext
 from ddtrace.llmobs._experiment import _ExperimentRunInfo
 
 
-@pytest.mark.parametrize("module", [_experiment, _integration_api])
+@pytest.mark.parametrize("module", [_experiment, _integration_api, _prompt_optimization])
 def test_service_dependencies_do_not_import_concrete_llmobs(module):
     # NOTE: TYPE_CHECKING blocks and function bodies both contribute edges to the import graph.
     forbidden = {"ddtrace.llmobs", "ddtrace.llmobs._llmobs"}
@@ -31,6 +36,23 @@ def test_service_dependencies_do_not_import_concrete_llmobs(module):
             assert node.module not in forbidden
         elif isinstance(node, ast.Import):
             assert not forbidden.intersection(alias.name for alias in node.names)
+
+
+@pytest.mark.parametrize("module", [_experiment, _utils, _telemetry, _event_types])
+def test_event_consumers_do_not_import_writer(module):
+    for node in ast.walk(ast.parse(inspect.getsource(module))):
+        if isinstance(node, ast.ImportFrom):
+            assert node.module != "ddtrace.llmobs._writer"
+        elif isinstance(node, ast.Import):
+            assert "ddtrace.llmobs._writer" not in [alias.name for alias in node.names]
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["LLMObsSpanData", "LLMObsSpanEvent", "LLMObsExperimentEvalMetricEvent", "EvaluatorInferResponse"],
+)
+def test_writer_event_type_aliases(name):
+    assert getattr(_writer, name) is getattr(_event_types, name)
 
 
 class SimpleEvaluator(BaseEvaluator):

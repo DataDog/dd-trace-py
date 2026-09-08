@@ -15,7 +15,6 @@ from typing import Awaitable
 from typing import Callable
 from typing import Iterator
 from typing import Literal
-from typing import Mapping
 from typing import Optional
 from typing import Protocol
 from typing import Sequence
@@ -57,6 +56,8 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._event_types import JSONType as JSONType
+from ddtrace.llmobs._event_types import LLMObsExperimentEvalMetricEvent
 from ddtrace.llmobs._integration_api import _LLMObsService
 from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -72,13 +73,10 @@ if TYPE_CHECKING:
     import pandas as pd
 
     from ddtrace._trace.span import Span
-    from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
-    from ddtrace.llmobs._writer import LLMObsExperimentsClient
     from ddtrace.llmobs.types import ExportedLLMObsSpan
 
 logger = get_logger(__name__)
 
-JSONType = Union[str, int, float, bool, None, Sequence["JSONType"], Mapping[str, "JSONType"]]
 ConfigType = dict[str, JSONType]
 ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
@@ -86,11 +84,58 @@ TaskType = Callable[..., JSONType]
 AsyncTaskType = Callable[..., Awaitable[JSONType]]
 
 
+class _ExperimentsClient(Protocol):
+    """Dataset and experiment transport operations required by the engine."""
+
+    def dataset_bulk_upload(
+        self, dataset_id: str, records: list["DatasetRecord"], deduplicate: bool = True
+    ) -> None: ...
+
+    def dataset_batch_update(
+        self,
+        dataset_id: str,
+        project_id: str,
+        insert_records: list["DatasetRecord"],
+        update_records: list["DatasetRecordUpdateWithId"],
+        delete_record_ids: list[str],
+        deduplicate: bool = True,
+        create_new_version: bool = True,
+    ) -> tuple[int, list[str], list[Optional[str]]]: ...
+
+    def project_create_or_get(self, name: Optional[str] = None) -> "Project": ...
+
+    def experiment_create(
+        self,
+        name: str,
+        dataset_id: str,
+        project_id: str,
+        dataset_version: int = 0,
+        exp_config: Optional[dict[str, JSONType]] = None,
+        tags: Optional[list[str]] = None,
+        description: Optional[str] = None,
+        runs: Optional[int] = 1,
+        ensure_unique: bool = True,
+        parent_experiment_id: Optional[str] = None,
+    ) -> tuple[str, str]: ...
+
+    def experiment_update(
+        self, experiment_id: str, status: Optional[str] = None, error: Optional[str] = None
+    ) -> None: ...
+
+    def experiment_eval_post(
+        self,
+        experiment_id: str,
+        events: list[LLMObsExperimentEvalMetricEvent],
+        tags: list[str],
+        spans: Optional[list[dict]] = None,
+    ) -> None: ...
+
+
 class _ExperimentService(_LLMObsService, Protocol):
     """The experiment engine's service contract, independent of concrete LLMObs."""
 
     @property
-    def _dne_client(self) -> "LLMObsExperimentsClient": ...
+    def _dne_client(self) -> _ExperimentsClient: ...
 
     def flush(self) -> None: ...
 
@@ -1617,7 +1662,7 @@ class Dataset:
     _records_by_id: dict[str, DatasetRecord]
     _version: int
     _latest_version: int
-    _dne_client: "LLMObsExperimentsClient"
+    _dne_client: _ExperimentsClient
     _new_records_by_record_id: dict[str, DatasetRecord]
     _updated_record_ids_to_new_fields: dict[str, DatasetRecordUpdateWithId]
     _deleted_record_ids: list[str]
@@ -1634,7 +1679,7 @@ class Dataset:
         description: str,
         latest_version: int,
         version: int,
-        _dne_client: "LLMObsExperimentsClient",
+        _dne_client: _ExperimentsClient,
         filter_tags: Optional[list[str]] = None,
     ) -> None:
         self.name = name
