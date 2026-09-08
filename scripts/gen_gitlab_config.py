@@ -141,9 +141,9 @@ class JobSpec:
             lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            _wait_cmd = f"riot -v run -s --pass-env wait -- {' '.join(wait_for)}"
-            # Retry twice on transient pip network failures (connection reset mid-download).
-            lines.append(f"    - {_wait_cmd} || {_wait_cmd} || {_wait_cmd}")
+            # Retry up to twice on transient pip network failures; service-check
+            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
+            lines.append(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}")
 
         env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
