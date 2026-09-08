@@ -14,6 +14,7 @@ from ddtrace.internal.settings._config import config
 
 from ..constants import ENV_KEY
 from ..internal.constants import MAX_UINT_64BITS
+from ..internal.constants import PROBABILISTIC_SAMPLING_MECHANISMS
 from ..internal.constants import SAMPLING_HASH_MODULO
 from ..internal.constants import SAMPLING_KNUTH_FACTOR
 from ..internal.constants import SamplingMechanism
@@ -174,6 +175,7 @@ class DatadogSampler:
         sampled = True
         sample_rate = 1.0
         agent_sampler = None
+        limiter_dropped = False
         if matched_rule:
             # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
@@ -192,14 +194,19 @@ class DatadogSampler:
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
             if sampled:
                 sampled = self.limiter.is_allowed()
+                limiter_dropped = not sampled
                 span._set_attribute(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
+        probabilistic_decision = (
+            sample_rate > 0 and not limiter_dropped and sampling_mechanism in PROBABILISTIC_SAMPLING_MECHANISMS
+        )
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
             sampling_mechanism,
+            probabilistic_decision,
         )
         log.debug(
             self.SAMPLE_DEBUG_MESSAGE,

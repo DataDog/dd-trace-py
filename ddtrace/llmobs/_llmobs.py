@@ -39,6 +39,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.settings import env as _env
 from ddtrace.internal.settings.integration import _integration_env_var_id
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
@@ -580,7 +581,7 @@ class LLMObs(Service):
         self._llmobs_context_provider = LLMObsContextProvider()
         self._user_span_processor = span_processor
         agentless_enabled = should_use_agentless(user_defined_agentless_enabled=config._llmobs_agentless_enabled)
-        if _env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "") or not asbool(_env.get("DD_APM_TRACING_ENABLED", "true")):
+        if _env.get("DD_LLMOBS_OVERRIDE_ORIGIN", "") or not standalone_config.apm_tracing_enabled:
             # An override origin means events must always go directly to the LLMObs writer's
             # intake, since the APM_AGENT(LESS) modes route the event alongside the APM trace,
             # which never respects the override. APMTracingEnabledFilter also drops every trace.

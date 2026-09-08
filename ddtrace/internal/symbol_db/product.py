@@ -1,5 +1,11 @@
 from ddtrace.internal.settings.symbol_db import config
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 
+
+# We need to register with the shared code collector unconditionally so that
+# code objects from modules loaded before Symbol Database is enabled remotely
+# are not missed.
+ModuleCodeCollector.register("symdb")
 
 requires = ["remote-configuration"]
 
