@@ -7,6 +7,7 @@ from ddtrace.internal.bytecode_injection.core import CallbackType
 from ddtrace.internal.bytecode_injection.core import InjectionContext
 from ddtrace.internal.bytecode_injection.core import inject_invocation
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 from .callbacks import _default_bytecode_exc_callback
 
@@ -45,6 +46,13 @@ def _inject_handled_exception_reporting(func, callback: t.Optional[CallbackType]
         return
 
     original_code = code_to_instr.__code__  # type: CodeType
+
+    if is_obfuscated_code(original_code):
+        log.warning(
+            "Cannot inject handled exception reporting into %r: code object appears to be obfuscated (e.g. by PyArmor)",
+            original_code.co_name,
+        )
+        return
 
     callback = callback or _default_bytecode_exc_callback
 
