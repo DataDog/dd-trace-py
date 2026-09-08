@@ -147,18 +147,21 @@ def test_runtime_worker_flush_preserves_entity_id_tag(monkeypatch):
     with mock.patch("socket.socket") as sock:
         sock.return_value.getsockopt.return_value = 0
         worker = RuntimeWorker()
-        assert "dd.internal.entity_id:test-entity-123" in worker._dogstatsd_client.constant_tags
+        try:
+            assert "dd.internal.entity_id:test-entity-123" in worker._dogstatsd_client.constant_tags
 
-        for _ in range(3):
-            worker.flush()
+            for _ in range(3):
+                worker.flush()
 
-        statsd_socket = worker._dogstatsd_client.socket
-        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
-        assert received, "expected at least one packet to be sent"
-        gauges = [line for packet in received for line in packet.split("\n") if line]
-        assert gauges, "expected at least one metric line to be sent"
-        for gauge in gauges:
-            assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+            statsd_socket = worker._dogstatsd_client.socket
+            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+            assert received, "expected at least one packet to be sent"
+            gauges = [line for packet in received for line in packet.split("\n") if line]
+            assert gauges, "expected at least one metric line to be sent"
+            for gauge in gauges:
+                assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+        finally:
+            worker._runtime_metrics.stop()
 
 
 def test_runtime_worker_flush_dedupes_entity_id_tag(monkeypatch):
@@ -172,15 +175,18 @@ def test_runtime_worker_flush_dedupes_entity_id_tag(monkeypatch):
     with mock.patch("socket.socket") as sock:
         sock.return_value.getsockopt.return_value = 0
         worker = RuntimeWorker()
-        worker.flush()
+        try:
+            worker.flush()
 
-        statsd_socket = worker._dogstatsd_client.socket
-        received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
-        assert received, "expected at least one packet to be sent"
-        gauges = [line for packet in received for line in packet.split("\n") if line]
-        assert gauges, "expected at least one metric line to be sent"
-        for gauge in gauges:
-            assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+            statsd_socket = worker._dogstatsd_client.socket
+            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+            assert received, "expected at least one packet to be sent"
+            gauges = [line for packet in received for line in packet.split("\n") if line]
+            assert gauges, "expected at least one metric line to be sent"
+            for gauge in gauges:
+                assert gauge.count("dd.internal.entity_id:test-entity-123") == 1, gauge
+        finally:
+            worker._runtime_metrics.stop()
 
 
 def test_runtime_worker_flush_does_not_leak_stale_service_tag(monkeypatch):
@@ -194,26 +200,37 @@ def test_runtime_worker_flush_does_not_leak_stale_service_tag(monkeypatch):
     with mock.patch("socket.socket") as sock:
         sock.return_value.getsockopt.return_value = 0
         worker = RuntimeWorker()
-        with override_global_config(dict(service="override-service")):
-            worker.flush()
+        try:
+            with override_global_config(dict(service="override-service")):
+                worker.flush()
 
-            statsd_socket = worker._dogstatsd_client.socket
-            received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
-            assert received, "expected at least one packet to be sent"
-            gauges = [line for packet in received for line in packet.split("\n") if line]
-            assert gauges, "expected at least one metric line to be sent"
-            for gauge in gauges:
-                assert "service:env-service" not in gauge, gauge
-                assert gauge.count("service:override-service") == 1, gauge
+                statsd_socket = worker._dogstatsd_client.socket
+                received = [s.args[0].decode("utf-8") for s in statsd_socket.send.mock_calls]
+                assert received, "expected at least one packet to be sent"
+                gauges = [line for packet in received for line in packet.split("\n") if line]
+                assert gauges, "expected at least one metric line to be sent"
+                for gauge in gauges:
+                    assert "service:env-service" not in gauge, gauge
+                    assert gauge.count("service:override-service") == 1, gauge
+        finally:
+            worker._runtime_metrics.stop()
 
 
 class TestRuntimeMetrics(BaseTestCase):
     def test_all_metrics(self):
-        metrics = set([k for (k, v) in RuntimeMetrics()])
+        runtime_metrics = RuntimeMetrics()
+        try:
+            metrics = set([k for (k, v) in runtime_metrics])
+        finally:
+            runtime_metrics.stop()
         self.assertSetEqual(metrics, DEFAULT_RUNTIME_METRICS)
 
     def test_one_metric(self):
-        metrics = [k for (k, v) in RuntimeMetrics(enabled=[GC_COUNT_GEN0])]
+        runtime_metrics = RuntimeMetrics(enabled=[GC_COUNT_GEN0])
+        try:
+            metrics = [k for (k, v) in runtime_metrics]
+        finally:
+            runtime_metrics.stop()
         self.assertEqual(metrics, [GC_COUNT_GEN0])
 
 
