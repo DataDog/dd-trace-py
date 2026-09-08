@@ -13,6 +13,7 @@ import starlette
 
 import ddtrace
 from ddtrace.constants import USER_KEEP
+from ddtrace.contrib.internal.anyio.patch import patch as anyio_patch
 from ddtrace.contrib.internal.anyio.patch import unpatch as anyio_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as patch_starlette
 from ddtrace.contrib.internal.starlette.patch import unpatch as unpatch_starlette
@@ -69,17 +70,24 @@ def test_sync_handlers_publish_and_clear_native_thread_context(fastapi_tracer):
         record_handler_state()
         raise RuntimeError("handler failure")
 
+    was_patched = getattr(anyio, "_datadog_patch", False)
     ddtrace.patch(anyio=True)
     try:
         with TestClient(application) as client:
             assert client.get("/success").status_code == 200
             assert client.portal is not None
+            # AIDEV-NOTE: Disable entry publication so probing cannot hide stale native context.
+            anyio_unpatch()
             idle_after_success = client.portal.call(anyio.to_thread.run_sync, _worker_state)
+            anyio_patch()
             with pytest.raises(RuntimeError, match="handler failure"):
                 client.get("/failure")
+            anyio_unpatch()
             idle_after_failure = client.portal.call(anyio.to_thread.run_sync, _worker_state)
     finally:
         anyio_unpatch()
+        if was_patched:
+            anyio_patch()
 
     assert len(handler_states) == 2
     for _, active_context, published_context in handler_states:
