@@ -153,6 +153,7 @@ suites:
       - tests/contrib/llama_index/*
       - tests/snapshots/tests.contrib.llama_index.*
     snapshot: true
+    parallelism: 4
     matrix:
       command: pytest {cmdargs} tests/contrib/llama_index
       env:
