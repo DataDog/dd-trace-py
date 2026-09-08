@@ -285,15 +285,19 @@ def patch():
     if getattr(mcp, "__datadog_patch", False):
         return
 
+    # Claimed before the imports below so a concurrent patch() cannot clear the
+    # guard above and wrap everything a second time.
+    mcp.__datadog_patch = True
+
     try:
         from mcp.client.session import ClientSession
         from mcp.shared.session import BaseSession
         from mcp.shared.session import RequestResponder
     except ImportError:
+        mcp.__datadog_patch = False
         log.debug("mcp is importable but is not the MCP SDK, skipping instrumentation")
         return
 
-    mcp.__datadog_patch = True
     mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
 
     wrap(ClientSession, "__aenter__", traced_client_session_aenter)
@@ -304,7 +308,7 @@ def patch():
     wrap(ClientSession, "initialize", traced_client_session_initialize)
     wrap(RequestResponder, "respond", traced_request_responder_respond)
 
-    # ``RequestResponder`` gained the context manager protocol in mcp 1.3.0.
+    # RequestResponder gained the context manager protocol in mcp 1.3.0.
     if hasattr(RequestResponder, "__enter__") and hasattr(RequestResponder, "__exit__"):
         wrap(RequestResponder, "__enter__", traced_request_responder_enter)
         wrap(RequestResponder, "__exit__", traced_request_responder_exit)
@@ -316,8 +320,8 @@ def unpatch():
 
     mcp.__datadog_patch = False
 
-    # ``patch()`` sets ``__datadog_patch`` only once these imports have
-    # succeeded, so they cannot fail here.
+    # Only reachable with __datadog_patch set, which patch() leaves set only
+    # when these imports succeeded, so they cannot fail here.
     from mcp.client.session import ClientSession
     from mcp.shared.session import BaseSession
     from mcp.shared.session import RequestResponder
