@@ -4,6 +4,7 @@ import inspect
 import json
 import re
 from typing import Any
+from typing import Iterable
 from typing import Optional
 from typing import Union
 
@@ -16,6 +17,7 @@ from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import FILE_FALLBACK_MARKER
+from ddtrace.llmobs._constants import IMAGE_DETECTED_MARKER
 from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import IMAGE_TOO_LARGE_MARKER
 from ddtrace.llmobs._constants import INPUT_COST_METRIC_KEY
@@ -292,6 +294,113 @@ def get_content_from_langchain_message(message) -> Union[str, tuple[str, str]]:
         return (role, content) if role else content
     except AttributeError:
         return str(message)
+
+
+def format_anthropic_tool_result_content(content) -> str:
+    """Flatten the `content` field of an Anthropic `tool_result` block into a string."""
+    if isinstance(content, str):
+        return content
+    elif isinstance(content, dict):
+        return safe_json(content)
+    elif isinstance(content, Iterable):
+        formatted_content = []
+        for tool_result_block in content:
+            if _get_attr(tool_result_block, "text", "") != "":
+                formatted_content.append(_get_attr(tool_result_block, "text", ""))
+            elif _get_attr(tool_result_block, "type", None) == "image":
+                # Store a placeholder for potentially enormous binary image data.
+                formatted_content.append(IMAGE_DETECTED_MARKER)
+        return ",".join(formatted_content)
+    return str(content)
+
+
+def get_tool_definitions_from_anthropic_tools(tools: Optional[Any]) -> list[ToolDefinition]:
+    """Build tool definitions from an Anthropic `tools` request field.
+
+    Used by the Anthropic SDK integration and by Bedrock `InvokeModel`, which sends
+    Anthropic-formatted tool definitions rather than the Converse `toolConfig` shape.
+    """
+    if not tools:
+        return []
+
+    tool_definitions = []
+    for tool in tools:
+        is_deferred = bool(_get_attr(tool, "defer_loading", False))
+        tool_definitions.append(
+            ToolDefinition(
+                name=tool.get("name", ""),
+                description="" if is_deferred else tool.get("description", ""),
+                schema={} if is_deferred else tool.get("input_schema", {}),
+            )
+        )
+    return tool_definitions
+
+
+def anthropic_tool_call_from_block(block: Any) -> ToolCall:
+    """Build a ToolCall from an Anthropic `tool_use` content block.
+
+    `input` arrives as a dict on complete responses and as an accumulated JSON string
+    when reassembled from streaming deltas, so it is normalized to a dict here.
+    """
+    input_data = _get_attr(block, "input", {})
+    if isinstance(input_data, str):
+        input_data = safe_load_json(input_data)
+    return ToolCall(
+        name=str(_get_attr(block, "name", "")),
+        arguments=input_data,
+        tool_id=str(_get_attr(block, "id", "")),
+        type=str(_get_attr(block, "type", "")),
+    )
+
+
+def anthropic_tool_result_from_block(block: Any) -> ToolResult:
+    """Build a ToolResult from an Anthropic `tool_result` content block."""
+    result = _get_attr(block, "content", {})
+    if hasattr(result, "model_dump") and callable(result.model_dump):
+        result = result.model_dump()
+    return ToolResult(
+        result=format_anthropic_tool_result_content(result),
+        tool_id=str(_get_attr(block, "tool_use_id", "")),
+        type="tool_result",
+    )
+
+
+def get_messages_from_anthropic_content(role: str, content: Any) -> list[Message]:
+    """
+    Extracts out a list of messages from an Anthropic Messages API `content` field.
+
+    `content` is either a string or a list of content blocks. Each block is a tagged union
+    discriminated by `type`, and the payload lives under a different key per type
+    (`text`, `thinking`, `input`/`name` for `tool_use`, `content` for `tool_result`).
+
+    Used by both the Anthropic SDK integration and the Bedrock `InvokeModel` integration,
+    since Bedrock passes Anthropic-formatted request and response bodies through unchanged.
+
+    For more info, see the Anthropic Messages API spec:
+    https://docs.anthropic.com/en/api/messages
+    """
+    if isinstance(content, str):
+        return [Message(content=content, role=str(role))]
+    if not isinstance(content, list):
+        return []
+
+    output_messages: list[Message] = []
+    for block in content:
+        block_type = _get_attr(block, "type", "") or ""
+        if block_type == "thinking":
+            thinking_text = _get_attr(block, "thinking", "")
+            output_messages.append(Message(content=str(thinking_text), role="reasoning"))
+            continue
+        text = _get_attr(block, "text", None)
+        message = Message(content=str(text) if text else "", role=str(role))
+        # Substring match: Anthropic also emits `server_tool_use`, `mcp_tool_use`,
+        # and `web_search_tool_result`, which carry the same payload shape.
+        if "tool_use" in block_type:
+            message["tool_calls"] = [anthropic_tool_call_from_block(block)]
+        if "tool_result" in block_type:
+            message["tool_results"] = [anthropic_tool_result_from_block(block)]
+        output_messages.append(message)
+    return output_messages
 
 
 def get_messages_from_converse_content(role: str, content: list[dict[str, Any]]) -> list[Message]:
