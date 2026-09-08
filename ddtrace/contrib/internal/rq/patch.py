@@ -188,17 +188,11 @@ def traced_job_fetch_many(func, instance, args, kwargs):
 
 
 def _worker_perform_job_owner(rq):
-    """Return the class that actually defines Worker.perform_job.
-
-    rq 2.7 split rq/worker.py into a package, moved perform_job onto BaseWorker, and made
-    SimpleWorker a sibling of Worker instead of a subclass. Wrapping Worker alone therefore
-    silently misses SimpleWorker and every other BaseWorker subclass, so wrap whichever
-    class owns the method. Falls back to Worker, where it lives in rq < 2.7.
-    """
-    return next(
-        (c for c in rq.worker.Worker.__mro__ if "perform_job" in vars(c)),
-        rq.worker.Worker,
-    )
+    """Return the common worker class that implements perform_job."""
+    base_worker = getattr(rq.worker, "BaseWorker", None)
+    if base_worker is not None and hasattr(base_worker, "perform_job"):
+        return base_worker
+    return rq.worker.Worker
 
 
 def patch():
