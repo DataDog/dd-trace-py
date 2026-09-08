@@ -6,6 +6,18 @@ from ddtrace.appsec._iast._taint_tracking._native.context import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking._native.context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._native.context import is_in_taint_map
 from ddtrace.appsec._iast._taint_tracking._native.context import start_request_context
+from ddtrace.appsec._iast_context import _get_iast_context_id
+
+
+def _num_objects_tainted_in_request() -> int:
+    """Get the count of tainted objects tracked in the active IAST request context.
+
+    Useful for span metrics and internal telemetry.
+    """
+    context_id = _get_iast_context_id()
+    if context_id is not None:
+        return debug_num_tainted_objects(context_id)
+    return 0
 
 
 __all__ = [
