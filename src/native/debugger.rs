@@ -10,10 +10,10 @@ use std::borrow::Cow;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use libdd_common::{parse_uri, Endpoint};
 use libdd_live_debugger::sender::{
     self, debugger_intake_endpoint, Config as SenderConfig, DebuggerType, PayloadRejected,
 };
-use libdd_common::{parse_uri, Endpoint};
 use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime};
 use native_proc_macro::ConvertToPyO3Enum;
 use percent_encoding::{percent_encode, AsciiSet, NON_ALPHANUMERIC};

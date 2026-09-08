@@ -6,8 +6,8 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use libdd_live_debugger::sender::{self, Config as SenderConfig};
 use libdd_common::Endpoint;
+use libdd_live_debugger::sender::{self, Config as SenderConfig};
 use libdd_shared_runtime::ForkSafeRuntime;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
