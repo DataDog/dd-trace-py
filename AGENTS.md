@@ -6,12 +6,12 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 ## Project Rules
 
 1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
-2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`scripts/lint <subcommand>`).
+2. **Linting** — NEVER use raw linting tools such as `black` or `flake8`. Use the repository's Ruff-backed `lint` skill (`scripts/lint <subcommand>`).
 3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
 4. **No public API breakage** — Never change public API contracts; real applications depend on them.
 5. **No secrets** — Never commit secrets; use environment variables.
 6. **Don't assume business logic** — Ask when unsure about implementation details.
-7. **No new `AIDEV-*` anchor comments** — The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels. Use plain inline comments (see "Docstrings and Comments"). When editing code that still has an old anchor, convert it to a plain comment; do not add new anchors. CI blocks new anchors on changed lines.
+7. **No new `AIDEV-*` anchor comments** — The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels. Do not remove or rewrite an existing anchored comment merely because nearby code is being edited. Only an explicit instruction or a dedicated anchor-migration task may convert an old anchor to a plain comment; when doing so, preserve the comment's substantive text. CI blocks new anchors on changed lines.
 8. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
 9. **Test before committing** — Run relevant tests to validate changes before committing.
 10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
