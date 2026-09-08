@@ -4,26 +4,21 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.constants import SPAN_KIND
 
 # project
-from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import set_service_and_source
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.messaging import MessagingProcessEvent
+from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import tracer
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -109,29 +104,26 @@ def traced_receive(func, instance, args, kwargs):
 
     # Signature only takes 2 args: (body, message)
     message = get_argument_value(args, kwargs, 1, "message")
+    exchange = message.delivery_info["exchange"]
 
-    trace_utils.activate_distributed_headers(tracer, request_headers=message.headers, int_config=config.kombu)
+    event = MessagingProcessEvent(
+        operation=schematize_messaging_operation(
+            kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING
+        ),
+        request_headers=message.headers,
+        component=config.kombu.integration_name,
+        integration_config=config.kombu,
+        service=pin.service,
+        resource=exchange,
+    )
 
-    with tracer.trace(
-        schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
-        span_type=SpanTypes.WORKER,
-    ) as s:
-        set_service_and_source(s, pin.service, config.kombu)
-        s._set_attribute(COMPONENT, config.kombu.integration_name)
-
-        # set span.kind to the type of operation being performed
-        s._set_attribute(SPAN_KIND, SpanKind.CONSUMER)
-
-        s._set_attribute(_SPAN_MEASURED_KEY, 1)
-        # run the command
-        exchange = message.delivery_info["exchange"]
-        s.resource = exchange
-        s._set_attribute(kombux.EXCHANGE, exchange)
-
-        s.set_tags(extract_conn_tags(message.channel.connection))
-        s._set_attribute(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
+        span._set_attribute(kombux.EXCHANGE, exchange)
+        span.set_tags(extract_conn_tags(message.channel.connection))
+        span._set_attribute(kombux.ROUTING_KEY, message.delivery_info["routing_key"])
         result = func(*args, **kwargs)
-        core.dispatch("kombu.amqp.receive.post", (instance, message, s))
+        core.dispatch("kombu.amqp.receive.post", (instance, message, span))
         return result
 
 
@@ -140,29 +132,30 @@ def traced_publish(func, instance, args, kwargs):
     if not pin or not pin.enabled():
         return func(*args, **kwargs)
 
-    with tracer.trace(
-        schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND),
-        span_type=SpanTypes.WORKER,
-    ) as s:
-        set_service_and_source(s, pin.service, config.kombu)
-        s._set_attribute(COMPONENT, config.kombu.integration_name)
+    exchange_name = get_exchange_from_args(args)
+    event = MessagingProducerEvent(
+        operation=schematize_messaging_operation(
+            kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND
+        ),
+        distributed_headers=None,
+        component=config.kombu.integration_name,
+        integration_config=config.kombu,
+        service=pin.service,
+        resource=exchange_name,
+    )
 
-        # set span.kind to the type of operation being performed
-        s._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
-
-        s._set_attribute(_SPAN_MEASURED_KEY, 1)
-        exchange_name = get_exchange_from_args(args)
-        s.resource = exchange_name
-        s._set_attribute(kombux.EXCHANGE, exchange_name)
+    with core.context_with_event(event) as ctx:
+        span = span_from_context(ctx)
+        span._set_attribute(kombux.EXCHANGE, exchange_name)
         if pin.tags:
-            s.set_tags(pin.tags)
-        s._set_attribute(kombux.ROUTING_KEY, get_routing_key_from_args(args))
-        s.set_tags(extract_conn_tags(instance.channel.connection))
-        s._set_attribute(kombux.BODY_LEN, get_body_length_from_args(args))
-        # run the command
+            span.set_tags(pin.tags)
+        span._set_attribute(kombux.ROUTING_KEY, get_routing_key_from_args(args))
+        span.set_tags(extract_conn_tags(instance.channel.connection))
+        span._set_attribute(kombux.BODY_LEN, get_body_length_from_args(args))
+
         if config.kombu.distributed_tracing_enabled:
-            propagator.inject(s.context, args[HEADER_POS])
+            propagator.inject(span.context, args[HEADER_POS])
         core.dispatch(
-            "kombu.amqp.publish.pre", (args, kwargs, s)
+            "kombu.amqp.publish.pre", (args, kwargs, span)
         )  # Has to happen after trace injection for actual payload size
         return func(*args, **kwargs)
