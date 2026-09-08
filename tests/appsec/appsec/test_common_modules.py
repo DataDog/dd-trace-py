@@ -753,7 +753,15 @@ def test_exit_after_return_does_not_raise():
     context.__exit__(ValueError, ValueError("boom"), None)
 
 
-def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib():
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/real/path?q=1",
+        # A "://" in the query must not be mistaken for an absolute URL.
+        "/real/path?next=http://example.test/",
+    ],
+)
+def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib(path):
     """The address must carry a host: an enclosing republish can shadow it with the bare path.
 
     A wrapping context is always innermost, so it always sees whatever the httplib integration
@@ -775,7 +783,7 @@ def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib():
     try:
         httplib_patch()
         patch_common_modules()
-        core.set_item("full_url", "http://127.0.0.1:1/real/path?q=1")
+        core.set_item("full_url", f"http://127.0.0.1:1{path}")
         env = mock.Mock(downstream_requests=0)
         with (
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
@@ -795,7 +803,7 @@ def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib():
         ):
             conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
             with contextlib.suppress(Exception):
-                conn.request("GET", "/real/path?q=1")
+                conn.request("GET", path)
     finally:
         asm_config._asm_enabled, asm_config._ep_enabled = was_asm, was_ep
         core.discard_item("full_url")
@@ -805,7 +813,7 @@ def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib():
 
     addresses = [address for address in seen if address is not None]
     assert addresses, "no downstream request was inspected"
-    assert addresses[-1] == "http://127.0.0.1:1/real/path?q=1", addresses
+    assert addresses[-1] == f"http://127.0.0.1:1{path}", addresses
 
 
 @pytest.mark.parametrize(
@@ -834,3 +842,39 @@ def test_absolute_downstream_url(host, port, secure, expected):
     assert url == expected
     # The point of the address is the host, so it has to survive parsing.
     assert urlparse(url).hostname == host.strip("[]")
+
+
+@pytest.mark.parametrize(
+    "tunnel_host, tunnel_port, expected",
+    [
+        ("127.0.0.1", 8443, "https://127.0.0.1:8443/p?q=1"),
+        ("dest.test", None, "https://dest.test/p?q=1"),
+    ],
+)
+def test_absolute_downstream_url_follows_a_connect_tunnel(tunnel_host, tunnel_port, expected):
+    """host/port hold the proxy for a tunnelled request; the destination is the tunnel target."""
+    import http.client
+
+    connection = http.client.HTTPSConnection("proxy.example", 8080)
+    if tunnel_port is None:
+        connection.set_tunnel(tunnel_host)
+    else:
+        connection.set_tunnel(tunnel_host, tunnel_port)
+
+    assert cmp._absolute_downstream_url(connection, "/p?q=1") == expected
+
+
+@pytest.mark.parametrize(
+    "url, carries_host",
+    [
+        ("http://127.0.0.1:1/real/path?q=1", True),
+        ("//example.test/path", True),
+        ("/path", False),
+        # The shape of an SSRF payload: a substring test for "://" would call this absolute and
+        # skip host reconstruction on exactly the requests worth inspecting.
+        ("/path?next=http://example.test/", False),
+        ("/redir?u=https://evil.test/x&v=http://b.test", False),
+    ],
+)
+def test_carries_a_host(url, carries_host):
+    assert cmp._carries_a_host(url) is carries_host

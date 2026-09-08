@@ -5,6 +5,7 @@ from typing import Any
 from typing import Iterable
 from typing import Optional
 from typing import Union
+from urllib.parse import urlsplit
 from urllib.parse import urlunparse
 
 from ddtrace.appsec._asm_request_context import _get_asm_context
@@ -248,19 +249,35 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
         super().__exit__(exc_type, exc_value, exc_tb)
 
 
+def _carries_a_host(url: str) -> bool:
+    """Whether the URL has an authority, structurally.
+
+    Not a substring test: a "://" inside a query string is the shape of the very payload SSRF
+    rules exist to catch, so treating it as absolute would skip the host on the worst requests.
+    """
+    try:
+        return bool(urlsplit(url).netloc)
+    except Exception:
+        return False
+
+
 def _absolute_downstream_url(connection: Any, path: str) -> str:
     """Rebuild an absolute URL from the connection when only a request path is available.
 
     SSRF is a decision about the host, so a bare path is not something the WAF can evaluate.
     """
     try:
+        # A CONNECT tunnel puts the proxy in host/port; the request is really for the tunnel
+        # target, so SSRF has to be judged against that instead.
+        host = getattr(connection, "_tunnel_host", None)
+        port = getattr(connection, "_tunnel_port", None) if host else None
+        if not host:
+            host, port = connection.host, connection.port
         scheme = "https" if connection.default_port == 443 else "http"
-        host = connection.host
         if ":" in host:
             # http.client stores an IPv6 literal unbracketed, but a URL needs the brackets back or
             # the authority does not parse and the WAF skips the address entirely.
             host = f"[{host}]"
-        port = connection.port
         netloc = host if port in (None, connection.default_port) else f"{host}:{port}"
         return f"{scheme}://{netloc}{path}"
     except Exception:
@@ -284,7 +301,7 @@ class _SsrfHttpConnectionRequest(_RaspContext):
             method = frame_locals.get("method")
             body: Any = frame_locals.get("body")
             headers = frame_locals.get("headers", {})
-            if "://" not in full_url:
+            if not _carries_a_host(full_url):
                 # An enclosing republish can shadow the outer client's absolute URL with just the
                 # request path, and SSRF cannot be judged without a host. See APPSEC-70046.
                 full_url = _absolute_downstream_url(frame_locals.get("self"), frame_locals.get("url") or full_url)
