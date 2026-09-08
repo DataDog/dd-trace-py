@@ -43,14 +43,15 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_ta
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_ranges  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import str_to_origin  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import taint_range as TaintRange  # noqa: F401
-from ddtrace.appsec._iast_context import _get_iast_context_id
+
+# AIDEV-NOTE: Request identifiers live outside the IAST lifecycle/reporting
+# modules so these native wrappers can import the accessor without circular
+# bootstrap. Do not redirect this to _iast_request_context_base.
+from ddtrace.appsec._shared._iast_context import _get_iast_context_id
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-# AIDEV-NOTE: Request identifiers live outside the IAST lifecycle/reporting
-# modules so native wrappers can import the accessor without circular bootstrap.
 
 
 def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:

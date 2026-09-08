@@ -10,6 +10,7 @@ components:
   appsec_iast:
     - ddtrace/appsec/iast/*
     - ddtrace/appsec/_iast/*
+    - ddtrace/appsec/_shared/*
   urllib:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
