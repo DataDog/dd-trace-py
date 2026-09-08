@@ -1,8 +1,12 @@
+import asyncio
+from types import SimpleNamespace
+
 from aiokafka.errors import MessageSizeTooLargeError
 from aiokafka.structs import TopicPartition
 import pytest
 
 from ddtrace.contrib.internal.aiokafka.patch import patch
+from ddtrace.contrib.internal.aiokafka.patch import traced_send
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
 from tests.utils import override_config
 from tests.utils import override_global_tracer
@@ -78,6 +82,53 @@ async def test_send_commit():
         await consumer.commit()
 
         assert not has_header(result.headers, "x-datadog-trace-id")
+
+
+@pytest.mark.asyncio
+async def test_send_span_finishes_when_delivery_future_resolves(tracer, test_spans):
+    delivery_future = asyncio.get_running_loop().create_future()
+    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
+    producer = SimpleNamespace(client=client)
+
+    async def send(*args, **kwargs):
+        return delivery_future
+
+    returned_future = await traced_send(send, producer, ("topic", PAYLOAD), {})
+    span = tracer.current_span()
+
+    assert returned_future is delivery_future
+    assert span is not None
+    assert not span.finished
+    test_spans.assert_has_no_spans()
+
+    delivery_future.set_result(SimpleNamespace(topic="topic", partition=0, offset=1))
+    await asyncio.sleep(0)
+
+    assert span.finished
+    test_spans.assert_span_count(1)
+
+
+@pytest.mark.asyncio
+async def test_send_span_records_delivery_future_failure(tracer, test_spans):
+    delivery_future = asyncio.get_running_loop().create_future()
+    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
+    producer = SimpleNamespace(client=client)
+
+    async def send(*args, **kwargs):
+        return delivery_future
+
+    await traced_send(send, producer, ("topic", PAYLOAD), {})
+    span = tracer.current_span()
+
+    assert span is not None
+    assert not span.finished
+
+    delivery_future.set_exception(RuntimeError("delivery failed"))
+    await asyncio.sleep(0)
+
+    assert span.finished
+    assert span.error == 1
+    test_spans.assert_span_count(1)
 
 
 @pytest.mark.asyncio

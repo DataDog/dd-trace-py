@@ -7,12 +7,10 @@ import confluent_kafka
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.messaging import MessagingProcessEvent
-from ddtrace.contrib._events.messaging import MessagingProducerEvent
+from ddtrace.contrib._events.kafka import KafkaProcessEvent
+from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.ext import kafka as kafkax
 from ddtrace.internal import core
-from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
-from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -192,9 +190,10 @@ def traced_produce(func, instance, args, kwargs):
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
 
-    event = MessagingProducerEvent(
+    event = KafkaProducerEvent(
         operation=schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
-        distributed_headers=None,
+        topic=topic,
+        bootstrap_servers=instance._dd_bootstrap_servers,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
         service=trace_utils.ext_service(pin, config.kafka),
@@ -207,13 +206,10 @@ def traced_produce(func, instance, args, kwargs):
         if cluster_id:
             span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
 
-        core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
-
-        span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
-        span._set_attribute(kafkax.TOPIC, topic)
-        if topic:
-            # Should fall back to broker id if topic is not provided but it is not readily available here
-            span._set_attribute(MESSAGING_DESTINATION_NAME, topic)
+        core.dispatch(
+            "kafka.produce.start",
+            (instance, args, kwargs, isinstance(instance, _SerializingProducer), span),
+        )
 
         if _SerializingProducer is not None and isinstance(instance, _SerializingProducer):
             serialized_key = serialize_key(instance, topic, message_key, headers)
@@ -224,8 +220,6 @@ def traced_produce(func, instance, args, kwargs):
 
         span.set_tag(kafkax.PARTITION, partition)
         span._set_attribute(kafkax.TOMBSTONE, str(value is None))
-        if instance._dd_bootstrap_servers is not None:
-            span._set_attribute(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
 
         if config.kafka.distributed_tracing_enabled:
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
@@ -265,6 +259,7 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 def _instrument_message(messages, pin, start_ns, instance, err):
     first_message = messages[0] if len(messages) else None
+    topic = str(first_message.topic()) if first_message is not None else None
     request_headers = None
     links = []
     if config.kafka.distributed_tracing_enabled:
@@ -284,8 +279,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
             # This approach aligns with the opentelemetry confluent kafka semantics
             request_headers = dict(first_message.headers())
 
-    event = MessagingProcessEvent(
+    event = KafkaProcessEvent(
         operation=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
+        topic=topic,
+        bootstrap_servers=instance._dd_bootstrap_servers,
+        group_id=instance._group_id,
         request_headers=request_headers,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
@@ -308,17 +306,12 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 core.set_item("kafka_topic", str(first_message.topic()))
                 core.dispatch("kafka.consume.start", (instance, message, span))
 
-        span._set_attribute(MESSAGING_SYSTEM, kafkax.SERVICE)
         if cluster_id:
             span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
         span._set_attribute(kafkax.RECEIVED_MESSAGE, str(first_message is not None))
-        span._set_attribute(kafkax.GROUP_ID, instance._group_id)
         if first_message is not None:
             message_key = first_message.key() or ""
             message_offset = first_message.offset() or -1
-            topic = str(first_message.topic())
-            span._set_attribute(kafkax.TOPIC, topic)
-            span._set_attribute(MESSAGING_DESTINATION_NAME, topic)
 
             # If this is a deserializing consumer, do not set the key as a tag since we
             # do not have the serialization function
@@ -372,7 +365,10 @@ def serialize_key(instance, topic, key, headers):
                 log.debug("Failed to set Kafka Consumer key tag: %s", str(key))
                 return None
         else:
-            log.warning("Failed to set Kafka Consumer key tag, no method available to serialize key: %s", str(key))
+            log.warning(
+                "Failed to set Kafka Consumer key tag, no method available to serialize key: %s",
+                str(key),
+            )
             return None
 
 

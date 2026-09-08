@@ -57,12 +57,6 @@ from ddtrace.ext import http
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.ext import websocket
-from ddtrace.ext.kafka import MESSAGE_KEY
-from ddtrace.ext.kafka import MESSAGE_OFFSET
-from ddtrace.ext.kafka import PARTITION
-from ddtrace.ext.kafka import RECEIVED_MESSAGE
-from ddtrace.ext.kafka import TOMBSTONE
-from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal.compat import is_valid_ip
@@ -1337,120 +1331,6 @@ def _on_asgi_request(ctx: core.ExecutionContext) -> None:
         _init_websocket_message_counters(scope)
 
 
-def _on_aiokafka_send_start(
-    _topic: str,
-    send_value: Optional[bytes],
-    send_key: Optional[bytes],
-    headers: list[tuple[str, bytes]],
-    ctx: core.ExecutionContext,
-    partition: Optional[int],
-) -> None:
-    span = span_from_context(ctx)
-
-    span._set_attribute(SPAN_KIND, SpanKind.PRODUCER)
-    span._set_attribute(TOMBSTONE, str(send_value is None))
-    span.set_tag(MESSAGE_KEY, send_key.decode("utf-8") if send_key else None)
-    if partition is not None:
-        span._set_attribute(PARTITION, partition)
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if config.aiokafka.distributed_tracing_enabled:
-        # inject headers with Datadog tags:
-        tracing_headers: dict[str, str] = {}
-        HTTPPropagator.inject(span.context, tracing_headers)
-        for key, value in tracing_headers.items():
-            headers.append((key, value.encode("utf-8")))
-
-
-def _on_aiokafka_send_complete(
-    ctx: core.ExecutionContext,
-    exc_info: tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-    record_metadata: Optional[Any],
-) -> None:
-    span = span_from_context(ctx)
-    if span is not None and record_metadata is not None:
-        partition = getattr(record_metadata, "partition", None)
-        offset = getattr(record_metadata, "offset", None)
-        if isinstance(partition, int):
-            span._set_attribute(PARTITION, partition)
-        if isinstance(offset, int):
-            span._set_attribute(MESSAGE_OFFSET, offset)
-    _finish_span(ctx, exc_info)
-
-
-def _on_aiokafka_getone_message(
-    _instance: Any,
-    ctx: core.ExecutionContext,
-    start_ns: int,
-    message: Optional[Any],
-    err: Optional[BaseException],
-) -> None:
-    span = span_from_context(ctx)
-
-    span.start_ns = start_ns
-    span._set_attribute(RECEIVED_MESSAGE, str(message is not None))
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if message is not None:
-        message_key = message.key.decode("utf-8") if message.key else None
-        topic = str(message.topic)
-        span._set_attribute(TOPIC, topic)
-        span._set_attribute(TOMBSTONE, str(message.value is None))
-
-        if isinstance(message_key, str):
-            span.set_tag(MESSAGE_KEY, message_key)
-
-        if message.partition is not None:
-            span._set_attribute(PARTITION, message.partition)
-        if message.offset is not None:
-            span._set_attribute(MESSAGE_OFFSET, message.offset)
-
-    if err is not None:
-        span.set_exc_info(type(err), err, err.__traceback__)
-
-
-def _on_aiokafka_getmany_message(
-    _instance: Any,
-    ctx: core.ExecutionContext,
-    messages: Optional[dict[Any, list[Any]]],
-) -> None:
-    span = span_from_context(ctx)
-
-    span._set_attribute(RECEIVED_MESSAGE, str(messages is not None))
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    if messages is not None:
-        first_topic = next(iter(messages)).topic
-        span._set_attribute(MESSAGING_DESTINATION_NAME, first_topic)
-
-        topics_partitions: dict[str, list[int]] = {}
-        for topic_partition in messages.keys():
-            topic = topic_partition.topic
-            partition = topic_partition.partition
-            if topic not in topics_partitions:
-                topics_partitions[topic] = []
-            topics_partitions[topic].append(partition)
-
-        all_topics = list(topics_partitions.keys())
-        span.set_tag(TOPIC, ",".join(all_topics))
-
-        for topic, partitions in topics_partitions.items():
-            partition_list = ",".join(map(str, sorted(partitions)))
-            span._set_attribute(f"kafka.partitions.{topic}", partition_list)
-
-        for topic_partition, records in messages.items():
-            for record in records:
-                if config.aiokafka.distributed_tracing_enabled and record.headers:
-                    dd_headers = {
-                        key: (val.decode("utf-8", errors="ignore") if isinstance(val, (bytes, bytearray)) else str(val))
-                        for key, val in record.headers
-                        if val is not None
-                    }
-                    context = HTTPPropagator.extract(dd_headers)
-
-                    span.link_span(context)
-
-
 def _on_kafka_consume_link_spans(span: "Span", links: list) -> None:
     for link_ctx in links:
         span.link_span(link_ctx)
@@ -1953,10 +1833,6 @@ def listen():
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
     core.on("context.started.asgi.request", _on_asgi_request)
-    core.on("aiokafka.send.start", _on_aiokafka_send_start)
-    core.on("aiokafka.getone.message", _on_aiokafka_getone_message)
-    core.on("aiokafka.getmany.message", _on_aiokafka_getmany_message)
-    core.on("aiokafka.send.completed", _on_aiokafka_send_complete)
     core.on("kafka.consume.link_spans", _on_kafka_consume_link_spans)
     core.on("context.started.google_cloud_pubsub.request", _on_pubsub_request_start)
     core.on("context.started.google_cloud_pubsub.send", _on_pubsub_send_start)
@@ -2051,9 +1927,6 @@ def listen():
         "azure.servicebus.patched_producer_schedule",
         "azure.servicebus.patched_producer_send",
         "psycopg.patched_connect",
-        "aiokafka.send",
-        "aiokafka.getone",
-        "aiokafka.getmany",
         "mlflow.run",
         "ray.proxy.request",
         "ray.serve.deployment",
@@ -2092,8 +1965,6 @@ def listen():
         "azure.eventhubs.patched_producer_batch",
         "azure.eventhubs.patched_producer_send",
         "azure.eventhubs.patched_producer_send_batch",
-        "aiokafka.getone",
-        "aiokafka.getmany",
         "google_cloud_pubsub.receive",
         "google_cloud_pubsub.request",
         "ray.assign.request",
