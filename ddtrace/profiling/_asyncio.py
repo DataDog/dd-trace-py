@@ -57,15 +57,21 @@ def _register_return_hook(func: typing.Callable[..., typing.Any], handler: typin
         if _monitoring_handler is None:
             _monitoring_handler = _AsyncioMonitoringHandler()
 
+        code: typing.Optional[CodeType] = None
         try:
-            code: CodeType = func.__code__
+            code = func.__code__
             _monitoring_handler.handlers[id(code)] = handler
             _monitoring.register(code, _monitoring_handler)
             _monitoring_tool_id = _monitoring.get_tool_id()
             return True
         except Exception:
-            _monitoring_handler.handlers.pop(id(code), None)
-            return False  # nosec B110 — best-effort monitoring; fall back to wrap()
+            if code is not None:
+                _monitoring_handler.handlers.pop(id(code), None)
+                try:
+                    _monitoring.unregister(code, _monitoring_handler)
+                except Exception:  # nosec B110 — unwinding an already-failed registration
+                    pass
+            return False  # best-effort monitoring; fall back to wrap()
 
     return False
 

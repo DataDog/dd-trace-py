@@ -77,7 +77,7 @@ def test_asyncio_task_creation_uses_monitoring_on_315() -> None:
 
     create_task: FunctionType = cast(FunctionType, asyncio.tasks.create_task)
     # A _register_return_hook that always returns False would skip this store
-    # and fall back to a monkey-patch (_patched_create_task) or wrap().
+    # and fall back to wrap().
     assert create_task.__name__ == "create_task"
     assert not is_wrapped(create_task)
     assert _asyncio._monitoring_tool_id is not None
