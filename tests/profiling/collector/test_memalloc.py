@@ -1635,9 +1635,8 @@ def _make_obj_domain_objects(count: int) -> object:
 # label set is exactly {"obj"}, not a subset). Several other tests in this
 # file legitimately enable mem_domain, and pytest-randomly does not guarantee
 # this test runs before them, so it must run in its own process to avoid
-# being polluted by test order. Pin the env so the child cannot inherit a
-# True default if the mem_domain_enabled=False kwarg is ever dropped.
-@pytest.mark.subprocess(env=dict(DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED="false"))
+# being polluted by test order.
+@pytest.mark.subprocess()
 def test_allocator_domain_label_obj_when_mem_domain_disabled() -> None:
     """With mem_domain off, every allocation sample is still labelled, and always with "obj".
 
