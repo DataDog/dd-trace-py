@@ -14,7 +14,9 @@ Tests validate the two-tier aggregation spec:
 from collections.abc import Mapping
 from collections.abc import Sequence
 from datetime import datetime
+from datetime import timedelta
 from datetime import timezone
+from datetime import tzinfo
 import enum
 import json
 import logging
@@ -25,6 +27,7 @@ import threading
 import time
 import typing
 from unittest import mock
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -896,17 +899,67 @@ class TestFlattenAndPruneContext:
         assert truncated_snapshot == {}
         assert truncated_reasons == frozenset((CONTEXT_TRUNCATION_MAX_VALUE_LENGTH,))
 
-    def test_datetime_subclass_isoformat_is_not_called(self, writer):
+    def test_datetime_subclass_hooks_are_not_called(self, writer):
         class UnsafeDatetime(datetime):
-            def isoformat(self, *args, **kwargs):
+            @property
+            def tzinfo(self) -> typing.NoReturn:
+                raise AssertionError("subclass timezone lookup must not run")
+
+            def isoformat(self, *args: typing.Any, **kwargs: typing.Any) -> typing.NoReturn:
                 raise AssertionError("subclass conversion must not run")
 
         writer.enqueue(_make_event(attrs={"value": UnsafeDatetime(2026, 1, 1), "kept": "retained"}))
-        # datetime.isoformat is called unbound, so the subclass override never runs
-        # and the value is retained normally.
+        # The base tzinfo descriptor and datetime.isoformat are called directly, so
+        # neither subclass override runs and the value is retained normally.
         assert writer._queue.get_nowait().attrs == {
             "value": "2026-01-01T00:00:00",
             "kept": "retained",
+        }
+        assert writer._context_truncated == {}
+
+    def test_datetime_with_caller_timezone_is_dropped_without_calling_it(self, writer):
+        class UnsafeTimezone(tzinfo):
+            called = False
+
+            def utcoffset(self, dt: typing.Optional[datetime]) -> typing.Optional[timedelta]:
+                self.called = True
+                raise AssertionError("caller timezone conversion must not run")
+
+        unsafe_timezone = UnsafeTimezone()
+        timestamp = datetime(2026, 1, 1, tzinfo=unsafe_timezone)
+
+        writer.enqueue(_make_event(attrs={"value": timestamp, "kept": "retained"}))
+
+        assert unsafe_timezone.called is False
+        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
+
+    def test_datetime_with_zoneinfo_subclass_is_dropped_without_calling_it(self, writer):
+        class UnsafeZoneInfo(ZoneInfo):
+            called = False
+
+            def utcoffset(self, dt: typing.Optional[datetime]) -> typing.Optional[timedelta]:
+                self.called = True
+                raise AssertionError("timezone subclass conversion must not run")
+
+        unsafe_timezone = UnsafeZoneInfo("UTC")
+        timestamp = datetime(2026, 1, 1, tzinfo=unsafe_timezone)
+
+        writer.enqueue(_make_event(attrs={"value": timestamp, "kept": "retained"}))
+
+        assert unsafe_timezone.called is False
+        assert writer._queue.get_nowait().attrs == {"kept": "retained"}
+        assert writer._context_truncated == {CONTEXT_TRUNCATION_UNSUPPORTED_VALUE: 1}
+
+    def test_datetime_with_exact_stdlib_timezones_is_retained(self, writer):
+        fixed_offset = datetime(2026, 1, 1, tzinfo=timezone(timedelta(hours=5, minutes=30)))
+        named_zone = datetime(2026, 1, 1, tzinfo=ZoneInfo("UTC"))
+
+        writer.enqueue(_make_event(attrs={"fixed": fixed_offset, "named": named_zone}))
+
+        assert writer._queue.get_nowait().attrs == {
+            "fixed": "2026-01-01T00:00:00+05:30",
+            "named": "2026-01-01T00:00:00+00:00",
         }
         assert writer._context_truncated == {}
 

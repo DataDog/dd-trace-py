@@ -26,6 +26,7 @@ Key design properties:
 from collections.abc import Mapping
 from collections.abc import Sequence
 from datetime import datetime
+from datetime import timezone
 import http.client as httplib
 import json
 import math
@@ -34,6 +35,7 @@ import struct
 import time
 from types import MappingProxyType
 import typing
+from zoneinfo import ZoneInfo
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import forksafe
@@ -144,6 +146,12 @@ _PACK_LENGTH = struct.Struct(">Q").pack
 # Prebound finiteness test. Every float leaf is checked, so the attribute lookup is
 # hoisted out of the walk for the same reason as _PACK_LENGTH.
 _IS_FINITE = math.isfinite
+
+# AIDEV-NOTE: Keep this an exact-type allowlist. datetime.isoformat() calls
+# tzinfo.utcoffset(), so accepting a caller-defined implementation would run arbitrary
+# code on the evaluation thread. The stdlib implementations below do not dispatch to
+# caller overrides; subclasses must remain unsupported.
+_SAFE_DATETIME_TZINFO_TYPES = (timezone, ZoneInfo)
 
 
 class _JSONSafeOtherString(str):
@@ -481,11 +489,11 @@ def _flatten_sequence(
 
 
 def _validated_leaf(value: typing.Any) -> typing.Any:
-    """Return an immutable OpenFeature scalar without invoking caller conversion hooks.
+    """Return an immutable OpenFeature scalar without invoking caller-defined leaf hooks.
 
-    Scalar subclasses are normalized through the unbound builtin method, so a caller
-    override of __str__, __float__, or isoformat never runs. IntEnum, StrEnum, and
-    bool-like subclasses are common in real evaluation context.
+    Scalar subclasses are normalized through unbound builtin methods. Datetimes are
+    retained only when naive or backed by an exact, known-safe stdlib timezone type.
+    IntEnum, StrEnum, and bool-like subclasses are common in real evaluation context.
     """
     if value is None:
         return None
@@ -510,6 +518,11 @@ def _validated_leaf(value: typing.Any) -> typing.Any:
             raise ValueError(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
         return normalized
     if isinstance(value, datetime):
+        # Read the base descriptor directly so a datetime subclass cannot replace
+        # tzinfo with a property that executes caller code.
+        value_tzinfo = datetime.tzinfo.__get__(value, datetime)
+        if value_tzinfo is not None and type(value_tzinfo) not in _SAFE_DATETIME_TZINFO_TYPES:
+            raise ValueError(CONTEXT_TRUNCATION_UNSUPPORTED_VALUE)
         serialized = datetime.isoformat(value)
         if len(serialized) > MAX_VALUE_LENGTH:
             raise ValueError(CONTEXT_TRUNCATION_MAX_VALUE_LENGTH)
@@ -818,12 +831,11 @@ class FlagEvaluationWriter(PeriodicService):
     # ------------------------------------------------------------------
 
     def enqueue(self, event: _EvalEvent) -> None:
-        """
-        Non-blocking enqueue from the finally_after hook thread.
+        """Enqueue from the finally_after hook thread without waiting for queue capacity.
 
         An O(1) full check avoids context work under backpressure. Otherwise context is
         bounded, flattened, and made immutable before it enters the queue. A queue.Full
-        race at put_nowait is counted separately; this method never blocks.
+        race at put_nowait is counted separately; queue operations never wait for space.
         """
         closed = False
         with self._lifecycle_lock:
