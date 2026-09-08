@@ -59,6 +59,20 @@ fn is_timeline_enabled() -> bool {
     TIMELINE_ENABLED.load(Ordering::Relaxed)
 }
 
+/// Mirrors the `static bool already_warned...` pattern `sample.cpp` uses on
+/// every rejecting `push_*`: the first bad call writes one line to stderr and
+/// every later one is silent, so a misbehaving collector can't flood the log.
+fn warn_once(warned: &AtomicBool, message: &str) {
+    if !warned.swap(true, Ordering::Relaxed) {
+        eprintln!("{message}");
+    }
+}
+
+/// One flag per rejecting push, matching `sample.cpp`'s per-function
+/// `already_warned_params` statics.
+static ALLOC_PARAMS_WARNED: AtomicBool = AtomicBool::new(false);
+static HEAP_PARAMS_WARNED: AtomicBool = AtomicBool::new(false);
+
 /// Mirrors `Datadog::get_monotonic_ns()` (`clock.hpp`) exactly, including its
 /// platform split: `clock_gettime(CLOCK_MONOTONIC, ...)` on Linux,
 /// `mach_absolute_time()` on macOS. These must agree with what Python's
@@ -311,9 +325,13 @@ impl SampleHandlePy {
         }
     }
 
+    /// Accumulates (not overwrites) into `values[idx]`, mirroring `sample.cpp`'s `values[...] +=
+    /// ...` on every `push_*` method: a `SampleHandle` can receive multiple pushes for the same
+    /// value slot (e.g. several lock releases folded into one stack-sampled frame), and each push
+    /// must add to, not replace, what's already there.
     fn push_value(&mut self, idx: Option<usize>, val: i64) {
         if let Some(idx) = idx {
-            self.values[idx] = val;
+            self.values[idx] += val;
         }
     }
 
@@ -337,48 +355,76 @@ impl SampleHandlePy {
 
 #[pymethods]
 impl SampleHandlePy {
+    /// Matches `Sample::push_cputime`: the time value is scaled by `count` before accumulating
+    /// (a stack sampled once but representing `count` occurrences owes `count` times the time).
     fn push_cputime(&mut self, value: i64, count: i64) {
-        self.push_value(self.val_idx.cpu_time, value);
+        self.push_value(self.val_idx.cpu_time, value * count);
         self.push_value(self.val_idx.cpu_count, count);
     }
 
+    /// Matches `Sample::push_walltime` -- same count-scaling as `push_cputime`.
     fn push_walltime(&mut self, value: i64, count: i64) {
-        self.push_value(self.val_idx.wall_time, value);
+        self.push_value(self.val_idx.wall_time, value * count);
         self.push_value(self.val_idx.wall_count, count);
     }
 
+    /// Matches `Sample::push_acquire`: unlike the time-based samplers above, the accumulated
+    /// wait time is NOT scaled by `count` -- `count` here is "how many acquires" for an
+    /// already-summed wait-time total, not a repetition multiplier on a single measurement.
     fn push_acquire(&mut self, value: i64, count: i64) {
         self.push_value(self.val_idx.lock_acquire_time, value);
         self.push_value(self.val_idx.lock_acquire_count, count);
     }
 
+    /// Matches `Sample::push_release` -- same non-scaling as `push_acquire`.
     fn push_release(&mut self, value: i64, count: i64) {
         self.push_value(self.val_idx.lock_release_time, value);
         self.push_value(self.val_idx.lock_release_count, count);
     }
 
-    fn push_alloc(&mut self, value: i64, count: i64) {
+    /// Matches `Sample::push_alloc`: `value` is a byte size, not scaled by `count`.
+    /// Like the C++ original (`sample.cpp:453`) this rejects negative inputs
+    /// rather than accumulating them -- a negative size from a collector would
+    /// otherwise corrupt (and can drive negative) the alloc totals for the
+    /// whole export interval. Reports the rejection the same way C++ does:
+    /// `false` plus a one-shot stderr warning, not an exception.
+    fn push_alloc(&mut self, value: i64, count: i64) -> bool {
+        if value < 0 || count < 0 {
+            warn_once(&ALLOC_PARAMS_WARNED, "bad push alloc (params)");
+            return false;
+        }
         self.push_value(self.val_idx.alloc_space, value);
         self.push_value(self.val_idx.alloc_count, count);
+        true
     }
 
-    fn push_heap(&mut self, value: i64, count: i64) {
+    /// Matches `Sample::push_heap` -- same non-scaling as `push_alloc`, and the
+    /// same negative-input rejection (`sample.cpp:479`).
+    fn push_heap(&mut self, value: i64, count: i64) -> bool {
+        if value < 0 || count < 0 {
+            warn_once(&HEAP_PARAMS_WARNED, "bad push heap (params)");
+            return false;
+        }
         self.push_value(self.val_idx.heap_space, value);
         self.push_value(self.val_idx.heap_count, count);
+        true
     }
 
+    /// Matches `Sample::push_gpu_gputime` -- count-scaled like `push_cputime`.
     fn push_gpu_gputime(&mut self, value: i64, count: i64) {
-        self.push_value(self.val_idx.gpu_time, value);
+        self.push_value(self.val_idx.gpu_time, value * count);
         self.push_value(self.val_idx.gpu_count, count);
     }
 
+    /// Matches `Sample::push_gpu_memory` -- count-scaled, unlike `push_alloc`/`push_heap`.
     fn push_gpu_memory(&mut self, value: i64, count: i64) {
-        self.push_value(self.val_idx.gpu_alloc_space, value);
+        self.push_value(self.val_idx.gpu_alloc_space, value * count);
         self.push_value(self.val_idx.gpu_alloc_count, count);
     }
 
+    /// Matches `Sample::push_gpu_flops` -- count-scaled like `push_gpu_memory`.
     fn push_gpu_flops(&mut self, value: i64, count: i64) {
-        self.push_value(self.val_idx.gpu_flops, value);
+        self.push_value(self.val_idx.gpu_flops, value * count);
         self.push_value(self.val_idx.gpu_flops_samples, count);
     }
 
@@ -600,7 +646,14 @@ impl DdProfilePy {
     /// `self.dictionary` -- the same underlying dictionary, obtained via
     /// `start_sample()`.
     fn add_sample(&self, handle: &SampleHandlePy) -> PyResult<()> {
-        if handle.flushed.replace(true) {
+        // Only *check* the flag here -- it's committed at the very bottom,
+        // once `try_add_sample2` has actually taken the sample. Setting it up
+        // front (as this used to) meant any failure below both lost the sample
+        // and made the handle permanently un-retryable. The check and the
+        // commit don't need to be one atomic step: a handle is pushed to and
+        // flushed from a single thread holding the GIL (see `SampleHandlePy`),
+        // and nothing here releases it.
+        if handle.flushed.get() {
             return Err(PyValueError::new_err(
                 "sample handle has already been added to a profile",
             ));
@@ -660,6 +713,9 @@ impl DdProfilePy {
                 .try_add_sample2(&locations, &handle.values, labels, timestamp)
                 .map_err(to_py_err)?;
         }
+        // The sample is now in the profile: commit the flush so a second
+        // `add_sample` for this handle is rejected as a double-count.
+        handle.flushed.set(true);
         Ok(())
     }
 
@@ -683,9 +739,24 @@ impl DdProfilePy {
     /// swaps in a fresh `Profile` sharing this instance's dictionary/sample
     /// types, then serializes and compresses the one being replaced.
     ///
-    /// Returns `(pprof_bytes, start_ns, end_ns)`. `end_time_ns` defaults to
-    /// "now" when omitted, matching `serialize_into_compressed_pprof`.
-    fn serialize(&self, end_time_ns: Option<i64>) -> PyResult<(Vec<u8>, i64, i64)> {
+    /// Returns `(pprof_bytes, start_ns, end_ns, endpoint_counts)`.
+    /// `end_time_ns` defaults to "now" when omitted, matching
+    /// `serialize_into_compressed_pprof`.
+    ///
+    /// `endpoint_counts` is the `(endpoint, count)` list accumulated by
+    /// `add_endpoint_count` over the interval being serialized -- rotation
+    /// moves it out of the live profile along with everything else, so it has
+    /// to be handed back here or it is lost. Its shape is deliberately the one
+    /// `ProfileUploader.send_blocking(..., endpoints_stats=...)` accepts, so
+    /// the two halves of this API agree on where endpoint counts live.
+    // clippy::type_complexity: a flat tuple is what PyO3 turns into the
+    // Python tuple this returns; boxing it into a struct would only move the
+    // shape somewhere else.
+    #[allow(clippy::type_complexity)]
+    fn serialize(
+        &self,
+        end_time_ns: Option<i64>,
+    ) -> PyResult<(Vec<u8>, i64, i64, Vec<(String, i64)>)> {
         let previous = {
             let mut profile = self.profile.lock();
             profile.reset_and_return_previous().map_err(to_py_err)?
@@ -704,7 +775,19 @@ impl DdProfilePy {
             .duration_since(SystemTime::UNIX_EPOCH)
             .map_err(|e| PyValueError::new_err(e.to_string()))?
             .as_nanos() as i64;
-        Ok((encoded.buffer, start_ns, end_ns))
+        // `ProfiledEndpointsStats` keeps its map private and exposes no
+        // iterator in libdatadog v41, but it is `#[serde(transparent)]` over a
+        // `HashMap<String, i64>` -- serde is the only supported way back out.
+        // This runs once per export interval, not per sample.
+        let endpoint_counts: Vec<(String, i64)> =
+            serde_json::from_value::<std::collections::HashMap<String, i64>>(
+                serde_json::to_value(&encoded.endpoints_stats)
+                    .map_err(|e| PyValueError::new_err(e.to_string()))?,
+            )
+            .map_err(|e| PyValueError::new_err(e.to_string()))?
+            .into_iter()
+            .collect();
+        Ok((encoded.buffer, start_ns, end_ns, endpoint_counts))
     }
 
     fn max_nframes(&self) -> usize {
@@ -821,7 +904,9 @@ mod tests {
         handle.push_walltime(1_000_000, 1);
         profile.add_sample(&handle).expect("add_sample failed");
 
-        let (buffer, start_ns, end_ns) = profile.serialize(None).expect("serialize failed");
+        let (buffer, start_ns, end_ns, endpoint_counts) =
+            profile.serialize(None).expect("serialize failed");
+        assert!(endpoint_counts.is_empty());
         assert!(!buffer.is_empty());
         assert!(end_ns >= start_ns);
 
@@ -832,12 +917,88 @@ mod tests {
             .expect("add_sample after rotation failed");
     }
 
+    /// `TIMELINE_ENABLED` is process-global (see `set_timeline`), so every
+    /// test that reads or writes it has to be serialized against the others.
+    static TIMELINE_LOCK: Mutex<()> = Mutex::new(());
+
     #[test]
     fn push_monotonic_ns_is_noop_without_timeline() {
+        let _guard = TIMELINE_LOCK.lock();
+        set_timeline(false);
         let profile = new_profile(SampleTypeMask::WALL, 64);
         let mut handle = profile.start_sample().expect("start_sample failed");
         handle.push_monotonic_ns(123_456_789);
         assert_eq!(handle.timestamp_ns, None);
+    }
+
+    #[test]
+    fn push_alloc_rejects_negative_size_and_count() {
+        let profile = new_profile(SampleTypeMask::ALLOCATION, 64);
+        let mut handle = profile.start_sample().expect("start_sample failed");
+        let space = handle.val_idx.alloc_space.expect("alloc_space sampler");
+        let count = handle.val_idx.alloc_count.expect("alloc_count sampler");
+
+        assert!(!handle.push_alloc(-1, 1), "negative size must be rejected");
+        assert!(!handle.push_alloc(1, -1), "negative count must be rejected");
+        assert_eq!(handle.values[space], 0);
+        assert_eq!(handle.values[count], 0);
+
+        assert!(handle.push_alloc(1024, 2), "positive push must be accepted");
+        assert_eq!(handle.values[space], 1024);
+        assert_eq!(handle.values[count], 2);
+    }
+
+    #[test]
+    fn push_heap_rejects_negative_size_and_count() {
+        let profile = new_profile(SampleTypeMask::HEAP, 64);
+        let mut handle = profile.start_sample().expect("start_sample failed");
+        let space = handle.val_idx.heap_space.expect("heap_space sampler");
+        let count = handle.val_idx.heap_count.expect("heap_count sampler");
+
+        assert!(!handle.push_heap(-1, 1), "negative size must be rejected");
+        assert!(!handle.push_heap(1, -1), "negative count must be rejected");
+        assert_eq!(handle.values[space], 0);
+        assert_eq!(handle.values[count], 0);
+
+        assert!(handle.push_heap(4096, 3), "positive push must be accepted");
+        assert_eq!(handle.values[space], 4096);
+        assert_eq!(handle.values[count], 3);
+    }
+
+    #[test]
+    fn failed_add_sample_leaves_handle_retryable() {
+        // A `timestamp_ns` of zero is rejected by `add_sample` *after* the
+        // double-add guard and *before* the profile is touched -- the exact
+        // window where the handle used to be marked flushed on a path that
+        // never stored the sample.
+        pyo3::Python::initialize();
+        let _guard = TIMELINE_LOCK.lock();
+        set_timeline(true);
+        let profile = new_profile(SampleTypeMask::WALL, 64);
+        let mut handle = profile.start_sample().expect("start_sample failed");
+        handle.push_walltime(1_000_000, 1);
+        handle.push_absolute_ns(0);
+        assert_eq!(handle.timestamp_ns, Some(0));
+
+        let err = profile
+            .add_sample(&handle)
+            .expect_err("add_sample with a zero timestamp should fail");
+        assert!(err.to_string().contains("non-zero"));
+        assert!(
+            !handle.flushed.get(),
+            "a failed add_sample must leave the handle retryable"
+        );
+
+        // Fix up the handle and retry: the retry must be accepted...
+        handle.timestamp_ns = None;
+        profile.add_sample(&handle).expect("retry should succeed");
+        // ...and only then does the double-add guard latch.
+        let err = profile
+            .add_sample(&handle)
+            .expect_err("second successful add_sample should be rejected");
+        assert!(err.to_string().contains("already been added"));
+
+        set_timeline(false);
     }
 
     #[test]
@@ -854,5 +1015,42 @@ mod tests {
             handle.labels.last().unwrap().value,
             LabelValue::Str(_)
         ));
+    }
+
+    #[test]
+    fn serialize_returns_endpoint_counts() {
+        // Regression guard for `add_endpoint_count` being a no-op: the counts
+        // are written into the `Profile`, move out of it with rotation, and
+        // must come back out of `serialize` rather than being dropped.
+        let profile = new_profile(SampleTypeMask::WALL, 64);
+        let mut handle = profile.start_sample().expect("start_sample failed");
+        handle
+            .push_frame("handler", "app.py", 0, 7)
+            .expect("push_frame failed");
+        handle.push_walltime(1_000_000, 1);
+        profile.add_sample(&handle).expect("add_sample failed");
+
+        profile
+            .add_endpoint_count("GET /users", 3)
+            .expect("add_endpoint_count failed");
+        profile
+            .add_endpoint_count("GET /users", 2)
+            .expect("add_endpoint_count failed");
+        profile
+            .add_endpoint_count("POST /orders", 1)
+            .expect("add_endpoint_count failed");
+
+        let (_buffer, _start_ns, _end_ns, mut endpoint_counts) =
+            profile.serialize(None).expect("serialize failed");
+        endpoint_counts.sort();
+        assert_eq!(
+            endpoint_counts,
+            vec![("GET /users".to_owned(), 5), ("POST /orders".to_owned(), 1),]
+        );
+
+        // Rotation drained them: the next interval starts empty.
+        let (_buffer, _start_ns, _end_ns, endpoint_counts) =
+            profile.serialize(None).expect("serialize failed");
+        assert!(endpoint_counts.is_empty());
     }
 }

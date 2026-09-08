@@ -1,0 +1,12 @@
+cpp-uploader-small: &small
+  use_native_uploader: false
+  nsamples: 10
+pyo3-uploader-small:
+  <<: *small
+  use_native_uploader: true
+cpp-uploader-large: &large
+  use_native_uploader: false
+  nsamples: 1000
+pyo3-uploader-large:
+  <<: *large
+  use_native_uploader: true

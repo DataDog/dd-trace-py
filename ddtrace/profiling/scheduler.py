@@ -27,7 +27,18 @@ class Scheduler(periodic.PeriodicService):
         super(Scheduler, self).__init__(interval=interval)
         self.before_flush: Optional[Callable[[], None]] = before_flush
         self._configured_interval: float = self.interval
+        # "When did the last flush finish". Read by ServerlessScheduler to decide whether enough
+        # wall time has passed to be worth flushing, and used elsewhere as an "has this scheduler
+        # ever exported" probe -- hence the 0 default, which must stay 0 until a real export.
         self._last_export: int = 0  # Overridden in _start_service
+        # AIDEV-NOTE: deliberately NOT the same clock as _last_export. This one is "when did the
+        # window the next profile will report begin", which is a different question: it advances
+        # when the profile is serialized (i.e. before the blocking upload), whereas _last_export
+        # advances when the upload finishes. Collapsing them either shortens every reported
+        # profile by one upload round-trip or shifts ServerlessScheduler's flush cadence.
+        # Stamped here as well as in _start_service so a flush() on a never-started scheduler
+        # reports a plausible window instead of one starting at the Unix epoch.
+        self._window_start_ns: int = time.time_ns()
         self._tracer: Optional[Tracer] = tracer
         self._enable_code_provenance: bool = config.code_provenance
 
@@ -36,6 +47,7 @@ class Scheduler(periodic.PeriodicService):
         LOG.debug("Starting scheduler")
         super(Scheduler, self)._start_service()
         self._last_export = time.time_ns()
+        self._window_start_ns = self._last_export
         LOG.debug("Scheduler started")
 
     def flush(self) -> None:
@@ -47,9 +59,20 @@ class Scheduler(periodic.PeriodicService):
             except Exception:
                 LOG.error("Scheduler before_flush hook failed", exc_info=True)
 
-        start_ns = self._last_export
+        # Advance the window *before* uploading, not after. upload() resets the profile as soon
+        # as it serializes it, so the next window's samples start accumulating there; reading the
+        # clock after the blocking POST returned would charge the whole upload round-trip
+        # (seconds against a slow agent) to neither window, shortening every reported profile and
+        # inflating every per-second rate derived from it.
+        # Residual: if upload() fails before serializing, the profile is retained for the next
+        # cycle but _window_start_ns has already advanced, so that cycle under-reports its
+        # window. Signalling that back would require changing upload()'s contract, which is
+        # shared with the C++ path.
+        start_ns = self._window_start_ns
+        self._window_start_ns = time.time_ns()
         ddup.upload(self._tracer, self._enable_code_provenance, start_ns=start_ns)
-
+        # Unchanged from before the PyO3 window accounting existed: stamped once the upload has
+        # actually finished, which is the semantics ServerlessScheduler's gate expects.
         self._last_export = time.time_ns()
 
     def periodic(self) -> None:

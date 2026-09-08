@@ -112,6 +112,20 @@ extern "C"
 // std::vector<uint8_t> purely because Cython's libcpp.string.string binding converts directly
 // to a Python `bytes` object; std::string is safe here as a byte container since it carries an
 // explicit length and never assumes/requires NUL-termination.
+//
+// AIDEV-NOTE: This result deliberately does *not* carry start/end timestamps or endpoint-count
+// stats, even though the PyO3 upload path (ProfileUploaderPy::send_blocking) needs both. That is
+// not a gap to fill -- the underlying C ABI (ddog_prof_Profile_serialize) takes start/end as
+// *input* parameters (to set on the profile being serialized) and has no accessor to read a
+// resolved start/end back out afterwards; Python (Scheduler in scheduler.py) is the actual
+// source of truth for the export interval's start/end and is expected to keep passing them
+// through explicitly, exactly as it already does for the C++ upload path via
+// ddog_prof_Profile_serialize's own start_time/end_time arguments. Likewise, endpoint-count
+// stats are never round-tripped through the serialized profile at all -- see the comment above
+// the (skipped, for the native path) call_ddup_profile_add_endpoint_counts() call in
+// _ddup.pyx's upload(): endpoint_counts is Python's own dict from
+// tracer._endpoint_call_counter_span_processor.reset(), sent to the backend as a separate
+// upload part, never embedded in or extracted from the pprof bytes.
 struct DdupSerializeResult
 {
     bool ok = false;

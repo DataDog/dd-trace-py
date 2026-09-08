@@ -52,6 +52,18 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(feature = "profiling")]
     {
         m.add_class::<profiling_uploader::ProfileUploaderPy>()?;
+        m.add_function(wrap_pyfunction!(
+            profiling_uploader::profile_uploader_before_fork,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            profiling_uploader::profile_uploader_after_fork_parent,
+            m
+        )?)?;
+        m.add_function(wrap_pyfunction!(
+            profiling_uploader::profile_uploader_after_fork_child,
+            m
+        )?)?;
         m.add_class::<profiling_sample::SampleHandlePy>()?;
         m.add_class::<profiling_sample::DdProfilePy>()?;
         m.add_function(wrap_pyfunction!(profiling_sample::set_timeline, m)?)?;

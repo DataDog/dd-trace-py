@@ -369,6 +369,17 @@ suites:
       - ddtrace/internal/datadog/profiling/code_provenance.py
     cpus_per_run: 1
     type: 'microbenchmark'
+  profiling_upload:
+    paths:
+      - '@core'
+      - ddtrace/internal/datadog/profiling/ddup/*
+      - ddtrace/internal/native/*
+      - src/native/profiling_uploader.rs
+      - src/native/profiling_sample.rs
+      - benchmarks/profiling_upload/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
   rand:
     paths:
       - 'src/native/rand.rs'

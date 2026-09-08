@@ -369,6 +369,35 @@ cdef bint _code_provenance_set = False
 # ProfilerState. Only populated when use_native_uploader is requested.
 _native_uploader_config = None
 
+# Guards against registering the fork hooks below more than once if config() is somehow called
+# with use_native_uploader=True multiple times in the same process.
+_native_uploader_fork_hooks_registered = False
+
+
+def _register_native_uploader_fork_hooks():
+    # Lazily imported for the same reason as the ProfileUploader import in _upload_via_native:
+    # the profiling Cargo feature (and thus these functions) may not be built into every
+    # environment. Registered only once use_native_uploader is actually requested, mirroring
+    # crashtracking.py's own start()-time forksafe.register() call.
+    #
+    # These three hooks hold/release ProfileUploaderPy's UPLOAD_CANCEL lock *across* the actual
+    # fork() syscall via os.register_at_fork (see profiling_uploader.rs's fork-safety comment and
+    # docs/native-code-review.md §2) -- the Rust-side mirror of ProfilerState::prefork()/
+    # postfork_parent()/postfork_child() in profiler_state.cpp.
+    global _native_uploader_fork_hooks_registered
+    if _native_uploader_fork_hooks_registered:
+        return
+    from ddtrace.internal import forksafe
+    from ddtrace.internal.native._native import profile_uploader_after_fork_child
+    from ddtrace.internal.native._native import profile_uploader_after_fork_parent
+    from ddtrace.internal.native._native import profile_uploader_before_fork
+
+    forksafe.register_before_fork(profile_uploader_before_fork)
+    forksafe.register_after_parent(profile_uploader_after_fork_parent)
+    forksafe.register(profile_uploader_after_fork_child)
+    _native_uploader_fork_hooks_registered = True
+
+
 # Cached verbatim from the most recent set_profiler_settings_json() call, for the same reason as
 # _native_uploader_config: there is no C-ABI accessor to read profiler_settings_info_json back out
 # of ProfilerState, and the PyO3 upload path needs it to forward as the exporter's `info` payload
@@ -446,6 +475,10 @@ def config(
             "timeout_ms": timeout,
             "user_tags": user_tags,
         }
+        try:
+            _register_native_uploader_fork_hooks()
+        except Exception:
+            LOG.error("Failed to register native uploader fork-safety hooks", exc_info=True)
     else:
         _native_uploader_config = None
 
@@ -494,7 +527,13 @@ def upload(
     endpoint_counts, endpoint_to_span_ids = processor.reset()
 
     call_ddup_profile_set_endpoints(endpoint_to_span_ids)
-    call_ddup_profile_add_endpoint_counts(endpoint_counts)
+    if _native_uploader_config is None:
+        # On the native-upload path, endpoint counts are sent to the backend as a separate
+        # `endpoints_stats` upload part built directly from `endpoint_counts` below (see
+        # `_upload_via_native`); baking them into the C++ `ProfilerState` profile here would
+        # just have them silently dropped when `ddup_serialize()` drains the profile (it only
+        # extracts pprof bytes + internal_metadata_json), making this call pure wasted work.
+        call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
     endpoint = _get_endpoint(tracer)
     call_func_with_str(ddup_config_url, endpoint)
@@ -525,16 +564,16 @@ def _upload_via_native(endpoint: str, role: Optional[str], endpoint_counts: Mapp
     # module scope would turn a purely opt-in code path into a hard import dependency.
     from ddtrace.internal.native._native import ProfileUploader
 
-    cdef DdupSerializeResult result = ddup_serialize()
-    if not result.ok:
-        errmsg = (<bytes>result.errmsg).decode("utf-8", "replace")
-        LOG.error("Failed to serialize profile for native upload: %s", errmsg)
-        return
-
-    end_ns = time_ns()
-    if start_ns is None:
-        start_ns = end_ns
-
+    # Build the uploader BEFORE serializing. `ddup_serialize()` drains *and resets* the C++
+    # profile, so anything that can fail must fail while the samples are still recoverable:
+    # ProfileUploader construction can raise (URL parse, bad tag, header construction), and if
+    # it did so after serialization the interval's samples would be gone forever, dropped by
+    # `upload()`'s `except Exception` with a single log line. The C++ path is ordered the same
+    # way on purpose -- `UploaderBuilder::build()` assembles the tag vector and the exporter and
+    # early-returns on failure before it ever calls `ddog_prof_Profile_serialize`
+    # (dd_wrapper/src/uploader_builder.cpp) -- so a bad config leaves the profile intact for the
+    # next cycle. None of the tags below depend on serialization, so building them earlier
+    # attaches exactly the same set.
     cfg = _native_uploader_config
     tags = list(cfg["user_tags"].items())
     tags.append(("language", "python"))
@@ -551,11 +590,6 @@ def _upload_via_native(endpoint: str, role: Optional[str], endpoint_counts: Mapp
     if role is not None:
         tags.append(("process_type", role))
 
-    additional_files = []
-    code_provenance_json = <bytes>ddup_get_code_provenance_json()
-    if code_provenance_json:
-        additional_files.append(("code-provenance.json", code_provenance_json))
-
     uploader = ProfileUploader(
         library_name="dd-trace-py",
         library_version=cfg["profiler_version"],
@@ -568,6 +602,24 @@ def _upload_via_native(endpoint: str, role: Optional[str], endpoint_counts: Mapp
     normalized_endpoints_stats = [
         (compat_str(endpoint_name), count) for endpoint_name, count in endpoint_counts.items() if endpoint_name
     ]
+
+    additional_files = []
+    code_provenance_json = <bytes>ddup_get_code_provenance_json()
+    if code_provenance_json:
+        additional_files.append(("code-provenance.json", code_provenance_json))
+
+    cdef DdupSerializeResult result = ddup_serialize()
+    if not result.ok:
+        errmsg = (<bytes>result.errmsg).decode("utf-8", "replace")
+        LOG.error("Failed to serialize profile for native upload: %s", errmsg)
+        return
+
+    end_ns = time_ns()
+    if not start_ns:
+        # `Scheduler._last_export` is an int, so a flush that somehow runs before the scheduler
+        # has stamped it arrives here as 0, not None -- treat both as "no known window start"
+        # rather than reporting a profile that claims to begin at the Unix epoch.
+        start_ns = end_ns
 
     uploader.send_blocking(
         buffer=<bytes>result.buffer,

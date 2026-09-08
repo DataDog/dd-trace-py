@@ -74,7 +74,17 @@ def test_dualwrite_sample_parity():
 
     old_handle = ddup.SampleHandle()
     old_handle.push_frame("hot_loop", "app.py", 0, 100)
-    old_handle.push_walltime(1_000_000, 1)
+    # count=3 exercises push_walltime's count-scaling (values[wall_time] += walltime * count in
+    # sample.cpp); two push_acquire calls exercise cross-call accumulation *without* scaling
+    # (values[lock_acquire_time] += acquire_time, not *count) -- both diverge silently under a
+    # naive `values[idx] = val` implementation that a single count=1 push wouldn't catch.
+    # push_gpu_memory(size, 2) covers the other scaling family (values[gpu_memory] += size *
+    # count, same as push_cputime/push_gpu_gputime/push_gpu_flops) -- the counterpart to
+    # push_walltime above, since the fix for the count-multiplication bug touched all of these.
+    old_handle.push_walltime(1_000_000, 3)
+    old_handle.push_acquire(500, 2)
+    old_handle.push_acquire(700, 1)
+    old_handle.push_gpu_memory(4096, 2)
     old_handle.push_threadinfo(1, 100, "MainThread")
     old_handle.flush_sample()
 
@@ -92,11 +102,14 @@ def test_dualwrite_sample_parity():
     new_profile = _native.DdProfile(_native.SAMPLE_TYPE_ALL, 64)
     new_handle = new_profile.start_sample()
     new_handle.push_frame("hot_loop", "app.py", 0, 100)
-    new_handle.push_walltime(1_000_000, 1)
+    new_handle.push_walltime(1_000_000, 3)
+    new_handle.push_acquire(500, 2)
+    new_handle.push_acquire(700, 1)
+    new_handle.push_gpu_memory(4096, 2)
     new_handle.push_threadinfo(1, 100, "MainThread")
     new_profile.add_sample(new_handle)
 
-    buffer, _start_ns, _end_ns = new_profile.serialize(None)
+    buffer, _start_ns, _end_ns, _endpoint_counts = new_profile.serialize(None)
     new_pprof_path = f"{tmp_dir}/new-profile.pprof"
     with open(new_pprof_path, "wb") as f:
         f.write(buffer)
@@ -179,7 +192,7 @@ def test_dualwrite_frame_truncation_parity():
     new_handle.push_walltime(1_000_000, 1)
     new_profile.add_sample(new_handle)
 
-    buffer, _start_ns, _end_ns = new_profile.serialize(None)
+    buffer, _start_ns, _end_ns, _endpoint_counts = new_profile.serialize(None)
     new_pprof_path = f"{tmp_dir}/new-profile.pprof"
     with open(new_pprof_path, "wb") as f:
         f.write(buffer)
@@ -250,7 +263,7 @@ def test_dualwrite_timeline_parity():
     new_handle.push_monotonic_ns(monotonic_ns)
     new_profile.add_sample(new_handle)
 
-    buffer, _start_ns, _end_ns = new_profile.serialize(None)
+    buffer, _start_ns, _end_ns, _endpoint_counts = new_profile.serialize(None)
     new_pprof_path = f"{tmp_dir}/new-profile.pprof"
     with open(new_pprof_path, "wb") as f:
         f.write(buffer)
