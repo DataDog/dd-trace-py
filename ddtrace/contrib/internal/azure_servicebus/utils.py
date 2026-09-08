@@ -16,6 +16,7 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -127,7 +128,7 @@ def dispatch_message_modifier(
     message_id, batch_count = handle_service_bus_message_attributes(message_arg_value)
 
     if config.azure_servicebus.distributed_tracing:
-        handle_service_bus_message_context(ctx.span, message_arg_value)
+        handle_service_bus_message_context(span_from_context(ctx), message_arg_value)
 
     core.dispatch(
         "azure.servicebus.message_modifier",

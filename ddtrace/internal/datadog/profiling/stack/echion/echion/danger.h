@@ -27,6 +27,10 @@ init_segv_catcher();
 void
 uninstall_segv_handler();
 
+// Returns true only if our signal handler owns both SIGSEGV and SIGBUS; false on any error.
+bool
+segv_handler_installed();
+
 #if defined PL_LINUX
 ssize_t
 safe_memcpy_wrapper(pid_t,

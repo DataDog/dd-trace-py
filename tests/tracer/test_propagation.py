@@ -7,7 +7,6 @@ from unittest import mock
 
 import pytest
 
-import ddtrace
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -26,7 +25,9 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -52,7 +53,6 @@ from tests.contrib.fastapi.conftest import fastapi_application  # noqa:F401
 from tests.contrib.fastapi.conftest import fastapi_tracer as fastapi_tracer  # noqa:F401
 from tests.contrib.fastapi.conftest import test_spans as fastapi_test_spans  # noqa:F401
 
-from ..utils import override_env
 from ..utils import override_global_config
 
 
@@ -74,6 +74,28 @@ def test_inject(tracer):  # noqa: F811
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
+
+
+def test_inject_deep_child_propagates_trace_level_tags(tracer):  # noqa: F811
+    """Injecting a deep child's context carries the trace-level _dd.p.* tags, origin,
+    and sampling priority (all shared trace state), with the child's OWN span_id as
+    the parent id — even though the child's context is materialized lazily.
+    """
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("root"):
+        with tracer.trace("child"):
+            with tracer.trace("grandchild") as grandchild:
+                headers = {}
+                HTTPPropagator.inject(grandchild.context, headers)
+
+                assert int(headers[HTTP_HEADER_PARENT_ID]) == grandchild.span_id
+                assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == 2
+                assert headers[HTTP_HEADER_ORIGIN] == "synthetics"
+                tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+                assert "_dd.p.test=value" in tags
+                assert "_dd.p.other=value" in tags
 
 
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
@@ -307,9 +329,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
-
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             headers = {
@@ -351,8 +371,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_KEEP
 
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -368,9 +387,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
-
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -399,8 +416,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
             # Ensure span is dropped (no appsec event upstream or in this span)
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -450,8 +466,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -495,8 +510,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
             # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
             assert span._get_numeric_attribute("_sampling_priority_v1") == AUTO_REJECT
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", False):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -562,8 +576,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -615,8 +628,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
             assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP
 
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -634,8 +646,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
     if not appsec_enabled and not iast_enabled and sca_enabled == "false":
         pytest.skip("SCA, AppSec or IAST must be enabled")
 
-    with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-        ddtrace.config._reset()
+    with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
         tracer.configure(appsec_enabled=appsec_enabled, apm_tracing_disabled=True, iast_enabled=iast_enabled)
         try:
             with tracer.trace("local_root_span0"):
@@ -688,8 +699,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
             assert span._get_numeric_attribute("_sampling_priority_v1") == USER_KEEP  # user keep always
 
         finally:
-            with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
-                ddtrace.config._reset()
+            with mock.patch.object(appsec_telemetry_config, "SCA_ENABLED", sca_enabled == "true"):
                 tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
@@ -926,14 +936,15 @@ def test_extract_unicode(tracer):  # noqa: F811
     "x_datadog_tags, expected_trace_tags",
     [
         ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
-        (
-            "_dd.p.dm=-22",
-            {"_dd.propagation_error": "decoding_error"},
-        ),  # This test validates a value that does not exist in the SamplingMechanism enum
+        # Unenumerated but well-formed id: must still propagate. "-15" is the #19335 repro.
+        ("_dd.p.dm=-15", {"_dd.p.dm": "-15"}),
+        ("_dd.p.dm=-255", {"_dd.p.dm": "-255"}),
+        # Malformed syntax.
+        ("_dd.p.dm=-1a", {"_dd.propagation_error": "decoding_error"}),
+        # Out of the 0..255 range the mechanism is encoded in.
+        ("_dd.p.dm=-256", {"_dd.propagation_error": "decoding_error"}),
+        # Legacy service hash form, dropped from the spec and never emitted by dd-trace-py.
+        ("_dd.p.dm=934086a6-4", {"_dd.propagation_error": "decoding_error"}),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):
@@ -1335,6 +1346,55 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         if caplog.text or expected_logging:
             for expected_log in expected_logging:
                 assert expected_log in caplog.text
+
+
+@pytest.mark.parametrize("leading_ows", [" ", "\t", "\t "])
+@pytest.mark.parametrize("trailing_ows", [" ", "\t", " \t"])
+def test_extract_traceparent_normalizes_ows(leading_ows, trailing_ows):
+    traceparent = "00-%s-00f067aa0ba902b7-01" % TRACE_ID_HEX
+
+    context = _TraceContext._extract({_HTTP_HEADER_TRACEPARENT: leading_ows + traceparent + trailing_ows})
+
+    assert context is not None
+    assert context._meta["traceparent"] == traceparent
+    assert context._traceparent == traceparent
+
+
+def test_matching_secondary_tracecontext_preserves_random_trace_flag():
+    traceparent = "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-02"
+    headers = {
+        **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
+        _HTTP_HEADER_TRACEPARENT: traceparent,
+    }
+
+    with override_global_config(
+        dict(_propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT])
+    ):
+        context = HTTPPropagator.extract(headers)
+
+    assert context._meta[W3C_TRACEPARENT_KEY] == traceparent
+    assert context._trace_flags == 0x3
+
+
+def test_matching_secondary_tracecontext_uses_validated_tracestate():
+    raw_tracestate = "ot=rv:not-hex;th:8," + ",".join("vendor{}=value".format(i) for i in range(32))
+    headers = {
+        **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
+        _HTTP_HEADER_TRACEPARENT: TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
+        _HTTP_HEADER_TRACESTATE: raw_tracestate,
+    }
+    tracecontext = _TraceContext._extract(headers)
+    assert tracecontext is not None
+
+    with override_global_config(
+        dict(_propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT])
+    ):
+        context = HTTPPropagator.extract(headers)
+
+    assert context._meta[W3C_TRACESTATE_KEY] == tracecontext._meta[W3C_TRACESTATE_KEY]
+    assert context._meta[W3C_TRACESTATE_KEY] != raw_tracestate
+    assert "rv:not-hex" not in context._meta[W3C_TRACESTATE_KEY]
+    assert len(context._meta[W3C_TRACESTATE_KEY].split(",")) <= 32
 
 
 @pytest.mark.parametrize(
@@ -2314,6 +2374,7 @@ EXTRACT_FIXTURES = [
             "sampling_priority": 1,
             "dd_origin": "synthetics",
             "meta": {
+                "traceparent": TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
                 "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
@@ -2369,7 +2430,10 @@ EXTRACT_FIXTURES = [
             "trace_id": 9291375655657946024,
             "span_id": 10,
             "sampling_priority": None,
-            "meta": {LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+            "meta": {
+                "traceparent": "00-000000000000000080f198ee56343ba8-000000000000000a-01",
+                LAST_DD_PARENT_ID_KEY: "000000000000000f",
+            },
         },
     ),
     (
@@ -2877,6 +2941,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             # in the styles configuration
             meta={
                 "_dd.origin": "synthetics",
+                "traceparent": TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },

@@ -10,6 +10,10 @@ build_base_venvs:
     PIP_VERBOSE: '0'
     DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
+    # S3-backed sccache, matches the wheel-build jobs in .gitlab/package.yml
+    SCCACHE_BUCKET: 'dd-trace-py-builds'
+    SCCACHE_S3_KEY_PREFIX: 'sccache'
+    SCCACHE_REGION: 'us-east-1'
     DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
     # Pin resources and disable the VPA. This job compiles every native
     # extension in parallel (CMAKE_BUILD_PARALLEL_LEVEL=12, set above) whenever
@@ -28,15 +32,32 @@ build_base_venvs:
     set -e -o pipefail
     echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
     echo "NIGHTLY_BUILD: {nightly_build}"
-    if [[ {unpin_dependencies} == "true" ]]
+    if [[ "{unpin_dependencies}" == "true" ]]
     then
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
+    # PIP_IGNORE_REQUIRES_PYTHON lets riot's `pip install -e .` install the
+    # dev package despite requires-python = ">=3.9,<3.15". 3.15 only: other
+    # matrix versions already satisfy the bound.
+    # TODO(py-315): drop this once requires-python includes 3.15
+    case "$PYTHON_VERSION" in
+      3.15) export PIP_IGNORE_REQUIRES_PYTHON=1 ;;
+    esac
     riot -P -v generate --python=$PYTHON_VERSION
     .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
     riot -v run -s --python=$PYTHON_VERSION smoke_test
+    # Build editable metadata once per Python for uv jobs; Riot jobs keep using the base venv above.
+    wheel_dir="$(pwd)/.cache/ddtrace-test-wheels/$PYTHON_VERSION"
+    mkdir -p "$wheel_dir"
+    find "$wheel_dir" -maxdepth 1 -type f -name 'ddtrace-*.whl' -delete
+    uv run --isolated --no-project --python "python$PYTHON_VERSION" --no-python-downloads \
+      --with setuptools --with cython --with 'cmake>=3.24.2,<3.28' --with 'setuptools-rust<2' \
+      --with "patchelf>=0.17.0.0; sys_platform == 'linux'" \
+      python -c 'import sys; from setuptools.build_meta import build_editable; build_editable(sys.argv[1], {{"editable_mode": "compat"}})' \
+      "$wheel_dir"
+    sccache --show-stats || true
   artifacts:
     name: venv_$PYTHON_VERSION
     when: always
@@ -44,3 +65,4 @@ build_base_venvs:
       - core.*
       - ddtrace/**/*.so*
       - .riot/venv_*
+      - .cache/ddtrace-test-wheels/

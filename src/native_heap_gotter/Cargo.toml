@@ -1,0 +1,47 @@
+# Copyright 2025-Present Datadog, Inc. https://www.datadoghq.com/
+# SPDX-License-Identifier: Apache-2.0
+
+# Thin cdylib wrapper around libdatadog's `libdd-profiling-heap-gotter` crate
+# (published on crates.io).
+#
+# Why this crate exists (rather than consuming the upstream crate directly):
+#   * Building our own cdylib lets us pick a clean `[lib] name` and so sidestep
+#     libdatadog's repo-wide `liblib*.so` double-prefix convention: the output
+#     is simply `libdd_heap_gotter.so`.
+#   * It lets us expose a stable, ddtrace-owned C ABI (`ddtrace_heap_gotter_*`)
+#     over the upstream crate's pure-Rust API, so the Python ctypes activator
+#     links against fixed, unmangled symbol names and gets a plain `bool`.
+[package]
+name = "ddtrace-heap-gotter"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+# Produces `libdd_heap_gotter.so` (single `lib` prefix, unlike the upstream
+# `liblibdd_profiling_heap_gotter.so`). setup.py renames it to carry the
+# Python EXT_SUFFIX before placing it under ddtrace/internal/datadog/profiling.
+name = "dd_heap_gotter"
+path = "lib.rs"
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "s"
+debug = "line-tables-only"
+codegen-units = 1
+
+[features]
+default = ["live-heap"]
+# Forwards to the upstream crate's test-support surface so integration tests can
+# assert the patched GOT hooks actually ran (hit counter) without needing a
+# live eBPF uprobe attach. Never enabled for shipped wheels.
+test-support = ["libdd-profiling-heap-gotter/test-support"]
+
+# Default-on live-heap (ddheap:free + retain flags). Sole enablement path for
+# upstream live-heap — keeps cfg! / live_heap_enabled() in lockstep with the
+# artifact. Omit via --no-default-features for alloc-only builds.
+live-heap = ["libdd-profiling-heap-gotter/live-heap"]
+
+[dependencies]
+# Live-heap only via the feature above, not unconditionally.
+libdd-profiling-heap-gotter = { version = "1.0.0" }

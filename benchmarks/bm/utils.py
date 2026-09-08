@@ -68,15 +68,20 @@ def drop_traces(tracer):
 
 
 def drop_telemetry_events():
-    # Avoids sending instrumentation telemetry payloads to the agent
+    # Avoids the telemetry worker doing agent I/O (which adds contention/noise) during timing.
     try:
+        # Legacy PeriodicService-based writer.
         telemetry.telemetry_writer.stop()
         telemetry.telemetry_writer.reset_queues()
         telemetry.telemetry_writer.enable()
     except AttributeError:
-        # telemetry.telemetry_writer is not defined in this version of dd-trace-py
-        # Telemetry events will not be mocked!
-        pass
+        # Native-backed writer: stop()/reset_queues() no longer exist. disable() stops the native
+        # worker and the periodic thread so nothing is processed/sent while the benchmark runs.
+        try:
+            telemetry.telemetry_writer.disable()
+        except AttributeError:
+            # telemetry.telemetry_writer is not defined in this version of dd-trace-py.
+            pass
 
 
 def gen_span(name):

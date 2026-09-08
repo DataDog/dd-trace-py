@@ -285,6 +285,17 @@ def parse_newest_profile(
     return profile
 
 
+def get_internal_metadata_files(filename_prefix: str) -> list[str]:
+    """Internal metadata files with the given prefix (which includes the pid), oldest upload first.
+
+    Files are named <filename_prefix>.<counter>.internal_metadata.json without
+    padding, so a lexicographic sort would place upload 10 before upload 2.
+    """
+    files = glob.glob(filename_prefix + ".*.internal_metadata.json")
+    files.sort(key=lambda f: int(f.rsplit(".", 3)[-3]))
+    return files
+
+
 def get_sample_type_index(profile: pprof_pb2.Profile, value_type: str) -> int:
     return next(
         i for i, sample_type in enumerate(profile.sample_type) if profile.string_table[sample_type.type] == value_type
@@ -302,6 +313,34 @@ def get_samples_with_label_key(profile: pprof_pb2.Profile, key: str) -> list[ppr
 
 def get_label_with_key(string_table: Sequence[str], sample: pprof_pb2.Sample, key: str) -> Optional[pprof_pb2.Label]:
     return next((label for label in sample.label if string_table[label.key] == key), None)
+
+
+def get_label_str_values(profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], key: str) -> list[str]:
+    """Return the string value for each sample's label with the given key, or "" when absent."""
+    values: list[str] = []
+    for sample in samples:
+        label = get_label_with_key(profile.string_table, sample, key)
+        values.append(profile.string_table[label.str] if label is not None else "")
+    return values
+
+
+def _sample_has_function_name(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, function_name: str) -> bool:
+    for location_id in sample.location_id:
+        location = get_location_with_id(profile, location_id)
+        if not location.line:
+            continue
+        fn = get_function_with_id(profile, location.line[0].function_id)
+        if profile.string_table[fn.name] == function_name:
+            return True
+    return False
+
+
+def get_label_str_values_for_function(
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], key: str, function_name: str
+) -> list[str]:
+    """Like get_label_str_values, restricted to samples whose stack contains function_name."""
+    matching = [sample for sample in samples if _sample_has_function_name(profile, sample, function_name)]
+    return get_label_str_values(profile, matching, key)
 
 
 def get_location_with_id(profile: pprof_pb2.Profile, location_id: int) -> pprof_pb2.Location:
@@ -329,6 +368,29 @@ def get_location_from_id(profile: pprof_pb2.Profile, location_id: int) -> StackL
     filename = profile.string_table[function.filename]
     line_no = line.line
     return StackLocation(function_name=function_name, filename=filename, line_no=line_no)
+
+
+def get_samples_with_function(
+    profile: pprof_pb2.Profile, samples: Sequence[pprof_pb2.Sample], function_name: str
+) -> list[pprof_pb2.Sample]:
+    return [
+        sample
+        for sample in samples
+        if any(
+            get_location_from_id(profile, location_id).function_name == function_name
+            for location_id in sample.location_id
+        )
+    ]
+
+
+def get_str_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[str]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else profile.string_table[label.str]
+
+
+def get_num_label(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample, key: str) -> Optional[int]:
+    label = get_label_with_key(profile.string_table, sample, key)
+    return None if label is None else label.num
 
 
 def assert_lock_events_of_type(

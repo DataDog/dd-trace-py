@@ -1,0 +1,3 @@
+fixes:
+  - |
+    CI Visibility: Fixes an issue where pytest suites using suite-level Intelligent Test Runner skipping could still skip individual tests when the suite contains an unskippable test marker.

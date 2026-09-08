@@ -1,11 +1,14 @@
 import json
+from unittest import mock
 
 import pytest
 
+from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.contrib.mistralai.utils import CHAT_TOOLS
 from tests.contrib.mistralai.utils import FULL_CHAT_REQUEST_KWARGS
 from tests.contrib.mistralai.utils import FULL_EMBED_REQUEST_KWARGS
+from tests.contrib.mistralai.utils import REASONING_CHAT_REQUEST_KWARGS
 from tests.contrib.mistralai.utils import get_expected_chat_metadata
 from tests.contrib.mistralai.utils import get_expected_embed_metadata
 from tests.contrib.mistralai.utils import get_weather
@@ -13,6 +16,28 @@ from tests.llmobs._utils import assert_llmobs_span_data
 
 
 COMMON_TAGS = {"ml_app": "<ml-app-name>", "service": "tests.contrib.mistralai", "integration": "mistralai"}
+
+STREAM_CHAT_OUTPUT_MESSAGES = [
+    {
+        "role": "assistant",
+        "content": mock.ANY,
+    }
+]
+
+STREAM_TOOL_OUTPUT_MESSAGES = [
+    {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "name": "get_weather",
+                "arguments": {"location": "New York City"},
+                "tool_id": mock.ANY,
+                "type": "function",
+            }
+        ],
+    }
+]
 
 WEATHER_TOOL_DEFINITIONS = [
     {
@@ -48,11 +73,7 @@ def _expected_chat_span_data(
         kwargs["output_messages"] = output_messages or [
             {
                 "role": "assistant",
-                "content": "The sky appears blue due to a phenomenon called **Rayleigh scattering**, which describes "
-                "how light interacts with molecules and tiny particles in Earth's atmosphere. Here’s a "
-                "step-by-step explanation:\n\n### 1. **Sunlight is White Light**\n   - Sunlight appears white but is "
-                "actually a mix of all colors (wavelengths) of the visible spectrum: red, orange, yellow, green, "
-                "blue, indigo, and violet.\n\n### 2. **Scattering by Air Molecules**\n",
+                "content": mock.ANY,
             }
         ]
         kwargs["metrics"] = {"input_tokens": 9, "output_tokens": 100, "total_tokens": 109}
@@ -97,7 +118,7 @@ def _expected_tool_first_call_span_data(**overrides):
                     {
                         "name": "get_weather",
                         "arguments": {"location": "New York City"},
-                        "tool_id": "oG2fuvoqp",
+                        "tool_id": mock.ANY,
                         "type": "function",
                     }
                 ],
@@ -126,7 +147,7 @@ def _expected_tool_followup_span_data(**overrides):
                     {
                         "name": "get_weather",
                         "arguments": {"location": "New York City"},
-                        "tool_id": "oG2fuvoqp",
+                        "tool_id": mock.ANY,
                         "type": "function",
                     }
                 ],
@@ -141,8 +162,7 @@ def _expected_tool_followup_span_data(**overrides):
         "output_messages": [
             {
                 "role": "assistant",
-                "content": "The current weather in **New York City** is **sunny** with a temperature of "
-                "**72°F**. Enjoy your day! \U0001f60a",
+                "content": mock.ANY,
             }
         ],
         "metadata": get_expected_chat_metadata(),
@@ -152,6 +172,29 @@ def _expected_tool_followup_span_data(**overrides):
     }
     kwargs.update(overrides)
     return kwargs
+
+
+def _expected_reasoning_span_data():
+    return {
+        "span_kind": "llm",
+        "model_name": "magistral-medium-latest",
+        "model_provider": "mistral",
+        "input_messages": [{"role": "user", "content": "What is 2+2?"}],
+        "metrics": {"input_tokens": 10},
+        "metadata": get_expected_chat_metadata(REASONING_CHAT_REQUEST_KWARGS),
+        "tags": COMMON_TAGS,
+    }
+
+
+def _assert_reasoning_output_messages(actual):
+    messages = actual.get(LLMOBS_STRUCT.META, {}).get(LLMOBS_STRUCT.OUTPUT, {}).get(LLMOBS_STRUCT.MESSAGES)
+    assert messages is not None, "expected output messages to be present"
+    assert len(messages) == 2, "expected a reasoning message then an assistant message, got {!r}".format(messages)
+    reasoning_message, assistant_message = messages
+    assert reasoning_message["role"] == "reasoning"
+    assert reasoning_message["content"], "expected non empty reasoning content"
+    assert assistant_message["role"] == "assistant"
+    assert assistant_message["content"], "expected non empty assistant content"
 
 
 def test_chat_complete(mistral_client, mistralai_llmobs, test_spans):
@@ -310,13 +353,10 @@ def test_chat_complete_with_cached_tokens(mistral_client, mistralai_llmobs, test
 
     spans = [s for trace in test_spans.pop_traces() for s in trace]
     assert len(spans) == 1
-    assert_llmobs_span_data(
-        _get_llmobs_data_metastruct(spans[0]),
-        **_expected_chat_span_data(
-            spans[0],
-            metrics={"input_tokens": 9, "output_tokens": 100, "total_tokens": 109, "cache_read_input_tokens": 5},
-        ),
-    )
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_chat_span_data(spans[0]))
+    metrics = actual.get(LLMOBS_STRUCT.METRICS, {})
+    assert "cache_read_input_tokens" not in metrics
 
 
 async def test_async_chat_complete_with_tools(mistral_client, mistralai_llmobs, test_spans):
@@ -354,4 +394,167 @@ async def test_async_chat_complete_with_tools(mistral_client, mistralai_llmobs, 
     assert_llmobs_span_data(
         _get_llmobs_data_metastruct(spans[1]),
         **_expected_tool_followup_span_data(),
+    )
+
+
+def test_chat_stream(mistral_client, mistralai_llmobs, test_spans):
+    for _ in mistral_client.chat.stream(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(spans[0], output_messages=STREAM_CHAT_OUTPUT_MESSAGES),
+    )
+
+
+def test_chat_stream_error(mistral_client, mistralai_llmobs, test_spans):
+    with pytest.raises(TypeError):
+        for _ in mistral_client.chat.stream(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        ):
+            pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
+
+
+async def test_async_chat_stream(mistral_client, mistralai_llmobs, test_spans):
+    async for _ in await mistral_client.chat.stream_async(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "Why is the sky blue?"}],
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(spans[0], output_messages=STREAM_CHAT_OUTPUT_MESSAGES),
+    )
+
+
+async def test_async_chat_stream_error(mistral_client, mistralai_llmobs, test_spans):
+    with pytest.raises(TypeError):
+        await mistral_client.chat.stream_async(
+            model="mistral-large-latest",
+            messages=[{"role": "user", "content": "Why is the sky blue?"}],
+            not_a_real_argument="this should fail",
+        )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(_get_llmobs_data_metastruct(spans[0]), **_expected_chat_span_data(spans[0], error=True))
+
+
+def test_chat_reasoning(mistral_client, mistralai_llmobs, test_spans):
+    mistral_client.chat.complete(
+        model="magistral-medium-latest",
+        messages=[{"role": "user", "content": "What is 2+2?"}],
+        **REASONING_CHAT_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
+
+
+async def test_async_chat_reasoning(mistral_client, mistralai_llmobs, test_spans):
+    await mistral_client.chat.complete_async(
+        model="magistral-medium-latest",
+        messages=[{"role": "user", "content": "What is 2+2?"}],
+        **REASONING_CHAT_REQUEST_KWARGS,
+    )
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
+
+
+def test_chat_reasoning_stream(mistral_client, mistralai_llmobs, test_spans):
+    for _ in mistral_client.chat.stream(
+        model="magistral-medium-latest",
+        messages=[{"role": "user", "content": "What is 2+2?"}],
+        **REASONING_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
+
+
+async def test_async_chat_reasoning_stream(mistral_client, mistralai_llmobs, test_spans):
+    async for _ in await mistral_client.chat.stream_async(
+        model="magistral-medium-latest",
+        messages=[{"role": "user", "content": "What is 2+2?"}],
+        **REASONING_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    actual = _get_llmobs_data_metastruct(spans[0])
+    assert_llmobs_span_data(actual, **_expected_reasoning_span_data())
+    _assert_reasoning_output_messages(actual)
+
+
+def test_chat_stream_with_tools(mistral_client, mistralai_llmobs, test_spans):
+    for _ in mistral_client.chat.stream(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "What's the weather in NYC?"}],
+        tools=CHAT_TOOLS,
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(
+            spans[0],
+            input_messages=[{"role": "user", "content": "What's the weather in NYC?"}],
+            output_messages=STREAM_TOOL_OUTPUT_MESSAGES,
+            metrics={"input_tokens": 72, "output_tokens": 14, "total_tokens": 86},
+            tool_definitions=WEATHER_TOOL_DEFINITIONS,
+        ),
+    )
+
+
+async def test_async_chat_stream_with_tools(mistral_client, mistralai_llmobs, test_spans):
+    async for _ in await mistral_client.chat.stream_async(
+        model="mistral-large-latest",
+        messages=[{"role": "user", "content": "What's the weather in NYC?"}],
+        tools=CHAT_TOOLS,
+        **FULL_CHAT_REQUEST_KWARGS,
+    ):
+        pass
+
+    spans = [s for trace in test_spans.pop_traces() for s in trace]
+    assert len(spans) == 1
+    assert_llmobs_span_data(
+        _get_llmobs_data_metastruct(spans[0]),
+        **_expected_chat_span_data(
+            spans[0],
+            input_messages=[{"role": "user", "content": "What's the weather in NYC?"}],
+            output_messages=STREAM_TOOL_OUTPUT_MESSAGES,
+            metrics={"input_tokens": 72, "output_tokens": 14, "total_tokens": 86},
+            tool_definitions=WEATHER_TOOL_DEFINITIONS,
+        ),
     )

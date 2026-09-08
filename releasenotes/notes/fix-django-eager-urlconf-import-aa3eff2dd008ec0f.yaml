@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    django: Fixes an issue (#19454) where Django processes that never serve HTTP requests, such as Celery and
+    dramatiq workers, used substantially more memory and took longer to start. API endpoint discovery now runs
+    when the WSGI or ASGI application is built rather than during ``django.setup()``.

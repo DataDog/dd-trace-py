@@ -7,7 +7,9 @@ from ddtrace._trace.span import Span
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.native._native import SpanData
 from ddtrace.internal.settings._config import config
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.settings.integration import IntegrationConfig
@@ -114,7 +116,7 @@ def set_user(
     role: Optional[str] = None,
     session_id: Optional[str] = None,
     propagate: bool = False,
-    span: Optional[Span] = None,
+    span: Optional[SpanData] = None,
     may_block: bool = True,
     mode: str = "sdk",
 ):
@@ -124,7 +126,7 @@ def set_user(
     https://docs.datadoghq.com/security_platform/application_security/setup_and_configure/?tab=set_tag&code-lang=python
     """
     if span is None:
-        span = core.get_root_span()
+        span = span_bus.get_root_span()
     if span:
         if user_id:
             str_user_id = str(user_id)
@@ -159,7 +161,7 @@ def set_user(
         )
 
 
-def _set_url_tag(integration_config: IntegrationConfig, span: Span, url: str, query: str) -> None:
+def _set_url_tag(integration_config: IntegrationConfig, span: SpanData, url: str, query: str) -> None:
     if not integration_config.http_tag_query_string:
         span._set_attribute(http.URL, strip_query_string(url))
     elif config._global_query_string_obfuscation_disabled:

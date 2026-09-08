@@ -31,6 +31,15 @@ class ProfilerStats
     // Whether fast_copy_memory (safe_memcpy) is enabled; unset until the sampler starts
     std::optional<bool> fast_copy_memory_enabled;
 
+    // User opted out of fast copy (env var or set_fast_copy(false)); static per process
+    std::optional<bool> fast_copy_memory_user_disabled;
+
+    // Whether safe_memcpy initialized at startup; static per process
+    std::optional<bool> fast_copy_memory_capable;
+
+    // Sticky: fell back to syscall copy (init failure, foreign handler, etc.)
+    std::optional<bool> fast_copy_memory_syscall_fallback;
+
     // Number of copy_memory errors accumulated since the last profile reset (i.e. since the last upload)
     size_t copy_memory_error_count = 0;
 
@@ -40,7 +49,8 @@ class ProfilerStats
     // Samples dropped because the cap was reached (cumulative over tracker lifetime)
     std::optional<size_t> heap_tracker_cap_drops;
 
-    // Number of asyncio tasks seen across sampled threads in the last sampling cycle
+    // Peak number of asyncio tasks seen across sampled threads in any single sampling
+    // cycle during the current profile period (see set_asyncio_task_count).
     std::optional<size_t> asyncio_task_count;
 
     // Number of greenlets currently tracked by the stack profiler
@@ -67,6 +77,18 @@ class ProfilerStats
 
     void set_fast_copy_memory_enabled(bool enabled);
     std::optional<bool> get_fast_copy_memory_enabled() const;
+
+    void set_fast_copy_memory_user_disabled(bool disabled);
+    std::optional<bool> get_fast_copy_memory_user_disabled() const;
+
+    void set_fast_copy_memory_capable(bool capable);
+    std::optional<bool> get_fast_copy_memory_capable() const;
+
+    void set_fast_copy_memory_syscall_fallback(bool fallback);
+    std::optional<bool> get_fast_copy_memory_syscall_fallback() const;
+
+    // fast_copy_memory_* are process-static; carry them across ProfilerStats swaps.
+    void copy_fast_copy_metadata_from(const ProfilerStats& other);
 
     void add_copy_memory_error_count(size_t count);
     size_t get_copy_memory_error_count() const;

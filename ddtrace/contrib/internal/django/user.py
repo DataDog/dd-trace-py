@@ -1,3 +1,6 @@
+from typing import Any
+from typing import Optional
+
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
@@ -7,7 +10,7 @@ log = get_logger(__name__)
 
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
-    def __init__(self, user, credentials=None):
+    def __init__(self, user: object, credentials: Optional[dict[str, Any]] = None) -> None:
         super(_DjangoUserInfoRetriever, self).__init__(user)
 
         self.credentials = credentials if credentials else {}
@@ -51,32 +54,39 @@ class _DjangoUserInfoRetriever(_UserInfoRetriever):
         except self.user_model.DoesNotExist:
             log.debug("try_load_user_model: could not load user model", exc_info=True)
 
-    def user_exists(self):
+    def user_exists(self) -> bool:
         return self.user is not None
 
-    def get_username(self):
-        if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
-            user_type = type(self.user)
-            return getattr(self.user, user_type.USERNAME_FIELD, None)
+    def get_username(self) -> Optional[str]:
+        username_field = getattr(type(self.user), "USERNAME_FIELD", None)
+        if username_field is not None and not asm_config._user_model_name_field:
+            username = getattr(self.user, username_field, None)
+            return str(username) if username is not None else None
 
         return super(_DjangoUserInfoRetriever, self).get_username()
 
-    def get_name(self):
+    def get_name(self) -> Optional[str]:
         if not asm_config._user_model_name_field:
-            if hasattr(self.user, "get_full_name"):
+            get_full_name = getattr(self.user, "get_full_name", None)
+            if callable(get_full_name):
                 try:
-                    return self.user.get_full_name()
+                    full_name = get_full_name()
+                    if full_name is not None:
+                        return str(full_name)
                 except Exception:
                     log.debug("User model get_full_name member produced an exception: ", exc_info=True)
 
-            if hasattr(self.user, "first_name") and hasattr(self.user, "last_name"):
-                return "%s %s" % (self.user.first_name, self.user.last_name)
+            first_name = getattr(self.user, "first_name", None)
+            last_name = getattr(self.user, "last_name", None)
+            if first_name is not None and last_name is not None:
+                return "%s %s" % (first_name, last_name)
 
         return super(_DjangoUserInfoRetriever, self).get_name()
 
-    def get_user_email(self):
-        if hasattr(self.user, "EMAIL_FIELD") and not asm_config._user_model_name_field:
-            user_type = type(self.user)
-            return getattr(self.user, user_type.EMAIL_FIELD, None)
+    def get_user_email(self) -> Optional[str]:
+        email_field = getattr(type(self.user), "EMAIL_FIELD", None)
+        if email_field is not None and not asm_config._user_model_name_field:
+            email = getattr(self.user, email_field, None)
+            return str(email) if email is not None else None
 
         return super(_DjangoUserInfoRetriever, self).get_user_email()

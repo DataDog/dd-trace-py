@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    LLM Observability: Adds support for manually versioning agents. Pass ``version`` when starting an
+    agent span, either with ``LLMObs.agent(name="my-agent", version="v3")`` or with the
+    ``@agent(version="v3")`` decorator. For agents created by an auto-instrumented framework, use
+    ``LLMObs.annotation_context(agent={"version": "v3"})``. This sets the ``agent_version`` tag
+    on agent spans. The ``agent`` argument accepts a plain dictionary or the new
+    ``ddtrace.llmobs.Agent`` TypedDict class.

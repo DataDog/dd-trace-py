@@ -10,6 +10,7 @@ from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 
@@ -78,7 +79,7 @@ def traced_queue_enqueue_job(rq, pin, func, instance, args, kwargs):
                 JOB_FUNC_NAME: job.func_name,
             },
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         # If the queue is_async then add distributed tracing headers to the job
         if instance.is_async:
@@ -100,7 +101,7 @@ def traced_queue_fetch_job(rq, pin, func, instance, args, kwargs):
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_id},
             integration_config=config.rq,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return func(*args, **kwargs)
 
@@ -125,7 +126,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
                 activate_distributed_headers=True,
                 tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.id},
             ) as ctx,
-            ctx.span,
+            span_from_context(ctx),
         ):
             try:
                 return func(*args, **kwargs)
@@ -168,7 +169,7 @@ def traced_job_perform(rq, pin, func, instance, args, kwargs):
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job.id},
             integration_config=config.rq,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return func(*args, **kwargs)
 
@@ -188,7 +189,7 @@ def traced_job_fetch_many(rq, pin, func, instance, args, kwargs):
             tags={COMPONENT: config.rq.integration_name, JOB_ID: job_ids},
             integration_config=config.rq_worker,
         ) as ctx,
-        ctx.span,
+        span_from_context(ctx),
     ):
         return func(*args, **kwargs)
 

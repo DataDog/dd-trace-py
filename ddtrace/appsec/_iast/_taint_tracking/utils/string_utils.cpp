@@ -96,85 +96,76 @@ new_pyobject_id(PyObject* tainted_object)
     // py::gil_scoped_acquire acquire;
 
     if (PyUnicode_Check(tainted_object)) {
-        PyObject* empty_unicode = PyUnicode_New(0, 127);
+        py::object empty_unicode = py::reinterpret_steal<py::object>(PyUnicode_New(0, 127));
         if (!empty_unicode) {
             Py_INCREF(tainted_object);
             return tainted_object;
         }
-        PyObject* val = Py_BuildValue("(OO)", tainted_object, empty_unicode);
+        py::object val = py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object, empty_unicode.ptr()));
         if (!val) {
-            Py_XDECREF(empty_unicode);
             Py_INCREF(tainted_object);
             return tainted_object;
         }
-        PyObject* result = PyUnicode_Join(empty_unicode, val);
+        py::object result = py::reinterpret_steal<py::object>(PyUnicode_Join(empty_unicode.ptr(), val.ptr()));
         if (!result) {
             // Fallback to original but keep a strong ref
             Py_INCREF(tainted_object);
-            result = tainted_object;
+            return tainted_object;
         }
-        Py_XDECREF(empty_unicode);
-        Py_XDECREF(val);
-        return result;
+        return result.release().ptr();
     }
 
     if (PyBytes_Check(tainted_object)) {
-        PyObject* empty_bytes = PyBytes_FromString("");
+        py::object empty_bytes = py::reinterpret_steal<py::object>(PyBytes_FromString(""));
         if (!empty_bytes) {
             Py_INCREF(tainted_object);
             return tainted_object;
         }
 
-        const auto bytes_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytes).attr("join");
-        const auto val = Py_BuildValue("(OO)", tainted_object, empty_bytes);
-        if (!val or !bytes_join_ptr.ptr()) {
-            Py_XDECREF(empty_bytes);
+        py::object bytes_join = empty_bytes.attr("join");
+        py::object val = py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object, empty_bytes.ptr()));
+        if (!val) {
             Py_INCREF(tainted_object);
             return tainted_object;
         }
 
-        const auto res = PyObject_CallFunctionObjArgs(bytes_join_ptr.ptr(), val, NULL);
-        Py_XDECREF(val);
-        Py_XDECREF(empty_bytes);
-        if (res == nullptr) {
+        py::object result =
+          py::reinterpret_steal<py::object>(PyObject_CallFunctionObjArgs(bytes_join.ptr(), val.ptr(), nullptr));
+        if (!result) {
             Py_INCREF(tainted_object);
             return tainted_object;
         }
-        return res;
+        return result.release().ptr();
     }
 
     if (PyByteArray_Check(tainted_object)) {
-        PyObject* empty_bytes = PyBytes_FromString("");
+        py::object empty_bytes = py::reinterpret_steal<py::object>(PyBytes_FromString(""));
         if (!empty_bytes) {
             Py_INCREF(tainted_object);
             return tainted_object;
         }
 
-        PyObject* empty_bytearray = PyByteArray_FromObject(empty_bytes);
+        py::object empty_bytearray = py::reinterpret_steal<py::object>(PyByteArray_FromObject(empty_bytes.ptr()));
         if (!empty_bytearray) {
-            Py_XDECREF(empty_bytes);
             Py_INCREF(tainted_object);
             return tainted_object;
         }
 
-        const auto bytearray_join_ptr = py::reinterpret_borrow<py::bytes>(empty_bytearray).attr("join");
-        const auto val = Py_BuildValue("(OO)", tainted_object, empty_bytearray);
-        if (!val or !bytearray_join_ptr.ptr()) {
-            Py_XDECREF(empty_bytes);
-            Py_XDECREF(empty_bytearray);
+        py::object bytearray_join = empty_bytearray.attr("join");
+        py::object val =
+          py::reinterpret_steal<py::object>(Py_BuildValue("(OO)", tainted_object, empty_bytearray.ptr()));
+        if (!val) {
             Py_INCREF(tainted_object);
             return tainted_object;
         }
 
-        const auto res = PyObject_CallFunctionObjArgs(bytearray_join_ptr.ptr(), val, NULL);
-        Py_XDECREF(val);
-        Py_XDECREF(empty_bytes);
-        Py_XDECREF(empty_bytearray);
-        if (res == nullptr) {
+        py::object result =
+          py::reinterpret_steal<py::object>(PyObject_CallFunctionObjArgs(bytearray_join.ptr(), val.ptr(), nullptr));
+        if (!result) {
             Py_INCREF(tainted_object);
             return tainted_object;
         }
-        return res;
+        return result.release().ptr();
     }
     // Final fallback: return original with a new strong ref
     Py_INCREF(tainted_object);

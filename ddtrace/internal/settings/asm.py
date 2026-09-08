@@ -2,6 +2,7 @@ import os.path
 from platform import machine
 from platform import system
 import sys
+from typing import Callable
 from typing import Optional
 
 from ddtrace.appsec._constants import API_SECURITY
@@ -30,7 +31,7 @@ def _validate_percentage(r: float) -> None:
         raise ValueError("percentage value must be between 0 and 100")
 
 
-def _parse_options(options: list[str]):
+def _parse_options(options: list[str]) -> Callable[[str], str]:
     def parse(str_in: str) -> str:
         for o in options:
             if o.startswith(str_in.lower()):
@@ -38,6 +39,10 @@ def _parse_options(options: list[str]):
         return options[0]
 
     return parse
+
+
+def _parse_optional_string(value: str) -> Optional[str]:
+    return value if value != "" else None
 
 
 def build_libddwaf_filename() -> str:
@@ -64,10 +69,12 @@ class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
     _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_DEFAULT
     _asm_agentic_onboarding = DDConfig.var(str, APPSEC.AGENTIC_ONBOARDING, default="")
-    _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
-    # prevent empty string
-    if _asm_static_rule_file == "":
-        _asm_static_rule_file = None
+    _asm_static_rule_file = DDConfig.var(
+        Optional[str],
+        APPSEC.RULE_FILE,
+        default=None,
+        parser=_parse_optional_string,
+    )
     _asm_processed_span_types = {SpanTypes.WEB}
     _asm_http_span_types = {SpanTypes.WEB}
     _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
@@ -80,7 +87,6 @@ class ASMConfig(DDConfig):
     _iast_truncation_max_value_length = DDConfig.var(
         int, IAST.ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH, default=IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
     )
-    _apm_tracing_enabled = DDConfig.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
     _use_metastruct_for_iast = True
 
@@ -99,11 +105,6 @@ class ASMConfig(DDConfig):
     _api_security_enabled = DDConfig.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_delay = DDConfig.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = DDConfig.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
-    _api_security_endpoint_collection = DDConfig.var(bool, API_SECURITY.ENDPOINT_COLLECTION, default=True)
-    _api_security_endpoint_collection_limit = DDConfig.var(
-        int, API_SECURITY.ENDPOINT_COLLECTION_LIMIT, default=DEFAULT.ENDPOINT_COLLECTION_LIMIT
-    )
-
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
     _api_security_active = False
@@ -192,11 +193,9 @@ class ASMConfig(DDConfig):
 
     # DOWNSTREAM REQUESTS INSTRUMENTATION
     # sample rate for body analysis
-    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5)
+    _dr_sample_rate = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_BODY_ANALYSIS_SAMPLE_RATE", default=0.5)
     # max number of downstream requests analysis  with bodies per request
-    _dr_body_limit_per_request: int = DDConfig.var(
-        int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1
-    )
+    _dr_body_limit_per_request = DDConfig.var(int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1)
 
     # for tests purposes
     _asm_config_keys = [
@@ -207,7 +206,6 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_value_regexp",
         "_asm_processed_span_types",
         "_asm_http_span_types",
-        "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
         "_is_testing_instrumentation_for_waf",
         "_iast_enabled",
@@ -262,8 +260,11 @@ class ASMConfig(DDConfig):
     _bypass_instrumentation_for_waf = False
     _is_testing_instrumentation_for_waf = False
 
-    # IAST supported on python 3.6 to 3.13 and never on windows
-    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 15, 0)) and not (
+    # TODO(py-315): Only runtime gate for IAST version support; the native extensions are not
+    # version-gated in setup.py. This bound intentionally leads requires-python in pyproject.toml, so
+    # do not "resync" it downwards; 3.15 itself is still untested for IAST, tracked by issue #17843.
+    # IAST supported on python 3.6 to 3.15 and never on windows
+    _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 16, 0)) and not (
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
     )
 
@@ -317,19 +318,6 @@ class ASMConfig(DDConfig):
     @property
     def _api_security_feature_active(self) -> bool:
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
-
-    @property
-    def _apm_opt_out(self) -> bool:
-        # AI Guard standalone opt-out. Import lazily: ai_guard settings pull in the aiguard package,
-        # so a top-level import would give asm an import-time dependency on it.
-        from ddtrace.internal.settings.aiguard import aiguard_config
-
-        return (
-            self._asm_enabled
-            or self._iast_enabled
-            or tracer_config._sca_enabled is True
-            or aiguard_config._ai_guard_enabled
-        ) and not self._apm_tracing_enabled
 
     @property
     def _user_event_mode(self) -> str:

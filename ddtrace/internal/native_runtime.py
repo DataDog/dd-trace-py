@@ -1,4 +1,6 @@
+from functools import cache
 import logging
+import sys
 from typing import Optional
 
 from ddtrace.internal import atexit
@@ -12,22 +14,20 @@ _DEFAULT_SHUTDOWN_TIMEOUT_MS = 3000
 
 
 class NativeRuntime(SharedRuntime):
-    """Manages a SharedRuntime with fork-safe lifecycle hooks.
+    """Manages a SharedRuntime with native fork-safe lifecycle hooks.
 
     The SharedRuntime wraps a Tokio async runtime shared across TraceExporter
-    instances. This class registers before_fork / after_fork_parent /
-    after_fork_child hooks so the runtime is correctly paused and resumed
-    around process forks.
+    instances. Native pthread_atfork hooks ensure the runtime is correctly
+    paused and resumed even when a native caller bypasses Python's fork hooks.
     """
-
-    _instance: Optional["NativeRuntime"] = None
 
     def __init__(self) -> None:
         super().__init__()
-        forksafe.register_before_fork(self.before_fork)
-        forksafe.register_after_parent(self.after_fork_parent)
-        forksafe.register(self.after_fork_child)
+        self.register_at_fork()
+        forksafe.register_before_child_hooks(self.defer_after_fork_child)
+        forksafe.register_after_child_hooks(self.allow_after_fork_child)
         atexit.register(self._atexit)
+        atexit.register_on_exit_signal(self._atexit)
 
     def _atexit(self) -> None:
         try:
@@ -43,18 +43,19 @@ class NativeRuntime(SharedRuntime):
                 If None, waits indefinitely — only safe if all workers have
                 already been stopped (e.g. via TraceExporter.shutdown).
         """
-        super().shutdown(timeout_ms=timeout_ms)
+        if "uwsgi" in sys.modules:
+            super().shutdown_in_thread(timeout_ms=timeout_ms)
+        else:
+            super().shutdown(timeout_ms=timeout_ms)
         atexit.unregister(self._atexit)
-        forksafe.unregister_before_fork(self.before_fork)
-        forksafe.unregister_parent(self.after_fork_parent)
-        forksafe.unregister(self.after_fork_child)
+        forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
+        forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
 
 
+@cache
 def get_native_runtime() -> NativeRuntime:
     """Return the process-wide NativeRuntime singleton, creating it on first use.
 
     The first call also registers an atexit hook to shut the runtime down.
     """
-    if NativeRuntime._instance is None:
-        NativeRuntime._instance = NativeRuntime()
-    return NativeRuntime._instance
+    return NativeRuntime()

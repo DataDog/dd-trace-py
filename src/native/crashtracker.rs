@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use libdd_crashtracker::{
     register_runtime_frame_callback, register_runtime_stacktrace_string_callback,
-    CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
+    report_unhandled_exception, CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata,
+    StackFrame, StackTrace, StacktraceCollection,
 };
 use pyo3::prelude::*;
 
@@ -81,6 +82,7 @@ impl CrashtrackerConfigurationPy {
         endpoint=None,
         unix_socket_path=None,
         test_token=None,
+        api_key=None,
     ))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -94,6 +96,7 @@ impl CrashtrackerConfigurationPy {
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
         test_token: Option<String>,
+        api_key: Option<&str>,
     ) -> anyhow::Result<Self> {
         let resolve_frames: StacktraceCollection = resolve_frames.into();
         let mut builder = CrashtrackerConfiguration::builder()
@@ -110,6 +113,9 @@ impl CrashtrackerConfigurationPy {
         }
         if let Some(token) = test_token {
             builder = builder.endpoint_test_token(&token);
+        }
+        if let Some(api_key) = api_key {
+            builder = builder.endpoint_api_key(api_key);
         }
         if let Some(path) = unix_socket_path {
             builder = builder.unix_socket_path(path);
@@ -322,6 +328,31 @@ pub fn crashtracker_on_fork<'py>(
 #[pyfunction(name = "crashtracker_status")]
 pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
     CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))
+}
+
+#[pyfunction(name = "crashtracker_report_unhandled_exception")]
+pub fn crashtracker_report_unhandled_exception_py(
+    exception_type: Option<&str>,
+    exception_message: Option<&str>,
+    frames: Vec<HashMap<String, Option<String>>>,
+) -> anyhow::Result<()> {
+    let stack_frames: Vec<StackFrame> = frames
+        .into_iter()
+        .map(|f| {
+            let mut sf = StackFrame::new();
+            sf.function = f.get("function").and_then(|v| v.clone());
+            sf.file = f.get("file").and_then(|v| v.clone());
+            sf.line = f
+                .get("line")
+                .and_then(|v| v.as_ref())
+                .and_then(|v| v.parse::<u32>().ok());
+            sf
+        })
+        .collect();
+
+    let stacktrace = StackTrace::from_frames(stack_frames, false);
+    report_unhandled_exception(exception_type, exception_message, stacktrace)?;
+    Ok(())
 }
 
 // We expose the receiver_entry_point_stdin to use from Python script, _dd_crashtracker_receiver

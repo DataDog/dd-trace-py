@@ -14,7 +14,7 @@
       "_dd.llmobs.span_kind": "workflow",
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a39788800000000",
-      "_dd.svc_src": "m",
+      "_dd.svc_src": "datadog",
       "_dd.tags.process": "entrypoint.name:pytest,entrypoint.type:script,entrypoint.workdir:project,svc.auto:tests.contrib.litellm",
       "language": "python",
       "litellm.request.model": "gpt-3.5-turbo",
@@ -44,7 +44,7 @@
          "_dd.llmobs.model_name": "gpt-3.5-turbo",
          "_dd.llmobs.model_provider": "openai",
          "_dd.llmobs.span_kind": "llm",
-         "_dd.svc_src": "m",
+         "_dd.svc_src": "datadog",
          "litellm.request.model": "gpt-3.5-turbo"
        },
        "metrics": {

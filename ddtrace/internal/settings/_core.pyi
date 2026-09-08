@@ -22,7 +22,7 @@ class DDConfig(Env):
     local_source: dict[str, str]
     env_source: dict[str, str]
     _value_source: dict[str, str]
-    config_id: Optional[str]
+    _config_ids: dict[str, Optional[str]]
 
     def __init__(
         self,
@@ -31,3 +31,4 @@ class DDConfig(Env):
         dynamic: Optional[dict[str, str]] = None,
     ) -> None: ...
     def value_source(self, env_name: str) -> str: ...
+    def config_id(self, env_name: str) -> Optional[str]: ...

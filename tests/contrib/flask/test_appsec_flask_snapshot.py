@@ -2,7 +2,6 @@ import os
 import signal
 import subprocess
 import sys
-import time
 from typing import Callable  # noqa:F401
 from typing import Generator  # noqa:F401
 
@@ -79,8 +78,8 @@ def flask_client(
             client.wait()
         except RetryError:
             # process failed
-            stdout = proc.stdout.read()
-            stderr = proc.stderr.read()
+            os.killpg(proc.pid, signal.SIGKILL)
+            stdout, stderr = proc.communicate()
             raise TimeoutError(
                 "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
             )
@@ -89,22 +88,18 @@ def flask_client(
             client.get_ignored("/shutdown")
         except Exception:
             pass
-        # At this point the traces have been sent to the test agent
-        # but the test agent hasn't necessarily finished processing
-        # the traces (race condition) so wait just a bit for that
-        # processing to complete.
-        time.sleep(0.2)
+        # The test agent may not have finished processing the traces yet. Each test declares
+        # wait_for_num_traces so the snapshot polls for them rather than racing a fixed sleep.
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
-        proc.wait()
+        stdout, stderr = proc.communicate()
     # DEV uncomment those lines if you need more info locally
-    # stdout = proc.stdout.read()
-    # print(stdout)
-    # stderr = proc.stderr.read()
+    # print(stdout.decode("UTF-8"))
     # print(stderr.decode("UTF-8"))
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",
@@ -137,6 +132,7 @@ def test_flask_ipblock_match_403(flask_client):
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",
@@ -169,6 +165,7 @@ def test_flask_ipblock_match_403_json(flask_client):
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",
@@ -200,6 +197,7 @@ def test_flask_userblock_match_403_json(flask_client):
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",
@@ -231,6 +229,7 @@ def test_flask_userblock_match_200_json(flask_client):
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",
@@ -263,6 +262,7 @@ def test_flask_processexec_ossystem(flask_client):
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",
@@ -296,6 +296,7 @@ def test_flask_processexec_osspawn(flask_client):
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",
@@ -328,6 +329,7 @@ def test_flask_processexec_subprocesscommunicateshell(flask_client):
 
 
 @pytest.mark.snapshot(
+    wait_for_num_traces=1,
     ignores=[
         "error",
         "type",

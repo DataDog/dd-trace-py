@@ -81,6 +81,10 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
         if exception:
             return
         execution_ctx = self.options.get("execution_ctx", {})
+        # Extract token usage metrics from the streamed chunks (e.g. the trailing
+        # ``amazon-bedrock-invocationMetrics`` event) and set them on the context so
+        # LLM Observability spans report accurate token counts instead of zeros.
+        _extract_streamed_response_metadata(execution_ctx, self.chunks)
         formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
         core.dispatch("botocore.bedrock.process_response", (execution_ctx, formatted_response))
 
@@ -228,6 +232,7 @@ def _extract_request_params_for_invoke(params: dict[str, Any], provider: str) ->
             "top_k": request_body.get("top_k", ""),
             "max_tokens": request_body.get("max_tokens_to_sample", ""),
             "stop_sequences": request_body.get("stop_sequences", []),
+            "tools": request_body.get("tools", []),
         }
     elif provider == _COHERE and "embed" in model_id:
         return {

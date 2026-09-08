@@ -1,10 +1,11 @@
-import enum
 import os
+from typing import TYPE_CHECKING
 from typing import Iterable  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
+from ddtrace.internal import forksafe
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import RCCallback
@@ -13,6 +14,12 @@ from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.time import StopWatch
+
+
+if TYPE_CHECKING:
+    from ddtrace.internal.native import RemoteConfigCapabilities
+    from ddtrace.internal.native import RemoteConfigProduct
+    from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
 log = get_logger(__name__)
@@ -33,10 +40,16 @@ class RemoteConfigPoller(periodic.PeriodicService):
             interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True, autorestart=False
         )
         self._client = RemoteConfigClient()
-        self._state = self._agent_check
+        # Agentless fetches go straight to the Remote Config backend, so there is
+        # no agent to negotiate the v0.7/config endpoint with.
+        self._state = self._online if self._client.agentless else self._agent_check
         self._parent_id = os.getpid()
-        self._capabilities_map: dict[enum.IntFlag, str] = dict()
+        self._capabilities_map: "dict[RemoteConfigCapabilities, RemoteConfigProduct]" = dict()
         self._consecutive_failures = 0
+        # Child-process consumer of the SHM (created at fork); None in the
+        # single-process case, where the poller dispatches directly.
+        self._subscriber: Optional["RemoteConfigSubscriber"] = None
+        self._before_fork_registered = False
 
     def _agent_check(self) -> None:
         try:
@@ -63,24 +76,37 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def _online(self) -> None:
         with StopWatch() as sw:
-            if not self._client.request():
-                self._consecutive_failures += 1
-                if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES:
-                    self._state = self._agent_check
-                    self._consecutive_failures = 0
-                return
+            succeeded = self._client.request()
+
+        # The interval is the backend's to decide in agentless mode: it recommends
+        # a cadence on every successful fetch and a backoff after a failed one.
+        interval = self._client.refresh_interval()
+        if interval is not None and interval != self.interval:
+            log.debug("Remote Config poll interval set to %.3fs by the backend", interval)
+            self.interval = interval
+
+        if not succeeded:
+            self._consecutive_failures += 1
+            # Without an agent there is nothing to fall back to, so keep retrying
+            # on the backoff the native client asked for.
+            if self._consecutive_failures >= self._MAX_CONSECUTIVE_FAILURES and not self._client.agentless:
+                self._state = self._agent_check
+                self._consecutive_failures = 0
+            return
 
         self._consecutive_failures = 0
-        elapsed = sw.elapsed()
         log.debug(
             "[%d][P: %d] Datadog Remote Config Poller sent request to %s in %.5fs",
             os.getpid(),
             os.getppid(),
-            self._client.agent_url,
-            elapsed,
+            "the Remote Config intake" if self._client.agentless else self._client.agent_url,
+            sw.elapsed(),
         )
 
     def periodic(self) -> None:
+        # Run product housekeeping every cycle, before the fetch, so stale-state
+        # timeouts still fire when the agent is down or a fetch fails.
+        self._client.run_periodic()
         return self._state()
 
     def enable(self) -> bool:
@@ -90,39 +116,96 @@ class RemoteConfigPoller(periodic.PeriodicService):
             if self.status == ServiceStatus.RUNNING:
                 return True
 
+            if not self._before_fork_registered:
+                # Initialize early to avoid race-conditions with forking operations.
+                self._client.ensure_native()
+                forksafe.register_before_fork(self._before_fork)
+                self._before_fork_registered = True
+
             self.start()
 
             return True
         return False
 
+    def switch_to_agentless(self) -> bool:
+        if self._client.agentless:
+            return True
+        if not ddconfig._dd_api_key:
+            log.debug("Cannot switch remote configuration to agentless mode: no Datadog API key found")
+            return False
+
+        self._client.switch_to_agentless()
+        # There is no agent left to negotiate the v0.7/config endpoint with.
+        self._state = self._online
+        log.debug("Remote configuration switched to the intake")
+        return True
+
+    def _before_fork(self) -> None:
+        """Origin hook: enable SHM before forking so children inherit the SHM."""
+        if self._client._product_callbacks:
+            self._client.enable_shared_memory()
+
+    def _start_child_subscriber(self, reader) -> None:
+        from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
+
+        self._subscriber = RemoteConfigSubscriber(
+            reader,
+            self._client.dispatch_native_changes,
+            "RemoteConfigChild",
+            self._client.enabled_product_names,
+        )
+        self._subscriber.start()
+
+    def _stop_child_subscriber(self, join: bool = False) -> None:
+        if self._subscriber is not None:
+            try:
+                self._subscriber.stop()
+                if join:
+                    self._subscriber.join()
+            except Exception:
+                log.debug("error stopping remote config child subscriber", exc_info=True)
+            self._subscriber = None
+
     def reset_at_fork(self) -> None:
-        """Client Id needs to be refreshed when application forks"""
+        """Refresh client state after a fork.
+
+        The child does not poll the agent (``_enable`` is cleared and the poller
+        thread is not restarted in the child); instead it consumes the snapshots
+        provided by the master process via shared memory.
+        """
         self._enable = False
         log.debug("[%d][P: %d] Remote Config Poller fork. Refreshing state", os.getpid(), os.getppid())
-        self._client.renew_id()
 
-        # Restart the global subscriber if needed and if there are registered products
+        # Replace any inherited subscriber with one bound to a fresh reader over
+        # the inherited shared-memory segment.
+        self._stop_child_subscriber()
         if self._client._product_callbacks:
-            self._client.restart_subscriber()
-            log.debug(
-                "[%d][P: %d] Restarted global subscriber for registered products: %s",
-                os.getpid(),
-                os.getppid(),
-                list(self._client._product_callbacks.keys()),
-            )
+            reader = self._client.make_reader()
+            if reader is not None:
+                self._start_child_subscriber(reader)
+                log.debug(
+                    "[%d][P: %d] Started remote config child subscriber for products: %s",
+                    os.getpid(),
+                    os.getppid(),
+                    list(self._client._product_callbacks.keys()),
+                )
 
     def stop_subscriber(self, join: bool = False) -> None:
-        """Stop the global subscriber thread."""
+        """Stop the child-process subscriber thread (no-op in the master process)."""
         log.debug(
             "[%s][P: %s] Remote Config Poller. Stopping subscriber",
             os.getpid(),
             self._parent_id,
         )
-        self._client.stop_subscriber(join=join)
+        self._stop_child_subscriber(join=join)
 
     def disable(self, join: bool = False) -> None:
         self.stop_subscriber(join=join)
         self._client.reset_products()
+
+        if self._before_fork_registered:
+            forksafe.unregister_before_fork(self._before_fork)
+            self._before_fork_registered = False
 
         if self.status == ServiceStatus.STOPPED:
             return
@@ -137,7 +220,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         super(RemoteConfigPoller, self)._stop_service(*args, **kwargs)
 
-    def update_product_callback(self, product: str, callback: RCCallback) -> bool:
+    def update_product_callback(self, product: "RemoteConfigProduct", callback: RCCallback) -> bool:
         """Update the callback for a registered product.
 
         Some Products fork and restart their instances when application creates new process. In that case,
@@ -148,9 +231,9 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
     def register_callback(
         self,
-        product: str,
+        product: "RemoteConfigProduct",
         callback: RCCallback,
-        capabilities: Iterable[enum.IntFlag] = [],
+        capabilities: "Iterable[RemoteConfigCapabilities]" = [],
     ) -> None:
         """Register a product callback for remote configuration updates.
 
@@ -182,18 +265,22 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             self._client.add_capabilities(capabilities)
 
-            # Start the global subscriber if not already running
-            if not self._client.is_subscriber_running():
-                self._client.start_subscriber()
-
         except Exception:
             log.debug("error starting the RCM client", exc_info=True)
 
-    def update_capabilities(self, mask: enum.IntFlag, capabilities: enum.IntFlag) -> None:
-        """Re-advertise ``capabilities`` within ``mask`` when a product's set changes after registration."""
-        self._client.update_capabilities(int(mask), int(capabilities))
+    def update_capabilities(
+        self,
+        mask: "Iterable[RemoteConfigCapabilities]",
+        capabilities: "Iterable[RemoteConfigCapabilities]",
+    ) -> None:
+        """Replace the advertised capabilities within ``mask`` by ``capabilities``.
 
-    def enable_product(self, product: str) -> None:
+        Unlike register/add, this can *clear* capabilities, so a product (e.g. ASM)
+        can shrink the set it advertises when it is deactivated at runtime.
+        """
+        self._client.update_capabilities(mask, capabilities)
+
+    def enable_product(self, product: "RemoteConfigProduct") -> None:
         """Enable a product to be included in client payloads.
 
         When a product is enabled, it will be added to the 'products' list
@@ -205,7 +292,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         self._client.enable_product(product)
 
-    def disable_product(self, product: str) -> None:
+    def disable_product(self, product: "RemoteConfigProduct") -> None:
         """Disable a product, removing it from client payloads.
 
         The product's callback remains registered and can still receive
@@ -217,7 +304,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         """
         self._client.disable_product(product)
 
-    def unregister_callback(self, product: str) -> None:
+    def unregister_callback(self, product: "RemoteConfigProduct") -> None:
         """Unregister a product callback.
 
         This removes the callback but does not disable the product. To also
@@ -241,7 +328,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
         except Exception:
             log.debug("error unregistering from RCM client", exc_info=True)
 
-    def get_registered(self, product: str) -> Optional[RCCallback]:
+    def get_registered(self, product: "RemoteConfigProduct") -> Optional[RCCallback]:
         """Get the registered callback for a product."""
         return self._client._product_callbacks.get(product)
 

@@ -72,7 +72,7 @@
     "meta": {
       "_dd.p.dm": "-0",
       "_dd.p.tid": "6a3ec53100000000",
-      "_dd.svc_src": "rq_worker",
+      "_dd.svc_src": "rq",
       "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:test,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
       "component": "rq",
       "job.id": "fa51b1ca-5cf0-4219-a666-6ed48d70bef5",

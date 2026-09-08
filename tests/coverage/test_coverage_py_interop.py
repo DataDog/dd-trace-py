@@ -37,7 +37,7 @@ import pytest
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
-@pytest.mark.subprocess(env={"COVERAGE_CORE": "sysmon"})
+@pytest.mark.subprocess(env={"COVERAGE_CORE": "sysmon", "_DD_COVERAGE_FILE_LEVEL": "false"})
 def test_ddtrace_context_transition_with_real_coverage_py():
     """
     Scenario (mirrors pytest + pytest-cov + ddtrace CI Visibility running together):

@@ -106,6 +106,18 @@ def _extract_metadata(kwargs: dict[str, Any], params: list[str]) -> dict[str, An
     return {param: value for param in params if (value := kwargs.get(param, None)) is not None}
 
 
+def _extract_thinking_text(chunk: Any) -> Optional[str]:
+    thinking = _get_attr(chunk, "thinking", None)
+    if not isinstance(thinking, list):
+        return None
+    parts = []
+    for nested in thinking:
+        text = _get_attr(nested, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    return "".join(parts)
+
+
 def _extract_input_messages(kwargs: dict[str, Any]) -> list[Message]:
     messages = kwargs.get("messages", []) or []
     input_messages = []
@@ -114,7 +126,11 @@ def _extract_input_messages(kwargs: dict[str, Any]) -> list[Message]:
         content = _get_attr(message, "content", None)
         if isinstance(content, list):
             for chunk in content:
-                input_messages.append(Message(content=str(_get_attr(chunk, "text", "")), role=role))
+                thinking_text = _extract_thinking_text(chunk)
+                if thinking_text is not None:
+                    input_messages.append(Message(content=thinking_text, role="reasoning"))
+                else:
+                    input_messages.append(Message(content=str(_get_attr(chunk, "text", "")), role=role))
         else:
             msg = Message(content=str(content) if content is not None else "", role=role)
             tool_calls_raw = _get_attr(message, "tool_calls", None)
@@ -132,11 +148,11 @@ def _extract_output_messages(response: Optional[Any]) -> list[Message]:
         message = _get_attr(choice, "message", None)
         if message is None:
             continue
-        output_messages.append(_extract_message_from_assistant_message(message))
+        output_messages.extend(_extract_messages_from_assistant_message(message))
     return output_messages or [Message(content="", role="assistant")]
 
 
-def _extract_tool_calls(tool_calls_raw: Any) -> list[ToolCall]:
+def _extract_tool_calls(tool_calls_raw: list[ToolCall]) -> list[ToolCall]:
     tool_calls = []
     for tool_call in tool_calls_raw:
         fn = _get_attr(tool_call, "function", None)
@@ -153,14 +169,34 @@ def _extract_tool_calls(tool_calls_raw: Any) -> list[ToolCall]:
     return tool_calls
 
 
-def _extract_message_from_assistant_message(message: Any) -> Message:
+def _extract_messages_from_assistant_message(message: Message) -> list[Message]:
     role = str(_get_attr(message, "role", "assistant") or "assistant")
-    content = str(_get_attr(message, "content", "") or "")
-    msg = Message(content=content, role=role)
+    content = _get_attr(message, "content", "")
+
+    reasoning_parts = []
+    text_parts = []
+    if isinstance(content, list):
+        for chunk in content:
+            thinking_text = _extract_thinking_text(chunk)
+            if thinking_text is not None:
+                reasoning_parts.append(thinking_text)
+            else:
+                text = _get_attr(chunk, "text", None)
+                if isinstance(text, str):
+                    text_parts.append(text)
+    else:
+        text_parts.append(str(content or ""))
+
+    messages = []
+    if reasoning_parts:
+        messages.append(Message(content="".join(reasoning_parts), role="reasoning"))
+
+    msg = Message(content="".join(text_parts), role=role)
     tool_calls_raw = _get_attr(message, "tool_calls", None)
     if tool_calls_raw:
         msg["tool_calls"] = _extract_tool_calls(tool_calls_raw)
-    return msg
+    messages.append(msg)
+    return messages
 
 
 def _extract_embedding_input_documents(kwargs: dict[str, Any]) -> list[Document]:

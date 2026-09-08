@@ -740,6 +740,111 @@ class TracerTestCases(TracerTestCase):
         # After shutdown, the wrap executor should be reset
         assert self.tracer._wrap_executor is None
 
+    def test_tracer_defers_writer_recreation_after_fork(self):
+        aggregator = self.tracer._span_aggregator
+        inherited_writer = aggregator.writer
+        with (
+            mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate,
+            mock.patch.object(
+                aggregator, "reset_trace_buffer_after_fork", wraps=aggregator.reset_trace_buffer_after_fork
+            ) as reset_trace_buffer,
+            mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as flush_queue,
+        ):
+            self.tracer._child_after_fork()
+            recreate.assert_not_called()
+            reset_trace_buffer.assert_called_once_with()
+
+            for _ in range(10):
+                with self.trace("child-span"):
+                    pass
+
+            recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
+            reset_trace_buffer.assert_called_once_with()
+            flush_queue.assert_not_called()
+
+    def test_tracer_flush_recreates_writer_after_fork(self):
+        inherited_writer = self.tracer._span_aggregator.writer
+        with (
+            mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate,
+            mock.patch.object(inherited_writer, "flush_queue", wraps=inherited_writer.flush_queue) as inherited_flush,
+        ):
+            self.tracer._child_after_fork()
+            self.tracer.flush()
+
+        recreate.assert_called_once_with(reset_buffer=False, flush_writer=False)
+        inherited_flush.assert_not_called()
+        assert self.tracer._span_aggregator.writer is not inherited_writer
+        assert not self.tracer._post_fork_writer_pending
+        assert self.tracer._new_process
+
+    def test_tracer_flush_preserves_inherited_context_cleanup_after_fork(self):
+        parent = self.tracer.trace("parent")
+        self.tracer._child_after_fork()
+
+        self.tracer.flush()
+        child = self.tracer.trace("child")
+
+        assert child.parent_id == parent.span_id
+        assert child._parent is None
+        assert child._local_root is child
+        assert not self.tracer._new_process
+
+        child.finish()
+        self.tracer.context_provider.activate(None)
+
+    def test_tracer_post_fork_writer_recreation_is_single_flight(self):
+        self.tracer._child_after_fork()
+        recreate_entered = threading.Event()
+        release_recreate = threading.Event()
+        second_thread_started = threading.Event()
+        recreate_calls = []
+        errors = []
+        recreate = self.tracer._recreate
+
+        def blocking_recreate(*args, **kwargs):
+            recreate_calls.append(1)
+            recreate_entered.set()
+            assert release_recreate.wait(timeout=2)
+            recreate(*args, **kwargs)
+
+        def start_span(started=None):
+            if started is not None:
+                started.set()
+            try:
+                self.tracer.start_span("post-fork-concurrent").finish()
+            except Exception as e:
+                errors.append(e)
+
+        with mock.patch.object(self.tracer, "_recreate", side_effect=blocking_recreate):
+            first = threading.Thread(target=start_span)
+            first.start()
+            assert recreate_entered.wait(timeout=2)
+
+            second = threading.Thread(target=start_span, args=(second_thread_started,))
+            second.start()
+            assert second_thread_started.wait(timeout=2)
+            time.sleep(0.05)
+            release_recreate.set()
+
+            first.join(timeout=2)
+            second.join(timeout=2)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert len(recreate_calls) == 1
+        assert not self.tracer._new_process
+
+    def test_tracer_shutdown_after_fork_does_not_recreate_writer(self):
+        writer = self.tracer._span_aggregator.writer
+        with mock.patch.object(self.tracer, "_recreate", wraps=self.tracer._recreate) as recreate:
+            self.tracer._child_after_fork()
+            self.tracer.shutdown()
+
+        recreate.assert_not_called()
+        assert self.tracer._span_aggregator.writer is writer
+        assert not self.tracer._new_process
+
     def test_tracer_context_provider_shutdown(self):
         context = Context(trace_id=1, span_id=1)
         self.tracer.context_provider.activate(context)
@@ -1324,7 +1429,10 @@ def test_filters(tracer, test_spans):
 def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
-    with mock.patch.object(logging.Logger, "debug") as mock_logger:
+    with (
+        mock.patch.object(logging.Logger, "debug") as mock_logger,
+        mock.patch.object(logging.Logger, "isEnabledFor", return_value=True),
+    ):
         s1.finish()
         s2.finish()
 
@@ -1403,6 +1511,55 @@ class TestPartialFlush(TracerTestCase):
         traces = self.pop_traces()
         assert len(traces) == 1
         assert [s.name for s in traces[0]] == ["root", "child0", "child1", "child2", "child3", "child4"]
+
+    @TracerTestCase.run_in_subprocess(
+        env_overrides=dict(DD_TRACE_PARTIAL_FLUSH_ENABLED="true", DD_TRACE_PARTIAL_FLUSH_MIN_SPANS="2")
+    )
+    def test_partial_flush_shares_trace_level_state(self):
+        """A partial-flushed chunk's root must share trace-level state with the
+        trace's local root. Sampling is applied to the local root during processing
+        and read back off the chunk root, so both must reference the same _metrics
+        (which holds the sampling priority) and _meta dicts.
+        """
+        root = self.tracer.trace("root")
+        self.tracer.trace("child0").finish()
+        self.tracer.trace("child1").finish()  # >= 2 finished -> partial flush
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        chunk = traces[0]
+        chunk_root = chunk[0]
+        local_root = chunk_root._local_root
+        assert local_root is root
+        # single source of truth for trace-level state
+        assert chunk_root.context._metrics is local_root.context._metrics
+        assert chunk_root.context._meta is local_root.context._meta
+        # the sampling decision applied to the local root is visible on the chunk root
+        # (they are the same _metrics dict, asserted above, so this reads through to it)
+        assert chunk_root.context.sampling_priority is not None
+        root.finish()
+
+
+def test_child_span_shares_trace_level_state(tracer):
+    """A child span's context shares the root's _meta/_metrics/_baggage, so
+    sampling/baggage/origin set anywhere in the trace is consistent, while each span
+    keeps its own trace_id/span_id.
+    """
+    with tracer.trace("root") as root:
+        with tracer.trace("child"):
+            with tracer.trace("grandchild") as grandchild:
+                # each span's context carries its own ids
+                assert grandchild.context.trace_id == root.context.trace_id
+                assert grandchild.context.span_id == grandchild.span_id
+
+                # a mutation via a descendant is visible on the root, proving the
+                # shared _metrics (sampling), _baggage (baggage) and _meta (origin)
+                grandchild.context.sampling_priority = 2
+                grandchild.context.set_baggage_item("bkey", "bval")
+                grandchild.context.dd_origin = "synthetics"
+                assert root.context.sampling_priority == 2
+                assert root.context.get_baggage_item("bkey") == "bval"
+                assert root.context.dd_origin == "synthetics"
 
 
 def test_unicode_config_vals():
@@ -2087,7 +2244,8 @@ def test_activate_context_nesting_and_restoration(tracer):
     1. A context can be activated and its values are accessible
     2. A nested context can be activated and its values override the outer context
     3. When the nested context exits, the outer context is properly restored
-    4. When all contexts exit, the active context is None
+    4. An empty nested context clears and then restores the outer context
+    5. When all contexts exit, the active context is None
     """
 
     with tracer._activate_context(Context(trace_id=1, span_id=1)):
@@ -2103,5 +2261,10 @@ def test_activate_context_nesting_and_restoration(tracer):
         active = tracer.context_provider.active()
         assert active.trace_id == 1
         assert active.span_id == 1
+
+        with tracer._activate_context(None):
+            assert tracer.context_provider.active() is None
+
+        assert tracer.context_provider.active() is active
 
     assert tracer.context_provider.active() is None

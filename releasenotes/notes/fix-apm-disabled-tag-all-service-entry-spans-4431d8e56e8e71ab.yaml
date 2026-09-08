@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: When APM tracing is disabled, all spans are now tagged as APM-disabled
+    instead of only the local root span, so inferred services are no longer metered
+    as having APM enabled.

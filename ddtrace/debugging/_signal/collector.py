@@ -8,6 +8,7 @@ from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.model import SignalTrack
+from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.logger import get_logger
@@ -42,21 +43,68 @@ class SignalCollector(object):
             self._tracks[log_signal.__track__].put(log_signal)
         except BufferFull:
             log.debug("Encoder buffer full")
-            meter.increment("encoder.buffer.full")
+            meter.increment(
+                "dynamic_instrumentation.guardrails.events.dropped",
+                tags={"reason": "queueFull", "event_type": "snapshot"},
+            )
         except KeyError:
             log.error("No encoder for signal track %s", log_signal.__track__)
 
     def push(self, signal: Signal) -> None:
         if signal.state is SignalState.SKIP_COND:
-            meter.increment("skip", tags={"cause": "cond", "probe_id": signal.probe.probe_id})
-        elif signal.state in {SignalState.SKIP_COND_ERROR, SignalState.COND_ERROR}:
-            meter.increment("skip", tags={"cause": "cond_error", "probe_id": signal.probe.probe_id})
-        elif signal.state is SignalState.SKIP_RATE:
-            meter.increment("skip", tags={"cause": "rate", "probe_id": signal.probe.probe_id})
+            # Condition evaluated to False — not a guardrail event, no metric
+            pass
+        elif signal.state is SignalState.SKIP_COND_ERROR:
+            meter.increment(
+                "dynamic_instrumentation.guardrails.events.skipped",
+                tags={"reason": "evaluationErrorThrottled", "probe_type": type(signal.probe).__name__},
+            )
+        elif signal.state is SignalState.COND_ERROR:
+            meter.increment(
+                "dynamic_instrumentation.guardrails.evaluation.errors",
+                tags={"probe_type": type(signal.probe).__name__, "error_kind": "condition"},
+            )
+        elif signal.state is SignalState.SKIP_RATE_GLOBAL:
+            meter.increment(
+                "dynamic_instrumentation.guardrails.events.skipped",
+                tags={"reason": "rateLimitGlobal", "probe_type": type(signal.probe).__name__},
+            )
+        elif signal.state is SignalState.SKIP_RATE_PROBE:
+            meter.increment(
+                "dynamic_instrumentation.guardrails.events.skipped",
+                tags={"reason": "rateLimitProbe", "probe_type": type(signal.probe).__name__},
+            )
         elif signal.state is SignalState.SKIP_BUDGET:
-            meter.increment("skip", tags={"cause": "budget", "probe_id": signal.probe.probe_id})
+            meter.increment(
+                "dynamic_instrumentation.guardrails.events.skipped",
+                tags={"reason": "budgetExceededInvocation", "probe_type": type(signal.probe).__name__},
+            )
         elif signal.state is SignalState.DONE:
             meter.increment("signal", tags={"probe_id": signal.probe.probe_id})
+
+        # Emit evaluation duration if measured
+        if signal._eval_duration_ms is not None:
+            meter.distribution(
+                "dynamic_instrumentation.guardrails.evaluation.duration",
+                signal._eval_duration_ms,
+                tags={"probe_type": type(signal.probe).__name__, "evaluation_kind": "condition"},
+            )
+
+        # Emit capture and template evaluation durations for snapshots
+        if isinstance(signal, Snapshot):
+            if signal._template_eval_duration_ms is not None:
+                meter.distribution(
+                    "dynamic_instrumentation.guardrails.evaluation.duration",
+                    signal._template_eval_duration_ms,
+                    tags={"probe_type": type(signal.probe).__name__, "evaluation_kind": "template"},
+                )
+            if signal._capture_duration_ms is not None:
+                truncated = "true" if signal.errors else "false"
+                meter.distribution(
+                    "dynamic_instrumentation.guardrails.capture.duration",
+                    signal._capture_duration_ms,
+                    tags={"probe_type": type(signal.probe).__name__, "truncated": truncated},
+                )
 
         if (
             isinstance(signal, LogSignal)

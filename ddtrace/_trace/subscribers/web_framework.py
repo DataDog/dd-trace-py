@@ -9,6 +9,7 @@ from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.span_bus import span_from_context
 
 
 log = get_logger(__name__)
@@ -37,7 +38,7 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
         method = event.request_method
         res_headers = event.response_headers
 
-        span: Span = ctx.span
+        span: Span = span_from_context(ctx)
 
         # event.resource can be updated at span finish time
         if event.resource:

@@ -26,7 +26,6 @@ def gunicorn_server(telemetry_metrics_enabled="true", token=None):
     # do not patch flask because we will end up with confusing metrics
     # now that we generate metrics for spans
     env["DD_PATCH_MODULES"] = "flask:false"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
     server_process = subprocess.Popen(
         cmd,
         env=env,
@@ -69,7 +68,10 @@ def parse_payload(data):
 
 @pytest.mark.skipif(PYTHON_VERSION_INFO >= (3, 14), reason="Gunicorn doesn't yet work with Python 3.14")
 def test_telemetry_metrics_enabled_on_gunicorn_child_process(test_agent_session):
-    token = "tests.telemetry.test_telemetry_metrics_e2e.test_telemetry_metrics_enabled_on_gunicorn_child_process"
+    # Must be the fixture's token, not a hand-written one: the telemetry worker now propagates
+    # the session token, so a mismatched token files the child's payloads under a session this
+    # test never queries.
+    token = test_agent_session.token
     with gunicorn_server(telemetry_metrics_enabled="true", token=token) as context:
         _, gunicorn_client = context
 
@@ -98,7 +100,8 @@ for _ in range(10):
         pass
 """
     env = os.environ.copy()
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
+    env.pop("DD_API_KEY", None)
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     metrics_sc = test_agent_session.get_metrics("spans_created")
@@ -126,7 +129,8 @@ for _ in range(9):
 """
     env = os.environ.copy()
     env["DD_TRACE_OTEL_ENABLED"] = "true"
-    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+    # Keep the subprocess writer non-agentless (a stray DD_API_KEY would route to intake).
+    env.pop("DD_API_KEY", None)
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 

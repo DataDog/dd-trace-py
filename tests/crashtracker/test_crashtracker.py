@@ -1030,3 +1030,109 @@ def test_crashtracker_receiver_env_inheritance():
 
     # Clean up
     os.environ.pop(test_env_key, None)
+
+
+unhandled_exception_code = """
+import warnings
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+import ddtrace.auto
+
+class CustomError(Exception):
+    pass
+
+raise CustomError("crashtracker_unhandled_test_message")
+"""
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+def test_crashtracker_unhandled_exception(run_python_code_in_subprocess):
+    import json
+
+    service = "test_crashtracker_unhandled_exception"
+    with utils.with_test_agent() as client:
+        env = os.environ.copy()
+        env["DD_SERVICE"] = service
+        _stdout, stderr, exitcode, _ = run_python_code_in_subprocess(unhandled_exception_code, env=env)
+
+        # The process should exit with code 1, not a signal
+        assert exitcode == 1
+        assert b"CustomError" in stderr
+        assert b"crashtracker_unhandled_test_message" in stderr
+
+        report = utils.get_crash_report(client, service=service)
+        body = json.loads(report["body"])
+        message = json.loads(body["payload"]["logs"][0]["message"])
+
+        error = message["error"]
+        error_str = json.dumps(error)
+        # The exception is defined in __main__
+        assert "__main__.CustomError" in error_str
+        assert "crashtracker_unhandled_test_message" in error_str
+
+
+@pytest.mark.subprocess(env={"DD_AGENTLESS_ENABLED": "true", "DD_API_KEY": "foobarkey"})
+def test_crashtracker_uploads_to_the_intake_when_agentless():
+    """Agentless must not pin crashtracking to a single, explicitly-computed endpoint.
+
+    The crash-report (telemetry intake) and errors-intake uploads go to genuinely different
+    hosts. Forcing one endpoint on both would send the errors-intake upload to the wrong host,
+    so we pass no endpoint/api_key at all here - the receiver resolves both independently from
+    DD_API_KEY/DD_SITE/_DD_DIRECT_SUBMISSION_ENABLED, which must be forwarded to it explicitly
+    since its environment is not inherited (it's spawned via a raw execve).
+    """
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    captured = {}
+
+    def fake_config(*args, **kwargs):
+        captured["endpoint"] = args[7]
+        captured["api_key"] = args[10] if len(args) > 10 else kwargs.get("api_key")
+        return mock.MagicMock()
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerConfiguration", fake_config),
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+    ):
+        crashtracking._get_args({})
+
+    assert captured["endpoint"] is None
+    assert captured["api_key"] is None
+    assert captured["receiver_env"]["_DD_DIRECT_SUBMISSION_ENABLED"] == "true"
+    assert captured["receiver_env"]["DD_API_KEY"] == "foobarkey"
+    assert captured["receiver_env"]["DD_SITE"] == "datadoghq.com"
+
+
+@pytest.mark.subprocess(env={"DD_API_KEY": "foobarkey"})
+def test_crashtracker_uploads_to_the_agent_without_agentless():
+    """An API key alone must not divert crash reports away from the agent."""
+    from unittest import mock
+
+    import ddtrace.internal.core.crashtracking as crashtracking
+
+    captured = {}
+
+    def fake_config(*args, **kwargs):
+        captured["endpoint"] = args[7]
+        captured["api_key"] = args[10] if len(args) > 10 else kwargs.get("api_key")
+        return mock.MagicMock()
+
+    def fake_receiver(args, env, *rest):
+        captured["receiver_env"] = dict(env)
+        return mock.MagicMock()
+
+    with (
+        mock.patch.object(crashtracking, "CrashtrackerConfiguration", fake_config),
+        mock.patch.object(crashtracking, "CrashtrackerReceiverConfig", fake_receiver),
+    ):
+        crashtracking._get_args({})
+
+    assert "intake" not in captured["endpoint"]
+    assert captured["api_key"] is None
+    assert "_DD_DIRECT_SUBMISSION_ENABLED" not in captured["receiver_env"]

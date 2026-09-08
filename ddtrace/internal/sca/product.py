@@ -14,7 +14,7 @@ At startup (when DD_APPSEC_SCA_ENABLED=true):
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.settings._config import config as tracer_config
+from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
 log = get_logger(__name__)
@@ -23,10 +23,10 @@ requires: list[str] = []
 
 
 def enabled() -> bool:
-    return tracer_config._sca_enabled and not in_aws_lambda()
+    return bool(appsec_telemetry_config.SCA_ENABLED) and not in_aws_lambda()
 
 
-def _get_installed_packages():
+def _get_installed_packages() -> dict[str, str]:
     """Build a dict of {package_name: version} from all installed distributions.
 
     Uses importlib.metadata directly (not the telemetry writer) so we can
@@ -35,16 +35,20 @@ def _get_installed_packages():
     try:
         from importlib.metadata import distributions
 
-        return {name.lower(): dist.version for dist in distributions() if (name := dist.metadata.get("Name"))}  # type: ignore[attr-defined]
+        installed_packages: dict[str, str] = {}
+        for dist in distributions():
+            name = dist.metadata["Name"]
+            if name:
+                installed_packages[name.lower()] = dist.version
+        return installed_packages
     except Exception:
         log.debug("Could not enumerate installed packages", exc_info=True)
         return {}
 
 
-def _load_and_instrument(after_fork: bool = False):
+def _load_and_instrument(after_fork: bool = False) -> None:
     """Load CVE targets from static JSON and instrument applicable functions.
 
-    Groups targets by qualified name and collects all CVE IDs per target.
     Uses apply_instrumentation_updates which handles both immediate
     instrumentation (module already imported) and deferred instrumentation
     via ModuleWatchdog (module not yet imported).
@@ -67,31 +71,10 @@ def _load_and_instrument(after_fork: bool = False):
         log.debug("No applicable CVE targets for installed packages")
         return
 
-    # Group CVE IDs per target so each registry entry has the full list.
-    grouped: dict[str, dict] = {}
-    for entry in applicable:
-        target = entry["target"]
-        if target not in grouped:
-            grouped[target] = {
-                "target": target,
-                "dependency_name": entry["dependency_name"],
-                "cve_ids": set(),
-            }
-        grouped[target]["cve_ids"].add(entry["cve_id"])
-
-    targets = [
-        {
-            "target": info["target"],
-            "dependency_name": info["dependency_name"],
-            "cve_ids": list(info["cve_ids"]),
-        }
-        for info in grouped.values()
-    ]
-
     log.info(
         "SCA: loading %d targets for %d CVEs",
-        len(targets),
-        sum(len(t["cve_ids"]) for t in targets),
+        sum(len(entry["targets"]) for entry in applicable),
+        len(applicable),
     )
 
     # Register all CVEs immediately so they appear
@@ -99,14 +82,13 @@ def _load_and_instrument(after_fork: bool = False):
     # Deduplication is handled by DependencyEntry.add_metadata (idempotent).
     from ddtrace.internal.telemetry import telemetry_writer
 
-    for info in grouped.values():
-        for cve_id in info["cve_ids"]:
-            telemetry_writer.register_cve_metadata(info["dependency_name"], cve_id)
+    for entry in applicable:
+        telemetry_writer.register_cve_metadata(entry["dependency_name"], entry["id"])
 
-    apply_instrumentation_updates(targets=targets, after_fork=after_fork)
+    apply_instrumentation_updates(targets=applicable, after_fork=after_fork)
 
 
-def post_preload():
+def post_preload() -> None:
     """Load CVE data and instrument targets after ddtrace integrations finish patching.
 
     This runs after patch_all() completes (called from
@@ -125,7 +107,7 @@ def post_preload():
         log.debug("Failed SCA post_preload instrumentation", exc_info=True)
 
 
-def start():
+def start() -> None:
     """Initialize SCA detection when DD_APPSEC_SCA_ENABLED=true.
 
     Enables SCA metadata on tracked dependencies (metadata: []).

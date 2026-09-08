@@ -2,10 +2,13 @@
 import importlib.util
 import platform
 import sys
+import traceback
+from types import TracebackType
 from typing import Optional
 
 from ddtrace import config
 from ddtrace import version
+from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
 from ddtrace.internal.compat import ensure_text
@@ -30,6 +33,7 @@ try:
     from ddtrace.internal.native._native import StacktraceCollection
     from ddtrace.internal.native._native import crashtracker_init
     from ddtrace.internal.native._native import crashtracker_on_fork
+    from ddtrace.internal.native._native import crashtracker_report_unhandled_exception
     from ddtrace.internal.native._native import crashtracker_status
 
     is_available = True
@@ -120,8 +124,15 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         log.error("Invalid stacktrace_resolver value: %s", crashtracker_config.stacktrace_resolver)
         stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
 
+    # Do not manually compute an url. The crashtracker receiver has this handling,
+    # given DD_API_KEY and DD_SITE. Nothing to do for us here.
+    # We even cannot do so, otherwise we'll pin crashtracking to a single host,
+    # instead of dedicated error-reporting and crashtracking hosts.
+    crash_agentless = config._agentless_enabled and config._dd_api_key
+    upload_url = None if crash_agentless else agent_config.trace_agent_url
+
     # Create crashtracker configuration
-    config = CrashtrackerConfiguration(
+    crashtracker_configuration = CrashtrackerConfiguration(
         [],  # additional_files
         crashtracker_config.create_alt_stack,
         crashtracker_config.use_alt_stack,
@@ -129,12 +140,18 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         stacktrace_resolver,
         crashtracker_config.collect_all_threads,
         crashtracker_config.max_threads,
-        crashtracker_config.debug_url or agent_config.trace_agent_url,
+        crashtracker_config.debug_url or upload_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
+        None,
     )
 
     receiver_env = {}
+
+    if crash_agentless:
+        receiver_env["_DD_DIRECT_SUBMISSION_ENABLED"] = "true"
+        receiver_env["DD_API_KEY"] = config._dd_api_key
+        receiver_env["DD_SITE"] = config._dd_site
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
@@ -149,6 +166,13 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         "LD_LIBRARY_PATH",  # for loading native ext (Linux)
         "DYLD_LIBRARY_PATH",  # for loading native ext (macOS)
         "PYTHONPATH",  # for loading Python, for the receiver script
+        # Make sure the crashtracker respects proxying envs
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
+        "NO_PROXY",
+        "https_proxy",
+        "http_proxy",
+        "no_proxy",
     ]
     for env_var in inherited_env_vars:
         env_value = env.get(env_var)
@@ -168,7 +192,37 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
 
     metadata = CrashtrackerMetadata("dd-trace-py", version.__version__, "python", tags)
 
-    return config, receiver_config, metadata
+    return crashtracker_configuration, receiver_config, metadata
+
+
+def _unhandled_exception_reporter(
+    exc_type: type[BaseException], exc_value: BaseException, exc_traceback: Optional[TracebackType]
+) -> None:
+    try:
+        if is_available and is_started() and exc_type is not None and issubclass(exc_type, Exception):
+            frames = []
+            if exc_traceback is not None:
+                for filename, lineno, name, _ in traceback.extract_tb(exc_traceback):
+                    frames.append(
+                        {
+                            "function": name,
+                            "file": filename,
+                            "line": str(lineno),
+                        }
+                    )
+                # Reverse so the innermost (most recent) frame is first
+                frames.reverse()
+
+            module = getattr(exc_type, "__module__", None)
+            qualname = exc_type.__qualname__
+            if module and module != "builtins":
+                exception_type = f"{module}.{qualname}"
+            else:
+                exception_type = qualname
+            exception_message = str(exc_value) if exc_value is not None else None
+            crashtracker_report_unhandled_exception(exception_type, exception_message, frames)
+    except Exception:
+        log.debug("Failed to report unhandled exception to crashtracker", exc_info=True)
 
 
 def is_started() -> bool:
@@ -203,8 +257,8 @@ def start(additional_tags: Optional[dict[str, str]] = None) -> bool:
                 stack_mod.uninstall_segv_handler()
             except Exception:  # nosec: B110
                 pass
-
         crashtracker_init(config, receiver_config, metadata)
+        excepthook.register(_unhandled_exception_reporter)
 
         if stack_mod is not None:
             try:

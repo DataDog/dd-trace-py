@@ -19,12 +19,15 @@ from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_fr
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._native import reset_source_truncation_cache
 from ddtrace.appsec._iast._taint_tracking._native import reset_taint_range_limit_cache
+from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
+from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
 from ddtrace.appsec._iast.taint_sinks.untrusted_serialization import patch as unstrusted_serialization_patch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
+from ddtrace.internal import core
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
@@ -47,6 +50,18 @@ def no_request_sampling(tracer):
     ):
         oce.reconfigure()
         yield
+
+
+def _run_cleanups(steps):
+    """Run every step, then re-raise the first failure, so one failing step cannot skip the rest."""
+    first_error = None
+    for step in steps:
+        try:
+            step()
+        except Exception as exc:
+            first_error = first_error or exc
+    if first_error is not None:
+        raise first_error
 
 
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False, vulnerabilities_per_requests=100):
@@ -78,6 +93,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         # map, causing api_taint_pyobject to silently return untainted objects.
         _iast_finish_request()
         _start_iast_context_and_oce(span)
+        weak_hash_unpatch()
         weak_hash_patch()
         weak_cipher_patch()
         unstrusted_serialization_patch()
@@ -88,18 +104,22 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         try:
             yield
         finally:
-            unpatch_common_modules()
-            weak_hash_unpatch()
-            _testing_unpatch_iast()
-            _end_iast_context_and_oce(span)
-            reset_taint_range_limit_cache()
-            reset_source_truncation_cache()
-            clear_all_request_context_slots()
-            # Keep ContextVar in sync with the freed C++ slots. clear_all_request_context_slots()
-            # frees all taint maps but does NOT update IAST_CONTEXT. If a subsequent test's
-            # _start_iast_context_and_oce still sees is_iast_request_enabled()=True (stale),
-            # it would skip slot allocation, leaving the test with a dangling slot reference.
-            IAST_CONTEXT.set(None)
+            _run_cleanups(
+                [
+                    unpatch_common_modules,
+                    weak_hash_unpatch,
+                    _testing_unpatch_iast,
+                    lambda: _end_iast_context_and_oce(span),
+                    reset_taint_range_limit_cache,
+                    reset_source_truncation_cache,
+                    clear_all_request_context_slots,
+                    # Keep ContextVar in sync with the freed C++ slots. clear_all_request_context_slots()
+                    # frees all taint maps but does NOT update IAST_CONTEXT. If a subsequent test's
+                    # _start_iast_context_and_oce still sees is_iast_request_enabled()=True (stale),
+                    # it would skip slot allocation, leaving the test with a dangling slot reference.
+                    lambda: IAST_CONTEXT.set(None),
+                ]
+            )
 
 
 @pytest.fixture
@@ -130,6 +150,34 @@ def iast_span_defaults(tracer):
     for _ in iast_context(dict(DD_IAST_ENABLED="true")):
         with tracer.trace("test") as span:
             yield span
+
+
+@pytest.fixture(autouse=True)
+def reset_iast_process_state():
+    """Restore the process-wide IAST state (patches, counters, native contexts) so that a test
+    that drives IAST directly, or fails before its own cleanup, cannot poison its neighbours.
+    """
+    yield
+
+    # testing_unpatch() is a no-op unless _iast_is_testing is set, and the test's own override
+    # is already gone by teardown time.
+    def _unpatch_iast():
+        with override_global_config(dict(_iast_is_testing=True)):
+            _testing_unpatch_iast()
+
+    _run_cleanups(
+        [
+            _unpatch_iast,
+            weak_hash_unpatch,
+            _reset_global_limit,
+            VulnerabilityBase._prepare_report._reset_cache,
+            lambda: core.discard_item(IAST.REQUEST_CONTEXT_KEY),
+            clear_all_request_context_slots,
+            lambda: IAST_CONTEXT.set(None),
+            reset_taint_range_limit_cache,
+            reset_source_truncation_cache,
+        ]
+    )
 
 
 def pytest_configure(config):

@@ -9,6 +9,7 @@ from ddtrace._trace.trace_handlers import _finish_span
 from ddtrace._trace.trace_handlers import _start_span
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
+from ddtrace.internal import span_bus
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.events import Event
 from ddtrace.internal.core.events import event_field
@@ -50,7 +51,7 @@ class EventsAPIScenario(bm.Scenario):
             # Register benchmark specific handlers
             def _context_started_handler(ctx: core.ExecutionContext) -> None:
                 _start_span(ctx, call_trace=True)
-                span = ctx.span
+                span = span_bus.span_from_context(ctx)
                 span._set_attribute("http.url", ctx.get_item("url"))
                 span._set_attribute("http.method", ctx.get_item("method"))
                 span._set_attribute("http.status_code", ctx.get_item("status_code"))
@@ -82,7 +83,7 @@ class EventsAPIScenario(bm.Scenario):
 
                 @classmethod
                 def on_started(cls, ctx: core.ExecutionContext) -> None:
-                    span = ctx.span
+                    span = span_bus.span_from_context(ctx)
                     event: BenchmarkTracingEvent = ctx.event
                     span._set_attribute("http.url", event.url)
                     span._set_attribute("http.method", event.method)

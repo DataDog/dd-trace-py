@@ -18,6 +18,7 @@ from ddtrace.contrib.internal.ray.core.remote_function import _as_int
 from ddtrace.contrib.internal.ray.core.remote_function import _as_str
 import ddtrace.contrib.internal.ray.patch  # noqa: F401 — triggers config._add("ray", ...) registration
 from ddtrace.internal import core
+from ddtrace.internal.span_bus import span_from_context
 
 
 # ---------------------------------------------------------------------------
@@ -152,7 +153,7 @@ def test_submission_span_carries_scheduling_tags():
     )
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_metric(RAY_TASK_NUM_CPUS) == 4.0
         assert span.get_metric(RAY_TASK_NUM_GPUS) == 2.0
@@ -171,7 +172,7 @@ def test_submission_span_omits_none_scheduling_tags():
     event = _make_submission_event()  # all scheduling fields default to None
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_metric(RAY_TASK_NUM_CPUS) is None
         assert span.get_metric(RAY_TASK_NUM_GPUS) is None
@@ -198,7 +199,7 @@ def test_actor_method_submission_does_not_get_task_tags():
     )
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         # The subscriber must gate task tags on is_task_submission
         assert span.get_metric(RAY_TASK_NUM_CPUS) is None
@@ -212,7 +213,7 @@ def test_submission_span_resources_multiple_keys():
     )
 
     with core.context_with_event(event) as ctx:
-        span = ctx.span
+        span = span_from_context(ctx)
 
         assert span.get_metric(f"{RAY_TASK_RESOURCES_PREFIX}accelerator_v100") == 2.0
         assert span.get_metric(f"{RAY_TASK_RESOURCES_PREFIX}custom_memory") == 4.0

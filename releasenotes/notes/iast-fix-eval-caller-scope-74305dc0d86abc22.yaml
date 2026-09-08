@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes a ``NameError`` raised from application code that calls ``eval()``
+    when the ``wrapt`` C extension is unavailable and its pure-Python implementation is used, which
+    caused Code Security to resolve the wrong caller scope.

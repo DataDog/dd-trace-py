@@ -98,8 +98,9 @@ def traced_route_init(wrapped, _instance, args, kwargs):
 def _collect_routes_from_app(app, prefix=""):
     """Walk an ASGI app's route tree and register all endpoints with their full paths.
 
-    Called once on first request via the ASGI TraceMiddleware. At that point the app
-    is fully constructed (all mounts done). Endpoint registration cannot happen at
+    Registered as a listener for the "asgi.collect_routes" core event, dispatched once
+    on first request via the ASGI TraceMiddleware. At that point the app is fully
+    constructed (all mounts done). Endpoint registration cannot happen at
     Route.__init__ time because the mount prefix is unknown then (sub-apps are
     created before being mounted).
     """
@@ -208,6 +209,8 @@ def patch():
     _w("starlette.applications", "Starlette.__init__", traced_init)
     Pin().onto(starlette)
 
+    core.on("asgi.collect_routes", _collect_routes_from_app)
+
     # We need to check that Fastapi instrumentation hasn't already patched these
     if not is_wrapted(starlette.routing.Route.__init__):
         _w("starlette.routing", "Route.__init__", traced_route_init)
@@ -225,6 +228,8 @@ def unpatch():
         return
 
     starlette._datadog_patch = False
+
+    core.reset_listeners("asgi.collect_routes", _collect_routes_from_app)
 
     _u(starlette.applications.Starlette, "__init__")
 

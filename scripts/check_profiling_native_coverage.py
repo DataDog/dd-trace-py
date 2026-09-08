@@ -27,8 +27,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
+from typing import Any
 
 from ruamel.yaml import YAML
 
@@ -39,6 +40,7 @@ SCAN_DIRS: list[str] = [
     "ddtrace/internal/datadog/profiling",
     "ddtrace/profiling",
     "src/native",
+    "src/native_heap_gotter",
 ]
 
 # File extensions that belong to the native build graph.
@@ -56,6 +58,7 @@ NATIVE_EXTENSIONS: frozenset[str] = frozenset(
         ".rs",  # Rust
         ".toml",  # Cargo.toml, .cargo/config.toml
         ".lock",  # Cargo.lock
+        ".txt",  # linker scripts and native build configuration
     }
 )
 NATIVE_EXACT_NAMES: frozenset[str] = frozenset({"CMakeLists.txt"})
@@ -95,9 +98,9 @@ def extract_profiling_native_patterns(ci_path: Path) -> list[str]:
     """Extract rules:changes patterns for the profiling_native job."""
     yaml: YAML = YAML()
     yaml.allow_duplicate_keys = True
-    data: dict = yaml.load(ci_path)
+    data: dict[Any, Any] = yaml.load(ci_path)
 
-    rules: list[dict] = data["profiling_native"]["rules"]
+    rules: list[dict[Any, Any]] = data["profiling_native"]["rules"]
     for rule in rules:
         if "changes" in rule:
             return list(rule["changes"])
@@ -110,7 +113,7 @@ def tracked_files(dirs: list[str] | None = None) -> list[str]:
     if dirs is None:
         dirs = ["."]
 
-    result: subprocess.CompletedProcess[str] = subprocess.run(
+    result: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603
         ["git", "ls-files", "--"] + dirs,
         capture_output=True,
         text=True,

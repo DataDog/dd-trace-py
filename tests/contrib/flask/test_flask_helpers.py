@@ -55,6 +55,7 @@ class FlaskHelpersTestCase(BaseFlaskTestCase):
             "runtime-id",
             "_dd.p.dm",
             "_dd.p.tid",
+            "_dd.svc_src",
             "component",
             "language",
             "_dd.tags.process",
