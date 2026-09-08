@@ -68,6 +68,7 @@ libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v43.
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
 percent-encoding = "2.3"
+# TODO(py-315): 0.29 blocked — libdatadog v43.0.0 libdd-ffe requires pyo3 = "^0.28" (links = "python")
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }

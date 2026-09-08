@@ -131,9 +131,9 @@ CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{s
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
 # TODO(py-315): locked pyo3 is 0.28.3 (ABI3_MAX_MINOR = 14). Native 3.15
-# support is pyo3 0.29.0. setdefault PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
-# is the 3.15 abi3 bridge: pyo3-build-config otherwise fails the max-version
-# check. We already use py_limited_api="auto" on the RustExtension.
+# support is pyo3 0.29.0, but libdatadog v43.0.0 libdd-ffe still requires
+# pyo3 = "^0.28" and cargo cannot unify (both crates links = "python").
+# Keep this env-var workaround until libdd publishes a tag that allows ^0.29.
 if sys.version_info >= (3, 15):
     os.environ.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
 
