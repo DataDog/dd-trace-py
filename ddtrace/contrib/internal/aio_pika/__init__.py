@@ -1,8 +1,8 @@
 """
 The aio-pika integration traces RabbitMQ messaging performed with ``aio_pika``.
 
-The integration is enabled automatically when using :ref:`ddtrace-run<ddtracerun>`
-or :ref:`import ddtrace.auto<ddtraceauto>`::
+The integration is enabled automatically when using :ref:`ddtrace-run <ddtracerun>`
+or :ref:`import ddtrace.auto <ddtraceauto>`::
 
     import ddtrace.auto
     import aio_pika
