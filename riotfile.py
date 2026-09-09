@@ -3845,7 +3845,6 @@ venv = Venv(
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
-                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
