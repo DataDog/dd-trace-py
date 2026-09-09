@@ -17,7 +17,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 
 # wrap() is live on 3.15 until 3.16. Do not skipif on NEXT_MAX_PY (3.15).
-_WRAP_ON_315: bool = (3, 15) <= PYTHON_VERSION_INFO[:2] < (3, 16)
+_WRAP_ON_315: bool = PY_315_VERSION_INFO <= PYTHON_VERSION_INFO[:2] < (3, 16)
 
 
 def test_max_and_next_max_py_version_constants() -> None:
