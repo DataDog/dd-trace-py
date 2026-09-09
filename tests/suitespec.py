@@ -26,7 +26,7 @@ DEFAULT_DEPENDENCIES = (
     "opentracing",
     "hypothesis<6.45.1",
 )
-DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14")
+DEFAULT_PYTHON_VERSIONS = ("3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15")
 DEFAULT_ENVIRONMENT = {
     "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
     "DD_TESTING_RAISE": "1",

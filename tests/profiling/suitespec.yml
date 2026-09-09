@@ -36,12 +36,15 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==3.19.0']
         - name: profile
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
         - name: profile
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'gunicorn[gevent]', gevent, protobuf]
           env:
             DD_PROFILE_TEST_GEVENT: '1'
         - name: profile
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-cpp, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, uvloop, protobuf]
           env:
             USE_UVLOOP: '1'

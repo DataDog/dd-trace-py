@@ -215,7 +215,7 @@ _global_python_versions: set[str] = set()
 TARGET_JOBS = 200
 
 # All supported Python versions (fallback when no venv info is available)
-ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14", "3.15"]
 
 
 def _shell_environment(environment: dict[str, str]) -> str:

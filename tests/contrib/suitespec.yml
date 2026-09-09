@@ -279,10 +279,10 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio==0.23.7', 'pytest-aiohttp==1.0.5', aiohttp]
         - name: aiohttp
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, 'aiohttp~=3.7']
         - name: aiohttp
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, aiohttp]
   aiohttp_jinja2:
     venvs_per_job: 6
@@ -315,16 +315,16 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, aiohttp_jinja2, jinja2, 'pytest-asyncio==0.23.7']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, 'aiohttp~=3.7', 'aiohttp_jinja2~=1.5.0', jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, 'aiohttp~=3.7', aiohttp_jinja2, jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, 'aiohttp_jinja2~=1.5.0', jinja2, 'pytest-asyncio>=1.0.0']
         - name: aiohttp_jinja2
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-aiohttp, pytest-randomly, aiohttp, aiohttp_jinja2, jinja2, 'pytest-asyncio>=1.0.0']
   aiomysql:
     parallelism: 2
@@ -351,10 +351,10 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'pytest-asyncio==0.23.7', aiomysql]
         - name: aiomysql
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-asyncio, 'aiomysql~=0.1.0']
         - name: aiomysql
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-asyncio, aiomysql]
   aiokafka:
     env:
@@ -567,10 +567,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python
       variants:
         - name: aws_durable_execution_sdk_python
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['aws-durable-execution-sdk-python~=1.4.0', aws-durable-execution-sdk-python-testing]
         - name: aws_durable_execution_sdk_python
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [aws-durable-execution-sdk-python, aws-durable-execution-sdk-python-testing]
   azure_cosmos:
     venvs_per_job: 4
@@ -798,7 +798,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure.servicebus, 'pytest-asyncio==0.23.7']
         - name: azure_servicebus
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [azure.servicebus, pytest-asyncio]
   botocore:
     retry: 2
@@ -880,7 +880,7 @@ suites:
           python: ['3.9']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, celery, 'redis~=3.5']
         - name: celery
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['more_itertools<8.11.0', pytest-randomly, 'celery[redis]']
   cherrypy:
     paths:
@@ -1127,7 +1127,7 @@ suites:
         - name: dogpile_cache
           dependencies: [pytest-randomly, dogpile.cache]
         - name: dogpile_cache
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'dogpile.cache~=1.1']
   dramatiq:
     env:
@@ -1259,7 +1259,7 @@ suites:
         - name: falcon
           dependencies: [pytest-randomly, falcon]
         - name: falcon
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'falcon~=4.0']
   fastapi:
     paths:
@@ -1295,7 +1295,7 @@ suites:
           python: ['3.11', '3.12', '3.13']
           dependencies: ['httpx<=0.27.2', 'pytest-asyncio==0.21.1', python-multipart, pytest-randomly, requests, aiofiles, cloudpickle, fastapi, 'anyio>=3.4.0,<4.0']
         - name: fastapi
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [hypothesis, 'httpx<=0.27.2', 'pytest-asyncio==0.21.1', python-multipart, pytest-randomly, requests, aiofiles, cloudpickle, fastapi]
   flask:
     env:
@@ -1414,7 +1414,7 @@ suites:
           python: ['3.10']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, 'gevent~=21.12.0']
         - name: gevent
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [elasticsearch, 'pynamodb<6.0', pytest-randomly, 'setuptools<80', 'aiobotocore<=2.3.1', aiohttp, botocore, requests, opensearch-py, gevent]
         - name: gevent
           python: ['3.11']
@@ -1469,7 +1469,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio==0.21.1']
         - name: graphql:graphene
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
     parallelism: 2
@@ -1613,13 +1613,13 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, httpx]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'httpx~=0.25.0', legacy-cgi]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'httpx~=0.27.0', legacy-cgi]
         - name: httpx
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, httpx, legacy-cgi]
   httpx2:
     parallelism: 2
@@ -1641,7 +1641,7 @@ suites:
         - name: httpx2
           dependencies: [pytest-asyncio, pytest-randomly, 'httpx2~=2.0.0']
         - name: httpx2
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, pytest-randomly, httpx2]
   integration_registry:
     paths:
@@ -1817,7 +1817,7 @@ suites:
         - name: mariadb
           dependencies: [pytest-randomly, mariadb]
         - name: mariadb
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mariadb~=1.1.2']
   mlflow:
     venvs_per_job: 2
@@ -1887,7 +1887,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, mysqlclient]
         - name: mysqldb
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
     parallelism: 6
@@ -1991,7 +1991,7 @@ suites:
           python: ['3.12']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio==0.23.7']
         - name: psycopg
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, psycopg, 'pytest-asyncio>=1.0']
   pylibmc:
     parallelism: 1
@@ -2065,7 +2065,7 @@ suites:
         - name: pymongo
           dependencies: [mongoengine, pytest-randomly, pymongo]
         - name: pymongo
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [mongoengine, pytest-randomly, 'pymongo~=3.12.3']
   pymysql:
     parallelism: 1
@@ -2217,7 +2217,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid]
         - name: pyramid
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [requests, webtest, 'tests/contrib/pyramid/pserve_app', pytest-randomly, 'setuptools<82', pyramid, legacy-cgi]
   ray:
     parallelism: 3
@@ -2303,7 +2303,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, redis, 'pytest-asyncio==0.23.7']
         - name: redis
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
     parallelism: 1
@@ -2500,7 +2500,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.1.0']
         - name: sqlalchemy
-          python: ['3.14']
+          python: ['3.14', '3.15']
           dependencies: [pytest-randomly, psycopg2-binary, mysql-connector-python, sqlalchemy, 'greenlet==3.2.4']
   starlette:
     paths:
@@ -2542,7 +2542,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, 'anyio<4.0', starlette, 'httpx~=0.22.0']
         - name: starlette
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', 'greenlet~=3.0', requests, aiofiles, 'sqlalchemy<2.0', aiosqlite, databases, pytest-randomly, anyio, starlette, httpx2]
   stdlib:
     retry: 2
@@ -2591,7 +2591,7 @@ suites:
             DD_IAST_REQUEST_SAMPLING: '100'
           command: pytest {cmdargs} tests/contrib/dbapi_async
         - name: dbapi_async
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, attrs]
           env:
             DD_CIVISIBILITY_ITR_ENABLED: '0'
@@ -2603,7 +2603,7 @@ suites:
           dependencies: [pytest-randomly, uvloop, 'pytest-asyncio==0.21.1']
           command: pytest {cmdargs} tests/contrib/asyncio
         - name: asyncio
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           integration: asyncio
           dependencies: [pytest-randomly, uvloop, 'pytest-asyncio>=1.0.0']
           command: pytest {cmdargs} tests/contrib/asyncio
@@ -2680,7 +2680,7 @@ suites:
           python: ['3.10', '3.11', '3.12']
           dependencies: [pytest-randomly, 'tornado==6.3.1']
         - name: tornado
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'tornado==6.4.1']
   urllib3:
     parallelism: 2
@@ -2713,7 +2713,7 @@ suites:
           python: ['3.11']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.8']
         - name: urllib3
-          python: ['3.12', '3.13', '3.14']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
   vertica:
     parallelism: 1
@@ -2754,7 +2754,7 @@ suites:
           dependencies: [WebTest, pytest-randomly]
           python: ['3.9', '3.10', '3.11', '3.12']
         - name: wsgi
-          python: ['3.13', '3.14']
+          python: ['3.13', '3.14', '3.15']
           dependencies: [WebTest, pytest-randomly, legacy-cgi]
   yaaredis:
     parallelism: 1
