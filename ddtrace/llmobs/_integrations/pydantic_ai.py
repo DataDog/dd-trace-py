@@ -521,7 +521,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _toolset_name(toolset: Any) -> str:
         """Toolset or MCP server name: the id the user set, else the class name.
 
-        never read label. Without an id it falls back to repr(self), which carries the
+        Never read label. Without an id it falls back to repr(self), which carries the
         connection config, so only an explicit str id or the class name ships. No URI is emitted at
         all, which is what keeps a credential in a server's userinfo, path or query off the wire.
         """

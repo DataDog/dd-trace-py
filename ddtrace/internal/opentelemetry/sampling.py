@@ -137,7 +137,7 @@ def resolve_otel_sampling_decision(
     """Resolve the canonical ot= value after a local sampling decision.
 
     Valid inherited sampling fields remain authoritative because the tracer follows
-    the upstream sampled bit. Explicit non-probabilistic decisions erase th while
+    the upstream sampled bit. Explicit non-probabilistic decisions erase the threshold while
     preserving a valid inherited rv and unknown fields.
     """
     # Valid inherited sampling fields remain authoritative because the

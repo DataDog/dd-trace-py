@@ -154,7 +154,7 @@ class TracedStream(wrapt.ObjectProxy):
         self._self_handler = handler
         self._self_on_stream_created = on_stream_created
         self._self_stream_iter = self.__wrapped__
-        # tracks whether ``handler.start_stream()`` has fired.
+        # Tracks whether `handler.start_stream()` has fired.
         # Guards against double-firing when both ``__iter__`` and ``__next__``
         # are used on the same stream, and ensures the hook does not run on
         # a stream that is constructed but never consumed.

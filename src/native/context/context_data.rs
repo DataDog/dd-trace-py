@@ -148,7 +148,7 @@ pub struct Context {
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
     pub reactivate: bool,
-    // Child contexts point otel_sampling_state_owner at the trace's
+    // Child contexts point the otel_sampling_state_owner at the trace's
     // owning Context. This keeps pending propagation state visible across copies
     // without allocating a holder or storing control data in meta/metrics.
     #[pyo3(get, set, name = "_otel_sampling_state_data")]
