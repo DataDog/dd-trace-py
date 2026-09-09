@@ -17,6 +17,7 @@ from types import CodeType
 from typing import Any
 from typing import Callable
 from typing import Iterator
+from typing import Optional
 
 import pytest
 
@@ -95,7 +96,7 @@ def test_asyncio_hooks_use_wrap_below_315() -> None:
     assert is_wrapped(cast(FunctionType, gathering_future.__init__))
 
     events_module: ModuleType = sys.modules["asyncio.events"]
-    policy_class: type[object] | None
+    policy_class: Optional[type[object]]
     if sys.hexversion >= 0x030E0000:
         policy_class = getattr(events_module, "_BaseDefaultEventLoopPolicy", None)
     else:

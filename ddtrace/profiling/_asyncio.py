@@ -71,9 +71,7 @@ def _do_register_return_hook(
     """
     global _monitoring_tool_id
 
-    event_handler: _monitoring.MonitoringEventHandler = typing.cast(
-        _monitoring.MonitoringEventHandler, monitoring_handler
-    )
+    event_handler: typing.Any = typing.cast(typing.Any, monitoring_handler)
     code: typing.Optional[CodeType] = None
     try:
         code = func.__code__
