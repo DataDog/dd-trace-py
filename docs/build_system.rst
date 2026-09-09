@@ -326,8 +326,8 @@ What the packaging must guarantee:
 If the library cannot be loaded, AppSec logs a warning and disables itself; the rest of the tracer is unaffected. The version
 actually loaded is reported in telemetry, so a mismatch is visible.
 
-Supported on Linux, and on macOS through ``libddwaf.2.dylib``. Windows has no such convention, so the library must be bundled
-there.
+Linux only: elsewhere the runtime has no SONAME to fall back to, so the build fails rather than produce a package whose
+AppSec cannot load.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

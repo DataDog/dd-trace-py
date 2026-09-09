@@ -701,6 +701,12 @@ class LibraryDownloader(BuildPyCommand):
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
         if self.no_bundle_libddwaf:
+            if CURRENT_OS != "Linux":
+                raise RuntimeError(
+                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no "
+                    "SONAME to load there (ddtrace.internal._libddwaf_platform.system_library_name), "
+                    "so libddwaf must be bundled" % CURRENT_OS
+                )
             print("Not bundling libddwaf: the runtime will load the system library")
             shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
         else:
@@ -713,10 +719,9 @@ class LibraryDownloader(BuildPyCommand):
         """Drop a previously staged libddwaf so the wheel mirrors the source tree.
 
         Setuptools copies new and updated files into build_lib but never removes
-        files that disappeared from the source tree, so a bundled library staged
-        by an earlier build would end up in the wheel next to the path recorded
-        by a system-library build (and win at load time), and the other way
-        around.
+        files that disappeared from the source tree, so a library staged by an
+        earlier build would still reach the wheel of a --no-bundle-libddwaf
+        build and shadow the system one at load time.
         """
         if not self.build_lib:
             return

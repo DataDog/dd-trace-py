@@ -8,7 +8,8 @@ system is used.  That is what distribution packages need: they build from source
 with no network access and package libddwaf separately.
 
 setup.py only writes the bundled layout, so this module is where the loader's
-expectations about it live.
+expectations about it live.  Only Linux has a SONAME to fall back to, which is
+why setup.py rejects a build that bundles nothing on any other platform.
 """
 
 import os
@@ -38,11 +39,9 @@ def bundled_library_name(system: str) -> str:
 
 
 def system_library_name(system: str) -> t.Optional[str]:
-    """SONAME to ask the dynamic linker for, or None where there is no such convention."""
+    """SONAME to ask the dynamic linker for, or None where there is no system library to load."""
     if system == "Linux":
         return "libddwaf.so.%d" % ABI_MAJOR
-    if system == "Darwin":
-        return "libddwaf.%d.dylib" % ABI_MAJOR
     return None
 
 

@@ -129,6 +129,7 @@ eventbridge
 exec
 Fargate
 fastapi
+frontend
 frozenset
 Firehose
 flamegraph
@@ -366,6 +367,7 @@ unpatched
 unregister
 unshallow
 unvendored
+unversioned
 uri
 url
 urls
@@ -375,6 +377,7 @@ uvloop
 uWSGI
 valkey
 vendored
+vendoring
 versioned
 vertexai
 vertica

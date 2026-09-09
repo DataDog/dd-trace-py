@@ -66,7 +66,7 @@ def test_target_arch_matches_the_directories_the_build_creates():
     "system,bundled,soname",
     [
         ("Linux", "libddwaf.so", "libddwaf.so.2"),
-        ("Darwin", "libddwaf.dylib", "libddwaf.2.dylib"),
+        ("Darwin", "libddwaf.dylib", None),
         ("Windows", "libddwaf.dll", None),
     ],
 )
