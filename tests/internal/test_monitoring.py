@@ -39,6 +39,16 @@ _DISABLE: object = cast(object, monitoring._DISABLE)  # type: ignore[has-type]
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
 
 
+def _assert_unwind_armed(tool_id: int, code: CodeType) -> None:
+    """Pin local-only PY_UNWIND when CPython accepts it; otherwise global fallback."""
+    local_events: int = _sys_monitoring.get_local_events(tool_id, code)
+    global_events: int = _sys_monitoring.get_events(tool_id)
+    if local_events & _E.PY_UNWIND:
+        assert not (global_events & _E.PY_UNWIND), "PY_UNWIND must not be enabled globally"
+    else:
+        assert global_events & _E.PY_UNWIND, "fallback must enable PY_UNWIND globally"
+
+
 class UnwindHandler(monitoring.MonitoringEventHandler):
     def __init__(self) -> None:
         self.unwinds: list[tuple[CodeType, BaseException]] = []
@@ -101,6 +111,19 @@ class RaisingUnwindHandler(monitoring.MonitoringEventHandler):
         raise RuntimeError("unwind handler exploded")
 
 
+@pytest.fixture(autouse=True)
+def _reset_py_unwind_fallback() -> Iterator[None]:
+    """Keep the local/global PY_UNWIND probe from leaking across tests."""
+    monitoring._py_unwind_local = None
+    monitoring._active_global_events = 0
+    yield
+    tool_id: int | None = monitoring._tool_id
+    if tool_id is not None and _sys_monitoring is not None:
+        _sys_monitoring.set_events(tool_id, 0)
+    monitoring._py_unwind_local = None
+    monitoring._active_global_events = 0
+
+
 @pytest.fixture
 def registered() -> Iterator[
     Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler]
@@ -143,11 +166,7 @@ def test_unwind_enabled_locally(
     tool_id: int | None = monitoring._tool_id
     assert tool_id is not None
 
-    local_events: int = _sys_monitoring.get_local_events(tool_id, boom.__code__)
-    global_events: int = _sys_monitoring.get_events(tool_id)
-
-    assert local_events & _E.PY_UNWIND, "PY_UNWIND must be a local event on 3.15+"
-    assert not (global_events & _E.PY_UNWIND), "PY_UNWIND must not be enabled globally"
+    _assert_unwind_armed(tool_id, boom.__code__)
 
 
 def test_on_py_unwind_disables_unregistered_code() -> None:
@@ -189,12 +208,15 @@ def test_unregister_clears_local_unwind() -> None:
 
     tool_id: int | None = monitoring._tool_id
     assert tool_id is not None
-    assert _sys_monitoring.get_local_events(tool_id, boom.__code__) & _E.PY_UNWIND
+    _assert_unwind_armed(tool_id, boom.__code__)
 
     monitoring.unregister(boom.__code__, handler)
 
     assert not (_sys_monitoring.get_local_events(tool_id, boom.__code__) & _E.PY_UNWIND), (
         "local PY_UNWIND should be disabled once no handlers need it"
+    )
+    assert not (_sys_monitoring.get_events(tool_id) & _E.PY_UNWIND), (
+        "global PY_UNWIND should be cleared once no handlers need it"
     )
 
 
@@ -213,14 +235,57 @@ def test_mixed_local_events(
 
     local_events: int = _sys_monitoring.get_local_events(tool_id, fn.__code__)
     assert local_events & _E.PY_START, "PY_START must be a local event"
-    assert local_events & _E.PY_UNWIND, "PY_UNWIND must be a local event on 3.15+"
-    assert not (_sys_monitoring.get_events(tool_id) & _E.PY_UNWIND), "PY_UNWIND must not be global"
+    _assert_unwind_armed(tool_id, fn.__code__)
 
     with pytest.raises(ValueError):
         fn()
 
     assert handler.started, "on_py_start did not fire"
     assert handler.unwound, "on_py_unwind did not fire"
+
+
+def test_unwind_falls_back_to_global_when_local_rejected(
+    monkeypatch: pytest.MonkeyPatch,
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """If set_local_events rejects PY_UNWIND, enable it globally so unwind still fires."""
+    real_set_local: Any = _sys_monitoring.set_local_events
+
+    def reject_local_unwind(tool_id: int, code: CodeType, events: int) -> None:
+        if events & _E.PY_UNWIND:
+            raise ValueError("invalid local event set 0x2000")
+        real_set_local(tool_id, code, events)
+
+    monkeypatch.setattr(_sys_monitoring, "set_local_events", reject_local_unwind)
+
+    def boom() -> None:
+        raise ValueError("kaboom")
+
+    handler: UnwindHandler = registered(boom.__code__, UnwindHandler())  # type: ignore[assignment]
+
+    tool_id: int | None = monitoring._tool_id
+    assert tool_id is not None
+    local_events: int = _sys_monitoring.get_local_events(tool_id, boom.__code__)
+    global_events: int = _sys_monitoring.get_events(tool_id)
+    assert not (local_events & _E.PY_UNWIND)
+    assert global_events & _E.PY_UNWIND
+    assert monitoring._py_unwind_local is False
+
+    def unrelated() -> None:
+        pass
+
+    unregistered_result: object | None = monitoring._on_py_unwind(unrelated.__code__, 0, ValueError("x"))
+    assert unregistered_result is None
+
+    with pytest.raises(ValueError, match="kaboom"):
+        boom()
+
+    assert any(exc.args == ("kaboom",) for _, exc in handler.unwinds), (
+        "on_py_unwind must still fire after the global set_events fallback"
+    )
+
+    monitoring.unregister(boom.__code__, handler)
+    assert not (_sys_monitoring.get_events(tool_id) & _E.PY_UNWIND)
 
 
 def test_on_py_line_disables_when_all_handlers_return_disable(

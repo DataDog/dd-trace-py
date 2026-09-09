@@ -34,8 +34,14 @@ _E = sys.monitoring.events
 _DISABLE = sys.monitoring.DISABLE
 
 # On Python 3.15+, PY_UNWIND is a per-code "other" event and can be enabled via
-# set_local_events alongside PY_START/PY_RETURN/LINE.
+# set_local_events alongside PY_START/PY_RETURN/LINE. Pre-rc1 3.15 builds reject
+# it as a local event (ValueError: invalid local event set); we then enable it
+# globally via set_events and keep the other events local.
 _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
+
+# None = not yet probed; True = local PY_UNWIND accepted; False = use set_events.
+_py_unwind_local: Optional[bool] = None
+_active_global_events: int = 0
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
@@ -107,6 +113,14 @@ class _IdentityWeakKeyDictionary:
             raise
         del self[key]
         return value
+
+    def values(self) -> list[Any]:
+        result: list[Any] = []
+        for ref, value in self._data.values():
+            obj: Any = ref()
+            if obj is not None:
+                result.append(value)
+        return result
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
@@ -264,6 +278,10 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
 def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseException) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
+        # Global PY_UNWIND fires for every unwinding frame. DISABLE would stick
+        # for this code object, and register() does not call restart_events().
+        if _py_unwind_local is False:
+            return None
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
@@ -294,7 +312,35 @@ def _on_py_line(code: CodeType, line_number: int) -> Optional[object]:
 
 
 def _set_local_events(tool_id: int, code: CodeType, events: int) -> None:
-    sys.monitoring.set_local_events(tool_id, code, events)
+    global _py_unwind_local
+    if _py_unwind_local is False:
+        sys.monitoring.set_local_events(tool_id, code, events & ~_E.PY_UNWIND)
+        return
+    try:
+        sys.monitoring.set_local_events(tool_id, code, events)
+    except ValueError:
+        if not (events & _E.PY_UNWIND):
+            raise
+        _py_unwind_local = False
+        sys.monitoring.set_local_events(tool_id, code, events & ~_E.PY_UNWIND)
+    else:
+        if _py_unwind_local is None and (events & _E.PY_UNWIND):
+            _py_unwind_local = True
+
+
+def _recompute_global_events() -> None:
+    """Enable or clear global PY_UNWIND when local set_local_events rejected it."""
+    global _active_global_events
+    if _py_unwind_local is not False or _tool_id is None:
+        return
+    needed: int = 0
+    for handlers in _registry.values():
+        if _events_for(handlers) & _E.PY_UNWIND:
+            needed = _E.PY_UNWIND
+            break
+    if needed != _active_global_events:
+        _active_global_events = needed
+        sys.monitoring.set_events(_tool_id, needed)
 
 
 def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
@@ -334,6 +380,7 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
             _rearm_local_events(tool_id, code, local_events)
         else:
             _set_local_events(tool_id, code, local_events)
+        _recompute_global_events()
 
 
 def refresh(code: CodeType) -> None:
@@ -347,6 +394,7 @@ def refresh(code: CodeType) -> None:
         if handlers and _tool_id is not None:
             events: int = _events_for(handlers) & _LOCAL_EVENTS
             _rearm_local_events(_tool_id, code, events)
+            _recompute_global_events()
 
 
 def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
@@ -365,3 +413,4 @@ def unregister(code: CodeType, handler: MonitoringEventHandler) -> None:
         else:
             assert _tool_id is not None  # nosec
             _set_local_events(_tool_id, code, _events_for(handlers) & _LOCAL_EVENTS)
+        _recompute_global_events()
