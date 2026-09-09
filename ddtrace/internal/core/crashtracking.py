@@ -1,5 +1,6 @@
 # pyright: reportPossiblyUnboundVariable=false
 import importlib.util
+import os
 import platform
 import sys
 import traceback
@@ -177,6 +178,28 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     for env_var in inherited_env_vars:
         env_value = env.get(env_var)
         if env_value is not None:
+            if env_var == "PYTHONPATH":
+                # ddtrace-run and SSI prepends its bootstrap dir (containing sitecustomize.py) to
+                # PYTHONPATH so the traced app auto-instruments on startup. If we inherit it
+                # as-is, the receiver's own interpreter re-triggers that bootstrap and ends up
+                # running a second, independently-configured copy of ddtrace using this stripped-down env.
+                # Strip it so the receiver stays a plain, uninstrumented script while still finding
+                # the ddtrace package via any other PYTHONPATH entries.
+                # receiver_script_path is .../ddtrace/commands/_dd_crashtracker_receiver.py,
+                # so two dirname() calls reach the ddtrace package root and "bootstrap"
+                # names the sibling directory that sitecustomize.py lives in.
+                bootstrap_dir = os.path.join(os.path.dirname(os.path.dirname(receiver_script_path)), "bootstrap")
+                path_entries = [p for p in env_value.split(os.pathsep) if p != bootstrap_dir]
+                if not path_entries:
+                    continue
+                env_value = os.pathsep.join(path_entries)
+                # PYTHONPATH="" is ignored by Python (treated as unset), but "" entries
+                # inside PYTHONPATH mean "current working directory". This happens when
+                # bootstrap stripping leaves only cwd entries. PYTHONPATH=<bootstrap>:
+                # becomes [""] which joins to "". So, we substitute "." so the receiver's
+                # interpreter still finds modules in cwd.
+                if not env_value:
+                    env_value = "."
             receiver_env[env_var] = env_value
 
     # This is equivalent to: python /path/to/_dd_crashtracker_receiver.py

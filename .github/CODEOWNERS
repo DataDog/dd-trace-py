@@ -420,3 +420,4 @@ scripts/integration_registry/                   @DataDog/apm-idm-python
 .gitlab/benchmarks/slos/apm-idm-python.yml               @DataDog/apm-idm-python
 .gitlab/benchmarks/slos/profiling-python.yml             @DataDog/profiling-python
 .gitlab/benchmarks/slos/debugger-python.yml              @DataDog/debugger-python
+.gitlab/benchmarks/slos/feature-flagging-and-experimentation-sdk.yml @DataDog/feature-flagging-and-experimentation-sdk
