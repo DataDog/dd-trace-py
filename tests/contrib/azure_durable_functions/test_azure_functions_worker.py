@@ -153,6 +153,8 @@ def test_worker_modules_are_patched_when_imported_after_the_integration(monkeypa
     assert set(registered) == {
         "azure_functions_worker.dispatcher",
         "azure_functions_runtime.handle_event",
+        "azure_functions_runtime.bindings.context",
+        "azure_functions_runtime.utils.executor",
     }
 
     class Dispatcher:
@@ -170,3 +172,24 @@ def test_worker_modules_are_patched_when_imported_after_the_integration(monkeypa
 
     unpatch_worker_context()
     assert {module_name for module_name, _ in unregistered} == set(registered)
+
+
+def test_v2_worker_canonical_context_and_executor_modules_are_patched(monkeypatch):
+    context_module = ModuleType("azure_functions_runtime.bindings.context")
+    context_module.get_context = lambda context: context
+    executor_module = ModuleType("azure_functions_runtime.utils.executor")
+    executor_module.run_sync_func = lambda invocation_id, context, func, params: func(**params)
+    monkeypatch.setitem(sys.modules, context_module.__name__, context_module)
+    monkeypatch.setitem(sys.modules, executor_module.__name__, executor_module)
+    _allow_worker_unpatch(monkeypatch)
+
+    patch_worker_context()
+    try:
+        context_module.get_context(_invocation_context())
+        assert get_current_invocation_carrier() == {"traceparent": TRACEPARENT, "tracestate": TRACESTATE}
+        assert (
+            executor_module.run_sync_func("invocation-id", _invocation_context(), _assert_current_carrier, {}) == "ok"
+        )
+        assert get_current_invocation_carrier() == {"traceparent": TRACEPARENT, "tracestate": TRACESTATE}
+    finally:
+        unpatch_worker_context()

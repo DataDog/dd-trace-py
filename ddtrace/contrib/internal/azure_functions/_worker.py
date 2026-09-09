@@ -114,9 +114,22 @@ def _patch_v2_worker(module: ModuleType) -> None:
     _patch_target(module, "invocation_request", _run_v2_invocation_with_context)
 
 
+def _patch_v2_context(module: ModuleType) -> None:
+    _patch_target(module, "get_context", _capture_context)
+
+
+def _patch_v2_executor(module: ModuleType) -> None:
+    _patch_target(module, "run_sync_func", _run_sync_with_context)
+
+
 _WORKER_MODULE_HOOKS = {
     "azure_functions_worker.dispatcher": _patch_classic_worker,
     "azure_functions_runtime.handle_event": _patch_v2_worker,
+    # V2 runtime releases have alternated between importing these callables
+    # into handle_event and calling them through their defining modules. Patch
+    # both locations so Linux and bundled Core Tools runtimes are covered.
+    "azure_functions_runtime.bindings.context": _patch_v2_context,
+    "azure_functions_runtime.utils.executor": _patch_v2_executor,
 }
 
 

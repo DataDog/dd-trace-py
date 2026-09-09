@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import signal
@@ -16,6 +17,7 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
 from ddtrace.contrib.internal.azure_durable_functions.patch import patched_get_current_activity_context
+from ddtrace.contrib.internal.azure_durable_functions.patch import patched_legacy_post_async_request
 from ddtrace.contrib.internal.azure_functions import shared as azure_functions_shared
 from ddtrace.contrib.internal.azure_functions._worker import _run_sync_with_context
 from ddtrace.contrib.internal.azure_functions.shared import patched_get_functions
@@ -124,6 +126,47 @@ def _span_by_resource(traces: list[list[dict[str, Any]]], resource: str) -> dict
     spans = [span for trace in traces for span in trace if span["resource"] == resource]
     assert len(spans) == 1
     return spans[0]
+
+
+def test_legacy_durable_client_forces_w3c_headers(monkeypatch):
+    request = {}
+
+    class Response:
+        status = 202
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        async def json(self, content_type=None):
+            return {"id": "instance"}
+
+    class Session:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_):
+            return None
+
+        def post(self, url, **kwargs):
+            request.update(url=url, **kwargs)
+            return Response()
+
+    monkeypatch.setattr("ddtrace.contrib.internal.azure_durable_functions.patch.aiohttp.ClientSession", Session)
+
+    async def invoke():
+        with scoped_tracer() as tracer:
+            with tracer.trace("http.request"):
+                result = await patched_legacy_post_async_request(
+                    lambda *_args, **_kwargs: None, None, ("http://durable/orchestrators/sample", "input"), {}
+                )
+        return result
+
+    assert asyncio.run(invoke()) == [202, {"id": "instance"}]
+    assert request["json"] == "input"
+    assert request["headers"]["traceparent"].startswith("00-")
 
 
 @pytest.mark.parametrize(
