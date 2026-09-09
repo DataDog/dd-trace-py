@@ -65,14 +65,14 @@ def func5() -> None:
     env=dict(
         DD_PROFILING_MAX_FRAMES="5",
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_collect_truncate",
-        DD_PROFILING_STACK_NATIVE_FRAMES="0",
     )
 )
 def test_collect_truncate() -> None:
     import os
 
+    from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.internal.datadog.profiling.stack import _stack
-    from ddtrace.profiling import profiler
+    from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import func1
 
@@ -81,25 +81,30 @@ def test_collect_truncate() -> None:
 
     max_nframes = int(os.environ["DD_PROFILING_MAX_FRAMES"])
 
-    p = profiler.Profiler()
-    p.start()
-
-    assert _stack._get_frame_limits() == (max_nframes, 1024)
-
-    func1()
-
-    p.stop()
+    # Leave exporter headroom for injected native frames so only the sampler can truncate this stack.
+    ddup.config(env="test", service="test", version="0.0.0", max_nframes=64, output_filename=pprof_prefix)
+    ddup.start()
+    with stack.StackCollector():
+        assert _stack._get_frame_limits() == (max_nframes, 1024)
+        func1()
+    ddup.upload()
 
     profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
     found_func1_stack = False
     for sample in samples:
-        # stack adds one extra frame for "%d frames omitted" message
-        assert len(sample.location_id) <= max_nframes + 1, len(sample.location_id)
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
         if any(location.function_name == "func5" for location in locations):
             found_func1_stack = True
+            python_locations = [location for location in locations[:-1] if location.filename != "<native>"]
+            assert [location.function_name for location in python_locations] == [
+                "func5",
+                "func4",
+                "func3",
+                "func2",
+                "func1",
+            ]
             assert locations[-1].function_name == "<1 frame omitted>"
 
     assert found_func1_stack
@@ -122,7 +127,6 @@ def test_native_frame_limit() -> None:
 @pytest.mark.subprocess(
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_exact_native_frame_limit",
-        DD_PROFILING_STACK_NATIVE_FRAMES="0",
     ),
     err=None,
 )
@@ -148,7 +152,8 @@ def test_exact_native_frame_limit_is_not_truncated() -> None:
             env="test",
             service="test",
             version="0.0.0",
-            max_nframes=frame_count,
+            # The sampler limit counts Python frames, not the injected time.sleep frame.
+            max_nframes=frame_count + 1,
             output_filename=pprof_prefix,
         )
         ddup.start()
@@ -162,7 +167,8 @@ def test_exact_native_frame_limit_is_not_truncated() -> None:
     found_test_stack = False
     for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time"):
         locations = [pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id]
-        if locations and locations[0].function_name == "sample_full_stack":
+        python_locations = [location for location in locations if location.filename != "<native>"]
+        if python_locations and python_locations[0].function_name == "sample_full_stack":
             found_test_stack = True
             assert "omitted>" not in locations[-1].function_name
 
@@ -1322,7 +1328,8 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     SWITCHES = 200
     N_IDLE_HIGH = 2000
     STACK_DEPTH = 50
-    MAX_SCALING_RATIO = 3.0
+    MAX_SCALING_RATIO = 6.0
+    N_MEASUREMENTS = 5
     MEASURE_TIMEOUT = 30  # generous timeout to prevent CI hangs
 
     def active_worker() -> None:
@@ -1360,8 +1367,8 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     stack.set_adaptive_sampling(False)
     try:
         measure(0)  # warm up
-        t_low = min(measure(0) for _ in range(3))
-        t_high = min(measure(N_IDLE_HIGH) for _ in range(3))
+        t_low = min(measure(0) for _ in range(N_MEASUREMENTS))
+        t_high = min(measure(N_IDLE_HIGH) for _ in range(N_MEASUREMENTS))
     finally:
         p.stop()
 

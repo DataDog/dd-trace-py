@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: Fixes an issue where asyncio tasks can be duplicated in profiles on Python 3.14, causing inflated task counts and wall time and increased profiler CPU usage.

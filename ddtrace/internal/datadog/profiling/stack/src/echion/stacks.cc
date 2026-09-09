@@ -14,6 +14,13 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
     for (auto it = this->begin(); it != this->end(); ++it) {
         auto& frame = *it;
 
+        // The collection runs underneath everything the frame is doing, including a native call
+        // such as gc.collect that is still in progress. Locations are leaf-to-root, so the GC
+        // frame must be pushed first to render as the innermost callee.
+        if (frame.is_in_gc) {
+            renderer.render_gc_frame();
+        }
+
         // Inject native frame BEFORE its Python caller.
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
         // frame.lasti in _Py_CODEUNIT units. Convert to bytes for the registry lookup.
@@ -30,7 +37,7 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
     }
 
     if (truncation == TruncationStatus::Truncated) {
-        renderer.render_truncated();
+        renderer.mark_truncated();
     }
 }
 
@@ -50,16 +57,20 @@ unwind_frame(EchionSampler& echion,
 {
     seen_frames.clear();
     if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
-        return UnwindResult{};
+        return UnwindResult::Unchecked();
     }
 
-    UnwindResult result;
+    auto result = UnwindResult::Unchecked();
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
         const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
         if (at_limit) {
-            if (!detect_truncation || frames_probed_after_limit >= MAX_TASK_FRAMES) {
+            if (!detect_truncation) {
+                return result;
+            }
+            if (frames_probed_after_limit >= MAX_TASK_FRAMES) {
+                // Exhausting the probe budget does not prove another reportable frame exists.
                 return result;
             }
             frames_probed_after_limit++;
@@ -69,6 +80,7 @@ unwind_frame(EchionSampler& echion,
         }
 
         seen_frames.insert(current_frame_addr);
+        bool is_in_gc = current_frame_addr == echion.current_gc_frame();
 
 #if PY_VERSION_HEX >= 0x030b0000
         auto maybe_frame = Frame::read(echion,
@@ -92,7 +104,11 @@ unwind_frame(EchionSampler& echion,
             return result;
         }
 
-        stack.push_back(maybe_frame->get());
+        // Frame::read returns a shared cache entry. Copy it first and put the
+        // address-specific marker only on the Frame owned by this sample.
+        Frame sampled_frame = maybe_frame->get();
+        sampled_frame.is_in_gc = is_in_gc;
+        stack.push_back(sampled_frame);
         result.frames_added++;
     }
 
@@ -115,7 +131,7 @@ unwind_frame(EchionSampler& echion,
     return unwind_frame(echion, frame_addr, stack, local_seen_frames, max_frames_to_add, detect_truncation);
 }
 
-UnwindResult
+Result<UnwindResult>
 unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames)
 {
     stack.clear();
@@ -134,9 +150,9 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
 #elif PY_VERSION_HEX >= 0x030b0000
     _PyCFrame cframe;
     _PyCFrame* cframe_addr = tstate->cframe;
-    if (copy_type(cframe_addr, cframe))
-        // TODO: Invalid frame
-        return UnwindResult{};
+    if (copy_type(cframe_addr, cframe)) {
+        return ErrorKind::FrameError;
+    }
 
     PyObject* frame_addr = reinterpret_cast<PyObject*>(cframe.current_frame);
 #else // Python < 3.11

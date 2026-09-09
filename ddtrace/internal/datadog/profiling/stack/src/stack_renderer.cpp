@@ -210,11 +210,22 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
-StackRenderer::render_truncated()
+StackRenderer::mark_truncated()
 {
     if (sample != nullptr) {
         sample->incr_dropped_frames();
     }
+}
+
+void
+StackRenderer::render_gc_frame()
+{
+    if (sample == nullptr) {
+        std::cerr << "Received a GC frame without sample storage. Some profiling data has been lost." << std::endl;
+        return;
+    }
+
+    sample->push_frame("Garbage collection", "<runtime>", 0, 0);
 }
 
 void

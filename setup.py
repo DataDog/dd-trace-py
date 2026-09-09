@@ -130,6 +130,13 @@ VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
+# TODO(py-315): locked pyo3 is 0.28.3 (ABI3_MAX_MINOR = 14). Native 3.15
+# support is pyo3 0.29.0, but libdatadog v43.0.0 libdd-ffe still requires
+# pyo3 = "^0.28" and cargo cannot unify (both crates links = "python").
+# Keep this env-var workaround until libdd publishes a tag that allows ^0.29.
+if sys.version_info >= (3, 15):
+    os.environ.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
+
 
 def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
@@ -304,7 +311,7 @@ def is_64_bit_python():
 
 
 rust_features = ["stats"]
-if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
     rust_features.append("profiling")
     if not SERVERLESS_BUILD:
         rust_features.append("crashtracker")
@@ -502,11 +509,6 @@ class LibraryDownload:
             shutil.rmtree(download_dir)
             download_dir.mkdir(parents=True, exist_ok=True)
 
-        # If the directory is nonempty (beyond the sentinel), assume we're done
-        non_sentinel = [p for p in download_dir.iterdir() if p.name != ".version"]
-        if non_sentinel:
-            return
-
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
@@ -530,8 +532,10 @@ class LibraryDownload:
 
             arch_dir = download_dir / arch
 
-            # If the directory for the architecture exists and is nonempty, assume we're done
-            if arch_dir.is_dir() and any(arch_dir.iterdir()):
+            # A source checkout can be shared between host and container builds.
+            # Only the library for this OS/architecture makes an existing directory complete.
+            lib_dir = arch_dir / "lib"
+            if all((lib_dir / f"lib{cls.name}{suffix}").is_file() for suffix in suffixes):
                 continue
 
             archive_dir = cls.get_package_name(arch, CURRENT_OS)
@@ -584,7 +588,14 @@ class LibraryDownload:
 
             with tarfile.open(filename, mode="r|gz", errorlevel=2) as tar:
                 tar.extractall(members=dynfiles, path=HERE)
-                Path(HERE / archive_dir).rename(arch_dir)
+
+            extracted_dir = Path(HERE / archive_dir)
+            if arch_dir.exists():
+                # A host and container can use the same architecture name with different library suffixes.
+                shutil.copytree(extracted_dir, arch_dir, dirs_exist_ok=True)
+                shutil.rmtree(extracted_dir)
+            else:
+                extracted_dir.rename(arch_dir)
 
             # Rename <name>.xxx to lib<name>.xxx so the filename is the same for every OS
             lib_dir = arch_dir / "lib"
@@ -858,7 +869,7 @@ class CustomBuildExt(build_ext):
             self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
@@ -1768,7 +1779,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
         memalloc_cmake_args = []
@@ -1830,7 +1841,7 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
             ),
         ]
 
-        if sys.version_info < (3, 15):
+        if sys.version_info < (3, 16):
             _cython_sources += [
                 CythonExtension(
                     "ddtrace.profiling._threading",
@@ -1911,8 +1922,6 @@ setup(
         ),
     },
     zip_safe=False,
-    # enum34 is an enum backport for earlier versions of python
-    # funcsigs backport required for vendored debtcollector
     cmdclass={
         "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,

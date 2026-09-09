@@ -24,6 +24,7 @@ class EchionSampler;
 
 enum class TruncationStatus
 {
+    // Detection was disabled or could not finish safely.
     Unchecked,
     NotTruncated,
     Truncated,
@@ -33,6 +34,8 @@ struct UnwindResult
 {
     size_t frames_added = 0;
     TruncationStatus truncation = TruncationStatus::Unchecked;
+
+    static UnwindResult Unchecked() { return UnwindResult{ 0, TruncationStatus::Unchecked }; }
 };
 
 // ----------------------------------------------------------------------------
@@ -54,7 +57,10 @@ class EchionSampler;
 // Primary entry point. The caller supplies the cycle-detection set; callers on
 // the sampling thread should pass EchionSampler::seen_frames_scratch() so the
 // hash table's capacity is reused across calls instead of reallocated per call.
-// `seen_frames` is cleared on entry.
+// seen_frames is cleared on entry.
+// Disabling detection always returns Unchecked. With detection enabled, only a
+// reportable frame beyond the limit proves Truncated; reaching the end proves
+// NotTruncated. An incomplete probe (read failure, cycle, or safety limit) stays Unchecked.
 UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,
@@ -74,7 +80,8 @@ unwind_frame(EchionSampler& echion,
              bool detect_truncation);
 
 // ----------------------------------------------------------------------------
-UnwindResult
+// Failure to copy the initial C frame aborts unwinding before task/greenlet discovery.
+Result<UnwindResult>
 unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& stack, size_t max_frames);
 
 // ----------------------------------------------------------------------------
