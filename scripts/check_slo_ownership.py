@@ -87,20 +87,22 @@ def _configs(suite_name: str, all_slos: Optional[set[str]] = None) -> set[str]:
     cfg = BENCHMARKS / suite_name / "config.yaml"
     if not cfg.exists():
         return set()
-    data = _YAML.load(cfg.read_text()) or {}
+    raw = cfg.read_text()
+    data = _YAML.load(raw) or {}
     # Skip YAML anchor bases (e.g. `defaults: &defaults`): they define values
     # other configs inherit via `<<: *defaults` but are not runnable configs
     # themselves — the benchmark runner crashes on them (missing required
     # scenario fields) and never produces results. A config is treated as a
-    # pure base if it has an anchor that is referenced by another config's
-    # merge key AND no SLO has been declared for it (a runnable config always
-    # has an SLO; a base never does).
+    # pure base if it defines an anchor (`&name`) that is referenced by a
+    # merge key (`<<: *name`) elsewhere in the file AND no SLO has been
+    # declared for it (a runnable config always has an SLO; a base never does).
+    # The merge detection is a simple text scan so it does not depend on
+    # ruamel.yaml's version-specific anchor/merge introspection attributes.
     merged_anchors: set[str] = set()
-    for v in data.values():
-        for m in getattr(v, "merge", None) or []:
-            mv = getattr(m, "value", m)
-            if getattr(mv, "anchor", None):
-                merged_anchors.add(mv.anchor.value)
+    for line in raw.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("<<: *"):
+            merged_anchors.add(stripped[len("<<: *") :].strip())
     cls = _get_benchmark_class_name(suite_name)
     result = set()
     for k, v in data.items():
