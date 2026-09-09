@@ -6,20 +6,19 @@ Single source of truth for all AI coding assistants. Tool-specific entry points
 ## Project Rules
 
 1. **Testing** — NEVER run `pytest` directly. Use the `run-tests` skill (`scripts/run-tests`). See `docs/contributing-testing.rst`.
-2. **Linting** — NEVER use raw linting tools such as `black` or `flake8`. Use the repository's Ruff-backed `lint` skill (`scripts/lint <subcommand>`).
+2. **Linting** — NEVER use raw linting tools. Use the `lint` skill (`scripts/lint <subcommand>`).
 3. **Format and lint** — Use the `lint` skill to format files after editing and to run all checks before committing.
 4. **No public API breakage** — Never change public API contracts; real applications depend on them.
 5. **No secrets** — Never commit secrets; use environment variables.
 6. **Don't assume business logic** — Ask when unsure about implementation details.
-7. **No new `AIDEV-*` anchor comments** — The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels. Do not remove or rewrite an existing anchored comment merely because nearby code is being edited. Only an explicit instruction or a dedicated anchor-migration task may replace the old label with plain comment syntax; never delete the protected comment, and preserve its substantive text. CI blocks new anchors on changed lines.
-8. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
-9. **Test before committing** — Run relevant tests to validate changes before committing.
-10. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
-11. **Update docs** — Add/update documentation when changing internal or public APIs.
-12. **No stray prints** — Check for and remove unexpected `print()` calls.
-13. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
-14. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
-15. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
+7. **TODO/NOTE comments are protected** — Never remove `TODO` or `NOTE` comments without explicit human instruction. Update them when modifying related code.
+8. **Test before committing** — Run relevant tests to validate changes before committing.
+9. **Performance matters** — This library runs in production hot paths. Benchmark changes to C/C++/Cython/Rust code.
+10. **Update docs** — Add/update documentation when changing internal or public APIs.
+11. **No stray prints** — Check for and remove unexpected `print()` calls.
+12. **Keep integration skills current** — When modifying integration code in `ddtrace/contrib/internal/` or `ddtrace/llmobs/_integrations/`, review `.claude/skills/apm-integrations/` and `.claude/skills/llmobs-integrations/` and update any reference files that describe the changed patterns.
+13. **Docstrings and comments** — Docstrings Sphinx renders use reStructuredText; everything else is plain prose. See "Docstrings and Comments" below.
+14. **No deferred imports to paper over circular imports** — Never fix (or leave in place) a circular import by moving an `import` inside a function/method body. This hides the structural problem instead of fixing it, and is explicitly banned by the `circular-import-analysis` skill. Use that skill to find the real architectural fix (extract shared types, invert the dependency, or move the code to the module that owns it) any time you add/move a module or see a new cycle reported.
 
 ## Docstrings and Comments
 
@@ -131,3 +130,15 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+
+## AIDEV Anchor Comments
+
+The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
+
+- Existing `AIDEV-*` anchors are protected by default. Do not remove or rewrite
+  an existing anchored comment merely because nearby code is being edited.
+- An explicit instruction or a dedicated anchor-migration task may replace an
+  old label with plain comment syntax; never delete the protected comment, and
+  preserve its substantive text.
+- New `AIDEV-*` anchor comments are forbidden. CI blocks new anchors on
+  changed lines.

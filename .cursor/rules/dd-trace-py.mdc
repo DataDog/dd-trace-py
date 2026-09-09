@@ -15,7 +15,6 @@ Read and follow `AGENTS.md` for:
 - Project rules (testing, linting, formatting)
 - Key architecture
 - Inline knowledge comments (legacy AIDEV anchors are protected; see AGENTS.md)
-- Ruff-backed linting through the repository's `scripts/lint` commands
 - PR guidelines
 - Skills reference
 - Domain guides
