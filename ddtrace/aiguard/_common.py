@@ -9,6 +9,12 @@ from collections.abc import Mapping
 from typing import Any
 
 from ddtrace.aiguard._api_client import AIGuardAbortError
+from ddtrace.aiguard._api_client import AIGuardClient
+from ddtrace.aiguard._api_client import Evaluation
+from ddtrace.aiguard._api_client import Message
+from ddtrace.aiguard._api_client import Options
+from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 def _get(obj: Any, key: str, default: Any = None) -> Any:
@@ -41,3 +47,17 @@ def wrap_abort_error(cause: AIGuardAbortError, compound_cls: type[AIGuardAbortEr
     )
     wrapped.__cause__ = cause
     return wrapped
+
+
+def evaluate_auto(client: AIGuardClient, messages: list[Message], integration: str) -> Evaluation:
+    """Evaluate messages on behalf of an auto-instrumented AI package.
+
+    Every provider listener shares one policy -- block per DD_AI_GUARD_BLOCK, report the call
+    path as auto -- so binding it here keeps a listener from forgetting or mismatching a tag.
+    """
+    return client.evaluate(
+        messages,
+        Options(block=aiguard_config._ai_guard_block),
+        source=AI_GUARD.SOURCE_AUTO,
+        integration=integration,
+    )

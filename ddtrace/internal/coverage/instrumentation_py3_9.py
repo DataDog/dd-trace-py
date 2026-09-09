@@ -10,6 +10,7 @@ import typing as t
 
 from ddtrace.internal.bytecode_injection import HookType
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 
 
 if sys.version_info < (3, 10):
@@ -357,7 +358,7 @@ if sys.version_info < (3, 10):
 
         # Instrument nested code objects recursively
         for original_offset, nested_code in enumerate(code.co_consts):
-            if isinstance(nested_code, CodeType):
+            if isinstance(nested_code, CodeType) and not is_obfuscated_code(nested_code):
                 new_consts[original_offset], nested_lines = instrument_all_lines(
                     nested_code, trap_func, trap_arg, package
                 )

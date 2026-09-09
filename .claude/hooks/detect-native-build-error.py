@@ -24,12 +24,12 @@ The fix depends on how you are running ddtrace:
 
       pip install -e .
 
-  Riot (test runner)
-  ------------------
+  scripts/run-tests
+  -----------------
   If you are using the -s flag (skip base install), that is why extensions are
-  missing. Drop -s on your next run so riot rebuilds them:
+  missing. Drop -s on your next run so ddtrace is rebuilt:
 
-      riot -v run -p <python_version> <suite_name>
+      scripts/run-tests --venv <environment_hash>
 
   Docker / scripts/ddtest
   -----------------------
