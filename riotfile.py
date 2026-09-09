@@ -237,6 +237,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "flask": latest,
+                "pip": "==26.2.1",
                 "pytest-xdist": latest,
                 # Pinned to the version we previously vendored, to avoid API drift.
                 "psutil": "==7.1.3",
@@ -722,11 +723,16 @@ venv = Venv(
         Venv(
             name="lib_injection",
             command="pytest {cmdargs} tests/lib_injection/",
-            pys=select_pys(),
-            pkgs={
-                "PyYAML": latest,
-                "pytest-randomly": latest,
-            },
+            venvs=[
+                Venv(
+                    pys=["3.9"],
+                    pkgs={"PyYAML": latest, "pip": "==26.0.1", "pytest-randomly": latest},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"PyYAML": latest, "pip": "==26.2.1", "pytest-randomly": latest},
+                ),
+            ],
         ),
         Venv(
             name="gevent",
@@ -821,6 +827,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/errortracking/",
             pkgs={
                 "flask": latest,
+                "pip": "==26.2.1",
             },
             pys=select_pys(min_version="3.10"),
         ),
@@ -1390,7 +1397,6 @@ venv = Venv(
                     pys=["3.9"],
                     pkgs={
                         "flask": "~=0.12.0",
-                        "Werkzeug": ["<1.0"],
                         "Flask-Cache": "~=0.13.1",
                         "werkzeug": "<1.0",
                         "pytest": "~=6.0",
@@ -3747,6 +3753,8 @@ venv = Venv(
             name="integration_registry",
             command="pytest {cmdargs} tests/contrib/integration_registry",
             pkgs={
+                "pip": "==26.2.1",
+                "ruamel.yaml": "==0.18.6",
                 "riot": "==0.22.0",
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.23.7",

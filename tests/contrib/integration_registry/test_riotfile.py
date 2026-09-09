@@ -75,7 +75,7 @@ def test_uv_suitespec_matches_riot():
                         environment.name,
                         environment.python,
                         tuple(shlex.split(run.command)),
-                        frozenset(environment.riot_lock_dependencies),
+                        frozenset(environment.direct_dependencies),
                         frozenset(run.environment.items()),
                     )
                 )

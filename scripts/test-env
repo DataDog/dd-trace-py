@@ -75,7 +75,7 @@ def _list_hashes(
         target = f" for {suite}" if suite else ""
         version = f" using Python {python_version}" if python_version else ""
         raise LockError(f"no test environments found{target}{version}")
-    return tuple(sorted({environment.lock_hash for environment in matches}))
+    return tuple(sorted({environment.hash for environment in matches}))
 
 
 def _require_lock_platform(command: str) -> None:
@@ -96,14 +96,14 @@ def compile_environment(
     exclude_newer: str,
     upgrade: bool,
 ) -> str:
-    if not environment.riot_lock_dependencies:
-        raise LockError(f"environment has no dependencies: {environment.lock_hash}")
+    if not environment.direct_dependencies:
+        raise LockError(f"environment has no dependencies: {environment.hash}")
 
-    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.lock_hash}-") as temporary:
+    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.hash}-") as temporary:
         temporary_path = Path(temporary)
         requirements = temporary_path / "requirements.in"
         output = temporary_path / "requirements.txt"
-        requirements.write_text("\n".join(sorted(environment.riot_lock_dependencies, key=str.casefold)) + "\n")
+        requirements.write_text("\n".join(sorted(environment.direct_dependencies, key=str.casefold)) + "\n")
         existing_lock = PROJECT_ROOT / environment.lockfile
         if existing_lock.is_file():
             output.write_text(existing_lock.read_text())
@@ -134,7 +134,7 @@ def compile_environment(
         except subprocess.CalledProcessError as error:
             details = (error.stderr or error.stdout or "").strip()
             suffix = f"\n{details}" if details else ""
-            raise LockError(f"failed to lock {environment.name}/{environment.lock_hash}{suffix}") from error
+            raise LockError(f"failed to lock {environment.name}/{environment.hash}{suffix}") from error
         return output.read_text()
 
 
@@ -157,9 +157,9 @@ def _unique_lock_environments(environments: Sequence[TestEnvironment]) -> dict[P
     unique: dict[Path, TestEnvironment] = {}
     for environment in environments:
         existing = unique.setdefault(environment.lockfile, environment)
-        if (existing.python, existing.riot_lock_dependencies) != (
+        if (existing.python, existing.direct_dependencies) != (
             environment.python,
-            environment.riot_lock_dependencies,
+            environment.direct_dependencies,
         ):
             raise LockError(f"incompatible test environments share {environment.lockfile}")
     return unique
