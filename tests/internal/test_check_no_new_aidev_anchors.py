@@ -63,6 +63,8 @@ def test_is_anchor_line_detects_any_unquoted_occurrence(line: str) -> None:
     "line",
     [
         '+ """AIDEV-NOTE: docstring opening line"""',
+        '+ r"""AIDEV-NOTE: prefixed raw docstring"""',
+        "+     rf'''AIDEV-TODO: prefixed docstring'''",
         "+     AIDEV-TODO: multiline docstring line",
     ],
 )
@@ -70,9 +72,14 @@ def test_is_anchor_line_detects_docstrings(line: str) -> None:
     assert _MODULE._is_anchor_line(line)
 
 
-def test_is_anchor_line_ignores_triple_quoted_strings() -> None:
-    line: str = '+ value = """AIDEV-NOTE: string content"""'
-
+@pytest.mark.parametrize(
+    "line",
+    [
+        '+ value = """AIDEV-NOTE: string content"""',
+        '+ value = r"""AIDEV-NOTE: prefixed string content"""',
+    ],
+)
+def test_is_anchor_line_ignores_triple_quoted_strings(line: str) -> None:
     assert not _MODULE._is_anchor_line(line)
 
 
