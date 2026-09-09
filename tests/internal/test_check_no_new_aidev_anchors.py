@@ -62,12 +62,18 @@ def test_is_anchor_line_detects_any_unquoted_occurrence(line: str) -> None:
 @pytest.mark.parametrize(
     "line",
     [
-        '+ """AIDE' "V-NOTE: docstring opening line" '"""',
-        "+     AIDE" "V-TODO: multiline docstring line",
+        '+ """AIDEV-NOTE: docstring opening line"""',
+        "+     AIDEV-TODO: multiline docstring line",
     ],
 )
 def test_is_anchor_line_detects_docstrings(line: str) -> None:
     assert _MODULE._is_anchor_line(line)
+
+
+def test_is_anchor_line_ignores_triple_quoted_strings() -> None:
+    line: str = '+ value = """AIDEV-NOTE: string content"""'
+
+    assert not _MODULE._is_anchor_line(line)
 
 
 def test_added_lines_ignores_deleted_anchors(monkeypatch: pytest.MonkeyPatch) -> None:
