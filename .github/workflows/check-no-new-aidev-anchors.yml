@@ -2,12 +2,11 @@ name: check-no-new-aidev-anchors
 on:
   # PR-only counterpart to the GitLab job of the same name. GitLab still
   # covers ordinary non-PR pipelines; this workflow does not run on push.
+  # No paths filter: a new deprecated anchor can land in any file.
   pull_request:
-    paths:
-      - ".github/workflows/check-no-new-aidev-anchors.yml"
-      - "scripts/check_no_new_aidev_anchors.py"
-      - "tests/internal/test_check_no_new_aidev_anchors.py"
-      - "AGENTS.md"
+
+permissions:
+  contents: read
 
 jobs:
   check-no-new-aidev-anchors:
