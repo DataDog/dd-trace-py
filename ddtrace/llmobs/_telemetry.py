@@ -8,13 +8,13 @@ from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._constants import PromptSource
+from ddtrace.llmobs._event_types import LLMObsSpanEvent
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_model_provider
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_tags
-from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
 
