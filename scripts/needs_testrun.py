@@ -17,7 +17,6 @@ import json
 import logging
 import os
 from pathlib import Path
-import re
 from subprocess import check_output
 import sys
 import typing as t
@@ -90,11 +89,10 @@ def get_latest_commit_message() -> str:
     try:
         return check_output(["git", "log", "-1", "--pretty=%B"]).decode("utf-8").strip()
     except Exception:
-        pass
-    return ""
+        return ""
 
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", os.environ.get("GH_TOKEN"))
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
 if not GITHUB_TOKEN:
     try:
         GITHUB_TOKEN = check_output(["gh", "auth", "token"], text=True).strip()
@@ -172,11 +170,9 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     try:
         patterns = get_patterns(suite)
     except Exception as exc:
-        LOGGER.error("Failed to get patterns")
-        LOGGER.error(exc)
+        LOGGER.error("Failed to get patterns: %s", exc)
         return True
     if not patterns:
-        # We don't have patterns so we run the tests
         LOGGER.info("No patterns for suite '%s', running all tests", suite)
         return True
 
@@ -186,11 +182,10 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
         LOGGER.error("Failed to get changed files")
         return True
     if not changed_files:
-        # No files changed, no need to run the tests
         LOGGER.info("No files changed, not running tests")
         return False
 
-    matches = [_ for p in patterns for _ in fnmatch.filter(changed_files, p)]
+    matches = [path for pattern in patterns for path in fnmatch.filter(changed_files, pattern)]
 
     LOGGER.info("Changed files:")
     for f in changed_files:
@@ -208,22 +203,17 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     return bool(matches)
 
 
-def _get_merge_queue_pr_number(ref_name: str, commit_message: str) -> t.Optional[int]:
-    """Get the pull request number recorded by a devflow merge-queue commit.
+def _get_merge_queue_pr_number(commit_message: str) -> t.Optional[int]:
+    """Get the pull request number from devflow commit metadata.
 
     >>> message = '''[mq] working branch
     ...
     ... {"baseBranch":"main","pullRequestNumber":"19881"}'''
-    >>> _get_merge_queue_pr_number("mq-working-branch-main-deadbee", message)
+    >>> _get_merge_queue_pr_number(message)
     19881
-    >>> _get_merge_queue_pr_number("feature-branch", message) is None
-    True
-    >>> _get_merge_queue_pr_number("mq-working-branch-main-deadbee", "not json") is None
+    >>> _get_merge_queue_pr_number("not json") is None
     True
     """
-    if re.fullmatch(r"mq-working-branch-.+-[0-9a-f]{7,40}", ref_name) is None:
-        return None
-
     try:
         metadata = json.loads(commit_message.rsplit("\n\n", 1)[-1])
         return int(metadata["pullRequestNumber"])
@@ -233,26 +223,22 @@ def _get_merge_queue_pr_number(ref_name: str, commit_message: str) -> t.Optional
 
 @cache
 def _get_pr_number() -> int:
-    # CircleCI
-    number = os.environ.get("CIRCLE_PR_NUMBER")
-    if number is not None:
+    if number := os.environ.get("CIRCLE_PR_NUMBER"):
         return int(number)
 
-    pr_url = os.environ.get("CIRCLE_PULL_REQUEST")
-    if pr_url is not None:
+    if pr_url := os.environ.get("CIRCLE_PULL_REQUEST"):
         return int(pr_url.split("/")[-1])
 
-    # GitLab
     ref_name = os.environ.get("CI_COMMIT_REF_NAME")
-    if ref_name is not None:
-        # AIDEV-NOTE: Devflow merge-queue branches have no matching GitHub head ref.
-        # Their commit metadata preserves the original pull request number.
-        commit_message = os.environ.get("CI_COMMIT_MESSAGE") or get_latest_commit_message()
-        if (pr_number := _get_merge_queue_pr_number(ref_name, commit_message)) is not None:
-            return pr_number
-        return int(github_api("/pulls", {"head": f"datadog:{ref_name}"})[0]["number"])
+    if not ref_name:
+        raise RuntimeError("Could not determine PR number")
 
-    raise RuntimeError("Could not determine PR number")
+    # AIDEV-NOTE: Merge-queue commits store the original PR number in JSON metadata.
+    if ref_name.startswith("mq-working-branch-"):
+        if pr_number := _get_merge_queue_pr_number(os.environ.get("CI_COMMIT_MESSAGE", "")):
+            return pr_number
+
+    return int(github_api("/pulls", {"head": f"datadog:{ref_name}"})[0]["number"])
 
 
 def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None], git_selections: set[str]):
@@ -262,9 +248,6 @@ def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None], 
         pr_number = None
 
     for suite in suites:
-        # If we don't have a valid PR number we run all tests
-        # or "all" or current suite is annotated in git commit we run the suite
-        # or the suite needs to be run based on the changed files
         if pr_number is None or (git_selections & {"all", suite}) or needs_testrun(suite, pr_number):
             action(suite)
 
@@ -274,14 +257,14 @@ _changed_files_override: t.Optional[set[str]] = None
 
 
 def pr_matches_patterns(patterns: set[str]) -> bool:
-    if _changed_files_override is not None:
-        return bool([_ for p in patterns for _ in fnmatch.filter(_changed_files_override, p)])
-    try:
-        changed_files = get_changed_files(_get_pr_number())
-    except Exception:
-        LOGGER.error("Failed to get changed files. Assuming the PR matches for precaution.")
-        return True
-    return bool([_ for p in patterns for _ in fnmatch.filter(changed_files, p)])
+    changed_files = _changed_files_override
+    if changed_files is None:
+        try:
+            changed_files = get_changed_files(_get_pr_number())
+        except Exception:
+            LOGGER.error("Failed to get changed files. Assuming the PR matches for precaution.")
+            return True
+    return any(fnmatch.fnmatch(path, pattern) for path in changed_files for pattern in patterns)
 
 
 def extract_git_commit_selections(git_commit_message: str) -> set[str]:
