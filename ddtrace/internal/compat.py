@@ -29,7 +29,7 @@ MAX_PY_VERSION: str = f"{MAX_PY[0]}.{MAX_PY[1]}"
 # First unsupported CPython for packaging (last-supported+1). wrap() fail-closes
 # at (3, 16), not here.
 NEXT_MAX_PY: tuple[int, int] = (MAX_PY[0], MAX_PY[1] + 1)
-NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Python %s and later)" % "3.16"
+NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet: {}.{}".format(*sys.version_info[:2])
 
 # CPython 3.15 introduced sys.monitoring PY_UNWIND / PEP 810 import packing.
 # Not MAX_PY — do not bump this when MAX_PY moves.
