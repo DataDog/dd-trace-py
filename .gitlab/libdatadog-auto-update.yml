@@ -37,9 +37,11 @@ libdatadog-auto-update:
   timeout: 5h
   needs: []
   interruptible: false
+  # Triggered-only: runs when an upstream (libdatadog) pipeline triggers us with
+  # UPDATE_LIBDATADOG_VERSION=true, or via the manual ▶ button. Never on regular
+  # commits — a run can hold a runner for hours.
   rules:
     - if: '$UPDATE_LIBDATADOG_VERSION == "true"'
-    - if: '$CI_COMMIT_BRANCH == "main"'
     - when: manual
       allow_failure: true
   id_tokens:
