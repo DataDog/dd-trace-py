@@ -131,7 +131,7 @@ class PromptVersionResponse(TypedDict, total=False):
     id: str
     prompt_uuid: str
     prompt_id: str
-    template: Union[str, list[ChatTemplateItem]]
+    template: Union[str, list[ChatMessage]]
     version: int
     user_version: str
     labels: list[str]
@@ -215,7 +215,7 @@ class Prompt(TypedDict, total=False):
     id: str
     label: str
     template: str
-    chat_template: Union[list[Message], list[ChatTemplateItem]]
+    chat_template: Union[list[dict[str, str]], list[Message]]
     variables: dict[str, str]
     tags: dict[str, str]
     rag_context_variables: list[str]

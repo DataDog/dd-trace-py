@@ -104,7 +104,7 @@ class ManagedPrompt:
         if isinstance(self.template, str):
             result["template"] = self.template
         else:
-            result["chat_template"] = self.template
+            result["chat_template"] = cast(Union[list[dict[str, str]], list[Message]], self.template)
 
         return result
 

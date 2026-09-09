@@ -2129,7 +2129,7 @@ class LLMObs(Service):
     def create_prompt(
         cls,
         prompt_id: str,
-        template: list[ChatTemplateItem],
+        template: Sequence[ChatTemplateItem],
         *,
         title: str = "",
         description: str = "",
@@ -2172,7 +2172,7 @@ class LLMObs(Service):
     def create_prompt_version(
         cls,
         prompt_id: str,
-        template: list[ChatTemplateItem],
+        template: Sequence[ChatTemplateItem],
         *,
         description: str = "",
         user_version: str = "",

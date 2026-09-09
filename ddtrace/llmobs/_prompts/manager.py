@@ -6,6 +6,7 @@ import json
 from typing import Any
 from typing import Literal
 from typing import Optional
+from typing import Sequence
 from typing import Union
 from urllib.parse import quote
 from urllib.parse import urlencode
@@ -600,7 +601,7 @@ class PromptManager:
     def create_prompt(
         self,
         prompt_id: str,
-        template: list[ChatTemplateItem],
+        template: Sequence[ChatTemplateItem],
         *,
         title: str = "",
         description: str = "",
@@ -626,7 +627,7 @@ class PromptManager:
     def create_prompt_version(
         self,
         prompt_id: str,
-        template: list[ChatTemplateItem],
+        template: Sequence[ChatTemplateItem],
         *,
         description: str = "",
         user_version: str = "",
