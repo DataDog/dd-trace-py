@@ -1152,7 +1152,7 @@ suites:
           python: ['3.9']
           dependencies: ['dramatiq~=1.10.0', redis, pika]
         - name: dramatiq
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [dramatiq, redis]
   elasticsearch:
     pattern: ^elasticsearch(?!:opensearch)
@@ -1472,7 +1472,7 @@ suites:
           python: ['3.14']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1757,7 +1757,7 @@ suites:
         - name: logbook
           dependencies: [logbook, pytest-randomly]
   loguru:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@core'
       - '@contrib'
@@ -1840,7 +1840,7 @@ suites:
           python: ['3.12', '3.13']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -2381,9 +2381,12 @@ suites:
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'rq~=2.0.0', 'click==7.1.2']
         - name: rq
           python: ['3.9']
+          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'rq~=2.7.0', 'click==7.1.2']
+        - name: rq
+          python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq, 'click==7.1.2']
         - name: rq
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq]
   sanic:
     paths:
@@ -2680,7 +2683,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'tornado==6.4.1']
   urllib3:
-    parallelism: 1
+    parallelism: 2
     env:
       TEST_HTTPBIN_HOST: httpbin
       TEST_HTTPBIN_PORT: '8001'
