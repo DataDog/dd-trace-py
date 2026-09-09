@@ -134,6 +134,7 @@ run-tests-trigger:
    strategy: depend
 
 serverless lambda tests:
+  extends: .serverless_rules
   stage: tests
   trigger:
     project: DataDog/datadog-lambda-python
@@ -613,6 +614,16 @@ lib_injection_tests:
   stage: tests
   tags: [ "arch:amd64" ]
   image: registry.ddbuild.io/dd-trace-py:v106957811-b912d74-lib_injection@sha256:d381042ec0c5d8ba617453feec7ccdffefca8ef0e3011d980728fe1a7a9425eb
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - changes:
+        - .gitlab-ci.yml
+        - lib-injection/**/*
+    - when: never
   script: |
     echo -e "\e[0Ksection_start:`date +%s`:info[collapsed=true]\r\e[0KPython versions"
     pyenv --version
@@ -730,9 +741,49 @@ package-oci:
     - job: "download_dependency_wheels"
       artifacts: true
 
+.full_system_test_changes: &full_system_test_changes
+  - .gitlab-ci.yml
+  - .gitlab/one-pipeline.locked.yml
+  - .gitlab/package.yml
+  - .gitlab/system-tests.yml
+  - .gitlab/scripts/build-sdist.sh
+  - .gitlab/scripts/build-wheel.sh
+  - setup.py
+  - pyproject.toml
+  - MANIFEST.in
+  - ddtrace/**/*.c
+  - ddtrace/**/*.cpp
+  - ddtrace/**/*.h
+  - ddtrace/**/*.pxd
+  - ddtrace/**/*.pyx
+  - lib-injection/**/*
+  - src/native/**/*
+  - src/native_heap_gotter/**/*
+
+.product_system_test_changes: &product_system_test_changes
+  - ddtrace/appsec/**/*
+  - ddtrace/internal/datadog/profiling/**/*
+  - ddtrace/profiling/**/*
+  - tests/appsec/**/*
+  - tests/profiling/**/*
+
 configure_system_tests:
+  needs: []
   variables:
     SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec,docker-ssi,lib-injection"
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: !reference [.is_main]
+    - if: !reference [.is_release]
+    - if: !reference [.is_release_branch]
+    - changes: *full_system_test_changes
+    - changes: *product_system_test_changes
+      variables:
+        SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding,simple_onboarding_profiling,simple_onboarding_appsec"
+    - when: on_success
+      variables:
+        SYSTEM_TESTS_SCENARIOS_GROUPS: "simple_onboarding"
 
 system_tests:
   needs: ["configure_system_tests", "oci-internal-test-publish", "kubernetes-injection-test-ecr-publish"]

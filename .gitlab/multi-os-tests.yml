@@ -1,10 +1,36 @@
-# Multi-OS Test Suite
-# Tests the application across Ubuntu, macOS, and Windows with multiple Python versions
+.multi_os_changes: &multi_os_changes
+  - .gitlab-ci.yml
+  - .gitlab/multi-os-tests.yml
+  - .gitlab/package.yml
+  - .gitlab/requirements/multi-os-tests.txt
+  - .gitlab/scripts/build-wheel.sh
+  - .gitlab/scripts/build-wheel-windows.sh
+  - .gitlab/scripts/multi-os-tests.ps1
+  - .gitlab/scripts/multi-os-tests.sh
+  - setup.py
+  - pyproject.toml
+  - ddtrace/**/*.c
+  - ddtrace/**/*.cpp
+  - ddtrace/**/*.h
+  - ddtrace/**/*.pxd
+  - ddtrace/**/*.pyx
+  - ddtrace/appsec/**/*
+  - src/native/**/*
+  - src/native_heap_gotter/**/*
+  - tests/appsec/architectures/**/*
+  - tests/internal/service_name/**/*
 
 .multi_os_test_base:
   stage: tests
-  # multi-OS runners (especially windows) are prone to flaky infra/test failures
   retry: 2
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - changes: *multi_os_changes
+    - when: never
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"

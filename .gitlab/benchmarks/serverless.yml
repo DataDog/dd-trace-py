@@ -2,6 +2,17 @@ variables:
   SLS_CI_IMAGE: registry.ddbuild.io/ci/serverless-tools:1
   SLS_CI_BRANCH: v1.3.0
 
+.serverless_benchmark_changes: &serverless_benchmark_changes
+  - .gitlab-ci.yml
+  - .gitlab/benchmarks/serverless.yml
+  - .gitlab/package.yml
+  - .gitlab/scripts/build-wheel.sh
+  - setup.py
+  - pyproject.toml
+  - ddtrace/internal/serverless/**/*
+  - ddtrace/contrib/internal/aws_lambda/**/*
+  - tests/contrib/aws_lambda/**/*
+
 benchmark-serverless:
   stage: benchmarks
   trigger:
@@ -11,9 +22,14 @@ benchmark-serverless:
   needs:
     - job: "upload serverless"
   rules:
-    - if: $RELEASE_ALLOW_BENCHMARK_FAILURES == "true"
+    - if: '$RELEASE_ALLOW_BENCHMARK_FAILURES == "true" && ($NIGHTLY_BUILD == "true" || $CI_PIPELINE_SOURCE == "schedule" || $CI_COMMIT_REF_NAME == "main" || $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/ || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/)'
       allow_failure: true
-    - allow_failure: false
+    - if: '$NIGHTLY_BUILD == "true" || $CI_PIPELINE_SOURCE == "schedule" || $CI_COMMIT_REF_NAME == "main" || $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/ || $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/'
+    - if: '$RELEASE_ALLOW_BENCHMARK_FAILURES == "true"'
+      changes: *serverless_benchmark_changes
+      allow_failure: true
+    - changes: *serverless_benchmark_changes
+    - when: never
   variables:
     DD_TAGS: "SLS_CI_BRANCH:$SLS_CI_BRANCH"
     UPSTREAM_PIPELINE_ID: $CI_PIPELINE_ID

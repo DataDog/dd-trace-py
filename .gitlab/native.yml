@@ -1,12 +1,51 @@
 include:
   - local: ".gitlab/testrunner.yml"
 
+.rust_changes: &rust_changes
+  - .gitlab-ci.yml
+  - .gitlab/native.yml
+  - setup.py
+  - pyproject.toml
+  - src/native/**/*
+  - src/native_heap_gotter/**/*
+
+.profiling_native_changes: &profiling_native_changes
+  - .gitlab-ci.yml
+  - .gitlab/native.yml
+  - setup.py
+  - pyproject.toml
+  - ddtrace/internal/datadog/profiling/**/*.cc
+  - ddtrace/internal/datadog/profiling/**/*.cmake
+  - ddtrace/internal/datadog/profiling/**/*.cpp
+  - ddtrace/internal/datadog/profiling/**/*.h
+  - ddtrace/internal/datadog/profiling/**/*.hpp
+  - ddtrace/internal/datadog/profiling/**/*.pyx
+  - ddtrace/internal/datadog/profiling/**/CMakeLists.txt
+  - ddtrace/internal/datadog/profiling/**/*.sh
+  - ddtrace/internal/datadog/profiling/**/*.supp
+  - ddtrace/profiling/**/*.cpp
+  - ddtrace/profiling/**/*.h
+  - ddtrace/profiling/**/*.hpp
+  - ddtrace/profiling/**/*.pxd
+  - ddtrace/profiling/**/*.pyx
+  - ddtrace/profiling/**/CMakeLists.txt
+  - src/native/**/*
+  - src/native_heap_gotter/**/*
+
 "rust ci":
   stage: tests
   image: !reference [.testrunner, image]
   tags: !reference [.testrunner, tags]
   timeout: 10m
   needs: []
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - changes: *rust_changes
+    - when: never
   before_script: cd src/native
   script:
     - |
@@ -43,6 +82,14 @@ include:
   tags: ["arch:amd64"]
   timeout: 20m
   needs: []
+  rules:
+    - if: $NIGHTLY_BUILD == "true"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
+    - if: $CI_COMMIT_BRANCH =~ /^[0-9]+\.[0-9]+$/
+    - changes: *profiling_native_changes
+    - when: never
   before_script:
     - pyenv global 3.12
   script:
