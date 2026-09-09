@@ -1,10 +1,10 @@
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -54,16 +54,10 @@ def patch():
 
     algoliasearch._datadog_patch = True
 
-    pin = Pin()
-
     if algoliasearch_version < V2 and algoliasearch_version >= V1:
         _w(algoliasearch.index, "Index.search", _patched_search)
-        pin.onto(algoliasearch.index.Index)
     elif algoliasearch_version >= V2 and algoliasearch_version < V3:
-        from algoliasearch import search_index
-
         _w(algoliasearch, "search_index.SearchIndex.search", _patched_search)
-        pin.onto(search_index.SearchIndex)
     else:
         return
 
@@ -119,15 +113,14 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
     else:
         return func(*wrapt_args, **wrapt_kwargs)
 
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*wrapt_args, **wrapt_kwargs)
 
     with tracer.trace(
         schematize_cloud_api_operation("algoliasearch.search", cloud_provider="algoliasearch", cloud_service="search"),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, trace_utils.ext_service(pin, config.algoliasearch), config.algoliasearch)
+        set_service_and_source(span, trace_utils.ext_service(None, config.algoliasearch), config.algoliasearch)
         span._set_attribute(COMPONENT, config.algoliasearch.integration_name)
 
         # set span.kind to the type of request being performed
