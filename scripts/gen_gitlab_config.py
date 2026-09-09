@@ -24,6 +24,7 @@ import hashlib
 import importlib
 import os
 import re
+import shlex
 import subprocess
 import typing as t
 
@@ -141,7 +142,9 @@ class JobSpec:
             lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            # Retry up to twice on transient pip network failures; service-check
+            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
+            lines.append(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}")
 
         env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
@@ -215,6 +218,10 @@ TARGET_JOBS = 200
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
+def _shell_environment(environment: dict[str, str]) -> str:
+    return shlex.join(f"{name}={value}" for name, value in environment.items())
+
+
 def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
     """Collect venv count and Python versions for multiple suites in a single pass.
 
@@ -282,21 +289,22 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
             continue
         environments = uv_environments[suite]
         uv_metadata = {}
-        for environment in environments:
-            if len(environment.runs) != 1:
-                raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
-            run = environment.runs[0]
-            # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
-            # the command directly, so preserve that runner argument explicitly.
-            command = run.command.replace("{cmdargs}", "--ddtrace")
-            for name, value in run.environment.items():
-                command = command.replace(f"${{{{{name}}}}}", value)
-            uv_metadata[environment.hash] = (
-                environment.lockfile,
-                run.environment.get("DDTEST_TESTS_LOCATION", ""),
-                command,
-                " ".join(f"{name}={value}" for name, value in run.environment.items()),
-            )
+        if suite_configs[suite].get("ddtest"):
+            for environment in environments:
+                if len(environment.runs) != 1:
+                    raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
+                run = environment.runs[0]
+                # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
+                # the command directly, so preserve that runner argument explicitly.
+                command = run.command.replace("{cmdargs}", "--ddtrace")
+                for name, value in run.environment.items():
+                    command = command.replace(f"${{{{{name}}}}}", value)
+                uv_metadata[environment.hash] = (
+                    environment.lockfile,
+                    run.environment.get("DDTEST_TESTS_LOCATION", ""),
+                    command,
+                    _shell_environment(run.environment),
+                )
         result[suite] = SuiteVenvInfo(
             venv_count=len(environments),
             python_versions={environment.python for environment in environments},
@@ -770,6 +778,11 @@ def gen_pre_checks() -> None:
     check(
         name="Check suitespec coverage",
         command="scripts/lint suitespec-check",
+        paths={"*"},
+    )
+    check(
+        name="Check suitespec duplicates",
+        command="scripts/lint suitespec-duplicates",
         paths={"*"},
     )
     check(
