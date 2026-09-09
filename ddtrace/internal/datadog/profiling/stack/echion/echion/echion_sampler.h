@@ -1,6 +1,8 @@
 #pragma once
 
-#include <echion/frame.h>
+#define PY_SSIZE_T_CLEAN
+#define Py_BUILD_CORE
+#include <Python.h>
 
 #include <cstdint>
 #include <optional>
@@ -9,6 +11,7 @@
 #include <unordered_set>
 
 #include <echion/cache.h>
+#include <echion/frame.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
 

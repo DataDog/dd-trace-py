@@ -1,6 +1,9 @@
-#include <echion/state.h>
+#define PY_SSIZE_T_CLEAN
+#define Py_BUILD_CORE
+#include <Python.h>
 
 #include <echion/danger.h>
+#include <echion/state.h>
 
 #include <algorithm>
 #include <cassert>

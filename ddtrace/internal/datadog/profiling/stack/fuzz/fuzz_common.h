@@ -11,7 +11,9 @@
 #pragma once
 
 // Establish Python configuration before system headers in every harness.
-#include <echion/frame.h>
+#define PY_SSIZE_T_CLEAN
+#define Py_BUILD_CORE
+#include <Python.h>
 
 #include <algorithm>
 #include <cstddef>
