@@ -22,6 +22,7 @@ Run via ``scripts/lint slo-ownership``. Exits non-zero if any check fails.
 from pathlib import Path
 import re
 import sys
+from typing import Optional
 
 from ruamel.yaml import YAML
 
@@ -38,7 +39,7 @@ BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
 BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
 
-def _get_benchmark_class_name(suite_name: str) -> str | None:
+def _get_benchmark_class_name(suite_name: str) -> Optional[str]:
     """Return the lowercased scenario class name for a benchmark dir, or None."""
     scenario = BENCHMARKS / suite_name / "scenario.py"
     if not scenario.exists():
