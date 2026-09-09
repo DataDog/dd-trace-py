@@ -42,8 +42,8 @@ jobs:
       - name: Resolve commit SHA
         id: sha
         run: |
-          if [ -n "${{ inputs.commit_sha }}" ]; then
-            echo "value=${{ inputs.commit_sha }}" >> "$GITHUB_OUTPUT"
+          if [ -n "${{ github.event.inputs.commit_sha }}" ]; then
+            echo "value=${{ github.event.inputs.commit_sha }}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
             echo "value=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
           else
@@ -64,4 +64,4 @@ jobs:
           gh workflow run downstream-python.yml \
             --repo DataDog/prof-correctness \
             -f "dd_trace_py_commit_sha=${{ steps.sha.outputs.value }}" \
-            -f "test_scenarios=${{ inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\\.(14|15)' }}"
+            -f "test_scenarios=${{ github.event.inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\\.(14|15)' }}"
