@@ -14,7 +14,6 @@ from ddtrace.contrib.internal.azure_functions._worker import patch_worker_contex
 from ddtrace.contrib.internal.azure_functions._worker import unpatch_worker_context
 from ddtrace.contrib.internal.azure_functions.shared import patched_get_functions
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.propagation.http import _TraceContext
 
 
@@ -40,15 +39,9 @@ def patched_get_current_activity_context(
     if not carrier:
         return wrapped(*args, **kwargs)
 
-    active_span = tracer.current_span()
-    assert active_span is not None
-    HTTPPropagator.inject(active_span, carrier)
     traceparent = carrier.get("traceparent")
     if traceparent is None:
-        _TraceContext._inject(active_span.context, carrier)
-        traceparent = carrier.get("traceparent")
-        if traceparent is None:
-            return wrapped(*args, **kwargs)
+        return wrapped(*args, **kwargs)
     return traceparent, carrier.get("tracestate")
 
 
