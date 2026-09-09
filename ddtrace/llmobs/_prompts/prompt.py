@@ -4,6 +4,7 @@ from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Union
+from typing import cast
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
@@ -11,6 +12,7 @@ from ddtrace.llmobs._prompts.utils import extract_template
 from ddtrace.llmobs._prompts.utils import render_chat
 from ddtrace.llmobs._prompts.utils import safe_substitute
 from ddtrace.llmobs._utils import attach_prompt
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptFallback
@@ -33,7 +35,7 @@ class ManagedPrompt:
     version: str
     label: Optional[str]
     source: Literal["registry", "cache", "fallback", "ff", "resolve"]
-    template: Union[str, list[Message]]
+    template: Union[str, list[ChatTemplateItem]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
 
@@ -45,7 +47,7 @@ class ManagedPrompt:
             )
         return object.__getattribute__(self, name)
 
-    def format(self, **variables: str) -> Union[str, list[Message]]:
+    def format(self, **variables: Any) -> Union[str, list[Message]]:
         """
         Render the template with variables.
 
@@ -55,7 +57,7 @@ class ManagedPrompt:
         Uses safe substitution: missing variables are left as placeholders.
 
         Args:
-            **variables: Template variables to substitute
+            **variables: Text variables and message-list placeholder values.
 
         Returns:
             str (for text templates) or list[Message] (for chat templates)
@@ -83,7 +85,14 @@ class ManagedPrompt:
             "version": self.version,
         }
         if variables:
-            result["variables"] = variables
+            placeholder_names = (
+                set()
+                if isinstance(self.template, str)
+                else {item.get("name") for item in self.template if item.get("type") == "placeholder"}
+            )
+            scalar_variables = {name: value for name, value in variables.items() if name not in placeholder_names}
+            if scalar_variables:
+                result["variables"] = scalar_variables
         label = object.__getattribute__(self, "label")
         if label:
             result["label"] = label
@@ -149,7 +158,7 @@ class ManagedPrompt:
         Returns:
             A ManagedPrompt with source="fallback" and label=None.
         """
-        template: Union[str, list[Message]] = ""
+        template: Union[str, list[ChatTemplateItem]] = ""
         version = "fallback"
 
         if fallback is not None:
@@ -158,7 +167,7 @@ class ManagedPrompt:
                 template = extract_template(value)
                 version = value.get("version") or "fallback"
             else:
-                template = value
+                template = cast(Union[str, list[ChatTemplateItem]], value)
 
         return cls(
             id=prompt_id,

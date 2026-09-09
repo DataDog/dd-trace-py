@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -97,6 +98,16 @@ class ChatMessage(TypedDict):
     content: str
 
 
+class MessagePlaceholder(TypedDict):
+    """A named insertion point for runtime messages in a chat prompt template."""
+
+    type: Literal["placeholder"]
+    name: str
+
+
+ChatTemplateItem = Union[ChatMessage, MessagePlaceholder]
+
+
 class PromptResponse(TypedDict, total=False):
     # Mirrors the backend PromptTemplate struct (dd-source domain/prompt.go);
     # not all fields are populated by every CRUD route.
@@ -120,7 +131,7 @@ class PromptVersionResponse(TypedDict, total=False):
     id: str
     prompt_uuid: str
     prompt_id: str
-    template: Union[str, list[ChatMessage]]
+    template: Union[str, list[ChatTemplateItem]]
     version: int
     user_version: str
     labels: list[str]
@@ -204,7 +215,7 @@ class Prompt(TypedDict, total=False):
     id: str
     label: str
     template: str
-    chat_template: Union[list[dict[str, str]], list[Message]]
+    chat_template: Union[list[Message], list[ChatTemplateItem]]
     variables: dict[str, str]
     tags: dict[str, str]
     rag_context_variables: list[str]

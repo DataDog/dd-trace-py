@@ -27,7 +27,7 @@ from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.prompt import ManagedPrompt
 from ddtrace.llmobs._prompts.utils import extract_error_detail
 from ddtrace.llmobs._prompts.utils import extract_template
-from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import PromptAPIError
 from ddtrace.llmobs.types import PromptAuthError
@@ -600,7 +600,7 @@ class PromptManager:
     def create_prompt(
         self,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: list[ChatTemplateItem],
         *,
         title: str = "",
         description: str = "",
@@ -626,7 +626,7 @@ class PromptManager:
     def create_prompt_version(
         self,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: list[ChatTemplateItem],
         *,
         description: str = "",
         user_version: str = "",
