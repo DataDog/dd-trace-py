@@ -1,0 +1,11 @@
+_v: 1
+name: urllib3
+display_name: urllib3
+description: Instruments outbound HTTP requests made through urllib3 connection pools, including request and response metadata
+  and distributed trace propagation.
+packages:
+- name: urllib3
+category:
+- http.client
+systems: []
+creation_date: '2021-03-25'
