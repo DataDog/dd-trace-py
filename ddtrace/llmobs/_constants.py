@@ -26,11 +26,6 @@ CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
 # different execution context than the one it started in, at which point the contextvar is gone.
 CACHED_LLMOBS_ROUTING_CTX_KEY = "_llmobs.routing"
 
-# Keys of a normalized routing context: {"targets": [{"api_key": ..., "site": ...}, ...]}.
-ROUTING_TARGETS = "targets"
-ROUTING_API_KEY = "api_key"
-ROUTING_SITE = "site"
-
 
 SESSION_ID = "_ml_obs.session_id"
 ML_APP = "_ml_obs.meta.ml_app"

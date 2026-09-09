@@ -16,9 +16,13 @@ from typing import Any
 from typing import NamedTuple
 from typing import Optional
 
-from ddtrace.llmobs._constants import ROUTING_API_KEY
-from ddtrace.llmobs._constants import ROUTING_SITE
-from ddtrace.llmobs._constants import ROUTING_TARGETS
+
+# Keys of a normalized routing context. Defined here rather than in _constants so this stays a
+# leaf module: _writer.py needs it, and adding an importer to _constants worsens the existing
+# contrib -> llmobs._constants layering violations.
+ROUTING_TARGETS = "targets"
+ROUTING_API_KEY = "api_key"
+ROUTING_SITE = "site"
 
 
 # A routing context as stored on the contextvar and stamped onto spans.

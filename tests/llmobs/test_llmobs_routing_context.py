@@ -4,18 +4,16 @@ Tests for LLMObs routing context — multi-tenant routing and dual-shipping.
 Use case 1 (multi-tenant): A platform routes LLMObs spans per-request to different customer orgs.
 Use case 2 (dual-shipping): Internal teams send the same spans to multiple staging environments.
 """
+
 import asyncio
 import json
 import os
 import time
 
-import mock
 import pytest
 
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.llmobs._constants import ROUTING_API_KEY
 from ddtrace.llmobs._context import get_routing_context
-from tests.utils import override_global_config
 
 
 DD_SITE = "datad0g.com"
@@ -126,6 +124,14 @@ def test_routing_context_multiple_targets():
 # ===========================================================================
 
 
+def _api_key(req, default=None):
+    """Read the API key header regardless of casing, which the HTTP client decides."""
+    for name, value in req["headers"].items():
+        if name.lower() == "dd-api-key":
+            return value
+    return default
+
+
 def _wait_for_requests(reqs, num, attempts=1000):
     """Helper: poll until `num` requests have been captured by the test server."""
     for _ in range(attempts):
@@ -148,7 +154,7 @@ def test_routed_span_sent_with_tenant_api_key(llmobs, _llmobs_backend):
     _wait_for_requests(reqs, initial_count + 1)
 
     # Find the request with the tenant API key
-    tenant_reqs = [r for r in reqs if r["headers"].get("Dd-Api-Key") == TENANT_A_KEY]
+    tenant_reqs = [r for r in reqs if _api_key(r) == TENANT_A_KEY]
     assert len(tenant_reqs) >= 1, f"Expected request with tenant API key, got headers: {[r['headers'] for r in reqs]}"
 
     # Verify the payload contains our span
@@ -171,7 +177,7 @@ def test_unrouted_span_sent_with_default_api_key(llmobs, _llmobs_backend):
     _wait_for_requests(reqs, initial_count + 1)
 
     # No request should have the tenant API key
-    tenant_reqs = [r for r in reqs if r["headers"].get("Dd-Api-Key") == TENANT_A_KEY]
+    tenant_reqs = [r for r in reqs if _api_key(r) == TENANT_A_KEY]
     assert len(tenant_reqs) == 0
 
 
@@ -192,7 +198,7 @@ def test_routed_and_unrouted_spans_go_to_different_keys(llmobs, _llmobs_backend)
 
     api_keys_seen = set()
     for r in reqs[initial_count:]:
-        key = r["headers"].get("Dd-Api-Key", "<default>")
+        key = _api_key(r, "<default>")
         api_keys_seen.add(key)
 
     assert TENANT_A_KEY in api_keys_seen, f"Tenant API key not found in: {api_keys_seen}"
@@ -210,7 +216,7 @@ def test_child_span_inherits_routing(llmobs, _llmobs_backend):
 
     _wait_for_requests(reqs, initial_count + 1)
 
-    tenant_reqs = [r for r in reqs[initial_count:] if r["headers"].get("Dd-Api-Key") == TENANT_A_KEY]
+    tenant_reqs = [r for r in reqs[initial_count:] if _api_key(r) == TENANT_A_KEY]
     assert len(tenant_reqs) >= 1
 
     # Both parent and child should be in the tenant payload
@@ -244,7 +250,7 @@ def test_span_after_routing_context_is_unrouted(llmobs, _llmobs_backend):
         for event in body if isinstance(body, list) else [body]:
             for s in event.get("spans", []):
                 if s.get("name") == "after":
-                    assert r["headers"].get("Dd-Api-Key") != TENANT_A_KEY
+                    assert _api_key(r) != TENANT_A_KEY
 
 
 # ===========================================================================
@@ -268,7 +274,7 @@ def test_dual_ship_sends_to_both_destinations(llmobs, _llmobs_backend):
     # Expect requests to both targets
     _wait_for_requests(reqs, initial_count + 2)
 
-    api_keys = [r["headers"].get("Dd-Api-Key") for r in reqs[initial_count:]]
+    api_keys = [_api_key(r) for r in reqs[initial_count:]]
     assert "key-staging-a" in api_keys, f"key-staging-a not found in: {api_keys}"
     assert "key-staging-b" in api_keys, f"key-staging-b not found in: {api_keys}"
 
@@ -294,7 +300,7 @@ def test_dual_ship_both_payloads_contain_span(llmobs, _llmobs_backend):
         for event in body if isinstance(body, list) else [body]:
             for s in event.get("spans", []):
                 span_names.append(s.get("name"))
-        assert "dual-shipped-span" in span_names, f"Span not found in payload for key {r['headers'].get('Dd-Api-Key')}"
+        assert "dual-shipped-span" in span_names, f"Span not found in payload for key {_api_key(r)}"
 
 
 # ===========================================================================
@@ -323,7 +329,7 @@ def test_concurrent_tenants_isolated(llmobs, _llmobs_backend):
         for event in body if isinstance(body, list) else [body]:
             for s in event.get("spans", []):
                 span_names.add(s.get("name"))
-        key = r["headers"].get("Dd-Api-Key")
+        key = _api_key(r)
         if key == TENANT_A_KEY:
             assert "tenant-a-span" in span_names
             assert "tenant-b-span" not in span_names
@@ -343,7 +349,7 @@ def test_api_key_not_in_payload_body(llmobs, _llmobs_backend):
 
     _wait_for_requests(reqs, initial_count + 1)
 
-    tenant_reqs = [r for r in reqs[initial_count:] if r["headers"].get("Dd-Api-Key") == TENANT_A_KEY]
+    tenant_reqs = [r for r in reqs[initial_count:] if _api_key(r) == TENANT_A_KEY]
     for r in tenant_reqs:
         assert TENANT_A_KEY not in r["body"]
 
