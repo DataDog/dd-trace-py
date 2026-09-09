@@ -3,7 +3,28 @@ import asyncio
 import aio_pika
 import pytest
 
+from tests.contrib.config import RABBITMQ_CONFIG
 from tests.utils import override_config
+
+
+async def _run_pull_flow(queue_name):
+    url = "amqp://{user}:{password}@{host}:{port}/".format(**RABBITMQ_CONFIG)
+    connection = await aio_pika.connect(url)
+    try:
+        channel = await connection.channel()
+        queue = await channel.declare_queue(queue_name, durable=True)
+        message = aio_pika.Message(b"payload", message_id="snapshot-message")
+        try:
+            confirmation = await channel.default_exchange.publish(message, routing_key=queue.name)
+            incoming = await queue.get(timeout=2)
+            assert incoming is not None
+            async with incoming.process():
+                pass
+            assert confirmation is not None
+        finally:
+            await queue.delete(if_unused=False, if_empty=False)
+    finally:
+        await connection.close()
 
 
 @pytest.mark.asyncio
@@ -72,9 +93,9 @@ async def test_publish_callback_process_and_ack(rabbitmq_connection):
 def test_schema_v0_and_service_override():
     import asyncio
 
-    from tests.contrib.aio_pika.snapshot_app import run_pull_flow
+    from tests.contrib.aio_pika.test_aio_pika_snapshot import _run_pull_flow
 
-    asyncio.run(run_pull_flow("ddtrace-aio-pika-schema-snapshot"))
+    asyncio.run(_run_pull_flow("ddtrace-aio-pika-schema-snapshot"))
 
 
 @pytest.mark.snapshot(ignores=["meta.tracestate"])
@@ -91,6 +112,6 @@ def test_schema_v0_and_service_override():
 def test_schema_v1_and_service_name_alias():
     import asyncio
 
-    from tests.contrib.aio_pika.snapshot_app import run_pull_flow
+    from tests.contrib.aio_pika.test_aio_pika_snapshot import _run_pull_flow
 
-    asyncio.run(run_pull_flow("ddtrace-aio-pika-schema-snapshot"))
+    asyncio.run(_run_pull_flow("ddtrace-aio-pika-schema-snapshot"))

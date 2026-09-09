@@ -233,6 +233,8 @@ suites:
       - '@tracing'
       - '@aio_pika'
       - tests/contrib/aio_pika/*
+      - tests/snapshots/tests.contrib.aio_pika.*
+    snapshot: true
     services:
       - rabbitmq
       - testagent

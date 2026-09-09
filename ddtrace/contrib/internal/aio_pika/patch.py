@@ -400,9 +400,7 @@ def patch() -> None:
     wrap("aio_pika.queue", "Queue.get", _traced_get)
     wrap("aio_pika.queue", "QueueIterator.__anext__", _traced_anext)
 
-    from aio_pika.robust_queue import RobustQueueIterator
-
-    if "__anext__" in RobustQueueIterator.__dict__:
+    if "__anext__" in aio_pika.robust_queue.RobustQueueIterator.__dict__:
         wrap("aio_pika.robust_queue", "RobustQueueIterator.__anext__", _traced_anext)
 
     wrap("aio_pika.message", "ProcessContext.__aenter__", _traced_process_enter)
@@ -417,23 +415,16 @@ def unpatch() -> None:
     if not getattr(aio_pika, "_datadog_patch", False):
         return
 
-    from aio_pika.exchange import Exchange
-    from aio_pika.message import IncomingMessage
-    from aio_pika.message import ProcessContext
-    from aio_pika.queue import Queue
-    from aio_pika.queue import QueueIterator
-    from aio_pika.robust_queue import RobustQueueIterator
-
-    unwrap(Exchange, "publish")
+    unwrap(aio_pika.exchange.Exchange, "publish")
     unwrap(aio_pika.queue, "consumer")
-    unwrap(Queue, "get")
-    unwrap(QueueIterator, "__anext__")
-    if "__anext__" in RobustQueueIterator.__dict__:
-        unwrap(RobustQueueIterator, "__anext__")
-    unwrap(ProcessContext, "__aenter__")
-    unwrap(ProcessContext, "__aexit__")
+    unwrap(aio_pika.queue.Queue, "get")
+    unwrap(aio_pika.queue.QueueIterator, "__anext__")
+    if "__anext__" in aio_pika.robust_queue.RobustQueueIterator.__dict__:
+        unwrap(aio_pika.robust_queue.RobustQueueIterator, "__anext__")
+    unwrap(aio_pika.message.ProcessContext, "__aenter__")
+    unwrap(aio_pika.message.ProcessContext, "__aexit__")
     for action in ("ack", "nack", "reject"):
-        unwrap(IncomingMessage, action)
+        unwrap(aio_pika.message.IncomingMessage, action)
 
     _PROCESSING_MESSAGES.clear()
     _PROCESS_CONTEXTS.clear()
