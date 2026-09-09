@@ -170,7 +170,8 @@ def test_on_pause_records_pause_gctime() -> None:
     pause_handle.flush_sample.assert_called_once()
     pause_handle.push_alloc.assert_not_called()
     config_handle: mock.MagicMock = handles[1]
-    config_handle.push_walltime.assert_called_once_with(0, 0)
+    config_handle.push_gctime.assert_called_once_with(0, 0)
+    config_handle.push_walltime.assert_not_called()
     config_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
 
 
@@ -213,7 +214,8 @@ def test_snapshot_emits_config_sample() -> None:
         mock_ddup.SampleHandle.return_value = mock_handle
         col.snapshot()
 
-    mock_handle.push_walltime.assert_called_once_with(0, 2)
+    mock_handle.push_gctime.assert_called_once_with(0, 2)
+    mock_handle.push_walltime.assert_not_called()
     mock_handle.push_frame.assert_called_once_with("gc.config", "gc", 0, 0)
     mock_handle.flush_sample.assert_called_once()
 
@@ -251,6 +253,14 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
         )
     ]
     assert len(gc_samples) > 0, "Expected at least one gc.collect gc-time sample"
+    wall_time_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    assert not any(
+        any(
+            "gc.collect" in pprof_utils.get_location_from_id(profile, loc_id).function_name
+            for loc_id in sample.location_id
+        )
+        for sample in wall_time_samples
+    )
 
 
 def test_gc_collector_default_disabled(monkeypatch: pytest.MonkeyPatch) -> None:

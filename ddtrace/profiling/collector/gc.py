@@ -39,7 +39,7 @@ class GCCollector(collector.Collector):
       Window totals are pushed with count=1 because push_gctime multiplies
       ns*count (same as walltime).
     - A gc.config snapshot sample per flush carrying the interval's explicit
-      gc.collect() tally in the wall-time sample count field.
+      gc.collect() tally in the native gc-samples field.
 
     Thresholds, freeze count, and cumulative collection totals are DEBUG-only.
     """
@@ -140,9 +140,10 @@ class GCCollector(collector.Collector):
             pause_handle.flush_sample()
 
         config_handle: ddup.SampleHandle = ddup.SampleHandle()
-        # Count field carries this interval's explicit gc.collect() tally.
-        # push_walltime(0, n) adds n to wall_count and 0 ns.
-        config_handle.push_walltime(0, explicit)
+        # Native GC samples carry both gc-time and gc-samples. An explicit
+        # gc.collect() has no pause duration of its own here, so add only its
+        # event count to gc-samples.
+        config_handle.push_gctime(0, explicit)
         config_handle.push_frame(_GC_CONFIG_FRAME, _GC_FILE, 0, 0)
         config_handle.push_monotonic_ns(time.monotonic_ns())
         config_handle.flush_sample()
