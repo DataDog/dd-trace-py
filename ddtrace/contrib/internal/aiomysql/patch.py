@@ -2,13 +2,12 @@ import aiomysql
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -57,22 +56,19 @@ async def patched_connect(connect_func, _, args, kwargs):
             tags[tag] = _convert_to_string(getattr(conn, attr, None))
     tags[db.SYSTEM] = "mysql"
 
-    c = AIOTracedConnection(conn)
-    Pin(tags=tags).onto(c)
-    return c
+    return AIOTracedConnection(conn, db_tags=tags)
 
 
 class AIOTracedCursor(wrapt.ObjectProxy):
     """TracedCursor wraps a aiomysql cursor and traces its queries."""
 
-    def __init__(self, cursor, pin):
+    def __init__(self, cursor, db_tags):
         super(AIOTracedCursor, self).__init__(cursor)
-        pin.onto(self)
         self._self_datadog_name = schematize_database_operation("mysql.query", database_provider="mysql")
+        self._self_db_tags = db_tags
 
     async def _trace_method(self, method, resource, extra_tags, *args, **kwargs):
-        pin = Pin.get_from(self)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             result = await method(*args, **kwargs)
             return result
 
@@ -81,14 +77,14 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             resource=resource,
             span_type=SpanTypes.SQL,
         ) as s:
-            set_service_and_source(s, trace_utils.ext_service(pin, config.aiomysql), config.aiomysql)
+            set_service_and_source(s, trace_utils.ext_service(None, config.aiomysql), config.aiomysql)
             s._set_attribute(COMPONENT, config.aiomysql.integration_name)
 
             # set span.kind to the type of request being performed
             s._set_attribute(SPAN_KIND, SpanKind.CLIENT)
 
             s._set_attribute(_SPAN_MEASURED_KEY, 1)
-            s.set_tags(pin.tags)
+            s.set_tags(self._self_db_tags)
             s.set_tags(extra_tags)
 
             # dispatch DBM
@@ -130,20 +126,15 @@ class AIOTracedCursor(wrapt.ObjectProxy):
 
 
 class AIOTracedConnection(wrapt.ObjectProxy):
-    def __init__(self, conn, pin=None, cursor_cls=AIOTracedCursor):
+    def __init__(self, conn, db_tags, cursor_cls=AIOTracedCursor):
         super(AIOTracedConnection, self).__init__(conn)
-        name = dbapi._get_vendor(conn)
-        db_pin = pin or Pin(service=name)
-        db_pin.onto(self)
         # wrapt requires prefix of `_self` for attributes that are only in the
         # proxy (since some of our source objects will use `__slots__`)
         self._self_cursor_cls = cursor_cls
+        self._self_db_tags = db_tags
 
     def cursor(self, *args, **kwargs):
         ctx_manager = self.__wrapped__.cursor(*args, **kwargs)
-        pin = Pin.get_from(self)
-        if not pin:
-            return ctx_manager
 
         # The result of `cursor()` is an `aiomysql.utils._ContextManager`
         #   which wraps a coroutine (a future) and adds async context manager
@@ -159,7 +150,7 @@ class AIOTracedConnection(wrapt.ObjectProxy):
         #   will cause issues with `async with conn.cursor() as cur:` usage.
         async def _wrap_cursor():
             cursor = await ctx_manager
-            return self._self_cursor_cls(cursor, pin)
+            return self._self_cursor_cls(cursor, self._self_db_tags)
 
         return type(ctx_manager)(_wrap_cursor())
 

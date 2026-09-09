@@ -5,7 +5,6 @@ import mock
 import pymysql
 import pytest
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.internal.aiomysql.patch import AIOTracedCursor
 from ddtrace.contrib.internal.aiomysql.patch import patch
@@ -66,7 +65,7 @@ async def test_queries(snapshot_conn):
 @pytest.mark.asyncio
 async def test_query_is_blocked_before_execution() -> None:
     cursor = mock.AsyncMock()
-    traced_cursor = AIOTracedCursor(cursor, Pin())
+    traced_cursor = AIOTracedCursor(cursor, db_tags={})
 
     for method in ("execute", "executemany"):
         with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
