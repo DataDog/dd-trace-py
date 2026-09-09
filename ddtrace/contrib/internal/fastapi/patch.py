@@ -1,24 +1,27 @@
 import copyreg
+import inspect
 
 import fastapi
 import fastapi.routing
 import starlette
+from starlette.concurrency import run_in_threadpool
 import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.starlette.patch import _set_route_resource_resolver
-from ddtrace.contrib.internal.starlette.patch import _trace_background_tasks
 from ddtrace.contrib.internal.starlette.patch import traced_handler
 from ddtrace.contrib.internal.starlette.patch import traced_route_init
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal.compat import is_wrapted
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.telemetry import get_config as _get_config
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -122,12 +125,32 @@ async def traced_serialize_response(wrapped, instance, args, kwargs):
     added by creating spans will be higher than desired for
     the result.
     """
-    pin = Pin.get_from(fastapi)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return await wrapped(*args, **kwargs)
 
     with tracer.trace("fastapi.serialize_response"):
         return await wrapped(*args, **kwargs)
+
+
+def traced_background_tasks(wrapped, instance, args, kwargs):
+    if not is_tracing_enabled():
+        return wrapped(*args, **kwargs)
+
+    task = get_argument_value(args, kwargs, 0, "func")
+    current_span = tracer.current_span()
+    task_name = getattr(task, "__name__", "<unknown>")
+
+    async def traced_task(*args, **kwargs):
+        with tracer.start_span("fastapi.background_task", resource=task_name, child_of=None, activate=True) as span:
+            if current_span:
+                span.link_span(current_span.context)
+            if inspect.iscoroutinefunction(task):
+                await task(*args, **kwargs)
+            else:
+                await run_in_threadpool(task, *args, **kwargs)
+
+    args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
+    return wrapped(*args, **kwargs)
 
 
 def patch():
@@ -137,12 +160,11 @@ def patch():
     _register_wrapt_pickle_reducers()
 
     fastapi._datadog_patch = True
-    Pin().onto(fastapi)
     _w("fastapi.applications", "FastAPI.build_middleware_stack", wrap_middleware_stack)
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 
     if not is_wrapted(fastapi.BackgroundTasks.add_task):
-        _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks(fastapi))
+        _w("fastapi", "BackgroundTasks.add_task", traced_background_tasks)
     # We need to check that Starlette instrumentation hasn't already patched these
     if not is_wrapted(fastapi.routing.APIRoute.__init__):
         _w("fastapi.routing", "APIRoute.__init__", traced_route_init)
