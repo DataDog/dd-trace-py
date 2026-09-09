@@ -195,10 +195,8 @@ async def _traced_publish(
 
 
 def _is_iterator_callback(callback: Any) -> bool:
-    from aio_pika.queue import QueueIterator
-
     return (
-        isinstance(getattr(callback, "__self__", None), QueueIterator)
+        isinstance(getattr(callback, "__self__", None), aio_pika.queue.QueueIterator)
         and getattr(callback, "__name__", "") == "on_message"
     )
 
