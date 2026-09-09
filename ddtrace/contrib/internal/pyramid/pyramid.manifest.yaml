@@ -1,0 +1,12 @@
+_v: 1
+name: pyramid
+display_name: Pyramid
+description: Instruments Pyramid inbound HTTP request handling and template rendering, capturing routes, status codes, headers,
+  errors, and render execution.
+packages:
+- name: pyramid
+category:
+- http.server
+- template.render
+systems: []
+creation_date: '2017-02-03'

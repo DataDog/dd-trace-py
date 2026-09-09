@@ -10,6 +10,8 @@ import os
 import re
 import sys
 from time import time
+from typing import Callable
+from typing import Optional
 
 import hypothesis
 import pytest
@@ -24,6 +26,178 @@ PY_DIR_PATTERN = re.compile(r"^py[23][0-9]$")
 # https://hypothesis.readthedocs.io/en/latest/healthchecks.html#hypothesis.HealthCheck.too_slow
 hypothesis.settings.register_profile("default", suppress_health_check=(hypothesis.HealthCheck.too_slow,))
 hypothesis.settings.load_profile("default")
+
+
+def _cgroup_root() -> tuple[Optional[str], str, str]:
+    """Resolve this process's cgroup v2 directory, and which hierarchy version is in use.
+
+    /sys/fs/cgroup is the job's own cgroup only under a private cgroup namespace; where the host
+    hierarchy is exposed the job sits under a subpath and the mount root describes the whole node.
+    """
+    rel, version, entries = "", "unknown", []
+    try:
+        with open("/proc/self/cgroup") as f:
+            entries = [x.strip() for x in f if x.strip()]
+    except Exception:  # nosec
+        pass
+    unified = [e for e in entries if e.startswith("0::")]
+    if unified:
+        rel, version = unified[0][3:], "v2"
+    elif entries:
+        version = "v1"
+    mount = mount_root = None
+    try:
+        with open("/proc/self/mountinfo") as f:
+            for line in f:
+                left, _, right = line.partition(" - ")
+                fields = left.split()
+                if right.startswith("cgroup2 ") and len(fields) > 4:
+                    mount_root, mount = fields[3], fields[4]
+                    break
+    except Exception:  # nosec
+        pass
+    if mount is None:
+        return None, version, "no cgroup2 mount"
+    if mount_root and mount_root != "/" and rel.startswith(mount_root):
+        rel = rel[len(mount_root) :]
+    candidate = mount + rel if rel not in ("", "/") else mount
+    if os.path.isdir(candidate):
+        return candidate, version, "resolved"
+    return mount, version, f"mount root, {candidate} absent"
+
+
+def _cgroup(root: Optional[str], name: str) -> str:
+    if root is None:
+        return "<no cgroup2>"
+    try:
+        with open(os.path.join(root, name)) as f:
+            return f.read().strip().replace("\n", " | ")
+    except Exception as exc:
+        return f"<{exc.__class__.__name__}>"
+
+
+def _safe(fn: Callable[[], str], label: str) -> str:
+    try:
+        return fn()
+    except Exception as exc:
+        return f"{label} = <{exc.__class__.__name__}: {exc}>"
+
+
+def _benchmark_lines() -> list[str]:
+    import time as _time
+
+    def cpu():
+        acc = 0
+        for i in range(5_000_000):
+            acc += i * i
+
+    def getpid():
+        for _ in range(200_000):
+            os.getpid()
+
+    def stat():
+        for _ in range(20_000):
+            os.stat(__file__)
+
+    def timed(label: str, fn: Callable[[], None]) -> str:
+        def run() -> str:
+            t0 = _time.perf_counter()
+            fn()
+            return f"BENCH {label} = {_time.perf_counter() - t0:.3f}s"
+
+        return _safe(run, f"BENCH {label}")
+
+    return [timed("cpu_loop_5M", cpu), timed("syscall_getpid_200k", getpid), timed("stat_20k", stat)]
+
+
+def _resource_lines() -> list[str]:
+    import time as _time
+
+    out = [f"monotonic = {_time.monotonic():.3f}s", _safe(lambda: f"cpu_count = {os.cpu_count()}", "cpu_count")]
+    if not sys.platform.startswith("linux"):
+        return out + ["affinity = <non-linux>", "cgroup = <non-linux>"]
+    out.append(_safe(lambda: f"affinity = {len(os.sched_getaffinity(0))}", "affinity"))
+    root, version, note = _cgroup_root()
+    out.append(f"cgroup = {root} ({version}, {note})")
+    return out + [
+        f"{n} = {_cgroup(root, n)}"
+        for n in ("cpu.max", "cpu.stat", "memory.max", "memory.current", "memory.peak", "memory.events")
+    ]
+
+
+def _env_probe(label: str, benchmarks_first: bool) -> None:
+    """Report what the machine gave this job, so a slow run can be attributed rather than guessed at.
+
+    Called at session start and end; most of the value is in diffing the two. Benchmarks run before
+    the snapshot at start and after it at end, so the two snapshots bracket the test session alone
+    and the probe's own CPU burn stays out of the delta.
+
+    A job killed from outside, by the GitLab job timeout or an OOM kill, never reaches
+    pytest_sessionfinish, so only the start block appears and there is no delta. That is the case
+    this is most wanted for, and collecting the end counters there needs an after_script rather than
+    a pytest hook. The start block still carries the limits and the benchmarks.
+
+    monotonic
+        Clock reading taken with the snapshot, so utilisation is delta(usage_usec) over
+        delta(monotonic), recomputable from the log rather than guessed from job timestamps.
+
+    affinity / cpu_count
+        How many CPUs the job may actually use. Separates "few cores" from "throttled": a job pinned
+        to one core and a job throttled to a fraction of 96 both look slow but need different fixes.
+        affinity is Linux only; off Linux both it and the cgroup values report <non-linux>.
+
+    cgroup
+        The resolved cgroup directory, its version, and how it was found. Everything below is read
+        from there. On cgroup v1 those files do not exist, so only the benchmarks stay meaningful.
+
+    cpu.max
+        The CFS quota and period for this cgroup, e.g. "25000 100000" for a quarter core. A literal
+        "max" means this cgroup sets no quota, but an ancestor still can, so read nr_throttled
+        rather than concluding throttling is impossible.
+
+    cpu.stat
+        usage_usec is CPU time consumed. Against monotonic it gives utilisation, the one number
+        separating "computing hard" from "sitting in a blocking call": 24% is waiting on something,
+        near 100% is compute bound. nr_throttled and throttled_usec attribute stalling to quota.
+
+    memory.max / memory.current / memory.peak / memory.events
+        Limit granted, usage right now, high-water mark, and limit-event counters. memory.current is
+        a point reading and misses spikes between snapshots; memory.peak is what to compare against
+        the limit, and a peak close to it predicts OOM kills, which surface as infrastructure
+        failures rather than test failures.
+
+    BENCH cpu_loop_5M
+        Pure-Python arithmetic throughput, no syscalls. The baseline for comparing one runner against
+        another. Expect more than 2x spread between runners in one pipeline.
+
+    BENCH syscall_getpid_200k
+        Cost of entering the kernel, using about the cheapest syscall there is. Isolates syscall
+        overhead, which matters under seccomp or gVisor style sandboxing.
+
+    BENCH stat_20k
+        Filesystem metadata cost. Sensitive to how many overlay and bind mount layers the checkout
+        sits behind, usually the difference between a container and a host filesystem.
+    """
+    order = (_benchmark_lines(), _resource_lines()) if benchmarks_first else (_resource_lines(), _benchmark_lines())
+    lines = [f"===== RUNTIME PROBE [{label}] ====="] + order[0] + order[1] + ["===== END RUNTIME PROBE ====="]
+    print("\n" + "\n".join(lines), flush=True)
+
+
+def _probe(config, label: str, benchmarks_first: bool) -> None:
+    """Never let a diagnostic change the outcome of a run that would otherwise have passed."""
+    if not _probe_enabled(config):
+        return
+    try:
+        _env_probe(label, benchmarks_first)
+    except BaseException as exc:  # noqa: BLE001
+        print(f"\n<runtime probe failed: {exc.__class__.__name__}: {exc}>", flush=True)
+
+
+def _probe_enabled(config) -> bool:
+    """Probe once per session on the xdist controller only, in CI or when explicitly asked."""
+    if hasattr(config, "workerinput") or os.getenv("DD_TEST_RUNTIME_PROBE") == "0":
+        return False
+    return os.getenv("CI") == "true" or os.getenv("DD_TEST_RUNTIME_PROBE") == "1"
 
 
 # Hook for dynamic configuration of pytest in CI
@@ -47,6 +221,8 @@ def pytest_configure(config):
                 ddtrace_run: whether to run the test using ddtrace-run.
         """,
     )
+
+    _probe(config, "session start", benchmarks_first=True)
 
     if os.getenv("CI") != "true":
         return
@@ -101,3 +277,7 @@ def collect_global_attributes(record_testsuite_property, pytestconfig):
         else:
             env = f"riot.{prefix.lower()}"
         record_testsuite_property(env, value)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    _probe(session.config, "session end", benchmarks_first=False)

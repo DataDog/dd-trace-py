@@ -12,13 +12,13 @@ import pytest
 from ddtrace.internal.test_visibility.coverage_report_utils import _get_code_coverage_flags
 from ddtrace.testing.internal.api_client import APIClient
 from ddtrace.testing.internal.ci import CITag
+from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.git import GitTag
 from ddtrace.testing.internal.http import BackendResult
 from ddtrace.testing.internal.http import FileAttachment
 from ddtrace.testing.internal.logging import testing_logger
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.telemetry import ErrorType
-from ddtrace.testing.internal.test_data import ITRSkippingLevel
 from ddtrace.testing.internal.test_data import ModuleRef
 from ddtrace.testing.internal.test_data import SuiteRef
 from ddtrace.testing.internal.test_data import TestRef
