@@ -231,17 +231,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.10.0:
 
-  DD_USE_SYSTEM_LIBDDWAF:
-    type: Boolean
-    default: False
-
-    description: |
-        If set to 1, the build links against the libddwaf installed on the build system instead of downloading the prebuilt
-        binaries from GitHub releases (see the "System-provided libddwaf" section below). Linux only.
-
-    version_added:
-        v4.16.0:
-
   DD_SETUP_CACHE_DOWNLOADS:
     type: Boolean
     default: True
@@ -305,32 +294,40 @@ These environment variables modify aspects of the build process.
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
 
-System-provided libddwaf
-~~~~~~~~~~~~~~~~~~~~~~~~
+Using a system-provided libddwaf
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 By default the build downloads the prebuilt libddwaf binaries from GitHub releases and bundles the one matching the target
-architecture into the package. Distribution packagers that must build everything from source in an offline environment, and
-that already package libddwaf as a system library, can instead build with:
+architecture into the package. Distribution packagers cannot do that: they build from source with no network access, and
+package libddwaf separately rather than vendoring it.
 
-.. code-block:: bash
+The ``build_py`` command therefore takes a ``--no-bundle-libddwaf`` option. With it, nothing is downloaded and no library is
+bundled; at import time the loader asks the dynamic linker for ``libddwaf.so.2`` instead, so the library installed on the
+system is used. Being a command option rather than an environment variable, it is set through ``setup.cfg``, which is how it
+reaches ``build_py`` through a PEP 517 frontend such as ``pip``:
 
-    DD_USE_SYSTEM_LIBDDWAF=1 pip install .
+.. code-block:: ini
 
-In that mode nothing is downloaded. The build locates the library with ``pkg-config`` and records its resolved absolute path
-in a ``libddwaf.link`` text file placed where the bundled library would live; the runtime loader falls back to that path when
-no library is bundled. A text file is used instead of a symlink because symlinks do not survive wheel archiving.
+    [build_py]
+    no_bundle_libddwaf = 1
 
-Prerequisites and limitations:
+It can also be passed on the command line for a direct ``python setup.py build_py --no-bundle-libddwaf`` invocation. Default
+builds read no such section and are unaffected.
 
-- Linux only. The build fails on other platforms, and on architectures for which ddtrace does not ship a libddwaf artifact.
-- ``pkg-config`` and the libddwaf development files (``libddwaf.pc``) must be installed. The build fails if either is missing.
-- Only libddwaf 2.x is accepted: the ``ctypes`` bindings follow the 2.x C ABI, so a 1.x or a future major version is rejected
-  at build time. A 2.x other than the version pinned in ``setup.py`` is accepted with a warning.
-- The recorded path is absolute and is resolved through the development symlink (``libddwaf.so`` to ``libddwaf.so.2``), so the
-  package depends on that exact file being present at runtime. Packaging must declare a dependency on the libddwaf runtime
-  package.
-- Each package contains exactly one libddwaf: switching between the default and the system mode rebuilds the artifact
-  directory, so a bundled library never shadows a recorded path and vice versa.
+What the packaging must guarantee:
+
+- ``libddwaf.so.2`` is installed where the dynamic linker looks for it — a normal ``/usr/lib64`` install registered in
+  ``ld.so.cache`` is enough, and the ``-devel`` package is not needed since the SONAME rather than the unversioned
+  ``libddwaf.so`` symlink is requested. Otherwise, ``LD_LIBRARY_PATH`` also works.
+- The package declares a runtime dependency on libddwaf. The library is loaded at import time, not linked at build time, so
+  the build succeeds whether or not libddwaf is installed.
+- libddwaf 2.x: the bindings follow that major version, which is why its SONAME is the one requested.
+
+If the library cannot be loaded, AppSec logs a warning and disables itself; the rest of the tracer is unaffected. The version
+actually loaded is reported in telemetry, so a mismatch is visible.
+
+Supported on Linux, and on macOS through ``libddwaf.2.dylib``. Windows has no such convention, so the library must be bundled
+there.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

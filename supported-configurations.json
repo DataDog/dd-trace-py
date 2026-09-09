@@ -5329,13 +5329,6 @@
         "default": "false"
       }
     ],
-    "DD_USE_SYSTEM_LIBDDWAF": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_VALKEY_CMD_MAX_LENGTH": [
       {
         "implementation": "A",
