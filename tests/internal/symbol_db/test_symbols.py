@@ -1,4 +1,5 @@
 import atexit
+import dis
 from importlib.machinery import ModuleSpec
 import os
 from pathlib import Path
@@ -17,6 +18,7 @@ from ddtrace.internal.symbol_db.symbols import ScopeType
 from ddtrace.internal.symbol_db.symbols import Symbol
 from ddtrace.internal.symbol_db.symbols import SymbolType
 from ddtrace.internal.symbol_db.symbols import _line_ranges
+from ddtrace.internal.symbol_db.symbols import get_fields
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -74,6 +76,100 @@ def test_symbols_class_with_inconsistent_monitoring_state():
     faulthandler.enable()
 
     assert get_fields(Sym) == set()
+
+
+@pytest.mark.skipif(sys.version_info[:2] != (3, 12), reason="CPython 3.12 monitoring layout regression")
+@pytest.mark.subprocess
+def test_fields_bytecode_snapshot_survives_mutation():
+    import ctypes
+    import dis
+    import faulthandler
+    from unittest import mock
+
+    from ddtrace.internal.symbol_db import symbols
+
+    class Sym:
+        def __init__(self):
+            self.field = 1
+
+    code = Sym.__init__.__code__
+    adaptive = code._co_code_adaptive
+    memory = ctypes.string_at(id(code), 1024)
+    offset = memory.find(adaptive)
+    assert offset >= 0
+    assert memory.find(adaptive, offset + 1) == -1
+    opcode = ctypes.c_ubyte.from_address(id(code) + offset)
+    original_opcode = opcode.value
+
+    def mutate_after_capture(obj, name, *default):
+        value = getattr(obj, name, *default)
+        if obj is code and name == "_co_code_adaptive":
+            # The snapshot is valid, but requesting the live co_code now crashes.
+            opcode.value = dis._all_opmap["INSTRUMENTED_LINE"]
+        return value
+
+    faulthandler.enable()
+    try:
+        with mock.patch.object(symbols, "getattr", side_effect=mutate_after_capture, create=True):
+            assert symbols.get_fields(Sym) == {"field"}
+        assert opcode.value == dis._all_opmap["INSTRUMENTED_LINE"]
+    finally:
+        opcode.value = original_opcode
+
+
+@pytest.mark.skipif(sys.version_info < (3, 11), reason="Requires adaptive bytecode")
+@pytest.mark.subprocess
+def test_fields_specialized_bytecode():
+    # Isolate specialization from the test runner's monitoring instrumentation.
+    import dis
+    from unittest import mock
+
+    from ddtrace.internal.symbol_db.symbols import get_fields
+
+    class Sym:
+        def __init__(self, value):
+            self.field = len(value)
+            self.other = value
+
+    for _ in range(1000):
+        Sym([])
+
+    raw = Sym.__init__.__code__._co_code_adaptive
+    assert any(i.opname.startswith("STORE_ATTR_") for i in dis._get_instructions_bytes(raw))
+    # Cache values can trigger the conservative guard. Test decoding independently.
+    with mock.patch("ddtrace.internal.symbol_db.symbols._has_unsafe_bytecode", return_value=False):
+        assert get_fields(Sym) == {"field", "other"}, [(i.opname, i.arg) for i in dis._get_instructions_bytes(raw)]
+
+
+def test_fields_extended_args():
+    namespace = {}
+    names = {f"field_{i}" for i in range(300)}
+    exec("def init(self):\n" + "\n".join(f"    self.{name} = None" for name in sorted(names)), namespace)
+    cls = type("Sym", (), {"__init__": namespace["init"]})
+
+    assert any(i.opname == "EXTENDED_ARG" for i in dis.get_instructions(cls.__init__))
+    assert get_fields(cls) == names
+
+
+@pytest.mark.parametrize("receiver", ["self", "arg1", "arg16"])
+def test_fields_only_self(receiver):
+    namespace = {}
+    args = ", ".join(f"arg{i}" for i in range(1, 17))
+    exec(f"def init(self, {args}):\n    {receiver}.field = arg1", namespace)
+    cls = type("Sym", (), {"__init__": namespace["init"]})
+
+    assert get_fields(cls) == ({"field"} if receiver == "self" else set())
+
+
+@pytest.mark.parametrize("name", ["INSTRUMENTED_LINE", "INSTRUMENTED_INSTRUCTION", "ENTER_EXECUTOR"])
+def test_fields_unsafe_bytecode(name):
+    from ddtrace.internal.symbol_db.symbols import _has_unsafe_bytecode
+
+    opcode = getattr(dis, "_all_opmap", {}).get(name)
+    if opcode is None:
+        pytest.skip(f"{name} is not available on this Python version")
+    assert _has_unsafe_bytecode(bytes([opcode, 0]))
+    assert not _has_unsafe_bytecode(bytes([dis.opmap["LOAD_CONST"], 0]))
 
 
 def test_symbols_class():

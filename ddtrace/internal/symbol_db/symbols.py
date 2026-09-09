@@ -13,8 +13,6 @@ from inspect import iscoroutinefunction
 from inspect import isgeneratorfunction
 from inspect import signature
 from itertools import chain
-from itertools import islice
-from itertools import tee
 import json
 import os
 from pathlib import Path
@@ -60,8 +58,10 @@ SOF = 0
 EOF = 2147483647
 MAX_FILE_SIZE = 1 << 20  # 1MB
 UPLOAD_TIMEOUT = 5.0  # seconds
-_INSTRUMENTED_OPCODES = frozenset(
-    opcode for name, opcode in getattr(dis, "_all_opmap", {}).items() if name.startswith("INSTRUMENTED_")
+_UNSAFE_OPCODES = frozenset(
+    opcode
+    for name, opcode in getattr(dis, "_all_opmap", {}).items()
+    if name.startswith("INSTRUMENTED_") or name == "ENTER_EXECUTOR"
 )
 
 
@@ -137,17 +137,12 @@ def func_origin(f: FunctionType) -> t.Optional[str]:
     return filename if Path(filename).exists() else None
 
 
-def _has_instrumented_bytecode(code: CodeType) -> bool:
-    """Return whether reading code.co_code could enter unsafe de-instrumentation."""
-    try:
-        adaptive = getattr(code, "_co_code_adaptive")
-    except AttributeError:
-        return False
-
+def _has_unsafe_bytecode(raw: bytes) -> bool:
+    """Reject snapshots whose instruction layout requires live monitoring or executor metadata."""
     # Inline-cache data occupies code units too, so this can conservatively
     # classify a cache value as an opcode. The only consequence is omitting
     # optional inferred field metadata for that class.
-    return any(adaptive[offset] in _INSTRUMENTED_OPCODES for offset in range(0, len(adaptive), 2))
+    return any(raw[offset] in _UNSAFE_OPCODES for offset in range(0, len(raw), 2))
 
 
 def get_fields(cls: type) -> set[str]:
@@ -160,15 +155,30 @@ def get_fields(cls: type) -> set[str]:
     # Otherwise, look at the bytecode for the __init__ method.
     try:
         code = object.__getattribute__(cls, "__init__").__code__
-        if _has_instrumented_bytecode(code):
+        raw = getattr(code, "_co_code_adaptive", None)
+        if raw is None:
+            raw = code.co_code
+        if _has_unsafe_bytecode(raw):
             return set()
 
-        return {
-            code.co_names[b.arg]
-            for a, b in zip(*(islice(t, i, None) for i, t in enumerate(tee(dis.get_instructions(code), 2))))
-            # Python 3.14 changed this to LOAD_FAST_BORROW
-            if a.opname.startswith("LOAD_FAST") and a.arg & 15 == 0 and b.opname == "STORE_ATTR"
-        }
+        # Decode the checked snapshot, not the live code object: co_code can
+        # crash if monitoring state becomes inconsistent after the capture.
+        deopt = getattr(dis, "_deoptop", lambda opcode: opcode)
+        fields: set[str] = set()
+        loads_self = False
+        for instruction in getattr(dis, "_get_instructions_bytes")(raw):
+            opname = dis.opname[deopt(instruction.opcode)]
+            if opname == "EXTENDED_ARG":
+                continue
+            if opname == "STORE_ATTR" and loads_self:
+                fields.add(code.co_names[instruction.arg])
+
+            arg = instruction.arg
+            # Fused loads pack two local indices; the second is on top of the stack.
+            if opname in ("LOAD_FAST_LOAD_FAST", "LOAD_FAST_BORROW_LOAD_FAST_BORROW"):
+                arg &= 15
+            loads_self = opname.startswith("LOAD_FAST") and arg == 0
+        return fields
     except Exception:
         return set()
 
