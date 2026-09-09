@@ -849,6 +849,14 @@ experiments:
             thresholds:
               - execution_time < 3.75 ms
 
+          # pytestplugin
+          - name: pytestplugin-baseline
+            thresholds:
+              - execution_time < 2800 ms
+          - name: pytestplugin-ddtrace
+            thresholds:
+              - execution_time < 3600 ms
+
           # tracer
           - name: tracer-large
             thresholds:
