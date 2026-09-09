@@ -954,41 +954,6 @@ suites:
           dependencies: [requests, httpx, 'httpx2~=2.0.0', 'tornado~=6.5']
         - name: appsec_threats_tornado_rc
           dependencies: [requests, httpx, httpx2, 'tornado~=6.5']
-  urllib:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@urllib'
-      - tests/appsec/iast/taint_sinks/test_ssrf.py
-    skip: true  # TODO: No environment available
-    matrix:
-      command: pytest -n auto --dist=worksteal {cmdargs} tests/contrib/urllib3
-      variants:
-        - name: urllib3
-          python: ['3.9']
-          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.25.8']
-        - name: urllib3
-          dependencies: [pytest-randomly, pytest-xdist, urllib3]
-        - name: urllib3
-          python: ['3.10']
-          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.6']
-        - name: urllib3
-          python: ['3.11']
-          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==1.26.8']
-        - name: urllib3
-          python: ['3.12', '3.13', '3.14']
-          dependencies: [pytest-randomly, pytest-xdist, 'urllib3==2.0.0']
-  webbrowser:
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@contrib'
-      - '@tracing'
-      - '@webbrowser'
-      - tests/appsec/iast/taint_sinks/test_ssrf.py
-    skip: true  # TODO: No environment available
   sca:
     paths:
       - '@bootstrap'

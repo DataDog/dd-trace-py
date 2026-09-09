@@ -1472,8 +1472,8 @@ def call_program(*args, **kwargs):
     else:
         # No explicit env: subprocess would inherit os.environ directly.
         cleaned_env = dict(os.environ)
-    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches normal
-    # riot CI, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
+    # Strip the ddtest-leaked PYTEST_ADDOPTS so the subprocess matches ordinary
+    # test runs, where it is absent. See _DDTEST_LEAKED_PYTEST_ADDOPTS above.
     kwargs["env"] = strip_ddtest_leaked_env(cleaned_env)
     close_fds = sys.platform != "win32"
     subp = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE, close_fds=close_fds, **kwargs)

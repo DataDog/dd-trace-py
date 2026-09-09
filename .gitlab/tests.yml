@@ -102,7 +102,7 @@ include:
         grep -vi '^ddtrace==' "${lockfile}" > "${requirements}"
         wheel="$(find ".cache/ddtrace-test-wheels/${python_version}" -name 'ddtrace-*.whl' -print -quit)"
         set -f
-        export ${!env_var}
+        eval "export ${!env_var}"
         set +f
         uv run --isolated --no-project --python "python${python_version}" --no-python-downloads \
           --with-requirements "${requirements}" --with "${wheel}" \
@@ -135,7 +135,7 @@ include:
       grep -vi '^ddtrace==' "${TEST_ENVIRONMENT_LOCKFILE}" > "${requirements}"
       wheel="$(find ".cache/ddtrace-test-wheels/${PYTHON_VERSION}" -name 'ddtrace-*.whl' -print -quit)"
       set -f
-      export ${!env_var}
+      eval "export ${!env_var}"
       set +f
       export COVERAGE_FILE=".coverage.${TEST_ENVIRONMENT_HASH}.${CI_NODE_INDEX}"
       # Keep CI Visibility session names tied to the CI job and test command;

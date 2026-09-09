@@ -23,6 +23,7 @@ import hashlib
 import importlib
 import os
 import re
+import shlex
 import typing as t
 
 
@@ -208,6 +209,10 @@ TARGET_JOBS = 200
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
+def _shell_environment(environment: dict[str, str]) -> str:
+    return shlex.join(f"{name}={value}" for name, value in environment.items())
+
+
 def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
     """Collect environment count and Python versions for multiple suites in a single pass.
 
@@ -242,7 +247,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
                         str(environment.lockfile),
                         test_location,
                         command,
-                        " ".join(f"{name}={value}" for name, value in run.environment.items()),
+                        _shell_environment(run.environment),
                     )
             result[suite] = SuiteVenvInfo(
                 environment_hashes=tuple(environment.hash for environment in environments),
@@ -718,6 +723,11 @@ def gen_pre_checks() -> None:
         name="Check test locks",
         command="scripts/test-env check",
         paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-env", "tests/suitespec.py"},
+    )
+    check(
+        name="Check suitespec duplicates",
+        command="scripts/lint suitespec-duplicates",
+        paths={"*"},
     )
     check(
         name="Check ddtrace error logs",

@@ -26,9 +26,11 @@ suites:
         {cmdargs} tests/profiling
       env:
         CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       variants:
         - name: profile
           python: ['3.9', '3.10']
@@ -65,9 +67,11 @@ suites:
         {cmdargs} tests/profiling/test_uwsgi.py
       env:
         CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       python: ['3.9', '3.10', '3.11', '3.12', '3.13']
       variants:
         - name: profile-uwsgi
@@ -91,9 +95,11 @@ suites:
         {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
       env:
         CPUCOUNT: '12'
+        DD_CIVISIBILITY_ITR_ENABLED: 'false'
         DD_PROFILING_ENABLE_ASSERTS: '1'
         DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
         PYTHONWARNINGS: ignore::UserWarning:gevent.events
+        _DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE: 'false'
       runs:
         - env:
             PYTHONMALLOC: malloc

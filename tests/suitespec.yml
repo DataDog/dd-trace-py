@@ -5,17 +5,14 @@ components:
     - docker-compose.base.yml
     - docker-compose.podman.yml
     - docker-compose.yml
+    - .riot/requirements/*
     - scripts/ddtest
-    - scripts/run-tests
-    - scripts/test-env
     - pyproject.toml
     - tests/conftest.py
     - tests/utils.py
     - tests/__init__.py
     - tests/suitespec.yml
     - tests/suitespec.py
-    - .riot/requirements/*.txt
-    - .uv/*.txt
     - tests/meta/*
     - tests/smoke_test.py
     - tests/subprocesstest.py
@@ -161,9 +158,14 @@ suites:
       - tests/smoke_test.py
     matrix:
       command: python tests/smoke_test.py {cmdargs}
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants: [{name: smoke_test}]
   crashtracker:
     venvs_per_job: 6
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@crashtracker'
       - '@core'
@@ -196,6 +198,7 @@ suites:
       command: pytest {cmdargs} tests/meta
       env:
         DD_CIVISIBILITY_FLAKY_RETRY_ENABLED: '0'
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       python: ['3.10']
       variants: [{name: meta-testing}]
   ddtracerun:
@@ -235,6 +238,7 @@ suites:
         DD_PROFILING_LOCK_ENABLED: '0'
         DD_REMOTE_CONFIGURATION_ENABLED: '1'
         DD_RUNTIME_METRICS_ENABLED: '1'
+        DD_TRACE_PY_ENABLE_ITR_FOR_JOB: 'false'
       variants: [{name: detect_global_locks}]
   integration_agent:
     ddtest_nodes: 2
@@ -257,14 +261,14 @@ suites:
       variants:
         - name: integration-latest
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
           env:
             DDTEST_SUITE_PATH: tests/integration
             DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-latest-civisibility
           dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
+          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
           env:
             DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
             DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
@@ -273,6 +277,9 @@ suites:
     ddtest: true
     env:
       _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.integration
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     venvs_per_job: 3
     paths:
       - '@tracing'
@@ -290,32 +297,24 @@ suites:
       variants:
         - name: integration-snapshot
           dependencies: [msgpack, pytest-randomly]
-          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/
+          command: pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/
           env:
             DDTEST_SUITE_PATH: tests/integration
             DDTEST_TESTS_LOCATION: tests/integration/**/test*.py
             DDTEST_PYTEST_ADDOPTS: "-vv --ignore-glob='*civisibility*'"
         - name: integration-snapshot-civisibility
           dependencies: [msgpack, pytest-randomly]
-          command: pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py
+          command: pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}
           env:
             DDTEST_SUITE_PATH: tests/integration/test_integration_civisibility.py
             DDTEST_TESTS_LOCATION: tests/integration/test_integration_civisibility.py
-  integration_registry:
-    parallelism: 1
-    paths:
-      - '@contrib'
-      - scripts/integration_registry/*
-    matrix:
-      command: pytest {cmdargs} tests/contrib/integration_registry
-      python: ['3.13']
-      variants:
-        - name: integration_registry
-          dependencies: ['pip==26.2.1', 'ruamel.yaml==0.18.6', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema]
-          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', 'riot==0.22.0', pytest-randomly, 'pytest-asyncio==0.23.7', PyYAML, jsonschema]
   internal:
     retry: 2
     venvs_per_job: 2
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@core'
       - '@remoteconfig'
@@ -354,6 +353,9 @@ suites:
           dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, 'wrapt<2.0.0', uwsgi, PyYAML, cloudpickle, 'pytest-asyncio~=0.23.7', 'setuptools<82', 'zope-event==5.0', 'zope-interface==7.2']
           env:
             PYTHONWARNINGS: 'ignore:This process:DeprecationWarning::'
+        - name: internal
+          command: pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py
+          dependencies: [httpretty, gevent, pytest-randomly, pytest-xdist, 'python-json-logger==2.0.7', pyfakefs, pytest-benchmark, wrapt, uwsgi, PyYAML, cloudpickle, pyarmor]
   wrapping:
     venvs_per_job: 6
     paths:
@@ -415,6 +417,10 @@ suites:
           dependencies: [pytest-randomly, openfeature-sdk]
   telemetry:
     parallelism: 1
+    env:
+      # Dogfood dynamic ATR (duration-based retry budgets) in this CI suite.
+      DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED: '1'
+      DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS: '6,4,3,1,1'
     paths:
       - '@bootstrap'
       - '@contrib'
@@ -446,7 +452,7 @@ suites:
       DD_TRACE_AGENT_URL: http://localhost:8126
       DDTEST_SUITE_PATH: tests/tracer
       DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+      DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
       KUBERNETES_MEMORY_REQUEST: "4Gi"
       KUBERNETES_MEMORY_LIMIT: "4Gi"
     paths:
@@ -465,14 +471,14 @@ suites:
     retry: 2
     venvs_per_job: 1
     matrix:
-      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/
+      command: pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py --ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/
       env:
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
         _DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS: '50'
         DDTEST_SUITE_PATH: tests/tracer
         DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
       variants:
         - name: tracer
@@ -497,15 +503,17 @@ suites:
       - '@tracing'
       - '@vendor'
       - tests/tracer/test_uwsgi_shutdown.py
+      - tests/tracer/test_uwsgi_fork_hooks.py
       - tests/tracer/uwsgi-app.py
+      - tests/tracer/uwsgi-fork-smoke-app.py
       - tests/contrib/uwsgi/__init__.py
     pattern: tracer-uwsgi
     matrix:
-      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py
+      command: pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py
       env:
         DDTEST_SUITE_PATH: tests/tracer
         DDTEST_TESTS_LOCATION: tests/tracer/**/test*.py
-        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_shutdown.py
+        DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN: tests/tracer/test_uwsgi_*.py
         _DD_PYTEST_XDIST_INFERRED_SERVICE: tests.tracer
         DD_CIVISIBILITY_LOG_LEVEL: none
         DD_INSTRUMENTATION_TELEMETRY_ENABLED: '0'
