@@ -438,6 +438,17 @@ suites:
       - testagent
     snapshot: false
     venvs_per_job: 3
+    matrix:
+      command: pytest {cmdargs} tests/contrib/anyio
+      variants:
+        - name: anyio
+          python: ['3.9']
+          dependencies: [pytest-randomly, 'anyio==3.4.0', 'trio<0.22']
+        - name: anyio
+          python: ['3.10']
+          dependencies: [pytest-randomly, 'anyio<4.0', 'trio<0.22']
+        - name: anyio
+          dependencies: [pytest-randomly, anyio, trio]
   aredis:
     parallelism: 1
     paths:
