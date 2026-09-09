@@ -2563,15 +2563,9 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.15"),
                     pkgs={
                         "jinja2": ["~=3.0.0", latest],
-                    },
-                ),
-                Venv(
-                    pys="3.15",
-                    pkgs={
-                        "jinja2": latest,
                     },
                 ),
             ],

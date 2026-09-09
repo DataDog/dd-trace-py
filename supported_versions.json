@@ -1901,23 +1901,13 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.14"
-                    ]
-                },
-                "supportedRange": ">=2.10",
-                "tested": [
-                    "3.0.3",
-                    "3.1.6"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.14",
                         "3.15"
                     ]
                 },
                 "supportedRange": ">=2.10",
                 "tested": [
+                    "3.0.3",
                     "3.1.6"
                 ]
             }
