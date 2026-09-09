@@ -400,7 +400,8 @@ download_dependency_wheels:
     PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   rules:
     # TODO(py-315): 3.15 cell skipped — registry.ddbuild.io/images/mirror/python has
-    # no 3.15 tag. Remove this never-rule once DataDog/images dest-tags rc2 or GA.
+    # no 3.15 tag. When DataDog/images dest-tags rc2 or GA, bump PYTHON_IMAGE_TAG
+    # off 3.15.0rc1 and remove this never-rule.
     - if: '$PYTHON_VERSION == "3.15"'
       when: never
     - when: on_success
