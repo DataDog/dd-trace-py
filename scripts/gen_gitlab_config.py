@@ -24,6 +24,7 @@ import hashlib
 import importlib
 import os
 import re
+import shlex
 import subprocess
 import typing as t
 
@@ -141,7 +142,9 @@ class JobSpec:
             lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            # Retry up to twice on transient pip network failures; service-check
+            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
+            lines.append(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}")
 
         env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
@@ -213,6 +216,10 @@ TARGET_JOBS = 200
 
 # All supported Python versions (fallback when no venv info is available)
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+
+
+def _shell_environment(environment: dict[str, str]) -> str:
+    return shlex.join(f"{name}={value}" for name, value in environment.items())
 
 
 def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
@@ -296,7 +303,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
                     environment.lockfile,
                     run.environment.get("DDTEST_TESTS_LOCATION", ""),
                     command,
-                    " ".join(f"{name}={value}" for name, value in run.environment.items()),
+                    _shell_environment(run.environment),
                 )
         result[suite] = SuiteVenvInfo(
             venv_count=len(environments),
