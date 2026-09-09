@@ -1,5 +1,9 @@
+from contextvars import Context
 from contextvars import ContextVar
+from functools import wraps
 import sys
+from typing import Any
+from typing import Callable
 
 from ddtrace.internal import core
 
@@ -24,3 +28,20 @@ else:
 def context_switches_require_fallback() -> bool:
     """Whether integrations must publish context switches that the native watcher cannot observe."""
     return core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT) and not is_context_watcher_registered()
+
+
+def wrap_worker_context(func: Callable[..., Any]) -> Callable[..., Any]:
+    """Publish the copied worker context on entry and an empty context on exit."""
+
+    @wraps(func)
+    def wrapped(*args: Any, **kwargs: Any) -> Any:
+        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+        # Clear the delegation marker so nested worker boundaries remain visible.
+        token = CONTEXT_SWITCH_WORKER_INSTRUMENTED.set(False)
+        try:
+            return func(*args, **kwargs)
+        finally:
+            CONTEXT_SWITCH_WORKER_INSTRUMENTED.reset(token)
+            Context().run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
+
+    return wrapped

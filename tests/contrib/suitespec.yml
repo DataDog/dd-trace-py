@@ -435,6 +435,8 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@anyio'
+      - '@context_watcher'
+      - '@trio'
       - tests/contrib/anyio/*
     services:
       - testagent
@@ -1426,6 +1428,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@gevent'
+      - '@context_watcher'
       - tests/contrib/gevent/*
     snapshot: false
     venvs_per_job: 2
@@ -2581,6 +2584,7 @@ suites:
       - '@core'
       - '@logging'
       - '@asyncio'
+      - '@context_watcher'
       - '@futures'
       - '@sqlite3'
       - '@dbapi'
@@ -2717,6 +2721,7 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@trio'
+      - '@context_watcher'
       - tests/contrib/trio/*
     services:
       - testagent

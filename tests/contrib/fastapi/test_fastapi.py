@@ -76,7 +76,7 @@ def test_sync_handlers_publish_and_clear_native_thread_context(fastapi_tracer):
         with TestClient(application) as client:
             assert client.get("/success").status_code == 200
             assert client.portal is not None
-            # AIDEV-NOTE: Disable entry publication so probing cannot hide stale native context.
+            # Disable entry publication so the probe cannot mask stale native context.
             anyio_unpatch()
             idle_after_success = client.portal.call(anyio.to_thread.run_sync, _worker_state)
             anyio_patch()

@@ -37,8 +37,6 @@ IGNORED_ENVIRONMENT_VARIABLES = [
     "_DD_CONTEXTVAR",
     "_DD_DIRECT_SUBMISSION_ENABLED",
 ]
-INTEGRATIONS_WITHOUT_SERVICE_CONFIG = {"anyio", "trio"}
-
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
 # Run: python scripts/supported_configurations.py
@@ -429,10 +427,9 @@ def check_registry(data: dict) -> int:
         n = name.upper()
         if name not in not_patchable and f"DD_TRACE_{n}_ENABLED" not in all_known:
             missing.add(f"DD_TRACE_{n}_ENABLED")
-        if name not in INTEGRATIONS_WITHOUT_SERVICE_CONFIG:
-            for var in (f"DD_{n}_SERVICE", f"DD_{n}_SERVICE_NAME"):
-                if var not in all_known:
-                    missing.add(var)
+        for var in (f"DD_{n}_SERVICE", f"DD_{n}_SERVICE_NAME"):
+            if var not in all_known:
+                missing.add(var)
 
     for var in envier_vars:
         if var not in all_known:

@@ -242,6 +242,16 @@
         ]
       }
     ],
+    "DD_ANYIO_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_ANYIO_SERVICE_NAME"
+        ]
+      }
+    ],
     "DD_API_KEY": [
       {
         "implementation": "A",
@@ -6351,6 +6361,16 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRIO_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_TRIO_SERVICE_NAME"
+        ]
       }
     ]
   }

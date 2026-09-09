@@ -1,8 +1,14 @@
+from ddtrace import config
 from ddtrace.contrib.internal.anyio.patch import get_version
 from ddtrace.contrib.internal.anyio.patch import patch
 from ddtrace.contrib.internal.anyio.patch import unpatch
 from ddtrace.internal._context_watcher import context_switches_require_fallback
 from tests.contrib.patch import PatchTestCase
+
+
+def test_config_available_before_patch():
+    """AnyIO configuration is available before integration patching."""
+    assert config.anyio is not None
 
 
 class TestAnyIOPatch(PatchTestCase.Base):
