@@ -641,7 +641,6 @@ suites:
       - '@tracing'
       - '@azure_durable_functions'
       - tests/contrib/azure_durable_functions/*
-      - tests/snapshots/tests.contrib.azure_durable_functions.*
     snapshot: true
     services:
       - azurite
