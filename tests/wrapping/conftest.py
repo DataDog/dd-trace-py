@@ -21,6 +21,7 @@ import _pytest.config
 import _pytest.nodes
 import pytest
 
+from ddtrace.internal.compat import PY_315_VERSION_INFO
 from tests.wrapping.mechanisms import ALL_MECHANISMS
 
 
@@ -61,7 +62,7 @@ def pytest_collection_modifyitems(items: list[_pytest.nodes.Item]) -> None:
     # markers live in test_tstrings_py314.py, which cannot be edited with a
     # version-gated xfail condition (ruff rejects t-string syntax when the file
     # is passed directly to the pre-commit hook).
-    if sys.version_info >= (3, 15):
+    if sys.version_info >= PY_315_VERSION_INFO:
         for item in items:
             if not str(getattr(item, "path", "")).startswith(_HERE + os.sep):
                 continue
