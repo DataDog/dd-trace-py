@@ -22,6 +22,8 @@ from ddtrace.ext import net as netx
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils import set_argument_value
 from ddtrace.trace import tracer
 
 
@@ -160,6 +162,16 @@ def dbm_dispatch(span, args, kwargs):
     ).result
     if result:
         span, args, kwargs = result.value
+    return span, args, kwargs
+
+
+def dbm_dispatch_client_operation(span, args, kwargs):
+    """Dispatch DBM for MongoClient._run_operation."""
+    operation = get_argument_value(args, kwargs, 1, "operation")
+
+    span, _, dbm_kwargs = dbm_dispatch(span, (), {"spec": operation})
+
+    args, kwargs = set_argument_value(args, kwargs, 1, "operation", dbm_kwargs["spec"])
     return span, args, kwargs
 
 

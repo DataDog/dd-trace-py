@@ -29,6 +29,7 @@ from .parse import parse_query
 from .parse import parse_spec
 from .utils import create_checkout_span
 from .utils import dbm_dispatch
+from .utils import dbm_dispatch_client_operation
 from .utils import is_query
 from .utils import process_server_message_result
 from .utils import process_server_operation_result
@@ -39,8 +40,11 @@ from .utils import setup_checkout_span_tags
 
 VERSION = pymongo.version_tuple
 
-
-if VERSION >= (4, 9):
+if VERSION >= (4, 18):
+    from pymongo.synchronous.mongo_client import MongoClient
+    from pymongo.synchronous.pool import Connection
+    from pymongo.synchronous.pool import Pool
+elif VERSION >= (4, 9):
     from pymongo.synchronous.pool import Connection
     from pymongo.synchronous.server import Server
 elif VERSION >= (4, 5):
@@ -63,36 +67,46 @@ class TracedMongoClient(ObjectProxy):
 
 def patch_pymongo_sync_modules():
     """Patch synchronous pymongo modules."""
-    if VERSION >= (3, 12):
+    if VERSION >= (4, 18):
+        _w(MongoClient._run_operation, _trace_mongo_client_run_operation)
+    elif VERSION >= (3, 12):
         _w(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
         _w(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
         _w(Server.send_message_with_response, _trace_server_send_message_with_response)
 
-    if VERSION >= (4, 5):
+    if VERSION >= (4, 18):
+        _w(Pool.checkout, traced_get_socket)
+    elif VERSION >= (4, 5):
         _w(Server.checkout, traced_get_socket)
     else:
         _w(Server.get_socket, traced_get_socket)
     _w(Connection.command, _trace_socket_command)
-    _w(Connection.write_command, _trace_socket_write_command)
+    if VERSION < (4, 18):
+        _w(Connection.write_command, _trace_socket_write_command)
 
 
 def unpatch_pymongo_sync_modules():
     """Unpatch synchronous pymongo modules."""
-    if VERSION >= (3, 12):
+    if VERSION >= (4, 18):
+        _u(MongoClient._run_operation, _trace_mongo_client_run_operation)
+    elif VERSION >= (3, 12):
         _u(Server.run_operation, _trace_server_run_operation_and_with_response)
     elif VERSION >= (3, 9):
         _u(Server.run_operation_with_response, _trace_server_run_operation_and_with_response)
     else:
         _u(Server.send_message_with_response, _trace_server_send_message_with_response)
 
-    if VERSION >= (4, 5):
+    if VERSION >= (4, 18):
+        _u(Pool.checkout, traced_get_socket)
+    elif VERSION >= (4, 5):
         _u(Server.checkout, traced_get_socket)
     else:
         _u(Server.get_socket, traced_get_socket)
     _u(Connection.command, _trace_socket_command)
-    _u(Connection.write_command, _trace_socket_write_command)
+    if VERSION < (4, 18):
+        _u(Connection.write_command, _trace_socket_write_command)
 
 
 def datadog_trace_operation(operation, wrapped):
@@ -129,6 +143,19 @@ def datadog_trace_operation(operation, wrapped):
     set_query_metadata(span, cmd)
 
     return span
+
+
+def _trace_mongo_client_run_operation(func, args, kwargs):
+    client_instance = get_argument_value(args, kwargs, 0, "self")
+    operation = get_argument_value(args, kwargs, 1, "operation")
+
+    span = datadog_trace_operation(operation, client_instance)
+    if span is None:
+        return func(*args, **kwargs)
+    with span:
+        span, args, kwargs = dbm_dispatch_client_operation(span, args, kwargs)
+        result = func(*args, **kwargs)
+        return process_server_operation_result(span, operation, result)
 
 
 def _trace_server_run_operation_and_with_response(func, args, kwargs):
