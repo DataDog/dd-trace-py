@@ -37,6 +37,12 @@ Datadog::ProfileBorrow::operator=(ProfileBorrow&& other) noexcept
     return *this;
 }
 
+rust::Box<Datadog::ddprof::EncodedProfile>
+Datadog::ProfileBorrow::serialize()
+{
+    return profile_ptr->cur_profile.value()->serialize();
+}
+
 std::vector<std::uint8_t>
 Datadog::ProfileBorrow::serialize_to_vec()
 {

@@ -1,12 +1,13 @@
 #pragma once
 
+#include "libdatadog_helpers.hpp"
 #include "profiler_stats.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <utility>
-#include <vector>
 
 namespace Datadog {
 
@@ -17,11 +18,13 @@ class Uploader
   private:
     std::string errmsg;
     std::string output_filename;
-    std::vector<std::uint8_t> encoded_profile{};
+    std::optional<rust::Box<ddprof::ProfileExporter>> ddog_exporter{};
+    std::optional<rust::Box<ddprof::EncodedProfile>> encoded_profile{};
     Datadog::ProfilerStats profiler_stats;
     std::string process_tags;
+    bool owns_upload_state{ true };
 
-    bool export_to_file(const std::vector<std::uint8_t>& encoded, std::string_view internal_metadata_json);
+    bool export_to_file(const ddprof::EncodedProfile& encoded, std::string_view internal_metadata_json);
 
   public:
     bool upload();
@@ -31,7 +34,8 @@ class Uploader
     static void unlock();
 
     Uploader(std::string_view _output_filename,
-             std::vector<std::uint8_t> encoded,
+             rust::Box<ddprof::ProfileExporter> ddog_exporter,
+             rust::Box<ddprof::EncodedProfile> encoded,
              Datadog::ProfilerStats stats,
              std::string_view _process_tags);
     ~Uploader();
@@ -43,20 +47,29 @@ class Uploader
     Uploader(Uploader&& other) noexcept
       : errmsg{ std::move(other.errmsg) }
       , output_filename{ std::move(other.output_filename) }
+      , ddog_exporter{ std::move(other.ddog_exporter) }
       , encoded_profile{ std::move(other.encoded_profile) }
       , profiler_stats{ other.profiler_stats }
       , process_tags{ std::move(other.process_tags) }
+      , owns_upload_state{ other.owns_upload_state }
     {
+        other.owns_upload_state = false;
     }
 
     Uploader& operator=(Uploader&& other) noexcept
     {
         if (this != &other) {
+            if (owns_upload_state) {
+                cancel_inflight();
+            }
             errmsg = std::move(other.errmsg);
             output_filename = std::move(other.output_filename);
+            ddog_exporter = std::move(other.ddog_exporter);
             encoded_profile = std::move(other.encoded_profile);
             profiler_stats = other.profiler_stats;
             process_tags = std::move(other.process_tags);
+            owns_upload_state = other.owns_upload_state;
+            other.owns_upload_state = false;
         }
         return *this;
     }

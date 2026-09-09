@@ -6,6 +6,7 @@
 
 #include <exception>
 #include <numeric>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <unistd.h>
@@ -136,14 +137,62 @@ Datadog::UploaderBuilder::build()
 {
     auto& state = ProfilerState::get();
 
-    if (state.output_filename.empty()) {
-        return "CXX R&D profile path currently supports output_filename/file export only; "
-               "agent upload requires CXX encoded-profile split support";
+    rust::Vec<ddprof::Tag> tags;
+
+    // Add the tags. In the average case, the user has a structural problem with
+    // one of their tags, but it's really annoying to have to iteratively fix several
+    // tags, so we'll just collect all the reasons and report them all at once.
+    std::vector<std::string> reasons{};
+    const std::vector<std::pair<ExportTagKey, std::string_view>> tag_data = {
+        { ExportTagKey::dd_env, state.dd_env },
+        { ExportTagKey::service, state.service },
+        { ExportTagKey::version, state.version },
+        { ExportTagKey::language, language },
+        { ExportTagKey::runtime, state.runtime },
+        { ExportTagKey::runtime_id, state.runtime_id },
+        { ExportTagKey::runtime_version, state.runtime_version },
+        { ExportTagKey::profiler_version, state.profiler_version },
+        { ExportTagKey::process_id, state.process_id }
+    };
+
+    for (const auto& [tag, data] : tag_data) {
+        if (!data.empty()) {
+            std::string errmsg;
+            if (!add_tag(tags, tag, data, errmsg)) {
+                reasons.push_back(std::string(to_string(tag)) + ": " + errmsg);
+            }
+        }
+    }
+
+    // Add the user-defined tags, if any.
+    for (const auto& tag : state.user_tags) {
+        std::string errmsg;
+        if (!add_tag(tags, tag.first, tag.second, errmsg)) {
+            reasons.push_back(std::string(tag.first) + ": " + errmsg);
+        }
+    }
+
+    if (!reasons.empty()) {
+        return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
+    }
+
+    std::optional<rust::Box<ddprof::ProfileExporter>> ddog_exporter;
+    try {
+        ddog_exporter = ddprof::ProfileExporter::create_agent_exporter(
+          rust::Str(g_library_name.data(), g_library_name.size()),
+          rust::Str(state.profiler_version.data(), state.profiler_version.size()),
+          rust::Str(family.data(), family.size()),
+          std::move(tags),
+          rust::Str(state.url.data(), state.url.size()),
+          state.max_timeout_ms,
+          false);
+    } catch (const std::exception& err) {
+        return std::string("Error initializing CXX exporter: ") + err.what();
     }
 
     // Perform profile encoding before creating the Uploader.
     // Also take the Profiler Stats and reset the one being written to.
-    std::vector<std::uint8_t> encoded;
+    std::optional<rust::Box<ddprof::EncodedProfile>> encoded;
     Datadog::ProfilerStats stats;
     {
         // Only keep the lock for the duration of the encoding operation.
@@ -155,13 +204,16 @@ Datadog::UploaderBuilder::build()
         borrowed.stats().copy_fast_copy_metadata_from(stats);
 
         try {
-            encoded = borrowed.serialize_to_vec();
+            encoded = borrowed.serialize();
         } catch (const std::exception& err) {
             return std::string("Error serializing CXX profile: ") + err.what();
         }
     }
 
-    return std::variant<Datadog::Uploader, std::string>{
-        std::in_place_type<Datadog::Uploader>, state.output_filename, std::move(encoded), stats, state.process_tags
-    };
+    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
+                                                         state.output_filename,
+                                                         std::move(*ddog_exporter),
+                                                         std::move(*encoded),
+                                                         stats,
+                                                         state.process_tags };
 }

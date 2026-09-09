@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <exception>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -124,6 +125,37 @@ to_string(ExportLabelKey key)
         return invalid;
     }
     return keys[static_cast<size_t>(key)];
+}
+
+inline bool
+add_tag(rust::Vec<ddprof::Tag>& tags, std::string_view key, std::string_view val, std::string& errmsg)
+{
+    static bool already_warned = false;
+    if (key.empty() || val.empty()) {
+        return false;
+    }
+
+    try {
+        tags.push_back(ddprof::Tag{ rust::Str(key.data(), key.size()), rust::Str(val.data(), val.size()) });
+        return true;
+    } catch (const std::exception& err) {
+        if (!already_warned) {
+            already_warned = true;
+            errmsg = err.what();
+        }
+        return false;
+    }
+}
+
+inline bool
+add_tag(rust::Vec<ddprof::Tag>& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
+{
+    auto key_sv = to_string(key);
+    if (key_sv.empty()) {
+        errmsg = "Invalid tag key";
+        return false;
+    }
+    return add_tag(tags, key_sv, val, errmsg);
 }
 
 inline bool

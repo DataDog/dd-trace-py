@@ -130,6 +130,59 @@ TEST(LibdatadogCxxBridgeTest, CreateAddApi2AndSerializeProfile)
     }
 }
 
+TEST(LibdatadogCxxBridgeTest, CreateEncodedProfileAndReadBytes)
+{
+    try {
+        rust::Vec<datadog::profiling::SampleType> sample_types;
+        sample_types.push_back(datadog::profiling::SampleType::WallTime);
+        const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
+        auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
+
+        datadog::profiling::Sample sample;
+        sample.values.push_back(1'000'000);
+        sample.locations.push_back(datadog::profiling::Location{
+          datadog::profiling::Mapping{ 0, 0, 0, "", "" },
+          datadog::profiling::Function{ "encoded_profile_function", "", "encoded_profile_file.py" },
+          0,
+          12,
+        });
+
+        profile->add_sample(sample);
+        auto encoded = profile->serialize();
+        auto bytes = encoded->bytes();
+
+        EXPECT_GT(bytes.size(), 0);
+    } catch (const std::exception& err) {
+        FAIL() << "libdatadog CXX encoded profile call failed: " << err.what();
+    }
+}
+
+TEST(LibdatadogCxxBridgeTest, SendEncodedProfileApiCompilesAndReportsError)
+{
+    rust::Vec<datadog::profiling::SampleType> sample_types;
+    sample_types.push_back(datadog::profiling::SampleType::WallTime);
+    const datadog::profiling::Period period{ datadog::profiling::SampleType::WallTime, 1 };
+    auto profile = datadog::profiling::Profile::create(std::move(sample_types), period);
+
+    datadog::profiling::Sample sample;
+    sample.values.push_back(1'000'000);
+    sample.locations.push_back(datadog::profiling::Location{
+      datadog::profiling::Mapping{ 0, 0, 0, "", "" },
+      datadog::profiling::Function{ "send_encoded_profile_function", "", "send_encoded_profile_file.py" },
+      0,
+      12,
+    });
+    profile->add_sample(sample);
+    auto encoded = profile->serialize();
+
+    rust::Vec<datadog::profiling::Tag> tags;
+    tags.push_back(datadog::profiling::Tag{ "language", "python" });
+    auto exporter = datadog::profiling::ProfileExporter::create_agent_exporter(
+      "dd-trace-py", "test", "python", std::move(tags), "http://127.0.0.1:1", 1, false);
+
+    EXPECT_THROW(exporter->send_encoded_profile(std::move(encoded), {}, {}, "", "{}", ""), std::exception);
+}
+
 TEST(LibdatadogCxxBridgeTest, RejectsApi2OnProfileWithoutDictionary)
 {
     auto dictionary = datadog::profiling::ProfilesDictionary::create();
