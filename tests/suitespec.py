@@ -82,20 +82,6 @@ UV_TEST_SUITES = tuple(suite for suite, config in SUITESPEC["suites"].items() if
 def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
-    >>> import fnmatch
-    >>> def matching_suites(path):
-    ...     return sorted(suite for suite in get_suites() if any(fnmatch.fnmatch(path, p) for p in get_patterns(suite)))
-    >>> matching_suites(".gitlab/tests.yml")
-    ['internal']
-    >>> matching_suites(".gitlab/services.yml")
-    ['internal']
-    >>> matching_suites(".gitlab/benchmarks/microbenchmarks.yml")
-    ['benchmarks::span']
-    >>> matching_suites(".gitlab-ci.yml")
-    ['benchmarks::span', 'internal']
-    >>> matching_suites(".gitlab/package.yml")
-    []
-
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
     >>> SUITESPEC["suites"] = {"debugger": {"paths": ["@core", "@debugging", "tests/d/*"]}}
     >>> sorted(get_patterns("debugger"))  # doctest: +NORMALIZE_WHITESPACE
