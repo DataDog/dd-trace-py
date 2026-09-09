@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <optional>
 
 struct AsyncioOffsets
@@ -11,7 +10,7 @@ struct AsyncioOffsets
     size_t thread_tasks_head;
 };
 
-// Mirrors the runtime table defined in CPython 3.14's Modules/_asynciomodule.c.
+// Mirrors the runtime table defined in CPython 3.14.7's Modules/_asynciomodule.c.
 // TODO: Use more of these runtime offsets on Python 3.14+ to replace compile-time private-layout assumptions.
 struct PyAsyncioDebugOffsets
 {
@@ -43,40 +42,20 @@ static_assert(sizeof(PyAsyncioDebugOffsets) == 13 * sizeof(uint64_t));
 
 // Section discovery avoids depending on _asyncio's private module-state layout. Parsing still assumes that CPython
 // preserves this debug table's layout within a minor version, matching CPython's remote-unwinding protocol.
-inline std::optional<AsyncioOffsets>
-parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets)
-{
-    if (offsets == nullptr) {
-        return std::nullopt;
-    }
+std::optional<AsyncioOffsets>
+parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets);
 
-    constexpr uint64_t node_size = 2 * sizeof(uintptr_t);
-    constexpr uint64_t max_size = std::numeric_limits<size_t>::max();
-    const auto valid_field = [](uint64_t size, uint64_t field, uint64_t width, uint64_t alignment) {
-        return size >= width && field <= size - width && field % alignment == 0 && field <= max_size;
-    };
+#if defined(__linux__)
+struct dl_phdr_info;
 
-    // AsyncioDebug has no cookie, so validate the complete schema to reject false-positive section matches.
-    if (!valid_field(offsets->task.size, offsets->task.task_name, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->task.size, offsets->task.task_awaited_by, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->task.size, offsets->task.task_is_task, sizeof(char), alignof(char)) ||
-        !valid_field(offsets->task.size, offsets->task.task_awaited_by_is_set, sizeof(char), alignof(char)) ||
-        !valid_field(offsets->task.size, offsets->task.task_coro, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->task.size, offsets->task.task_node, node_size, alignof(uintptr_t)) ||
-        !valid_field(
-          offsets->interpreter.size, offsets->interpreter.asyncio_tasks_head, node_size, alignof(uintptr_t)) ||
-        !valid_field(
-          offsets->thread.size, offsets->thread.asyncio_running_loop, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(
-          offsets->thread.size, offsets->thread.asyncio_running_task, sizeof(uintptr_t), alignof(uintptr_t)) ||
-        !valid_field(offsets->thread.size, offsets->thread.asyncio_tasks_head, node_size, alignof(uintptr_t))) {
-        return std::nullopt;
-    }
+// Reads section metadata from a borrowed regular-file descriptor, requiring its GNU build ID and program headers to
+// match the loaded binary. Truncated, unsupported, or mismatched metadata returns no offsets.
+std::optional<AsyncioOffsets>
+read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary);
+#endif
 
-    return AsyncioOffsets{ static_cast<size_t>(offsets->interpreter.asyncio_tasks_head),
-                           static_cast<size_t>(offsets->thread.asyncio_tasks_head) };
-}
-
-// Finds and parses the platform-specific AsyncioDebug binary section in the current process.
+// Discovers the runtime table without caching failures. Linux requires readable ELF section headers and a GNU build ID;
+// macOS uses the loaded Mach-O metadata. Missing metadata omits native task-list attribution, not thread stacks.
+// Call during asyncio initialization, never from the sampling thread.
 std::optional<AsyncioOffsets>
 find_asyncio_debug_offsets();

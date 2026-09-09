@@ -347,8 +347,12 @@ stack_init_asyncio(PyObject* self, PyObject* args)
     }
 
 #if PY_VERSION_HEX >= 0x030e0000
-    if (auto offsets = find_asyncio_debug_offsets()) {
-        Sampler::get().get_echion().set_asyncio_offsets(*offsets);
+    auto& echion = Sampler::get().get_echion();
+    // Successful offsets remain valid for the process lifetime. Retry failures on later initialization calls.
+    if (echion.asyncio_thread_tasks_head_offset() == 0 || echion.asyncio_interpreter_tasks_head_offset() == 0) {
+        if (auto offsets = find_asyncio_debug_offsets()) {
+            echion.set_asyncio_offsets(*offsets);
+        }
     }
 #endif
     Sampler::get().init_asyncio(asyncio_scheduled_tasks, asyncio_eager_tasks);

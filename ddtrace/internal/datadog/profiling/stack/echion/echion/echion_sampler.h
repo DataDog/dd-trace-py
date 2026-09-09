@@ -137,10 +137,12 @@ class EchionSampler
         asyncio_interpreter_tasks_head_offset_.store(offsets.interpreter_tasks_head, std::memory_order_relaxed);
         asyncio_thread_tasks_head_offset_.store(offsets.thread_tasks_head, std::memory_order_relaxed);
     }
+
     size_t asyncio_interpreter_tasks_head_offset() const
     {
         return asyncio_interpreter_tasks_head_offset_.load(std::memory_order_relaxed);
     }
+
     size_t asyncio_thread_tasks_head_offset() const
     {
         return asyncio_thread_tasks_head_offset_.load(std::memory_order_relaxed);

@@ -102,6 +102,9 @@ configure_stack_internal_test(test_sample_lifecycle)
 dd_wrapper_add_test(test_sampling_cycle_state test_sampling_cycle_state.cpp)
 configure_stack_internal_test(test_sampling_cycle_state)
 
+dd_wrapper_add_test(test_asyncio_debug test_asyncio_debug.cpp)
+configure_stack_internal_test(test_asyncio_debug)
+
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
 configure_stack_internal_test(test_task_traversal)
 
