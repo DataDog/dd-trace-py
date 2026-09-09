@@ -664,6 +664,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "UV_NO_CACHE": "1",
             },
             command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
@@ -1235,7 +1236,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.14"),
+                    pys=select_pys(max_version="3.15"),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
