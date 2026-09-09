@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       integration_name:
-        description: "Test suite name to update"
+        description: "Test environment name to update"
         required: true
         type: string
       package_name:

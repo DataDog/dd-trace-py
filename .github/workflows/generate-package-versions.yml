@@ -82,7 +82,11 @@ jobs:
       - name: Regenerate test locks
         id: refresh
         run: |
-          VENV_NAME=$(scripts/test-env refresh)
+          OUTDATED_ENVIRONMENTS=$(scripts/freshvenvs.py output)
+          VENV_NAME=${OUTDATED_ENVIRONMENTS%% *}
+          if [[ -n "$VENV_NAME" ]]; then
+            scripts/test-env refresh "$VENV_NAME" >/dev/null
+          fi
           echo "venv_name=$VENV_NAME" >> "$GITHUB_OUTPUT"
           echo "VENV_NAME=$VENV_NAME" >> "$GITHUB_ENV"
 

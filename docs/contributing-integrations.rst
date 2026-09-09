@@ -241,4 +241,4 @@ The following is the check list for ensuring you have all of the components to h
 - The test environment and GitLab CI configuration in ``tests/contrib/suitespec.yml``.
 - Your integration added to ``PATCH_MODULES`` in ``ddtrace/_monkey.py`` to enable auto instrumentation for it.
 - The relevant file paths for your integration added to a suitespec file (see ``tests/README.md`` for details).
-- A release note for your addition generated with ``riot run reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.
+- A release note for your addition generated with ``uvx --from 'reno==4.1.0' reno new YOUR_TITLE_SLUG``, which will add ``releasenotes/notes/YOUR_TITLE_SLUG.yml``.

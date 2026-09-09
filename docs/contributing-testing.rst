@@ -160,7 +160,10 @@ the locks and commit both changes:
 
 .. code-block:: bash
 
-  $ scripts/test-env lock <suite>
+  $ scripts/test-env lock <environment-name>
+
+Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -210,7 +213,7 @@ How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------
 
 Update the dependency constraint in the suite's ``suitespec.yml`` matrix, run
-``scripts/test-env lock <suite>``, and commit the definition and resulting lock changes.
+``scripts/test-env refresh <environment-name>``, and commit the definition and resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------
