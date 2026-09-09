@@ -678,10 +678,10 @@ class TestTracedAsyncConnection(AsyncioTestCase):
 
 
 @pytest.mark.parametrize("method", ["execute", "executemany"])
-@pytest.mark.parametrize("normalization_error", [False, True])
+@pytest.mark.parametrize("rendering_error", [False, True])
 @pytest.mark.parametrize("driver_error", [False, True])
 @pytest.mark.asyncio
-async def test_query_normalization_fail_open(method, normalization_error, driver_error, tracer):
+async def test_query_event_rendering_fail_open(method, rendering_error, driver_error, tracer):
     query, parameters, option, result = object(), object(), object(), object()
     expected = RuntimeError("driver error")
     driver = mock.AsyncMock(rowcount=0)
@@ -689,13 +689,13 @@ async def test_query_normalization_fail_open(method, normalization_error, driver
     operation.return_value = result
     if driver_error:
         operation.side_effect = expected
-    normalize = mock.Mock(return_value=None, side_effect=ValueError("cannot render") if normalization_error else None)
+    render = mock.Mock(return_value=None, side_effect=ValueError("cannot render") if rendering_error else None)
 
-    class NormalizingCursor(TracedAsyncCursor):
-        def _normalize_dbapi_query(self, query):
-            return normalize(query)
+    class RenderingCursor(TracedAsyncCursor):
+        def _render_dbapi_query(self, query):
+            return render(query)
 
-    cursor = NormalizingCursor(driver, cfg={})
+    cursor = RenderingCursor(driver, cfg={})
     listener = mock.Mock()
     core.on(DbQueryEvent.event_name, listener)
     try:
@@ -708,7 +708,7 @@ async def test_query_normalization_fail_open(method, normalization_error, driver
     finally:
         core.reset_listeners(DbQueryEvent.event_name, listener)
 
-    normalize.assert_called_once_with(query)
+    render.assert_called_once_with(query)
     listener.assert_not_called()
     operation.assert_awaited_once_with(query, parameters, option=option)
     assert operation.call_args.args[0] is query
@@ -721,18 +721,18 @@ async def test_query_normalization_fail_open(method, normalization_error, driver
 @pytest.mark.parametrize("tracing_enabled", [False, True])
 @pytest.mark.parametrize("has_listener", [False, True])
 @pytest.mark.asyncio
-async def test_query_normalization_enablement(method, tracing_enabled, has_listener, tracer, test_spans):
+async def test_query_event_rendering_enablement(method, tracing_enabled, has_listener, tracer, test_spans):
     tracer.enabled = tracing_enabled
     query = object()
-    normalize = mock.Mock(return_value="SELECT 1")
+    render = mock.Mock(return_value="SELECT 1")
 
-    class NormalizingCursor(TracedAsyncCursor):
-        def _normalize_dbapi_query(self, query):
-            return normalize(query)
+    class RenderingCursor(TracedAsyncCursor):
+        def _render_dbapi_query(self, query):
+            return render(query)
 
     driver = mock.AsyncMock(rowcount=0)
     listener = mock.Mock()
-    cursor = NormalizingCursor(driver, cfg={})
+    cursor = RenderingCursor(driver, cfg={})
     # Isolate the no-listener case from product subscribers registered by the test harness.
     with mock.patch.object(core, "has_listeners", return_value=has_listener):
         if has_listener:
@@ -742,12 +742,12 @@ async def test_query_normalization_enablement(method, tracing_enabled, has_liste
         finally:
             core.reset_listeners(DbQueryEvent.event_name, listener)
 
-    assert normalize.call_count == int(tracing_enabled or has_listener)
+    assert render.call_count == int(has_listener)
     if has_listener:
         listener.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="sql"))
     else:
         listener.assert_not_called()
-    assert [span.resource for span in test_spans.spans] == (["SELECT 1"] if tracing_enabled else [])
+    assert [span.resource for span in test_spans.spans] == ([""] if tracing_enabled else [])
     getattr(driver, method).assert_awaited_once_with(query)
 
 

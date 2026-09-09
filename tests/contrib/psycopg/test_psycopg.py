@@ -198,7 +198,7 @@ class PsycopgCore(TracerTestCase):
 
         self.assert_structure(dict(name="psycopg.connection.rollback"))
 
-    def test_composed_query_event_is_stringified(self) -> None:
+    def test_django_composed_query_event_is_stringified(self) -> None:
         cursor = mock.Mock(rowcount=0)
         cursor.connection.pgconn._encoding = "utf-8"
         cursor.connection.pgconn.parameter_status.return_value = b"UTF8"
@@ -211,14 +211,16 @@ class PsycopgCore(TracerTestCase):
 
         core.on(DbQueryEvent.event_name, capture_event)
         try:
-            Psycopg3TracedCursor(django_cursor, cfg=config.psycopg).execute(query)
+            with mock.patch.object(config.psycopg, "integration_name", "django-database"):
+                Psycopg3TracedCursor(django_cursor, cfg=config.psycopg).execute(query)
         finally:
             core.reset_listeners(DbQueryEvent.event_name, capture_event)
 
         assert events == [DbQueryEvent(query=query.as_string(cursor), span_name_prefix="postgres")]
+        assert [span.resource for span in self.get_spans()] == [""]
         django_cursor.execute.assert_called_once_with(query)
 
-    def test_query_is_stringified_once_for_tracing_and_appsec(self) -> None:
+    def test_query_event_rendering_is_separate_from_tracing(self) -> None:
         cursor = mock.Mock(spec=["execute", "fetchone", "rowcount"])
         cursor.rowcount = 0
 
@@ -237,7 +239,7 @@ class PsycopgCore(TracerTestCase):
         finally:
             core.reset_listeners(DbQueryEvent.event_name, capture_event)
 
-        render.assert_called_once_with(cursor)
+        assert render.call_args_list == [mock.call(cursor)] * 3
         assert events == [DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")]
         assert [span.resource for span in self.get_spans()] == ["SELECT 1", "SELECT 1"]
         cursor.execute.assert_called_once_with(query)
@@ -577,7 +579,7 @@ class PsycopgCore(TracerTestCase):
     reason="psycopg template queries require Python 3.14 and psycopg 3.3",
 )
 @pytest.mark.parametrize(
-    "template_source, normalized",
+    "template_source, rendered_query",
     [
         ('t"SELECT {payload}"', "SELECT $1"),
         ('t"SELECT {payload:s}"', "SELECT $1"),
@@ -589,7 +591,7 @@ class PsycopgCore(TracerTestCase):
         ('t"{fragment:q}{nested:q}, {42} AS {column:i}"', 'SELECT $1 AS "va""lue", $2 AS "raw""name"'),
     ],
 )
-def test_template_query_preserves_parameter_adaptation(template_source, normalized, tracer, test_spans):
+def test_template_query_preserves_parameter_adaptation(template_source, rendered_query, tracer, test_spans):
     # A consuming adapter must see exactly the same input as uninstrumented execution.
     dumps = mock.Mock(side_effect=lambda values: json.dumps(list(values)))
     payload = Jsonb(iter([1, 2]), dumps=dumps)
@@ -622,11 +624,10 @@ def test_template_query_preserves_parameter_adaptation(template_source, normaliz
         unpatch()
 
     dumps.assert_called_once_with(payload.obj)
-    assert events == ([DbQueryEvent(query=normalized, span_name_prefix="postgres")] if normalized else [])
+    assert events == ([DbQueryEvent(query=rendered_query, span_name_prefix="postgres")] if rendered_query else [])
     query_spans = [span for span in test_spans.spans if span.name == "postgres.query"]
     assert len(query_spans) == 1
-    if normalized:
-        assert query_spans[0].resource == normalized
+    assert query_spans[0].resource == ""
 
 
 @pytest.mark.skipif(
@@ -665,7 +666,7 @@ def test_django_template_query_without_psycopg_patch(tracer, test_spans):
         django_database.get_conn_service_name.cache_clear()
 
     assert events == [DbQueryEvent(query='SELECT $1 AS "va""lue"', span_name_prefix="postgres")]
-    assert [span.resource for span in test_spans.spans] == ['SELECT $1 AS "va""lue"']
+    assert [span.resource for span in test_spans.spans] == [""]
     assert not getattr(psycopg, "_datadog_patch", False)
 
 
@@ -684,7 +685,7 @@ def test_template_query_unsupported_structure_does_not_render(template_source):
 
     query = eval(template_source, {"custom": CustomSQL("SELECT 1"), "SQL": SQL, "value": 1})
     cursor = Psycopg3TracedCursor(mock.Mock(rowcount=0), cfg=config.psycopg)
-    assert cursor._normalize_dbapi_query(query) is None
+    assert cursor._render_dbapi_query(query) is None
     CustomSQL.as_string.assert_not_called()
     CustomSQL.as_bytes.assert_not_called()
 

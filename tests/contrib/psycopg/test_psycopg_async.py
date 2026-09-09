@@ -334,7 +334,7 @@ class PsycopgCore(AsyncioTestCase):
     reason="psycopg template queries require Python 3.14 and psycopg 3.3",
 )
 @pytest.mark.parametrize(
-    "template_source, normalized",
+    "template_source, rendered_query",
     [
         ('t"SELECT {payload}"', "SELECT $1"),
         ('t"SELECT {payload:s}"', "SELECT $1"),
@@ -347,7 +347,7 @@ class PsycopgCore(AsyncioTestCase):
     ],
 )
 @pytest.mark.asyncio
-async def test_template_query_preserves_parameter_adaptation(template_source, normalized, tracer, test_spans):
+async def test_template_query_preserves_parameter_adaptation(template_source, rendered_query, tracer, test_spans):
     # A consuming adapter must see exactly the same input as uninstrumented execution.
     dumps = mock.Mock(side_effect=lambda values: json.dumps(list(values)))
     payload = Jsonb(iter([1, 2]), dumps=dumps)
@@ -380,11 +380,10 @@ async def test_template_query_preserves_parameter_adaptation(template_source, no
         unpatch()
 
     dumps.assert_called_once_with(payload.obj)
-    assert events == ([DbQueryEvent(query=normalized, span_name_prefix="postgres")] if normalized else [])
+    assert events == ([DbQueryEvent(query=rendered_query, span_name_prefix="postgres")] if rendered_query else [])
     query_spans = [span for span in test_spans.spans if span.name == "postgres.query"]
     assert len(query_spans) == 1
-    if normalized:
-        assert query_spans[0].resource == normalized
+    assert query_spans[0].resource == ""
 
 
 @pytest.mark.asyncio

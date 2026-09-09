@@ -25,11 +25,11 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 
 ## DBAPI Cursor Subclasses
 
-Normalize queries in _normalize_dbapi_query(), not in _trace_method(). The shared
-synchronous _prepare_dbapi_query() is also inherited by async cursors: it prepares
-one resource for tracing/fetch spans and DbQueryEvent while forwarding the original
-query and parameters to the driver. Rendering failures skip the event, not execution;
-blocking listeners still run when tracing is disabled.
+Render queries for DbQueryEvent subscribers with the driver-specific
+_render_dbapi_query() hook. Call it only when a subscriber is present, and suppress
+only rendering failures. Dispatch outside that exception boundary so blocking
+listeners can stop execution. The rendered value is event data only: tracing and
+the driver must continue to receive the original query and parameters.
 
 For psycopg3 templates, inspect SQL structure with $n placeholders for bound values
 (default, :s, :t, :b), never by literal-adapting those values. Normalization supports
@@ -37,24 +37,22 @@ nested :q templates and built-in SQL/Composed/Identifier nodes, plus :i strings.
 Literal interpolation (:l), Literal-containing composed trees, custom composable
 subclasses, conversions, and unsupported formats fail open without rendering or
 emitting a query event. These forms can invoke stateful adapters and must be left
-to the driver. Legacy standalone psycopg SQL/Composed rendering is unchanged;
-do not extend it to arbitrary as_string methods or custom composable subclasses.
+to the driver. Legacy psycopg tracing still renders SQL/Composed resources in
+_trace_method(); do not extend that APM behavior to arbitrary as_string methods,
+custom composable subclasses, or other query types.
 Discover the already loaded driver/template modules independently of psycopg
 patch/config state, since Django-only instrumentation supplies its own
 IntegrationConfig and wrapper cursor.
 
-aiopg did not previously render composables. Its normalization uses the native
+aiopg did not previously render composables. Its event rendering uses the native
 _impl cursor and only built-in SQL/Identifier/Placeholder nodes and Composed trees
 containing those nodes. Literal/custom nodes fail open, leaving adaptation to the
 driver. Reuse _render_composable_query() instead of calling as_string() on an
 unchecked tree.
 
-When reusing `TracedCursor` or `TracedAsyncCursor`, check every inherited method
-against the adapter's `_trace_method` signature. An adapter that retains a custom
-signature can accidentally break inherited methods such as `callproc()`.
-For example, aiomysql explicitly forwards `callproc()` to the wrapped driver to
-preserve its previously untraced behavior. Cover positional and keyword arguments,
-return values, and exceptions with tracing enabled and disabled.
+Do not inherit from TracedCursor or TracedAsyncCursor solely to reuse event rendering.
+Inherited methods assume the shared _trace_method signature and can change adapter
+behavior outside the event scope.
 
 ## LLM / Generative AI Detail
 

@@ -2,6 +2,7 @@
 Generic dbapi tracing code.
 """
 
+from contextlib import suppress
 from typing import Mapping
 from typing import Optional
 from typing import Union
@@ -82,7 +83,7 @@ class TracedCursor(wrapt.ObjectProxy):
         )
         self._self_datadog_name = span_name
         self._self_dbapi_span_name_prefix = span_name_prefix
-        self._self_last_execute_operation: object = None
+        self._self_last_execute_operation = None
         self._self_config = cfg or config.dbapi2
         self._self_dbm_propagator = getattr(self._self_config, "_dbm_propagator", None)
         self._self_db_tags = dict(db_tags) if db_tags else {}
@@ -93,27 +94,10 @@ class TracedCursor(wrapt.ObjectProxy):
     def __next__(self):
         return self.__wrapped__.__next__()
 
-    def _normalize_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
+    def _render_dbapi_query(self, query: object) -> Optional[Union[str, bytes]]:
         if isinstance(query, (str, bytes)):
             return query
         return None
-
-    def _prepare_dbapi_query(self, query: object) -> object:
-        has_listeners = core.has_listeners(DbQueryEvent.event_name)
-        normalized_query: Optional[Union[str, bytes]] = None
-        if isinstance(query, (str, bytes)) or is_tracing_enabled() or has_listeners:
-            try:
-                normalized_query = self._normalize_dbapi_query(query)
-            except Exception:
-                log.debug("Failed to normalize database query", exc_info=True)
-
-        resource = normalized_query if normalized_query is not None else query
-        self._self_last_execute_operation = resource
-        if has_listeners and normalized_query is not None:
-            core.dispatch_event(
-                DbQueryEvent(query=normalized_query, span_name_prefix=self._self_dbapi_span_name_prefix)
-            )
-        return resource
 
     def _trace_method(self, method, name, resource, extra_tags, dbm_propagator, *args, **kwargs):
         """
@@ -165,7 +149,15 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
-        resource = self._prepare_dbapi_query(query)
+        self._self_last_execute_operation = query
+        if core.has_listeners(DbQueryEvent.event_name):
+            rendered_query = None
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+            if rendered_query is not None:
+                core.dispatch_event(
+                    DbQueryEvent(query=rendered_query, span_name_prefix=self._self_dbapi_span_name_prefix)
+                )
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -174,7 +166,7 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(
             self.__wrapped__.executemany,
             self._self_datadog_name,
-            resource,
+            query,
             {"sql.executemany": "true"},
             self._self_dbm_propagator,
             query,
@@ -184,7 +176,15 @@ class TracedCursor(wrapt.ObjectProxy):
 
     def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
-        resource = self._prepare_dbapi_query(query)
+        self._self_last_execute_operation = query
+        if core.has_listeners(DbQueryEvent.event_name):
+            rendered_query = None
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+            if rendered_query is not None:
+                core.dispatch_event(
+                    DbQueryEvent(query=rendered_query, span_name_prefix=self._self_dbapi_span_name_prefix)
+                )
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -192,7 +192,7 @@ class TracedCursor(wrapt.ObjectProxy):
         return self._trace_method(
             self.__wrapped__.execute,
             self._self_datadog_name,
-            resource,
+            query,
             {},
             self._self_dbm_propagator,
             query,

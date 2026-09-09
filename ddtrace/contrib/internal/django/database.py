@@ -44,12 +44,12 @@ def get_traced_cursor_cls(cursor_type: type[Any]) -> type[dbapi.TracedCursor]:
     try:
         cursor_modules = tuple(base.__module__ for base in cursor_type.__mro__)
         if any(module.startswith("psycopg2.") for module in cursor_modules) or cursor_type.__name__ == (
-            "PsycopgTracedCursor"
+            "Psycopg2TracedCursor"
         ):
             # Import lazily to avoid importing psycopg if not already imported.
-            from ddtrace.contrib.internal.psycopg.cursor import PsycopgTracedCursor
+            from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
 
-            traced_cursor_cls = PsycopgTracedCursor
+            traced_cursor_cls = Psycopg2TracedCursor
         elif any(module.startswith("psycopg.") for module in cursor_modules) or cursor_type.__name__ == (
             "Psycopg3TracedCursor"
         ):

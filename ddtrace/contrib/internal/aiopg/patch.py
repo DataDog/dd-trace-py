@@ -18,7 +18,6 @@ config._add(
     "aiopg",
     dict(
         _default_service=schematize_service_name("postgres"),
-        _dbapi_span_name_prefix="postgres",
     ),
 )
 

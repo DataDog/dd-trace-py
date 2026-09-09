@@ -1,6 +1,8 @@
+from contextlib import suppress
 import inspect
 
 from ddtrace import config
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -96,7 +98,15 @@ class TracedAsyncCursor(TracedCursor):
 
     async def executemany(self, query, *args, **kwargs):
         """Wraps the cursor.executemany method"""
-        resource = self._prepare_dbapi_query(query)
+        self._self_last_execute_operation = query
+        if core.has_listeners(DbQueryEvent.event_name):
+            rendered_query = None
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+            if rendered_query is not None:
+                core.dispatch_event(
+                    DbQueryEvent(query=rendered_query, span_name_prefix=self._self_dbapi_span_name_prefix)
+                )
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -105,7 +115,7 @@ class TracedAsyncCursor(TracedCursor):
         return await self._trace_method(
             self.__wrapped__.executemany,
             self._self_datadog_name,
-            resource,
+            query,
             {"sql.executemany": "true"},
             self._self_dbm_propagator,
             query,
@@ -115,7 +125,15 @@ class TracedAsyncCursor(TracedCursor):
 
     async def execute(self, query, *args, **kwargs):
         """Wraps the cursor.execute method"""
-        resource = self._prepare_dbapi_query(query)
+        self._self_last_execute_operation = query
+        if core.has_listeners(DbQueryEvent.event_name):
+            rendered_query = None
+            with suppress(Exception):
+                rendered_query = self._render_dbapi_query(query)
+            if rendered_query is not None:
+                core.dispatch_event(
+                    DbQueryEvent(query=rendered_query, span_name_prefix=self._self_dbapi_span_name_prefix)
+                )
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
@@ -123,7 +141,7 @@ class TracedAsyncCursor(TracedCursor):
         return await self._trace_method(
             self.__wrapped__.execute,
             self._self_datadog_name,
-            resource,
+            query,
             {},
             self._self_dbm_propagator,
             query,
