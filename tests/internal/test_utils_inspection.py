@@ -57,8 +57,8 @@ def test_wrapped_decoration():
 
 
 def test_undecorated_plain_function_returns_input_directly():
-    # A plain (undecorated) function is the common case. ``undecorated`` must return it
-    # without descending into the BFS / ``__dir__()`` scan: the input itself already
+    # A plain (undecorated) function is the common case. undecorated must return it
+    # without descending into the BFS / __dir__() scan: the input itself already
     # matches. This is the fast path that keeps per-test source-location discovery cheap.
     def f():
         pass
@@ -71,3 +71,21 @@ def test_undecorated_plain_function_returns_input_directly():
         pass
 
     assert undecorated(g, name="does_not_exist", path=path) is g
+
+
+def test_undecorated_same_name_wrapper_returns_original():
+    def decorate(original):
+        # A decorator wrapper may legitimately share the test's name and source file.
+        def test_target():
+            return original()
+
+        return test_target
+
+    def test_target():
+        pass
+
+    original = test_target
+    wrapper = decorate(original)
+
+    assert wrapper.__code__.co_name == original.__code__.co_name
+    assert undecorated(wrapper, name="test_target", path=Path(__file__).resolve()) is original
