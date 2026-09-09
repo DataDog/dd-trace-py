@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    internal: Fixes a memory leak that causes memory usage to grow over time in long-running
+    processes, when instrumentation applied to a function fails while entering, returning from or
+    unwinding that function. Each such call retained per-call state, and in some cases the frame of
+    the instrumented function.

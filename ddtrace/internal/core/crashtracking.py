@@ -1,5 +1,6 @@
 # pyright: reportPossiblyUnboundVariable=false
 import importlib.util
+import os
 import platform
 import sys
 import traceback
@@ -19,7 +20,6 @@ from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.crashtracker import config as crashtracker_config
 from ddtrace.internal.settings.profiling import config as profiling_config
 from ddtrace.internal.settings.profiling import config_str
-from ddtrace.internal.telemetry.writer import _agentless_endpoint_url
 
 
 log = get_logger(__name__)
@@ -125,17 +125,12 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         log.error("Invalid stacktrace_resolver value: %s", crashtracker_config.stacktrace_resolver)
         stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
 
-    # Crash reports ride the telemetry intake, so agentless points at the same host the telemetry
-    # writer uses. libdatadog only resolves the direct intake path (rather than the agent's
-    # telemetry proxy path) when the endpoint carries an API key and direct submission is
-    # enabled in the receiver process, so both are set together below.
+    # Do not manually compute an url. The crashtracker receiver has this handling,
+    # given DD_API_KEY and DD_SITE. Nothing to do for us here.
+    # We even cannot do so, otherwise we'll pin crashtracking to a single host,
+    # instead of dedicated error-reporting and crashtracking hosts.
     crash_agentless = config._agentless_enabled and config._dd_api_key
-    if crash_agentless:
-        upload_url = _agentless_endpoint_url(config._dd_site)
-        api_key = config._dd_api_key
-    else:
-        upload_url = agent_config.trace_agent_url
-        api_key = None
+    upload_url = None if crash_agentless else agent_config.trace_agent_url
 
     # Create crashtracker configuration
     crashtracker_configuration = CrashtrackerConfiguration(
@@ -149,13 +144,15 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
         crashtracker_config.debug_url or upload_url,
         None,  # unix_socket_path
         crashtracker_config._test_token,
-        api_key,
+        None,
     )
 
     receiver_env = {}
 
     if crash_agentless:
         receiver_env["_DD_DIRECT_SUBMISSION_ENABLED"] = "true"
+        receiver_env["DD_API_KEY"] = config._dd_api_key
+        receiver_env["DD_SITE"] = config._dd_site
 
     # Don't pass all env vars to the receiver process, because there are
     # conflicts with export location derivation
@@ -181,6 +178,28 @@ def _get_args(additional_tags: Optional[dict[str, str]]):
     for env_var in inherited_env_vars:
         env_value = env.get(env_var)
         if env_value is not None:
+            if env_var == "PYTHONPATH":
+                # ddtrace-run and SSI prepends its bootstrap dir (containing sitecustomize.py) to
+                # PYTHONPATH so the traced app auto-instruments on startup. If we inherit it
+                # as-is, the receiver's own interpreter re-triggers that bootstrap and ends up
+                # running a second, independently-configured copy of ddtrace using this stripped-down env.
+                # Strip it so the receiver stays a plain, uninstrumented script while still finding
+                # the ddtrace package via any other PYTHONPATH entries.
+                # receiver_script_path is .../ddtrace/commands/_dd_crashtracker_receiver.py,
+                # so two dirname() calls reach the ddtrace package root and "bootstrap"
+                # names the sibling directory that sitecustomize.py lives in.
+                bootstrap_dir = os.path.join(os.path.dirname(os.path.dirname(receiver_script_path)), "bootstrap")
+                path_entries = [p for p in env_value.split(os.pathsep) if p != bootstrap_dir]
+                if not path_entries:
+                    continue
+                env_value = os.pathsep.join(path_entries)
+                # PYTHONPATH="" is ignored by Python (treated as unset), but "" entries
+                # inside PYTHONPATH mean "current working directory". This happens when
+                # bootstrap stripping leaves only cwd entries. PYTHONPATH=<bootstrap>:
+                # becomes [""] which joins to "". So, we substitute "." so the receiver's
+                # interpreter still finds modules in cwd.
+                if not env_value:
+                    env_value = "."
             receiver_env[env_var] = env_value
 
     # This is equivalent to: python /path/to/_dd_crashtracker_receiver.py

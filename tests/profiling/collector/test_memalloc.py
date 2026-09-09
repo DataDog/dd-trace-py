@@ -34,6 +34,14 @@ PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
 PY_312_OR_ABOVE = sys.version_info[:2] >= (3, 12)
 PY_311_OR_ABOVE = sys.version_info[:2] >= (3, 11)
 
+# Minimum heap-space value at which a live sample attributed to
+# one() is considered as an actual, un-freed one() result object
+# rather than a CPython-internal allocation.
+# The number is chosen to be in the middle of what would be too
+# low and too high to allow some margin against false positives
+# and negatives.
+ONE_RESULT_MIN_ALLOC_SIZE = 1536 if PY_313_OR_ABOVE else 256
+
 
 def _allocate_1k() -> list[object]:
     return [object() for _ in range(1000)]
@@ -657,13 +665,12 @@ def test_memory_collector_python_interface_with_allocation_tracking(tmp_path: Pa
         live_samples = [s for s in final_profile.sample if s.value[heap_space_idx] > 0]
 
         # Check that we have no significant live samples with 'one' in traceback (they were freed).
-        # Small residual allocations (< min_alloc_size) may remain due to CPython internal
-        # caching (type caches, inline bytecode caches, descriptor objects, etc.) that are
-        # allocated while one() is on the call stack and not freed by del + gc.collect().
-        # With aggressive sampling (heap_sample_size=32), these are occasionally sampled.
-        # We only assert on allocations large enough to be the actual one() result object
-        # (bytearray(256) on < 3.13 or (None,)*256 ~= 2096 bytes on 3.13+).
-        min_alloc_size = 256
+        # Small residual allocations may remain due to CPython internal caching (type caches, inline
+        # bytecode caches, descriptor objects, etc.) that are allocated while one() is on the call
+        # stack and not freed by del + gc.collect(). With aggressive sampling (heap_sample_size=32),
+        # these are occasionally sampled. We only assert on allocations large enough to be the actual
+        # one() result object (bytearray(256) on < 3.13 or (None,)*256 ~= 2096 bytes on 3.13+).
+        min_alloc_size = ONE_RESULT_MIN_ALLOC_SIZE
         one_samples_in_final = [
             sample
             for sample in live_samples
@@ -834,7 +841,7 @@ def test_heap_live_samples_drops_after_free(tmp_path: Path) -> None:
         live_after = [s for s in profile_after.sample if s.value[heap_space_idx] > 0]
 
         # 'one' should have no significant live samples (freed)
-        min_alloc_size = 256
+        min_alloc_size = ONE_RESULT_MIN_ALLOC_SIZE
         one_live_after = [
             s
             for s in live_after
@@ -1629,13 +1636,31 @@ def _make_obj_domain_objects(count: int) -> object:
     return last
 
 
-def test_allocator_domain_label_obj_when_mem_domain_disabled(tmp_path: Path) -> None:
+# Subprocess: this test's assertion depends on PYMEM_DOMAIN_MEM never having
+# been installed by ANY earlier test in the process (it asserts the domain
+# label set is exactly {"obj"}, not a subset). Several other tests in this
+# file legitimately enable mem_domain, and pytest-randomly does not guarantee
+# this test runs before them, so it must run in its own process to avoid
+# being polluted by test order.
+@pytest.mark.subprocess()
+def test_allocator_domain_label_obj_when_mem_domain_disabled() -> None:
     """With mem_domain off, every allocation sample is still labelled, and always with "obj".
 
     Labelling is unconditional so that A/B runs (mem_domain off vs on) can be
     compared by filtering on the same label rather than on its absence.
     """
-    output_filename: str = _setup_profiling_prelude(tmp_path, "test_allocator_domain_obj_only")
+    from pathlib import Path
+    import tempfile
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector import memalloc
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_memalloc import ALLOCATOR_DOMAIN_KEY
+    from tests.profiling.collector.test_memalloc import ALLOCATOR_DOMAIN_OBJ
+    from tests.profiling.collector.test_memalloc import _make_obj_domain_objects
+    from tests.profiling.collector.test_memalloc import _setup_profiling_prelude
+
+    output_filename: str = _setup_profiling_prelude(Path(tempfile.mkdtemp()), "test_allocator_domain_obj_only")
 
     mc: memalloc.MemoryCollector = memalloc.MemoryCollector(heap_sample_size=1024, mem_domain_enabled=False)
     obj: object

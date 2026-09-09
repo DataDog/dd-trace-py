@@ -45,6 +45,13 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
 def test_evaluator_runner_periodic_enqueues_eval_metric(mock_llmobs_eval_metric_writer, active_evaluator_runner):
     active_evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
     active_evaluator_runner.periodic()
+
+    # periodic() runs each evaluation on a background executor, so the eval metric is
+    # enqueued asynchronously. Wait for that submission to land before asserting.
+    deadline = time.time() + 5
+    while mock_llmobs_eval_metric_writer.enqueue.call_count == 0 and time.time() < deadline:
+        time.sleep(0.01)
+
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234")
     )
