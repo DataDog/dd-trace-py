@@ -4,10 +4,13 @@ import signal
 import subprocess
 import time
 from types import SimpleNamespace
+from typing import Any
+from typing import cast
 
 from azure.durable_functions.orchestrator import Orchestrator
 from azure.functions import OrchestrationContext
 import pytest
+import requests
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
@@ -27,7 +30,6 @@ from tests.webclient import Client
 
 
 DEFAULT_HEADERS = {"User-Agent": "python-httpx/x.xx.x"}
-SNAPSHOT_IGNORES = ["meta.http.url", "meta.test.deployment_verification"]
 
 
 @pytest.fixture
@@ -42,6 +44,15 @@ def azure_functions_client(request):
     port = 7072
     env["AZURE_FUNCTIONS_TEST_PORT"] = str(port)
     env["DD_TRACE_STATS_COMPUTATION_ENABLED"] = "False"  # disable stats computation to avoid potential flakes in tests
+    env["DD_TRACE_WRITER_INTERVAL_SECONDS"] = "0.1"
+
+    token = f"{request.node.name}-{os.getpid()}-{time.time_ns()}"
+    agent_url = env["DD_TRACE_AGENT_URL"].rstrip("/")
+    response = requests.get(f"{agent_url}/test/session/start", params={"test_session_token": token}, timeout=5)
+    response.raise_for_status()
+    additional_headers = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "")
+    separator = "," if additional_headers else ""
+    env["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = f"{additional_headers}{separator}X-Datadog-Test-Session-Token:{token}"
 
     # webservers might exec or fork into another process, so we need to os.setsid() to create a process group
     # (all of which will listen to signals sent to the parent) so that we can kill the whole application.
@@ -59,7 +70,7 @@ def azure_functions_client(request):
         # Wait for the server to start up
         try:
             client.wait(delay=0.5)
-            yield client
+            yield client, token
             client.get_ignored("/shutdown")
         except Exception:
             pass
@@ -91,6 +102,27 @@ def _wait_for_durable_completion(client: Client, response) -> None:
         time.sleep(0.5)
 
     pytest.fail("Durable orchestration did not complete before timeout")
+
+
+def _wait_for_durable_spans(token: str, expected_resources: set[str]) -> list[list[dict[str, Any]]]:
+    agent_url = os.environ["DD_TRACE_AGENT_URL"].rstrip("/")
+    for _ in range(50):
+        response = requests.get(f"{agent_url}/test/session/traces", params={"test_session_token": token}, timeout=1)
+        response.raise_for_status()
+        traces = cast(list[list[dict[str, Any]]], response.json())
+        resources = {span["resource"] for trace in traces for span in trace}
+        if expected_resources <= resources:
+            return traces
+        time.sleep(0.1)
+
+    pytest.fail(f"Did not receive durable spans {expected_resources - resources}")
+    raise AssertionError
+
+
+def _span_by_resource(traces: list[list[dict[str, Any]]], resource: str) -> dict[str, Any]:
+    spans = [span for trace in traces for span in trace if span["resource"] == resource]
+    assert len(spans) == 1
+    return spans[0]
 
 
 @pytest.mark.parametrize(
@@ -392,15 +424,31 @@ def test_orchestration_trigger_wrapper_traces_error_after_previous_activation():
         assert span.parent_id == http_span.span_id
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_activity_trigger_end_to_end(azure_functions_client: Client) -> None:
-    response = azure_functions_client.get("/api/startactivity", headers=DEFAULT_HEADERS)
-    _wait_for_durable_completion(azure_functions_client, response)
+def test_activity_trigger_distributed_tracing_end_to_end(azure_functions_client: tuple[Client, str]) -> None:
+    client, token = azure_functions_client
+    response = client.get("/api/startactivity", headers=DEFAULT_HEADERS)
+    _wait_for_durable_completion(client, response)
+    traces = _wait_for_durable_spans(
+        token, {"GET /api/startactivity", "Orchestration activity_orchestrator", "Activity durable_activity"}
+    )
     assert response.status_code in (200, 202)
+    trace_ids = {
+        _span_by_resource(traces, resource)["trace_id"]
+        for resource in ("GET /api/startactivity", "Orchestration activity_orchestrator", "Activity durable_activity")
+    }
+    assert len(trace_ids) == 1
 
 
-@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
-def test_entity_trigger_end_to_end(azure_functions_client: Client) -> None:
-    response = azure_functions_client.get("/api/startentity", headers=DEFAULT_HEADERS)
-    _wait_for_durable_completion(azure_functions_client, response)
+def test_entity_trigger_distributed_tracing_end_to_end(azure_functions_client: tuple[Client, str]) -> None:
+    client, token = azure_functions_client
+    response = client.get("/api/startentity", headers=DEFAULT_HEADERS)
+    _wait_for_durable_completion(client, response)
+    traces = _wait_for_durable_spans(
+        token, {"GET /api/startentity", "Orchestration entity_orchestrator", "Entity counter"}
+    )
     assert response.status_code in (200, 202)
+    http_span = _span_by_resource(traces, "GET /api/startentity")
+    orchestration_span = _span_by_resource(traces, "Orchestration entity_orchestrator")
+    entity_span = _span_by_resource(traces, "Entity counter")
+    assert orchestration_span["trace_id"] == http_span["trace_id"]
+    assert entity_span["trace_id"] != http_span["trace_id"]

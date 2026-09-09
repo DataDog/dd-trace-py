@@ -99,10 +99,11 @@ def patch_worker_context() -> None:
     if _PATCHED_TARGETS:
         return
 
-    # AIDEV-NOTE: Azure always creates an invocation Context containing the host's
-    # W3C carrier, but does not pass it to Durable handlers because their `context`
+    # AIDEV-NOTE: When Azure supplies a W3C carrier it lives on the invocation
+    # Context, which Durable handlers do not receive because their `context`
     # parameter is already a trigger binding. These guarded private hooks cover the
     # classic worker and the Python 3.13 v2 runtime without enabling OTel export.
+    # Some Durable trigger types (notably entities) may receive no host carrier.
     classic_worker = sys.modules.get("azure_functions_worker.dispatcher")
     if classic_worker is not None:
         _patch_target(classic_worker, "Dispatcher._run_sync_func", _run_sync_with_context)

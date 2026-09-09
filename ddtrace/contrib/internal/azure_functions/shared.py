@@ -82,6 +82,8 @@ def _context_from_carrier(carrier: dict[str, str]) -> Optional[Context]:
 
 
 def _get_azure_invocation_context() -> Optional[Context]:
+    if not config.azure_functions.get("distributed_tracing", True):
+        return None
     carrier = get_current_invocation_carrier()
     return _context_from_carrier(carrier) if carrier is not None else None
 
@@ -104,6 +106,9 @@ def _get_orchestration_data(
 def _get_orchestration_parent_context(
     args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
 ) -> Optional[Context]:
+    if not config.azure_functions.get("distributed_tracing", True):
+        return None
+
     invocation_context = _get_azure_invocation_context()
     if invocation_context is not None:
         return invocation_context
