@@ -2,7 +2,7 @@
 FlagEvalEVPHook — OpenFeature `finally_after` hook for EVP flagevaluation emission.
 
 Hook design:
-- Cheap capture only in finally_after (no aggregation, no serialization, no I/O).
+- One bounded context snapshot in finally_after (no aggregation or I/O).
 - Non-blocking enqueue to FlagEvaluationWriter.
 - The finally_after stage covers success, error, and default eval paths.
 - Does NOT replace or modify the OTel FlagEvalMetricsHook in _flageval_metrics.py (the existing
@@ -29,11 +29,11 @@ logger = get_logger(__name__)
 
 class FlagEvalEVPHook(Hook):
     """
-    OpenFeature Hook that enqueues cheap evaluation snapshots for EVP aggregation.
+    OpenFeature Hook that enqueues bounded evaluation snapshots for EVP aggregation.
 
     Implements `finally_after` (covers the success, error, and default eval paths).
-    Does NO aggregation, serialization, or I/O on the hook thread.  All heavy work
-    is deferred to FlagEvaluationWriter's background periodic worker.
+    Context bounding happens synchronously before queue insertion; aggregation and I/O
+    remain deferred to FlagEvaluationWriter's background periodic worker.
     """
 
     def __init__(self, writer: FlagEvaluationWriter) -> None:
@@ -46,25 +46,27 @@ class FlagEvalEVPHook(Hook):
         hints: HookHints,
     ) -> None:
         """
-        Cheap capture + non-blocking enqueue.
+        Bounded capture + non-blocking enqueue.
 
-        Extracts only scalar fields (no allocation, no serialization) and hands
-        a _EvalEvent snapshot to FlagEvaluationWriter.enqueue() which is
-        non-blocking (queue.Queue.put_nowait — drops on queue.Full).
+        Extracts scalar fields and hands the caller context to
+        FlagEvaluationWriter.enqueue(), which performs an O(1) queue-full precheck and
+        then creates the bounded immutable snapshot before queue.Queue.put_nowait.
 
         Eval-time: uses details.flag_metadata["dd.eval.timestamp_ms"] when present
         (stamped by the provider at eval entry); falls back to hook-fire time.
 
         Runtime-default: True when the variant is absent (details.variant is None).
 
-        Attrs: shallow copy of the evaluation context attributes dict so the hook
-        returns immediately and the worker can safely iterate attrs off-path.
+        Attrs: borrowed only for the synchronous enqueue call. The queue never retains
+        this caller-owned mapping or any mutable context leaf.
         """
         try:
             flag_key: str = hook_context.flag_key or ""
 
             # Extract allocation_key from flag_metadata (same key as METADATA_ALLOCATION_KEY).
-            metadata: typing.Mapping[str, typing.Any] = details.flag_metadata or {}
+            metadata: typing.Mapping[str, typing.Any] = (
+                details.flag_metadata if details.flag_metadata is not None else {}
+            )
             allocation_key: str = ""
             ak = metadata.get(METADATA_ALLOCATION_KEY)
             if isinstance(ak, str) and ak:
@@ -86,8 +88,8 @@ class FlagEvalEVPHook(Hook):
             # Targeting key and attributes from the evaluation context.
             eval_ctx = hook_context.evaluation_context
             targeting_key = eval_ctx.targeting_key or ""
-            # Shallow copy so we don't hold a reference to the caller's live dict.
-            attrs: dict[str, typing.Any] = dict(eval_ctx.attributes or {})
+            # enqueue() snapshots synchronously and never retains this borrowed mapping.
+            attrs: typing.Mapping[str, typing.Any] = eval_ctx.attributes if eval_ctx.attributes is not None else {}
 
             # Error message (best-effort; absent on success paths).
             error_message = ""

@@ -1,7 +1,6 @@
 import asyncio
 import os
 
-import httpx
 import pytest
 import sqlalchemy
 import starlette
@@ -23,6 +22,12 @@ from tests.utils import override_global_config
 from tests.utils import override_http_config
 from tests.utils import scoped_tracer
 from tests.utils import snapshot
+
+
+try:
+    import httpx2 as httpx
+except ModuleNotFoundError:
+    import httpx
 
 
 starlette_version_str = getattr(starlette, "__version__", "0.0.0")

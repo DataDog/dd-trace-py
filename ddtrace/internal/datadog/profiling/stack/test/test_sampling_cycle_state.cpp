@@ -52,6 +52,25 @@ TEST(AsyncioDebugOffsets, ValidatesAndStoresTaskListHeads)
     EXPECT_FALSE(parse_asyncio_debug_offsets(&table));
 }
 
+TEST(SamplingCycleState, GCFrameScopeRestoresPreviousFrame)
+{
+    EchionSampler echion;
+    PyObject outer_frame{};
+    PyObject inner_frame{};
+
+    EXPECT_EQ(echion.current_gc_frame(), nullptr);
+    {
+        auto outer_scope = echion.use_gc_frame(&outer_frame);
+        EXPECT_EQ(echion.current_gc_frame(), &outer_frame);
+        {
+            auto inner_scope = echion.use_gc_frame(&inner_frame);
+            EXPECT_EQ(echion.current_gc_frame(), &inner_frame);
+        }
+        EXPECT_EQ(echion.current_gc_frame(), &outer_frame);
+    }
+    EXPECT_EQ(echion.current_gc_frame(), nullptr);
+}
+
 TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
 {
     EchionSampler echion;

@@ -33,6 +33,7 @@
 #include <echion/timing.h>
 
 class EchionSampler;
+class ThreadInfoTaskTraversalTest;
 
 class ThreadInfo
 {
@@ -119,6 +120,8 @@ class ThreadInfo
     };
 
   private:
+    friend class ThreadInfoTaskTraversalTest;
+
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);

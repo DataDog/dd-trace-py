@@ -201,6 +201,30 @@ class PytestTestCaseBase(TracerTestCase):
                 CIVisibility.disable()
             CIVisibility._resume(_suspended)
 
+    def make_xdist_worker_sitecustomize(self):
+        """Load sitecustomize.py in nested xdist workers without relying on PYTHONPATH."""
+        self.testdir.makeconftest(
+            """
+import os
+import runpy
+
+import pytest
+
+from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+
+_IS_XDIST_WORKER = bool(os.environ.get("PYTEST_XDIST_WORKER"))
+if _IS_XDIST_WORKER:
+    runpy.run_path(os.path.join(os.path.dirname(__file__), "sitecustomize.py"))
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    if _IS_XDIST_WORKER and CIVisibility.enabled:
+        CIVisibility.disable()
+"""
+        )
+
     def subprocess_run(self, *args, env: t.Optional[dict[str, t.Optional[str]]] = None):
         """Execute test script with test tracer."""
         _base_env = dict(DD_API_KEY="foobar.baz", DD_PYTEST_USE_NEW_PLUGIN="false")
