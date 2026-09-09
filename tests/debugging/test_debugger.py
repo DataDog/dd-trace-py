@@ -125,9 +125,12 @@ def test_debugger_snapshot_correlation_identifiers(stuff):
 def test_debugger_coordinated_sampling_caps_loop_probe_per_invocation(stuff):
     # A probe inside a high-iteration loop must not consume unbounded volume,
     # and must not starve the probe on the enclosing function. Both probes share
-    # the invocation's execution unit, so each fires once per call.
+    # the invocation's execution unit, so each fires once per call: the loop
+    # runs for 10ms, well inside the default one-snapshot-per-second cap, so the
+    # first iteration fires and the rest of that call's iterations are capped.
     # Keep the global budget out of the way: the per-probe cap is what is under
-    # test here, not the ingestion ceiling.
+    # test here, not the ingestion ceiling. The function probe keeps its own
+    # unlimited rate since it only ever fires once per call either way.
     with debugger(upload_interval_seconds=float("inf"), global_rate_limit=float("inf")) as d:
         d.add_probes(
             create_snapshot_function_probe(
@@ -140,7 +143,6 @@ def test_debugger_coordinated_sampling_caps_loop_probe_per_invocation(stuff):
                 probe_id="loop-probe",
                 source_file="tests/submod/stuff.py",
                 line=134,  # the loop body of durationstuff
-                rate=float("inf"),
             ),
         )
 
@@ -151,7 +153,8 @@ def test_debugger_coordinated_sampling_caps_loop_probe_per_invocation(stuff):
         counts = Counter(s.probe.probe_id for s in d.test_queue)
 
         # The loop runs many thousands of iterations per call, but the probe is
-        # capped at one snapshot per execution unit.
+        # capped at its own rate -- one snapshot per second by default -- scoped
+        # to the execution unit, well above the 10ms a call takes here.
         assert counts["loop-probe"] == n_calls, counts
         # The function probe has its own headroom and is never in contention.
         assert counts["function-probe"] == n_calls, counts
@@ -167,7 +170,6 @@ def test_debugger_coordinated_sampling_scopes_a_lone_line_probe(stuff):
                 probe_id="loop-probe",
                 source_file="tests/submod/stuff.py",
                 line=134,  # the loop body of durationstuff
-                rate=float("inf"),
             ),
         )
 
@@ -177,7 +179,8 @@ def test_debugger_coordinated_sampling_scopes_a_lone_line_probe(stuff):
 
         counts = Counter(s.probe.probe_id for s in d.test_queue)
 
-        # One per invocation, not one per iteration.
+        # One per invocation, not one per iteration: the call takes 10ms, well
+        # inside the probe's default one-per-second cap for the unit.
         assert counts["loop-probe"] == n_calls, counts
 
 

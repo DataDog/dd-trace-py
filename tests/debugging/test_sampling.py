@@ -1,6 +1,7 @@
 import asyncio
 import sys
 from threading import Thread
+import time
 
 import pytest
 
@@ -31,19 +32,28 @@ def spent_budget():
 
 
 class _Limiter:
-    def __init__(self, allow):
-        self._allow = allow
+    def __init__(self, allow, limit_rate=_sampling.DEFAULT_SCOPED_PROBE_RATE):
+        self._budget = 1.0 if allow else 0.0
+        self.limit_rate = limit_rate
+
+    def has_budget(self):
+        return self._budget >= 1.0
 
     def limit(self):
-        return None if self._allow else RateLimitExceeded
+        if self._budget >= 1.0:
+            self._budget -= 1.0
+            return None
+        return RateLimitExceeded
 
 
 class _Probe:
     """Stands in for a probe: sampling only needs an ID and a rate limiter."""
 
-    def __init__(self, probe_id="probe", snapshot=True, allow=True, tags=None):
+    def __init__(
+        self, probe_id="probe", snapshot=True, allow=True, tags=None, cap_rate=_sampling.DEFAULT_SCOPED_PROBE_RATE
+    ):
         self.probe_id = probe_id
-        self.limiter = _Limiter(allow)
+        self.limiter = _Limiter(allow, limit_rate=cap_rate)
         self.tags = tags or {}
         self._snapshot = snapshot
 
@@ -239,6 +249,43 @@ def test_cap_is_per_frame_without_a_trace(roomy):
         roomy.close_scope(token)
 
 
+def test_cap_is_a_rate_not_a_single_shot(roomy):
+    # The cap is the probe's own rate, scoped to the unit of execution, so once
+    # enough time has passed the same place gets another chance to fire. A high
+    # cap rate and a short real sleep stand in for "enough time has passed",
+    # since the limiter's clock cannot be mocked without also faking the
+    # timestamp it was constructed with.
+    token = roomy.open_scope()
+    try:
+        probe = _Probe("loop-probe", cap_rate=1000.0)
+        f = frame()
+
+        roomy.account_for(probe, f, None)
+        assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
+
+        time.sleep(0.01)
+
+        assert roomy.evaluate(probe, f, None) is Decision.FIRE
+    finally:
+        roomy.close_scope(token)
+
+
+def test_cap_guarantees_the_first_firing_even_at_zero_rate(roomy):
+    # A cap rate of zero would normally block everything, but the first firing
+    # in a place has no limiter yet, so every unit gets at least one snapshot.
+    token = roomy.open_scope()
+    try:
+        probe = _Probe("loop-probe", cap_rate=0.0)
+        f = frame()
+
+        assert roomy.evaluate(probe, f, None) is Decision.FIRE
+        roomy.account_for(probe, f, None)
+        # From the second firing onwards the configured rate applies for real.
+        assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
+    finally:
+        roomy.close_scope(token)
+
+
 def test_recording_charges_the_budget(roomy):
     token = roomy.open_scope()
     try:
@@ -274,14 +321,19 @@ def test_cap_resets_between_invocations(roomy):
             roomy.close_scope(token)
 
 
-def test_no_scope_means_no_shared_state(roomy):
+def test_no_scope_falls_back_to_the_probes_own_rate_limiter(roomy):
     # A line probe outside any probed function has nothing to close a scope, so
-    # it must not strand state for the life of the thread.
+    # there is nowhere to keep a place-scoped limiter. Rather than firing
+    # uncapped, it falls back to the probe's own rate limiter directly.
     probe = _Probe("probe")
     f = frame()
 
-    roomy.account_for(probe, f, None)
     assert roomy.evaluate(probe, f, None) is Decision.FIRE
+    roomy.account_for(probe, f, None)
+    assert roomy.evaluate(probe, f, None) is Decision.DROP_CAPPED
+
+    # Nothing was stranded in shared state; the cap lived entirely on the probe.
+    assert _sampling.SampleFingerprint._limiters() is None
 
 
 def test_scopes_do_not_leak_across_threads(roomy):
