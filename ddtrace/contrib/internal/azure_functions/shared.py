@@ -104,7 +104,10 @@ def _get_orchestration_data(
 
 
 def _get_orchestration_parent_context(
-    args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    trigger_arg_name: str,
+    orchestration_data: Optional[dict[str, Any]] = None,
 ) -> Optional[Context]:
     if not config.azure_functions.get("distributed_tracing", True):
         return None
@@ -113,7 +116,8 @@ def _get_orchestration_parent_context(
     if invocation_context is not None:
         return invocation_context
 
-    orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
+    if orchestration_data is None:
+        orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
     history = orchestration_data.get("history") if orchestration_data is not None else None
     if not isinstance(history, list):
         return None
@@ -194,11 +198,15 @@ def wrap_durable_trigger(func, function_name, trigger_type, context_name):
 
 
 def _has_previous_orchestration_activation(
-    args: tuple[Any, ...], kwargs: dict[str, Any], trigger_arg_name: str
+    args: tuple[Any, ...],
+    kwargs: dict[str, Any],
+    trigger_arg_name: str,
+    orchestration_data: Optional[dict[str, Any]] = None,
 ) -> bool:
     # AIDEV-NOTE: isReplaying changes while one activation is evaluated. A completed
     # orchestration episode in history reliably identifies a later host activation.
-    orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
+    if orchestration_data is None:
+        orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
     history = orchestration_data.get("history") if orchestration_data is not None else None
     if not isinstance(history, list):
         return False
@@ -214,9 +222,11 @@ def wrap_orchestration_trigger(
     trigger_type = "Orchestration"
     context_name = "azure.durable_functions.patched_orchestration"
 
-    def invoke_with_tracing(args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    def invoke_with_tracing(
+        args: tuple[Any, ...], kwargs: dict[str, Any], orchestration_data: Optional[dict[str, Any]]
+    ) -> Any:
         resource_name = f"{trigger_type} {function_name}"
-        parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name)
+        parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name, orchestration_data)
         with create_context(context_name, resource_name, parent_context=parent_context) as ctx:
             core.dispatch(
                 "azure.durable_functions.trigger_call_modifier",
@@ -226,15 +236,16 @@ def wrap_orchestration_trigger(
 
     @functools.wraps(func)
     def wrapper(*args: Any, **kwargs: Any) -> Any:
-        if not _has_previous_orchestration_activation(args, kwargs, trigger_arg_name):
-            return invoke_with_tracing(args, kwargs)
+        orchestration_data = _get_orchestration_data(args, kwargs, trigger_arg_name)
+        if not _has_previous_orchestration_activation(args, kwargs, trigger_arg_name, orchestration_data):
+            return invoke_with_tracing(args, kwargs, orchestration_data)
 
         start_ns = time.time_ns()
         try:
             return func(*args, **kwargs)
         except BaseException:
             resource_name = f"{trigger_type} {function_name}"
-            parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name)
+            parent_context = _get_orchestration_parent_context(args, kwargs, trigger_arg_name, orchestration_data)
             with create_context(context_name, resource_name, parent_context=parent_context) as ctx:
                 span_from_context(ctx).start_ns = start_ns
                 core.dispatch(

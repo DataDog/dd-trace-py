@@ -54,13 +54,13 @@ def patch():
     """
     if getattr(durable_functions, "_datadog_patch", False):
         return
-    durable_functions._datadog_patch = True
 
     try:
         from azure.durable_functions.decorators import durable_app  # noqa: F401
     except Exception:
         return
 
+    durable_functions._datadog_patch = True
     _w("azure.durable_functions", "DFApp.get_functions", patched_get_functions)
     patch_worker_context()
     if hasattr(DurableOrchestrationClient, "_get_current_activity_context"):

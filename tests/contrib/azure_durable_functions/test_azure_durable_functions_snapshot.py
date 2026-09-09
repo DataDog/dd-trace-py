@@ -16,6 +16,7 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 import ddtrace.contrib  # noqa: F401
 from ddtrace.contrib.internal.azure_durable_functions.patch import patched_get_current_activity_context
+from ddtrace.contrib.internal.azure_functions import shared as azure_functions_shared
 from ddtrace.contrib.internal.azure_functions._worker import _run_sync_with_context
 from ddtrace.contrib.internal.azure_functions.shared import patched_get_functions
 from ddtrace.contrib.internal.azure_functions.shared import wrap_durable_trigger
@@ -294,6 +295,24 @@ def test_orchestration_trigger_wrapper():
         assert span.get_tag("aas.function.name") == "sample_orchestrator"  # codespell:ignore
         assert span.get_tag("aas.function.trigger") == "Orchestration"  # codespell:ignore
         assert span.get_tag(SPAN_KIND) == SpanKind.SERVER
+
+
+def test_orchestration_trigger_parses_history_once(monkeypatch):
+    calls = 0
+    get_orchestration_data = azure_functions_shared._get_orchestration_data
+
+    def count_orchestration_data(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return get_orchestration_data(*args, **kwargs)
+
+    monkeypatch.setattr(azure_functions_shared, "_get_orchestration_data", count_orchestration_data)
+    wrapped = wrap_orchestration_trigger(lambda _: "ok", "sample_orchestrator", "context")
+
+    with scoped_tracer():
+        assert wrapped(_orchestration_context()) == "ok"
+
+    assert calls == 1
 
 
 def test_orchestration_trigger_uses_parent_from_execution_started_history():

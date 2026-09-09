@@ -9,6 +9,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 
 
 log = get_logger(__name__)
@@ -16,6 +17,7 @@ _CURRENT_INVOCATION_CARRIER: contextvars.ContextVar[Optional[dict[str, str]]] = 
     "datadog_azure_functions_invocation_carrier", default=None
 )
 _PATCHED_TARGETS: list[tuple[Any, str]] = []
+_REGISTERED_MODULE_HOOKS: set[str] = set()
 
 
 def _carrier_from_invocation_context(invocation_context: Any) -> Optional[dict[str, str]]:
@@ -67,13 +69,14 @@ async def _run_async_with_context(
         _CURRENT_INVOCATION_CARRIER.reset(token)
 
 
-async def _run_v2_async_with_context(
+async def _run_v2_invocation_with_context(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
+    token = _CURRENT_INVOCATION_CARRIER.set(None)
     try:
         return await wrapped(*args, **kwargs)
     finally:
-        _CURRENT_INVOCATION_CARRIER.set(None)
+        _CURRENT_INVOCATION_CARRIER.reset(token)
 
 
 def _resolve_owner(module: ModuleType, path: str) -> tuple[Any, str]:
@@ -89,31 +92,44 @@ def _patch_target(module: ModuleType, path: str, wrapper: Callable[..., Any]) ->
         owner, attribute = _resolve_owner(module, path)
         if not hasattr(owner, attribute):
             return
+        if any(
+            patched_owner is owner and patched_attribute == attribute
+            for patched_owner, patched_attribute in _PATCHED_TARGETS
+        ):
+            return
         _w(module, path, wrapper)
         _PATCHED_TARGETS.append((owner, attribute))
     except Exception:
         log.debug("Unable to patch Azure Functions worker context target %s", path, exc_info=True)
 
 
-def patch_worker_context() -> None:
-    if _PATCHED_TARGETS:
-        return
+def _patch_classic_worker(module: ModuleType) -> None:
+    _patch_target(module, "Dispatcher._run_sync_func", _run_sync_with_context)
+    _patch_target(module, "Dispatcher._run_async_func", _run_async_with_context)
 
+
+def _patch_v2_worker(module: ModuleType) -> None:
+    _patch_target(module, "get_context", _capture_context)
+    _patch_target(module, "run_sync_func", _run_sync_with_context)
+    _patch_target(module, "invocation_request", _run_v2_invocation_with_context)
+
+
+_WORKER_MODULE_HOOKS = {
+    "azure_functions_worker.dispatcher": _patch_classic_worker,
+    "azure_functions_runtime.handle_event": _patch_v2_worker,
+}
+
+
+def patch_worker_context() -> None:
     # AIDEV-NOTE: When Azure supplies a W3C carrier it lives on the invocation
     # Context, which Durable handlers do not receive because their `context`
     # parameter is already a trigger binding. These guarded private hooks cover the
     # classic worker and the Python 3.13 v2 runtime without enabling OTel export.
     # Some Durable trigger types (notably entities) may receive no host carrier.
-    classic_worker = sys.modules.get("azure_functions_worker.dispatcher")
-    if classic_worker is not None:
-        _patch_target(classic_worker, "Dispatcher._run_sync_func", _run_sync_with_context)
-        _patch_target(classic_worker, "Dispatcher._run_async_func", _run_async_with_context)
-
-    v2_worker = sys.modules.get("azure_functions_runtime.handle_event")
-    if v2_worker is not None:
-        _patch_target(v2_worker, "get_context", _capture_context)
-        _patch_target(v2_worker, "run_sync_func", _run_sync_with_context)
-        _patch_target(v2_worker, "execute_async", _run_v2_async_with_context)
+    for module_name, hook in _WORKER_MODULE_HOOKS.items():
+        if module_name not in _REGISTERED_MODULE_HOOKS:
+            ModuleWatchdog.register_module_hook(module_name, hook)
+            _REGISTERED_MODULE_HOOKS.add(module_name)
 
 
 def unpatch_worker_context() -> None:
@@ -121,6 +137,10 @@ def unpatch_worker_context() -> None:
     durable_functions = sys.modules.get("azure.durable_functions")
     if getattr(azure_functions, "_datadog_patch", False) or getattr(durable_functions, "_datadog_patch", False):
         return
+
+    while _REGISTERED_MODULE_HOOKS:
+        module_name = _REGISTERED_MODULE_HOOKS.pop()
+        ModuleWatchdog.unregister_module_hook(module_name, _WORKER_MODULE_HOOKS[module_name])
 
     while _PATCHED_TARGETS:
         owner, attribute = _PATCHED_TARGETS.pop()

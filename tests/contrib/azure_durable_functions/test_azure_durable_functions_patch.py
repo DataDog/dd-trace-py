@@ -1,4 +1,7 @@
+import sys
 from types import SimpleNamespace
+
+import azure.durable_functions as durable_functions
 
 from ddtrace import config
 from ddtrace.contrib.internal.azure_durable_functions.patch import get_version
@@ -47,6 +50,15 @@ class TestAzureDurableFunctionsPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(self._get_dfapp().get_functions)
         if hasattr(self._get_client(), "_get_current_activity_context"):
             self.assert_not_double_wrapped(self._get_client()._get_current_activity_context)
+
+
+def test_patch_import_failure_does_not_mark_module_patched(monkeypatch):
+    unpatch()
+    monkeypatch.setitem(sys.modules, "azure.durable_functions.decorators", None)
+
+    patch()
+
+    assert not getattr(durable_functions, "_datadog_patch", False)
 
 
 def test_distributed_tracing_disabled_ignores_durable_parent_context():
