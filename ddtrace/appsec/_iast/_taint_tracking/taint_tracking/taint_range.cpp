@@ -1,8 +1,20 @@
 #include "taint_range.h"
 #include "api/safe_context.h"
 #include "api/safe_initializer.h"
+#include "utils/generic_utils.h"
 
 namespace py = pybind11;
+
+static PyObject*
+new_reference(PyObject* object)
+{
+#if PY_VERSION_HEX >= 0x030A0000
+    return Py_NewRef(object);
+#else
+    Py_INCREF(object);
+    return object;
+#endif
+}
 
 void
 TaintRange::reset()
@@ -111,8 +123,7 @@ api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t conte
     if (not tx_map) {
         return false;
     }
-    const bool ok = set_ranges(str.ptr(), ranges, tx_map);
-    return ok;
+    return set_ranges(str.ptr(), ranges, tx_map) == SetRangesResult::Stored;
 }
 
 /**
@@ -142,7 +153,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
     if (!taint_engine_context) {
         // Return the original object unchanged if context is not initialized
         if (nargs >= 1) {
-            return args[0];
+            return new_reference(args[0]);
         }
         PyErr_SetString(PyExc_RuntimeError, "IAST not initialized");
         return nullptr;
@@ -150,7 +161,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
 
     bool result = false;
     const char* result_error_msg = MSG_ERROR_N_PARAMS;
-    PyObject* pyobject_n = nullptr;
+    py::object pyobject_n;
 
     if (nargs == 6) {
         PyObject* tainted_object = args[0];
@@ -158,10 +169,10 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         size_t context_id = PyLong_AsSize_t(ctx_obj);
         const auto tx_map = safe_get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
-            return tainted_object;
+            return new_reference(tainted_object);
         }
 
-        pyobject_n = new_pyobject_id(tainted_object);
+        pyobject_n = py::reinterpret_steal<py::object>(new_pyobject_id(tainted_object));
         PyObject* len_pyobject_py = args[1];
 
         const long len_pyobject = PyLong_AsLong(len_pyobject_py);
@@ -171,7 +182,8 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
                 const auto source = Source(source_name, source_value, source_origin);
                 const auto range = safe_allocate_taint_range(0, len_pyobject, source, {});
                 const auto ranges = vector{ range };
-                result = set_ranges(pyobject_n, ranges, tx_map);
+                // NotIndexable is not the caller's fault: return the object untainted, not an error.
+                result = set_ranges(pyobject_n.ptr(), ranges, tx_map) != SetRangesResult::Rejected;
                 if (not result) {
                     result_error_msg = MSG_ERROR_SET_RANGES;
                 }
@@ -187,7 +199,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
         return nullptr;
     }
 
-    return pyobject_n;
+    return pyobject_n.release().ptr();
 }
 
 std::pair<TaintRangeRefs, bool>
@@ -206,7 +218,9 @@ get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
         return std::make_pair(result, false);
     }
 
-    if (get_internal_hash(string_input) != it->second.first) {
+    // No hash means a reused address or an unhashable object: either way, not this object's taint.
+    const auto hash = get_internal_hash(string_input);
+    if (not hash or *hash != it->second.first) {
         tx_map->erase(it);
         return std::make_pair(result, false);
     }
@@ -214,34 +228,47 @@ get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
     return std::make_pair(it->second.second->get_ranges(), false);
 }
 
-bool
+SetRangesResult
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map)
 {
     // Guard: invalid taint map
     if (not tx_map) {
-        return false;
+        return SetRangesResult::Rejected;
     }
     // Guard: only text-like objects are supported for taint
     if (not is_tainteable(str)) {
-        return false;
+        return SetRangesResult::Rejected;
     }
     if (ranges.empty()) {
-        return false;
+        return SetRangesResult::Rejected;
     }
+
+    // Checked before allocating: an entry with no usable hash could not be told from a later
+    // object reusing this address, which would inherit these ranges. Losing the taint is safer.
     auto obj_id = get_unique_id(str);
+    const auto hash = get_internal_hash(str);
+    if (not hash) {
+        // Whatever is stored here can no longer be validated against str, whether the address was
+        // reused or str stopped being hashable. Leaving it would let a later object at this
+        // address match that hash and take its ranges.
+        tx_map->erase(obj_id);
+        iast_taint_log_error("propagation::taint_map::Object cannot be hashed, dropping its taint");
+        return SetRangesResult::NotIndexable;
+    }
+
     const auto it = tx_map->find(obj_id);
     auto new_tainted_object = safe_allocate_ranges_into_taint_object(ranges);
 
     set_fast_tainted_if_notinterned_unicode(str);
     if (it != tx_map->end()) {
         it->second.second.reset();
-        it->second = std::make_pair(get_internal_hash(str), new_tainted_object);
-        return true;
+        it->second = std::make_pair(*hash, new_tainted_object);
+        return SetRangesResult::Stored;
     }
 
-    tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
+    tx_map->insert({ obj_id, std::make_pair(*hash, new_tainted_object) });
 
-    return true;
+    return SetRangesResult::Stored;
 }
 
 TaintRangePtr
@@ -314,7 +341,7 @@ api_copy_ranges_from_strings(py::handle& str_1, py::handle& str_2, std::optional
         py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
         return;
     }
-    if (const bool result = set_ranges(str_2.ptr(), ranges, tx_map); not result) {
+    if (set_ranges(str_2.ptr(), ranges, tx_map) == SetRangesResult::Rejected) {
         py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }
@@ -343,8 +370,7 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
         py::set_error(PyExc_TypeError, MSG_ERROR_TAINT_MAP);
         return;
     }
-    if (const bool result = set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map);
-        not result) {
+    if (set_ranges(str_2.ptr(), shift_taint_ranges(ranges, offset, new_length), tx_map) == SetRangesResult::Rejected) {
         py::set_error(PyExc_TypeError, MSG_ERROR_SET_RANGES);
     }
 }
@@ -352,7 +378,7 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
 TaintedObjectPtr
 get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
 {
-    if (not str) {
+    if (not str or not tx_map) {
         return nullptr;
     }
 
@@ -365,27 +391,63 @@ get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
         return nullptr;
     }
 
-    if (get_internal_hash(str) != it->second.first) {
+    // Only taintable objects can hold an entry, because set_ranges and set_tainted_object both
+    // refuse anything else. Callers reach here with arbitrary objects (dict values, for one), so a
+    // match on one of those is a reused address rather than taint: drop it without hashing, which
+    // an unhashable object such as a dict subclass cannot survive. Checked after the lookup to
+    // leave the common miss path untouched.
+    if (not is_tainteable(str)) {
         tx_map->erase(it);
         return nullptr;
     }
-    return it == tx_map->end() ? nullptr : it->second.second;
+
+    const auto hash = get_internal_hash(str);
+    if (not hash or *hash != it->second.first) {
+        tx_map->erase(it);
+        return nullptr;
+    }
+    return it->second.second;
 }
 
-Py_hash_t
+namespace {
+/**
+ * @brief Hash obj, reporting failure instead of leaving a Python error set.
+ *
+ * An unhashable object reaching here means its address collided with a stale map entry, which
+ * is our own bookkeeping problem: raising TypeError into the caller turns it into
+ * "SystemError: returned a result with an error set" at the next aspect boundary.
+ */
+std::optional<Py_hash_t>
+checked_hash(PyObject* obj)
+{
+    const Py_hash_t hash = PyObject_Hash(obj);
+    if (hash == -1 and PyErr_Occurred()) {
+        PyErr_Clear();
+        return std::nullopt;
+    }
+    return hash;
+}
+} // namespace
+
+std::optional<Py_hash_t>
 bytearray_hash(PyObject* bytearray)
 {
     // Bytearrays don't have hash by default so we will generate one by getting the internal str hash
-    auto str = py::str(bytearray);
-    return PyObject_Hash(str.ptr());
+    try {
+        auto str = py::str(bytearray);
+        return checked_hash(str.ptr());
+    } catch (const py::error_already_set&) {
+        // Constructing error_already_set fetched the error, so nothing is left set for the caller.
+        return std::nullopt;
+    }
 }
 
-Py_hash_t
+std::optional<Py_hash_t>
 get_internal_hash(PyObject* obj)
 {
     // Shortcut check to avoid the slower checks for bytearray and re.match objects
     if (PyUnicode_Check(obj) || PyBytes_Check(obj)) {
-        return PyObject_Hash(obj);
+        return checked_hash(obj);
     }
 
     if (PyByteArray_Check(obj)) {
@@ -393,17 +455,19 @@ get_internal_hash(PyObject* obj)
     }
 
     if (PyReMatch_Check(obj)) {
-        // Use the match.string for hashing
-        PyObject* string_obj = PyObject_GetAttrString(obj, "string");
-        if (string_obj == nullptr) {
-            return PyObject_Hash(obj);
+        // Use the match.string for hashing. Stolen into a py::object so an exception below cannot
+        // leak it; reinterpret_steal keeps this path non-throwing, unlike attr("string").
+        const auto string_obj = py::reinterpret_steal<py::object>(PyObject_GetAttrString(obj, "string"));
+        if (not string_obj) {
+            PyErr_Clear();
+            return std::nullopt;
         }
-        const auto hash = PyObject_Hash(string_obj);
-        Py_DECREF(string_obj);
-        return hash;
+        // Recurse: match.string is a bytearray when the subject was one, and only
+        // bytearray_hash() can hash those.
+        return get_internal_hash(string_obj.ptr());
     }
 
-    return PyObject_Hash(obj);
+    return checked_hash(obj);
 }
 
 void
@@ -413,6 +477,12 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
         return;
     }
     auto obj_id = get_unique_id(str);
+    const auto hash = get_internal_hash(str);
+    if (not hash) {
+        // See set_ranges: no usable hash, so any entry here can no longer be validated.
+        tx_map->erase(obj_id);
+        return;
+    }
     set_fast_tainted_if_notinterned_unicode(str);
     if (const auto it = tx_map->find(obj_id); it != tx_map->end()) {
         // The same memory address was probably re-used for a different PyObject, so
@@ -422,13 +492,13 @@ set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const Tainted
             // and incref the new one. But if it's the same object, we can avoid both
             // operations, since they would be redundant.
             it->second.second.reset();
-            it->second = std::make_pair(get_internal_hash(str), tainted_object);
+            it->second = std::make_pair(*hash, tainted_object);
         }
         // Update the hash, because for bytearrays it could have changed after the extend operation
-        it->second.first = get_internal_hash(str);
+        it->second.first = *hash;
         return;
     }
-    tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), tainted_object) });
+    tx_map->insert({ obj_id, std::make_pair(*hash, tainted_object) });
 }
 
 // OPTIMIZATION TODO: export the variant of these functions taking a PyObject*

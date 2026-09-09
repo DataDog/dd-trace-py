@@ -10,9 +10,9 @@ if [[ -f "${GITHUB_EVENT_PATH}" ]] && jq -e '.pull_request?.labels[]?.name | sel
 then
     PR_TITLE=$(jq -er '.pull_request?.title' "${GITHUB_EVENT_PATH}")
 
-    if [[ "${PR_TITLE}" == "fix"* ]];
+    if [[ "${PR_TITLE}" == "fix"* || "${PR_TITLE}" == "feat"* ]];
     then
-        echo "Fix PRs must have a changelog entry, remove the 'changelog/no-changelog' label"
+        echo "Fix and feat PRs must have a changelog entry, remove the 'changelog/no-changelog' label"
         echo "Use 'reno new <slug>' to add a new note to 'releasenotes/notes'"
         exit 1
     fi

@@ -76,6 +76,9 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_dict.update({"span_id": str(span.span_id)})
         return span
 
+    def _llmobs_span_kind(self, operation_id: str, span: Span, **kwargs: Any) -> Optional[str]:
+        return "agent" if kwargs.get("operation") == "agent" else None
+
     def _get_current_ctx(self):
         """Extract current tracer and llmobs contexts to propagate across threads during async task execution."""
         curr_trace_ctx = tracer.current_trace_context()

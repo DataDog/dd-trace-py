@@ -41,6 +41,10 @@ class GoogleAdkIntegration(BaseLLMIntegration):
             return
         _annotate_llmobs_span_data(span, session_id=session_id)
 
+    def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+        agent = kwargs.get("_dd_agent")
+        return getattr(agent, "name", None) if agent else None
+
     def _llmobs_set_tags(
         self,
         span: Span,

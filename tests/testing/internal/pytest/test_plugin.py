@@ -1565,6 +1565,86 @@ class TestSessionLifecycleMethods:
 
         plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
 
+    def test_pytest_sessionfinish_collection_errors(self) -> None:
+        """Test pytest_sessionfinish with collection errors (INTERRUPTED exit code).
+
+        When all tests error during collection, pytest returns ExitCode.INTERRUPTED (2),
+        not ExitCode.TESTS_FAILED (1). The session must still be marked as FAIL.
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        # Set up session and manager
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        # Mock session with collection errors (INTERRUPTED)
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.INTERRUPTED
+        # Mock the pluginmanager to return an empty list
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        # Verify session was finished with FAIL status
+        plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
+
+    def test_pytest_sessionfinish_internal_error(self) -> None:
+        """Test pytest_sessionfinish with internal error exit code."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.INTERNAL_ERROR
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
+
+    def test_pytest_sessionfinish_usage_error(self) -> None:
+        """Test pytest_sessionfinish with usage error exit code."""
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.USAGE_ERROR
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        plugin.session.set_status.assert_called_once_with(TestStatus.FAIL)
+
+    def test_pytest_sessionfinish_no_tests_collected(self) -> None:
+        """Test pytest_sessionfinish with NO_TESTS_COLLECTED exit code (no ITR skips).
+
+        When no tests are collected and ITR did not skip anything, the session
+        should be marked as PASS (nothing failed).
+        """
+        mock_manager = session_manager_mock().build_mock()
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        plugin.session = MagicMock()
+        plugin.manager = Mock()
+        plugin.is_xdist_worker = False
+
+        mock_session = Mock()
+        mock_session.exitstatus = pytest.ExitCode.NO_TESTS_COLLECTED
+        mock_session.config.pluginmanager.list_name_plugin.return_value = []
+
+        plugin.pytest_sessionfinish(mock_session)
+
+        plugin.session.set_status.assert_called_once_with(TestStatus.PASS)
+
     def test_pytest_sessionfinish_xdist_worker(self) -> None:
         """Test pytest_sessionfinish as xdist worker."""
         mock_manager = session_manager_mock().build_mock()

@@ -4,13 +4,19 @@ limit. It will measure operations being executed in a request and it will deacti
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
 
+from typing import TYPE_CHECKING
+from typing import cast
+
 from ddtrace._trace.sampler import RateSampler
-from ddtrace._trace.span import Span
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal._unpatched import _threading as threading
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
+
+if TYPE_CHECKING:
+    from ddtrace._trace.span import Span
 
 log = get_logger(__name__)
 
@@ -31,11 +37,11 @@ class OverheadControl(object):
     def reconfigure(self):
         self._sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
-    def acquire_request(self, span: Span) -> bool:
+    def acquire_request(self, span: "SpanProtocol") -> bool:
         """Decide whether if IAST analysis will be done for this request.
         - Use sample rating to analyze only a percentage of the total requests (30% by default).
         """
-        if span and not self._sampler.sample(span):
+        if span and not self._sampler.sample(cast("Span", span)):
             if _is_iast_debug_enabled():
                 log.debug("iast::propagation::context::Skip request by sampling rate")
             return False

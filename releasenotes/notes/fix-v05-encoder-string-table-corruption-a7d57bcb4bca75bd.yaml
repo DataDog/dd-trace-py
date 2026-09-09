@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where the ``v0.5`` trace API (``DD_TRACE_API_VERSION=v0.5``)
+    drops traces when a single payload contains between 65,536 and 131,071 unique tag
+    keys and values.

@@ -15,5 +15,9 @@ constexpr double g_target_overhead = 0.01; // 1% overhead
 // 0 means no limit (sample all threads).
 constexpr unsigned int g_default_max_threads_per_sample = 25;
 
+// Maximum number of leaf tasks / greenlets to sample per cycle. When the number of
+// leaf tasks exceeds this, reservoir sampling is used. 0 means sample all tasks.
+constexpr unsigned int g_default_max_tasks_per_sample = 50;
+
 // Echion maintains a cache of frames--the size of this cache is specified up-front.
 constexpr unsigned int g_default_echion_frame_cache_size = 1024;

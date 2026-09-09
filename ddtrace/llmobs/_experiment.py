@@ -15,8 +15,8 @@ from typing import Awaitable
 from typing import Callable
 from typing import Iterator
 from typing import Literal
-from typing import Mapping
 from typing import Optional
+from typing import Protocol
 from typing import Sequence
 from typing import TypedDict
 from typing import Union
@@ -56,6 +56,10 @@ from ddtrace.internal.native import rand64bits
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import DD_SITE_STAGING
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._event_types import JSONType as JSONType
+from ddtrace.llmobs._event_types import LLMObsExperimentEvalMetricEvent
+from ddtrace.llmobs._integration_api import _LLMObsService
+from ddtrace.llmobs._integration_api import get_llmobs_service
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 from ddtrace.llmobs._utils import get_asyncio
@@ -68,19 +72,96 @@ from ddtrace.version import __version__
 if TYPE_CHECKING:
     import pandas as pd
 
-    from ddtrace.llmobs import LLMObs
-    from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
-    from ddtrace.llmobs._writer import LLMObsExperimentsClient
     from ddtrace.llmobs.types import ExportedLLMObsSpan
 
 logger = get_logger(__name__)
 
-JSONType = Union[str, int, float, bool, None, Sequence["JSONType"], Mapping[str, "JSONType"]]
 ConfigType = dict[str, JSONType]
 ContextTransformFn = Callable[["EvaluatorContext"], dict[str, Any]]
 
 TaskType = Callable[..., JSONType]
 AsyncTaskType = Callable[..., Awaitable[JSONType]]
+
+
+class _ExperimentsClient(Protocol):
+    """Dataset and experiment transport operations required by the engine."""
+
+    def dataset_bulk_upload(
+        self, dataset_id: str, records: list["DatasetRecord"], deduplicate: bool = True
+    ) -> None: ...
+
+    def dataset_batch_update(
+        self,
+        dataset_id: str,
+        project_id: str,
+        insert_records: list["DatasetRecord"],
+        update_records: list["DatasetRecordUpdateWithId"],
+        delete_record_ids: list[str],
+        deduplicate: bool = True,
+        create_new_version: bool = True,
+    ) -> tuple[int, list[str], list[Optional[str]]]: ...
+
+    def project_create_or_get(self, name: Optional[str] = None) -> "Project": ...
+
+    def experiment_create(
+        self,
+        name: str,
+        dataset_id: str,
+        project_id: str,
+        dataset_version: int = 0,
+        exp_config: Optional[dict[str, JSONType]] = None,
+        tags: Optional[list[str]] = None,
+        description: Optional[str] = None,
+        runs: Optional[int] = 1,
+        ensure_unique: bool = True,
+        parent_experiment_id: Optional[str] = None,
+    ) -> tuple[str, str]: ...
+
+    def experiment_update(
+        self, experiment_id: str, status: Optional[str] = None, error: Optional[str] = None
+    ) -> None: ...
+
+    def experiment_eval_post(
+        self,
+        experiment_id: str,
+        events: list[LLMObsExperimentEvalMetricEvent],
+        tags: list[str],
+        spans: Optional[list[dict]] = None,
+    ) -> None: ...
+
+
+# The span returned by the experiment service is an opaque handle owned by the
+# tracing product. The engine calls a handful of attributes/methods on it
+# (start_ns, duration_ns, get_tag, set_exc_info) and hands it back to the
+# service, but it does not own the type. Typing it as Any keeps the llmobs
+# product from importing ddtrace._trace.span, which would be a product-to-
+# product dependency-direction violation.
+_ExperimentSpan = Any
+
+
+class _ExperimentService(_LLMObsService, Protocol):
+    """The experiment engine's service contract, independent of concrete LLMObs."""
+
+    @property
+    def _dne_client(self) -> _ExperimentsClient: ...
+
+    def flush(self) -> None: ...
+
+    def export_span(self, span: Optional[_ExperimentSpan] = None) -> Optional["ExportedLLMObsSpan"]: ...
+
+    def _experiment(
+        self,
+        *,
+        name: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+        run_id: Optional[str] = None,
+        run_iteration: Optional[int] = None,
+        dataset_name: Optional[str] = None,
+        dataset_id: Optional[str] = None,
+        project_name: Optional[str] = None,
+        project_id: Optional[str] = None,
+        experiment_name: Optional[str] = None,
+    ) -> _ExperimentSpan: ...
 
 
 class EvaluatorResult:
@@ -489,9 +570,9 @@ class RemoteEvaluator(BaseEvaluator):
         self._eval_name = eval_name.strip()
         self._transform_fn = transform_fn if transform_fn is not None else _default_context_transform
 
-        from ddtrace.llmobs import LLMObs
-
-        self._llmobs_service = LLMObs
+        # NOTE: Keep the registered class so LLMObs._instance replacements are observed
+        # without importing the public package back from the experiment engine.
+        self._llmobs_service = get_llmobs_service()
 
     def evaluate(self, context: EvaluatorContext) -> Union[JSONType, EvaluatorResult]:
         """Evaluate using the remote LLM-as-Judge evaluator.
@@ -1142,6 +1223,55 @@ class Project(TypedDict):
     _id: str
 
 
+class _ExperimentSummaryOptional(TypedDict, total=False):
+    dataset_version: int
+    description: str
+    config: dict[str, Any]
+    run_count: int
+    tags: list[str]
+    parent_experiment_id: Optional[str]
+    aggregate_data: Optional[dict[str, Any]]
+    status: Optional[str]
+    error: Optional[str]
+    created_at: Optional[str]
+    updated_at: Optional[str]
+
+
+class ExperimentSummary(_ExperimentSummaryOptional):
+    """Summary of an experiment returned by ``LLMObs.list_experiments()``.
+
+    :param id: Unique experiment run UUID.
+    :param name: Unique per-run name generated by the backend.
+    :param experiment: Logical experiment name shared across all CI runs.
+    :param project_id: UUID of the project this experiment belongs to.
+    :param dataset_id: UUID of the dataset this experiment ran against.
+    :param dataset_version: Dataset version used during this run.
+    :param description: Experiment description.
+    :param config: Experiment configuration dict.
+    :param run_count: Number of runs recorded for this experiment.
+    :param tags: List of tags attached to this experiment. For experiments created by this SDK
+        this includes ``project_name``, ``dataset_name``, ``experiment_name`` and the automatically
+        captured ``git.commit.sha`` / ``git.repository_url`` tags, which is what makes commit-based
+        CI/CD lookups possible via ``metadata_filter``.
+    :param parent_experiment_id: UUID of the parent/baseline experiment, if any.
+    :param aggregate_data: Pre-computed aggregate metrics (eval distributions,
+        token costs, error rates) written by the aggregation snap. ``None``
+        when not yet computed.
+    :param status: Run status reported by the SDK: ``running``, ``completed``,
+        ``failed``, or ``interrupted``. Gate on ``completed`` before comparing
+        ``aggregate_data`` across runs.
+    :param error: Error summary recorded when ``status`` is ``failed``.
+    :param created_at: ISO-8601 creation timestamp.
+    :param updated_at: ISO-8601 last-update timestamp.
+    """
+
+    id: str
+    name: str
+    experiment: str
+    project_id: str
+    dataset_id: str
+
+
 class _DatasetRecordOptional(TypedDict, total=False):
     expected_output: JSONType
     metadata: dict[str, Any]
@@ -1540,7 +1670,7 @@ class Dataset:
     _records_by_id: dict[str, DatasetRecord]
     _version: int
     _latest_version: int
-    _dne_client: "LLMObsExperimentsClient"
+    _dne_client: _ExperimentsClient
     _new_records_by_record_id: dict[str, DatasetRecord]
     _updated_record_ids_to_new_fields: dict[str, DatasetRecordUpdateWithId]
     _deleted_record_ids: list[str]
@@ -1557,7 +1687,7 @@ class Dataset:
         description: str,
         latest_version: int,
         version: int,
-        _dne_client: "LLMObsExperimentsClient",
+        _dne_client: _ExperimentsClient,
         filter_tags: Optional[list[str]] = None,
     ) -> None:
         self.name = name
@@ -1983,7 +2113,7 @@ class Experiment:
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        _llmobs_instance: Optional["LLMObs"] = None,
+        _llmobs_instance: Optional[_ExperimentService] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
         is_distributed: Optional[bool] = False,
@@ -3283,7 +3413,7 @@ class SyncExperiment:
         description: str = "",
         tags: Optional[dict[str, str]] = None,
         config: Optional[ConfigType] = None,
-        _llmobs_instance: Optional["LLMObs"] = None,
+        _llmobs_instance: Optional[_ExperimentService] = None,
         summary_evaluators: Optional[Sequence[Union[SummaryEvaluatorType, AsyncSummaryEvaluatorType]]] = None,
         runs: Optional[int] = None,
         _experiment: Optional["Experiment"] = None,

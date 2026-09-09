@@ -25,6 +25,7 @@ from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.propagation._utils import get_wsgi_header
@@ -73,6 +74,28 @@ def test_inject(tracer):  # noqa: F811
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
         assert tags == set(["_dd.p.test=value", "_dd.p.other=value"])
+
+
+def test_inject_deep_child_propagates_trace_level_tags(tracer):  # noqa: F811
+    """Injecting a deep child's context carries the trace-level _dd.p.* tags, origin,
+    and sampling priority (all shared trace state), with the child's OWN span_id as
+    the parent id — even though the child's context is materialized lazily.
+    """
+    meta = {"_dd.p.test": "value", "_dd.p.other": "value", "something": "value"}
+    ctx = Context(trace_id=1234, sampling_priority=2, dd_origin="synthetics", meta=meta)
+    tracer.context_provider.activate(ctx)
+    with tracer.trace("root"):
+        with tracer.trace("child"):
+            with tracer.trace("grandchild") as grandchild:
+                headers = {}
+                HTTPPropagator.inject(grandchild.context, headers)
+
+                assert int(headers[HTTP_HEADER_PARENT_ID]) == grandchild.span_id
+                assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == 2
+                assert headers[HTTP_HEADER_ORIGIN] == "synthetics"
+                tags = set(headers[_HTTP_HEADER_TAGS].split(","))
+                assert "_dd.p.test=value" in tags
+                assert "_dd.p.other=value" in tags
 
 
 def test_inject_with_baggage_http_propagation(tracer):  # noqa: F811
@@ -913,14 +936,15 @@ def test_extract_unicode(tracer):  # noqa: F811
     "x_datadog_tags, expected_trace_tags",
     [
         ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-0", {"_dd.p.dm": "-0"}),
-        ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
-        (
-            "_dd.p.dm=-22",
-            {"_dd.propagation_error": "decoding_error"},
-        ),  # This test validates a value that does not exist in the SamplingMechanism enum
+        # Unenumerated but well-formed id: must still propagate. "-15" is the #19335 repro.
+        ("_dd.p.dm=-15", {"_dd.p.dm": "-15"}),
+        ("_dd.p.dm=-255", {"_dd.p.dm": "-255"}),
+        # Malformed syntax.
+        ("_dd.p.dm=-1a", {"_dd.propagation_error": "decoding_error"}),
+        # Out of the 0..255 range the mechanism is encoded in.
+        ("_dd.p.dm=-256", {"_dd.propagation_error": "decoding_error"}),
+        # Legacy service hash form, dropped from the spec and never emitted by dd-trace-py.
+        ("_dd.p.dm=934086a6-4", {"_dd.propagation_error": "decoding_error"}),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):
@@ -1322,6 +1346,55 @@ def test_extract_traceparent(caplog, headers, expected_tuple, expected_logging, 
         if caplog.text or expected_logging:
             for expected_log in expected_logging:
                 assert expected_log in caplog.text
+
+
+@pytest.mark.parametrize("leading_ows", [" ", "\t", "\t "])
+@pytest.mark.parametrize("trailing_ows", [" ", "\t", " \t"])
+def test_extract_traceparent_normalizes_ows(leading_ows, trailing_ows):
+    traceparent = "00-%s-00f067aa0ba902b7-01" % TRACE_ID_HEX
+
+    context = _TraceContext._extract({_HTTP_HEADER_TRACEPARENT: leading_ows + traceparent + trailing_ows})
+
+    assert context is not None
+    assert context._meta["traceparent"] == traceparent
+    assert context._traceparent == traceparent
+
+
+def test_matching_secondary_tracecontext_preserves_random_trace_flag():
+    traceparent = "00-000000000000000064fe8b2a57d3eff7-00f067aa0ba902b7-02"
+    headers = {
+        **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
+        _HTTP_HEADER_TRACEPARENT: traceparent,
+    }
+
+    with override_global_config(
+        dict(_propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT])
+    ):
+        context = HTTPPropagator.extract(headers)
+
+    assert context._meta[W3C_TRACEPARENT_KEY] == traceparent
+    assert context._trace_flags == 0x3
+
+
+def test_matching_secondary_tracecontext_uses_validated_tracestate():
+    raw_tracestate = "ot=rv:not-hex;th:8," + ",".join("vendor{}=value".format(i) for i in range(32))
+    headers = {
+        **DATADOG_HEADERS_VALID_MATCHING_TRACE_CONTEXT_VALID_TRACE_ID,
+        _HTTP_HEADER_TRACEPARENT: TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
+        _HTTP_HEADER_TRACESTATE: raw_tracestate,
+    }
+    tracecontext = _TraceContext._extract(headers)
+    assert tracecontext is not None
+
+    with override_global_config(
+        dict(_propagation_style_extract=[PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT])
+    ):
+        context = HTTPPropagator.extract(headers)
+
+    assert context._meta[W3C_TRACESTATE_KEY] == tracecontext._meta[W3C_TRACESTATE_KEY]
+    assert context._meta[W3C_TRACESTATE_KEY] != raw_tracestate
+    assert "rv:not-hex" not in context._meta[W3C_TRACESTATE_KEY]
+    assert len(context._meta[W3C_TRACESTATE_KEY].split(",")) <= 32
 
 
 @pytest.mark.parametrize(
@@ -2301,6 +2374,7 @@ EXTRACT_FIXTURES = [
             "sampling_priority": 1,
             "dd_origin": "synthetics",
             "meta": {
+                "traceparent": TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
                 "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
@@ -2356,7 +2430,10 @@ EXTRACT_FIXTURES = [
             "trace_id": 9291375655657946024,
             "span_id": 10,
             "sampling_priority": None,
-            "meta": {LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+            "meta": {
+                "traceparent": "00-000000000000000080f198ee56343ba8-000000000000000a-01",
+                LAST_DD_PARENT_ID_KEY: "000000000000000f",
+            },
         },
     ),
     (
@@ -2864,6 +2941,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             # in the styles configuration
             meta={
                 "_dd.origin": "synthetics",
+                "traceparent": TRACECONTEXT_HEADERS_VALID_64_bit[_HTTP_HEADER_TRACEPARENT],
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },

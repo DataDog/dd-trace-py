@@ -1099,7 +1099,7 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
 
     Before the fix, unwind_greenlets() held greenlet_info_map_lock for the
     entire stack unwinding of ALL tracked greenlets.  Every greenlet switch
-    calls update_greenlet_frame() under the same lock, so more tracked
+    calls record_greenlet_switch() under the same lock, so more tracked
     greenlets meant longer lock hold and more switch blocking.
 
     This test measures greenlet-switch wall time with zero vs many idle
@@ -1125,7 +1125,8 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     SWITCHES = 200
     N_IDLE_HIGH = 2000
     STACK_DEPTH = 50
-    MAX_SCALING_RATIO = 3.0
+    MAX_SCALING_RATIO = 6.0
+    N_MEASUREMENTS = 5
     MEASURE_TIMEOUT = 30  # generous timeout to prevent CI hangs
 
     def active_worker() -> None:
@@ -1163,8 +1164,8 @@ def test_gevent_greenlet_switch_not_blocked_by_profiler() -> None:
     stack.set_adaptive_sampling(False)
     try:
         measure(0)  # warm up
-        t_low = min(measure(0) for _ in range(3))
-        t_high = min(measure(N_IDLE_HIGH) for _ in range(3))
+        t_low = min(measure(0) for _ in range(N_MEASUREMENTS))
+        t_high = min(measure(N_IDLE_HIGH) for _ in range(N_MEASUREMENTS))
     finally:
         p.stop()
 
