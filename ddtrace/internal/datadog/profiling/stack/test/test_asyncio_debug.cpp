@@ -153,7 +153,17 @@ class AsyncioElfTest : public ::testing::Test
     {
         const int fd = fileno(file);
         EXPECT_EQ(ftruncate(fd, 0), 0);
-        EXPECT_EQ(pwrite(fd, &on_disk, size, 0), static_cast<ssize_t>(size));
+        // Write members separately so implicit C++ padding becomes zero-filled file gaps.
+        const auto write_field = [fd](const auto& field, off_t offset) {
+            EXPECT_EQ(pwrite(fd, &field, sizeof(field), offset), static_cast<ssize_t>(sizeof(field)));
+        };
+        write_field(on_disk.header, offsetof(Binary, header));
+        write_field(on_disk.segments, offsetof(Binary, segments));
+        write_field(on_disk.note, offsetof(Binary, note));
+        write_field(on_disk.table, offsetof(Binary, table));
+        write_field(on_disk.names, offsetof(Binary, names));
+        write_field(on_disk.sections, offsetof(Binary, sections));
+        EXPECT_EQ(ftruncate(fd, static_cast<off_t>(size)), 0);
         return read_asyncio_debug_offsets_from_elf(fd, binary);
     }
 };
