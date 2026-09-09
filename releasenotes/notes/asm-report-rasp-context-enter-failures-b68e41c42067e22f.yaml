@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    ASM: Fixes an issue where exploit prevention could stop protecting a downstream request
+    without any signal. When a RASP hook fails to install itself around a call, that call now
+    increments the ``appsec.rasp.error`` telemetry metric and logs a warning, instead of being
+    reported only at debug level.

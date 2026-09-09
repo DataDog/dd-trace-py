@@ -171,6 +171,19 @@ def report_waf_run_error(error: int, rule_version: str, rule_type: Optional[str]
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "rasp.error", 1, tags=rasp_tags)
 
 
+@_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":rasp:context_error")
+def report_rasp_context_error(rule_type: Optional[str]) -> None:
+    """A RASP hook failed to install itself around a call, so that call ran unprotected.
+
+    The WAF was never reached, hence error_type:context_enter rather than a waf_error code.
+    """
+    rasp_tags = (
+        ("waf_version", asm_config._ddwaf_version),
+        ("error_type", "context_enter"),
+    ) + _TYPES_AND_TAGS.get(rule_type or "", ())
+    telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "rasp.error", 1, tags=rasp_tags)
+
+
 @_safe_metric(WARNING_TAGS.TELEMETRY_METRICS, ":waf:request")
 def set_waf_request_metrics(result: Telemetry_result) -> None:
     truncation = result.truncation

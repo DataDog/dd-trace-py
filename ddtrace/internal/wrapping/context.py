@@ -510,6 +510,12 @@ class BaseWrappingContext(ABC):
 
         return self
 
+    def __on_enter_error__(self, exc: Exception) -> None:
+        """Called when __enter__ raised and this context was skipped; the wrapped call still runs.
+
+        A security control should override this to report the gap. Must not raise.
+        """
+
     def _pop_storage(self) -> dict[str, t.Any]:
         storage = t.cast(t.Optional[WrappingContextStorage], self._storage.get())
         if storage is None:
@@ -803,7 +809,13 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                         self._pop_storage()
                     # A BaseException (e.g. a deliberate blocking decision) is the caller's to see.
                     raise
-                log.debug("Failed to enter wrapping context %r", context, exc_info=True)
+                # The call proceeds unprotected, so warn and tell the context rather than only
+                # logging at debug. DD_TRACE_LOGGING_RATE caps this at one per minute per site.
+                log.warning("Failed to enter wrapping context %r", context, exc_info=True)
+                try:
+                    context.__on_enter_error__(exc)
+                except Exception:
+                    log.debug("Failed to report enter error for %r", context, exc_info=True)
                 continue
             entered.append(context)
 

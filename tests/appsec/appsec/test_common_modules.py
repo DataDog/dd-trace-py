@@ -878,3 +878,35 @@ def test_absolute_downstream_url_follows_a_connect_tunnel(tunnel_host, tunnel_po
 )
 def test_carries_a_host(url, carries_host):
     assert cmp._carries_a_host(url) is carries_host
+
+
+def test_rasp_context_enter_failure_is_counted():
+    """A RASP hook that cannot enter leaves the call unprotected, so it must report rasp.error.
+
+    Exploit prevention fails open here by design; the point of the metric is that a silent
+    fail-open is otherwise indistinguishable from "there was nothing to block".
+    """
+    unpatch_common_modules()
+    import http.client
+
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    httplib_unpatch()
+    try:
+        patch_common_modules()
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            # The hook raises an ordinary exception before it can reach the WAF.
+            mock.patch.object(cmp, "get_active_asm_context", side_effect=ValueError("boom")),
+            mock.patch.object(cmp, "_report_rasp_context_error") as report,
+        ):
+            conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
+            # Fail-open: the call is attempted rather than blocked, so it fails on the socket.
+            with pytest.raises(OSError):
+                conn.request("GET", "/")
+
+        report.assert_called_once_with(EXPLOIT_PREVENTION.TYPE.SSRF_REQ)
+    finally:
+        core.discard_item("full_url")
+        httplib_unpatch()
+        unpatch_common_modules()

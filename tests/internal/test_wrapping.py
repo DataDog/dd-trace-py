@@ -1983,3 +1983,54 @@ def test_an_exception_from_enter_is_still_swallowed():
         assert _storage_chain_length(context._storage.get()) == 0
     finally:
         context.unwrap()
+
+
+class FailingEnterWrappingContext(WrappingContext):
+    """A context whose __enter__ raises an ordinary exception, i.e. fails open."""
+
+    def __init__(self, f):
+        super().__init__(f)
+        self.reported = []
+
+    def __enter__(self):
+        super().__enter__()
+        raise ValueError("boom")
+
+    def __on_enter_error__(self, exc):
+        self.reported.append(exc)
+
+
+def test_wrapping_context_enter_error_is_reported():
+    """A swallowed __enter__ still runs the function, but the context is told it was skipped."""
+
+    def foo():
+        return 42
+
+    wc = FailingEnterWrappingContext(foo)
+    wc.wrap()
+
+    # Fail-open is preserved: the wrapped function still returns normally.
+    assert foo() == 42
+
+    assert len(wc.reported) == 1
+    assert isinstance(wc.reported[0], ValueError)
+
+    wc.unwrap()
+
+
+def test_wrapping_context_enter_error_hook_cannot_break_the_call():
+    """A broken __on_enter_error__ must not turn a skipped hook into a failed call."""
+
+    class Exploding(FailingEnterWrappingContext):
+        def __on_enter_error__(self, exc):
+            raise RuntimeError("reporting blew up")
+
+    def foo():
+        return 42
+
+    wc = Exploding(foo)
+    wc.wrap()
+
+    assert foo() == 42
+
+    wc.unwrap()

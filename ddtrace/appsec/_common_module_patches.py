@@ -20,6 +20,7 @@ from ddtrace.appsec._contrib.stripe.patch import patch as patch_stripe_for_appse
 from ddtrace.appsec._contrib.stripe.patch import unpatch as unpatch_stripe_for_appsec
 from ddtrace.appsec._contrib.subprocess.patch import patch as patch_subprocess_for_appsec
 from ddtrace.appsec._contrib.subprocess.patch import unpatch as unpatch_subprocess_for_appsec
+from ddtrace.appsec._metrics import report_rasp_context_error as _report_rasp_context_error
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._patch_utils import try_unwrap
 from ddtrace.appsec._patch_utils import try_wrap_function_wrapper
@@ -111,6 +112,15 @@ def _parse_http_response_body(response):
 class _RaspContext(WrappingContext):
     """Base for RASP wrapping contexts: reads the wrapped call's arguments by name."""
 
+    # Rule type reported when this hook fails to enter. Subclasses set the rule they enforce.
+    __rasp_rule_type__: Optional[str] = None
+
+    def __on_enter_error__(self, exc: Exception) -> None:
+        """The hook was skipped, so this call ran unprotected. Failing open silently is
+        indistinguishable from having nothing to block, so count it.
+        """
+        _report_rasp_context_error(self.__rasp_rule_type__)
+
     def _locals(self) -> dict[str, Any]:
         """The wrapped call's locals, to read its arguments by name.
 
@@ -159,15 +169,20 @@ class _ScopedRaspContext(_RaspContext):
 class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     """RASP SSRF analysis around urllib.request.OpenerDirector.open."""
 
+    __rasp_rule_type__ = EXPLOIT_PREVENTION.TYPE.SSRF
+
     def __enter__(self) -> "_SsrfOpenerDirectorOpen":
         super().__enter__()
         try:
             self._handle_enter()
-        except Exception:
+        except Exception as exc:
             # AIDEV-NOTE: a context whose __enter__ raises is left out of the universal context's
             # entered list, so neither __return__ nor __exit__ runs and the core context strands.
             self._close_core_context()
-            log.debug("Error handling SSRF instrumentation enter", exc_info=True)
+            # Handled here rather than propagating, so log and report here too: the universal
+            # context's fail-open path never sees this one.
+            log.warning("Error handling SSRF instrumentation enter", exc_info=True)
+            self.__on_enter_error__(exc)
         return self
 
     def _handle_enter(self) -> None:
@@ -286,6 +301,8 @@ def _absolute_downstream_url(connection: Any, path: str) -> str:
 
 class _SsrfHttpConnectionRequest(_RaspContext):
     """RASP SSRF + API10 downstream-request analysis around http.client.HTTPConnection.request."""
+
+    __rasp_rule_type__ = EXPLOIT_PREVENTION.TYPE.SSRF_REQ
 
     def __enter__(self) -> "_SsrfHttpConnectionRequest":
         super().__enter__()
