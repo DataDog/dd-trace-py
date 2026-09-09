@@ -779,6 +779,11 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
+        name="Check test locks",
+        command="scripts/test-env check",
+        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-env", "tests/suitespec.py"},
+    )
+    check(
         name="Check suitespec duplicates",
         command="scripts/lint suitespec-duplicates",
         paths={"*"},
