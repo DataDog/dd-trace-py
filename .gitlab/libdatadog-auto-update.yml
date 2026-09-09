@@ -1,14 +1,25 @@
-# Auto-bump libdatadog to a target commit and validate the native build. If it
-# breaks, Claude attempts a repair and a second, independent agent validates
-# that the changes are simple/mechanical; the result is pushed to a branch (no
-# PR is opened automatically). The actual logic is in
-# scripts/libdatadog-auto-update.py. This job only provides auth + a clean env.
+# Auto-bump libdatadog to a target commit. Mirrors dd-trace-php's
+# libdatadog-latest job: the bump itself is deterministic, and validation is
+# delegated to the real dd-trace-py pipeline — this job does NOT run the test
+# suite itself. Flow (logic in scripts/libdatadog-auto-update.py, prompts in
+# .gitlab/libdatadog-auto-update-{repair,review}-prompt.md):
+#
+#   1. Bump the libdatadog revs in src/native/Cargo.toml (+Cargo.lock, release
+#      note) and push the result to a branch as a GitHub-signed commit.
+#   2. The push triggers the full, parallelized dd-trace-py pipeline for that
+#      branch; the job waits for it via the GitLab API.
+#   3. On red: collect failed jobs (retrying a handful once to filter flaky
+#      tests), hand their trace tails to Claude — which has no cargo/Bash
+#      access and must reason from the errors alone — then gate the repair
+#      with an independent "changes are mechanical" review agent, push the
+#      repair commit, and wait for the next pipeline run.
 #
 # Runs on the testrunner image because it carries the Rust toolchain the
-# `rust ci` job relies on (cargo build/clippy/test). Two credentials are wired:
+# lockfile refresh (cargo update) relies on. Three credentials are wired:
 #
 # - AI Gateway for the repair and review agents
 # - GitHub (dd-octo-sts) for the branch push
+# - GitLab (BTI, via authanywhere) for pipeline polling/failure collection
 #
 # The intended usage of this job is to be triggered from libdatadog in order to
 # either check the performance of a new change, check for regression, etc.
@@ -21,7 +32,9 @@ include:
 libdatadog-auto-update:
   stage: tests
   extends: .testrunner
-  timeout: 40m
+  # Like the PHP job (timeout: 5h): waiting for a full pipeline run plus up to
+  # a few repair rounds takes hours, not minutes.
+  timeout: 5h
   needs: []
   interruptible: false
   rules:
@@ -70,19 +83,20 @@ libdatadog-auto-update:
         echo "dd-octo-sts not found in image. The push will be skipped (changes listed only)."
       fi
     # Mint the AI Gateway token immediately before use (short expiry), re-source
-    # nvm so the claude CLI is on PATH, then run the update.
+    # nvm so the claude CLI is on PATH, then run the update. The script mints its
+    # own BTI/GitLab token (for pipeline polling) from the authanywhere binary
+    # via AUTHANYWHERE_BIN. Live: a green run pushes a verified commit to a
+    # branch via the GitHub API and validates it with the pipeline that the push
+    # triggers (no-op if already on latest main, or skipped if no token was minted).
     - |
       unset NPM_CONFIG_PREFIX
       export NVM_DIR="$HOME/.nvm"; . "$NVM_DIR/nvm.sh"
+      export AUTHANYWHERE_BIN="$HOME/authanywhere"
       raw_token="$("$HOME/authanywhere" --audience rapid-ai-platform)"
       export ANTHROPIC_AUTH_TOKEN="${raw_token#Authorization: Bearer }"
       export ANTHROPIC_BASE_URL="https://ai-gateway.us1.ddbuild.io"
       export ANTHROPIC_CUSTOM_HEADERS=$'source: claude\norg-id: 2\nprovider: anthropic\nx-dd-tag-ml_app: dd-trace-py-libdatadog-update\nx-dd-tag-dd.team: apm-python'
-      # Live: a green run pushes a verified commit to a branch via the GitHub API
-      # (no-op if already on latest main, or skipped if no token was minted).
-      # --skip-python: cargo is the real native signal here. the full Python suite
-      #   runs in PR CI (and `pip install -e .` isn't viable from this uv env).
-      scripts/libdatadog-auto-update.py --skip-python
+      scripts/libdatadog-auto-update.py
   after_script:
     # Preserve the testrunner's core-backtrace step, then revoke the GitHub token
     # immediately via the broker (rather than waiting out its short lifetime).

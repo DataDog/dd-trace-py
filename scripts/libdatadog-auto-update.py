@@ -5,29 +5,33 @@
 # dependencies = []
 # ///
 r"""Update the pinned libdatadog dependency in src/native to the target
-revision of libdatadog, or the latest from main if unspecified. Solve trivial
-backward-incompatible updates with an agent, but make a deliberate effort to
-avoid any non-trivial changes:
+revision of libdatadog, or the latest from main if unspecified.
+
+The design mirrors dd-trace-php's libdatadog-latest job: the bump itself is
+cheap and deterministic, and *validation is delegated to the real CI
+pipeline* rather than re-run inside this job.
 
 Phases:
-  1. Resolve target
-  2. Apply bump.
-  3. Validate (build, tests, etc.).
-  4. Repair if validation is red. Claude attempts a bounded set of fixes. A
-     fresh agent then validates that the changes are mechanical.
-  5. Push: commit to the target branch (or a default name if not provided).
-     Create the branch if needed.
+  1. Resolve target.
+  2. Apply bump (Cargo.toml revs, Cargo.lock refresh, release note).
+  3. Push the bump to the target branch as a GitHub-signed commit. The push
+     triggers the full, parallelized dd-trace-py pipeline for that branch.
+  4. Wait for that pipeline via the GitLab API, collect failed jobs (with a
+     single retry round to filter flaky tests), and hand their traces to
+     Claude. Claude repairs the code from the traces alone — it cannot run
+     cargo — and an independent agent gates that the changes are mechanical
+     before the repair commit is pushed and the loop repeats.
 
 The script is intentionally runnable locally: with no GH token it stops after
-printing the changes, and `--dry-run` makes no changes at all.
+printing the changes (`--dry-run` touches nothing), and outside CI it skips
+the pipeline wait entirely.
 
 Usage:
-  scripts/libdatadog-auto-update.py                        # bump to latest main, validate, push
+  scripts/libdatadog-auto-update.py                        # bump, push, validate via pipeline
   scripts/libdatadog-auto-update.py --dry-run              # show what would change, touch nothing
   scripts/libdatadog-auto-update.py --target-rev SHA       # bump to a specific rev
-  scripts/libdatadog-auto-update.py --target-branch foo-bar  # push the result to the foo-bar
-                                                            # branch (create if needed)
-  scripts/libdatadog-auto-update.py --skip-python          # cargo-only validation (fast local loop)
+  scripts/libdatadog-auto-update.py --target-branch foo    # push to foo (create/force-update)
+  scripts/libdatadog-auto-update.py --no-push              # apply the bump, list changes, don't push
 
 Environment:
   GH_TOKEN              GitHub token (from octo-sts). When set, the bump is
@@ -36,9 +40,18 @@ Environment:
                         Without it, the changes are listed and nothing is
                         pushed.
   ANTHROPIC_AUTH_TOKEN  AI-gateway bearer token. Required for the repair and
-  ANTHROPIC_BASE_URL    the mechanical-changes validation. If unset, both are
-                        skipped and a red build fails the run.
+  ANTHROPIC_BASE_URL    mechanical-changes validation agents. If unset, both
+                        are skipped and a red pipeline fails the run.
+  AUTHANYWHERE_BIN      Path to the authanywhere binary (falls back to PATH).
+                        Used in CI to mint the short-lived BTI JWT that
+                        exchanges for a GitLab API token (pipeline polling).
+  CI_API_V4_URL,        GitLab CI env; presence selects the "wait for the
+  CI_PROJECT_ID         pushed branch's pipeline" phase.
   ARTIFACTS_DIR         where to write logs and the summary (default: ./libdatadog-auto-update)
+
+Prompts live next to the job (not in this script):
+  .gitlab/libdatadog-auto-update-repair-prompt.md   — instructions for the repair agent
+  .gitlab/libdatadog-auto-update-review-prompt.md   — instructions for the mechanical-review agent
 """
 
 from __future__ import annotations
@@ -46,6 +59,7 @@ from __future__ import annotations
 import argparse
 import base64
 import dataclasses
+import io
 import json
 import os
 from pathlib import Path
@@ -53,15 +67,26 @@ import re
 import shutil
 import subprocess
 import sys
+import tarfile
+import tempfile
 import textwrap
 import threading
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 
 LIBDATADOG_REPO = "https://github.com/DataDog/libdatadog"
 GH_REPO_SLUG = "DataDog/dd-trace-py"
 GH_API_BASE = "https://api.github.com"
+LIBDATADOG_GH_SLUG = "DataDog/libdatadog"
+LIBDATADOG_TARBALL_URL = "https://codeload.github.com/DataDog/libdatadog/tar.gz"
+
+# BTI API used to exchange an authanywhere JWT (audience rapid-devex-ci, same
+# as .gitlab/scripts/summarize_failures.py) for a short-lived GitLab API token.
+BTI_BASE_URL = "https://bti-ci-api.us1.ddbuild.io/internal/ci"
+BTI_AUDIENCE = "rapid-devex-ci"
 
 # Second line of defense: refuse to commit a path that looks like a
 # secret/credential/binary. If this ever fires it means something unexpected
@@ -75,28 +100,20 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 NATIVE_DIR = REPO_ROOT / "src" / "native"
 CARGO_TOML = NATIVE_DIR / "Cargo.toml"
 RELEASENOTES_DIR = REPO_ROOT / "releasenotes" / "notes"
+PROMPTS_DIR = REPO_ROOT / ".gitlab"
+REPAIR_PROMPT_FILE = PROMPTS_DIR / "libdatadog-auto-update-repair-prompt.md"
+REVIEW_PROMPT_FILE = PROMPTS_DIR / "libdatadog-auto-update-review-prompt.md"
 
-# Claude model + tools for the repair and review agents, mirroring
-# .gitlab/check-libdatadog-version.yml. The read-only shell tools let the
-# repair agent locate and inspect libdatadog's fetched source under
-# $CARGO_HOME/git/checkouts (outside the repo tree) so it can discover e.g. a
-# crate's new name when one was renamed at the target rev. Hard cap per agent
-# call so a hung/slow agent can't block the job; the job's own timeout is the
-# outer backstop.
+# Claude model + tools. The repair agent mirrors dd-trace-php: no Bash at all,
+# so Claude cannot run cargo or any other build/test command — it reasons from
+# the CI failure traces and the libdatadog source alone. The reviewer gets
+# read-only git access to inspect the change set. Hard cap per agent call so a
+# hung/slow agent can't block the job; the job's own timeout is the outer
+# backstop.
 CLAUDE_TIMEOUT_S = 600
+CLAUDE_MAX_TURNS = 50
 CLAUDE_MODEL = "anthropic/claude-sonnet-4-6"
-CLAUDE_REPAIR_TOOLS = [
-    "Read",
-    "Edit",
-    "Write",
-    "Grep",
-    "Glob",
-    "Bash(cargo:*)",
-    "Bash(find:*)",
-    "Bash(ls:*)",
-    "Bash(cat:*)",
-    "Bash(grep:*)",
-]
+CLAUDE_REPAIR_TOOLS = ["Read", "Glob", "Grep", "Edit", "Write"]
 CLAUDE_REVIEW_TOOLS = [
     "Read",
     "Grep",
@@ -107,6 +124,16 @@ CLAUDE_REVIEW_TOOLS = [
     "Bash(cat:*)",
     "Bash(ls:*)",
 ]
+
+# GitLab pipeline polling (mirrors the dd-trace-php job's polling cadence).
+PIPELINE_POLL_INTERVAL_S = 30
+PIPELINE_APPEAR_TIMEOUT_S = 20 * 60  # GitHub→GitLab mirror latency before a new branch's pipeline shows up
+PIPELINE_STATUS_TIMEOUT_DEFAULT_S = 2 * 60 * 60  # per pipeline run
+PIPELINE_TERMINAL_STATUSES = frozenset({"success", "failed", "canceled", "skipped"})
+JOB_RUNNING_STATUSES = frozenset({"running", "pending", "created", "waiting_for_resource", "preparing"})
+RETRY_FAILURES_MAX = 10  # retry flaky failed jobs only when there are fewer than this
+RETRY_WAIT_TIMEOUT_S = 60 * 60
+TRACE_TAIL_BYTES = 16 * 1024  # keep the tail of each failed job's trace, like the PHP job's ~15 KiB
 
 # Matches the `rev = "..."` on any Cargo.toml line that pins the libdatadog git
 # source. Every git dependency in src/native/Cargo.toml is libdatadog, but we
@@ -122,6 +149,10 @@ class StepError(RuntimeError):
         self.label = label
         self.returncode = returncode
         self.output = output
+
+
+class PipelineError(RuntimeError):
+    """The triggered pipeline could not be found, waited for, or inspected."""
 
 
 @dataclasses.dataclass
@@ -191,6 +222,18 @@ def run(
     return result
 
 
+def capture(cmd: list[str], *, timeout: float = 60) -> str:
+    """Run a command and return its stdout WITHOUT printing it.
+
+    For commands whose output contains secrets (e.g. authanywhere JWTs) —
+    `run()` would leak them into the CI log.
+    """
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if proc.returncode != 0:
+        raise RuntimeError(f"command failed (exit {proc.returncode}): {' '.join(cmd)}\n{proc.stderr}")
+    return proc.stdout.strip()
+
+
 # --------------------------------------------------------------------------- #
 # Phase 1 — resolve target
 # --------------------------------------------------------------------------- #
@@ -234,9 +277,12 @@ def regenerate_lockfile() -> None:
 
     Tolerant by design: if the new rev renamed/removed a crate we depend on,
     this `cargo update` fails to resolve. We do NOT crash here — the same
-    resolution error resurfaces in `cargo build` during validate_native(), which
-    IS routed to the repair loop so the agent can fix src/native/Cargo.toml.
+    resolution error resurfaces in the triggered pipeline's cargo build, whose
+    traces are then handed to the repair agent.
     """
+    if not shutil.which("cargo"):
+        print("\n[cargo-update] cargo not found; skipping lock refresh (the pipeline will surface any lock drift).")
+        return
     pkgs = _libdatadog_package_names()
     cmd = ["cargo", "update", "--manifest-path", str(CARGO_TOML)]
     for pkg in pkgs:
@@ -245,7 +291,7 @@ def regenerate_lockfile() -> None:
     if not res.ok:
         print(
             "\n[cargo-update] lock refresh failed (likely a renamed/removed crate at the new rev); "
-            "deferring to `cargo build` in validation, which routes failures to the repair loop."
+            "deferring to the triggered pipeline, which routes the failure to the repair agent."
         )
 
 
@@ -263,207 +309,6 @@ def _libdatadog_package_names() -> list[str]:
     return sorted(set(names))
 
 
-# --------------------------------------------------------------------------- #
-# Phase 3 — validate
-# --------------------------------------------------------------------------- #
-def validate_native() -> None:
-    """Run the cargo validation suite — the repairable signal.
-
-    Raises StepError on the first failing step so the caller can route it to the
-    repair loop. This is native-code only: every failure here is something the
-    agent can plausibly fix by editing src/native.
-    """
-    for label, cmd in (
-        ("cargo-build", ["cargo", "build", "--all-features"]),
-        ("cargo-fmt", ["cargo", "fmt", "--all", "--", "--check"]),
-        ("cargo-clippy", ["cargo", "clippy", "--all-features", "--", "-D", "warnings"]),
-        ("cargo-test", ["cargo", "test", "--no-fail-fast", "--locked"]),
-    ):
-        run(label, cmd, cwd=NATIVE_DIR)
-
-
-def _python_with_pip() -> str | None:
-    """A real interpreter that has pip, or None.
-
-    NOT sys.executable: under `uv run --script` that's an ephemeral env without
-    pip, so installing the project with it fails spuriously.
-    """
-    self_py = Path(sys.executable).resolve()
-    for cand in ("python3", "python", "python3.12", "python3.11"):
-        path = shutil.which(cand)
-        if not path or Path(path).resolve() == self_py:
-            continue
-        if run("python-pip-check", [path, "-m", "pip", "--version"], check=False).ok:
-            return path
-    return None
-
-
-def validate_python() -> bool:
-    """Best-effort build + import smoke. Returns False on a real failure.
-
-    Deliberately NOT routed to the repair loop: a pip/venv problem is an
-    environment issue, not a libdatadog API change. The comprehensive Python
-    suite runs in PR CI anyway; this is just an early ABI smoke. Skips (returns
-    True) when no pip-capable interpreter is available.
-    """
-    py = _python_with_pip()
-    if not py:
-        print("\n[python-smoke] no pip-capable interpreter found; skipping (full suite runs in PR CI).")
-        return True
-    if not run("pip-install", [py, "-m", "pip", "install", "-e", "."], cwd=REPO_ROOT, check=False).ok:
-        print("\n[python-smoke] `pip install -e .` failed — see log; not treated as a native-build failure.")
-        return False
-    smoke = run(
-        "native-import-smoke",
-        [py, "-c", "import ddtrace.internal.native; print('native import OK')"],
-        cwd=REPO_ROOT,
-        check=False,
-    )
-    return smoke.ok
-
-
-# --------------------------------------------------------------------------- #
-# Phase 4 — AI repair + independent review
-# --------------------------------------------------------------------------- #
-def short(sha: str) -> str:
-    return sha[:12]
-
-
-def _claude_available() -> bool:
-    """True if the `claude` CLI and AI-gateway credentials are present."""
-    if not shutil.which("claude"):
-        print("\n[claude] `claude` CLI not found in PATH — skipping agent steps.")
-        return False
-    if not (os.environ.get("ANTHROPIC_AUTH_TOKEN") and os.environ.get("ANTHROPIC_BASE_URL")):
-        print("\n[claude] AI-gateway env (ANTHROPIC_AUTH_TOKEN/ANTHROPIC_BASE_URL) not set — skipping agent steps.")
-        return False
-    return True
-
-
-def _repair_prompt(failure: StepError, target_rev: str, log_path: Path) -> str:
-    return (
-        f"The pinned libdatadog dependency in src/native was just bumped to {short(target_rev)} "
-        f"and the native build now fails at `{failure.label}`. The full failing output is in "
-        f"{log_path} — read it first.\n\n"
-        "Fix the build by adapting this repo to libdatadog's changed API — usually a renamed or "
-        "moved crate (fix the entries in src/native/Cargo.toml), a changed function/type "
-        "signature, or a moved import.\n\n"
-        "Keep the changes as small and mechanical as possible, and never weaken or delete tests, "
-        "assertions, or lints to make the build pass. Verify with `cargo build --all-features` "
-        "and `cargo clippy --all-features -- -D warnings` in src/native before finishing. If the "
-        "breakage cannot be fixed with small mechanical changes, stop and say so. "
-        "Finish with a brief summary of what changed and why."
-    )
-
-
-def repair_loop(failure: StepError, target_rev: str, max_iterations: int, artifacts: Path) -> bool:
-    """Attempt to fix native build breakage from libdatadog API changes.
-
-    Each iteration: invoke Claude, then re-run validate_native() — the
-    deterministic gate the agent cannot influence. Returns True once it passes,
-    else False after max_iterations. Only native (cargo) failures are repaired;
-    environment issues (e.g. pip) are never routed here. What the agent changed
-    is judged afterwards by validate_changes_mechanical().
-    """
-    if not _claude_available():
-        return False
-
-    for i in range(1, max_iterations + 1):
-        log_path = artifacts / f"repair-input-{i}.log"
-        log_path.write_text(f"step: {failure.label} (exit {failure.returncode})\n\n{failure.output}")
-        print(f"\n[repair] iteration {i}/{max_iterations} — invoking Claude…")
-
-        # Single --allowedTools followed by all values, matching the proven form
-        # in .gitlab/check-libdatadog-version.yml.
-        cmd = [
-            "claude",
-            "--bare",
-            "-p",
-            _repair_prompt(failure, target_rev, log_path),
-            "--model",
-            CLAUDE_MODEL,
-            "--allowedTools",
-            *CLAUDE_REPAIR_TOOLS,
-            "--permission-mode",
-            "bypassPermissions",
-        ]
-        transcript = run(f"claude-repair-{i}", cmd, cwd=REPO_ROOT, check=False, timeout=CLAUDE_TIMEOUT_S)
-        (artifacts / f"repair-transcript-{i}.log").write_text(transcript.output)
-        if transcript.returncode == 124:
-            print(f"[repair] iteration {i} timed out after {CLAUDE_TIMEOUT_S}s; moving on.")
-
-        try:
-            validate_native()
-            print(f"\n[repair] converged after {i} iteration(s).")
-            return True
-        except StepError as exc:
-            failure = exc
-            (artifacts / f"{exc.label}-after-repair-{i}.log").write_text(exc.output)
-            print(f"[repair] still failing at {exc.label!r} after iteration {i}.")
-
-    print(f"\n[repair] did not converge after {max_iterations} iteration(s).")
-    return False
-
-
-def _review_prompt(target_rev: str) -> str:
-    return (
-        f"An automated script just bumped the pinned libdatadog dependency in this repo to "
-        f"{short(target_rev)}; because the native build broke, an AI agent then repaired it. "
-        "You are an independent reviewer: verify the result is simple and mechanical.\n\n"
-        "Inspect the full working-tree change set with `git status` and `git diff HEAD` (new "
-        "files are untracked and only show in `git status`). Expected mechanical changes: "
-        "libdatadog `rev` pins in src/native/Cargo.toml, the regenerated Cargo.lock, and a "
-        "release note in releasenotes/notes/.\n\n"
-        "PASS only if every change is a simple, mechanical adaptation (rev pins, lockfile "
-        "churn, renames, signature/import fixes). FAIL if you see weakened or deleted tests, "
-        "assertions, or lints; refactors unrelated to the bump; behavior changes; or anything "
-        "that requires a design decision or looks like working around the failure instead of "
-        "fixing it.\n\n"
-        "End your reply with exactly one final line: 'VERDICT: PASS' or 'VERDICT: FAIL: <reason>'."
-    )
-
-
-def validate_changes_mechanical(target_rev: str, artifacts: Path) -> bool:
-    """Second, independent agent reviews the full change set and confirms it is
-    simple and mechanical. Returns False (blocking the push) on a FAIL verdict
-    or an unreadable/missing verdict.
-    """
-    if not _claude_available():
-        # No repair could have happened either (it needs the same setup), so the
-        # change set is just the mechanical bump itself.
-        return True
-
-    print("\n[review] invoking an independent agent to validate the changes are mechanical…")
-    cmd = [
-        "claude",
-        "--bare",
-        "-p",
-        _review_prompt(target_rev),
-        "--model",
-        CLAUDE_MODEL,
-        "--allowedTools",
-        *CLAUDE_REVIEW_TOOLS,
-        "--permission-mode",
-        "bypassPermissions",
-    ]
-    transcript = run("claude-review", cmd, cwd=REPO_ROOT, check=False, timeout=CLAUDE_TIMEOUT_S)
-    (artifacts / "review-transcript.log").write_text(transcript.output)
-
-    verdicts = re.findall(r"VERDICT:\s*(PASS|FAIL)\b", transcript.output, re.IGNORECASE)
-    if not verdicts:
-        print("\n[review] no verdict found in the transcript; failing closed (see review-transcript.log).")
-        return False
-    verdict = verdicts[-1].upper()
-    if verdict == "PASS":
-        print("\n[review] PASS — changes confirmed simple and mechanical.")
-        return True
-    print("\n[review] FAIL — changes are not mechanical; the result will NOT be pushed.")
-    return False
-
-
-# --------------------------------------------------------------------------- #
-# Phase 5 — push
-# --------------------------------------------------------------------------- #
 def write_release_note(target_rev: str) -> Path:
     """Write a reno-style upgrade note. Filename suffix is derived from the SHA
     (deterministic, avoids the random hash reno would otherwise generate).
@@ -486,6 +331,436 @@ def git_branch_name(target_rev: str) -> str:
     return f"chore/update-libdatadog-{short(target_rev)}"
 
 
+# --------------------------------------------------------------------------- #
+# GitLab API — find/wait for the pipeline triggered by the pushed branch
+# --------------------------------------------------------------------------- #
+def bti_gitlab_token() -> str:
+    """Mint a short-lived GitLab API token via authanywhere + BTI.
+
+    Same flow as .gitlab/scripts/summarize_failures.py: authanywhere produces
+    a JWT for the rapid-devex-ci audience, which the BTI CI API exchanges for
+    a project-scoped GitLab PAT. Tokens are never printed.
+    """
+    bin_path = os.environ.get("AUTHANYWHERE_BIN") or shutil.which("authanywhere")
+    if not bin_path:
+        raise PipelineError("authanywhere not found (set AUTHANYWHERE_BIN); cannot query the GitLab API.")
+    jwt = capture([bin_path, "--audience", BTI_AUDIENCE]).removeprefix("Authorization: Bearer ")
+    owner, repo = GH_REPO_SLUG.split("/")
+    url = f"{BTI_BASE_URL}/gitlab/token?{urllib.parse.urlencode({'owner': owner, 'repository': repo})}"
+    req = urllib.request.Request(url, headers={"Authorization": f"Bearer {jwt}"})
+    with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310 (fixed bti host)
+        return json.loads(resp.read().decode())["token"]
+
+
+def _gl_fetch(token: str, method: str, path: str, *, ok_not_found: bool = False) -> str | None:
+    """Call the GitLab REST API (CI_API_V4_URL) and return the raw body text."""
+    api_v4 = os.environ.get("CI_API_V4_URL", "").rstrip("/")
+    if not api_v4:
+        raise PipelineError("CI_API_V4_URL not set; not running inside GitLab CI?")
+    req = urllib.request.Request(f"{api_v4}{path}", method=method)
+    req.add_header("PRIVATE-TOKEN", token)
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310 (fixed CI API host)
+            return resp.read().decode(errors="replace")
+    except urllib.error.HTTPError as exc:
+        if ok_not_found and exc.code == 404:
+            return None
+        body = exc.read().decode(errors="replace")[:500]
+        raise PipelineError(f"GitLab API {method} {path} → HTTP {exc.code}: {body}") from exc
+
+
+def _gl_api(token: str, method: str, path: str, *, ok_not_found: bool = False) -> object | None:
+    """Call the GitLab REST API and return the parsed JSON (or None for empty/404)."""
+    raw = _gl_fetch(token, method, path, ok_not_found=ok_not_found)
+    if raw is None or not raw:
+        return None
+    return json.loads(raw)
+
+
+def _gl_jobs(token: str, pipeline_id: str) -> list[dict]:
+    """All jobs of a pipeline (same project), paginated."""
+    jobs: list[dict] = []
+    project_id = os.environ["CI_PROJECT_ID"]
+    for page in range(1, 11):
+        try:
+            batch = _gl_api(
+                token,
+                "GET",
+                f"/projects/{project_id}/pipelines/{pipeline_id}/jobs?per_page=100&page={page}",
+            )
+        except (PipelineError, json.JSONDecodeError) as exc:
+            # Tolerant like the PHP job: a foreign-project child pipeline 404s here.
+            print(f"  [warn] cannot list jobs of pipeline {pipeline_id}: {exc}")
+            break
+        if not isinstance(batch, list):
+            break
+        jobs.extend(batch)
+        if len(batch) < 100:
+            break
+    return jobs
+
+
+def _gl_bridges(token: str, pipeline_id: str) -> list[dict]:
+    """Bridges (trigger jobs) of a pipeline, paginated."""
+    project_id = os.environ["CI_PROJECT_ID"]
+    bridges: list[dict] = []
+    for page in range(1, 6):
+        batch = _gl_api(
+            token,
+            "GET",
+            f"/projects/{project_id}/pipelines/{pipeline_id}/bridges?per_page=100&page={page}",
+        )
+        assert isinstance(batch, list)
+        bridges.extend(batch)
+        if len(batch) < 100:
+            break
+    return bridges
+
+
+def wait_for_branch_pipeline(token: str, branch: str, head_sha: str) -> dict:
+    """Wait for the pipeline GitLab creates for (branch, head_sha) to appear.
+
+    The GitHub→GitLab mirror takes a bit to pick up the pushed branch; poll
+    until a pipeline for exactly this commit shows up.
+    """
+    project_id = os.environ["CI_PROJECT_ID"]
+    query = urllib.parse.urlencode({"ref": branch, "sha": head_sha})
+    deadline = time.monotonic() + PIPELINE_APPEAR_TIMEOUT_S
+    while True:
+        pipelines = _gl_api(token, "GET", f"/projects/{project_id}/pipelines?{query}")
+        assert isinstance(pipelines, list)
+        if pipelines:
+            pipeline = pipelines[0]
+            print(
+                f"\n[pipeline] found pipeline #{pipeline['id']} for {branch}@{short(head_sha)} "
+                f"(status: {pipeline['status']}) — {pipeline.get('web_url')}"
+            )
+            return pipeline
+        if time.monotonic() > deadline:
+            ref_query = urllib.parse.urlencode({"ref": branch})
+            existing = _gl_api(token, "GET", f"/projects/{project_id}/pipelines?{ref_query}")
+            assert isinstance(existing, list)
+            raise PipelineError(
+                f"no pipeline appeared for {branch}@{head_sha} after "
+                f"{PIPELINE_APPEAR_TIMEOUT_S // 60} min ({len(existing)} pipeline(s) exist for the ref). "
+                "Is the GitHub→GitLab mirror running?"
+            )
+        print("[pipeline] waiting for the mirror to create the pipeline…", flush=True)
+        time.sleep(PIPELINE_POLL_INTERVAL_S)
+
+
+def wait_for_pipeline_completion(token: str, pipeline: dict, timeout_s: float) -> str:
+    """Poll the pipeline until it reaches a terminal status; return the status."""
+    project_id = os.environ["CI_PROJECT_ID"]
+    pipeline_id = pipeline["id"]
+    deadline = time.monotonic() + timeout_s
+    status = pipeline["status"]
+    while status not in PIPELINE_TERMINAL_STATUSES:
+        if status == "manual":
+            raise PipelineError(
+                f"pipeline {pipeline_id} is waiting on a manual job — the auto-update flow "
+                "cannot proceed. Needs human attention."
+            )
+        if time.monotonic() > deadline:
+            raise PipelineError(
+                f"pipeline {pipeline_id} still '{status}' after {timeout_s / 3600:.1f}h; giving up on it."
+            )
+        print(f"[pipeline] {pipeline_id}: {status} ({time.strftime('%H:%M:%S')})", flush=True)
+        time.sleep(PIPELINE_POLL_INTERVAL_S)
+        data = _gl_api(token, "GET", f"/projects/{project_id}/pipelines/{pipeline_id}")
+        assert isinstance(data, dict)
+        status = data["status"]
+    print(f"\n[pipeline] {pipeline_id} finished with status: {status} — {pipeline.get('web_url')}")
+    return status
+
+
+def collect_failed_jobs(token: str, pipeline_id: str) -> list[dict]:
+    """Failed jobs of the pipeline and of its (same-project) child pipelines.
+
+    Mirrors the dd-trace-php job: the full test matrix runs in child pipelines
+    (bridges), so failures must be collected across all of them. Cross-project
+    triggers (e.g. serverless lambda tests) are skipped with a warning — their
+    failures are not repairable in this repo anyway.
+    """
+    failures: list[dict] = []
+    for job in _gl_jobs(token, pipeline_id):
+        if job["status"] == "failed":
+            failures.append({**job, "trigger": "pipeline"})
+    for bridge in _gl_bridges(token, pipeline_id):
+        child = bridge.get("downstream_pipeline") or {}
+        if not child.get("id"):
+            continue
+        if str(child.get("project_id", os.environ["CI_PROJECT_ID"])) != os.environ["CI_PROJECT_ID"]:
+            print(f"[pipeline] skipping cross-project child pipeline of {bridge['name']!r}")
+            continue
+        for job in _gl_jobs(token, str(child["id"])):
+            if job["status"] == "failed":
+                failures.append({**job, "trigger": bridge["name"]})
+    return failures
+
+
+def retry_flaky_jobs(token: str, failures: list[dict]) -> list[dict]:
+    """Retry failed jobs once (when there are only a few) to filter flakiness.
+
+    Direct port of the dd-trace-php behavior: with fewer than
+    RETRY_FAILURES_MAX failures, each failed job is retried via the GitLab API
+    and only jobs that still fail afterwards are kept.
+    """
+    if not (0 < len(failures) < RETRY_FAILURES_MAX):
+        return failures
+    print(f"\n[pipeline] retrying {len(failures)} failed job(s) to filter flakiness…")
+    project_id = os.environ["CI_PROJECT_ID"]
+    retried: list[dict] = []
+    for job in failures:
+        new_job = None
+        try:
+            new_job = _gl_api(token, "POST", f"/projects/{project_id}/jobs/{job['id']}/retry", ok_not_found=True)
+        except (PipelineError, json.JSONDecodeError) as exc:
+            print(f"  retry of {job['name']!r} failed: {exc}")
+        if isinstance(new_job, dict) and new_job.get("id"):
+            print(f"  retried: [{job['trigger']}] {job['name']} → job {new_job['id']}")
+            retried.append({**job, **new_job})
+        else:
+            print(f"  could not retry: [{job['trigger']}] {job['name']} (keeping the original failure)")
+            retried.append(job)
+
+    deadline = time.monotonic() + RETRY_WAIT_TIMEOUT_S
+    while True:
+        running = 0
+        for job in retried:
+            data = _gl_api(token, "GET", f"/projects/{project_id}/jobs/{job['id']}", ok_not_found=True)
+            if isinstance(data, dict):
+                # Write the fresh status back so `still` below sees the retried outcome.
+                job["status"] = data.get("status", job.get("status", "failed"))
+            if job.get("status", "failed") in JOB_RUNNING_STATUSES:
+                running += 1
+        if not running:
+            break
+        if time.monotonic() > deadline:
+            print("[pipeline] retried job(s) did not finish in time; keeping them as failures.")
+            for job in retried:
+                job["status"] = "failed" if job.get("status") in JOB_RUNNING_STATUSES else job.get("status", "failed")
+            break
+        time.sleep(PIPELINE_POLL_INTERVAL_S)
+
+    still = [job for job in retried if job.get("status", "failed") == "failed"]
+    print(f"[pipeline] {len(failures) - len(still)} flaky job(s) passed on retry; {len(still)} still failing.")
+    return still
+
+
+def write_ci_results(failures: list[dict], token: str, artifacts: Path, round_no: int) -> None:
+    """Persist the CI failure report: ci-summary-<n>.txt, traces-<n>/, failures-<n>.json."""
+    project_id = os.environ["CI_PROJECT_ID"]
+    traces_dir = artifacts / f"traces-{round_no}"
+    traces_dir.mkdir(parents=True, exist_ok=True)
+
+    for job in failures:
+        safe = re.sub(r"[^\w.]+", "_", job["name"])[:60]
+        trace_path = traces_dir / f"{safe}_{job['id']}.txt"
+        header = f"=== {job['name']} (trigger: {job['trigger']}) — {job.get('web_url', '')} ===\n\n"
+        trace = "[trace unavailable]\n"
+        try:
+            # The trace endpoint returns raw text, not JSON.
+            trace = (
+                _gl_fetch(token, "GET", f"/projects/{project_id}/jobs/{job['id']}/trace", ok_not_found=True) or trace
+            )
+        except PipelineError as exc:
+            print(f"  [warn] cannot fetch trace of {job['name']!r}: {exc}")
+        trace_path.write_text(header + trace[-TRACE_TAIL_BYTES:])
+        try:
+            shown = trace_path.relative_to(REPO_ROOT)
+        except ValueError:
+            shown = trace_path
+        print(f"  saved trace tail → {shown}")
+
+    summary = artifacts / f"ci-summary-{round_no}.txt"
+    lines = [f"Total persistent failures: {len(failures)}", ""]
+    lines += [f"[{job['trigger']}] {job['name']} — {job.get('web_url', '')}" for job in failures]
+    summary.write_text("\n".join(lines) + "\n")
+
+    (artifacts / f"failures-{round_no}.json").write_text(json.dumps(failures, indent=2))
+
+
+def write_libdatadog_changelog(pinned: set[str], target_rev: str, artifacts: Path) -> Path | None:
+    """Best-effort git log of libdatadog between the old pin(s) and the target.
+
+    Gives the repair agent commit-message context for the API changes (the PHP
+    job ships the same changelog). Uses the GitHub compare API; unauthenticated
+    if no GH_TOKEN is set.
+    """
+    path = artifacts / "libdatadog-changelog.txt"
+    subjects: dict[str, str] = {}
+    headers = {}
+    for rev in sorted(pinned)[:3]:
+        url = f"{GH_API_BASE}/repos/{LIBDATADOG_GH_SLUG}/compare/{rev}...{target_rev}"
+        req = urllib.request.Request(url)
+        token = os.environ.get("GH_TOKEN")
+        if token:
+            req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("Accept", "application/vnd.github+json")
+        try:
+            with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310 (fixed api.github.com host)
+                data = json.loads(resp.read().decode())
+        except (urllib.error.URLError, json.JSONDecodeError) as exc:
+            print(f"[changelog] compare {rev[:12]}...{short(target_rev)} failed ({exc}); skipping.")
+            continue
+        for commit in data.get("commits", []):
+            subjects.setdefault(commit["sha"], commit["commit"]["message"].splitlines()[0])
+        headers[rev] = f"commits in {rev[:12]}..{short(target_rev)}: {data.get('ahead_by', '?')}"
+    if not subjects:
+        return None
+    body = "\n".join(sorted(headers.values())) + "\n\n" + "\n".join(list(subjects.values())[:200])
+    path.write_text(body)
+    return path
+
+
+def download_libdatadog_source(target_rev: str) -> Path | None:
+    """Fetch the libdatadog source at the target rev into a directory outside
+    the repo, so the repair agent can read the new API (the PHP job hands
+    Claude a `libdatadog/` checkout the same way). Best-effort.
+    """
+    dest = Path(tempfile.mkdtemp(prefix="libdatadog-src-")) / f"libdatadog-{short(target_rev)}"
+    dest.mkdir(parents=True, exist_ok=True)
+    url = f"{LIBDATADOG_TARBALL_URL}/{target_rev}"
+    try:
+        with urllib.request.urlopen(url, timeout=300) as resp:  # nosec B310 (fixed codeload.github.com host)
+            with tarfile.open(fileobj=io.BytesIO(resp.read()), mode="r:gz") as tar:
+                try:
+                    tar.extractall(dest, filter="data")  # nosec B202 (data filter blocks path escapes)
+                except TypeError:  # Python < 3.11.2 has no `filter` kwarg
+                    tar.extractall(dest)  # nosec B202 (tarball comes from the fixed codeload URL above)
+        # codeload tarballs unpack to libdatadog-<ref>/; flatten one level.
+        children = list(dest.iterdir())
+        if len(children) == 1 and children[0].is_dir():
+            for item in children[0].iterdir():
+                item.rename(dest / item.name)
+            shutil.rmtree(children[0], ignore_errors=True)
+        print(f"[libdatadog-src] unpacked to {dest}")
+        return dest
+    except (urllib.error.URLError, tarfile.TarError, OSError) as exc:
+        print(f"[libdatadog-src] download failed ({exc}); the repair agent will reason from traces only.")
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Phase 4 — AI repair + independent review
+# --------------------------------------------------------------------------- #
+def short(sha: str) -> str:
+    return sha[:12]
+
+
+def _claude_available() -> bool:
+    """True if the `claude` CLI and AI-gateway credentials are present."""
+    if not shutil.which("claude"):
+        print("\n[claude] `claude` CLI not found in PATH — skipping agent steps.")
+        return False
+    if not (os.environ.get("ANTHROPIC_AUTH_TOKEN") and os.environ.get("ANTHROPIC_BASE_URL")):
+        print("\n[claude] AI-gateway env (ANTHROPIC_AUTH_TOKEN/ANTHROPIC_BASE_URL) not set — skipping agent steps.")
+        return False
+    return True
+
+
+def _load_prompt(path: Path) -> str:
+    try:
+        return path.read_text()
+    except FileNotFoundError:
+        raise RuntimeError(
+            f"prompt file {path} not found — it ships with the repo; run from a full checkout."
+        ) from None
+
+
+def repair_with_claude(
+    target_rev: str,
+    pinned: set[str],
+    pipeline: dict,
+    artifacts: Path,
+    round_no: int,
+    libdd_src: Path | None,
+) -> bool:
+    """Run one repair attempt against the collected CI failures.
+
+    The prompt (context block + .gitlab/libdatadog-auto-update-repair-prompt.md)
+    is composed here but authored in the repo — same layout as dd-trace-php's
+    .gitlab/libdatadog-latest-prompt.md. The agent has no Bash tools at all:
+    it cannot run cargo and must reason from the traces alone.
+    """
+    changelog = artifacts / "libdatadog-changelog.txt"
+    context = (
+        "## Environment\n"
+        f"- dd-trace-py source: {REPO_ROOT}\n"
+        f"- libdatadog bumped to: {target_rev} (previous pin: {', '.join(sorted(pinned))})\n"
+        f"- CI pipeline: {pipeline.get('web_url')} (status: {pipeline.get('status')})\n"
+        f"- CI summary: {artifacts / f'ci-summary-{round_no}.txt'}\n"
+        f"- Failure trace tails: {artifacts / f'traces-{round_no}'}\n"
+        f"- libdatadog changelog: {changelog if changelog.exists() else '(unavailable)'}\n"
+        f"- libdatadog source at the new rev: {libdd_src if libdd_src else '(unavailable)'}\n"
+    )
+    prompt = context + "\n\n" + _load_prompt(REPAIR_PROMPT_FILE)
+    (artifacts / f"repair-input-{round_no}.md").write_text(prompt)
+
+    print(f"\n[repair] round {round_no} — invoking Claude…")
+    cmd = [
+        "claude",
+        "--bare",
+        "-p",
+        prompt,
+        "--model",
+        CLAUDE_MODEL,
+        "--max-turns",
+        str(CLAUDE_MAX_TURNS),
+        "--allowedTools",
+        *CLAUDE_REPAIR_TOOLS,
+        "--permission-mode",
+        "bypassPermissions",
+    ]
+    transcript = run(f"claude-repair-{round_no}", cmd, cwd=REPO_ROOT, check=False, timeout=CLAUDE_TIMEOUT_S)
+    (artifacts / f"repair-transcript-{round_no}.log").write_text(transcript.output)
+    if transcript.returncode != 0:
+        print(f"[repair] Claude exited with {transcript.returncode}; see repair-transcript-{round_no}.log.")
+    return transcript.returncode != 124
+
+
+def validate_changes_mechanical(target_rev: str, artifacts: Path, round_no: int) -> bool:
+    """Second, independent agent reviews the full change set and confirms it is
+    simple and mechanical — a local gate BEFORE pushing a repair commit, so a
+    bad repair never wastes a pipeline run. Returns False on a FAIL verdict or
+    an unreadable/missing verdict.
+    """
+    if not _claude_available():
+        return False
+
+    print("\n[review] invoking an independent agent to validate the changes are mechanical…")
+    prompt = _load_prompt(REVIEW_PROMPT_FILE).replace("__TARGET_REV__", short(target_rev))
+    cmd = [
+        "claude",
+        "--bare",
+        "-p",
+        prompt,
+        "--model",
+        CLAUDE_MODEL,
+        "--allowedTools",
+        *CLAUDE_REVIEW_TOOLS,
+        "--permission-mode",
+        "bypassPermissions",
+    ]
+    transcript = run("claude-review", cmd, cwd=REPO_ROOT, check=False, timeout=CLAUDE_TIMEOUT_S)
+    (artifacts / f"review-transcript-{round_no}.log").write_text(transcript.output)
+
+    verdicts = re.findall(r"VERDICT:\s*(PASS|FAIL)\b", transcript.output, re.IGNORECASE)
+    if not verdicts:
+        print(f"\n[review] no verdict found in the transcript; failing closed (see review-transcript-{round_no}.log).")
+        return False
+    verdict = verdicts[-1].upper()
+    if verdict == "PASS":
+        print("\n[review] PASS — changes confirmed simple and mechanical.")
+        return True
+    print("\n[review] FAIL — changes are not mechanical; the repair will NOT be pushed.")
+    return False
+
+
+# --------------------------------------------------------------------------- #
+# Phase 3 — push (GitHub API commits, signed server-side)
+# --------------------------------------------------------------------------- #
 def _gh_api(method: str, path: str, *, token: str, body: dict | None = None) -> dict:
     """Call the GitHub REST API and return the parsed JSON (or {} for empty 2xx)."""
     data = json.dumps(body).encode() if body is not None else None
@@ -495,7 +770,7 @@ def _gh_api(method: str, path: str, *, token: str, body: dict | None = None) -> 
     req.add_header("X-GitHub-Api-Version", "2022-11-28")
     if data is not None:
         req.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(req, timeout=60) as resp:  # noqa: S310 (fixed api.github.com host)
+    with urllib.request.urlopen(req, timeout=60) as resp:  # nosec B310 (fixed api.github.com host)
         raw = resp.read().decode()
     return json.loads(raw) if raw else {}
 
@@ -523,13 +798,23 @@ def _commit_changes(artifacts_rel: str | None) -> list[tuple[str, bool]]:
     return changes
 
 
-def push_branch(branch: str, title: str, body: str, changes: list[tuple[str, bool]]) -> None:
+def push_branch(
+    branch: str,
+    title: str,
+    body: str,
+    changes: list[tuple[str, bool]],
+    *,
+    base_sha: str | None = None,
+    base_tree: str | None = None,
+) -> str:
     """Create a GitHub-signed (Verified) commit via the API and point `branch`
-    at it (creating or force-updating the ref as needed). No PR is opened.
+    at it (creating or force-updating the ref as needed). Returns the commit SHA.
 
-    The commit is built server-side on top of the local HEAD, so GitHub
-    attributes it to the token's app bot (dd-octo-sts[bot]) and signs it — no
-    local commit, no git author config, and no token-in-remote-URL needed.
+    The commit is built server-side, so GitHub attributes it to the token's app
+    bot (dd-octo-sts[bot]) and signs it — no local commit, no git author
+    config, and no token-in-remote-URL needed. By default the commit is built
+    on local HEAD; for follow-up (repair) commits pass the remote head via
+    base_sha/base_tree so the commit stacks on the previously pushed commit.
     """
     # Safety net: never commit a secret/credential-looking path.
     sensitive = [p for p, _ in changes if SENSITIVE_PATH_RE.search(p)]
@@ -539,8 +824,10 @@ def push_branch(branch: str, title: str, body: str, changes: list[tuple[str, boo
     token = os.environ["GH_TOKEN"]
     owner, repo = GH_REPO_SLUG.split("/")
 
-    base_sha = run("git-head-sha", ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT).output.strip()
-    base_tree = run("git-head-tree", ["git", "rev-parse", "HEAD^{tree}"], cwd=REPO_ROOT).output.strip()
+    if base_sha is None:
+        base_sha = run("git-head-sha", ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT).output.strip()
+    if base_tree is None:
+        base_tree = run("git-head-tree", ["git", "rev-parse", "HEAD^{tree}"], cwd=REPO_ROOT).output.strip()
 
     tree: list[dict] = []
     for path, deleted in changes:
@@ -585,12 +872,35 @@ def push_branch(branch: str, title: str, body: str, changes: list[tuple[str, boo
             body={"sha": commit["sha"], "force": True},
         )
 
-    print(f"\nPushed branch (GitHub-signed commit): https://github.com/{GH_REPO_SLUG}/tree/{branch}")
+    branch_url = f"https://github.com/{GH_REPO_SLUG}/tree/{branch}"
+    print(f"\nPushed branch (GitHub-signed commit {short(commit['sha'])}): {branch_url}")
+    return commit["sha"]
 
 
-def push_or_list(
-    branch: str, title: str, summary: str, changes: list[tuple[str, bool]], *, push: bool, dry_run: bool
-) -> None:
+def _remote_head(branch: str) -> tuple[str, str]:
+    """(commit sha, tree sha) of the current head of `branch` on GitHub."""
+    token = os.environ["GH_TOKEN"]
+    owner, repo = GH_REPO_SLUG.split("/")
+    ref = _gh_api("GET", f"/repos/{owner}/{repo}/git/ref/heads/{urllib.parse.quote(branch)}", token=token)
+    commit = _gh_api("GET", f"/repos/{owner}/{repo}/git/commits/{ref['object']['sha']}", token=token)
+    return ref["object"]["sha"], commit["tree"]["sha"]
+
+
+def push_commit(
+    branch: str,
+    title: str,
+    body: str,
+    changes: list[tuple[str, bool]],
+    *,
+    push: bool,
+    dry_run: bool,
+    base: tuple[str, str] | None = None,
+) -> str | None:
+    """Commit the change set to `branch` and return the new head SHA.
+
+    Returns None when nothing was pushed (dry-run, --no-push, or no GH_TOKEN) —
+    the caller then skips the pipeline-validation phase.
+    """
     print(f"\nChanges to commit ({len(changes)}):")
     for path, deleted in changes:
         print(f"  {'D' if deleted else 'M'} {path}")
@@ -598,13 +908,15 @@ def push_or_list(
     if dry_run or not push:
         why = "dry-run" if dry_run else "--no-push"
         print(f"\n[{why}] skipping push; would commit to branch {branch!r}.")
-        return
+        return None
 
     if not os.environ.get("GH_TOKEN"):
         print(f"\n[no GH_TOKEN] cannot push {branch!r} via the GitHub API; skipping (changes listed above).")
-        return
+        return None
 
-    push_branch(branch, title, summary, changes)
+    if base is None:
+        return push_branch(branch, title, body, changes)
+    return push_branch(branch, title, body, changes, base_sha=base[0], base_tree=base[1])
 
 
 # --------------------------------------------------------------------------- #
@@ -617,9 +929,18 @@ def main() -> int:
         "--target-branch", help="push the result to this branch (default: a chore/update-libdatadog-<rev> name)"
     )
     parser.add_argument("--dry-run", action="store_true", help="show changes, modify nothing")
-    parser.add_argument("--skip-python", action="store_true", help="cargo-only validation")
-    parser.add_argument("--no-push", dest="push", action="store_false", help="list the changes, don't push")
-    parser.add_argument("--max-repair-iterations", type=int, default=3)
+    parser.add_argument(
+        "--no-push", dest="push", action="store_false", help="apply the bump, list the changes, don't push"
+    )
+    parser.add_argument(
+        "--max-repair-iterations", type=int, default=3, help="max Claude repair rounds after red pipelines"
+    )
+    parser.add_argument(
+        "--pipeline-timeout",
+        type=float,
+        default=PIPELINE_STATUS_TIMEOUT_DEFAULT_S,
+        help="seconds to wait for each triggered pipeline run (default: %(default)s)",
+    )
     args = parser.parse_args()
 
     artifacts = Path(os.environ.get("ARTIFACTS_DIR", REPO_ROOT / "libdatadog-auto-update"))
@@ -644,7 +965,7 @@ def main() -> int:
         n = len(_LIBDD_REV_RE.findall(CARGO_TOML.read_text()))
         print(
             f"\n[dry-run] would rewrite {n} libdatadog rev(s) → {short(target_rev)}, "
-            "regenerate Cargo.lock, and validate."
+            "regenerate Cargo.lock, push, and validate via the triggered pipeline."
         )
         return 0
 
@@ -652,70 +973,143 @@ def main() -> int:
     # RUST_MINIMUM_VERSION) is deliberately NOT synced from the target rev —
     # channel/MSRV bumps are infrequent and need human scrutiny. We assume the
     # current and target libdatadog revs require the same toolchain; a real
-    # mismatch simply surfaces as a build failure in validation below.
+    # mismatch simply surfaces as a build failure in the triggered pipeline.
     n = rewrite_cargo_toml(target_rev)
     print(f"\nRewrote {n} libdatadog rev(s) in {CARGO_TOML.relative_to(REPO_ROOT)}.")
     regenerate_lockfile()
     note = write_release_note(target_rev)
 
-    # Phase 3 — validate (repair on red) --------------------------------------- #
-    converged = True
-    repaired = False
-    try:
-        validate_native()
-    except StepError as exc:
-        (artifacts / f"{exc.label}.log").write_text(exc.output)
-        print(f"\nValidation failed at {exc.label!r}; entering repair loop.")
-        converged = repair_loop(exc, target_rev, args.max_repair_iterations, artifacts)
-        repaired = converged
-        if not converged:
+    # Phase 3 — push, which triggers the real (fully parallelized) pipeline --- #
+    branch = args.target_branch or git_branch_name(target_rev)
+    title = f"chore(native): update libdatadog to {short(target_rev)}"
+    bump_summary = "\n".join(
+        [
+            f"Bumps libdatadog to `{short(target_rev)}`.",
+            "",
+            f"- Source: {LIBDATADOG_REPO}/commit/{target_rev}",
+            f"- Rewrote {n} `rev` pin(s) in `src/native/Cargo.toml` and regenerated `Cargo.lock`.",
+            f"- Added release note `{note.relative_to(REPO_ROOT)}`.",
+            "",
+            "Validation: the CI pipeline for this branch (triggered by this push).",
+        ]
+    )
+    head_sha = push_commit(
+        branch, title, bump_summary, _commit_changes(artifacts_rel), push=args.push, dry_run=args.dry_run
+    )
+    if head_sha is None:
+        return 0  # changes were listed; nothing was pushed
+
+    # Phase 4 — wait for the triggered pipeline, repair on red ---------------- #
+    gitlab_token = None
+    if os.environ.get("CI_API_V4_URL") and os.environ.get("CI_PROJECT_ID"):
+        try:
+            gitlab_token = bti_gitlab_token()
+            print("[pipeline] minted a short-lived GitLab API token.")
+        except (PipelineError, RuntimeError, urllib.error.URLError) as exc:
+            print(f"\n[pipeline] no GitLab API access ({exc}); skipping pipeline validation.")
+    else:
+        print("\n[pipeline] not running in GitLab CI; skipping pipeline validation (the branch's pipeline will run).")
+
+    if gitlab_token is None:
+        (artifacts / "summary.md").write_text(bump_summary)
+        print("\nDone (validation skipped).")
+        return 0
+
+    pipeline = None
+    rounds = 0
+    while True:
+        try:
+            pipeline = wait_for_branch_pipeline(gitlab_token, branch, head_sha)
+            status = wait_for_pipeline_completion(gitlab_token, pipeline, args.pipeline_timeout)
+        except PipelineError as exc:
+            print(f"\n[pipeline] {exc}")
+            (artifacts / "summary.md").write_text(f"{bump_summary}\n\nPipeline error: {exc}\n")
+            return 1
+
+        if status == "success":
+            break
+
+        try:
+            failures = collect_failed_jobs(gitlab_token, str(pipeline["id"]))
+            failures = retry_flaky_jobs(gitlab_token, failures)
+            write_ci_results(failures, gitlab_token, artifacts, rounds + 1)
+        except PipelineError as exc:
+            print(f"\n[pipeline] {exc}")
+            (artifacts / "summary.md").write_text(f"{bump_summary}\n\nPipeline error: {exc}\n")
+            return 1
+
+        if not failures:
+            msg = (
+                f"pipeline {pipeline['id']} finished with status {status!r} but no failed jobs "
+                "were found; needs human investigation."
+            )
+            print(f"\n[pipeline] {msg}")
+            (artifacts / "summary.md").write_text(f"{bump_summary}\n\n{msg}\n")
+            return 1
+
+        if rounds >= args.max_repair_iterations:
             print(
-                f"\nNative build FAILED at `{exc.label}` and automated repair did not converge "
-                f"after {args.max_repair_iterations} attempt(s); nothing was pushed. "
-                "See the `repair-*` / `*-after-repair-*` logs in the job artifacts."
+                f"\nPipeline still red after {rounds} repair round(s); giving up. "
+                "See ci-summary-*.txt / traces-*/ in the job artifacts."
+            )
+            break
+        rounds += 1
+
+        # Repair: Claude works from the CI traces alone — no cargo, no builds.
+        libdd_src = download_libdatadog_source(target_rev)
+        write_libdatadog_changelog(pinned, target_rev, artifacts)
+        if not _claude_available():
+            (artifacts / "summary.md").write_text(f"{bump_summary}\n\nPipeline failed; repair agents unavailable.\n")
+            return 1
+        before = run("git-status-before", ["git", "status", "--porcelain"], cwd=REPO_ROOT, check=False).output
+        repair_with_claude(target_rev, pinned, pipeline, artifacts, rounds, libdd_src)
+        after = run("git-status-after", ["git", "status", "--porcelain"], cwd=REPO_ROOT, check=False).output
+        if before == after:
+            print(
+                "\n[repair] Claude made no changes (likely classified all failures as flaky or "
+                "libdatadog bugs); needs human attention. See repair-transcript-*.log."
+            )
+            break
+        if not validate_changes_mechanical(target_rev, artifacts, rounds):
+            (artifacts / "summary.md").write_text(
+                f"{bump_summary}\n\nRepair round {rounds} rejected by the mechanical-changes review.\n"
             )
             return 1
 
-    # Phase 4 — independent review of the change set ---------------------------- #
-    if not validate_changes_mechanical(target_rev, artifacts):
-        print(
-            "\nChanges are not simple/mechanical; nothing was pushed. See review-transcript.log in the job artifacts."
+        # Push the repair commit on top of the remote head; the push triggers
+        # the next pipeline run, and the loop waits for it again.
+        repair_title = f"fix(native): adapt to libdatadog changes at {short(target_rev)} (repair {rounds})"
+        head_sha = push_commit(
+            branch,
+            repair_title,
+            f'Follow-up to "{title}". Repairs CI failures found by pipeline {pipeline.get("web_url")}.',
+            _commit_changes(artifacts_rel),
+            push=args.push,
+            dry_run=False,
+            base=_remote_head(branch),
         )
-        return 1
+        if head_sha is None:
+            return 1
 
-    # Python smoke — best-effort, NOT routed to repair (env issue ≠ API change).
-    # The comprehensive Python suite runs in PR CI.
-    python_ok = args.skip_python or validate_python()
-
-    # Phase 5 — push ------------------------------------------------------------ #
+    # Phase 5 — summary -------------------------------------------------------- #
+    ok = status == "success"
     summary_lines = [
         f"Bumps libdatadog to `{short(target_rev)}`.",
         "",
         f"- Source: {LIBDATADOG_REPO}/commit/{target_rev}",
         f"- Rewrote {n} `rev` pin(s) in `src/native/Cargo.toml` and regenerated `Cargo.lock`.",
+        f"- Added release note `{note.relative_to(REPO_ROOT)}`.",
+        f"- Validated by the pipeline for branch `{branch}`: {pipeline.get('web_url') if pipeline else 'n/a'}",
     ]
-    summary_lines.append(f"- Added release note `{note.relative_to(REPO_ROOT)}`.")
-    if repaired:
-        summary_lines.append(
-            "- Build initially broke and was auto-repaired by Claude. **Scrutinize the src/native diff.**"
-        )
-    if not python_ok:
-        summary_lines.append("- ⚠️ Python import smoke did not pass — verify the native ABI in PR CI.")
+    if rounds:
+        summary_lines.append(f"- {rounds} Claude repair round(s) (see repair-transcript-*.log in the artifacts).")
+    if not ok:
+        summary_lines.append("- ⚠️ Pipeline still red — see ci-summary-*.txt / traces-*/ in the artifacts.")
     summary = "\n".join(summary_lines)
     (artifacts / "summary.md").write_text(summary)
-
-    branch = args.target_branch or git_branch_name(target_rev)
-    title = f"chore(native): update libdatadog to {short(target_rev)}"
-    push_or_list(
-        branch,
-        title,
-        summary,
-        _commit_changes(artifacts_rel),
-        push=args.push,
-        dry_run=args.dry_run,
-    )
+    print(f"\n{summary}")
     print("\nDone.")
-    return 0
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
