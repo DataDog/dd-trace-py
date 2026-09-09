@@ -5,7 +5,7 @@ Tests that the provider properly implements ProviderStatus:
 - NOT_READY by default
 - READY when first Remote Config payload is received
 - Event emission on status change
-- Non-blocking initialization while config arrives asynchronously
+- Bounded initialization wait, ERROR on timeout, and READY after late delivery
 """
 
 import threading
@@ -13,6 +13,7 @@ import time
 
 from openfeature import api
 from openfeature.evaluation_context import EvaluationContext
+from openfeature.exception import ProviderNotReadyError
 from openfeature.provider import ProviderStatus
 import pytest
 
@@ -112,7 +113,7 @@ class TestProviderStatus:
         try:
             with override_global_config({"experimental_flagging_provider_enabled": True}):
                 provider = DataDogProvider()
-                _set_provider(provider)
+                api.set_provider(provider)
 
                 # Clear events from initialization
                 ready_events.clear()
@@ -140,28 +141,35 @@ class TestProviderStatus:
             api.clear_providers()
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
-    def test_sdk_ready_event_can_fire_before_datadog_config_ready(self):
-        """SDK-level PROVIDER_READY does not mean Datadog config has loaded."""
-        ready_events = []
-        ready_event = threading.Event()
+    def test_sdk_error_event_emitted_when_initialization_times_out(self):
+        """The SDK reports PROVIDER_ERROR when no configuration arrives in time."""
+        error_events = []
+        error_event = threading.Event()
 
-        def on_provider_ready(event_details):
-            ready_events.append(event_details)
-            ready_event.set()
+        def on_provider_error(event_details):
+            error_events.append(event_details)
+            error_event.set()
 
-        api.add_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
+        api.add_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
 
         try:
             with override_global_config({"experimental_flagging_provider_enabled": True}):
-                provider = DataDogProvider()
-                _set_provider(provider)
+                provider = DataDogProvider(initialization_timeout=0.01)
+                api.set_provider(provider)
 
-                assert ready_event.wait(timeout=1.0)
-                assert len(ready_events) >= 1
+                assert error_event.wait(timeout=1.0)
+                assert len(error_events) == 1
+                assert api.get_client().get_provider_status() == ProviderStatus.ERROR
                 assert provider._status == ProviderStatus.NOT_READY
                 assert not provider._config_received.is_set()
+
+                config = create_config(create_boolean_flag("test-flag", enabled=True))
+                process_ffe_configuration(config)
+
+                assert api.get_client().get_provider_status() == ProviderStatus.READY
+                assert provider._status == ProviderStatus.READY
         finally:
-            api.remove_handler(ProviderEvent.PROVIDER_READY, on_provider_ready)
+            api.remove_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
             api.clear_providers()
 
     def test_provider_status_after_shutdown(self):
@@ -240,7 +248,7 @@ class TestProviderStatus:
 
     @pytest.mark.skipif(ProviderEvent is None, reason="ProviderEvent not available in SDK 0.6.0")
     def test_attached_provider_receives_config_before_async_initialize(self):
-        """OpenFeature SDK 0.10 attaches synchronously, then initializes asynchronously."""
+        """Configuration can arrive after attach but before asynchronous initialization."""
         ready_events = []
 
         def on_emit(provider, event, details):
@@ -254,29 +262,104 @@ class TestProviderStatus:
             process_ffe_configuration(config)
 
             assert provider._status == ProviderStatus.READY
-            assert ProviderEvent.PROVIDER_READY in ready_events
+            assert ProviderEvent.PROVIDER_READY not in ready_events
 
 
 class TestProviderInitializationAsync:
-    """Test that initialize() returns immediately and READY arrives asynchronously."""
+    """Test the bounded initialization wait and the READY recovery that can follow it."""
 
-    def test_initialize_returns_immediately_without_config(self):
-        """initialize() should return immediately even if no config is available yet."""
+    def test_initialize_raises_when_the_timeout_expires(self):
+        """A timeout raises the canonical OpenFeature provider-not-ready error."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
-            provider = DataDogProvider()
+            provider = DataDogProvider(initialization_timeout=0.2)
 
             try:
                 start = time.monotonic()
-                # initialize() is called inside set_provider; it must not block
-                provider.initialize(EvaluationContext())
+                with pytest.raises(ProviderNotReadyError):
+                    provider.initialize(EvaluationContext())
                 elapsed = time.monotonic() - start
 
-                # Should return near-instantly (no blocking wait)
-                assert elapsed < 0.5, f"initialize() blocked for {elapsed:.2f}s — must not block"
-                # Provider is NOT_READY; READY arrives via on_configuration_received()
+                # Waited for the configured timeout, then gave up rather than hanging.
+                assert 0.2 <= elapsed < 2.0, f"initialize() waited {elapsed:.2f}s, expected about 0.2s"
+                # READY still arrives later, via on_configuration_received().
                 assert provider._status == ProviderStatus.NOT_READY
             finally:
                 api.clear_providers()
+
+    @pytest.mark.skipif(not hasattr(api, "set_provider_and_wait"), reason="Blocking registration requires SDK 0.10+")
+    def test_set_provider_and_wait_propagates_the_initialization_error(self):
+        """Blocking registration propagates ProviderNotReadyError to the caller."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider(initialization_timeout=0)
+
+            try:
+                with pytest.raises(ProviderNotReadyError):
+                    api.set_provider_and_wait(provider)
+
+                assert api.get_client().get_provider_status() == ProviderStatus.ERROR
+            finally:
+                api.clear_providers()
+
+    @pytest.mark.skipif(
+        not hasattr(api, "set_provider_and_wait"), reason="Non-blocking registration requires SDK 0.10+"
+    )
+    def test_set_provider_initializes_in_the_background(self):
+        """Non-blocking registration returns before provider initialization completes."""
+        error_event = threading.Event()
+
+        def on_provider_error(event_details):
+            error_event.set()
+
+        api.add_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
+
+        try:
+            with override_global_config({"experimental_flagging_provider_enabled": True}):
+                provider = DataDogProvider(initialization_timeout=0.5)
+
+                start = time.monotonic()
+                api.set_provider(provider)
+                elapsed = time.monotonic() - start
+
+                assert elapsed < 0.2, f"set_provider() waited {elapsed:.2f}s, expected non-blocking registration"
+                assert error_event.wait(timeout=1.0)
+                assert api.get_client().get_provider_status() == ProviderStatus.ERROR
+        finally:
+            api.remove_handler(ProviderEvent.PROVIDER_ERROR, on_provider_error)
+            api.clear_providers()
+
+    def test_initialize_waits_for_config_and_becomes_ready(self):
+        """initialize() blocks until config arrives, so READY implies flags are resolvable."""
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            provider = DataDogProvider(initialization_timeout=5.0)
+
+            config = create_config(create_boolean_flag("test-flag", enabled=True))
+            delivery = threading.Timer(0.1, process_ffe_configuration, args=(config,))
+
+            try:
+                delivery.start()
+                start = time.monotonic()
+                provider.initialize(EvaluationContext())
+                elapsed = time.monotonic() - start
+
+                # Returned on delivery rather than on the timeout.
+                assert elapsed < 5.0, f"initialize() waited {elapsed:.2f}s, expected to return on delivery"
+                assert provider._status == ProviderStatus.READY
+                assert provider._config_received.is_set()
+            finally:
+                delivery.cancel()
+                api.clear_providers()
+
+    def test_initialization_timeout_comes_from_the_environment(self, monkeypatch):
+        """The timeout is configurable without a constructor argument."""
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", "2500")
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            assert DataDogProvider()._initialization_timeout == 2.5
+
+    def test_constructor_timeout_overrides_the_environment(self, monkeypatch):
+        """An explicit argument wins, so embedders are not bound to the environment."""
+        monkeypatch.setenv("DD_EXPERIMENTAL_FLAGGING_PROVIDER_INITIALIZATION_TIMEOUT_MS", "2500")
+        with override_global_config({"experimental_flagging_provider_enabled": True}):
+            assert DataDogProvider(initialization_timeout=0.5)._initialization_timeout == 0.5
 
     def test_initialize_fast_path_when_config_exists(self):
         """initialize() should return immediately if config already exists."""
@@ -299,13 +382,14 @@ class TestProviderInitializationAsync:
                 api.clear_providers()
 
     def test_ready_after_config_arrives_async(self):
-        """Provider transitions to READY when config arrives after initialize() returns."""
+        """Provider transitions to READY when config arrives after initialization fails."""
         with override_global_config({"experimental_flagging_provider_enabled": True}):
             provider = DataDogProvider()
 
             try:
-                provider.initialize(EvaluationContext())
-                # Still NOT_READY immediately after initialize()
+                with pytest.raises(ProviderNotReadyError):
+                    provider.initialize(EvaluationContext())
+                # Still NOT_READY immediately after initialization fails.
                 assert provider._status == ProviderStatus.NOT_READY
 
                 # Config arrives later (simulating RC delivery)
@@ -324,7 +408,8 @@ class TestProviderInitializationAsync:
             provider = DataDogProvider()
 
             try:
-                provider.initialize(EvaluationContext())
+                with pytest.raises(ProviderNotReadyError):
+                    provider.initialize(EvaluationContext())
 
                 # Provider is NOT_READY at this point
                 assert provider._status == ProviderStatus.NOT_READY

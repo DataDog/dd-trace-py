@@ -17,12 +17,12 @@ from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig import PayloadType
 from ddtrace.internal.remoteconfig import RCCallback
-from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
-from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.utils.version import _pep440_to_semver
 
@@ -60,6 +60,18 @@ class RemoteConfigClientConfig(DDConfig):
 config = RemoteConfigClientConfig()
 
 
+class RemoteConfigTufConfig(DDConfig):
+    """TUF trust roots for testing agentless Remote Configuration."""
+
+    __prefix__ = "dd.remote_configuration"
+
+    config_root = DDConfig.v(Optional[str], "config_root", default=None)
+    director_root = DDConfig.v(Optional[str], "director_root", default=None)
+
+
+tuf_config = RemoteConfigTufConfig()
+
+
 def _build_tags(tracer_version: str) -> list[tuple[str, str]]:
     """Assemble the tracer tags reported to the agent (git metadata, env, version, host)."""
     tags = ddtrace.config.tags.copy()
@@ -81,27 +93,12 @@ def _build_process_tags() -> list[tuple[str, str]]:
     return pairs
 
 
-def _test_session_token() -> Optional[str]:
-    """Resolve the dd-apm-test-agent session token for Remote Config requests.
-
-    Reads the token from the canonical ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` env
-    var (the same carrier the trace writer uses) directly, rather than importing
-    the writer module — the writer pulls in ``settings.asm``, and dragging that
-    into the RC client's runtime path is an unnecessary coupling. The native client
-    forwards the token via ``Endpoint.test_token`` (the ``X-Datadog-Test-Session-Token``
-    header); without it the agent will not match session-scoped configs to this client.
-    """
-    additional_headers = env.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
-    if not additional_headers:
-        return None
-    return parse_tags_str(additional_headers).get("X-Datadog-Test-Session-Token")
-
-
 class RemoteConfigClient:
     """Adapter over the native (libdatadog) Remote Configuration client."""
 
     def __init__(self) -> None:
         self.id = str(uuid.uuid4())
+        self.agentless = agentless_config.any_enabled
         self.agent_url = agent_config.trace_agent_url
 
         # Product callbacks for single subscriber architecture
@@ -121,6 +118,19 @@ class RemoteConfigClient:
             from ddtrace.internal.native_runtime import get_native_runtime
 
             tracer_version = _pep440_to_semver()
+            # In agentless mode the API key selects the direct-to-backend fetcher;
+            # site and hostname identify the intake and this client to it.
+            agentless_kwargs = (
+                {
+                    "site": ddtrace.config._dd_site,
+                    "api_key": ddtrace.config._dd_api_key,
+                    "hostname": get_hostname(),
+                    "config_root": tuf_config.config_root,
+                    "director_root": tuf_config.director_root,
+                }
+                if self.agentless
+                else {}
+            )
             self._native = _NativeClient(
                 get_native_runtime(),
                 agent_url=str(self.agent_url),
@@ -133,14 +143,30 @@ class RemoteConfigClient:
                 tags=_build_tags(tracer_version),
                 process_tags=_build_process_tags(),
                 timeout_ms=int(agent_config.trace_agent_timeout_seconds * 1000),
-                test_session_token=_test_session_token(),
+                test_session_token=get_test_session_token(),
+                **agentless_kwargs,
             )
             if self._capability_values:
                 self._native.add_capabilities(self._capability_values)
         return self._native
 
+    def switch_to_agentless(self) -> None:
+        self.agentless = True
+        self._native = None
+        self._reader = None
+
     def renew_id(self) -> None:
         self.id = str(uuid.uuid4())
+
+    def refresh_interval(self) -> Optional[float]:
+        """Seconds the backend wants us to wait before polling again.
+
+        Only agentless fetches carry a server-recommended interval; None means
+        "keep whatever interval the poller was configured with".
+        """
+        if self._native is None or not self.agentless:
+            return None
+        return self._native.get_refresh_interval()
 
     def register_callback(self, product_name: "RemoteConfigProduct", callback: RCCallback) -> None:
         self._product_callbacks[product_name] = callback

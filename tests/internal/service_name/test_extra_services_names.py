@@ -28,20 +28,30 @@ for i in range(10):
             if service_name in set(ddtrace.config._extra_services_queue.peekall()):
                 break
         else:
-            msg = f"extra service name '{service_name}' not emitted by child"
-            raise RuntimeError(msg)
-        sys.exit(0)
+            sys.stderr.write(f"extra service name '{service_name}' not emitted by child\\n")
+            os._exit(1)
+        os._exit(0)
     else:
         # Parent process
         children.append(pid)
 
+failed = []
 for pid in children:
-    os.waitpid(pid, 0)
+    _, status = os.waitpid(pid, 0)
+    if status != 0:
+        failed.append(pid)
+if failed:
+    sys.stderr.write(f"child processes failed: {failed}\\n")
+    sys.exit(1)
 
 extra_services = ddtrace.config._get_extra_services()
 extra_services.discard("sqlite")  # coverage
-assert len(extra_services) == 10, extra_services
-assert all(re.match(r"extra_service_\\d+", service) for service in extra_services), extra_services
+if len(extra_services) != 10:
+    sys.stderr.write(f"expected 10 extra services, got {len(extra_services)}: {extra_services}\\n")
+    sys.exit(1)
+if not all(re.match(r"extra_service_\\d+", service) for service in extra_services):
+    sys.stderr.write(f"unexpected extra service names: {extra_services}\\n")
+    sys.exit(1)
 """
 
     env = os.environ.copy()

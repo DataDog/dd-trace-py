@@ -237,7 +237,11 @@ tools = [
 ]
 
 expected_router_settings = {
-    "router_general_settings": RouterGeneralSettings(async_only_mode=False, pass_through_all_models=False),
+    # Dumped rather than kept as a model: span data is made JSON-serializable at span finish, so
+    # what lands on the span is a plain dict.
+    "router_general_settings": RouterGeneralSettings(async_only_mode=False, pass_through_all_models=False).model_dump(
+        exclude_none=True
+    ),
     "routing_strategy": "simple-shuffle",
     "routing_strategy_args": {},
     "provider_budget_config": None,

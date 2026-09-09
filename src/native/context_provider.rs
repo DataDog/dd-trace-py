@@ -3,13 +3,9 @@
 //! `BaseContextProvider`/`DefaultContextProvider` are the hot path for every
 //! `tracer.context_provider.active()`/`.activate()` call. `_update_active` in
 //! particular runs on every `active()` call while a span is active, so it
-//! downcasts straight to `SpanData` and reads `duration`, `_parent`, and
-//! `_parent_context` as native fields instead of round-tripping through Python
-//! attribute lookups.
-//!
-//! `_reactivate` is read from the parent `Context` via `getattr` because
-//! `Context` is still a pure-Python class (porting it to native is a separate
-//! effort — it carries substantial logic and many Python imports).
+//! downcasts straight to `SpanData` and reads `duration`, `_parent`,
+//! `_parent_context`, and (via `Context`) `_reactivate` as native fields
+//! instead of round-tripping through Python attribute lookups.
 
 use std::sync::OnceLock;
 
@@ -129,7 +125,7 @@ fn call_activate<'py>(
 // instrumentation) can still set/replace attributes like `activate` on a live
 // provider -- native pyclasses have no instance dict by default, which would
 // otherwise make method attributes read-only.
-#[pyo3::pyclass(subclass, dict, module = "ddtrace.internal._native")]
+#[pyo3::pyclass(subclass, dict, module = "ddtrace.internal.native._native")]
 pub struct BaseContextProvider;
 
 #[pyo3::pymethods]
@@ -188,7 +184,7 @@ impl BaseContextProvider {
 ///
 /// It is suitable for synchronous programming and for asynchronous executors
 /// that support contextvars.
-#[pyo3::pyclass(extends = BaseContextProvider, subclass, module = "ddtrace.internal._native")]
+#[pyo3::pyclass(extends = BaseContextProvider, subclass, module = "ddtrace.internal.native._native")]
 pub struct DefaultContextProvider;
 
 #[pyo3::pymethods]
@@ -272,8 +268,8 @@ impl DefaultContextProvider {
             };
             if parent.is_none() {
                 if let Some(parent_context) = parent_context {
-                    // `_reactivate` lives on the pure-Python Context -- still a getattr.
-                    if parent_context.getattr("_reactivate")?.is_truthy()? {
+                    if parent_context.borrow().reactivate {
+                        let parent_context = parent_context.into_any();
                         call_activate(slf, py, Some(parent_context.clone()))?;
                         return Ok(Some(parent_context.unbind()));
                     }

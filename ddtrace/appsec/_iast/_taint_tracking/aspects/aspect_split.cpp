@@ -17,6 +17,8 @@ handle_potential_re_split(const py::tuple& args,
          (std::string(py::str(args[0].attr("__package__"))).empty() ||
           std::string(py::str(args[0].attr("__package__"))) == "re"))) {
 
+        // Re-runs the caller's split, which api_split_aspect already ran for the result it returns.
+        // Same operation, so an error swallowed here still leaves the right value.
         const py::object split_func = args[0].attr("split");
         // Create a py::slice object to slice the args from index 1 to the end
         py::list result = split_func(*sliced_args, **kwargs);

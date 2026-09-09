@@ -380,7 +380,7 @@ class TestKombuDsm(TracerTestCase):
         assert len(buckets) == 1
         first = list(buckets.values())[0].pathway_stats
 
-        out_tags = ",".join(["direction:out", "exchange:", "has_routing_key:true", "type:rabbitmq"])
+        out_tags = ",".join(["direction:out", "topic:tasks", "type:rabbitmq"])
         in_tags = ",".join(["direction:in", f"topic:{queue_name}", "type:rabbitmq"])
         self._assert_dsm_pathway_stats(first, out_tags, in_tags)
 

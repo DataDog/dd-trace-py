@@ -9,6 +9,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from _pytest.pytester import Pytester
+import pytest
 
 from ddtrace.testing.internal.settings_data import TestProperties
 from ddtrace.testing.internal.test_data import ModuleRef
@@ -21,6 +22,12 @@ from tests.testing.mocks import setup_standard_mocks
 
 
 class TestQuarantineWithATR:
+    @pytest.fixture(autouse=True)
+    def _disable_dynamic_atr(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # These tests exercise the flat-limit ATR path. Unset the dynamic feature flag so they
+        # stay on that path even when the riotfile enables dynamic ATR globally for dogfooding.
+        monkeypatch.delenv("DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED", raising=False)
+
     def test_quarantined_failing_test_is_retried_by_atr(self, pytester: Pytester) -> None:
         """When a test is quarantined and ATR is enabled, a failing test should be retried by ATR.
 

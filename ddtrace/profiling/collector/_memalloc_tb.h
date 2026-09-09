@@ -14,16 +14,20 @@ class traceback_t
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
+    /* Monotonic timestamp of when this allocation was sampled.
+     * Used at export time to compute object age for lifecycle analysis. */
+    int64_t birth_ns = 0;
+
     /* Constructor - also collects frames from the current Python frame chain. */
-    traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe);
+    traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain);
 
     ~traceback_t() = default;
 
     /* Initialize/populate this traceback with allocation data and collect frames.
      * Assumes sample buffers are already clean (cleared when returned to pool).
      * Stack walking uses direct CPython struct reads to avoid allocator reentry
-     * from refcount churn while still collecting Python frames. */
-    void init_sample(size_t size, size_t weighted_size, uint16_t max_nframe);
+     * from refcount churn while still collecting Python frames.*/
+    void init_sample(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain);
 
     // Non-copyable, non-movable
     traceback_t(const traceback_t&) = delete;

@@ -1,10 +1,10 @@
 from typing import TYPE_CHECKING
 from typing import Optional
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import IAST
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 
 
 if TYPE_CHECKING:  # pragma: no cover - type checking only
@@ -18,7 +18,7 @@ class IASTEnvironment:
     It is contained into a ContextVar.
     """
 
-    def __init__(self, span: Optional[Span] = None):
+    def __init__(self, span: Optional[SpanProtocol] = None):
         self.span = span or span_bus.get_span()
 
         self.iast_reporter: Optional["IastSpanReporter"] = None

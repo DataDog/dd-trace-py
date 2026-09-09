@@ -89,7 +89,7 @@ Fields are usually set via `_annotate_llmobs_span_data(...)`, not raw `span._set
 ## Message Types
 
 ```python
-from ddtrace.llmobs.types import AudioPart, Message, ToolCall, ToolResult, ToolDefinition
+from ddtrace.llmobs.types import AudioPart, ImagePart, Message, ToolCall, ToolResult, ToolDefinition
 
 # Input/output messages
 Message(content="text", role="user")
@@ -98,6 +98,10 @@ Message(content="response", role="assistant", tool_calls=[...])
 # Audio attachments in multimodal messages
 AudioPart(mime_type="audio/wav", content="<base64-audio>")
 Message(content="", role="user", audio_parts=[...])
+
+# Image attachments in multimodal messages
+ImagePart(mime_type="image/png", content="<base64-image>")
+Message(content="", role="user", image_parts=[...])
 
 # Tool calls (in output messages)
 ToolCall(name="get_weather", arguments={"city": "NYC"}, tool_id="toolu_123", type="tool")

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: When ``DD_TRACE_OTEL_CTX_ENABLED`` is true (the default), propagated trace
+    contexts are published to OpenTelemetry thread context records. This lets external
+    readers retain trace and span correlation when no active span object is available.

@@ -24,6 +24,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -34,6 +35,7 @@ from ddtrace.testing.internal.logging import catch_and_log_exceptions
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
+from ddtrace.testing.internal.pytest._protocols import TestOptPluginProtocol
 from ddtrace.testing.internal.pytest.bdd import BddTestOptPlugin
 from ddtrace.testing.internal.pytest.benchmark import BenchmarkData
 from ddtrace.testing.internal.pytest.benchmark import get_benchmark_tags_and_metrics
@@ -284,7 +286,7 @@ else:
     _ReportGroup = dict
 
 
-class TestOptPlugin:
+class TestOptPlugin(TestOptPluginProtocol):
     """
     pytest plugin for test optimization.
     """
@@ -309,13 +311,14 @@ class TestOptPlugin:
             self.enable_ddtrace_trace_filter = True
 
         # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
-        # Requires DD_CIVISIBILITY_AGENTLESS_ENABLED.
+        # Requires agentless mode (i.e. DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED)
         self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
         if self.enable_agentless_log_submission:
-            if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+            if not agentless_config.ci_visibility:
                 log.warning(
-                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_CIVISIBILITY_AGENTLESS_ENABLED is not. "
-                    "Log submission to Datadog requires agentless mode; logs will not be forwarded."
+                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but agentless mode is not enabled. "
+                    "Set DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED; "
+                    "logs will not be forwarded."
                 )
                 self.enable_agentless_log_submission = False
             elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
@@ -428,7 +431,9 @@ class TestOptPlugin:
         # behavior of determining the status based on the status of the children. Instead, we set the status manually
         # based on the exit status reported by pytest.
         self.session.set_status(
-            TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else TestStatus.PASS
+            TestStatus.FAIL
+            if session.exitstatus not in (pytest.ExitCode.OK, pytest.ExitCode.NO_TESTS_COLLECTED)
+            else TestStatus.PASS
         )
 
         if self.is_xdist_worker and hasattr(session.config, "workeroutput"):

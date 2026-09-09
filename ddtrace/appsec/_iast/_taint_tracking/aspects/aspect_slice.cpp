@@ -129,11 +129,15 @@ api_slice_aspect(PyObject* self, PyObject* const* args, Py_ssize_t nargs)
     }
 
     PyObject* result_o = PyObject_GetItem(candidate_text, slice.ptr());
+    // Guarded here like every other aspect, so the block below never returns a NULL result.
+    if (result_o == nullptr) {
+        return nullptr;
+    }
 
     TRY_CATCH_ASPECT("slice_aspect", return result_o, , {
-        // If no result or the params are not None|Number or the result is the same as the candidate text, nothing
+        // If the params are not None|Number or the result is the same as the candidate text, nothing
         // to taint
-        if (result_o == nullptr or (!is_text(candidate_text)) or (start != Py_None and !PyLong_Check(start)) or
+        if ((!is_text(candidate_text)) or (start != Py_None and !PyLong_Check(start)) or
             (stop != Py_None and !PyLong_Check(stop)) or (step != Py_None and !PyLong_Check(step)) or
             (get_unique_id(result_o) == get_unique_id(candidate_text))) {
             return result_o;

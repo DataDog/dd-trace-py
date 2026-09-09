@@ -8,8 +8,6 @@ from time import sleep
 
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
-from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
@@ -19,6 +17,7 @@ from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking import shift_taint_ranges
+from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking._context import debug_taint_map
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
@@ -30,6 +29,7 @@ from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
+from ddtrace.appsec._iast_context import _get_iast_context_id
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce

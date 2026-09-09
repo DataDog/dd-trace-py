@@ -1,3 +1,4 @@
+# ruff: noqa: E402
 import ast
 import base64
 import contextlib
@@ -20,8 +21,11 @@ import sys
 from tempfile import NamedTemporaryFile
 from tempfile import mkdtemp
 import time
-from typing import Any  # noqa:F401
-from typing import Generator  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Generator
+from typing import Optional
+from typing import Union
 from unittest import TestCase
 from unittest import mock
 from urllib import parse
@@ -31,10 +35,18 @@ import pytest
 
 import ddtrace
 
-
 # DEV: Consumed by detect_service() during ddtrace import above; unset now so
 # it doesn't leak into tests (e.g. unit tests that call detect_service directly).
-os.environ.pop("_DD_PYTEST_XDIST_INFERRED_SERVICE", None)
+# Save it so pytest_configure can propagate the correct value to xdist workers
+# (the suitespec may set this to the suite-level service, e.g. tests.tracer;
+# detect_service(sys.argv) under ddtest would pick the first file's subpackage).
+# All ddtest-specific logic is in _ddtest_conftest_helpers so it can be removed
+# cleanly if ddtest support is dropped.
+from tests._ddtest_conftest_helpers import pop_and_seed_inferred_service
+
+
+_inferred_service_env = pop_and_seed_inferred_service()
+
 
 from ddtrace._trace.provider import _DD_CONTEXTVAR
 from ddtrace.internal.core import crashtracking
@@ -44,7 +56,7 @@ from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry import TelemetryWriter
-from ddtrace.internal.utils.formats import parse_tags_str  # noqa:F401
+from ddtrace.internal.utils.formats import parse_tags_str
 from tests import utils
 from tests.utils import TracerSpanContainer
 from tests.utils import call_program
@@ -63,6 +75,8 @@ code_to_pyc = getattr(importlib._bootstrap_external, "_code_to_timestamp_pyc")
 
 
 DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME = "ddtrace_subprocess_dir"
+ITR_UNSKIPPABLE_REASON = "datadog_itr_unskippable"
+ITR_UNSKIPPABLE_DDTRACE_MARKERS = ("subprocess", "snapshot")
 
 # Stash keys for storing original test name and nodeid before Python version suffix is added
 # For pytest >= 7.1.0, use StashKey; for older versions, use attribute names
@@ -170,11 +184,14 @@ def pytest_configure(config):
     # Only set when xdist workers are actually being spawned (numprocesses > 0 or
     # 'auto') and only from the controller (workers have PYTEST_XDIST_WORKER set).
     if not os.environ.get("PYTEST_XDIST_WORKER") and getattr(config.option, "numprocesses", 0):
-        from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
+        if _inferred_service_env:
+            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred_service_env
+        else:
+            from ddtrace.internal.settings._inferred_base_service import detect_service as _detect_service
 
-        _inferred = _detect_service(sys.argv)
-        if _inferred:
-            os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
+            _inferred = _detect_service(sys.argv)
+            if _inferred:
+                os.environ["_DD_PYTEST_XDIST_INFERRED_SERVICE"] = _inferred
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -210,7 +227,9 @@ def use_dummy_writer():
 def auto_enable_crashtracking():
     # Crashtracking is only supported on linux right now
     # TODO: Default to `True` when Windows and Darwin are supported
-    yield platform.system() == "Linux"
+    # is_available is False when the native crashtracker isn't built, e.g. on Python 3.15
+    # (setup.py gates the Rust crashtracker feature on sys.version_info < (3, 15)).
+    yield platform.system() == "Linux" and crashtracking.is_available
 
 
 @pytest.fixture(autouse=True)
@@ -378,19 +397,21 @@ class FunctionDefFinder(ast.NodeVisitor):
         return t
 
 
-def is_stream_ok(stream, expected):
+def is_stream_ok(
+    stream: Optional[Union[bytes, str]],
+    expected: Optional[Union[bytes, str, Callable[[Union[str, bytes, None]], bool]]],
+):
     if expected is None:
         return True
 
-    if isinstance(expected, str):
-        ex = expected.encode("utf-8")
-    elif isinstance(expected, bytes):
-        ex = expected
-    else:
-        # Assume it's a callable condition
-        return expected(stream.decode("utf-8"))
+    stream_str = stream.decode("utf-8") if isinstance(stream, bytes) else stream
 
-    return stream == ex
+    if callable(expected):
+        return expected(stream_str)
+
+    expected_str = expected.decode("utf-8") if isinstance(expected, bytes) else expected
+
+    return stream_str == expected_str
 
 
 def run_function_from_file(item, params=None):
@@ -455,10 +476,14 @@ def run_function_from_file(item, params=None):
             # Add any extra requested args
             args.extend(marker.kwargs.get("args", []))
 
-            def _subprocess_wrapper():
+            def _subprocess_wrapper() -> None:
+                out: Union[bytes, str]
+                err: Union[bytes, str]
                 out, err, status, _ = call_program(*args, env=env, cwd=cwd, timeout=timeout)
 
-                xfailed = b"_pytest.outcomes.XFailed" in err and status == 1
+                xfailed = (
+                    "_pytest.outcomes.XFailed" in err if isinstance(err, str) else b"_pytest.outcomes.XFailed" in err
+                ) and status == 1
                 if xfailed:
                     pytest.xfail("subprocess test resulted in XFail")
                     return
@@ -474,7 +499,7 @@ def run_function_from_file(item, params=None):
                         "Expected status %s, got %s."
                         "\n=== Captured STDOUT ===\n%s=== End of captured STDOUT ==="
                         "\n=== Captured STDERR ===\n%s=== End of captured STDERR ==="
-                        % (expected_status, status, out.decode("utf-8"), err.decode("utf-8"))
+                        % (expected_status, status, out, err)
                     )
 
                 if not is_stream_ok(out, expected_out):
@@ -499,19 +524,16 @@ def run_function_from_file(item, params=None):
 @pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(session, config, items):
     """
-    Don't let ITR skip tests that use the subprocess marker
-    because coverage collection in subprocesses is broken.
+    Don't let ITR skip tests that use markers that require execution in dd-trace-py's CI.
+
+    Subprocess coverage collection is broken, and snapshot tests must run to validate test-agent output.
 
     Also: add py39 - py314 suffix as parametrization in test names
     """
     py_tag = f"py{sys.version_info.major}.{sys.version_info.minor}"
     for item in items:
-        if item.get_closest_marker("subprocess"):
-            if item.get_closest_marker("skipif"):
-                # Respect any existing skipif marker because they preempt ITR's decision-making
-                continue
-            unskippable = pytest.mark.skipif(False, reason="datadog_itr_unskippable")
-            item.add_marker(unskippable)
+        if any(item.get_closest_marker(marker_name) for marker_name in ITR_UNSKIPPABLE_DDTRACE_MARKERS):
+            item.add_marker(pytest.mark.skipif(False, reason=ITR_UNSKIPPABLE_REASON))
 
         # Store original name and nodeid before modification
         if StashKey:
@@ -684,8 +706,24 @@ def rc_poller():
 def telemetry_writer():
     # Since the only difference between regular and agentless behavior are the client's URL and endpoints, and the API
     # key header, we only test the telemetry submission to the agent, so this fixture is forced to not be agentless.
-    telemetry_writer = TelemetryWriter(is_periodic=False, agentless=False)
+    telemetry_writer = TelemetryWriter(agentless=False)
     telemetry_writer.enable()
+
+    # Capture emitted logs in-process, exposed as ``_logs``, so tests can assert on them: the native
+    # worker otherwise only ships logs to the agent (there is no in-process buffer anymore). Wrapping
+    # ``add_log`` is enough because ``add_error_log`` (used by the ddtrace error-log handler for IAST
+    # native exceptions) funnels through it. Each entry mirrors the old ``LogData`` shape enough for
+    # existing assertions (which key on ``message``).
+    telemetry_writer._logs = []
+    _orig_add_log = telemetry_writer.add_log
+
+    def _capturing_add_log(level, message, stack_trace="", tags=None):
+        telemetry_writer._logs.append(
+            {"message": message, "level": getattr(level, "value", level), "stack_trace": stack_trace, "tags": tags}
+        )
+        return _orig_add_log(level, message, stack_trace=stack_trace, tags=tags)
+
+    telemetry_writer.add_log = _capturing_add_log
 
     # main telemetry_writer must be disabled to avoid conflicts with the test telemetry_writer
     try:
@@ -694,7 +732,7 @@ def telemetry_writer():
             yield telemetry_writer
 
     finally:
-        if telemetry_writer.status == ServiceStatus.RUNNING and telemetry_writer._worker is not None:
+        if telemetry_writer._worker is not None:
             telemetry_writer.disable()
         ddtrace.internal.telemetry.telemetry_writer = TelemetryWriter(agentless=False)
 
@@ -705,7 +743,9 @@ class TelemetryTestSession(object):
         self.telemetry_writer = telemetry_writer
 
     def create_connection(self):
-        parsed = parse.urlparse(self.telemetry_writer._client._telemetry_url)
+        from ddtrace.internal.settings._agent import config as _agent_config
+
+        parsed = parse.urlparse(_agent_config.trace_agent_url)
         return httplib.HTTPConnection(parsed.hostname, parsed.port)
 
     def _request(self, method: str, url: str) -> tuple[int, bytes]:
@@ -758,7 +798,7 @@ class TelemetryTestSession(object):
 
         Results are in reverse order by ``seq_id``
         """
-        requests = self.get_requests()
+        requests = self.get_requests(filter_heartbeats=filter_heartbeats)
         events = []
         for req in requests:
             for req_body in self._get_request_bodies(req):
@@ -773,13 +813,13 @@ class TelemetryTestSession(object):
         if req["body"]["request_type"] == "message-batch":
             payloads = req["body"]["payload"]
         else:
-            payloads = [{"payload": req["body"]["payload"], "request_type": req["body"]["request_type"]}]
+            payloads = [{"payload": req["body"].get("payload"), "request_type": req["body"]["request_type"]}]
 
         requests = []
         for payload in payloads:
             req_body = copy.deepcopy(req["body"])
             req_body["request_type"] = payload["request_type"]
-            req_body["payload"] = payload["payload"]
+            req_body["payload"] = payload.get("payload") or {}
             requests.append(req_body)
         return requests
 
@@ -821,15 +861,17 @@ class TelemetryTestSession(object):
             for c in configurations:
                 c.pop("seq_id")
 
+        # The native worker always emits a per-config ``config_id`` - noise for the test.
+        for c in configurations:
+            if c.get("config_id") is None:
+                c.pop("config_id", None)
+
         return configurations
 
 
 @pytest.fixture
 def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Generator[TelemetryTestSession, None, None]:
     token = request_token(request) + "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=32))
-    telemetry_writer._restart_sequence()
-    telemetry_writer._client._headers["X-Datadog-Test-Session-Token"] = token
-
     requests = TelemetryTestSession(token, telemetry_writer)
 
     conn = requests.create_connection()
@@ -847,6 +889,19 @@ def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Gener
         finally:
             conn.close()
 
+    # Apply the token AFTER the session is registered: the native worker is rebuilt
+    # and (re-)emits app-started, which must land in this session to be asserted on.
+    telemetry_writer._restart_sequence()
+    telemetry_writer.set_test_session_token(token)
+    # Export the session token for child processes via the canonical carrier the trace
+    # writer, Remote Config, and the telemetry worker all read (an
+    # X-Datadog-Test-Session-Token pair in _DD_TRACE_WRITER_ADDITIONAL_HEADERS), merging
+    # into any headers already set rather than clobbering them.
+    persistent_headers = os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS")
+    headers = parse_tags_str(persistent_headers or "")
+    headers["X-Datadog-Test-Session-Token"] = token
+    os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = ",".join("%s:%s" % (k, v) for k, v in headers.items())
+
     p_agentless = os.environ.get("DD_CIVISIBILITY_AGENTLESS_ENABLED", "")
     try:
         # The default environment for the telemetry writer tests disables agentless mode
@@ -856,7 +911,10 @@ def test_agent_session(telemetry_writer: TelemetryWriter, request: Any) -> Gener
         yield requests
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
-        telemetry_writer.reset_queues()
+        if persistent_headers is None:
+            os.environ.pop("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", None)
+        else:
+            os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"] = persistent_headers
 
 
 @pytest.fixture()

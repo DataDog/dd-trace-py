@@ -34,11 +34,15 @@ class TestLLMObsBedrock:
         model_id=None,
         input_message=False,
         output_message=False,
+        output_role=None,
         metadata=None,
         metrics=None,
     ):
         expected_input = [{"content": mock.ANY, "role": "user"}] if input_message else [{"content": mock.ANY}]
-        expected_output = [{"content": mock.ANY} for _ in range(n_output)] if output_message else []
+        expected_output_message = {"content": mock.ANY}
+        if output_role:
+            expected_output_message["role"] = output_role
+        expected_output = [dict(expected_output_message) for _ in range(n_output)] if output_message else []
 
         assert_llmobs_span_data(
             _get_llmobs_data_metastruct(span),
@@ -90,11 +94,16 @@ class TestLLMObsBedrock:
             model_id=model,
             input_message="message" in provider,
             output_message=True,
+            # Anthropic Messages responses carry content blocks, so the role is
+            # captured the same way the Anthropic SDK and Converse integrations do.
+            output_role="assistant" if provider == "anthropic_message" else None,
             metadata=expected_metadata,
         )
 
     @classmethod
-    def _test_llmobs_invoke_stream(cls, provider, bedrock_client, test_spans, cassette_name=None, n_output=1):
+    def _test_llmobs_invoke_stream(
+        cls, provider, bedrock_client, test_spans, cassette_name=None, n_output=1, expected_metrics=None
+    ):
         if cassette_name is None:
             cassette_name = "%s_invoke_stream.yaml" % provider
         body = _REQUEST_BODIES[provider]
@@ -127,6 +136,7 @@ class TestLLMObsBedrock:
             input_message="message" in provider,
             output_message=True,
             metadata=expected_metadata,
+            metrics=expected_metrics,
         )
 
     def test_llmobs_ai21_invoke(self, bedrock_client, bedrock_llmobs, test_spans):
@@ -173,13 +183,28 @@ class TestLLMObsBedrock:
         self._assert_llm_span(spans[0], 1, model_id=model)
 
     def test_llmobs_amazon_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
-        self._test_llmobs_invoke_stream("amazon", bedrock_client, test_spans)
+        self._test_llmobs_invoke_stream(
+            "amazon",
+            bedrock_client,
+            test_spans,
+            expected_metrics={"input_tokens": 18, "output_tokens": 51, "total_tokens": 69},
+        )
 
     def test_llmobs_anthropic_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
-        self._test_llmobs_invoke_stream("anthropic", bedrock_client, test_spans)
+        self._test_llmobs_invoke_stream(
+            "anthropic",
+            bedrock_client,
+            test_spans,
+            expected_metrics={"input_tokens": 25, "output_tokens": 4, "total_tokens": 29},
+        )
 
     def test_llmobs_anthropic_message_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
-        self._test_llmobs_invoke_stream("anthropic_message", bedrock_client, test_spans)
+        self._test_llmobs_invoke_stream(
+            "anthropic_message",
+            bedrock_client,
+            test_spans,
+            expected_metrics={"input_tokens": 21, "output_tokens": 22, "total_tokens": 43},
+        )
 
     def test_llmobs_cohere_single_output_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
         self._test_llmobs_invoke_stream(
@@ -187,6 +212,7 @@ class TestLLMObsBedrock:
             bedrock_client,
             test_spans,
             cassette_name="cohere_invoke_stream_single_output.yaml",
+            expected_metrics={"input_tokens": 20, "output_tokens": 10, "total_tokens": 30},
         )
 
     def test_llmobs_cohere_multi_output_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
@@ -196,10 +222,16 @@ class TestLLMObsBedrock:
             test_spans,
             cassette_name="cohere_invoke_stream_multi_output.yaml",
             n_output=2,
+            expected_metrics={"input_tokens": 40, "output_tokens": 20, "total_tokens": 60},
         )
 
     def test_llmobs_meta_invoke_stream(self, bedrock_client, bedrock_llmobs, test_spans):
-        self._test_llmobs_invoke_stream("meta", bedrock_client, test_spans)
+        self._test_llmobs_invoke_stream(
+            "meta",
+            bedrock_client,
+            test_spans,
+            expected_metrics={"input_tokens": 10, "output_tokens": 60, "total_tokens": 70},
+        )
 
     def test_llmobs_only_patches_bedrock(self, tracer, bedrock_llmobs, test_spans):
         llmobs_service.disable()

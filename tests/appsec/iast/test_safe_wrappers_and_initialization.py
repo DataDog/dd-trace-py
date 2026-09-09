@@ -14,6 +14,26 @@ import sys
 import pytest
 
 
+@pytest.mark.subprocess
+def test_native_helper_modules_do_not_keep_unowned_references():
+    import sys
+
+    from ddtrace.appsec._iast import _taint_tracking
+    from ddtrace.appsec._iast._taint_tracking import _native
+
+    for name in ("aspects", "ops"):
+        helper_module = getattr(_native, name)
+        sys.modules.pop(helper_module.__name__, None)
+        delattr(_native, name)
+        if hasattr(_taint_tracking, name):
+            delattr(_taint_tracking, name)
+
+        method_references = sum(
+            getattr(value, "__self__", None) is helper_module for value in vars(helper_module).values()
+        )
+        assert sys.getrefcount(helper_module) == method_references + 2
+
+
 @pytest.mark.skip_iast_check_logs
 class TestUninitializedStateHandling:
     """Test that IAST functions handle uninitialized state gracefully."""
@@ -96,13 +116,13 @@ class TestNativeStateInitialization:
 
     def test_taint_operations_work_after_initialization(self):
         """Test that taint operations work correctly after initialization."""
-        from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
         from ddtrace.appsec._iast._overhead_control_engine import oce
         from ddtrace.appsec._iast._taint_tracking import initialize_native_state
         from ddtrace.appsec._iast._taint_tracking import reset_native_state
         from ddtrace.appsec._iast._taint_tracking._context import start_request_context
         from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
         from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
+        from ddtrace.appsec._iast_context import IAST_CONTEXT
         from ddtrace.internal.settings.asm import config as asm_config
         from tests.utils import override_env
 

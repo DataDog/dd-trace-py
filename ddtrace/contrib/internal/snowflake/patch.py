@@ -41,6 +41,12 @@ def _supported_versions() -> dict[str, str]:
 
 
 class _SFTracedCursor(TracedCursor):
+    def execute(self, command: str, *args: object, **kwargs: object) -> object:
+        return super(_SFTracedCursor, self).execute(command, *args, **kwargs)
+
+    def executemany(self, command: str, *args: object, **kwargs: object) -> object:
+        return super(_SFTracedCursor, self).executemany(command, *args, **kwargs)
+
     def _set_post_execute_tags(self, span):
         super(_SFTracedCursor, self)._set_post_execute_tags(span)
         span._set_attribute("sfqid", self.__wrapped__.sfqid)
