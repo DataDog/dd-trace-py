@@ -106,14 +106,22 @@ def parse_send(instance, args, kwargs):
     return topic, value, headers, partition, key, servers
 
 
+def _dispatch_send_error(ctx, error):
+    exc_info = (type(error), error, error.__traceback__)
+    core.dispatch("aiokafka.send.completed", (ctx, exc_info, None))
+    ctx.dispatch_ended_event(*exc_info)
+
+
 async def traced_send(func, instance, args, kwargs):
     topic, value, headers, partition, key, bootstrap_servers = parse_send(instance, args, kwargs)
     cluster_id = await _get_cluster_id(instance.client, topic)
+    tracing_headers = {}
 
     event = KafkaProducerEvent(
         operation=schematize_messaging_operation(PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         topic=topic,
         bootstrap_servers=bootstrap_servers,
+        distributed_headers=tracing_headers,
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
         service=trace_utils.ext_service(None, config.aiokafka),
@@ -130,11 +138,8 @@ async def traced_send(func, instance, args, kwargs):
         if partition is not None:
             span._set_attribute(PARTITION, partition)
 
-        if config.aiokafka.distributed_tracing_enabled:
-            tracing_headers = {}
-            HTTPPropagator.inject(span.context, tracing_headers)
-            for header_key, header_value in tracing_headers.items():
-                headers.append((header_key, header_value.encode("utf-8")))
+        for header_key, header_value in tracing_headers.items():
+            headers.append((header_key, header_value.encode("utf-8")))
 
         core.dispatch("aiokafka.send.start", (topic, value, key, headers, ctx, partition))
         args, kwargs = set_argument_value(args, kwargs, 5, "headers", headers, override_unset=True)
@@ -142,9 +147,7 @@ async def traced_send(func, instance, args, kwargs):
         try:
             result = await func(*args, **kwargs)
         except BaseException as error:
-            exc_info = (type(error), error, error.__traceback__)
-            core.dispatch("aiokafka.send.completed", (ctx, exc_info, None))
-            ctx.dispatch_ended_event(*exc_info)
+            _dispatch_send_error(ctx, error)
             raise
 
         def sent_callback(future):
@@ -159,9 +162,7 @@ async def traced_send(func, instance, args, kwargs):
                 core.dispatch("aiokafka.send.completed", (ctx, (None, None, None), record_metadata))
                 ctx.dispatch_ended_event()
             except Exception as error:
-                exc_info = (type(error), error, error.__traceback__)
-                core.dispatch("aiokafka.send.completed", (ctx, exc_info, None))
-                ctx.dispatch_ended_event(*exc_info)
+                _dispatch_send_error(ctx, error)
 
         result.add_done_callback(sent_callback)
         return result
@@ -268,7 +269,7 @@ async def traced_getmany(func, instance, args, kwargs):
             span._set_attribute(kafkax.CLUSTER_ID, cluster_id)
 
         span._set_attribute(RECEIVED_MESSAGE, str(messages is not None))
-        if messages is not None:
+        if messages:
             first_topic = next(iter(messages)).topic
             span._set_attribute(MESSAGING_DESTINATION_NAME, first_topic)
 

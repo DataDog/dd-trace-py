@@ -18,7 +18,6 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.propagation.http import HTTPPropagator
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS
@@ -41,8 +40,6 @@ config._add(
         "service_name": config.service or env.get("DD_KOMBU_SERVICE", default=DEFAULT_SERVICE),
     },
 )
-
-propagator = HTTPPropagator
 
 
 def _supported_versions() -> dict[str, str]:
@@ -137,7 +134,7 @@ def traced_publish(func, instance, args, kwargs):
         operation=schematize_messaging_operation(
             kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND
         ),
-        distributed_headers=None,
+        distributed_headers=args[HEADER_POS],
         component=config.kombu.integration_name,
         integration_config=config.kombu,
         service=pin.service,
@@ -153,8 +150,6 @@ def traced_publish(func, instance, args, kwargs):
         span.set_tags(extract_conn_tags(instance.channel.connection))
         span._set_attribute(kombux.BODY_LEN, get_body_length_from_args(args))
 
-        if config.kombu.distributed_tracing_enabled:
-            propagator.inject(span.context, args[HEADER_POS])
         core.dispatch(
             "kombu.amqp.publish.pre", (args, kwargs, span)
         )  # Has to happen after trace injection for actual payload size

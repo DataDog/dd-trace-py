@@ -6,6 +6,7 @@ from aiokafka.structs import TopicPartition
 import pytest
 
 from ddtrace.contrib.internal.aiokafka.patch import patch
+from ddtrace.contrib.internal.aiokafka.patch import traced_getmany
 from ddtrace.contrib.internal.aiokafka.patch import traced_send
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
 from tests.utils import override_config
@@ -129,6 +130,19 @@ async def test_send_span_records_delivery_future_failure(tracer, test_spans):
     assert span.finished
     assert span.error == 1
     test_spans.assert_span_count(1)
+
+
+@pytest.mark.asyncio
+async def test_getmany_empty_result():
+    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
+    consumer = SimpleNamespace(_client=client, _group_id="test-group")
+
+    async def getmany(*args, **kwargs):
+        return {}
+
+    result = await traced_getmany(getmany, consumer, (), {})
+
+    assert result == {}
 
 
 @pytest.mark.asyncio

@@ -189,11 +189,13 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
+    tracing_headers = {}
 
     event = KafkaProducerEvent(
         operation=schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         topic=topic,
         bootstrap_servers=instance._dd_bootstrap_servers,
+        distributed_headers=tracing_headers,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
         service=trace_utils.ext_service(pin, config.kafka),
@@ -221,9 +223,11 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag(kafkax.PARTITION, partition)
         span._set_attribute(kafkax.TOMBSTONE, str(value is None))
 
-        if config.kafka.distributed_tracing_enabled:
-            headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
-            Propagator.inject(span.context, headers)
+        if tracing_headers:
+            if isinstance(headers, dict):
+                headers.update(tracing_headers)
+            else:
+                headers.extend(tracing_headers.items())
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
 
         return func(*args, **kwargs)

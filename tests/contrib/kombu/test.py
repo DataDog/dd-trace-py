@@ -4,11 +4,11 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.subscribers.messaging import HTTPPropagator
 from ddtrace.contrib._events.messaging import MessagingProcessEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.contrib.internal.kombu import utils
 from ddtrace.contrib.internal.kombu.patch import patch
-from ddtrace.contrib.internal.kombu.patch import propagator
 from ddtrace.contrib.internal.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal import core
@@ -116,7 +116,7 @@ class TestKombuPatch(TracerTestCase):
     def test_publish_injects_trace_headers_before_dsm_dispatch(self):
         order = []
         dispatch = core.dispatch
-        inject = propagator.inject
+        inject = HTTPPropagator.inject
 
         def record_dispatch(event_name, args):
             if event_name == "kombu.amqp.publish.pre":
@@ -131,7 +131,7 @@ class TestKombuPatch(TracerTestCase):
         queue = kombu.Queue("trace_header_ordering", exchange, routing_key="trace_header_ordering")
         with (
             mock.patch.object(core, "dispatch", side_effect=record_dispatch),
-            mock.patch.object(propagator, "inject", side_effect=record_inject),
+            mock.patch.object(HTTPPropagator, "inject", side_effect=record_inject),
         ):
             self.producer.publish(
                 {"hello": "world"},
