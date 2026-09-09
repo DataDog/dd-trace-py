@@ -14,6 +14,7 @@ from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING
+from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
@@ -113,6 +114,29 @@ def mock_async_generate_content_stream(genai):
     async def _fake_async_stream(self, *, model: str, contents, config=None):
         async def _async_iterator():
             for chunk in MOCK_GENERATE_CONTENT_RESPONSE_STREAM:
+                yield chunk
+
+        return _async_iterator()
+
+    with mock_patch.object(genai.models.AsyncModels, "_generate_content_stream", _fake_async_stream):
+        yield
+
+
+@pytest.fixture
+def mock_generate_content_stream_with_reasoning(genai):
+    def _fake_stream(self, *, model: str, contents, config=None) -> Iterator[Any]:
+        for chunk in MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING_STREAM:
+            yield chunk
+
+    with mock_patch.object(genai.models.Models, "_generate_content_stream", _fake_stream):
+        yield
+
+
+@pytest.fixture
+def mock_async_generate_content_stream_with_reasoning(genai):
+    async def _fake_async_stream(self, *, model: str, contents, config=None):
+        async def _async_iterator():
+            for chunk in MOCK_GENERATE_CONTENT_RESPONSE_WITH_REASONING_STREAM:
                 yield chunk
 
         return _async_iterator()

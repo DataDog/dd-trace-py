@@ -499,10 +499,23 @@ uWSGI
 ``ddtrace`` only supports `uWSGI <https://uwsgi-docs.readthedocs.io/>`__ when configured with each of the following:
 
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
-- Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
+- Either lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__
+  option, or fork hooks must be enabled with the `py-call-uwsgi-fork-hooks <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#py-call-uwsgi-fork-hooks>`__
+  option (see note below).
 - For `uWSGI<2.0.30`, skip atexit, `skip-atexit <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#skip-atexit>`__, must be enabled when `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ is enabled. This is to avoid crashes from native extensions that could occur when child processes are terminated.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.auto``.
 - Gevent patching should NOT be enabled via the `--gevent-monkey-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Instead use ``import gevent.monkey; gevent.monkey.patch_all()`` in your application.
+
+Without `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__,
+uWSGI loads the application once in the master process and then forks worker
+processes from it directly at the C level, which bypasses the mechanism Python
+normally uses to reinitialize things like threads and locks after a fork. The
+`py-call-uwsgi-fork-hooks <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#py-call-uwsgi-fork-hooks>`__
+option tells uWSGI to invoke that mechanism itself around every worker fork,
+which lets ``ddtrace`` (and other libraries relying on the same mechanism)
+reinitialize correctly without requiring ``lazy-apps``. This is a less common
+configuration than ``lazy-apps``; if you run into issues with it, fall back to
+``lazy-apps``.
 
 Example with CLI arguments for uWSGI>=2.0.30:
 

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    httplib: Fixes an issue where an outgoing request blocked by Exploit Prevention leaves the
+    ``http.client.request`` span unfinished and active, so it is never sent and every later span
+    on that thread is parented to it.

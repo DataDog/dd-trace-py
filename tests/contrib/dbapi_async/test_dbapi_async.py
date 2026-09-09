@@ -1,9 +1,12 @@
 import mock
 import pytest
 
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.contrib.dbapi_async import FetchTracedAsyncCursor
 from ddtrace.contrib.dbapi_async import TracedAsyncConnection
 from ddtrace.contrib.dbapi_async import TracedAsyncCursor
+from ddtrace.internal import core
+from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.settings._config import Config
 from ddtrace.internal.settings.integration import IntegrationConfig
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -29,6 +32,18 @@ class TestTracedAsyncCursor(AsyncioTestCase):
         # DEV: We always pass through the result
         assert "__result__" == await traced_cursor.execute("__query__", "arg_1", kwarg1="kwarg1")
         cursor.execute.assert_called_once_with("__query__", "arg_1", kwarg1="kwarg1")
+
+    @mark_asyncio
+    async def test_query_is_blocked_before_execution(self):
+        for method in ("execute", "executemany"):
+            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
+                with pytest.raises(BlockingException):
+                    await getattr(TracedAsyncCursor(self.cursor, cfg={"_dbapi_span_name_prefix": "postgres"}), method)(
+                        "SELECT 1"
+                    )
+
+            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
+            getattr(self.cursor, method).assert_not_awaited()
 
     @AsyncioTestCase.run_in_subprocess(env_overrides=dict(DD_DBM_PROPAGATION_MODE="full"))
     @mark_asyncio

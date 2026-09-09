@@ -71,6 +71,7 @@ components:
     - ddtrace/internal/hostname.py
     - ddtrace/internal/http.py
     - ddtrace/internal/bytecode_injection/*
+    - ddtrace/internal/lazy.py
     - ddtrace/internal/metrics.py
     - ddtrace/internal/module.py
     - ddtrace/internal/native/*
@@ -383,6 +384,14 @@ suites:
       - ddtrace/internal/telemetry/dependency*.py
       - ddtrace/appsec/sca/*
       - benchmarks/telemetry_dependencies/*
+      - benchmarks/suitespec.yml
+    cpus_per_run: 1
+    type: 'microbenchmark'
+  openfeature_flagevaluation:
+    paths:
+      - ddtrace/internal/openfeature/_flag_eval_evp_hook.py
+      - ddtrace/internal/openfeature/_flagevaluation_writer.py
+      - benchmarks/openfeature_flagevaluation/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
     type: 'microbenchmark'
