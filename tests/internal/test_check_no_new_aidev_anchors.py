@@ -1,4 +1,4 @@
-"""Tests for scripts/check_no_new_aidev_anchors.py."""
+"""Tests for the deprecated-anchor checker."""
 
 from __future__ import annotations
 
@@ -40,14 +40,34 @@ def test_is_anchor_line_detects_comment_forms(line: str) -> None:
     "line",
     [
         "+ This prose mentions `AIDEV-NOTE:` but is not a comment.",
-        '+ value = "/* AIDEV-NOTE: inside a string */"',
-        '+ value = "# AIDEV-TODO: inside a string"',
+        '+ value = "/* AIDE" "V-NOTE: inside a string */"',
+        '+ value = "# AIDE" "V-TODO: inside a string"',
+    ],
+)
+def test_is_anchor_line_ignores_strings(line: str) -> None:
+    assert not _MODULE._is_anchor_line(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
         "+ https://example.test// AIDEV-QUESTION: URL text",
         "+ value * AIDEV-NOTE: multiplication expression",
     ],
 )
-def test_is_anchor_line_ignores_prose_and_strings(line: str) -> None:
-    assert not _MODULE._is_anchor_line(line)
+def test_is_anchor_line_detects_any_unquoted_occurrence(line: str) -> None:
+    assert _MODULE._is_anchor_line(line)
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        '+ """AIDE' "V-NOTE: docstring opening line" '"""',
+        "+     AIDE" "V-TODO: multiline docstring line",
+    ],
+)
+def test_is_anchor_line_detects_docstrings(line: str) -> None:
+    assert _MODULE._is_anchor_line(line)
 
 
 def test_added_lines_ignores_deleted_anchors(monkeypatch: pytest.MonkeyPatch) -> None:
