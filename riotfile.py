@@ -2571,7 +2571,7 @@ venv = Venv(
                 Venv(
                     pys="3.15",
                     pkgs={
-                        "jinja2": "==3.1.5",
+                        "jinja2": latest,
                     },
                 ),
             ],
