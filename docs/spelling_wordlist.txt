@@ -339,6 +339,8 @@ subpackages
 Subprocess
 substring
 suitespec
+symlink
+symlinks
 Temporality
 TensorBoard
 testagent

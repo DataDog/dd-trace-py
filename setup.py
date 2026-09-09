@@ -778,8 +778,22 @@ class LibraryDownloader(BuildPyCommand):
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
         LibDDWafDownload.run()
+        self._clean_staged_libddwaf()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
+
+    def _clean_staged_libddwaf(self):
+        """Drop a previously staged libddwaf so the wheel mirrors the source tree.
+
+        Setuptools copies new and updated files into build_lib but never removes
+        files that disappeared from the source tree, so a bundled library staged
+        by an earlier build would end up in the wheel next to the path recorded
+        by a system-library build (and win at load time), and the other way
+        around.
+        """
+        if not self.build_lib:
+            return
+        shutil.rmtree(Path(self.build_lib) / LIBDDWAF_DOWNLOAD_DIR.relative_to(HERE), ignore_errors=True)
 
     def find_data_files(self, package, src_dir):
         """Strip build/source artifacts from wheel data files."""

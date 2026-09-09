@@ -177,3 +177,67 @@ def test_a_single_target_architecture_is_required(tmp_path, monkeypatch):
 
     with pytest.raises(RuntimeError, match="exactly one target architecture"):
         download.run()
+
+
+def _library_downloader(tmp_path):
+    """Exec the build_py subclass of setup.py with a stub setuptools base."""
+    source = SETUP_PY.read_text()
+    code = source[source.index("class LibraryDownloader(BuildPyCommand):") : source.index("class CleanLibraries(")]
+    here = tmp_path / "source"
+    libddwaf_dir = here / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
+
+    class StubBuildPy:
+        """Copies into build_lib the way setuptools does: never removing anything."""
+
+        editable_mode = False
+
+        def run(self):
+            shutil.copytree(here / "ddtrace", Path(self.build_lib) / "ddtrace", dirs_exist_ok=True)
+
+    namespace = {
+        "os": os,
+        "shutil": shutil,
+        "Path": Path,
+        "BuildPyCommand": StubBuildPy,
+        "CustomBuildExt": type("CustomBuildExt", (), {"INCREMENTAL": True}),
+        "CleanLibraries": type("CleanLibraries", (), {"remove_artifacts": staticmethod(lambda: None)}),
+        "LibDDWafDownload": type("LibDDWafDownload", (), {"run": staticmethod(lambda: None)}),
+        "HERE": here,
+        "LIBDDWAF_DOWNLOAD_DIR": libddwaf_dir,
+        "IS_EDITABLE": False,
+        "_WHEEL_EXCLUDED_EXTENSIONS": frozenset([".c"]),
+    }
+    exec(code, namespace)  # noqa: S102
+    downloader = namespace["LibraryDownloader"]()
+    downloader.build_lib = str(tmp_path / "build" / "lib")
+    return downloader, libddwaf_dir
+
+
+def _staged_libddwaf(downloader):
+    staged = Path(downloader.build_lib) / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
+    return sorted(p.name for p in staged.rglob("*") if p.is_file())
+
+
+def test_a_bundled_library_is_not_staged_again_after_switching_to_system(tmp_path):
+    downloader, libddwaf_dir = _library_downloader(tmp_path)
+    _bundled_library(libddwaf_dir, "aarch64")
+    downloader.run()
+    assert _staged_libddwaf(downloader) == ["libddwaf.so"]
+
+    layout.stage_system_library(str(libddwaf_dir), "aarch64", "/usr/lib64/libddwaf.so.2")
+    downloader.run()
+
+    assert _staged_libddwaf(downloader) == [layout.LINK_FILE_NAME]
+
+
+def test_a_recorded_path_is_not_staged_again_after_switching_to_bundled(tmp_path):
+    downloader, libddwaf_dir = _library_downloader(tmp_path)
+    layout.stage_system_library(str(libddwaf_dir), "aarch64", "/usr/lib64/libddwaf.so.2")
+    downloader.run()
+    assert _staged_libddwaf(downloader) == [layout.LINK_FILE_NAME]
+
+    shutil.rmtree(libddwaf_dir)
+    _bundled_library(libddwaf_dir, "aarch64")
+    downloader.run()
+
+    assert _staged_libddwaf(downloader) == ["libddwaf.so"]
