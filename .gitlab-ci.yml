@@ -65,7 +65,6 @@ include:
   - local: ".gitlab/benchmarks/serverless.yml"
   - local: ".gitlab/native.yml"
   - local: ".gitlab/libdatadog-auto-update.yml"
-  - local: ".gitlab/check-libdatadog-version.yml"
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
