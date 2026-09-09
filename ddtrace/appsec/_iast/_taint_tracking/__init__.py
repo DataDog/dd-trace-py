@@ -53,6 +53,7 @@ from ddtrace.internal.logger import get_logger
 
 log = get_logger(__name__)
 
+
 def get_ranges(string_input: Any, context_id: Optional[int] = None) -> Any:
     if context_id is None:
         context_id = _get_iast_context_id()
