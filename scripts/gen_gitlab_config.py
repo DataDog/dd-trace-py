@@ -421,13 +421,11 @@ def gen_required_suites() -> None:
                 required_suites.append(suite)
         LOGGER.info("File-based suite selection found %d suite(s)", len(required_suites))
     else:
-        from needs_testrun import extract_git_commit_selections
         from needs_testrun import for_each_testrun_needed
 
         for_each_testrun_needed(
             suites=sorted(suites.keys()),
             action=lambda suite: required_suites.append(suite),
-            git_selections=extract_git_commit_selections(os.getenv("CI_COMMIT_MESSAGE", "")),
         )
 
     # If the ci_visibility suite is in the list of required suites, we need to run all suites

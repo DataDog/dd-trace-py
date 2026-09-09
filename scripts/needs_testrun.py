@@ -223,12 +223,6 @@ def _get_merge_queue_pr_number(commit_message: str) -> t.Optional[int]:
 
 @cache
 def _get_pr_number() -> int:
-    if number := os.environ.get("CIRCLE_PR_NUMBER"):
-        return int(number)
-
-    if pr_url := os.environ.get("CIRCLE_PULL_REQUEST"):
-        return int(pr_url.split("/")[-1])
-
     ref_name = os.environ.get("CI_COMMIT_REF_NAME")
     if not ref_name:
         raise RuntimeError("Could not determine PR number")
@@ -241,14 +235,14 @@ def _get_pr_number() -> int:
     return int(github_api("/pulls", {"head": f"datadog:{ref_name}"})[0]["number"])
 
 
-def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None], git_selections: set[str]):
+def for_each_testrun_needed(suites: list[str], action: t.Callable[[str], None]):
     try:
         pr_number = _get_pr_number()
     except Exception:
         pr_number = None
 
     for suite in suites:
-        if pr_number is None or (git_selections & {"all", suite}) or needs_testrun(suite, pr_number):
+        if pr_number is None or needs_testrun(suite, pr_number):
             action(suite)
 
 
@@ -265,15 +259,6 @@ def pr_matches_patterns(patterns: set[str]) -> bool:
             LOGGER.error("Failed to get changed files. Assuming the PR matches for precaution.")
             return True
     return any(fnmatch.fnmatch(path, pattern) for path in changed_files for pattern in patterns)
-
-
-def extract_git_commit_selections(git_commit_message: str) -> set[str]:
-    """Extract the selected suites from git commit message."""
-    suites = set()
-    for token in git_commit_message.split():
-        if token.lower().startswith("circleci:"):
-            suites.update(token[len("circleci:") :].lower().split(","))
-    return suites
 
 
 def main() -> bool:
