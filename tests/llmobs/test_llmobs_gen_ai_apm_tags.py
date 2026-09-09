@@ -12,6 +12,7 @@ from ddtrace.llmobs._constants import GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRI
 from ddtrace.llmobs._constants import GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
 from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
@@ -25,6 +26,7 @@ ALL_TOKEN_METRICS = {
     "total_tokens": 30,
     "cache_read_input_tokens": 4,
     "cache_write_input_tokens": 5,
+    "reasoning_output_tokens": 6,
 }
 
 
@@ -38,6 +40,9 @@ def _usage(span):
         ),
         GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY: span.get_metric(
             GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+        ),
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY: span.get_metric(
+            GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY
         ),
     }
 
@@ -58,6 +63,7 @@ def test_llm_span_emits_all_scalars(llmobs, test_spans):
         GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY: 30,
         GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY: 4,
         GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY: 5,
+        GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY: 6,
     }
 
 

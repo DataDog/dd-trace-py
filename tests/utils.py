@@ -94,6 +94,7 @@ _LLMOBS_SHADOW_IGNORES = [
     "metrics.gen_ai.usage.total_tokens",
     "metrics.gen_ai.usage.cache_read_input_tokens",
     "metrics.gen_ai.usage.cache_write_input_tokens",
+    "metrics.gen_ai.usage.reasoning_output_tokens",
 ]
 
 
