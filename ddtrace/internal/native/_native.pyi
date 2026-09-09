@@ -668,8 +668,8 @@ class TraceExporterBuilder:
     def set_runtime_id(self, runtime_id: str) -> TraceExporterBuilder:
         """
         Set the runtime id of the TraceExporter.
-        :param runtime_id: The runtime UUID of the current process. Reused for OTLP traces and
-            trace metrics so the backend can correlate them; a fresh UUID is generated if unset.
+        :param runtime_id: The runtime UUID of the current process. A fresh UUID is generated
+            if unset.
         """
         ...
     def set_process_tags(self, process_tags: str) -> TraceExporterBuilder:

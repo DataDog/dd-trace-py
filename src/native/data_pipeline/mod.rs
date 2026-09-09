@@ -75,8 +75,8 @@ impl TraceExporterBuilderPy {
         Ok(slf.into())
     }
 
-    /// Set the runtime id reported by the exporter. Reused for OTLP traces and trace metrics so
-    /// the backend can correlate them; libdatadog generates a fresh UUID when it is left unset.
+    /// Set the runtime id reported by the exporter. libdatadog generates a fresh UUID when it is
+    /// left unset.
     fn set_runtime_id(mut slf: PyRefMut<'_, Self>, runtime_id: &'_ str) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.set_runtime_id(runtime_id);
         Ok(slf.into())
