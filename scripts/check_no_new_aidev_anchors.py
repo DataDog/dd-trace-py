@@ -23,7 +23,7 @@ from typing import Optional
 # preferable to allowing a new deprecated label to bypass the check.
 ANCHOR_RE: re.Pattern[str] = re.compile(r"AIDE" r"V")
 STRING_RE: re.Pattern[str] = re.compile(r"""(["'`])(?:\\.|(?!\1).)*\1""")
-TRIPLE_STRING_RE: re.Pattern[str] = re.compile(r'(?:\'\'\'|""").*AIDE' r"V")
+TRIPLE_STRING_RE: re.Pattern[str] = re.compile(r'^\s*(?:\'\'\'|""").*AIDE' r"V")
 
 
 def _merge_base(base_ref: str) -> str:
