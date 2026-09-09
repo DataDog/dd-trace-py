@@ -351,6 +351,16 @@ class DogStatsd(object):
         self.telemetry_socket = None
         self.encoding = "utf-8"
 
+        # AIDEV-NOTE: dd-trace-py fork-safety patch (github.com/DataDog/dd-trace-py
+        # issue #19120), not present in upstream datadogpy. A forked child inherits
+        # this process's socket fd verbatim; if the parent later closes it and
+        # something else in the child reuses the same fd number, this cached socket
+        # would send onto whatever now sits behind that fd (see _reset_after_fork
+        # docstring below). Reapply this hook (and the one in _reset_after_fork) if
+        # this file is ever re-vendored from upstream datadogpy.
+        if hasattr(os, "register_at_fork"):
+            os.register_at_fork(after_in_child=self._reset_after_fork)
+
         # Options
         env_tags = [tag for tag in os.environ.get("DATADOG_TAGS", "").split(",") if tag]
         # Inject values of DD_* environment variables as global tags.
@@ -862,6 +872,28 @@ class DogStatsd(object):
         >>> statsd.set("visitors.uniques", 999)
         """
         self._report(metric, "s", value, tags, sample_rate)
+
+    def _reset_after_fork(self):
+        """
+        Discard cached sockets and lock in a forked child (see the fork-safety
+        AIDEV-NOTE in __init__).
+
+        A forked child inherits the parent's socket file descriptors verbatim. If the
+        parent later closes this socket (e.g. after a send error in _xmit_packet) and
+        something else in the child opens a new socket, the OS is free to hand out the
+        same fd number; this cached socket object would otherwise go on sending onto
+        whatever now sits behind that fd instead of raising an error. Dropping the
+        reference here (without closing it, since the parent still owns and uses it)
+        lets get_socket() lazily open a fresh socket scoped to the child on the next
+        call, so the child can never touch the fd number it inherited.
+
+        The lock is also replaced rather than reused: fork() only clones the calling
+        thread, so if another thread held _socket_lock at the moment of the fork, the
+        child would inherit it as permanently locked with no thread left to release it.
+        """
+        self._socket_lock = Lock()
+        self.socket = None
+        self.telemetry_socket = None
 
     def close_socket(self):
         """

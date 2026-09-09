@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    internal: Fixes an issue where internal metrics reporting could write into an
+    unrelated network connection after the process forks, disrupting other connections
+    (such as a message broker connection) in long-running worker processes like Celery
+    workers.
