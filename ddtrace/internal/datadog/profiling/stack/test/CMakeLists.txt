@@ -80,15 +80,6 @@ function(dd_wrapper_add_test name)
     else()
         target_compile_definitions(${name} PRIVATE PL_LINUX)
     endif()
-
-    # This is supplemental artifact so make sure to install it in the right place
-    if(INPLACE_LIB_INSTALL_DIR)
-        set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
-    endif()
-
-    if(LIB_INSTALL_DIR)
-        install(TARGETS ${name} RUNTIME DESTINATION ${LIB_INSTALL_DIR}/../test)
-    endif()
 endfunction()
 
 # Add the tests
