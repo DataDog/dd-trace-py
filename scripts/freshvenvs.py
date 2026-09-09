@@ -21,6 +21,7 @@ import pathlib
 import sys
 from typing import Optional
 
+from packaging.requirements import InvalidRequirement
 from packaging.requirements import Requirement
 from packaging.version import Version
 from pip import _internal
@@ -102,7 +103,10 @@ def _get_updatable_packages_implementing(contrib_modules: set[str]) -> set[str]:
             dependency.lower() for dependency in INTEGRATION_TO_DEPENDENCY_MAPPING.get(integration, {integration})
         }
         for value in environment.direct_dependencies:
-            requirement = Requirement(value)
+            try:
+                requirement = Requirement(value)
+            except InvalidRequirement:
+                continue
             if requirement.name.lower() in dependencies and not requirement.specifier:
                 packages_setting_latest.add(integration)
                 break
