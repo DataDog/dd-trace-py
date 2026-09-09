@@ -967,3 +967,66 @@ def test_each_webbrowser_call_gets_its_own_rasp_subcontext():
     assert len(holders) == 2, holders
     assert all(holder is not None for holder in holders)
     assert holders[0] is not holders[1], "both calls shared one subcontext"
+
+
+def test_a_custom_installed_opener_still_publishes_the_url():
+    """install_opener takes any object with an open method, so OpenerDirector.open can be bypassed.
+
+    These hooks publish full_url for the http.client hook to inspect; without one on urlopen a
+    custom opener leaves it unpublished and the downstream request goes uninspected.
+    """
+    import urllib.request
+
+    seen = []
+
+    class CustomOpener(urllib.request.OpenerDirector):
+        def open(self, fullurl, data=None, timeout=None):
+            seen.append(core.find_item("full_url"))
+            raise OSError("stop here, the point is what was published")
+
+    unpatch_common_modules()
+    previous = urllib.request._opener
+    try:
+        patch_common_modules()
+        urllib.request.install_opener(CustomOpener())
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+        ):
+            with pytest.raises(OSError):
+                urllib.request.urlopen("http://127.0.0.1:1/custom")
+    finally:
+        urllib.request._opener = previous
+        unpatch_common_modules()
+
+    assert seen == ["http://127.0.0.1:1/custom"], seen
+
+
+def test_urlopen_publishes_the_url_only_once():
+    """Both hooks are installed, so the inner one must stand down when nested.
+
+    Two nested url_open_analysis contexts would mean the outgoing request is inspected twice.
+    """
+    import urllib.request
+
+    unpatch_common_modules()
+    opened = []
+    original = _ScopedRaspContext._open_core_context
+
+    def recording_open(self, name, **kwargs):
+        opened.append(kwargs.get("full_url"))
+        return original(self, name, **kwargs)
+
+    try:
+        patch_common_modules()
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
+        ):
+            with contextlib.suppress(Exception):
+                urllib.request.urlopen("http://127.0.0.1:1/once", timeout=1)
+    finally:
+        unpatch_common_modules()
+
+    assert opened == ["http://127.0.0.1:1/once"], opened

@@ -51,6 +51,7 @@ def patch_common_modules() -> None:
     try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
     try_wrap_function_wrapper("urllib3._request_methods", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
     try_wrap_function_wrapper("urllib3.request", "RequestMethods.request", wrapped_request_D8CB81E472AF98A2)
+    try_wrap_context("urllib.request", "urlopen", _SsrfUrllibUrlopen)
     try_wrap_context("urllib.request", "OpenerDirector.open", _SsrfOpenerDirectorOpen)
     try_wrap_context("http.client", "HTTPConnection.request", _SsrfHttpConnectionRequest)
     try_wrap_context("http.client", "HTTPConnection.getresponse", _SsrfHttpConnectionGetresponse)
@@ -73,6 +74,7 @@ def unpatch_common_modules():
     try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
     try_unwrap("urllib3._request_methods", "RequestMethods.request")
     try_unwrap("urllib3.request", "RequestMethods.request")
+    try_unwrap_context("urllib.request", "urlopen")
     try_unwrap_context("urllib.request", "OpenerDirector.open")
     try_unwrap_context("http.client", "HTTPConnection.request")
     try_unwrap_context("http.client", "HTTPConnection.getresponse")
@@ -163,6 +165,9 @@ class _ScopedRaspContext(_RaspContext):
 class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     """RASP SSRF analysis around urllib.request.OpenerDirector.open."""
 
+    # The wrapped call's parameter holding the URL; urlopen names it differently.
+    _URL_ARGUMENT = "fullurl"
+
     def __enter__(self) -> "_SsrfOpenerDirectorOpen":
         super().__enter__()
         try:
@@ -185,7 +190,12 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
             return
 
-        url: Any = self._locals().get("fullurl")
+        if core.find_item("full_url") is not None:
+            # An enclosing scope already owns this outgoing request - urlopen above us, or a
+            # requests/urllib3 wrapper - and inspecting again would issue a second SSRF_REQ call.
+            return
+
+        url: Any = self._locals().get(self._URL_ARGUMENT)
         if url.__class__.__name__ == "Request":
             url = url.get_full_url()
         if not (isinstance(url, str) and url):
@@ -286,6 +296,16 @@ def _absolute_downstream_url(connection: Any, path: str) -> str:
         return f"{scheme}://{netloc}{path}"
     except Exception:
         return path
+
+
+class _SsrfUrllibUrlopen(_SsrfOpenerDirectorOpen):
+    """The same analysis on urllib.request.urlopen, whose parameter is named url.
+
+    install_opener accepts any object with an open method, so a custom opener bypasses
+    OpenerDirector.open entirely and would otherwise go uninspected.
+    """
+
+    _URL_ARGUMENT = "url"
 
 
 class _SsrfHttpConnectionRequest(_RaspContext):
