@@ -131,7 +131,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
 
-## AIDEV Anchor Comments
+## AIDE&#x56; Anchor Comments
 
 The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
 

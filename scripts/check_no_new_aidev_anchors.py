@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Fail CI when a branch adds deprecated AIDEV-* anchor comment labels.
+"""Fail CI when a branch adds deprecated anchor comment labels.
 
-The guild deprecated AIDEV-NOTE:, AIDEV-TODO:, and AIDEV-QUESTION:
-in favor of plain inline comments (see AGENTS.md). Existing anchors are
-grandfathered; this check only inspects added diff lines.
+The guild deprecated named anchor labels in favor of plain inline comments
+(see AGENTS.md). Existing anchors are grandfathered; this check only
+inspects added diff lines.
 
 Usage:
 
@@ -19,17 +19,11 @@ import sys
 from typing import Optional
 
 
-# Match Python, C/C++, and Rust comment introducers, plus a bare anchor at the
-# start of a line for anchors inside multiline Python docstrings. The latter
-# also catches block-comment continuation lines.
-ANCHOR_RE: re.Pattern[str] = re.compile(
-    r"(?:#|(?<![\w/:])//[/!]?|/\*)\s*AIDEV-[A-Z][A-Z0-9_-]*:"
-    r"|^\s*\*\s*AIDEV-[A-Z][A-Z0-9_-]*:"
-    r"|^\s*AIDEV-[A-Z][A-Z0-9_-]*:",
-)
+# Deliberately match any occurrence in added lines. False positives are
+# preferable to allowing a new deprecated label to bypass the check.
+ANCHOR_RE: re.Pattern[str] = re.compile(r"AIDE" r"V")
 STRING_RE: re.Pattern[str] = re.compile(r"""(["'`])(?:\\.|(?!\1).)*\1""")
-
-SKIP_PREFIXES: tuple[str, ...] = ("scripts/check_no_new_aidev_anchors.py",)
+TRIPLE_STRING_RE: re.Pattern[str] = re.compile(r'(?:\'\'\'|""").*AIDE' r"V")
 
 
 def _merge_base(base_ref: str) -> str:
@@ -45,7 +39,7 @@ def _merge_base(base_ref: str) -> str:
 def _added_lines(base_ref: str) -> list[tuple[str, str]]:
     merge_base: str = _merge_base(base_ref)
     result: subprocess.CompletedProcess[str] = subprocess.run(  # nosec B603, B607
-        ["git", "diff", "-U0", merge_base, "--", ".", ":(exclude)scripts/check_no_new_aidev_anchors.py"],
+        ["git", "diff", "-U0", merge_base, "--", "."],
         capture_output=True,
         check=True,
         text=True,
@@ -56,8 +50,6 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
         if line.startswith("+++ b/"):
             current_file = line[6:]
             continue
-        if not current_file or any(current_file.startswith(prefix) for prefix in SKIP_PREFIXES):
-            continue
         if not line.startswith("+") or line.startswith("+++"):
             continue
         if _is_anchor_line(line):
@@ -67,6 +59,8 @@ def _added_lines(base_ref: str) -> list[tuple[str, str]]:
 
 def _is_anchor_line(line: str) -> bool:
     content: str = line[1:] if line.startswith("+") else line
+    if TRIPLE_STRING_RE.search(content) is not None:
+        return True
     content_without_strings: str = STRING_RE.sub("", content)
     return ANCHOR_RE.search(content_without_strings) is not None
 
@@ -78,7 +72,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--base-ref", default="origin/main", help="Git ref to diff against.")
     args: argparse.Namespace = parser.parse_args(argv)
 
-    print(f"Checking for new AIDEV anchors vs base ref: {args.base_ref}")
+    print(f"Checking for new deprecated anchors vs base ref: {args.base_ref}")
 
     try:
         violations: list[tuple[str, str]] = _added_lines(args.base_ref)
@@ -87,10 +81,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 1
 
     if not violations:
-        print("OK: no new AIDEV-* anchor comments on added lines.")
+        print("OK: no new deprecated anchor comments on added lines.")
         return 0
 
-    print(f"ERROR: {len(violations)} new deprecated AIDEV anchor(s) found:", file=sys.stderr)
+    print(f"ERROR: {len(violations)} new deprecated anchor(s) found:", file=sys.stderr)
     for path, content in violations:
         print(f"  - {path}: {content}", file=sys.stderr)
     print(

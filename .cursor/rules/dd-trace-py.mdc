@@ -14,7 +14,7 @@ When unsure about implementation details, ALWAYS ask the developer.
 Read and follow `AGENTS.md` for:
 - Project rules (testing, linting, formatting)
 - Key architecture
-- Inline knowledge comments (legacy AIDEV anchors are protected; see AGENTS.md)
+- Inline knowledge comments (`AIDEV` anchors deprecated)
 - PR guidelines
 - Skills reference
 - Domain guides
