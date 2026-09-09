@@ -25,15 +25,16 @@ tests/integration/                  @DataDog/apm-core-python
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
 #      or files which changes often with most PRs
+# tests file are kept under @DataDog/apm-core-python to have a real owner.
 ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
-tests/snapshots/                    @DataDog/apm-python
+tests/snapshots/                    @DataDog/apm-core-python @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 .uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
-tests/telemetry                     @DataDog/apm-python
+tests/telemetry                     @DataDog/apm-core-python @DataDog/apm-python
 supported-configurations.json       @DataDog/apm-python
 ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 
