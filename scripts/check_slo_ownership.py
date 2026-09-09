@@ -83,11 +83,35 @@ def iter_slo_scenarios(text: str):
             j += 1
 
 
-def _configs(suite_name: str) -> set[str]:
+def _configs(suite_name: str, all_slos: Optional[set[str]] = None) -> set[str]:
     cfg = BENCHMARKS / suite_name / "config.yaml"
     if not cfg.exists():
         return set()
-    return set((_YAML.load(cfg.read_text()) or {}).keys())
+    data = _YAML.load(cfg.read_text()) or {}
+    # Skip YAML anchor bases (e.g. `defaults: &defaults`): they define values
+    # other configs inherit via `<<: *defaults` but are not runnable configs
+    # themselves — the benchmark runner crashes on them (missing required
+    # scenario fields) and never produces results. A config is treated as a
+    # pure base if it has an anchor that is referenced by another config's
+    # merge key AND no SLO has been declared for it (a runnable config always
+    # has an SLO; a base never does).
+    merged_anchors: set[str] = set()
+    for v in data.values():
+        for m in getattr(v, "merge", None) or []:
+            mv = getattr(m, "value", m)
+            if getattr(mv, "anchor", None):
+                merged_anchors.add(mv.anchor.value)
+    cls = _get_benchmark_class_name(suite_name)
+    result = set()
+    for k, v in data.items():
+        anchor_val = getattr(v, "anchor", None)
+        anchor_val = anchor_val.value if anchor_val else None
+        if anchor_val and anchor_val in merged_anchors:
+            expected = f"{cls}-{k}" if cls else k
+            if all_slos is None or expected not in all_slos:
+                continue  # pure base, not runnable
+        result.add(k)
+    return result
 
 
 def validate() -> None:
@@ -134,7 +158,7 @@ def validate() -> None:
         suite = class_to_dir.get(cls_lower)
         if suite is None:
             errors.append(f"SLO '{name}' references unknown benchmark class '{cls_lower}'")
-        elif config not in _configs(suite):
+        elif config not in _configs(suite, all_slos):
             errors.append(f"SLO '{name}' references unknown config in benchmarks/{suite}/config.yaml")
 
     for suite_name in suites:
@@ -143,7 +167,7 @@ def validate() -> None:
         if cls is None:
             errors.append(f"benchmarks/{clean_name}/scenario.py has no conformant Scenario subclass")
             continue
-        for config in _configs(clean_name):
+        for config in _configs(clean_name, all_slos):
             expected = f"{cls}-{config}"
             if expected in all_slos:
                 continue

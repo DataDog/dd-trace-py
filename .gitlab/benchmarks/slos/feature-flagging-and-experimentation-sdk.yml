@@ -22,9 +22,6 @@ experiments:
         scenarios:
 
           # openfeatureflagevaluation (class OpenFeatureFlagEvaluation)
-          - name: openfeatureflagevaluation-defaults
-            thresholds:
-              - execution_time < 10000 ms
           - name: openfeatureflagevaluation-aggregate-scale
             thresholds:
               - execution_time < 0.064 ms
