@@ -86,10 +86,10 @@ def _ddtrace_context() -> t.Generator[DDTraceTestContext, None, None]:
     #   1. provide trace_id/span_id for the test run,
     #   2. parent child spans from instrumented libraries inside the test,
     #   3. carry the type=test tag that the Selenium integration checks.
-    # It is never finished through the tracer pipeline: TestOptSpanProcessor discards root
-    # spans anyway (parent_id is None), and child spans are processed independently when
-    # they finish. This saves ~55 us/test vs tracer.trace() + finish() on the per-test
-    # hot path.
+    # It has no finish callbacks, so finishing it only marks it complete; it does not enter
+    # the tracer pipeline. TestOptSpanProcessor discards root spans anyway (parent_id is
+    # None), and child spans are processed independently when they finish. This saves most
+    # of tracer.trace()'s ~55 us/test cost on the per-test hot path.
     root_span = Span(
         name=DDTESTOPT_ROOT_SPAN_RESOURCE,
         resource=DDTESTOPT_ROOT_SPAN_RESOURCE,
@@ -101,6 +101,11 @@ def _ddtrace_context() -> t.Generator[DDTraceTestContext, None, None]:
     try:
         yield DDTraceTestContext(root_span)
     finally:
+        # A copied context (for example, an asyncio task created by the test) can retain
+        # this span after the current context is cleared. Marking it finished lets the
+        # context provider discard that stale reference before creating later spans.
+        # TODO: Keep async-framework coverage for this invariant as context handling evolves.
+        root_span.finish()
         ddtrace.tracer.context_provider.activate(None)
 
 

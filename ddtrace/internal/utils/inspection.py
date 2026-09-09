@@ -55,12 +55,6 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
     while q:
         g = q.popleft()
 
-        # Fast path: the current function already matches. This covers the common
-        # case of a plain, undecorated test function (the input ``f`` itself),
-        # avoiding the full BFS + ``__dir__()`` scan below for no-op benefit.
-        if _isinstance(g, FunctionType) and match(g):
-            return g
-
         # Look for a wrapped function. These attributes are generally used by
         # the decorators provided by the standard library (e.g. partial)
         for attr in ("__wrapped__", "func"):
@@ -123,6 +117,13 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
                         return v
             except AttributeError:
                 pass
+
+        # Fast path: the current function already matches and none of the explicit
+        # wrapper relationships above led to an original function. This covers the
+        # common plain-function case while preserving the original precedence for a
+        # same-name function held by a decorator closure or attribute.
+        if _isinstance(g, FunctionType) and match(g):
+            return g
 
         # Last resort
         try:
