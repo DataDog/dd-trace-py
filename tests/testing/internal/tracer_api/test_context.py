@@ -118,37 +118,28 @@ def test_trace_context_cleans_up_after_exit():
     assert tracer.current_root_span() is None
 
 
-def test_trace_context_finishes_root_retained_by_async_task():
-    import asyncio
+def test_trace_context_finishes_root_retained_by_copied_context():
+    import contextvars
 
     from ddtrace.trace import tracer
 
-    async def exercise_copied_context():
-        resume = asyncio.Event()
+    with _ddtrace_context():
+        root = tracer.current_root_span()
+        copied_context = contextvars.copy_context()
 
-        async def create_span_after_test():
-            await resume.wait()
-            assert tracer.current_root_span() is None
-            child = tracer.trace("after.test")
-            try:
-                return child.parent_id
-            finally:
-                child.finish()
+    def create_span_after_test():
+        assert tracer.current_root_span() is None
+        child = tracer.trace("after.test")
+        try:
+            return child.parent_id
+        finally:
+            child.finish()
 
-        with _ddtrace_context():
-            root = tracer.current_root_span()
-            task = asyncio.create_task(create_span_after_test())
-
-        resume.set()
-        return root, await task
-
-    root, parent_id = asyncio.run(exercise_copied_context())
+    parent_id = copied_context.run(create_span_after_test)
 
     assert root is not None
     assert root.finished
-    # The test runner may install its own surrounding trace context. The important
-    # invariant is that a task retaining this test's context cannot parent later spans
-    # to this test's finished phantom root.
+    # A copied execution context must not retain the finished phantom Span as a parent.
     assert parent_id != root.span_id
 
 

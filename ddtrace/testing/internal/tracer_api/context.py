@@ -101,10 +101,12 @@ def _ddtrace_context() -> t.Generator[DDTraceTestContext, None, None]:
     try:
         yield DDTraceTestContext(root_span)
     finally:
-        # A copied context (for example, an asyncio task created by the test) can retain
-        # this span after the current context is cleared. Marking it finished lets the
-        # context provider discard that stale reference before creating later spans.
-        # TODO: Keep async-framework coverage for this invariant as context handling evolves.
+        # A copied context can retain this span after the current context is cleared.
+        # Marking it finished lets the context provider replace that stale Span reference.
+        # AIDEV-NOTE: When patched, the asyncio integration separately snapshots
+        # root_span.context when creating a task. That Context deliberately remains valid
+        # so work spawned by the test stays parented to this root even after it has finished.
+        # TODO: Keep async-framework coverage for both cleanup and propagation as context handling evolves.
         root_span.finish()
         ddtrace.tracer.context_provider.activate(None)
 
