@@ -25,6 +25,9 @@ from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import DD_TEST_OPTIMIZATION_MANIFEST_FILE
 from ddtrace.testing.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.dynamic_atr_retries import DynamicATRRetriesHandler
+from ddtrace.testing.internal.dynamic_atr_retries import get_retries_buckets
+from ddtrace.testing.internal.dynamic_atr_retries import is_dynamic_retries_enabled
 from ddtrace.testing.internal.env_tags import get_env_tags
 from ddtrace.testing.internal.git import Git
 from ddtrace.testing.internal.git import GitTag
@@ -130,6 +133,10 @@ class SessionManager:
         if self.env is None:
             self.env = self.connector_setup.default_env()
 
+        # Parse these once. When dynamic ATR is disabled, normal ATR stays on its existing path.
+        self._dynamic_retries_enabled = is_dynamic_retries_enabled()
+        self._dynamic_retries_buckets = get_retries_buckets() if self._dynamic_retries_enabled else None
+
         self.api_client: TestOptDataProvider
         # Set only when reads come from a manifest but coverage reports must still be uploaded over HTTP.
         self.coverage_upload_client: t.Optional[TestOptDataProvider] = None
@@ -210,7 +217,7 @@ class SessionManager:
             tm_properties_future = executor.submit(_fetch_test_management_properties)
             skippable_future = executor.submit(_upload_git_and_fetch_skippable)
 
-            self.known_tests: set[TestRef] = known_tests_future.result()
+            self.known_tests = known_tests_future.result()
             self.test_properties: dict[TestRef, TestProperties] = tm_properties_future.result()
             self.skippable_items, self.itr_correlation_id = skippable_future.result()
 
@@ -314,7 +321,11 @@ class SessionManager:
                 log.debug("Not enabling Early Flake Detection: no known tests")
 
         if self.settings.auto_test_retries.enabled:
-            self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
+            if self._dynamic_retries_enabled:
+                self.retry_handlers.append(DynamicATRRetriesHandler(self.settings, self._dynamic_retries_buckets))
+                self.telemetry_api.record_dynamic_atr_retries(self._dynamic_retries_buckets is not None)
+            else:
+                self.retry_handlers.append(AutoTestRetriesHandler(self.settings))
 
     def start(self) -> None:
         self.writer.start()
@@ -578,20 +589,29 @@ class SessionManager:
         return Path(workspace_path) / ".git" / _UPLOAD_LOCK_FILENAME
 
     def cleanup_upload_artifacts(self) -> None:
-        """Delete the upload sentinel and lock files left in .git/.
+        """Delete the upload sentinel file left in .git/.
 
         Safe to call once the session is finishing — by that point all workers
-        have already run upload_git_data() during their __init__, so neither
-        file is needed any more. Should be called only from the controller
+        have already run upload_git_data() during their __init__, so the sentinel
+        is no longer needed. Should be called only from the controller
         process (not xdist workers) so we don't race with a slow-starting peer.
+
+        The lock file (dd-trace-py.upload.lock) is intentionally not
+        removed. If multiple pytest controllers share the same workspace
+        (e.g. a CI matrix that reuses a checkout), deleting the lock file while
+        another controller's worker still holds an flock on it causes the next
+        opener to get a new inode. Locks on the old and new inodes are
+        independent, so two workers can each believe they hold the exclusive
+        lock and unshallow concurrently — reintroducing the very race the lock
+        is meant to prevent. The lock file is a zero-byte placeholder; leaving
+        it in .git/ is harmless.
         """
-        for path in (self._upload_sentinel_path(), self._upload_lock_path()):
-            if path is None:
-                continue
+        sentinel = self._upload_sentinel_path()
+        if sentinel is not None:
             try:
-                path.unlink(missing_ok=True)
+                sentinel.unlink(missing_ok=True)
             except OSError as e:
-                log.debug("Could not remove upload artifact %s: %s", path, e)
+                log.debug("Could not remove upload sentinel %s: %s", sentinel, e)
 
     @contextlib.contextmanager
     def _upload_lock(self) -> t.Iterator[bool]:

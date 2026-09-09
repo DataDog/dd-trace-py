@@ -47,6 +47,7 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import get_test_session_token
 from ddtrace.internal.utils.http import FormData
 from ddtrace.internal.utils.http import multipart
+from ddtrace.internal.utils.inspection import ModuleCodeCollector
 from ddtrace.internal.utils.inspection import linenos
 from ddtrace.internal.utils.inspection import resolved_code_origin
 from ddtrace.internal.utils.inspection import undecorated
@@ -65,7 +66,7 @@ def build_symdb_sender() -> SymDBSender:
     """Build a sender for symbol uploads."""
     timeout_ms = int(UPLOAD_TIMEOUT * 1000)
 
-    if di_config._agentless:
+    if config._agentless_enabled:
         return SymDBSender(
             get_native_runtime(),
             site=config._dd_site,
@@ -249,8 +250,6 @@ class Scope:
                 continue
 
             try:
-                if _isinstance(child, FunctionType):
-                    child = undecorated(child, alias, module_origin)
                 scope = Scope._get_from(child, data)
                 if scope is not None:
                     scopes.append(scope)
@@ -264,6 +263,22 @@ class Scope:
                     )
             except Exception:
                 log.debug("Cannot get child scope %r for module %s", child, module.__name__, exc_info=True)
+
+        # We use the result of the module code collector to get all the code
+        # objects declared in the module. This way we don't have to worry about
+        # decorated functions.
+        code_objects = ModuleCodeCollector.get_code_objects(module)
+        if code_objects is not None:
+            for code in code_objects:
+                try:
+                    scope = Scope._get_from(code, data)
+                except Exception:
+                    log.debug(
+                        "Cannot get child scope for code object %r of module %s", code, module.__name__, exc_info=True
+                    )
+                    continue
+                if scope is not None:
+                    scopes.append(scope)
 
         # usedforsecurity=False: this sha1 computes a git-blob identity hash of the
         # module source, not a security digest. It also prevents IAST from flagging
@@ -526,7 +541,11 @@ class Scope:
         if module_origin is None:
             raise ValueError(f"Cannot get scope of module with no origin '{module.__name__}'")
 
-        return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
+        try:
+            return t.cast(Scope, cls._get_from(module, ScopeData(module_origin, set())))
+        finally:
+            # We no longer need to keep this collection around.
+            ModuleCodeCollector.release(module, "symdb")
 
 
 class ScopeContext:

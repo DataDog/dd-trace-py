@@ -1,10 +1,11 @@
 from collections.abc import Mapping
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
 from typing import TypeVar
 from typing import Union
+from typing import cast
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -20,9 +21,13 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
+
+if TYPE_CHECKING:
+    from ddtrace._trace.span import Span
 
 log = get_logger(__name__)
 
@@ -46,7 +51,7 @@ def _maybe_hash(value: Optional[_T], mode: str) -> Optional[Union[_T, str]]:
     return value
 
 
-def _asm_manual_keep(span: Span) -> None:
+def _asm_manual_keep(span: SpanProtocol) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.constants import TraceSource
     from ddtrace.internal.sampling import SamplingMechanism
@@ -57,10 +62,10 @@ def _asm_manual_keep(span: Span) -> None:
     span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
 
     # set trace source propagation tag (_dd.p.ts) with the ASM bit
-    add_trace_source(span, TraceSource.ASM)
+    add_trace_source(cast("Span", span), TraceSource.ASM)
 
 
-def _handle_metadata(entry_span: Span, prefix: str, metadata: Mapping[str, object]) -> None:
+def _handle_metadata(entry_span: SpanProtocol, prefix: str, metadata: Mapping[str, object]) -> None:
     MAX_DEPTH = 6
     stack: list[tuple[str, Any, int]] = [(prefix, metadata, 1)]
     while stack:
@@ -87,8 +92,8 @@ def _track_user_login_common(
     login: Optional[str] = None,
     name: Optional[str] = None,
     email: Optional[str] = None,
-    span: Optional[Span] = None,
-) -> Optional[Span]:
+    span: Optional[SpanProtocol] = None,
+) -> Optional[SpanProtocol]:
     if span is None:
         span = _asm_request_context.get_entry_span()
     if not span and (current_span := span_bus.get_span()):
@@ -147,7 +152,7 @@ def track_user_login_success_event(
     session_id: Optional[str] = None,
     propagate: bool = False,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
-    span: Optional[Span] = None,
+    span: Optional[SpanProtocol] = None,
 ) -> None:
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
@@ -188,7 +193,7 @@ def track_user_login_success_event(
         role,
         session_id,
         propagate,
-        span,
+        cast("Span", span),
         may_block=False,
     )
     if in_asm_context():
