@@ -1069,3 +1069,63 @@ def test_a_rewriting_opener_publishes_the_url_it_actually_requests():
         unpatch_common_modules()
 
     assert "http://127.0.0.1:1/rewritten" in published, published
+
+
+def test_a_redirect_publishes_the_redirected_url():
+    """urllib follows a redirect by calling OpenerDirector.open again with the new URL.
+
+    The deduplication must not suppress that hop: the redirect target is a different destination
+    and has to be evaluated on its own. It works because the http.client hook discards full_url
+    once it has consumed it, so the nested call no longer sees a matching URL.
+    """
+    from http.server import BaseHTTPRequestHandler
+    from http.server import ThreadingHTTPServer
+    import threading
+    import urllib.request
+
+    class _Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/source":
+                self.send_response(302)
+                self.send_header("Location", "/target")
+                self.end_headers()
+            else:
+                self.send_response(200)
+                self.send_header("Content-Length", "2")
+                self.end_headers()
+                self.wfile.write(b"ok")
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    published = []
+    original = _ScopedRaspContext._open_core_context
+
+    def recording_open(self, name, **kwargs):
+        published.append(kwargs.get("full_url"))
+        return original(self, name, **kwargs)
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "call_waf_callback", return_value=None),
+            mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
+        ):
+            with contextlib.suppress(Exception):
+                urllib.request.urlopen("http://127.0.0.1:{}/source".format(port), timeout=5)
+    finally:
+        unpatch_common_modules()
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert "http://127.0.0.1:{}/source".format(port) in published, published
+    assert any(url and url.endswith("/target") for url in published), published
