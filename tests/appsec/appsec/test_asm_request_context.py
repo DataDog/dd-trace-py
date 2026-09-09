@@ -3,9 +3,7 @@ import logging
 import pytest
 
 from ddtrace.appsec import _asm_request_context
-from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled
 from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.settings.asm import config as asm_config
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
@@ -14,36 +12,6 @@ _TEST_IP = "1.2.3.4"
 _TEST_HEADERS = {"foo": "bar"}
 
 config_asm = {"_asm_enabled": True}
-
-
-@pytest.mark.parametrize("iast_enabled", [False, True])
-def test_iast_disabled_taint_sources(iast_enabled, monkeypatch):
-    # Patch the attribute directly rather than through override_global_config: the latter
-    # enables AppSecIastSpanProcessor (loading IAST for the rest of this suite) and never
-    # undoes it, and iast_disabled_taint_sources reads only this attribute.
-    monkeypatch.setattr(asm_config, "_iast_enabled", iast_enabled)
-    assert _is_iast_taint_source_enabled()
-    with _asm_request_context.iast_disabled_taint_sources():
-        assert _is_iast_taint_source_enabled() is not iast_enabled
-    assert _is_iast_taint_source_enabled()
-
-
-@pytest.mark.subprocess(env={"DD_IAST_ENABLED": "false", "DD_APPSEC_ENABLED": "false"})
-def test_iast_source_suppression_does_not_import_iast():
-    import sys
-
-    from ddtrace.appsec import _asm_request_context
-    from ddtrace.appsec._iast_context import _is_iast_taint_source_enabled
-    from ddtrace.internal.settings.asm import config as asm_config
-
-    assert "ddtrace.appsec._iast" not in sys.modules
-    asm_config._iast_enabled = True
-    with _asm_request_context.iast_disabled_taint_sources():
-        # Assert suppression actually happened: a nullcontext would also import no IAST.
-        assert not _is_iast_taint_source_enabled()
-        assert "ddtrace.appsec._iast" not in sys.modules
-    assert _is_iast_taint_source_enabled()
-    assert "ddtrace.appsec._iast" not in sys.modules
 
 
 def test_context_set_and_reset():

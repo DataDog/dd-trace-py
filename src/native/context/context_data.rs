@@ -97,7 +97,7 @@ fn materialize_otel_sampling_decision_fn(py: Python<'_>) -> PyResult<Bound<'_, P
 }
 
 fn dd_trace_tracestate_max_bytes(py: Python<'_>) -> PyResult<usize> {
-    // AIDEV-NOTE: Python owns the propagation limits. Resolve this lazily to avoid
+    // Python owns the propagation limits. Resolve this lazily to avoid
     // making ddtrace.internal.constants import the native extension during startup.
     cached_const::<usize>(
         py,
@@ -148,7 +148,7 @@ pub struct Context {
     pub is_remote: bool,
     #[pyo3(get, set, name = "_reactivate")]
     pub reactivate: bool,
-    // AIDEV-NOTE: Child contexts point otel_sampling_state_owner at the trace's
+    // Child contexts point otel_sampling_state_owner at the trace's
     // owning Context. This keeps pending propagation state visible across copies
     // without allocating a holder or storing control data in meta/metrics.
     #[pyo3(get, set, name = "_otel_sampling_state_data")]

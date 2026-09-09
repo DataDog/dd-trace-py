@@ -13,7 +13,6 @@ from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
-from ddtrace.contrib.trace_utils import iswrapped
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
@@ -42,10 +41,7 @@ config._add(
 def get_version() -> str:
     from importlib.metadata import version
 
-    try:
-        return version("mcp")
-    except Exception:
-        return ""
+    return version("mcp")
 
 
 def _supported_versions() -> dict[str, str]:
@@ -285,20 +281,12 @@ def patch():
     if getattr(mcp, "__datadog_patch", False):
         return
 
-    # Claimed before the imports below so a concurrent patch() cannot clear the
-    # guard above and wrap everything a second time.
     mcp.__datadog_patch = True
-
-    try:
-        from mcp.client.session import ClientSession
-        from mcp.shared.session import BaseSession
-        from mcp.shared.session import RequestResponder
-    except ImportError:
-        mcp.__datadog_patch = False
-        log.debug("mcp is importable but is not the MCP SDK, skipping instrumentation")
-        return
-
     mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
+
+    from mcp.client.session import ClientSession
+    from mcp.shared.session import BaseSession
+    from mcp.shared.session import RequestResponder
 
     wrap(ClientSession, "__aenter__", traced_client_session_aenter)
     wrap(ClientSession, "__aexit__", traced_client_session_aexit)
@@ -306,12 +294,9 @@ def patch():
     wrap(ClientSession, "call_tool", traced_call_tool)
     wrap(ClientSession, "list_tools", traced_client_session_list_tools)
     wrap(ClientSession, "initialize", traced_client_session_initialize)
+    wrap(RequestResponder, "__enter__", traced_request_responder_enter)
+    wrap(RequestResponder, "__exit__", traced_request_responder_exit)
     wrap(RequestResponder, "respond", traced_request_responder_respond)
-
-    # RequestResponder gained the context manager protocol in mcp 1.3.0.
-    if hasattr(RequestResponder, "__enter__") and hasattr(RequestResponder, "__exit__"):
-        wrap(RequestResponder, "__enter__", traced_request_responder_enter)
-        wrap(RequestResponder, "__exit__", traced_request_responder_exit)
 
 
 def unpatch():
@@ -320,8 +305,6 @@ def unpatch():
 
     mcp.__datadog_patch = False
 
-    # Only reachable with __datadog_patch set, which patch() leaves set only
-    # when these imports succeeded, so they cannot fail here.
     from mcp.client.session import ClientSession
     from mcp.shared.session import BaseSession
     from mcp.shared.session import RequestResponder
@@ -332,11 +315,8 @@ def unpatch():
     unwrap(ClientSession, "call_tool")
     unwrap(ClientSession, "list_tools")
     unwrap(ClientSession, "initialize")
+    unwrap(RequestResponder, "__enter__")
+    unwrap(RequestResponder, "__exit__")
     unwrap(RequestResponder, "respond")
-
-    # Only wrapped on mcp >= 1.3.0, see patch().
-    if iswrapped(RequestResponder, "__enter__"):
-        unwrap(RequestResponder, "__enter__")
-        unwrap(RequestResponder, "__exit__")
 
     delattr(mcp, "_datadog_integration")

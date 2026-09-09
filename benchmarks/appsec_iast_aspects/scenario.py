@@ -6,19 +6,11 @@ from bm.iast_utils import asm_config
 from bm.utils import override_env
 
 from ddtrace.appsec._iast import enable_iast_propagation
+from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_free_slots_number
 from ddtrace.appsec._iast._taint_tracking._context import debug_context_array_size
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-
-
-# The microbenchmark suite runs this scenario against both the candidate wheel and the
-# merge-base wheel, so every import here has to resolve on both.
-try:
-    from ddtrace.appsec._iast._taint_tracking._context import _num_objects_tainted_in_request
-except ImportError:
-    # older wheels, where _iast_request_context_base re-exported it
-    from ddtrace.appsec._iast._iast_request_context_base import _num_objects_tainted_in_request
 
 
 with override_env(IAST_ENV):

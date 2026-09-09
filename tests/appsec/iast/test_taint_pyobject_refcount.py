@@ -7,12 +7,12 @@ def test_taint_pyobject_in_copied_context_returns_owned_reference():
     import os
     import sys
 
+    from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
     from ddtrace.appsec._iast._taint_tracking import OriginType
     from ddtrace.appsec._iast._taint_tracking import initialize_native_state
     from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
     from ddtrace.appsec._iast._taint_tracking._context import start_request_context
     from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-    from ddtrace.appsec._iast_context import IAST_CONTEXT
 
     initialize_native_state()
     context_id = start_request_context()
@@ -35,7 +35,7 @@ def test_taint_pyobject_in_copied_context_returns_owned_reference():
     refcount_after = sys.getrefcount(value)
 
     if returned is not value or refcount_after != refcount_before + 1:
-        # AIDEV-NOTE: Avoid normal cleanup: both names appear to own the same
+        # Avoid normal cleanup: both names appear to own the same
         # reference, which can turn this deterministic check into a UAF crash.
         os._exit(1)
 

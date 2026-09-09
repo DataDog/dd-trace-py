@@ -24,12 +24,13 @@ import hashlib
 import importlib
 import os
 import re
-import shlex
 import subprocess
 import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
+BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
+BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
 
 
 def _ddtest_module():
@@ -140,9 +141,7 @@ class JobSpec:
             lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            # Retry up to twice on transient pip network failures; service-check
-            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
-            lines.append(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}")
+            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
 
         env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
@@ -214,10 +213,6 @@ TARGET_JOBS = 200
 
 # All supported Python versions (fallback when no venv info is available)
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-
-
-def _shell_environment(environment: dict[str, str]) -> str:
-    return shlex.join(f"{name}={value}" for name, value in environment.items())
 
 
 def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
@@ -301,7 +296,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
                     environment.lockfile,
                     run.environment.get("DDTEST_TESTS_LOCATION", ""),
                     command,
-                    _shell_environment(run.environment),
+                    " ".join(f"{name}={value}" for name, value in run.environment.items()),
                 )
         result[suite] = SuiteVenvInfo(
             venv_count=len(environments),
@@ -497,40 +492,38 @@ microbenchmark-noop:
     _filter_benchmarks_slos_file(benchmark_classnames)
 
 
+def _get_benchmark_class_name(suite_name: str) -> str:
+    contents = Path(f"benchmarks/{suite_name}/scenario.py").read_text()
+    for line in contents.split("\n"):
+        match = re.match(BENCHMARK_CLASS_REGEX, line)
+        if match:
+            return match.group(1).lower()
+
+
 def _filter_benchmarks_slos_file(classnames: list) -> None:
-    # Merge the per-team SLO source files under slos/ (each owned by a team via
-    # CODEOWNERS) into the single generated file consumed by check-slo-breaches,
-    # keeping only scenarios whose benchmark class is in this pipeline.
-    kept_blocks: list[list[str]] = []
-    for src in sorted(MICROBENCHMARKS_SLOS_DIR.glob("*.yml")):
-        for class_prefix, block in iter_slo_scenarios(src.read_text()):
-            if class_prefix in classnames:
-                kept_blocks.append(block)
+    in_scenario_to_keep = True
+    new_contents = []
+    kept_scenarios = 0
+    contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
 
-    header = [
-        "experiments:",
-        "  - name: SLO Check",
-        "    steps:",
-        "      - name: SLO Check",
-        "        run: fail_on_breach",
-        "        scenarios: []" if not kept_blocks else "        scenarios:",
-    ]
-    out = header
-    for block in kept_blocks:
-        out.extend(block)
-    MICROBENCHMARKS_SLOS.write_text("\n".join(out) + "\n")
+    for line in contents.split("\n")[1:]:
+        match = re.match(BENCHMARK_SCENARIO_REGEX, line)
+        if match:
+            class_on_line = match.group(1)
+            if class_on_line in classnames:
+                in_scenario_to_keep = True
+                kept_scenarios += 1
+            else:
+                in_scenario_to_keep = False
+        if line.strip().startswith("#"):
+            in_scenario_to_keep = False
+        if in_scenario_to_keep:
+            new_contents.append(line)
 
+    if kept_scenarios == 0:
+        new_contents[-1] = "scenarios: []"
 
-def gen_validate_slos() -> None:
-    """Validate microbenchmark SLO structural integrity (no orphans/duplicates).
-
-    Delegates to scripts/check_slo_ownership.py so the same checks run both in
-    the tests-gen CI job (via this generator) and locally via
-    `scripts/lint slo-ownership`.
-    """
-    from check_slo_ownership import validate as _validate_slos
-
-    _validate_slos()
+    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
 
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
@@ -781,16 +774,6 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
-        name="Check microbenchmark SLO ownership",
-        command="scripts/lint slo-ownership",
-        paths={
-            ".gitlab/benchmarks/slos/*",
-            "benchmarks/*",
-            "scripts/check_slo_ownership.py",
-            "scripts/lint",
-        },
-    )
-    check(
         name="Check suitespec duplicates",
         command="scripts/lint suitespec-duplicates",
         paths={"*"},
@@ -960,16 +943,12 @@ if args.files:
     _needs_testrun._changed_files_override = set(args.files)
 
 ROOT = Path(__file__).parents[1]
-BENCHMARKS = ROOT / "benchmarks"
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
-# Source-of-truth SLO thresholds live in one per-team file under slos/, each
-# owned by its team via .github/CODEOWNERS. gen_gitlab_config merges these into
-# the single generated MICROBENCHMARKS_SLOS file consumed by check-slo-breaches.
-MICROBENCHMARKS_SLOS_DIR = GITLAB / "benchmarks" / "slos"
+MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
 
 # Compute a short hash of the testrunner image so cache keys are automatically
 # invalidated whenever the image changes (e.g. Python patch version bumps).
@@ -982,12 +961,6 @@ TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
-
-# Single source of truth for the benchmark SLO naming regexes lives in
-# check_slo_ownership.py; import them here so both this generator and the
-# linter stay in sync.
-from check_slo_ownership import _get_benchmark_class_name  # noqa: E402
-from check_slo_ownership import iter_slo_scenarios  # noqa: E402
 
 
 def template(name: str, **params):

@@ -21,10 +21,12 @@ There are a few reasons why a developer would use `build_standalone.sh`:
 * build the code with static analysis tools
 
 
-### CI
+### But
 
-Note that `build_standalone.sh` runs in GitLab's `profiling_native` jobs with the `stack_test` target.
-This runs all `dd_wrapper` and stack tests through CTest, with unsanitized, sanitizer, and Valgrind configurations.
+Note that `build_standalone.sh` is not currently part of this repo's release discipline, and if/when it is it will be run in a very prescriptive way in CI.
+Thus, it's likely that this tool will not have the nice interface, error handling, and attention to detail one would expect from a first-class tool.
+What does this mean for you?
+Only that the tool may behave in unexpected and undelightful ways.
 
 
 ### Notes
@@ -74,12 +76,12 @@ It does work pretty well for `dd_wrapper`, though.
 
 #### Tests
 
-Native tests run through CTest, separately from the Python profiling tests.
-They are not built or packaged by `setup.py`.
-Add the `_test` suffix to a target name. The `stack_test` target also builds and runs the `dd_wrapper` tests:
+Some components have tests.
+Ideally these tests will be integrated into the repo's `pytest` system, but sometimes it's not convenient to do so.
+For now, add the `_test` suffix to a target name.
 
 ```sh
-./build_standalone.sh -- RelWithDebInfo stack_test
+./build_standalone.sh -- -- all_test
 ```
 
 
@@ -94,5 +96,5 @@ The code can be built with sanitizers.
 It can be useful to test with sanitizers enabled.
 
 ```sh
-./build_standalone.sh --safety RelWithDebInfo stack_test
+./build_standalone.sh --safety -- dd_wrapper_test
 ```
