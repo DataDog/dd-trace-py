@@ -19,7 +19,6 @@ import platform
 import subprocess
 import sys
 import tempfile
-from typing import TYPE_CHECKING
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -27,22 +26,21 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
 from scripts.check_lockfile_cooldown import main as check_lockfile_cooldown  # noqa: E402
-
-
-if TYPE_CHECKING:
-    from tests.suitespec import TestEnvironment
+from tests.suitespec import LOCK_PLATFORM  # noqa: E402
+from tests.suitespec import LOCK_ROOT  # noqa: E402
+from tests.suitespec import TestEnvironment  # noqa: E402
+from tests.suitespec import get_test_environments  # noqa: E402
 
 
 class LockError(RuntimeError):
     """Raised when concrete test-environment locks cannot be generated."""
 
 
-def _resolve_environments(
-    matrices: Mapping[str, tuple[TestEnvironment, ...]], requested: Sequence[str]
+def _select_named_environments(
+    environments: Sequence[TestEnvironment], requested: Sequence[str]
 ) -> tuple[TestEnvironment, ...]:
-    environments = tuple(environment for suite in matrices.values() for environment in suite)
     if not requested:
-        return environments
+        return tuple(environments)
 
     names = set(requested)
     unknown = sorted(names - {environment.name for environment in environments})
@@ -51,17 +49,9 @@ def _resolve_environments(
     return tuple(environment for environment in environments if environment.name in names)
 
 
-def select_environments(requested: Sequence[str] = ()) -> tuple[TestEnvironment, ...]:
-    from tests.suitespec import get_test_environments
-
-    matrices = get_test_environments(nightly=False)
-    return _resolve_environments(matrices, requested)
-
-
-def _select_suite_environments(suite: str | None) -> tuple[TestEnvironment, ...]:
-    from tests.suitespec import get_test_environments
-
-    matrices = get_test_environments(nightly=False)
+def _select_suite_environments(
+    matrices: Mapping[str, tuple[TestEnvironment, ...]], suite: str | None
+) -> tuple[TestEnvironment, ...]:
     if suite is None:
         return tuple(environment for environments in matrices.values() for environment in environments)
     if suite not in matrices:
@@ -74,15 +64,17 @@ def _select_suite_environments(suite: str | None) -> tuple[TestEnvironment, ...]
     return matrices[suite]
 
 
-def list_hashes(suite: str | None = None, python_version: str | None = None) -> tuple[str, ...]:
-    environments = _select_suite_environments(suite)
+def _list_hashes(
+    matrices: Mapping[str, tuple[TestEnvironment, ...]], suite: str | None, python_version: str | None
+) -> tuple[str, ...]:
+    environments = _select_suite_environments(matrices, suite)
     matches = [
         environment for environment in environments if python_version is None or environment.python == python_version
     ]
     if not matches:
         target = f" for {suite}" if suite else ""
         version = f" using Python {python_version}" if python_version else ""
-        raise LockError(f"no test locks found{target}{version}")
+        raise LockError(f"no test environments found{target}{version}")
     return tuple(sorted({environment.lock_hash for environment in matches}))
 
 
@@ -104,8 +96,6 @@ def compile_environment(
     exclude_newer: str,
     upgrade: bool,
 ) -> str:
-    from tests.suitespec import LOCK_PLATFORM
-
     if not environment.riot_lock_dependencies:
         raise LockError(f"environment has no dependencies: {environment.lock_hash}")
 
@@ -175,24 +165,20 @@ def _unique_lock_environments(environments: Sequence[TestEnvironment]) -> dict[P
     return unique
 
 
-def _lock_inventory() -> tuple[set[Path], set[Path]]:
-    from tests.suitespec import LOCK_ROOT
-
-    expected = set(_unique_lock_environments(select_environments()))
+def _lock_inventory(environments: Sequence[TestEnvironment]) -> tuple[set[Path], set[Path]]:
+    expected = set(_unique_lock_environments(environments))
     root = PROJECT_ROOT / LOCK_ROOT
     committed = {path.relative_to(PROJECT_ROOT) for path in root.glob("*.txt")}
     return expected, committed
 
 
-def generate_locks(
-    requested: Sequence[str] = (),
+def _generate_locks(
+    environments: Sequence[TestEnvironment],
+    all_environments: Sequence[TestEnvironment],
     *,
     jobs: int = 4,
     upgrade: bool = False,
-    command: str = "lock",
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
-    _require_lock_platform(command)
-    environments = select_environments(requested)
     if not environments:
         raise LockError("no concrete test environments selected")
 
@@ -228,29 +214,15 @@ def generate_locks(
         _write_lock(PROJECT_ROOT / lockfile, compiled[lockfile])
         written.append(lockfile)
 
-    expected, committed = _lock_inventory()
+    expected, committed = _lock_inventory(all_environments)
     pruned = sorted(committed - expected)
     for lockfile in pruned:
         (PROJECT_ROOT / lockfile).unlink()
     return tuple(written), tuple(pruned)
 
 
-def refresh_locks(
-    requested: str | None = None, *, jobs: int = 4
-) -> tuple[tuple[str, ...], tuple[Path, ...], tuple[Path, ...]]:
-    environments = select_environments((requested,) if requested else ())
-    names = tuple(dict.fromkeys(environment.name for environment in environments))
-    written, pruned = generate_locks((requested,) if requested else (), jobs=jobs, upgrade=True, command="refresh")
-    with redirect_stdout(sys.stderr):
-        cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
-    if cooldown_status:
-        target = requested or "all test environments"
-        raise LockError(f"cooldown validation failed for {target}")
-    return names, written, pruned
-
-
-def check_locks() -> int:
-    expected, committed = _lock_inventory()
+def _check_locks(environments: Sequence[TestEnvironment]) -> int:
+    expected, committed = _lock_inventory(environments)
     missing = sorted(expected - committed)
     obsolete = sorted(committed - expected)
     errors = []
@@ -278,29 +250,41 @@ def main(argv: Sequence[str] | None = None) -> int:
     refresh_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
     args = parser.parse_args(argv)
 
+    matrices = get_test_environments(nightly=False)
+    environments = _select_suite_environments(matrices, None)
     try:
-        if args.command == "check":
-            count = check_locks()
-            print(f"Validated {count} concrete test locks.")
-            return 0
         if args.command == "list":
-            for lock_hash in list_hashes(args.suite, args.python):
+            for lock_hash in _list_hashes(matrices, args.suite, args.python):
                 print(lock_hash)
             return 0
-        if args.command == "refresh":
-            names, written, pruned = refresh_locks(args.name, jobs=args.jobs)
-            print(
-                f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s).",
-                file=sys.stderr,
-            )
-            for name in names:
-                print(name)
+        if args.command == "check":
+            print(f"Validated {_check_locks(environments)} concrete test locks.")
             return 0
-        written, pruned = generate_locks(args.names, jobs=args.jobs)
+
+        _require_lock_platform(args.command)
+        requested = args.names if args.command == "lock" else ((args.name,) if args.name else ())
+        selected = _select_named_environments(environments, requested)
+        written, pruned = _generate_locks(
+            selected,
+            environments,
+            jobs=args.jobs,
+            upgrade=args.command == "refresh",
+        )
+        message = f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s)."
+        if args.command == "lock":
+            print(message)
+            return 0
+
+        with redirect_stdout(sys.stderr):
+            cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
+        if cooldown_status:
+            raise LockError(f"cooldown validation failed for {args.name or 'all test environments'}")
+        print(message, file=sys.stderr)
+        for name in dict.fromkeys(environment.name for environment in selected):
+            print(name)
+        return 0
     except LockError as error:
         parser.error(str(error))
-    print(f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s).")
-    return 0
 
 
 if __name__ == "__main__":

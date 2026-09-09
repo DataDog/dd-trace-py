@@ -165,6 +165,15 @@ the locks and commit both changes:
 Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
 environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
 
+Use ``scripts/test-env`` to inspect and maintain locks:
+
+* ``list [suite]`` prints declared lock hashes for a full or unambiguous short suite name.
+* ``check`` reports missing or obsolete lock files across all environments.
+* ``lock [environment-name ...]`` generates missing locks for exact environment names.
+* ``refresh [environment-name]`` upgrades locks for one exact environment name.
+
+Without a suite or environment name, ``list``, ``lock``, and ``refresh`` operate on all environments.
+
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
 
