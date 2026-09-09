@@ -35,10 +35,10 @@ def target_arch(system: str, machine: str, is_64bit: bool = True) -> str:
     system and machine are platform.system() and platform.machine() values of
     the target, which is not the build machine for a cross build.
     """
-    machine = machine.lower()
-    if system == "Windows" and machine == "amd64" and not is_64bit:
-        machine = "x86"
-    return TRANSLATE_ARCH.get(machine, machine)
+    arch = machine.lower()
+    if system == "Windows" and arch == "amd64" and not is_64bit:
+        arch = "x86"
+    return TRANSLATE_ARCH.get(arch, arch)
 
 
 def library_name(system: str) -> str:
