@@ -3002,13 +3002,6 @@
         "default": "false"
       }
     ],
-    "DD_PROFILING_NATIVE_TESTS": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_PROFILING_OUTPUT_PPROF": [
       {
         "implementation": "A",
