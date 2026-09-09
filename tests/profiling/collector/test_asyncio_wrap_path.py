@@ -17,7 +17,6 @@ from types import CodeType
 from typing import Any
 from typing import Callable
 from typing import Iterator
-from typing import Optional
 
 import pytest
 
@@ -73,6 +72,7 @@ def test_asyncio_hooks_use_wrap_below_315() -> None:
     import sys
     from types import FunctionType
     from types import ModuleType
+    from typing import Optional
     from typing import cast
 
     from ddtrace.internal.datadog.profiling import stack
