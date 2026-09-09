@@ -1,5 +1,7 @@
 #pragma once
 
+#include <echion/frame.h>
+
 #include <cstdint>
 #include <optional>
 #include <random>
@@ -7,7 +9,6 @@
 #include <unordered_set>
 
 #include <echion/cache.h>
-#include <echion/frame.h>
 #include <echion/strings.h>
 #include <echion/threads.h>
 

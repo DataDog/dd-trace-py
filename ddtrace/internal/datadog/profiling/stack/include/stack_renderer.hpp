@@ -1,12 +1,12 @@
 #pragma once
 
+#include "python_headers.hpp"
+
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-
-#include "python_headers.hpp"
 
 #include "dd_wrapper/include/sample.hpp"
 

@@ -1,6 +1,7 @@
+#include "_memalloc_frame.h"
+
 #include <string_view>
 
-#include "_memalloc_frame.h"
 #include "_memalloc_tb.h"
 
 /* Extract a UTF-8 string_view from a Python unicode object without any

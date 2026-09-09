@@ -1,5 +1,6 @@
-#include <echion/danger.h>
 #include <echion/state.h>
+
+#include <echion/danger.h>
 
 #include <algorithm>
 #include <cassert>

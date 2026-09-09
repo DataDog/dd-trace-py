@@ -10,6 +10,9 @@
 
 #pragma once
 
+// Establish Python configuration before system headers in every harness.
+#include <echion/frame.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
