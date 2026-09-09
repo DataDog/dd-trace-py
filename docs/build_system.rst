@@ -231,6 +231,17 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.10.0:
 
+  DD_USE_SYSTEM_LIBDDWAF:
+    type: Boolean
+    default: False
+
+    description: |
+        If set to 1, the build links against the libddwaf installed on the build system instead of downloading the prebuilt
+        binaries from GitHub releases (see the "System-provided libddwaf" section below). Linux only.
+
+    version_added:
+        v4.16.0:
+
   DD_SETUP_CACHE_DOWNLOADS:
     type: Boolean
     default: True
@@ -293,6 +304,33 @@ These environment variables modify aspects of the build process.
     description: |
         Override the output filename for ``DebugMetadata`` timing data when ``_DD_DEBUG_EXT``
         is set.
+
+System-provided libddwaf
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default the build downloads the prebuilt libddwaf binaries from GitHub releases and bundles the one matching the target
+architecture into the package. Distribution packagers that must build everything from source in an offline environment, and
+that already package libddwaf as a system library, can instead build with:
+
+.. code-block:: bash
+
+    DD_USE_SYSTEM_LIBDDWAF=1 pip install .
+
+In that mode nothing is downloaded. The build locates the library with ``pkg-config`` and records its resolved absolute path
+in a ``libddwaf.link`` text file placed where the bundled library would live; the runtime loader falls back to that path when
+no library is bundled. A text file is used instead of a symlink because symlinks do not survive wheel archiving.
+
+Prerequisites and limitations:
+
+- Linux only. The build fails on other platforms, and on architectures for which ddtrace does not ship a libddwaf artifact.
+- ``pkg-config`` and the libddwaf development files (``libddwaf.pc``) must be installed. The build fails if either is missing.
+- Only libddwaf 2.x is accepted: the ``ctypes`` bindings follow the 2.x C ABI, so a 1.x or a future major version is rejected
+  at build time. A 2.x other than the version pinned in ``setup.py`` is accepted with a warning.
+- The recorded path is absolute and is resolved through the development symlink (``libddwaf.so`` to ``libddwaf.so.2``), so the
+  package depends on that exact file being present at runtime. Packaging must declare a dependency on the libddwaf runtime
+  package.
+- Each package contains exactly one libddwaf: switching between the default and the system mode rebuilds the artifact
+  directory, so a bundled library never shadows a recorded path and vice versa.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

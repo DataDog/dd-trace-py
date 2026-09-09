@@ -2,6 +2,7 @@ import atexit
 import contextlib
 from dataclasses import dataclass
 import hashlib
+import importlib.util
 from itertools import chain
 import json
 import os
@@ -167,6 +168,21 @@ SERVERLESS_BUILD = os.getenv("DD_SERVERLESS_BUILD", "0").lower() in ("1", "yes",
 WHEEL_FLAVOR = "-serverless" if SERVERLESS_BUILD else ""
 
 LIBDDWAF_VERSION = "2.0.1"
+# Link against a system-provided libddwaf located with pkg-config instead of
+# downloading the prebuilt binaries. See docs/build_system.rst.
+USE_SYSTEM_LIBDDWAF = _env_truthy("DD_USE_SYSTEM_LIBDDWAF")
+
+
+def _load_module(name: str, path: Path):
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+# The build and the runtime must agree on the artifact layout, so both use this
+# module; loading it by path avoids importing ddtrace at build time.
+libddwaf_platform = _load_module("libddwaf_platform", DDTRACE_DIR / "internal" / "_libddwaf_platform.py")
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v35.0.0 requires rust 1.87.0.
@@ -489,19 +505,9 @@ class LibraryDownload:
     translate_suffix: dict[str, tuple[str, ...]] = {}
 
     @classmethod
-    def download_artifacts(cls):
-        suffixes = cls.translate_suffix[CURRENT_OS]
-        download_dir = Path(cls.download_dir)
-        download_dir.mkdir(parents=True, exist_ok=True)  # No need to check if it exists
-
-        # If the version has changed since the last download, wipe and re-fetch.
-        # This ensures version bumps are picked up even in incremental builds where
-        # CleanLibraries.remove_artifacts() is skipped.
-        version_sentinel = download_dir / ".version"
-        if cls.version and version_sentinel.exists() and version_sentinel.read_text().strip() != cls.version:
-            shutil.rmtree(download_dir)
-            download_dir.mkdir(parents=True, exist_ok=True)
-
+    def target_arches(cls) -> list[str]:
+        """Architectures this build must ship libraries for."""
+        arches = []
         for arch in cls.available_releases[CURRENT_OS]:
             if CURRENT_OS == "Linux" and not get_platform().endswith(arch):
                 # We cannot include the dynamic libraries for other architectures here.
@@ -522,7 +528,25 @@ class LibraryDownload:
                     continue  # Skip ARM64 builds on non-ARM64 machines
                 elif arch == "x64" and platform.machine().lower() not in ["amd64", "x86_64"]:
                     continue  # Skip x64 builds on non-x64 machines
+            arches.append(arch)
+        return arches
 
+    @classmethod
+    def download_artifacts(cls):
+        suffixes = cls.translate_suffix[CURRENT_OS]
+        download_dir = Path(cls.download_dir)
+        download_dir.mkdir(parents=True, exist_ok=True)  # No need to check if it exists
+
+        # If the version has changed since the last download, wipe and re-fetch.
+        # This ensures version bumps are picked up even in incremental builds where
+        # CleanLibraries.remove_artifacts() is skipped.  The sentinel also records
+        # a system-library build, so switching back to bundled libraries wipes it.
+        version_sentinel = download_dir / ".version"
+        if cls.version and version_sentinel.exists() and version_sentinel.read_text().strip() != cls.version:
+            shutil.rmtree(download_dir)
+            download_dir.mkdir(parents=True, exist_ok=True)
+
+        for arch in cls.target_arches():
             arch_dir = download_dir / arch
 
             # A source checkout can be shared between host and container builds.
@@ -629,6 +653,7 @@ class LibDDWafDownload(LibraryDownload):
         "Linux": ["aarch64", "x86_64"],
     }
     translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
+    SYSTEM_SENTINEL = "system"
 
     @classmethod
     def get_package_name(cls, arch, os):
@@ -643,6 +668,69 @@ class LibDDWafDownload(LibraryDownload):
         else:
             archive_dir = "lib%s-%s-%s-%s.tar.gz" % (cls.name, cls.version, os_name, arch)
         return archive_dir
+
+    @classmethod
+    def run(cls) -> None:
+        if USE_SYSTEM_LIBDDWAF:
+            cls.link_system_library()
+        else:
+            libddwaf_platform.remove_link_files(cls.download_dir)
+            cls.download_artifacts()
+
+    @classmethod
+    def pkg_config(cls, *args: str) -> str:
+        try:
+            query = subprocess.run(
+                ["pkg-config", *args, "lib%s" % cls.name],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+                text=True,
+            )
+        except FileNotFoundError:
+            raise RuntimeError("DD_USE_SYSTEM_LIBDDWAF requires pkg-config, which was not found") from None
+        except subprocess.CalledProcessError as exc:
+            raise RuntimeError("pkg-config could not query lib%s: %s" % (cls.name, exc.stderr.strip() or exc)) from None
+        return query.stdout.strip()
+
+    @classmethod
+    def link_system_library(cls) -> None:
+        """Record the location of a system-provided libddwaf.
+
+        Locate the library installed on the build system with pkg-config and
+        record its resolved path where the bundled library would live, so that
+        nothing has to be downloaded.  Intended for distribution packagers that
+        must build everything from source; see docs/build_system.rst.
+        """
+        if CURRENT_OS != "Linux":
+            raise RuntimeError("DD_USE_SYSTEM_LIBDDWAF is only supported on Linux, not on %s" % CURRENT_OS)
+        arches = cls.target_arches()
+        if len(arches) != 1:
+            raise RuntimeError(
+                "DD_USE_SYSTEM_LIBDDWAF needs exactly one target architecture, got %s for platform %s"
+                % (arches or "none", get_platform())
+            )
+
+        version = cls.pkg_config("--modversion")
+        abi_error = libddwaf_platform.abi_error(version)
+        if abi_error is not None:
+            raise RuntimeError("system lib%s %s is not usable: %s" % (cls.name, version, abi_error))
+        if version != cls.version:
+            print(
+                "WARNING: system lib%s version %s does not match the version %s pinned by ddtrace"
+                % (cls.name, version, cls.version)
+            )
+
+        library = Path(cls.pkg_config("--variable=libdir")) / libddwaf_platform.library_name(CURRENT_OS)
+        if not library.exists():
+            raise FileNotFoundError("system lib%s not found at %s" % (cls.name, library))
+        # Resolve symlinks so the recorded path stays valid at runtime even when
+        # the development symlink (libddwaf.so -> libddwaf.so.X) is not installed.
+        target = library.resolve()
+
+        libddwaf_platform.stage_system_library(str(cls.download_dir), arches[0], str(target))
+        (Path(cls.download_dir) / ".version").write_text(cls.SYSTEM_SENTINEL)
+        print("Using system lib%s %s: %s" % (cls.name, version, target))
 
 
 # Source/build file extensions that should never appear in a binary wheel.

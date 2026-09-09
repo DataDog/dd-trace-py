@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    AAP: Adds the build-time option ``DD_USE_SYSTEM_LIBDDWAF`` (default ``false``, Linux only).
+    When set to ``1``, the build links against the libddwaf installed on the build system,
+    located with ``pkg-config``, instead of downloading the prebuilt binaries from GitHub
+    releases. This is intended for distribution packagers that must build from source; only
+    libddwaf 2.x is accepted, and the library must remain installed at runtime.
