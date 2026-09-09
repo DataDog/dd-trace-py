@@ -1170,6 +1170,7 @@ def test_writer_telemetry_enabled_on_linux(
         "set_language_interpreter",
         "set_tracer_version",
         "set_git_commit_sha",
+        "set_runtime_id",
         "set_client_computed_top_level",
         "set_input_format",
         "set_output_format",
@@ -1208,6 +1209,7 @@ def test_otlp_metric_tags_configured():
         "set_language_interpreter",
         "set_tracer_version",
         "set_git_commit_sha",
+        "set_runtime_id",
         "set_client_computed_top_level",
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
