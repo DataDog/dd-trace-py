@@ -24,6 +24,7 @@ class Uploader
     std::string process_tags;
 
     bool export_to_file(ddog_prof_EncodedProfile& encoded, std::string_view internal_metadata_json);
+    void drop_exporter();
 
   public:
     bool upload();
@@ -71,7 +72,7 @@ class Uploader
     Uploader& operator=(Uploader&& other) noexcept
     {
         if (this != &other) {
-            ddog_prof_Exporter_drop(&ddog_exporter);
+            drop_exporter();
             ddog_prof_EncodedProfile_drop(&encoded_profile);
             ddog_exporter = other.ddog_exporter;
             other.ddog_exporter = { .inner = nullptr };
