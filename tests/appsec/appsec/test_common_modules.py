@@ -1030,3 +1030,42 @@ def test_urlopen_publishes_the_url_only_once():
         unpatch_common_modules()
 
     assert opened == ["http://127.0.0.1:1/once"], opened
+
+
+def test_a_rewriting_opener_publishes_the_url_it_actually_requests():
+    """A custom opener may rewrite the URL before delegating to the base open.
+
+    Deduplicating on "some enclosing scope published something" would suppress the inner call and
+    leave the http.client hook inspecting the stale outer URL, letting the real destination pass.
+    """
+    import urllib.request
+
+    published = []
+    original = _ScopedRaspContext._open_core_context
+
+    def recording_open(self, name, **kwargs):
+        published.append(kwargs.get("full_url"))
+        return original(self, name, **kwargs)
+
+    class RewritingOpener(urllib.request.OpenerDirector):
+        def open(self, fullurl, data=None, timeout=None):
+            # Rewrite, then delegate to the instrumented base implementation.
+            return urllib.request.OpenerDirector.open(self, "http://127.0.0.1:1/rewritten", data, timeout)
+
+    unpatch_common_modules()
+    previous = urllib.request._opener
+    try:
+        patch_common_modules()
+        urllib.request.install_opener(RewritingOpener())
+        with (
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(_ScopedRaspContext, "_open_core_context", recording_open),
+        ):
+            with contextlib.suppress(Exception):
+                urllib.request.urlopen("http://127.0.0.1:1/original")
+    finally:
+        urllib.request._opener = previous
+        unpatch_common_modules()
+
+    assert "http://127.0.0.1:1/rewritten" in published, published

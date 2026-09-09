@@ -190,15 +190,17 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
             report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
             return
 
-        if core.find_item("full_url") is not None:
-            # An enclosing scope already owns this outgoing request - urlopen above us, or a
-            # requests/urllib3 wrapper - and inspecting again would issue a second SSRF_REQ call.
-            return
-
         url: Any = self._locals().get(self._URL_ARGUMENT)
         if url.__class__.__name__ == "Request":
             url = url.get_full_url()
         if not (isinstance(url, str) and url):
+            return
+
+        if core.find_item("full_url") == url:
+            # An enclosing scope already owns this exact request - urlopen above us, or a
+            # requests/urllib3 wrapper - so inspecting again would issue a second SSRF_REQ call.
+            # Compare the URL, not just presence: an opener may rewrite it before delegating, and
+            # that destination is the one that has to be evaluated.
             return
 
         ctx = get_active_asm_context()
