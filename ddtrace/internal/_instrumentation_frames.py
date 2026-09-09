@@ -12,16 +12,33 @@ from typing import Any
 from typing import Optional
 
 
+# Depth cap when peeling partial/__wrapped__ layers off a registered wrapper.
+_MAX_WRAPPER_DEPTH = 10
+
 # Code objects of wrappers that exist to forward a call to the callable they wrap. Registered
 # rather than inferred, so a frame is only dropped where we know what the function is there for.
 _passthrough_codes: set[CodeType] = set()
 
 
-def mark_passthrough(wrapper: Any) -> None:
-    """Record a wrapper whose frame must not be blamed for exceptions raised beneath it."""
-    code = getattr(wrapper, "__code__", None)
-    if isinstance(code, CodeType):
-        _passthrough_codes.add(code)
+def mark_passthrough(*wrappers: Any) -> None:
+    """Record wrappers whose frames must not be blamed for exceptions raised beneath them.
+
+    Each is peeled through partial, bound-method and __wrapped__ layers: a functools.partial has
+    no __code__ of its own, so registering one would otherwise be a silent no-op.
+    """
+    for wrapper in wrappers:
+        for _ in range(_MAX_WRAPPER_DEPTH):
+            if wrapper is None:
+                break
+            code = getattr(wrapper, "__code__", None)
+            if isinstance(code, CodeType):
+                _passthrough_codes.add(code)
+            inner = getattr(wrapper, "func", None) or getattr(wrapper, "__func__", None)
+            if inner is None:
+                inner = getattr(wrapper, "__wrapped__", None)
+            if inner is wrapper:
+                break
+            wrapper = inner
 
 
 def _left_through_a_call(tb: TracebackType) -> bool:
@@ -40,8 +57,14 @@ def _left_through_a_call(tb: TracebackType) -> bool:
 def extract_reportable_frames(exc_traceback: Optional[TracebackType]) -> traceback.StackSummary:
     """Extract a traceback, minus the instrumentation frames the exception merely passed through.
 
-    A registered wrapper frame is kept when the exception originated in the wrapper itself, so
-    genuine ddtrace faults stay attributed to us.
+    A registered wrapper frame that is the deepest frame is kept when the exception originated in
+    the wrapper rather than in something it called.
+
+    Known limitation: a registered wrapper that is *not* the deepest frame is always dropped, even
+    if its own code raised, because a traceback does not say which callee was the wrapped one. The
+    bias is deliberate - this exists to stop blaming Datadog for application errors - and the
+    registered wrappers either swallow their own exceptions or fail through ddtrace frames that
+    stay in the report. See test_a_registered_wrapper_that_fails_through_a_python_callee.
     """
     summaries = traceback.extract_tb(exc_traceback)
     if not _passthrough_codes or exc_traceback is None:

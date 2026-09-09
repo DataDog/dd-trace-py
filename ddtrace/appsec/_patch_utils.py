@@ -104,10 +104,6 @@ def try_unwrap(module: Any, name: str) -> None:
 
 
 def try_wrap_function_wrapper(module_name: str, name: str, wrapper: Callable[..., Any]) -> None:
-    # Every appsec wrapt wrapper goes through here, and each one forwards to the callable it
-    # wraps, so the frame it leaves behind must not be blamed for the customer's exceptions.
-    mark_passthrough(wrapper)
-
     def _(module: Any) -> None:
         try:
             wrap_object(module, name, FunctionWrapper, (wrapper,))
@@ -127,6 +123,9 @@ def wrap_object(
 ) -> Any:
     if kwargs is None:
         kwargs = {}
+    # Both wrapt paths reach here - try_wrap_function_wrapper and IAST's forced wrapper - so this
+    # is where a forwarding wrapper gets recorded, or the forced path would go unregistered.
+    mark_passthrough(*args)
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)

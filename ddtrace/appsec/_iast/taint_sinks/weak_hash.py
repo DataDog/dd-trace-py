@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Callable
 
+from ddtrace.internal._instrumentation_frames import mark_passthrough
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings.asm import config as asm_config
@@ -196,3 +197,9 @@ def wrapped_function(wrapped: Callable, evidence: str, instance: Any, args: Any,
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
     return wrapped(*args, **kwargs)
+
+
+# The hooks above are registered as forwarding wrappers when they are installed, but they
+# delegate the actual call to wrapped_function, whose frame would otherwise stay in a
+# customer's traceback and attribute their exception to Datadog.
+mark_passthrough(wrapped_function)
