@@ -60,29 +60,32 @@ if sys.version_info >= _ASYNCIO_MONITORING_MIN:
 
 
 def _do_register_return_hook(
-    monitoring_handler: _AsyncioMonitoringHandler,
+    monitoring_handler: _AsyncioReturnHookDispatch,
     func: typing.Callable[..., typing.Any],
     handler: typing.Callable[[object], None],
 ) -> bool:
-    """Point *monitoring_handler* at *handler* for the code object of *func*.
+    """Point monitoring_handler at handler for the code object of func.
 
     Split out of _register_return_hook, which owns the version gate, so the
     registration and unwinding paths stay testable below 3.15.
     """
     global _monitoring_tool_id
 
+    event_handler: _monitoring.MonitoringEventHandler = typing.cast(
+        _monitoring.MonitoringEventHandler, monitoring_handler
+    )
     code: typing.Optional[CodeType] = None
     try:
         code = func.__code__
         monitoring_handler.handlers[id(code)] = handler
-        _monitoring.register(code, monitoring_handler)
+        _monitoring.register(code, event_handler)
         _monitoring_tool_id = _monitoring.get_tool_id()
         return True
     except Exception:
         if code is not None:
             monitoring_handler.handlers.pop(id(code), None)
             try:
-                _monitoring.unregister(code, monitoring_handler)
+                _monitoring.unregister(code, event_handler)
             except Exception:  # nosec B110 — unwinding an already-failed registration
                 pass
         return False  # best-effort monitoring; fall back to wrap()
