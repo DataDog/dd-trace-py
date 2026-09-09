@@ -7,6 +7,7 @@ from typing import Any
 from typing import Literal
 from typing import Optional
 from typing import Union
+from typing import cast
 from urllib.parse import quote
 from urllib.parse import urlencode
 from urllib.parse import urlparse
@@ -41,6 +42,8 @@ from ddtrace.llmobs.types import PromptVersionResponse
 
 
 log = get_logger(__name__)
+
+_UNSET = cast(dict[str, Any], object())
 
 _STATUS_EXCEPTIONS: dict[int, type[PromptAPIError]] = {
     400: PromptValidationError,
@@ -525,6 +528,7 @@ class PromptManager:
                 template=extract_template(data, default=[]),
                 _uuid=data.get("prompt_uuid"),
                 _version_uuid=data.get("prompt_version_uuid") or data.get("id") or data.get("ID"),
+                _config=data.get("config", {}),
             )
         except (json.JSONDecodeError, KeyError, TypeError) as e:
             log.warning("Failed to parse prompt response: %s", e)
@@ -607,6 +611,7 @@ class PromptManager:
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, Any] = _UNSET,
     ) -> PromptResponse:
         body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
         if title:
@@ -619,6 +624,10 @@ class PromptManager:
             body["labels"] = labels
         if env_ids is not None:
             body["env_ids"] = env_ids
+        if config is not _UNSET:
+            if not isinstance(config, dict):
+                raise PromptValidationError(0, "config must be a dictionary")
+            body["config"] = config
         result: PromptResponse = self._request("POST", PROMPTS_ENDPOINT, body=body)
         self._evict_prompt_caches(prompt_id)
         return result
@@ -632,6 +641,7 @@ class PromptManager:
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, Any] = _UNSET,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
         body: dict[str, Any] = {"template": template}
@@ -643,6 +653,10 @@ class PromptManager:
             body["labels"] = labels
         if env_ids is not None:
             body["env_ids"] = env_ids
+        if config is not _UNSET:
+            if not isinstance(config, dict):
+                raise PromptValidationError(0, "config must be a dictionary")
+            body["config"] = config
         result: PromptVersionResponse = self._request("POST", f"{PROMPTS_ENDPOINT}/{escaped_id}/versions", body=body)
         self._evict_prompt_caches(prompt_id)
         return result

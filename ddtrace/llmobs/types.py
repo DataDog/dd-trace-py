@@ -114,6 +114,7 @@ class PromptResponse(TypedDict, total=False):
     ml_apps: list[str]
     last_version_created_at: str
     extracted_from: str
+    config: dict[str, JSONType]
 
 
 class PromptVersionResponse(TypedDict, total=False):
@@ -129,6 +130,7 @@ class PromptVersionResponse(TypedDict, total=False):
     author: str
     description: str
     ml_app: str
+    config: dict[str, JSONType]
 
 
 class DeletedPromptResponse(TypedDict, total=False):

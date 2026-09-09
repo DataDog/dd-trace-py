@@ -146,6 +146,7 @@ from ddtrace.llmobs._prompt_optimization import validate_task
 from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
+from ddtrace.llmobs._prompts.manager import _UNSET
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
@@ -2136,6 +2137,7 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, JSONType] = _UNSET,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
@@ -2147,6 +2149,7 @@ class LLMObs(Service):
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
             env_ids: Optional feature-flag environment IDs to deploy the first version to.
+            config: Optional application-consumed JSON configuration stored with this version.
 
         Returns:
             The created prompt.
@@ -2166,6 +2169,7 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod
@@ -2178,6 +2182,7 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
+        config: dict[str, JSONType] = _UNSET,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
@@ -2188,6 +2193,7 @@ class LLMObs(Service):
             user_version: Optional user-defined version string.
             labels: Optional list containing ``production`` and/or ``development``.
             env_ids: Optional feature-flag environment IDs to deploy this version to.
+            config: Optional application-consumed JSON configuration stored with this version.
 
         Returns:
             The created prompt version.
@@ -2206,6 +2212,7 @@ class LLMObs(Service):
             user_version=user_version,
             labels=labels,
             env_ids=env_ids,
+            config=config,
         )
 
     @classmethod

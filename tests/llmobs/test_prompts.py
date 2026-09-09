@@ -40,6 +40,7 @@ TEXT_PROMPT_RESPONSE = {
     "version": "v1",
     "labels": ["development", "production"],
     "template": "Hello {name}!",
+    "config": {"model": {"temperature": 0.2}, "unknown": True},
 }
 
 CHAT_PROMPT_RESPONSE = {
@@ -143,6 +144,7 @@ def assert_prompt_matches_response(prompt, response, expected_source):
     assert prompt.source == expected_source
     assert prompt._uuid == response.get("prompt_uuid")
     assert prompt._version_uuid == response.get("prompt_version_uuid")
+    assert prompt.config == response.get("config", {})
 
 
 class TestPrompts:
@@ -156,6 +158,9 @@ class TestPrompts:
         assert isinstance(prompt, ManagedPrompt)
         assert_prompt_matches_response(prompt, TEXT_PROMPT_RESPONSE, "registry")
         assert prompt.format(name="Alice") == "Hello Alice!"
+        returned_config = prompt.config
+        returned_config["model"]["temperature"] = 1
+        assert prompt.config["model"]["temperature"] == 0.2
 
     def test_get_prompt_reattaches_base_url_path_prefix(self):
         """A base_url with a path prefix (e.g. DD_LLMOBS_OVERRIDE_ORIGIN pointing at a proxy) must
@@ -263,6 +268,7 @@ class TestPrompts:
 
         assert prompt.source == "fallback"
         assert prompt.format(name="Alice") == [{"role": "user", "content": "Hi Alice"}]
+        assert prompt.config == {}
 
     def test_callable_fallback_lazy(self):
         """Callable fallback only invoked when API fails."""
@@ -280,6 +286,15 @@ class TestPrompts:
         assert prompt.source == "fallback"
         assert prompt.version == "local-v1"
         assert prompt.format(name="Bob") == "Lazy: Bob"
+
+    def test_structured_fallback_config(self):
+        with mock_api(404, "Not Found"):
+            prompt = LLMObs.get_prompt(
+                "missing",
+                fallback={"template": "Hello", "config": {"model": {"temperature": 0}}},
+            )
+
+        assert prompt.config == {"model": {"temperature": 0}}
 
     def test_callable_fallback_not_called_on_success(self):
         """Callable fallback NOT invoked when API succeeds."""
@@ -517,7 +532,12 @@ class TestPrompts:
         with _ffe_enabled():
             _deliver_prompt_flag(
                 "greeting",
-                {"prompt_id": "greeting", "version": "ff-v1", "template": "FF Hello!"},
+                {
+                    "prompt_id": "greeting",
+                    "version": "ff-v1",
+                    "template": "FF Hello!",
+                    "config": {"model": "ff-model"},
+                },
             )
             with patch.object(manager, "_get_prompt_http") as http_mock:
                 prompt = manager.get_prompt("greeting")
@@ -525,6 +545,7 @@ class TestPrompts:
         assert prompt.source == "ff"
         assert prompt.version == "ff-v1"
         assert prompt.template == "FF Hello!"
+        assert prompt.config == {"model": "ff-model"}
 
     @pytest.mark.parametrize(
         "source,expected_source,provider_calls,rc_calls",
@@ -808,6 +829,41 @@ class TestPromptManagement:
         assert json.loads(conn.requests[-1]["body"])["env_ids"] == ["env-1"]
 
     @pytest.mark.parametrize(
+        "call",
+        [
+            lambda: LLMObs.create_prompt("p1", [{"role": "user", "content": "hi"}]),
+            lambda: LLMObs.create_prompt_version("p1", [{"role": "user", "content": "hi"}]),
+        ],
+    )
+    def test_write_prompt_omits_unsupplied_config(self, call):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch, patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+            call()
+
+        assert "config" not in json.loads(conn.requests[-1]["body"])
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda config: LLMObs.create_prompt("p1", [{"role": "user", "content": "hi"}], config=config),
+            lambda config: LLMObs.create_prompt_version("p1", [{"role": "user", "content": "hi"}], config=config),
+        ],
+    )
+    def test_write_prompt_explicit_config(self, call):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        with mock_patch, patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+            call({})
+
+        assert json.loads(conn.requests[-1]["body"])["config"] == {}
+
+        for invalid in (None, [], "value", 1):
+            with patch.object(LLMObs, "_ensure_prompt_manager", return_value=manager):
+                with pytest.raises(PromptValidationError, match="config must be a dictionary"):
+                    call(invalid)
+
+    @pytest.mark.parametrize(
         "status,exc_type",
         [
             (400, PromptValidationError),
@@ -950,6 +1006,18 @@ class TestPromptManagement:
 
         assert cache.get("a/b:")[0].id == "a/b"
         assert cache.get("a_b:")[0].id == "a_b"
+
+    def test_warm_cache_round_trips_config(self, tmp_path):
+        cache = WarmCache(cache_dir=str(tmp_path), ttl_seconds=60)
+        original = ManagedPrompt(
+            id="configured", version="v1", label=None, source="registry", template="hello", _config={"nested": {"x": 1}}
+        )
+        cache.set("configured:", original)
+
+        cached = cache.get("configured:")[0]
+        returned_config = cached.config
+        returned_config["nested"]["x"] = 2
+        assert cached.config == {"nested": {"x": 1}}
 
     @pytest.mark.parametrize("call", [lambda m: m.update_prompt("p1"), lambda m: m.update_prompt_version("p1", 1)])
     def test_update_requires_a_field(self, call):
