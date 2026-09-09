@@ -176,9 +176,9 @@ Datadog::UploaderBuilder::build()
         return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
     }
 
-    std::optional<rust::Box<ddprof::ProfileExporter>> ddog_exporter;
+    std::optional<rust::Box<ddprof::ProfileExporter>> profile_exporter;
     try {
-        ddog_exporter = ddprof::ProfileExporter::create_agent_exporter(
+        profile_exporter = ddprof::ProfileExporter::create_agent_exporter(
           rust::Str(g_library_name.data(), g_library_name.size()),
           rust::Str(state.profiler_version.data(), state.profiler_version.size()),
           rust::Str(family.data(), family.size()),
@@ -212,7 +212,7 @@ Datadog::UploaderBuilder::build()
 
     return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
                                                          state.output_filename,
-                                                         std::move(*ddog_exporter),
+                                                         std::move(*profile_exporter),
                                                          std::move(*encoded),
                                                          stats,
                                                          state.process_tags };

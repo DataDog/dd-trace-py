@@ -12,12 +12,12 @@
 using namespace Datadog;
 
 Datadog::Uploader::Uploader(std::string_view _output_filename,
-                            rust::Box<ddprof::ProfileExporter> _ddog_exporter,
+                            rust::Box<ddprof::ProfileExporter> _profile_exporter,
                             rust::Box<ddprof::EncodedProfile> _encoded_profile,
                             Datadog::ProfilerStats _stats,
                             std::string_view _process_tags)
   : output_filename{ _output_filename }
-  , ddog_exporter{ std::move(_ddog_exporter) }
+  , profile_exporter{ std::move(_profile_exporter) }
   , encoded_profile{ std::move(_encoded_profile) }
   , profiler_stats{ _stats }
   , process_tags{ _process_tags }
@@ -93,7 +93,7 @@ Datadog::Uploader::upload_unlocked()
         return export_to_file(**encoded_profile, internal_metadata_json);
     }
 
-    if (!ddog_exporter.has_value()) {
+    if (!profile_exporter.has_value()) {
         std::cerr << "No profile exporter available for upload" << std::endl;
         return false;
     }
@@ -127,7 +127,7 @@ Datadog::Uploader::upload_unlocked()
         auto encoded = std::move(*encoded_profile);
         encoded_profile.reset();
 
-        (*ddog_exporter)
+        (*profile_exporter)
           ->send_encoded_profile_with_cancellation(
             std::move(encoded),
             std::move(files_to_compress),
@@ -136,12 +136,12 @@ Datadog::Uploader::upload_unlocked()
             rust::Str(internal_metadata_json.data(), internal_metadata_json.size()),
             rust::Str(info_json.data(), info_json.size()),
             *new_cancel_clone_for_request);
-        ddog_exporter.reset();
+        profile_exporter.reset();
         return true;
     } catch (const std::exception& err) {
         errmsg = std::string("Error uploading CXX profile: ") + err.what();
         std::cerr << errmsg << std::endl;
-        ddog_exporter.reset();
+        profile_exporter.reset();
         return false;
     }
 }

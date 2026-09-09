@@ -18,7 +18,7 @@ class Uploader
   private:
     std::string errmsg;
     std::string output_filename;
-    std::optional<rust::Box<ddprof::ProfileExporter>> ddog_exporter{};
+    std::optional<rust::Box<ddprof::ProfileExporter>> profile_exporter{};
     std::optional<rust::Box<ddprof::EncodedProfile>> encoded_profile{};
     Datadog::ProfilerStats profiler_stats;
     std::string process_tags;
@@ -34,7 +34,7 @@ class Uploader
     static void unlock();
 
     Uploader(std::string_view _output_filename,
-             rust::Box<ddprof::ProfileExporter> ddog_exporter,
+             rust::Box<ddprof::ProfileExporter> profile_exporter,
              rust::Box<ddprof::EncodedProfile> encoded,
              Datadog::ProfilerStats stats,
              std::string_view _process_tags);
@@ -47,7 +47,7 @@ class Uploader
     Uploader(Uploader&& other) noexcept
       : errmsg{ std::move(other.errmsg) }
       , output_filename{ std::move(other.output_filename) }
-      , ddog_exporter{ std::move(other.ddog_exporter) }
+      , profile_exporter{ std::move(other.profile_exporter) }
       , encoded_profile{ std::move(other.encoded_profile) }
       , profiler_stats{ other.profiler_stats }
       , process_tags{ std::move(other.process_tags) }
@@ -64,7 +64,7 @@ class Uploader
             }
             errmsg = std::move(other.errmsg);
             output_filename = std::move(other.output_filename);
-            ddog_exporter = std::move(other.ddog_exporter);
+            profile_exporter = std::move(other.profile_exporter);
             encoded_profile = std::move(other.encoded_profile);
             profiler_stats = other.profiler_stats;
             process_tags = std::move(other.process_tags);

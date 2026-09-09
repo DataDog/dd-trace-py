@@ -3,17 +3,11 @@
 #include <array>
 #include <cstdint>
 #include <exception>
-#include <iostream>
 #include <optional>
 #include <string>
 #include <string_view>
 
 #include <libdd-profiling/src/cxx.rs.h>
-
-extern "C"
-{
-#include "datadog/profiling.h"
-}
 
 namespace Datadog {
 namespace ddprof = datadog::profiling;
@@ -81,26 +75,6 @@ enum class ExportLabelKey : std::uint8_t
     EXPORTER_LABELS(X_ENUM) Length_
 };
 
-inline ddog_CharSlice
-to_slice(std::string_view str)
-{
-    return { .ptr = str.data(), .len = str.size() };
-}
-
-inline ddog_ByteSlice
-to_byte_slice(std::string_view str)
-{
-    return { .ptr = reinterpret_cast<const uint8_t*>(str.data()), .len = str.size() };
-}
-
-inline std::string
-err_to_msg(const ddog_Error* err, std::string_view msg)
-{
-    auto ddog_err = ddog_Error_message(err);
-    std::string err_msg;
-    return std::string{ msg } + " (" + err_msg.assign(ddog_err.ptr, ddog_err.ptr + ddog_err.len) + ")";
-}
-
 inline std::string_view
 to_string(ExportTagKey key)
 {
@@ -155,38 +129,6 @@ add_tag(rust::Vec<ddprof::Tag>& tags, const ExportTagKey key, std::string_view v
         errmsg = "Invalid tag key";
         return false;
     }
-    return add_tag(tags, key_sv, val, errmsg);
-}
-
-inline bool
-add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::string& errmsg)
-{
-    static bool already_warned = false;
-    if (key.empty() || val.empty()) {
-        return false;
-    }
-
-    ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
-    if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-        if (!already_warned) {
-            already_warned = true;
-            errmsg = err_to_msg(&res.err, "");
-            std::cerr << errmsg << std::endl;
-        }
-        ddog_Error_drop(&res.err);
-        return false;
-    }
-    return true;
-}
-
-inline bool
-add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::string& errmsg)
-{
-    const std::string_view key_sv = to_string(key);
-    if (val.empty() || key_sv.empty()) {
-        return false;
-    }
-
     return add_tag(tags, key_sv, val, errmsg);
 }
 

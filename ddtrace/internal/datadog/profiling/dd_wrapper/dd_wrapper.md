@@ -87,7 +87,7 @@ Samples are interacted with transactionally, for example
 2. adding frames, wall time, tags, etc
 3. `Sample::flush_sample()` (every sample ends with a call to `flush_sample()`), followed by `SampleManager::drop_sample()` to return the Sample to the pool
 
-The act of flushing a sample stores its data in a `ddog_prof_Profile` object (which is wrapped by Profile in this code).
+The act of flushing a sample stores its data in a libdatadog CXX `datadog::profiling::Profile` object (which is wrapped by `Profile` in this code).
 `SampleManager::drop_sample()` releases the Sample (don't reuse Samples in application code!). This is the path used by `SampleHandle` (Cython) and native stack sampling; memalloc embeds a `Sample` by value instead of going through the pool.
 
 There's one wrinkle here.
