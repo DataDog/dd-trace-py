@@ -113,6 +113,8 @@ For the agent pattern (tool child spans within streams), see `ddtrace/llmobs/_in
 
 Different libraries structure messages differently — implement only the helpers you need. Read `ddtrace/llmobs/_integrations/anthropic.py` for full code examples.
 
+**Check `_integrations/utils.py` first.** Providers reachable through more than one API share a payload format, and the extraction for it belongs there rather than in each integration. Anthropic content blocks, for example, are parsed by `get_messages_from_anthropic_content()`, `anthropic_tool_call_from_block()`, `anthropic_tool_result_from_block()`, and `get_tool_definitions_from_anthropic_tools()`, which the Anthropic and Amazon Bedrock integrations both call. Converse-format payloads have their own equivalents. Reuse or extend those helpers instead of copying the logic; duplicated parsers drift as providers add content block types.
+
 - `_extract_input_messages(kwargs)` — handle system message, multi-part content blocks, tool results
 - `_extract_output_messages(response)` — handle text blocks, tool use blocks, thinking blocks
 - `_extract_usage(response)` — map library-specific token field names to metric keys
@@ -120,7 +122,7 @@ Different libraries structure messages differently — implement only the helper
 - `_extract_audio_parts(...)` — for multimodal audio providers, populate `Message.audio_parts` with `AudioPart` entries containing `mime_type` plus either inline base64 `content` or an `attachment_key`
 - `_extract_<lib>_image_source(...)` — same, for `Message.image_parts`. See `anthropic.py`
 
-`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper.
+`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper — except where a payload format is shared with another integration, which belongs in `_integrations/utils.py` as above.
 
 ### Inline Media Size Guards
 
@@ -202,5 +204,5 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans (see anthropic for pattern)
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
-- [ ] `riotfile.py` — test dependencies match the suite style; include `vcrpy` only when cassette replay is used
+- [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index

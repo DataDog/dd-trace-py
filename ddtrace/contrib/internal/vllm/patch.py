@@ -36,6 +36,30 @@ logger = get_logger(__name__)
 config._add("vllm", {})
 
 
+def _supported_versions() -> dict[str, str]:
+    return {"vllm": ">=0.10.2"}
+
+
+def _uses_input_processor() -> bool:
+    from packaging.version import InvalidVersion
+    from packaging.version import parse as parse_version
+
+    version_str = getattr(vllm, "__version__", "0.0.0")
+    try:
+        base_version = parse_version(version_str).base_version
+        uses_new = parse_version(base_version) >= parse_version("0.14.0")
+    except InvalidVersion:
+        base_version = version_str
+        uses_new = False
+
+    logger.debug(
+        "vLLM %s: using %s.process_inputs.",
+        base_version,
+        "vllm.v1.engine.input_processor.InputProcessor" if uses_new else "vllm.v1.engine.processor.Processor",
+    )
+    return uses_new
+
+
 def traced_engine_init(func, instance, args, kwargs):
     """Inject model name into OutputProcessor and force-enable stats for tracing."""
     # Force log_stats=True to enable vLLM's internal stats collection.
@@ -197,7 +221,14 @@ def patch():
 
     wrap("vllm.v1.engine.llm_engine", "LLMEngine.__init__", traced_engine_init)
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.__init__", traced_engine_init)
-    wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
+    if _uses_input_processor():
+        wrap(
+            "vllm.v1.engine.input_processor",
+            "InputProcessor.process_inputs",
+            traced_processor_process_inputs,
+        )
+    else:
+        wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs)
     wrap(
         "vllm.v1.engine.output_processor",
         "OutputProcessor.process_outputs",
@@ -213,7 +244,10 @@ def unpatch():
 
     unwrap(vllm.v1.engine.llm_engine.LLMEngine, "__init__")
     unwrap(vllm.v1.engine.async_llm.AsyncLLM, "__init__")
-    unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
+    if _uses_input_processor():
+        unwrap(vllm.v1.engine.input_processor.InputProcessor, "process_inputs")
+    else:
+        unwrap(vllm.v1.engine.processor.Processor, "process_inputs")
     unwrap(vllm.v1.engine.output_processor.OutputProcessor, "process_outputs")
 
     delattr(vllm, ATTR_DATADOG_INTEGRATION)

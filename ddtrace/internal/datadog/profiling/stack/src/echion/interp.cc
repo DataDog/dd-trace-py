@@ -23,6 +23,7 @@ for_each_interp(_PyRuntimeState* runtime, const std::function<void(InterpreterIn
         prev_interp_addr = interp_addr;
 
         InterpreterInfo interpreter_info = { 0 };
+        interpreter_info.interp = reinterpret_cast<PyInterpreterState*>(interp_addr);
 #if PY_VERSION_HEX >= 0x030e0000
         snapshot_complete &= !copy_type(interp_addr + runtime->debug_offsets.interpreter_state.code_object_generation,
                                         interpreter_info.code_object_generation);
