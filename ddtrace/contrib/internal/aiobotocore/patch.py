@@ -28,6 +28,7 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -127,6 +128,9 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
 
 
 async def _wrapped_api_call(original_func, instance, args, kwargs):
+    if not tracer.enabled and not standalone_config.apm_opt_out:
+        return await original_func(*args, **kwargs)
+
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
 
     fallback_service = config._get_service(default="aws.{}".format(endpoint_name))
