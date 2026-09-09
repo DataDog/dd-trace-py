@@ -17,6 +17,7 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.ext import SpanKind
@@ -28,7 +29,6 @@ from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -128,7 +128,7 @@ class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
 
 
 async def _wrapped_api_call(original_func, instance, args, kwargs):
-    if not tracer.enabled and not standalone_config.apm_opt_out:
+    if not is_tracing_enabled():
         return await original_func(*args, **kwargs)
 
     endpoint_name = deep_getattr(instance, "_endpoint._endpoint_prefix")
