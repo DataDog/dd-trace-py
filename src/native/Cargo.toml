@@ -46,7 +46,8 @@ libdd-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v
 libdd-log = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
 libdd-capabilities-impl = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
 libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", features = [
-  "stats-obfuscation"
+  "stats-obfuscation",
+  "compression"
 ] }
 # DEV: `hyper-backend` (rather than the default `reqwest-backend`) avoids
 # hickory-dns, a pure-Rust DNS resolver that mishandles bare, single-label
@@ -56,6 +57,7 @@ libdd-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v4
 libdd-http-client = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", default-features = false, features = [
   "https",
   "hyper-backend",
+  "hyper-proxy",
 ] }
 libdd-shared-runtime = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0" }
 libdd-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v43.0.0", optional = true, features = [
@@ -66,6 +68,7 @@ libdd-trace-utils = { git = "https://github.com/DataDog/libdatadog", rev = "v43.
 native-proc-macro = { path = "native_proc_macro" }
 strum = { version = "0.26", default-features = false }
 percent-encoding = "2.3"
+# TODO(py-315): 0.29 blocked — libdatadog v43.0.0 libdd-ffe requires pyo3 = "^0.28" (links = "python")
 pyo3 = { version = "0.28", features = ["extension-module", "anyhow"] }
 tracing = { version = "0.1", default-features = false }
 pyo3-ffi = { version = "0.28", optional = true }

@@ -21,15 +21,20 @@ from collections import defaultdict
 from dataclasses import dataclass
 import datetime
 import hashlib
+import importlib
 import os
 import re
+import shlex
 import subprocess
 import typing as t
 
 
 MAX_BENCHMARKS_PER_GROUP = 2
-BENCHMARK_CLASS_REGEX = r"class ([A-Za-z]+)\((bm\.)?Scenario(.+)?\)\:"
-BENCHMARK_SCENARIO_REGEX = re.compile(" +- name: ([a-z0-9]+)-.+")
+
+
+def _ddtest_module():
+    """Load the optional ddtest job emitter after scripts/ is on sys.path."""
+    return importlib.import_module("ddtest_jobs")
 
 
 def _get_bool_env(name: str) -> str:
@@ -135,7 +140,9 @@ class JobSpec:
             lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            lines.append(f"    - riot -v run -s --pass-env wait -- {' '.join(wait_for)}")
+            # Retry up to twice on transient pip network failures; service-check
+            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
+            lines.append(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}")
 
         env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
@@ -192,6 +199,11 @@ class SuiteVenvInfo:
     venv_count: int
     python_versions: set[str]
     environment_hashes: tuple[str, ...] = ()
+    # Runner-specific metadata used to generate DDTest plan and run jobs.
+    riot_venvs: tuple[tuple[str, str], ...] = ()
+    uv_venvs: tuple[tuple[str, str], ...] = ()
+    venv_test_locations: t.Optional[dict[str, str]] = None
+    uv_metadata: t.Optional[dict[str, tuple[str, str, str, str]]] = None
 
 
 # Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
@@ -202,6 +214,10 @@ TARGET_JOBS = 200
 
 # All supported Python versions (fallback when no venv info is available)
 ALL_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+
+
+def _shell_environment(environment: dict[str, str]) -> str:
+    return shlex.join(f"{name}={value}" for name, value in environment.items())
 
 
 def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
@@ -223,7 +239,7 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
 
     compiled: dict[str, re.Pattern] = {}
     for suite, config in suite_configs.items():
-        if suite in UV_TEST_SUITES:
+        if suite in UV_TEST_SUITES and not config.get("ddtest"):
             continue
         pattern = config.get("pattern", suite)
         try:
@@ -233,6 +249,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
 
     venv_hashes: dict[str, set] = {s: set() for s in compiled}
     python_versions: dict[str, set] = {s: set() for s in compiled}
+    venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
+    venv_test_locations: dict[str, dict[str, str]] = {s: {} for s in compiled}
 
     for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
         if not inst.name:
@@ -241,6 +259,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
         for suite, regex in compiled.items():
             if inst.matches_pattern(regex):  # type: ignore[attr-defined]
                 venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
+                venv_hash_hint[suite][inst.short_hash] = hint
+                venv_test_locations[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_LOCATION", "")
                 # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
                 if re.match(r"^3\.\d+$", hint):
                     python_versions[suite].add(hint)
@@ -251,6 +271,8 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
             result[suite] = SuiteVenvInfo(
                 venv_count=len(venv_hashes[suite]),
                 python_versions=python_versions[suite],
+                riot_venvs=tuple(sorted(venv_hash_hint[suite].items())),
+                venv_test_locations=venv_test_locations[suite],
             )
         else:
             LOGGER.warning(
@@ -264,10 +286,30 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
         if suite not in suite_configs:
             continue
         environments = uv_environments[suite]
+        uv_metadata = {}
+        if suite_configs[suite].get("ddtest"):
+            for environment in environments:
+                if len(environment.runs) != 1:
+                    raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
+                run = environment.runs[0]
+                # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
+                # the command directly, so preserve that runner argument explicitly.
+                command = run.command.replace("{cmdargs}", "--ddtrace")
+                for name, value in run.environment.items():
+                    command = command.replace(f"${{{{{name}}}}}", value)
+                uv_metadata[environment.hash] = (
+                    environment.lockfile,
+                    run.environment.get("DDTEST_TESTS_LOCATION", ""),
+                    command,
+                    _shell_environment(run.environment),
+                )
         result[suite] = SuiteVenvInfo(
             venv_count=len(environments),
             python_versions={environment.python for environment in environments},
             environment_hashes=tuple(environment.hash for environment in environments),
+            uv_venvs=tuple((environment.hash, environment.python) for environment in environments),
+            venv_test_locations={hash_: metadata[1] for hash_, metadata in uv_metadata.items()},
+            uv_metadata=uv_metadata,
         )
     return result
 
@@ -455,38 +497,40 @@ microbenchmark-noop:
     _filter_benchmarks_slos_file(benchmark_classnames)
 
 
-def _get_benchmark_class_name(suite_name: str) -> str:
-    contents = Path(f"benchmarks/{suite_name}/scenario.py").read_text()
-    for line in contents.split("\n"):
-        match = re.match(BENCHMARK_CLASS_REGEX, line)
-        if match:
-            return match.group(1).lower()
-
-
 def _filter_benchmarks_slos_file(classnames: list) -> None:
-    in_scenario_to_keep = True
-    new_contents = []
-    kept_scenarios = 0
-    contents = MICROBENCHMARKS_SLOS_TEMPLATE.read_text()
+    # Merge the per-team SLO source files under slos/ (each owned by a team via
+    # CODEOWNERS) into the single generated file consumed by check-slo-breaches,
+    # keeping only scenarios whose benchmark class is in this pipeline.
+    kept_blocks: list[list[str]] = []
+    for src in sorted(MICROBENCHMARKS_SLOS_DIR.glob("*.yml")):
+        for class_prefix, block in iter_slo_scenarios(src.read_text()):
+            if class_prefix in classnames:
+                kept_blocks.append(block)
 
-    for line in contents.split("\n")[1:]:
-        match = re.match(BENCHMARK_SCENARIO_REGEX, line)
-        if match:
-            class_on_line = match.group(1)
-            if class_on_line in classnames:
-                in_scenario_to_keep = True
-                kept_scenarios += 1
-            else:
-                in_scenario_to_keep = False
-        if line.strip().startswith("#"):
-            in_scenario_to_keep = False
-        if in_scenario_to_keep:
-            new_contents.append(line)
+    header = [
+        "experiments:",
+        "  - name: SLO Check",
+        "    steps:",
+        "      - name: SLO Check",
+        "        run: fail_on_breach",
+        "        scenarios: []" if not kept_blocks else "        scenarios:",
+    ]
+    out = header
+    for block in kept_blocks:
+        out.extend(block)
+    MICROBENCHMARKS_SLOS.write_text("\n".join(out) + "\n")
 
-    if kept_scenarios == 0:
-        new_contents[-1] = "scenarios: []"
 
-    MICROBENCHMARKS_SLOS.write_text("\n".join(new_contents))
+def gen_validate_slos() -> None:
+    """Validate microbenchmark SLO structural integrity (no orphans/duplicates).
+
+    Delegates to scripts/check_slo_ownership.py so the same checks run both in
+    the tests-gen CI job (via this generator) and locally via
+    `scripts/lint slo-ownership`.
+    """
+    from check_slo_ownership import validate as _validate_slos
+
+    _validate_slos()
 
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
@@ -530,6 +574,14 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
     suite_configs = {s: suites[s] for s in non_skipped}
     suite_venv_info = collect_all_suite_venv_info(suite_configs)
+
+    for suite in non_skipped:
+        if not suites[suite].get("ddtest") or suite not in suite_venv_info:
+            continue
+        info = suite_venv_info[suite]
+        _ddtest_module().validate_ddtest_venv_test_locations(
+            suite, info.uv_venvs if suite in UV_TEST_SUITES else info.riot_venvs, info.venv_test_locations
+        )
 
     # Populate the module-level global so gen_build_base_venvs can use it
     _global_python_versions = set()
@@ -583,6 +635,33 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
+
+            if suite_config.get("ddtest"):
+                info = suite_venv_info.get(suite)
+                if info is None:
+                    LOGGER.warning("Suite %s opted into ddtest but has no environments; skipping", suite)
+                    continue
+                runner = "uv" if suite in UV_TEST_SUITES else "riot"
+                environments = info.uv_venvs if runner == "uv" else info.riot_venvs
+                if not environments:
+                    LOGGER.warning("Suite %s opted into ddtest but has no %s environments; skipping", suite, runner)
+                    continue
+                k = _ddtest_module().ddtest_k(suite_config)
+                LOGGER.info("Suite %s: ddtest %s runner (venvs=%d, nodes/venv=%d)", suite, runner, len(environments), k)
+                _ddtest_module().emit_ddtest_jobs(
+                    f,
+                    suite,
+                    stage,
+                    clean_name,
+                    suite_config,
+                    list(environments),
+                    k,
+                    TESTRUNNER_IMAGE_HASH,
+                    runner,
+                    info.uv_metadata,
+                )
+                continue
+
             environment_hashes = suite_venv_info[suite].environment_hashes if suite in suite_venv_info else None
             jobspec = JobSpec(
                 clean_name,
@@ -699,6 +778,21 @@ def gen_pre_checks() -> None:
     check(
         name="Check suitespec coverage",
         command="scripts/lint suitespec-check",
+        paths={"*"},
+    )
+    check(
+        name="Check microbenchmark SLO ownership",
+        command="scripts/lint slo-ownership",
+        paths={
+            ".gitlab/benchmarks/slos/*",
+            "benchmarks/*",
+            "scripts/check_slo_ownership.py",
+            "scripts/lint",
+        },
+    )
+    check(
+        name="Check suitespec duplicates",
+        command="scripts/lint suitespec-duplicates",
         paths={"*"},
     )
     check(
@@ -866,12 +960,16 @@ if args.files:
     _needs_testrun._changed_files_override = set(args.files)
 
 ROOT = Path(__file__).parents[1]
+BENCHMARKS = ROOT / "benchmarks"
 GITLAB = ROOT / ".gitlab"
 TESTS = ROOT / "tests"
 TESTS_GEN = GITLAB / "tests-gen.yml"
 MICROBENCHMARKS_GEN = GITLAB / "benchmarks/microbenchmarks-gen.yml"
 MICROBENCHMARKS_SLOS = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml"
-MICROBENCHMARKS_SLOS_TEMPLATE = GITLAB / "benchmarks/bp-runner.microbenchmarks.fail-on-breach.template.yml"
+# Source-of-truth SLO thresholds live in one per-team file under slos/, each
+# owned by its team via .github/CODEOWNERS. gen_gitlab_config merges these into
+# the single generated MICROBENCHMARKS_SLOS file consumed by check-slo-breaches.
+MICROBENCHMARKS_SLOS_DIR = GITLAB / "benchmarks" / "slos"
 
 # Compute a short hash of the testrunner image so cache keys are automatically
 # invalidated whenever the image changes (e.g. Python patch version bumps).
@@ -884,6 +982,12 @@ TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+# Single source of truth for the benchmark SLO naming regexes lives in
+# check_slo_ownership.py; import them here so both this generator and the
+# linter stay in sync.
+from check_slo_ownership import _get_benchmark_class_name  # noqa: E402
+from check_slo_ownership import iter_slo_scenarios  # noqa: E402
 
 
 def template(name: str, **params):
