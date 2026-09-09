@@ -124,6 +124,11 @@ def _patch_v2_executor(module: ModuleType) -> None:
 
 _WORKER_MODULE_HOOKS = {
     "azure_functions_worker.dispatcher": _patch_classic_worker,
+    # Core Tools 4.1 uses this namespace for the Python 3.13 v2 programming
+    # model worker. Later releases renamed the package to azure_functions_runtime.
+    "azure_functions_worker_v2.handle_event": _patch_v2_worker,
+    "azure_functions_worker_v2.bindings.context": _patch_v2_context,
+    "azure_functions_worker_v2.utils.current": _patch_v2_executor,
     "azure_functions_runtime.handle_event": _patch_v2_worker,
     # V2 runtime releases have alternated between importing these callables
     # into handle_event and calling them through their defining modules. Patch

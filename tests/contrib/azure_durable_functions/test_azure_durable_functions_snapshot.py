@@ -494,11 +494,10 @@ def test_activity_trigger_distributed_tracing_end_to_end(azure_functions_client:
         token, {"GET /api/startactivity", "Orchestration activity_orchestrator", "Activity durable_activity"}
     )
     assert response.status_code in (200, 202)
-    trace_ids = {
-        _span_by_resource(traces, resource)["trace_id"]
-        for resource in ("GET /api/startactivity", "Orchestration activity_orchestrator", "Activity durable_activity")
-    }
-    assert len(trace_ids) == 1
+    resources = ("GET /api/startactivity", "Orchestration activity_orchestrator", "Activity durable_activity")
+    spans_by_resource = {resource: _span_by_resource(traces, resource) for resource in resources}
+    trace_ids_by_resource = {resource: span["trace_id"] for resource, span in spans_by_resource.items()}
+    assert len(set(trace_ids_by_resource.values())) == 1, trace_ids_by_resource
 
 
 def test_entity_trigger_distributed_tracing_end_to_end(azure_functions_client: tuple[Client, str]) -> None:
