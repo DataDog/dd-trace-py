@@ -58,13 +58,29 @@ def select_environments(requested: Sequence[str] = ()) -> tuple[TestEnvironment,
     return _resolve_environments(matrices, requested)
 
 
-def list_hashes(name: str | None = None, python_version: str | None = None) -> tuple[str, ...]:
-    environments = select_environments((name,) if name else ())
+def _select_suite_environments(suite: str | None) -> tuple[TestEnvironment, ...]:
+    from tests.suitespec import get_test_environments
+
+    matrices = get_test_environments(nightly=False)
+    if suite is None:
+        return tuple(environment for environments in matrices.values() for environment in environments)
+    if suite not in matrices:
+        matches = [name for name in matrices if name.rsplit("::", 1)[-1] == suite]
+        if not matches:
+            raise LockError(f"suite has no declarative matrix: {suite}")
+        if len(matches) > 1:
+            raise LockError(f"ambiguous suite {suite!r}; choose one of: {', '.join(sorted(matches))}")
+        suite = matches[0]
+    return matrices[suite]
+
+
+def list_hashes(suite: str | None = None, python_version: str | None = None) -> tuple[str, ...]:
+    environments = _select_suite_environments(suite)
     matches = [
         environment for environment in environments if python_version is None or environment.python == python_version
     ]
     if not matches:
-        target = f" for {name}" if name else ""
+        target = f" for {suite}" if suite else ""
         version = f" using Python {python_version}" if python_version else ""
         raise LockError(f"no test locks found{target}{version}")
     return tuple(sorted({environment.lock_hash for environment in matches}))
@@ -250,8 +266,8 @@ def check_locks() -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Manage concrete locks for test environments.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    list_parser = subparsers.add_parser("list", help="List lock hashes, optionally for one environment name.")
-    list_parser.add_argument("name", nargs="?", help="Exact test environment name; defaults to all.")
+    list_parser = subparsers.add_parser("list", help="List lock hashes, optionally for one test suite.")
+    list_parser.add_argument("suite", nargs="?", help="Full or unambiguous short suite name; defaults to all.")
     list_parser.add_argument("--python", help="Only list hashes for this Python version.")
     subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
@@ -268,7 +284,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Validated {count} concrete test locks.")
             return 0
         if args.command == "list":
-            for lock_hash in list_hashes(args.name, args.python):
+            for lock_hash in list_hashes(args.suite, args.python):
                 print(lock_hash)
             return 0
         if args.command == "refresh":
