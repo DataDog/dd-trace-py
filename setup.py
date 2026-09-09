@@ -142,9 +142,6 @@ def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
 
 
-BUILD_PROFILING_NATIVE_TESTS = _env_truthy("DD_PROFILING_NATIVE_TESTS")
-
-
 def is_musl_libc() -> bool:
     """Whether the current interpreter is a musl (Alpine / musllinux) build."""
     return any(
@@ -1456,10 +1453,7 @@ class CustomBuildExt(build_ext):
             ext.source_dir, cmake_build_dir, output_dir, extension_basename, ext.build_type
         )
 
-        if BUILD_PROFILING_NATIVE_TESTS:
-            cmake_args += ["-DBUILD_TESTING=ON"]
-        else:
-            cmake_args += ["-DBUILD_TESTING=OFF"]
+        cmake_args += ["-DBUILD_TESTING=OFF"]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
@@ -1918,7 +1912,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"]
             + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
-            + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,
