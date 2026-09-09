@@ -593,7 +593,6 @@ def _resolve_application_inference_profile(model_id, model_provider, model_name,
 
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
-    pin = function_vars.get("pin")
     integration = function_vars.get("integration")
     model_id = params.get("modelId")
     model_provider, model_name = parse_model_id(model_id)
@@ -603,10 +602,9 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
     submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
-        pin=pin,
         span_name=function_vars.get("trace_operation"),
         service=schematize_service_name(
-            "{}.{}".format(ext_service(pin, int_config=config.botocore), function_vars.get("endpoint_name"))
+            "{}.{}".format(ext_service(None, int_config=config.botocore), function_vars.get("endpoint_name"))
         ),
         resource=function_vars.get("operation"),
         span_type=SpanTypes.LLM if submit_to_llmobs else None,
