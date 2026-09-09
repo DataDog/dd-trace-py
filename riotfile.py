@@ -23,6 +23,7 @@ SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
+    (3, 15),
 ]
 
 
@@ -41,6 +42,8 @@ def version_to_str(version: tuple[int, int]) -> str:
     '3.13'
     >>> version_to_str((3, 14))
     '3.14'
+    >>> version_to_str((3, 15))
+    '3.15'
     >>> version_to_str((3, ))
     '3'
     """
@@ -62,6 +65,8 @@ def str_to_version(version: str) -> tuple[int, int]:
     (3, 13)
     >>> str_to_version("3.14")
     (3, 14)
+    >>> str_to_version("3.15")
+    (3, 15)
     >>> str_to_version("3")
     (3,)
     """
@@ -69,7 +74,10 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
-MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
+# 3.15 is listed so select_pys(max_version="3.15") can opt in. Default stays
+# 3.14 so uncapped suites do not mix 3.15 hashes into 3.9-3.14 --exitfirst jobs.
+# Wrap-heavy suites stay at the default until wrap() is live on 3.15.
+MAX_PYTHON_VERSION = "3.14"
 
 
 def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
@@ -83,6 +91,8 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     []
     >>> select_pys(min_version='3.9', max_version='3.10')
     ['3.9', '3.10']
+    >>> select_pys(max_version='3.15')
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     """
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
@@ -419,7 +429,10 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            command=(
+                "pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py "
+                "--ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/"
+            ),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -435,6 +448,10 @@ venv = Venv(
                 "freezegun": latest,
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/tracer",
+                "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_*.py",
+                "_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.tracer",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
@@ -467,7 +484,9 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer-uwsgi",
-                    command="pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py",
+                    command=(
+                        "pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py"
+                    ),
                     pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
                     pkgs={"uwsgi": latest},
                 ),
@@ -503,9 +522,14 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration",
+                "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -525,9 +549,13 @@ venv = Venv(
         ),
         Venv(
             name="integration-civisibility",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
+                "DDTEST_TESTS_LOCATION": "tests/integration/test_integration_civisibility.py",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
+            command="pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -636,6 +664,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "UV_NO_CACHE": "1",
             },
             command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
@@ -761,7 +790,7 @@ venv = Venv(
         Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
         ),
         Venv(
             name="ddtracerun",
@@ -905,12 +934,17 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
@@ -1202,7 +1236,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.14"),
+                    pys=select_pys(max_version="3.15"),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -1587,16 +1621,18 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb",
-            # TODO: Py312 requires changes to test code
-            pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
                 "pynamodb": ["~=5.3", "<6.0"],
-                "moto": ">=1.0,<2.0",
-                "cfn-lint": "~=0.53.1",
-                "Jinja2": "~=2.10.0",
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
+            venvs=[
+                Venv(pys=["3.9"], pkgs={"moto": "==5.1.22"}),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pkgs={"moto": "==5.2.3"},
+                ),
+            ],
         ),
         Venv(
             name="starlette",
@@ -1619,7 +1655,7 @@ venv = Venv(
                     # starlette added support for Python 3.9 in 0.14
                     pys="3.9",
                     pkgs={
-                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"],
+                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0", latest],
                         "httpx": "~=0.22.0",
                     },
                 ),
@@ -1627,7 +1663,7 @@ venv = Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
                     pkgs={
-                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest],
+                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0"],
                         "httpx": "~=0.27.0",
                     },
                 ),
@@ -1637,12 +1673,12 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
-                    pkgs={"starlette": latest, "httpx": "~=0.27.0"},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                    pkgs={"starlette": [latest], "httpx": "~=0.22.0"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "starlette": latest,
+                        "httpx2": latest,
+                        "anyio": latest,
+                    },
                 ),
             ],
         ),
@@ -1852,6 +1888,8 @@ venv = Venv(
                 "webtest": [latest],
                 "tests/contrib/pyramid/pserve_app": [latest],
                 "pytest-randomly": latest,
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -2327,6 +2365,7 @@ venv = Venv(
                             "~=1.8.1",
                             "~=1.10.0",
                             "~=2.0.0",  # first major version; removed Job.get_id() in favour of job.id property
+                            "~=2.7.0",  # split rq/worker.py into a package; SimpleWorker no longer subclasses Worker
                             latest,
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
@@ -2335,7 +2374,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -2914,6 +2953,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={
                 "pytest-randomly": latest,
+                # Only latest is exercised. The surface the context-switch shim wraps has held
+                # from 0.14.0 (the oldest release supporting a Python this tracer supports)
+                # through 0.22.1, and tests/contrib/asyncio/test_context_switch.py fails if a
+                # release stops delegating call_at to call_later.
+                "uvloop": latest,
             },
             venvs=[
                 Venv(
@@ -3365,6 +3409,7 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", "~=2.54.1"],
@@ -3373,6 +3418,7 @@ venv = Venv(
         Venv(
             name="ray_serve",
             command="pytest {cmdargs} tests/contrib/ray_serve",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "fastapi": latest,
@@ -4791,41 +4837,40 @@ def _is_protected_ci_branch() -> bool:
     return branch == "main" or branch.startswith("mq-")
 
 
-def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
-    python_hint = getattr(inst.py, "_hint", "")
+def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
     python_version = _python_hint_to_version(python_hint)
 
-    # Ensure inst.env is a mutable dict we can update in-place.
-    if not inst.env:
-        inst.env = {}
-
     if python_hint:
-        inst.env["_CI_DD_TAGS"] = (
-            f"test.configuration.riot_hash:{inst.short_hash},test.configuration.python:{python_hint}"
-        )
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash},test.configuration.python:{python_hint}"
     else:
-        inst.env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{inst.short_hash}"
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash}"
 
     # ITR is enabled by default for Python >= 3.12, unless the venv explicitly opts out
     # via DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false.
     if (
-        _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
-        and "DD_CIVISIBILITY_ITR_ENABLED" not in inst.env
+        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in env
         and python_version is not None
         and python_version >= _ITR_MIN_PYTHON_VERSION
     ):
-        inst.env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+        env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
 
         # Test skipping is disabled by default (PREVENT_TEST_SKIPPING=1), unless the venv
         # explicitly opts in via DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB=true.
-        if _is_true(inst.env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
-            inst.env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+        if _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
+            env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
         else:
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
 
         if _is_protected_ci_branch():
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
-            inst.env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+            env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+
+def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
+    if not inst.env:
+        inst.env = {}
+    _configure_ci_itr_environment(inst.env, getattr(inst.py, "_hint", ""), inst.short_hash)
 
 
 _venv_instances = venv.instances

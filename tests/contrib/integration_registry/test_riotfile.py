@@ -1,5 +1,7 @@
 import importlib
+import os
 import pathlib
+import re
 import shlex
 import sys
 import types
@@ -34,41 +36,62 @@ def _load_suitespec():
 
 def test_uv_suitespec_matches_riot():
     suitespec_module = _load_suitespec()
-    uv_test_suites = suitespec_module.UV_TEST_SUITES
-    riot_generated_env = {
-        "_CI_DD_TAGS",
-        "DD_CIVISIBILITY_ITR_ENABLED",
-        "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE",
-        "_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING",
+    suites = suitespec_module.get_suites()
+    uv_suites = set(suitespec_module.UV_TEST_SUITES)
+    missing_matrices = {
+        suite
+        for suite, config in suites.items()
+        if "benchmark" not in config.get("type", "test") and suite not in uv_suites
     }
-    suitespec = suitespec_module.get_test_environments(nightly=False)
+    assert not missing_matrices, f"Suites missing a matrix: {missing_matrices}"
 
-    riot_environments = {}
-    for environment in riotfile.venv.instances():
-        riot_suite = environment
-        while riot_suite.parent is not None and riot_suite.parent.parent is not None:
-            riot_suite = riot_suite.parent
-        if riot_suite.name not in uv_test_suites:
+    # riotfile injects the nightly-only coverage env var into every venv when NIGHTLY_BUILD is set,
+    # so mirror that here to keep the comparison valid on both regular and nightly CI pipelines.
+    nightly = os.environ.get("NIGHTLY_BUILD") == "true"
+    suitespec = suitespec_module.get_test_environments(nightly=nightly)
+
+    suite_patterns = tuple(re.compile(suites[suite].get("pattern", suite)) for suite in uv_suites)
+    riot_environments = set()
+    riot_lockfiles = set()
+    for environment in riotfile._venv_instances():
+        if not any(environment.matches_pattern(pattern) for pattern in suite_patterns):
             continue
-        riot_environments[(environment.name, environment.py._hint)] = {
-            "command": environment.command,
-            "dependencies": tuple(shlex.split(environment.full_pkg_str)),
-            "environment": {key: value for key, value in environment.env.items() if key not in riot_generated_env},
-            "lock_hash": environment.short_hash,
-        }
-
-    declared_environments = {}
-    for suite in uv_test_suites:
+        riot_environments.add(
+            (
+                environment.name,
+                environment.py._hint,
+                tuple(shlex.split(environment.command)),
+                frozenset(shlex.split(environment.full_pkg_str)),
+                frozenset(environment.env.items()),
+            )
+        )
+        riot_lockfiles.add(suitespec_module.LOCK_ROOT / f"{environment.short_hash}.txt")
+    suitespec_environments = set()
+    for suite in uv_suites:
         for environment in suitespec[suite]:
-            declared_environments[(environment.name, environment.python)] = {
-                "command": environment.runs[0].command,
-                "dependencies": environment.direct_dependencies,
-                "environment": environment.runs[0].environment,
-                "lock_hash": environment.lock_hash,
-            }
+            for run in environment.runs:
+                suitespec_environments.add(
+                    (
+                        environment.name,
+                        environment.python,
+                        tuple(shlex.split(run.command)),
+                        frozenset(environment.riot_lock_dependencies),
+                        frozenset(run.environment.items()),
+                    )
+                )
 
-    assert len(declared_environments) == 19
-    assert declared_environments == riot_environments
+    assert suitespec_environments == riot_environments, (
+        f"Environments missing from Riot: {suitespec_environments - riot_environments}\n"
+        f"Environments missing from suitespec: {riot_environments - suitespec_environments}"
+    )
+
+    suitespec_lockfiles = {environment.lockfile for suite in uv_suites for environment in suitespec[suite]}
+    assert suitespec_lockfiles == riot_lockfiles, (
+        f"Lock files missing from Riot: {suitespec_lockfiles - riot_lockfiles}\n"
+        f"Lock files missing from suitespec: {riot_lockfiles - suitespec_lockfiles}"
+    )
+    missing_lockfiles = {lockfile for lockfile in suitespec_lockfiles if not lockfile.is_file()}
+    assert not missing_lockfiles, f"Missing suitespec lock files: {missing_lockfiles}"
 
 
 def test_integrations_have_riot_envs(
@@ -105,9 +128,9 @@ def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: Any, integration
         if venv.command and "tests/contrib" in venv.command:
             # some venvs have sub-venvs in the form of venv-name:sub-venv-name, we only want the main one
             # e.g. django:django_hosts -> django
-            venv.name = venv.name.split(":")[0]
-            if venv.name not in integration_dir_names:
-                if venv.name not in EXCLUDED_FROM_TESTING:
+            venv_name = venv.name.split(":")[0]
+            if venv_name not in integration_dir_names:
+                if venv_name not in EXCLUDED_FROM_TESTING:
                     failed_venvs.append(venv)
 
     if failed_venvs:

@@ -2,7 +2,6 @@ import os
 
 import pytest
 
-from ddtrace.appsec._iast._iast_request_context_base import _get_iast_context_id
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode
@@ -14,6 +13,7 @@ from ddtrace.appsec._iast._taint_tracking import initialize_native_state
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges_on_splitted
 from ddtrace.appsec._iast._taint_tracking.aspects import _convert_escaped_text_to_tainted_text
+from ddtrace.appsec._iast_context import _get_iast_context_id
 
 
 _SOURCE1 = Source(name="name", value="value", origin=OriginType.COOKIE)
