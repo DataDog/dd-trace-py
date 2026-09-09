@@ -8,6 +8,7 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._metrics import report_rasp_skipped
 from ddtrace.appsec._rasp import _must_block
 from ddtrace.appsec._rasp import get_rasp_capability
+from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -47,12 +48,16 @@ class _SsrfWebbrowserOpen(WrappingContext):
         if not (isinstance(url, str) and url):
             return
 
-        open_rasp_subcontext_scope()
-        res = call_waf_callback(
-            {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
-            crop_trace=self.__wrapped__.__code__.co_name,
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
-        )
+        # open_rasp_subcontext_scope is documented to be called from a per-outgoing-request core
+        # context; without one, every call in the request would share a single subcontext.
+        with core.context_with_data("url_open_analysis", full_url=url):
+            open_rasp_subcontext_scope()
+            res = call_waf_callback(
+                {EXPLOIT_PREVENTION.ADDRESS.SSRF: url},
+                crop_trace=self.__wrapped__.__code__.co_name,
+                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+            )
+        # Raised outside the scope so it is released before the block propagates.
         if res and _must_block(res.actions):
             raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, url)
 

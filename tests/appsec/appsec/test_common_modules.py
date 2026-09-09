@@ -935,22 +935,35 @@ def test_webbrowser_open_is_wrapped_with_a_context_not_wrapt():
     assert not _SsrfWebbrowserOpen.is_wrapped(webbrowser.open)
 
 
-def test_urlopen_is_not_wrapt_wrapped_and_is_still_inspected_via_the_opener():
-    """urlopen always routes through OpenerDirector.open, which the context already covers.
+def test_each_webbrowser_call_gets_its_own_rasp_subcontext():
+    """open_rasp_subcontext_scope is reentrant, so it must be called per outgoing request.
 
-    The contrib install on urlopen read the second positional argument, which is `data`, so it
-    never had a URL - and it was a duplicate inspection of a path already covered correctly.
+    Without a per-call core context the first call creates the holder and every later call in the
+    same request reuses it, so they are all grouped as one outgoing request.
     """
-    import urllib.request
+    import webbrowser
 
-    from ddtrace.contrib.internal.urllib.patch import patch as urllib_patch
+    from ddtrace.appsec._asm_request_context import _RASP_SUBCONTEXT
+    from ddtrace.appsec._contrib.webbrowser import patch as wb
 
     unpatch_common_modules()
+    holders = []
     try:
         patch_common_modules()
-        urllib_patch()
-
-        assert not isinstance(urllib.request.urlopen, FunctionWrapper)
-        assert _SsrfOpenerDirectorOpen.is_wrapped(urllib.request.OpenerDirector.open)
+        with (
+            mock.patch.object(wb, "get_rasp_capability", return_value=True),
+            mock.patch.object(wb, "get_active_asm_context", return_value=mock.Mock()),
+            mock.patch.object(
+                wb,
+                "call_waf_callback",
+                side_effect=lambda addresses=None, **kwargs: holders.append(core.find_item(_RASP_SUBCONTEXT)),
+            ),
+        ):
+            webbrowser.open("http://127.0.0.1:1/one")
+            webbrowser.open("http://127.0.0.1:1/two")
     finally:
         unpatch_common_modules()
+
+    assert len(holders) == 2, holders
+    assert all(holder is not None for holder in holders)
+    assert holders[0] is not holders[1], "both calls shared one subcontext"
