@@ -71,8 +71,10 @@ class PytestPlugin(bm.Scenario):
             "pytest",
             corpus,
             "-q",
+            # pytest-randomly (if installed) asserts config.cache is not None,
+            # so we disable it rather than disabling the cache provider.
             "-p",
-            "no:cacheprovider",
+            "no:randomly",
             "--rootdir",
             corpus,
         ]
