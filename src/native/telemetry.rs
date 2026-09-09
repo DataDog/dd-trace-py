@@ -19,7 +19,10 @@ use libdd_telemetry::worker::{
 use libdd_telemetry::{parse_tags, Tag};
 
 use libdd_capabilities_impl::NativeCapabilities;
-use libdd_shared_runtime::{BlockingRuntime, ForkSafeRuntime, SharedRuntime, WorkerHandle};
+use libdd_shared_runtime::{
+    shared_runtime::runtime_identity_refresh::discard_worker_without_flush, BlockingRuntime,
+    ForkSafeRuntime, SharedRuntime, WorkerHandle,
+};
 use native_proc_macro::ConvertToPyO3Enum;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -271,6 +274,24 @@ impl TelemetryWorkerPy {
             py.detach(|| {
                 let _ = self.shared_runtime.block_on(async {
                     let _ = wh.stop().await;
+                });
+            });
+        }
+        Ok(())
+    }
+
+    /// Discard pending telemetry and stop the worker without flushing it.
+    fn discard(&self, py: Python<'_>) -> PyResult<()> {
+        self.ensure_runtime_after_fork()?;
+        let worker_handle = self
+            .worker_handle
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take();
+        if let Some(wh) = worker_handle {
+            py.detach(|| {
+                let _ = self.shared_runtime.block_on(async {
+                    let _ = discard_worker_without_flush(wh).await;
                 });
             });
         }

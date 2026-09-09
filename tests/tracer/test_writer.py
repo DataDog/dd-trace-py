@@ -78,12 +78,22 @@ def test_native_writer_drop_buffered_traces_does_not_flush():
         writer._encoder.put([Span("buffered")])
         assert len(writer._encoder) == 1
 
-        with mock.patch.object(writer, "_send_payload") as send_payload:
+        with (
+            mock.patch.object(writer, "_send_payload") as send_payload,
+            mock.patch.object(
+                writer._exporter,
+                "shutdown_without_flush",
+                wraps=writer._exporter.shutdown_without_flush,
+            ) as discard,
+        ):
             writer.drop_buffered_traces()
             writer.flush_queue()
 
         assert len(writer._encoder) == 0
         send_payload.assert_not_called()
+        discard.assert_called_once_with()
+        assert writer._exporter.debug() == "None"
+        writer.drop_buffered_traces()
     finally:
         writer.shutdown_exporter()
 

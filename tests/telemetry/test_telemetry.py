@@ -60,6 +60,34 @@ assert telemetry_writer._worker is not None
     assert stderr == b""
 
 
+def test_native_telemetry_worker_discard_removes_worker_registration(run_python_code_in_subprocess):
+    """The Python binding discards its native worker and makes the operation idempotent."""
+    code = """
+import ddtrace  # enables telemetry
+
+from ddtrace.internal.native_runtime import get_native_runtime
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+worker = telemetry_writer._worker
+assert worker is not None
+runtime = get_native_runtime()
+workers_before = runtime.debug().count("WorkerEntry")
+
+worker.discard()
+assert runtime.debug().count("WorkerEntry") == workers_before - 1
+
+# A refresh/shutdown race must not turn a second discard into an error.
+worker.discard()
+assert runtime.debug().count("WorkerEntry") == workers_before - 1
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+    assert stderr == b""
+
+
 def test_enable_with_short_heartbeat_does_not_race_imports(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
     env["DD_TELEMETRY_HEARTBEAT_INTERVAL"] = "0.00001"

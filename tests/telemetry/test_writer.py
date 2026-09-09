@@ -826,6 +826,7 @@ def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatc
             self.kwargs = kwargs
             self.start_calls = 0
             self.stop_calls = []
+            self.discard_calls = 0
             workers.append(self)
 
         def start(self):
@@ -833,6 +834,9 @@ def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatc
 
         def stop(self, send_app_closing=True):
             self.stop_calls.append(send_app_closing)
+
+        def discard(self):
+            self.discard_calls += 1
 
         def __getattr__(self, name):
             def _noop(*args, **kwargs):
@@ -858,7 +862,8 @@ def test_microvm_identity_refresh_rebuilds_worker_with_new_runtime_id(monkeypatc
 
             runtime.refresh_identity()
 
-            assert first_worker.stop_calls == [False]
+            assert first_worker.stop_calls == []
+            assert first_worker.discard_calls == 1
             assert workers[-1] is writer._worker
             assert workers[-1].kwargs["runtime_id"] == runtime.get_runtime_id()
             assert workers[-1].kwargs["session_id"] == runtime.get_runtime_id()

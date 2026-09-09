@@ -476,6 +476,44 @@ def test_aggregator_identity_reset_drops_trace_finishing_during_refresh():
     writer.write.assert_not_called()
 
 
+def test_aggregator_identity_reset_keeps_writer_recreation_and_buffer_reset_atomic():
+    reset_buffer_entered = Event()
+    allow_buffer_reset = Event()
+
+    writer = mock.Mock()
+    writer.recreate.return_value = writer
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = writer
+
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    reset_trace_buffer = aggr.reset_trace_buffer_after_fork
+
+    def delayed_buffer_reset():
+        reset_buffer_entered.set()
+        assert allow_buffer_reset.wait(5)
+        reset_trace_buffer()
+
+    aggr.reset_trace_buffer_after_fork = delayed_buffer_reset
+    reset = Thread(target=lambda: aggr.reset(reset_buffer=True, flush_writer=False, drop_buffered_traces=True))
+    reset.start()
+    try:
+        assert reset_buffer_entered.wait(5)
+
+        finish = Thread(target=span.finish)
+        finish.start()
+        finish.join(0.1)
+        assert finish.is_alive()
+    finally:
+        allow_buffer_reset.set()
+        reset.join(5)
+        finish.join(5)
+
+    assert not reset.is_alive()
+    assert not finish.is_alive()
+    writer.write.assert_not_called()
+
+
 def test_aggregator_bad_processor():
     class Proc(TraceProcessor):
         def process_trace(self, trace):
