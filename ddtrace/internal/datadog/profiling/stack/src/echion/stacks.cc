@@ -14,6 +14,13 @@ FrameStack::render(EchionSampler& echion)
     for (auto it = this->begin(); it != this->end(); ++it) {
         auto& frame = *it;
 
+        // The collection runs underneath everything the frame is doing, including a native call
+        // such as gc.collect that is still in progress. Locations are leaf-to-root, so the GC
+        // frame must be pushed first to render as the innermost callee.
+        if (frame.is_in_gc) {
+            renderer.render_gc_frame();
+        }
+
         // Inject native frame BEFORE its Python caller.
         // sys.monitoring reports instruction offsets in bytes, while the sampler computes
         // frame.lasti in _Py_CODEUNIT units. Convert to bytes for the registry lookup.
@@ -51,6 +58,7 @@ unwind_frame(EchionSampler& echion,
             break;
 
         seen_frames.insert(current_frame_addr);
+        bool is_in_gc = current_frame_addr == echion.current_gc_frame();
 
 #if PY_VERSION_HEX >= 0x030b0000
         auto maybe_frame = Frame::read(echion,
@@ -67,7 +75,11 @@ unwind_frame(EchionSampler& echion,
             continue;
         }
 
-        stack.push_back(maybe_frame->get());
+        // Frame::read returns a shared cache entry. Copy it first and put the
+        // address-specific marker only on the Frame owned by this sample.
+        Frame sampled_frame = maybe_frame->get();
+        sampled_frame.is_in_gc = is_in_gc;
+        stack.push_back(sampled_frame);
         count++;
 
         if (count >= max_depth) {
@@ -114,5 +126,5 @@ unwind_python_stack(EchionSampler& echion, PyThreadState* tstate, FrameStack& st
 #else // Python < 3.11
     PyObject* frame_addr = reinterpret_cast<PyObject*>(tstate->frame);
 #endif
-    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch());
+    unwind_frame(echion, frame_addr, stack, echion.seen_frames_scratch(), max_frames);
 }

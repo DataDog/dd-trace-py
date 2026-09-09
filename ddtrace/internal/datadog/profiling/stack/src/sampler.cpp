@@ -4,6 +4,7 @@
 #include "cpu_timer.hpp"
 #include "dd_wrapper/include/profiler_state.hpp"
 #include "dd_wrapper/include/sample.hpp"
+#include "gc_frame_tracker.hpp"
 #include "origin_task_links.hpp"
 #include "thread_span_links.hpp"
 
@@ -265,7 +266,9 @@ Sampler::capture_samples(const microsecond_t wall_time_us, const bool include_wa
     // sample the selected threads. This caps the O(n_threads) stack-unwinding cost.
     if (max_threads_per_sample == 0) {
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+            PyObject* gc_frame = gc_tracking_enabled_ ? GCFrameTracker::get().capture(interp.interp) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& thread) {
+                auto gc_frame_scope = echion->use_gc_frame(gc_frame);
                 auto success = thread.sample(*echion, tstate, wall_time_us, include_wall_sampler_cpu_time);
                 if (success) {
                     Sample::profile_borrow().stats().increment_sample_count();
@@ -276,8 +279,9 @@ Sampler::capture_samples(const microsecond_t wall_time_us, const bool include_wa
         thread_candidates.clear();
 
         for_each_interp(runtime, [&](InterpreterInfo& interp) -> void {
+            PyObject* gc_frame = gc_tracking_enabled_ ? GCFrameTracker::get().capture(interp.interp) : nullptr;
             for_each_thread(*echion, interp, [&](PyThreadState* tstate, ThreadInfo& /*thread*/) {
-                thread_candidates.push_back(*tstate);
+                thread_candidates.push_back({ *tstate, gc_frame });
             });
         });
 
@@ -327,11 +331,11 @@ Sampler::capture_samples(const microsecond_t wall_time_us, const bool include_wa
             // thread registers with same ID), causing the new ThreadInfo to be paired with
             // the old tstate. This window is a few microseconds and pthread_t reuse within
             // it is unlikely.
-            auto it = echion->thread_info_map().find(thread_candidates[i].thread_id);
+            auto it = echion->thread_info_map().find(thread_candidates[i].tstate.thread_id);
             if (it == echion->thread_info_map().end()) {
                 // Thread was unregistered; try to fill from overflow
                 for (; fallback_idx < thread_candidates.size(); ++fallback_idx) {
-                    auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].thread_id);
+                    auto fb_it = echion->thread_info_map().find(thread_candidates[fallback_idx].tstate.thread_id);
                     if (fb_it != echion->thread_info_map().end()) {
                         thread_candidates[i] = thread_candidates[fallback_idx];
                         it = fb_it;
@@ -344,8 +348,9 @@ Sampler::capture_samples(const microsecond_t wall_time_us, const bool include_wa
                     continue;
                 }
             }
-            auto success =
-              it->second->sample(*echion, &thread_candidates[i], effective_wall_time_us, include_wall_sampler_cpu_time);
+            auto gc_frame_scope = echion->use_gc_frame(thread_candidates[i].gc_frame);
+            auto success = it->second->sample(
+              *echion, &thread_candidates[i].tstate, effective_wall_time_us, include_wall_sampler_cpu_time);
             if (success) {
                 Sample::profile_borrow().stats().increment_sample_count();
             }
@@ -372,9 +377,6 @@ Sampler::take_sampling_thread_error()
 void
 Sampler::sampling_thread(const uint64_t seq_num)
 {
-    // Mark thread as running
-    thread_running.store(true);
-
     // The configured CPU accounting mode is frozen before this thread starts. If
     // the CPU timer engine later degrades, wall sampling continues to report only
     // wall time instead of switching CPU accounting mechanisms during the run.
@@ -737,6 +739,7 @@ Sampler::restart_after_fork()
 static void
 stack_atfork_prepare()
 {
+    GCFrameTracker::get().prefork();
     Sampler::get().prefork();
 }
 
@@ -744,6 +747,7 @@ static void
 stack_atfork_parent()
 {
     Sampler::get().postfork_parent();
+    GCFrameTracker::get().postfork_parent();
 }
 
 static void
@@ -765,6 +769,9 @@ stack_postfork_cleanup()
 void
 stack_atfork_child()
 {
+    // Recreate synchronization and discard any pre-fork fallback GC frame.
+    GCFrameTracker::get().postfork_child();
+
     // Clean up Sampler state, do not start the Sampler yet.
     stack_postfork_cleanup();
 
@@ -857,6 +864,10 @@ Sampler::start()
     sampler_active_.store(true);
     CpuTimer::Engine::get().start();
 
+    // Mark the thread as running before it is launched, not from the thread itself: otherwise an
+    // immediate stop() would early exit and the sampling thread would keep running indefinitely.
+    thread_running.store(true);
+
     // Launch the sampling thread.
     // Thread lifetime is bounded by the value of the sequence number.  When it is changed from the value the thread was
     // launched with, the thread will exit.
@@ -871,6 +882,7 @@ Sampler::start()
     auto thread_id = create_thread_with_stack(stack_size, this, ++thread_seq_num);
     if (thread_id == 0) {
         sampler_active_.store(false);
+        thread_running.store(false);
         return false;
     }
 
@@ -881,6 +893,7 @@ Sampler::start()
         t.detach();
     } catch (const std::exception& e) {
         sampler_active_.store(false);
+        thread_running.store(false);
         return false;
     }
 #endif

@@ -70,40 +70,15 @@ See the **llmobs-integrations** skill for the full LLM-specific implementation g
 
 ## 4. Add test environment
 
-### riotfile.py
-
-Add a `Venv()` entry to `riotfile.py` near similar integrations. Place it alphabetically within the appropriate section.
-
-```python
-Venv(
-    name="{name}",
-    command="pytest {cmdargs} tests/contrib/{name}",
-    pkgs={
-        "pytest-asyncio": latest,  # if async support
-        "vcrpy": latest,           # if the suite uses vcrpy cassettes; match nearby pins
-    },
-    venvs=[
-        # Pin oldest supported version
-        Venv(
-            pys=select_pys(min_version="3.9", max_version="3.13"),
-            pkgs={"{package}": "~=1.0.0"},
-        ),
-        # Latest version
-        Venv(
-            pys=select_pys(),
-            pkgs={"{package}": latest},
-        ),
-    ],
-),
-```
+Add a `Venv()` entry to `riotfile.py` near a similar integration. This remains the source of test dependency and Python-version combinations.
 
 Key rules:
 - `name` must match the integration name used in `PATCH_MODULES`
 - `command` points to the test directory
 - Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
 - Use `select_pys()` for Python version ranges
-- Pin oldest supported + latest in separate nested `Venv()` entries
-- Check neighboring entries in the file for consistent formatting
+- Cover the oldest supported and latest compatible dependency versions
+- Regenerate the committed locks with `scripts/ddtest scripts/compile-and-prune-test-requirements`
 
 ### suitespec.yml
 
@@ -136,7 +111,7 @@ Use the **releasenote** skill.
 
 ## Verification
 
-Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest`, `riot`, or `scripts/ddtest` directly.
+Use the **run-tests** skill to run tests. Use the **lint** skill for formatting and type checks. Never invoke `pytest` directly.
 
 ## Recent PRs as Examples
 
@@ -166,7 +141,7 @@ Every new integration must complete ALL applicable items:
 - [ ] `_llmobs_set_tags()` implemented with all required LLMObs fields (LLM only)
 
 ### Test Environment
-- [ ] `riotfile.py` -- `Venv()` entry with pinned + latest package versions
+- [ ] `riotfile.py` -- `Venv()` entry covering pinned + latest package versions
 - [ ] Suitespec entry -- component + suite in correct file (`tests/llmobs/suitespec.yml` or `tests/contrib/suitespec.yml`)
 - [ ] Compile and prune test requirements if needed -- follow `docs/contributing-testing.rst` and existing repo workflow
 
