@@ -74,25 +74,20 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
-# 3.15 is listed so select_pys(max_version="3.15") can opt in. Default stays
-# 3.14 so uncapped suites do not mix 3.15 hashes into 3.9-3.14 --exitfirst jobs.
-# Wrap-heavy suites stay at the default until wrap() is live on 3.15.
-MAX_PYTHON_VERSION = "3.14"
+MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
 
 
 def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     >>> select_pys(min_version='3')
-    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     >>> select_pys(max_version='3')
     []
     >>> select_pys(min_version='3.9', max_version='3.10')
     ['3.9', '3.10']
-    >>> select_pys(max_version='3.15')
-    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     """
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
@@ -3392,7 +3387,10 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10"),
+                    # TODO(py3.15): pydantic-ai 0.8/1.0 resolve pydantic-core 2.37.2, whose
+                    # PyO3 0.25.1 build rejects Python 3.15. Re-enable after that dependency
+                    # publishes Python 3.15 support; the 1.63.0 lane is covered below.
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={
                         "pydantic-ai-slim[openai]": ["==0.8.1", "==1.0.0"],
                         "pydantic": "==2.12.0a1",
