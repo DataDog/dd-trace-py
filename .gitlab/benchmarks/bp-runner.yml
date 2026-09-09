@@ -10,4 +10,9 @@ experiments:
       - name: benchmarks
         cpus: 26-47
         run: shell
-        script: export SCENARIO=$BP_SCENARIO && /platform/steps/run-benchmarks.sh
+        # bp-runner applies `cpus` by wrapping this step in taskset; it does not export
+        # the range, so run-benchmarks.sh cannot discover it. BENCHMARKS_CPU_AFFINITY
+        # carries the same value inward so run.py's own taskset calls stay inside this
+        # step's cpuset instead of reaching cores 24-25, which the datadog-agent setup
+        # step owns. Keep it identical to `cpus` above.
+        script: export SCENARIO=$BP_SCENARIO BENCHMARKS_CPU_AFFINITY=26-47 && /platform/steps/run-benchmarks.sh
