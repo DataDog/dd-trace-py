@@ -160,7 +160,7 @@ class TestLLMObsOpenaiV1:
         spans = [s for trace in test_spans.pop_traces() for s in trace]
         assert len(spans) == 1
         # Only the explicitly-set value should survive; the Omit/NotGiven sentinels are dropped.
-        # ``finish_reason`` comes from the response, not request kwargs, so it survives too; the
+        # finish_reason comes from the response, not request kwargs, so it survives too; the
         # mocked response returns two choices, so its reasons are comma-joined.
         assert get_llmobs_metadata(spans[0]) == {"top_p": 0.9, "finish_reason": "stop,stop"}
 
