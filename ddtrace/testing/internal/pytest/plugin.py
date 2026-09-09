@@ -24,6 +24,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -310,13 +311,14 @@ class TestOptPlugin(TestOptPluginProtocol):
             self.enable_ddtrace_trace_filter = True
 
         # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
-        # Requires DD_CIVISIBILITY_AGENTLESS_ENABLED.
+        # Requires agentless mode (i.e. DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED)
         self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
         if self.enable_agentless_log_submission:
-            if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+            if not agentless_config.ci_visibility:
                 log.warning(
-                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_CIVISIBILITY_AGENTLESS_ENABLED is not. "
-                    "Log submission to Datadog requires agentless mode; logs will not be forwarded."
+                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but agentless mode is not enabled. "
+                    "Set DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED; "
+                    "logs will not be forwarded."
                 )
                 self.enable_agentless_log_submission = False
             elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):

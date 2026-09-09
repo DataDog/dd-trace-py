@@ -1,11 +1,13 @@
 import mock
 from mock.mock import call
+import pytest
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.discovery import undecorated
 from ddtrace.debugging._function.store import FunctionStore
 from ddtrace.internal.module import origin
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.utils.obfuscation import ObfuscatedCodeError
 from ddtrace.internal.wrapping.context import WrappingContext
 import tests.submod.stuff as stuff
 
@@ -155,6 +157,24 @@ def test_function_wrap_decorated():
         store.restore_all()
         s.doublydecoratedstuff()
         arg.assert_called_once_with(42)
+
+
+def test_function_wrap_obfuscated_code_reports_failure():
+    with FunctionStore() as store:
+        function = FunctionDiscovery.from_module(stuff).by_name(stuff.modulestuff.__name__)
+        assert function is stuff.modulestuff
+
+        original_code = function.__code__
+        arg = mock.Mock()
+
+        with mock.patch("ddtrace.internal.wrapping.context.is_obfuscated_code", return_value=True):
+            with pytest.raises(ObfuscatedCodeError):
+                store.wrap(function, MockWrappingContext(function, arg, 42))
+
+        assert function.__code__ is original_code, "obfuscated code was rewritten despite the failed wrap"
+
+        stuff.modulestuff(None)
+        arg.assert_not_called()
 
 
 def test_function_unwrap():
