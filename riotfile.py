@@ -1108,7 +1108,7 @@ venv = Venv(
                     # django.utils.baseconv (removed in Django 5.0). Postgres-touching tests
                     # and Django-4.2-specific test_cached_view are skipped because Django 5.0
                     # dropped Postgres 12, but the suite's docker-compose still runs Postgres 12.
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10"),
                     command=(
                         "pytest {cmdargs} "
                         "--ignore=tests/contrib/django/test_django_dbm.py "

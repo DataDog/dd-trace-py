@@ -14,6 +14,9 @@ import yaml
 import riotfile
 
 
+PYTHON_COMPATIBILITY_VERSIONS = ("3.14", "3.15")
+
+
 def _load_suitespec():
     ruamel = types.ModuleType("ruamel")
     ruamel_yaml = types.ModuleType("ruamel.yaml")
@@ -143,3 +146,40 @@ def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: Any, integration
             )
         failure_messages.append("*" * 100)
     assert failed_venvs == [], "\n".join(failure_messages)
+
+
+def _contrib_riot_python_versions(
+    integration_dir_names: set[str], untested_integrations: set[str]
+) -> dict[str, set[str]]:
+    """Collect Python versions for every supported contrib and its Riot environments."""
+    supported_integrations = integration_dir_names - untested_integrations
+    versions: dict[str, set[str]] = {name: set() for name in supported_integrations}
+    for environment in riotfile._venv_instances():
+        if not environment.name or "tests/contrib/" not in (environment.command or ""):
+            continue
+        integration_name = environment.name.split(":", 1)[0]
+        if integration_name in supported_integrations:
+            versions.setdefault(environment.name, set()).add(environment.py._hint)
+    return versions
+
+
+def test_contrib_python_compatibility_inventory(record_property, integration_dir_names, untested_integrations):
+    """Record every contrib scheduled for, or missing, both Python 3.14 and 3.15."""
+    versions = _contrib_riot_python_versions(integration_dir_names, untested_integrations)
+    scheduled = sorted(name for name, values in versions.items() if set(PYTHON_COMPATIBILITY_VERSIONS) <= values)
+    not_upgraded = sorted(name for name, values in versions.items() if name not in scheduled)
+    missing_versions = {
+        version: sorted(name for name, values in versions.items() if version not in values)
+        for version in PYTHON_COMPATIBILITY_VERSIONS
+    }
+
+    # This inventory describes the generated Riot matrix. Runtime pass/fail is reported by each
+    # integration's own CI job; a scheduled integration with a failing job belongs in the
+    # follow-up failure report rather than being presented as a passing integration here.
+    record_property("python_3_14_3_15_scheduled", ",".join(scheduled))
+    record_property("python_3_14_3_15_not_upgraded", ",".join(not_upgraded))
+    record_property("python_3_14_not_upgraded", ",".join(missing_versions["3.14"]))
+    record_property("python_3_15_not_upgraded", ",".join(missing_versions["3.15"]))
+    assert set(scheduled) | set(not_upgraded) == set(versions)
+    assert not set(scheduled) & set(not_upgraded)
+    assert set(not_upgraded) == set(missing_versions["3.14"]) | set(missing_versions["3.15"])
