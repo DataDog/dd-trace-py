@@ -29,7 +29,7 @@ tests/integration/                  @DataDog/apm-core-python
 ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
 tests/snapshots/                    @DataDog/apm-core-python @DataDog/apm-python
-.uv/                                @DataDog/python-guild
+.riot/requirements/                 @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-core-python @DataDog/apm-python
