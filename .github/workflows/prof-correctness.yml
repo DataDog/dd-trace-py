@@ -29,6 +29,7 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - name: Resolve commit SHA
         id: sha
@@ -50,9 +51,36 @@ jobs:
       - name: Trigger prof-correctness downstream-python
         env:
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
+          TEST_SCENARIOS: ${{ github.event.inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\\.(14|15)' }}
         run: |
-          echo "Triggering prof-correctness for commit ${{ steps.sha.outputs.value }}"
+          # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
+          TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA}"
           gh workflow run downstream-python.yml \
             --repo DataDog/prof-correctness \
-            -f "dd_trace_py_commit_sha=${{ steps.sha.outputs.value }}" \
-            -f "test_scenarios=${{ github.event.inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\\.(14|15)' }}"
+            -f "dd_trace_py_commit_sha=${DD_TRACE_PY_SHA}" \
+            -f "test_scenarios=${TEST_SCENARIOS}"
+
+          RUN_ID=""
+          for _ in $(seq 1 30); do
+            RUN_ID="$(gh run list \
+              --repo DataDog/prof-correctness \
+              --workflow=downstream-python.yml \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json databaseId,displayTitle,headSha,event,createdAt \
+              --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${DD_TRACE_PY_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+            if [ -n "${RUN_ID}" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "${RUN_ID}" ]; then
+            echo "error: no DataDog/prof-correctness downstream-python run found for sha ${DD_TRACE_PY_SHA} (expected title 'dd-trace-py downstream (${DD_TRACE_PY_SHA})') dispatched at/after ${TRIGGERED_AT}" >&2
+            exit 1
+          fi
+
+          echo "Watching prof-correctness run ${RUN_ID}"
+          gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status

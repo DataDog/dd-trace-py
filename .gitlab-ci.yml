@@ -581,6 +581,7 @@ prof-correctness:
   tags: ["arch:amd64"]
   needs:
     - job: "upload all"
+  timeout: 60m
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
@@ -602,11 +603,36 @@ prof-correctness:
       fi
     - |
       TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
+      # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
+      TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
       echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
       gh workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
         -f "test_scenarios=${TEST_SCENARIOS}"
+
+      RUN_ID=""
+      for _ in $(seq 1 30); do
+        RUN_ID="$(gh run list \
+          --repo DataDog/prof-correctness \
+          --workflow=downstream-python.yml \
+          --event workflow_dispatch \
+          --limit 20 \
+          --json databaseId,displayTitle,headSha,event,createdAt \
+          --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${CI_COMMIT_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+        if [ -n "${RUN_ID}" ]; then
+          break
+        fi
+        sleep 2
+      done
+
+      if [ -z "${RUN_ID}" ]; then
+        echo "error: no DataDog/prof-correctness downstream-python run found for sha ${CI_COMMIT_SHA} (expected title 'dd-trace-py downstream (${CI_COMMIT_SHA})') dispatched at/after ${TRIGGERED_AT}" >&2
+        exit 1
+      fi
+
+      echo "Watching prof-correctness run ${RUN_ID}"
+      gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
 
 lib_injection_tests:
   # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
