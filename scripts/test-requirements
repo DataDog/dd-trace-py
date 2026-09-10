@@ -54,7 +54,7 @@ def _require_lock_platform(command: str) -> None:
     detected = f"{platform.system() or sys.platform} {platform.machine() or 'unknown'}"
     raise LockError(
         f"test locks can only be generated on Linux x86-64; detected {detected}.\n"
-        f"Run scripts/ddtest scripts/test-env {command} [name] on a Linux x86-64 host, "
+        f"Run scripts/ddtest scripts/test-requirements {command} [name] on a Linux x86-64 host, "
         "or use the Linux x86-64 testrunner image used by CI."
     )
 
