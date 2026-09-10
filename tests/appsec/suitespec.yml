@@ -64,7 +64,7 @@ suites:
           dependencies: [requests, urllib3, cryptography, simplejson, grpcio, pytest-asyncio, protobuf, pytest-xdist, 'pip<25', pycryptodome]
         - name: appsec_iast_default
           dependencies: [requests, urllib3, cryptography, simplejson, grpcio, pytest-asyncio, protobuf, pytest-xdist, 'pip<25']
-          python: ['3.14']
+          python: ['3.14', '3.15']
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
@@ -313,7 +313,7 @@ suites:
         - name: appsec_integrations_flask
           dependencies: [requests, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'flask~=2.2']
         - name: appsec_integrations_flask
-          python: ['3.11', '3.12', '3.13', '3.14']
+          python: ['3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, 'psycopg2-binary~=2.9.9', flask-babel, sqlalchemy, pytest-randomly, 'flask~=3.1', 'Werkzeug~=3.1']
   appsec_integrations_flask_testagent:
     venvs_per_job: 1
@@ -389,13 +389,13 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django~=4.2', legacy-cgi]
         - name: appsec_integrations_django
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', 'django~=5.2']
         - name: appsec_integrations_django
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', django]
         - name: appsec_integrations_django
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, gunicorn, gevent, pylibmc, PyYAML, dill, 'bcrypt==4.2.1', 'pytest-django[testing]==3.10.0', 'psutil==7.1.3', django, legacy-cgi]
   appsec_integrations_fastapi:
     venvs_per_job: 1
@@ -423,16 +423,16 @@ suites:
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
       variants:
         - name: appsec_integrations_fastapi
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', 'fastapi==0.86.0', 'anyio==3.7.1']
         - name: appsec_integrations_fastapi
           python: ['3.10', '3.14']
           dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', 'fastapi==0.141.1']
         - name: appsec_integrations_fastapi
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', 'fastapi~=0.114.2', 'mcp==1.21.2']
         - name: appsec_integrations_fastapi
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [requests, python-multipart, jinja2, 'httpx<0.28.0', 'uvicorn==0.33.0', pytest-asyncio, 'psutil==7.1.3', fastapi, 'pydantic~=2.12', 'mcp==1.21.2']
   appsec_threats_django_no_iast:
     venvs_per_job: 1

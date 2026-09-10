@@ -112,7 +112,7 @@ suites:
       command: pytest {cmdargs} tests/aiguard/strands_hooks/
       env:
         DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
-      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: ai_guard_strands
           dependencies: ['strands-agents>=1.29.0']
@@ -133,8 +133,8 @@ suites:
         DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
       variants:
         - name: ai_guard_litellm_guardrail
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'litellm[proxy]==1.78.5']
         - name: ai_guard_litellm_guardrail
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-asyncio, 'litellm[proxy]==1.82.6']

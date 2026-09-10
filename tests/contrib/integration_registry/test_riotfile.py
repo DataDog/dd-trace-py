@@ -1,4 +1,5 @@
 import importlib
+import json
 import os
 import pathlib
 import re
@@ -9,12 +10,17 @@ from typing import Any
 from unittest import mock
 
 from mappings import EXCLUDED_FROM_TESTING
+from packaging.version import Version
 import yaml
 
 import riotfile
 
 
 PYTHON_COMPATIBILITY_VERSIONS = ("3.14", "3.15")
+
+
+def _riot_venv_instances():
+    return getattr(riotfile, "_venv_instances")()
 
 
 def _load_suitespec():
@@ -56,7 +62,7 @@ def test_uv_suitespec_matches_riot():
     suite_patterns = tuple(re.compile(suites[suite].get("pattern", suite)) for suite in uv_suites)
     riot_environments = set()
     riot_lockfiles = set()
-    for environment in riotfile._venv_instances():
+    for environment in _riot_venv_instances():
         if not any(environment.matches_pattern(pattern) for pattern in suite_patterns):
             continue
         riot_environments.add(
@@ -148,38 +154,88 @@ def test_contrib_tests_have_valid_contrib_venv_name(riot_venvs: Any, integration
     assert failed_venvs == [], "\n".join(failure_messages)
 
 
-def _contrib_riot_python_versions(
-    integration_dir_names: set[str], untested_integrations: set[str]
-) -> dict[str, set[str]]:
-    """Collect Python versions for every supported contrib and its Riot environments."""
-    supported_integrations = integration_dir_names - untested_integrations
+def _contrib_riot_python_versions(integration_dir_names: set[str]) -> dict[str, set[str]]:
+    """Collect Python versions for every internal contrib and its Riot environments."""
+    # Include integrations marked is_tested=false in registry.yaml when Riot has a test
+    # environment for them: this report is specifically intended to expose those matrix gaps.
+    supported_integrations = integration_dir_names - EXCLUDED_FROM_TESTING
     versions: dict[str, set[str]] = {name: set() for name in supported_integrations}
-    for environment in riotfile._venv_instances():
+    for environment in _riot_venv_instances():
         if not environment.name or "tests/contrib/" not in (environment.command or ""):
             continue
         integration_name = environment.name.split(":", 1)[0]
         if integration_name in supported_integrations:
-            versions.setdefault(environment.name, set()).add(environment.py._hint)
+            versions[integration_name].add(environment.py._hint)
     return versions
 
 
-def test_contrib_python_compatibility_inventory(record_property, integration_dir_names, untested_integrations):
-    """Record every contrib scheduled for, or missing, both Python 3.14 and 3.15."""
-    versions = _contrib_riot_python_versions(integration_dir_names, untested_integrations)
-    scheduled = sorted(name for name, values in versions.items() if set(PYTHON_COMPATIBILITY_VERSIONS) <= values)
-    not_upgraded = sorted(name for name, values in versions.items() if name not in scheduled)
-    missing_versions = {
+def _highest_tested_dependency_versions(project_root: pathlib.Path) -> dict[str, dict[str, dict[str, str]]]:
+    """Read the highest locked dependency versions tested by each integration and Python version."""
+    supported_versions = json.loads((project_root / "supported_versions.json").read_text())
+    highest: dict[str, dict[str, dict[str, str]]] = {}
+
+    for entry in supported_versions:
+        integration_name = entry["integrationName"]
+        dependency_name = entry["dependencyName"]
+        integration_versions = highest.setdefault(integration_name, {})
+        for version_group in entry["versions"]:
+            tested_versions = version_group.get("tested", [])
+            if not tested_versions:
+                continue
+            version = max(tested_versions, key=Version)
+            for python_version in version_group["testedRuntimes"]["python"]:
+                dependency_versions = integration_versions.setdefault(dependency_name, {})
+                previous = dependency_versions.get(python_version)
+                if previous is None or Version(version) > Version(previous):
+                    dependency_versions[python_version] = version
+
+    return highest
+
+
+def test_contrib_python_compatibility_inventory(project_root, integration_dir_names):
+    """Record coverage, highest tested versions, and gaps for every supported contrib."""
+    versions = _contrib_riot_python_versions(integration_dir_names)
+    highest_dependency_versions = _highest_tested_dependency_versions(project_root)
+    report = {}
+
+    for integration_name, python_versions in sorted(versions.items()):
+        report[integration_name] = {
+            "highest_tested_python": max(python_versions, key=lambda version: tuple(map(int, version.split("."))))
+            if python_versions
+            else None,
+            "python": {
+                version: "scheduled" if version in python_versions else "not_scheduled"
+                for version in PYTHON_COMPATIBILITY_VERSIONS
+            },
+            "highest_tested_dependency_versions": {
+                dependency: max(dependencies.values(), key=Version)
+                for dependency, dependencies in highest_dependency_versions.get(integration_name, {}).items()
+            },
+            "highest_tested_dependency_versions_by_python": highest_dependency_versions.get(integration_name, {}),
+        }
+
+    not_scheduled = {
         version: sorted(name for name, values in versions.items() if version not in values)
         for version in PYTHON_COMPATIBILITY_VERSIONS
     }
+    scheduled = sorted(name for name, values in versions.items() if set(PYTHON_COMPATIBILITY_VERSIONS) <= values)
 
-    # This inventory describes the generated Riot matrix. Runtime pass/fail is reported by each
-    # integration's own CI job; a scheduled integration with a failing job belongs in the
-    # follow-up failure report rather than being presented as a passing integration here.
-    record_property("python_3_14_3_15_scheduled", ",".join(scheduled))
-    record_property("python_3_14_3_15_not_upgraded", ",".join(not_upgraded))
-    record_property("python_3_14_not_upgraded", ",".join(missing_versions["3.14"]))
-    record_property("python_3_15_not_upgraded", ",".join(missing_versions["3.15"]))
-    assert set(scheduled) | set(not_upgraded) == set(versions)
-    assert not set(scheduled) & set(not_upgraded)
-    assert set(not_upgraded) == set(missing_versions["3.14"]) | set(missing_versions["3.15"])
+    # This inventory describes the generated Riot matrix. Runtime pass/fail remains the result of
+    # each integration's own CI job; "scheduled" must not be interpreted as a passing test.
+    report_path = project_root / "test-results" / "integration-compatibility.json"
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(
+        json.dumps(
+            {
+                "python_compatibility_versions": list(PYTHON_COMPATIBILITY_VERSIONS),
+                "integrations": report,
+                "scheduled_for_both": scheduled,
+                "not_scheduled": not_scheduled,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n"
+    )
+    assert set(scheduled) | set(not_scheduled["3.14"]) | set(not_scheduled["3.15"]) == set(versions)
+    assert not set(scheduled) & (set(not_scheduled["3.14"]) | set(not_scheduled["3.15"]))

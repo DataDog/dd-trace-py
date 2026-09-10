@@ -14,7 +14,7 @@ suites:
       - tests/errortracking/*
     matrix:
       command: pytest {cmdargs} tests/errortracking/
-      python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+      python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: errortracker
           dependencies: [flask, 'pip==26.2.1']

@@ -831,7 +831,7 @@ venv = Venv(
         Venv(
             name="vertica",
             command="pytest {cmdargs} tests/contrib/vertica/",
-            pys=select_pys(max_version="3.9"),
+            pys=select_pys(),
             pkgs={
                 "vertica-python": [">=0.6.0,<0.7.0", ">=0.7.0,<0.8.0"],
                 "pytest-randomly": latest,
@@ -933,7 +933,7 @@ venv = Venv(
                         "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
                         "tests/contrib/bottle/"
                     ),
-                    pys=select_pys(max_version="3.9"),
+                    pys=select_pys(),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
                 ),
                 Venv(
@@ -941,7 +941,7 @@ venv = Venv(
                         "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
                     ),
                     env={"DD_SERVICE": "bottle-app"},
-                    pys=select_pys(max_version="3.9"),
+                    pys=select_pys(),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
                 ),
             ],
@@ -1418,7 +1418,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12", max_version="3.13"),
+                            pys=select_pys(min_version="3.12"),
                             pkgs={
                                 "redis": latest,
                             },
@@ -1435,7 +1435,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12", max_version="3.13"),
+                            pys=select_pys(min_version="3.12"),
                             pkgs={"redis": latest},
                         ),
                     ],
@@ -1467,7 +1467,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12", max_version="3.13"),
+                    pys=select_pys(min_version="3.12"),
                     pkgs={
                         "mlflow": [latest],
                         # pkg_resources was removed in v82.0.0
@@ -1624,7 +1624,7 @@ venv = Venv(
             venvs=[
                 Venv(pys=["3.9"], pkgs={"moto": "==5.1.22"}),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"moto": "==5.2.3"},
                 ),
             ],
@@ -2027,7 +2027,7 @@ venv = Venv(
                     ],
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={
                         "pytest": [
                             "~=6.0",
@@ -2272,6 +2272,12 @@ venv = Venv(
                         "grpcio": ">=1.75.0",
                     },
                 ),
+                Venv(
+                    pys="3.15",
+                    pkgs={
+                        "grpcio": latest,
+                    },
+                ),
             ],
         ),
         Venv(
@@ -2369,7 +2375,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.14"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -2571,7 +2577,7 @@ venv = Venv(
         Venv(
             name="rediscluster",
             command="pytest {cmdargs} tests/contrib/rediscluster",
-            pys=select_pys(max_version="3.11"),
+            pys=select_pys(),
             pkgs={"pytest-randomly": latest, "redis-py-cluster": [">=2.0,<2.1", latest]},
         ),
         Venv(
@@ -2618,7 +2624,7 @@ venv = Venv(
         ),
         Venv(
             name="aredis",
-            pys="3.9",
+            pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/aredis",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
@@ -2662,7 +2668,7 @@ venv = Venv(
                 ),
                 Venv(
                     # yaaredis added support for Python 3.10 in 3.0
-                    pys="3.10",
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"yaaredis": latest},
                 ),
             ],
@@ -2723,7 +2729,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys="3.12",
+                    pys=select_pys(min_version="3.12"),
                     pkgs={
                         "sanic": ["~=23.12"],
                         "sanic-testing": "~=23.12.0",
@@ -2815,7 +2821,7 @@ venv = Venv(
             # sqlite3 is tied to the Python version and is not installable via pip
             # To test a range of versions without updating Python, we use Linux only pysqlite3-binary package
             # Remove pysqlite3-binary on Python 3.9+ locally on non-linux machines
-            pys=select_pys(min_version="3.9", max_version="3.12"),
+            pys=select_pys(min_version="3.9", max_version="3.14"),
         ),
         Venv(
             name="dbapi",
@@ -2988,7 +2994,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pys=select_pys(min_version="3.9"),
                     pkgs={
                         "openai": [latest, "<2.0.0", "~=1.76.2", "==1.66.0"],
                         "pillow": latest,
@@ -3123,11 +3129,11 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"openai-agents": ["~=0.0.0", "~=0.8.0"]},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10"),
                     pkgs={"openai-agents": ["~=0.14.0", latest]},
                 ),
             ],
@@ -3182,7 +3188,7 @@ venv = Venv(
                         "langchain-cohere": latest,
                         "langchain-google-genai": latest,
                     },
-                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pys=select_pys(min_version="3.10"),
                 ),
             ],
         ),
@@ -3218,7 +3224,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/litellm",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "vcrpy": latest,
                 "pytest-asyncio": latest,
@@ -3246,7 +3252,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/llama_index",
-            pys=select_pys(min_version="3.10", max_version="3.13"),
+            pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vcrpy": latest,
@@ -3309,7 +3315,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/vertexai",
-            pys=select_pys(min_version="3.9", max_version="3.12"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
                 "vertexai": [latest],
@@ -3497,7 +3503,7 @@ venv = Venv(
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(
-                            pys=select_pys(min_version="3.11", max_version="3.13"),
+                            pys=select_pys(min_version="3.11"),
                             pkgs={"confluent-kafka": latest},
                         ),
                     ],
@@ -3510,7 +3516,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/aws_lambda",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "boto3": latest,
                 "datadog-lambda": [">=6.105.0", latest],
@@ -3597,7 +3603,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "azure.eventhub": ["~=5.12.0", latest],
                 "pytest-asyncio": "==0.23.7",
@@ -3609,7 +3615,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_functions",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
                 "requests": latest,
@@ -3621,7 +3627,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_durable_functions",
-            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pys=select_pys(min_version="3.9"),
             pkgs={
                 "azure-functions-durable": ["==1.2.1", latest],
             },

@@ -440,7 +440,7 @@ suites:
     snapshot: true
     matrix:
       command: pytest {cmdargs} tests/contrib/aredis
-      python: ['3.9']
+      python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
       variants:
         - name: aredis
           dependencies: ['pytest-asyncio==0.21.1', aredis, pytest-randomly]
@@ -545,10 +545,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/aws_lambda
       variants:
         - name: aws_lambda
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [boto3, 'datadog-lambda>=6.105.0', 'pytest-asyncio==0.21.1', pytest-randomly]
         - name: aws_lambda
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
   aws_durable_execution_sdk_python:
     venvs_per_job: 2
@@ -627,10 +627,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_eventhubs
       variants:
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['azure.eventhub~=5.12.0', 'pytest-asyncio==0.23.7']
         - name: azure_eventhubs
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [azure.eventhub, 'pytest-asyncio==0.23.7']
   azure_durable_functions:
     venvs_per_job: 3
@@ -654,10 +654,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_durable_functions
       variants:
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['azure-functions-durable==1.2.1']
         - name: azure_durable_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [azure-functions-durable]
   azure_functions:
     parallelism: 4
@@ -679,10 +679,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/azure_functions
       variants:
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['azure.functions~=1.10.1', requests]
         - name: azure_functions
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [azure.functions, requests]
   azure_functions:cosmos:
     venvs_per_job: 1
@@ -844,10 +844,10 @@ suites:
             DD_SERVICE: bottle-app
       variants:
         - name: bottle
-          python: ['3.9']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [WebTest, pytest-randomly, 'bottle>=0.12,<0.13']
         - name: bottle
-          python: ['3.9']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [WebTest, pytest-randomly, bottle]
   celery:
     env:
@@ -1376,19 +1376,19 @@ suites:
           integration: flask_cache
           dependencies: [python-memcached, 'redis~=2.0', blinker, pytest-randomly, flask, flask-caching]
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, 'flask~=1.1.0', 'flask-caching~=1.10.0', 'itsdangerous<2.0', 'markupsafe<2.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, 'flask~=1.1.0', flask-caching, 'itsdangerous<2.0', 'markupsafe<2.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, 'flask-caching~=1.10.0']
         - name: flask_cache
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           integration: flask_cache
           dependencies: [python-memcached, redis, blinker, pytest-randomly, flask, flask-caching]
   gevent:
@@ -1509,7 +1509,7 @@ suites:
           python: ['3.9']
           dependencies: [googleapis-common-protos, pytest-randomly, 'grpcio~=1.34.0']
         - name: grpc
-          python: ['3.9', '3.10', '3.11', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.13', '3.15']
           dependencies: [googleapis-common-protos, pytest-randomly, grpcio]
         - name: grpc
           python: ['3.10']
@@ -1709,7 +1709,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, pytest-xdist, 'confluent-kafka~=1.9.2']
         - name: kafka
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
     parallelism: 1
@@ -1837,7 +1837,7 @@ suites:
           python: ['3.10', '3.11']
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82']
         - name: mlflow
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     parallelism: 2
@@ -2110,13 +2110,13 @@ suites:
           python: ['3.9']
           dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
-          python: ['3.10', '3.11', '3.12']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pynamodb~=5.3', pytest-randomly, pytest-xdist, 'moto==5.2.3']
         - name: pynamodb
           python: ['3.9']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
-          python: ['3.10', '3.11', '3.12']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
     venvs_per_job: 1
@@ -2323,10 +2323,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/rediscluster
       variants:
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'redis-py-cluster>=2.0,<2.1']
         - name: rediscluster
-          python: ['3.9', '3.10', '3.11']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
     parallelism: 1
@@ -2386,7 +2386,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq, 'click==7.1.2']
         - name: rq
-          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq]
   sanic:
     paths:
@@ -2428,7 +2428,7 @@ suites:
           python: ['3.11']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, requests, 'websockets<11.0', 'setuptools<82', 'sanic~=23.12', 'sanic-testing~=22.3.0']
         - name: sanic
-          python: ['3.12']
+          python: ['3.12', '3.13', '3.14', '3.15']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, requests, 'websockets<11.0', 'setuptools<82', 'sanic~=23.12', 'sanic-testing~=23.12.0']
   snowflake:
     paths:
@@ -2573,7 +2573,7 @@ suites:
           dependencies: [gevent, pytest-randomly]
           command: pytest {cmdargs} tests/contrib/futures
         - name: sqlite3
-          python: ['3.9', '3.10', '3.11', '3.12']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           integration: sqlite3
           dependencies: [pytest-randomly, pysqlite3-binary]
           command: pytest {cmdargs} tests/contrib/sqlite3
@@ -2729,10 +2729,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/vertica/
       variants:
         - name: vertica
-          python: ['3.9']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['vertica-python>=0.6.0,<0.7.0', pytest-randomly]
         - name: vertica
-          python: ['3.9']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: ['vertica-python>=0.7.0,<0.8.0', pytest-randomly]
   wsgi:
     parallelism: 1
@@ -2777,7 +2777,10 @@ suites:
           python: ['3.9']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', 'yaaredis~=2.0.0']
         - name: yaaredis
-          python: ['3.9', '3.10']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
+          dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', yaaredis]
+        - name: yaaredis
+          python: ['3.9']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', yaaredis]
   valkey:
     parallelism: 1
