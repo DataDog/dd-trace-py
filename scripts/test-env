@@ -10,10 +10,8 @@
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping
 from collections.abc import Sequence
 import concurrent.futures
-from contextlib import redirect_stdout
 from pathlib import Path
 import platform
 import subprocess
@@ -47,35 +45,6 @@ def _select_named_environments(
     if unknown:
         raise LockError(f"unknown test environment name(s): {', '.join(unknown)}")
     return tuple(environment for environment in environments if environment.name in names)
-
-
-def _select_suite_environments(
-    matrices: Mapping[str, tuple[TestEnvironment, ...]], suite: str | None
-) -> tuple[TestEnvironment, ...]:
-    if suite is None:
-        return tuple(environment for environments in matrices.values() for environment in environments)
-    if suite not in matrices:
-        matches = [name for name in matrices if name.rsplit("::", 1)[-1] == suite]
-        if not matches:
-            raise LockError(f"suite has no declarative matrix: {suite}")
-        if len(matches) > 1:
-            raise LockError(f"ambiguous suite {suite!r}; choose one of: {', '.join(sorted(matches))}")
-        suite = matches[0]
-    return matrices[suite]
-
-
-def _list_hashes(
-    matrices: Mapping[str, tuple[TestEnvironment, ...]], suite: str | None, python_version: str | None
-) -> tuple[str, ...]:
-    environments = _select_suite_environments(matrices, suite)
-    matches = [
-        environment for environment in environments if python_version is None or environment.python == python_version
-    ]
-    if not matches:
-        target = f" for {suite}" if suite else ""
-        version = f" using Python {python_version}" if python_version else ""
-        raise LockError(f"no test environments found{target}{version}")
-    return tuple(sorted({environment.hash for environment in matches}))
 
 
 def _require_lock_platform(command: str) -> None:
@@ -176,7 +145,6 @@ def _generate_locks(
     environments: Sequence[TestEnvironment],
     all_environments: Sequence[TestEnvironment],
     *,
-    jobs: int = 4,
     upgrade: bool = False,
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
     if not environments:
@@ -192,7 +160,7 @@ def _generate_locks(
     compiled: dict[Path, str] = {}
     cutoff = cooldown_cutoff()
     errors = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
             executor.submit(compile_environment, environment, exclude_newer=cutoff, upgrade=upgrade): (
                 lockfile,
@@ -238,50 +206,34 @@ def _check_locks(environments: Sequence[TestEnvironment]) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Manage concrete locks for test environments.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    list_parser = subparsers.add_parser("list", help="List lock hashes, optionally for one test suite.")
-    list_parser.add_argument("suite", nargs="?", help="Full or unambiguous short suite name; defaults to all.")
-    list_parser.add_argument("--python", help="Only list hashes for this Python version.")
     subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
     lock_parser.add_argument("names", nargs="*", help="Exact test environment names; defaults to all.")
-    lock_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
-    refresh_parser = subparsers.add_parser("refresh", help="Refresh one named test environment, or all by default.")
-    refresh_parser.add_argument("name", nargs="?", help="Exact test environment name; defaults to all.")
-    refresh_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
+    lock_parser.add_argument("--upgrade", action="store_true", help="Upgrade dependencies in selected locks.")
     args = parser.parse_args(argv)
 
-    matrices = get_test_environments(nightly=False)
-    environments = _select_suite_environments(matrices, None)
+    environments = tuple(
+        environment for matrix in get_test_environments(nightly=False).values() for environment in matrix
+    )
     try:
-        if args.command == "list":
-            for lock_hash in _list_hashes(matrices, args.suite, args.python):
-                print(lock_hash)
-            return 0
         if args.command == "check":
             print(f"Validated {_check_locks(environments)} concrete test locks.")
             return 0
 
         _require_lock_platform(args.command)
-        requested = args.names if args.command == "lock" else ((args.name,) if args.name else ())
-        selected = _select_named_environments(environments, requested)
+        selected = _select_named_environments(environments, args.names)
         written, pruned = _generate_locks(
             selected,
             environments,
-            jobs=args.jobs,
-            upgrade=args.command == "refresh",
+            upgrade=args.upgrade,
         )
         message = f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s)."
-        if args.command == "lock":
-            print(message)
-            return 0
-
-        with redirect_stdout(sys.stderr):
+        if args.upgrade:
             cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
-        if cooldown_status:
-            raise LockError(f"cooldown validation failed for {args.name or 'all test environments'}")
-        print(message, file=sys.stderr)
-        for name in dict.fromkeys(environment.name for environment in selected):
-            print(name)
+            if cooldown_status:
+                target = ", ".join(args.names) or "all test environments"
+                raise LockError(f"cooldown validation failed for {target}")
+        print(message)
         return 0
     except LockError as error:
         parser.error(str(error))

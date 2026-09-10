@@ -2371,6 +2371,7 @@ venv = Venv(
                             "~=1.8.1",
                             "~=1.10.0",
                             "~=2.0.0",  # first major version; removed Job.get_id() in favour of job.id property
+                            "~=2.7.0",  # split rq/worker.py into a package; SimpleWorker no longer subclasses Worker
                             latest,
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
@@ -2379,7 +2380,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -3852,7 +3853,6 @@ venv = Venv(
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
-                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177

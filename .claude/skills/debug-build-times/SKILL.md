@@ -117,7 +117,10 @@ print(f"DEBUG {ext.name}: ext_path={ext_path} exists={ext_path.exists()} needs_r
 ```
 
 ```bash
-smoke_hash=$(scripts/test-env list smoke_test --python 3.13)
+smoke_hash=$(
+  scripts/run-tests --all-suites --list |
+    jq -r '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == "3.13") | .hash'
+)
 rm -rf ".cache/uv-test-environments/${smoke_hash}-"*
 _DD_DEBUG_EXT=1 scripts/run-tests --venv "$smoke_hash" 2>&1 | grep "DEBUG\|skipping\|building"
 ```

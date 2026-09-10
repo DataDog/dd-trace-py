@@ -2379,9 +2379,12 @@ suites:
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'rq~=2.0.0', 'click==7.1.2']
         - name: rq
           python: ['3.9']
+          dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, 'rq~=2.7.0', 'click==7.1.2']
+        - name: rq
+          python: ['3.9']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq, 'click==7.1.2']
         - name: rq
-          python: ['3.10', '3.11', '3.12', '3.13']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest-asyncio==0.21.1', pytest-randomly, rq]
   sanic:
     paths:
