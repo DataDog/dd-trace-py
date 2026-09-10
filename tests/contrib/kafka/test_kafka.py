@@ -8,9 +8,14 @@ import confluent_kafka
 from confluent_kafka import TopicPartition
 import pytest
 
+from ddtrace.contrib._events.kafka import KafkaProcessEvent
+from ddtrace.contrib._events.kafka import KafkaProducerEvent
+from ddtrace.contrib._events.messaging import MessagingProcessEvent
+from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
+from ddtrace.contrib.internal.kafka.patch import traced_produce
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from tests.utils import override_config
@@ -30,6 +35,12 @@ SNAPSHOT_IGNORES = [
     "meta.messaging.kafka.bootstrap.servers",
     "meta.peer.service",
 ]
+
+
+def test_kafka_events_specialize_messaging_events():
+    assert issubclass(KafkaProducerEvent, MessagingProducerEvent)
+    assert issubclass(KafkaProcessEvent, MessagingProcessEvent)
+    assert KafkaProcessEvent.activate_distributed_headers is True
 
 
 def test_consumer_created_with_logger_does_not_raise(kafka_tracer):
@@ -657,6 +668,39 @@ def test_context_header_injection_works_no_client_added_headers(kafka_topic, pro
                 propagation_asserted = True
 
         assert propagation_asserted is True
+
+
+def test_producer_injects_trace_headers_after_key_serialization(kafka_tracer, kafka_topic):
+    serialized_headers = []
+    produced_headers = None
+
+    def key_serializer(key, serialization_context):
+        serialized_headers.append(dict(serialization_context.headers))
+        return key.encode("utf-8")
+
+    producer = confluent_kafka.SerializingProducer(
+        {
+            "bootstrap.servers": BOOTSTRAP_SERVERS,
+            "key.serializer": key_serializer,
+        }
+    )
+
+    def produce(*args, **kwargs):
+        nonlocal produced_headers
+        produced_headers = kwargs["headers"]
+
+    with override_config("kafka", dict(distributed_tracing_enabled=True)):
+        traced_produce(
+            produce,
+            producer,
+            (kafka_topic, PAYLOAD),
+            {"key": KEY, "headers": {"custom": "value"}},
+        )
+
+    assert len(serialized_headers) == 1
+    assert "x-datadog-trace-id" not in serialized_headers[0]
+    assert produced_headers is not None
+    assert "x-datadog-trace-id" in produced_headers
 
 
 def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
