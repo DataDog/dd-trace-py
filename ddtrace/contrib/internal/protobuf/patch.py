@@ -1,4 +1,5 @@
 from google import protobuf
+from google.protobuf.internal import builder  # noqa: F401
 import wrapt
 
 from ddtrace import config
