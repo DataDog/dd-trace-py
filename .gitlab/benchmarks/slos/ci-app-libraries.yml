@@ -22,7 +22,7 @@ experiments:
           # pytestplugin
           - name: pytestplugin-baseline
             thresholds:
-              - execution_time < 4500 ms
+              - execution_time < 3000 ms
           - name: pytestplugin-ddtrace
             thresholds:
               - execution_time < 5000 ms
