@@ -23,6 +23,7 @@ from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.compat import is_py_version_within_bounds
 from ddtrace.internal.compat import is_wrap_supported
 
+
 _RUNNING_VERSION: str = f"{PYTHON_VERSION_INFO[0]}.{PYTHON_VERSION_INFO[1]}"
 _UNSUPPORTED_MSG: str = f"This version of CPython is not supported yet: {_RUNNING_VERSION}"
 
