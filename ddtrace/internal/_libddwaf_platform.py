@@ -2,7 +2,7 @@
 
 A package normally bundles the library for its target architecture, and the
 loader uses that copy.  A build can opt out of bundling it
-(``build_py --no-bundle-libddwaf``, see docs/build_system.rst); the loader then
+(build_py --no-bundle-libddwaf, see docs/build_system.rst); the loader then
 asks the dynamic linker for the SONAME instead, so the library installed on the
 system is used.  That is what distribution packages need: they build from source
 with no network access and package libddwaf separately.
