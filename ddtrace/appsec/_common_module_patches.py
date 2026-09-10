@@ -8,10 +8,12 @@ from typing import Union
 from urllib.parse import urlsplit
 from urllib.parse import urlunparse
 
+from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import open_rasp_subcontext_scope
+from ddtrace.appsec._asm_request_context import should_analyze_body_response
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._contrib.filesystem.patch import patch as patch_filesystem_for_appsec
 from ddtrace.appsec._contrib.filesystem.patch import unpatch as unpatch_filesystem_for_appsec
@@ -196,14 +198,6 @@ class _SsrfOpenerDirectorOpen(_ScopedRaspContext):
     def _handle_enter(self) -> None:
         if not get_rasp_capability("ssrf"):
             return
-        try:
-            from ddtrace.appsec._asm_request_context import should_analyze_body_response
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
-            return
-
         url: Any = self._locals().get(self._URL_ARGUMENT)
         if url.__class__.__name__ == "Request":
             url = url.get_full_url()
@@ -542,12 +536,6 @@ class _SsrfUrllib3Request(_ScopedRaspContext):
     def _handle_enter(self) -> None:
         if not get_rasp_capability("ssrf"):
             return
-        try:
-            from ddtrace.appsec._asm_request_context import should_analyze_body_response
-        except ImportError:
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
-            return
-
         url: Any = self._arg("url")
         if not (isinstance(url, str) and url):
             return
@@ -580,16 +568,6 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     https://requests.readthedocs.io
     """
     if get_rasp_capability("ssrf"):
-        try:
-            from ddtrace.appsec._asm_request_context import _get_asm_context
-            from ddtrace.appsec._asm_request_context import call_waf_callback
-            from ddtrace.appsec._asm_request_context import should_analyze_body_response
-        except ImportError:
-            # open is used during module initialization
-            # and shouldn't be changed at that time
-            report_rasp_skipped(EXPLOIT_PREVENTION.TYPE.SSRF, True)
-            return original_request_callable(*args, **kwargs)
-
         url = args[1] if len(args) > 1 else kwargs.get("url", None)
         valid_url = isinstance(url, str) and bool(url)
         if valid_url and url and (ctx := _get_asm_context()):
