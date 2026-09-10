@@ -42,10 +42,11 @@ async def test_callback_process_context_has_one_process_span(rabbitmq_connection
     channel = await rabbitmq_connection.channel()
     queue = await channel.declare_queue(exclusive=True, auto_delete=True)
     processed = asyncio.Event()
+    active_span_names = []
 
     async def callback(message):
         async with message.process():
-            pass
+            active_span_names.append(tracer.current_span().name)
         processed.set()
 
     consumer_tag = await queue.consume(callback)
@@ -58,7 +59,34 @@ async def test_callback_process_context_has_one_process_span(rabbitmq_connection
     actions = [span for span in test_spans.spans if span.name == "rabbitmq.ack"]
     assert len(processes) == 1
     assert len(actions) == 1
+    assert active_span_names == ["rabbitmq.consume"]
     assert actions[0].parent_id == processes[0].span_id
+
+
+@pytest.mark.asyncio
+async def test_process_context_is_active_during_cancellation(rabbitmq_connection, test_spans):
+    channel = await rabbitmq_connection.channel()
+    queue = await channel.declare_queue(exclusive=True, auto_delete=True)
+    await channel.default_exchange.publish(aio_pika.Message(b"payload"), routing_key=queue.name)
+    incoming = await queue.get(timeout=2)
+    entered = asyncio.Event()
+
+    async def process_message():
+        async with incoming.process(requeue=False):
+            assert tracer.current_span().name == "rabbitmq.consume"
+            entered.set()
+            await asyncio.Event().wait()
+
+    task = asyncio.create_task(process_message())
+    await asyncio.wait_for(entered.wait(), timeout=2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    process = next(span for span in test_spans.spans if span.name == "rabbitmq.consume")
+    reject = next(span for span in test_spans.spans if span.name == "rabbitmq.reject")
+    assert process.error == 1
+    assert reject.parent_id == process.span_id
 
 
 @pytest.mark.asyncio

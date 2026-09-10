@@ -48,6 +48,7 @@ class MessagingProcessEvent(MessagingEvent):
 
     request_headers: Optional[MutableMapping[str, Any]] = event_field(default=None)
     activate_distributed_headers: bool = event_field(default=True)
+    message: Any = event_field(default=None)
 
 
 @dataclass

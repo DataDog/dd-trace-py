@@ -1,9 +1,10 @@
+from collections.abc import AsyncIterator
 from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import MutableMapping
+from contextlib import asynccontextmanager
 from functools import wraps
 import inspect
-import sys
 from time import time_ns
 from typing import Any
 from typing import Optional
@@ -30,10 +31,6 @@ from ddtrace.internal.utils.formats import asbool
 
 _COMPONENT = "aio_pika"
 _MESSAGING_SYSTEM = "rabbitmq"
-# AIDEV-NOTE: Counts are keyed by message identity because IncomingMessage does not
-# provide a stable hash and concurrent callbacks may each enter message.process().
-_PROCESSING_MESSAGES: dict[int, int] = {}
-_PROCESS_CONTEXTS: dict[int, Optional[tuple[Any, int]]] = {}
 
 _EXCHANGE = "rabbitmq.exchange"
 _QUEUE = "rabbitmq.queue"
@@ -201,18 +198,22 @@ def _is_iterator_callback(callback: Any) -> bool:
     )
 
 
-def _enter_callback(message: Any) -> None:
-    identity = id(message)
-    _PROCESSING_MESSAGES[identity] = _PROCESSING_MESSAGES.get(identity, 0) + 1
-
-
-def _exit_callback(message: Any) -> None:
-    identity = id(message)
-    remaining = _PROCESSING_MESSAGES.get(identity, 0) - 1
-    if remaining > 0:
-        _PROCESSING_MESSAGES[identity] = remaining
-    else:
-        _PROCESSING_MESSAGES.pop(identity, None)
+def _active_process_event_for(message: Any) -> Optional[MessagingProcessEvent]:
+    """Return the active Process event handling this exact message, if any."""
+    current: Optional[core.ExecutionContext[Any]] = core.current
+    while current is not None:
+        try:
+            event = current.event
+        except AttributeError:
+            event = None
+        if (
+            isinstance(event, MessagingProcessEvent)
+            and event.component == config.aio_pika.integration_name
+            and event.message is message
+        ):
+            return event
+        current = current.parent
+    return None
 
 
 async def _call_callback(callback: Callable[[Any], Any], message: Any) -> Any:
@@ -225,19 +226,16 @@ async def _call_callback(callback: Callable[[Any], Any], message: Any) -> Any:
 def _traced_callback(callback: Callable[[Any], Any]) -> Callable[[Any], Awaitable[Any]]:
     @wraps(callback)
     async def traced(message: Any) -> Any:
-        _enter_callback(message)
-        try:
-            event = MessagingProcessEvent(
-                operation="rabbitmq.consume",
-                resource="rabbitmq.consume",
-                semantic_operation="process",
-                destination=_message_destination(message),
-                **_incoming_event_kwargs(message),
-            )
-            with core.context_with_event(event):
-                return await _call_callback(callback, message)
-        finally:
-            _exit_callback(message)
+        event = MessagingProcessEvent(
+            operation="rabbitmq.consume",
+            resource="rabbitmq.consume",
+            semantic_operation="process",
+            destination=_message_destination(message),
+            message=message,
+            **_incoming_event_kwargs(message),
+        )
+        with core.context_with_event(event):
+            return await _call_callback(callback, message)
 
     return traced
 
@@ -316,56 +314,28 @@ async def _traced_anext(
     return await _trace_receive(wrapped, instance, args, kwargs, destination)
 
 
-async def _traced_process_enter(
-    wrapped: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
-    message = instance.message
-    if _PROCESSING_MESSAGES.get(id(message), 0):
-        _PROCESS_CONTEXTS[id(instance)] = None
-        try:
-            return await wrapped(*args, **kwargs)
-        except BaseException:
-            _PROCESS_CONTEXTS.pop(id(instance), None)
-            raise
+@asynccontextmanager
+async def _traced_process_context(original: Any, message: Any) -> AsyncIterator[Any]:
+    if _active_process_event_for(message) is not None:
+        async with original as incoming:
+            yield incoming
+        return
 
-    destination = _message_destination(message)
     event = MessagingProcessEvent(
         operation="rabbitmq.consume",
         resource="rabbitmq.consume",
         semantic_operation="process",
-        destination=destination,
+        destination=_message_destination(message),
+        message=message,
         **_incoming_event_kwargs(message),
     )
-    context_manager = core.context_with_event(event)
-    context_manager.__enter__()
-    _PROCESS_CONTEXTS[id(instance)] = (context_manager, id(message))
-    try:
-        return await wrapped(*args, **kwargs)
-    except BaseException:
-        _PROCESS_CONTEXTS.pop(id(instance), None)
-        context_manager.__exit__(*sys.exc_info())
-        raise
+    with core.context_with_event(event):
+        async with original as incoming:
+            yield incoming
 
 
-async def _traced_process_exit(
-    wrapped: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
-) -> Any:
-    stored = _PROCESS_CONTEXTS.pop(id(instance), None)
-    if stored is None:
-        return await wrapped(*args, **kwargs)
-
-    context_manager, _ = stored
-    try:
-        result = await wrapped(*args, **kwargs)
-    except BaseException:
-        context_manager.__exit__(*sys.exc_info())
-        raise
-    else:
-        exc_type = get_argument_value(args, kwargs, 0, "exc_type", optional=True)
-        exc_val = get_argument_value(args, kwargs, 1, "exc_val", optional=True)
-        exc_tb = get_argument_value(args, kwargs, 2, "exc_tb", optional=True)
-        context_manager.__exit__(exc_type, exc_val, exc_tb)
-        return result
+def _traced_process(wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    return _traced_process_context(wrapped(*args, **kwargs), instance)
 
 
 def _action_wrapper(action: str) -> Callable[..., Awaitable[Any]]:
@@ -403,8 +373,7 @@ def patch() -> None:
     if "__anext__" in aio_pika.robust_queue.RobustQueueIterator.__dict__:
         wrap("aio_pika.robust_queue", "RobustQueueIterator.__anext__", _traced_anext)
 
-    wrap("aio_pika.message", "ProcessContext.__aenter__", _traced_process_enter)
-    wrap("aio_pika.message", "ProcessContext.__aexit__", _traced_process_exit)
+    wrap("aio_pika.message", "IncomingMessage.process", _traced_process)
     for action in ("ack", "nack", "reject"):
         wrap("aio_pika.message", f"IncomingMessage.{action}", _action_wrapper(action))
 
@@ -421,11 +390,8 @@ def unpatch() -> None:
     unwrap(aio_pika.queue.QueueIterator, "__anext__")
     if "__anext__" in aio_pika.robust_queue.RobustQueueIterator.__dict__:
         unwrap(aio_pika.robust_queue.RobustQueueIterator, "__anext__")
-    unwrap(aio_pika.message.ProcessContext, "__aenter__")
-    unwrap(aio_pika.message.ProcessContext, "__aexit__")
+    unwrap(aio_pika.message.IncomingMessage, "process")
     for action in ("ack", "nack", "reject"):
         unwrap(aio_pika.message.IncomingMessage, action)
 
-    _PROCESSING_MESSAGES.clear()
-    _PROCESS_CONTEXTS.clear()
     aio_pika._datadog_patch = False
