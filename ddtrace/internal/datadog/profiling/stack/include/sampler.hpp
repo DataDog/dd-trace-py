@@ -1,5 +1,7 @@
 #pragma once
 
+#define PY_SSIZE_T_CLEAN
+#define Py_BUILD_CORE
 #include <Python.h>
 
 #include <algorithm>
