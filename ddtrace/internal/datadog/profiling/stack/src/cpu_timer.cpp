@@ -999,7 +999,11 @@ cpu_timer_signal_handler(int signo, siginfo_t* si, void* ucontext)
             break;
         }
 
+#if PY_VERSION_HEX < 0x030f0000
         bool skip_frame = owner == FRAME_OWNED_BY_CSTACK;
+#else
+        bool skip_frame = false;
+#endif
 #if PY_VERSION_HEX >= 0x030e0000
         skip_frame = skip_frame || owner == FRAME_OWNED_BY_INTERPRETER;
 #endif
