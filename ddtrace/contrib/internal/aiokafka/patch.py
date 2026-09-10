@@ -174,7 +174,7 @@ async def traced_getone(func, instance, args, kwargs):
     start_ns = time_ns()
     err = None
     message = None
-    request_headers = None
+    parent_ctx = None
 
     group_id = instance._group_id
     bootstrap_servers = instance._client._bootstrap_servers
@@ -187,7 +187,7 @@ async def traced_getone(func, instance, args, kwargs):
                 for key, val in message.headers
                 if val is not None
             }
-            request_headers = dd_headers
+            parent_ctx = HTTPPropagator.extract(dd_headers)
     except Exception as e:
         err = e
 
@@ -201,12 +201,16 @@ async def traced_getone(func, instance, args, kwargs):
         client = instance._client
         cluster_id = getattr(client, "_dd_cluster_id", "") if client is not None else ""
 
+    # Parent via extracted context without activating it, so a surrounding local
+    # span stays active after getone returns.
     event = KafkaProcessEvent(
         operation=schematize_messaging_operation(CONSUME, provider="kafka", direction=SpanDirection.INBOUND),
         topic=topic,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
-        request_headers=request_headers,
+        distributed_context=parent_ctx,
+        use_active_context=False,
+        activate=False,
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
         service=trace_utils.ext_service(None, config.aiokafka),
