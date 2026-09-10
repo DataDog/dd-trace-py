@@ -225,10 +225,10 @@ def _variant_settings(
 ) -> tuple[tuple[str, ...], tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
-    if "env" in matrix:
-        environment.update(matrix["env"])
     if nightly:
         environment.update(NIGHTLY_ENVIRONMENT)
+    if "env" in matrix:
+        environment.update(matrix["env"])
     if "env" in variant:
         environment.update(variant["env"])
 
