@@ -1349,16 +1349,6 @@ def test_a_child_finishing_does_not_freeze_the_decision(llmobs, llmobs_events):
     assert decisions == {("0", "0")}
 
 
-@pytest.fixture
-def patched_futures():
-    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
-    from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
-
-    patch_futures()
-    yield
-    unpatch_futures()
-
-
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
 def test_partial_flush_after_a_thread_handoff_keeps_one_decision(llmobs, llmobs_events, tracer, patched_futures):
     """A partially flushed chunk must not mix the frozen decision with the stale floor.

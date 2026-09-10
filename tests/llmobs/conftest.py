@@ -350,3 +350,13 @@ def no_agent_info():
 def no_agent():
     with mock.patch("ddtrace.internal.agent.info", side_effect=Exception):
         yield
+
+
+@pytest.fixture
+def patched_futures():
+    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+    from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+
+    patch_futures()
+    yield
+    unpatch_futures()
