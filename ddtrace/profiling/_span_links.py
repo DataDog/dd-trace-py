@@ -159,7 +159,7 @@ def _inherited_span_info(task_context: typing.Optional[contextvars.Context] = No
 
 def link_thread_span_context() -> bool:
     """Link the current physical thread from inherited profiler ContextVar state."""
-    if not _span_linking_enabled:
+    if not _span_linking_active:
         return False
     span_info = _inherited_span_info()
     if span_info is None:
@@ -171,7 +171,7 @@ def link_thread_span_context() -> bool:
 
 def clear_thread_span() -> None:
     """Clear attribution for the current physical thread."""
-    if _span_linking_enabled:
+    if _span_linking_active:
         stack.clear_span()
 
 
