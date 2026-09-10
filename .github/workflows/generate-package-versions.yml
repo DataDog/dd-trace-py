@@ -80,22 +80,22 @@ jobs:
           curl https://dd-trace-py-builds.s3.amazonaws.com/main/install.sh | bash
 
       - name: Regenerate test locks
-        id: refresh
+        id: lock
         run: |
           OUTDATED_ENVIRONMENTS=$(scripts/freshvenvs.py output)
           VENV_NAME=${OUTDATED_ENVIRONMENTS%% *}
           if [[ -n "$VENV_NAME" ]]; then
-            scripts/test-env refresh "$VENV_NAME" >/dev/null
+            scripts/test-env lock --upgrade "$VENV_NAME" >/dev/null
           fi
           echo "venv_name=$VENV_NAME" >> "$GITHUB_OUTPUT"
           echo "VENV_NAME=$VENV_NAME" >> "$GITHUB_ENV"
 
       - name: Run integration registry update
-        if: steps.refresh.outputs.venv_name != ''
+        if: steps.lock.outputs.venv_name != ''
         run: python scripts/integration_registry/update_and_format_registry.py
 
       - name: Get latest version
-        if: steps.refresh.outputs.venv_name != ''
+        if: steps.lock.outputs.venv_name != ''
         id: new-latest
         run: |
           NEW_LATEST=$(python scripts/get_latest_version.py ${{ env.VENV_NAME }})
@@ -103,7 +103,7 @@ jobs:
           echo "venv_name=$VENV_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Prepare generated changes
-        if: steps.refresh.outputs.venv_name != ''
+        if: steps.lock.outputs.venv_name != ''
         id: patch
         uses: ./.github/actions/generated-change-patch
         with:

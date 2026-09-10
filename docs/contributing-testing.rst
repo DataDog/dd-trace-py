@@ -170,9 +170,9 @@ Use ``scripts/test-env`` to inspect and maintain locks:
 * ``list [suite]`` prints declared lock hashes for a full or unambiguous short suite name.
 * ``check`` reports missing or obsolete lock files across all environments.
 * ``lock [environment-name ...]`` generates missing locks for exact environment names.
-* ``refresh [environment-name]`` upgrades locks for one exact environment name.
+* ``lock --upgrade [environment-name ...]`` upgrades existing locks for exact environment names.
 
-Without a suite or environment name, ``list``, ``lock``, and ``refresh`` operate on all environments.
+Without a suite or environment name, ``list`` and ``lock`` operate on all environments.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -222,7 +222,7 @@ How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------
 
 Update the dependency constraint in the suite's ``suitespec.yml`` matrix, run
-``scripts/test-env refresh <environment-name>``, and commit the definition and resulting lock changes.
+``scripts/test-env lock --upgrade <environment-name>``, and commit the definition and resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------

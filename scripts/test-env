@@ -13,7 +13,6 @@ import argparse
 from collections.abc import Mapping
 from collections.abc import Sequence
 import concurrent.futures
-from contextlib import redirect_stdout
 from pathlib import Path
 import platform
 import subprocess
@@ -243,8 +242,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
     lock_parser.add_argument("names", nargs="*", help="Exact test environment names; defaults to all.")
-    refresh_parser = subparsers.add_parser("refresh", help="Refresh one named test environment, or all by default.")
-    refresh_parser.add_argument("name", nargs="?", help="Exact test environment name; defaults to all.")
+    lock_parser.add_argument("--upgrade", action="store_true", help="Upgrade dependencies in selected locks.")
     args = parser.parse_args(argv)
 
     matrices = get_test_environments(nightly=False)
@@ -259,25 +257,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         _require_lock_platform(args.command)
-        requested = args.names if args.command == "lock" else ((args.name,) if args.name else ())
-        selected = _select_named_environments(environments, requested)
+        selected = _select_named_environments(environments, args.names)
         written, pruned = _generate_locks(
             selected,
             environments,
-            upgrade=args.command == "refresh",
+            upgrade=args.upgrade,
         )
         message = f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s)."
-        if args.command == "lock":
-            print(message)
-            return 0
-
-        with redirect_stdout(sys.stderr):
+        if args.upgrade:
             cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
-        if cooldown_status:
-            raise LockError(f"cooldown validation failed for {args.name or 'all test environments'}")
-        print(message, file=sys.stderr)
-        for name in dict.fromkeys(environment.name for environment in selected):
-            print(name)
+            if cooldown_status:
+                target = ", ".join(args.names) or "all test environments"
+                raise LockError(f"cooldown validation failed for {target}")
+        print(message)
         return 0
     except LockError as error:
         parser.error(str(error))
