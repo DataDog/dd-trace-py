@@ -1,13 +1,16 @@
 import os
 import subprocess
 import time
+from unittest import mock
 
 import pytest
 import redis
 import rq
 
 from ddtrace.contrib.internal.rq.patch import patch
+from ddtrace.contrib.internal.rq.patch import traced_perform_job
 from ddtrace.contrib.internal.rq.patch import unpatch
+from ddtrace.trace import tracer
 from tests.utils import override_config
 from tests.utils import snapshot
 from tests.utils import snapshot_context
@@ -20,7 +23,12 @@ from .jobs import job_fail
 
 
 # Span data which isn't static to ignore in the snapshots.
-snapshot_ignores = ["meta.job.id", "meta.error.stack", "meta.traceparent", "meta.tracestate"]
+snapshot_ignores = [
+    "meta.job.id",
+    "meta.error.stack",
+    "meta.traceparent",
+    "meta.tracestate",
+]
 
 rq_version = tuple(int(x) for x in rq.__version__.split(".")[:3])
 
@@ -55,7 +63,10 @@ def test_sync_queue_enqueue(sync_queue):
     sync_queue.enqueue(job_add1, 1)
 
 
-@snapshot(ignores=snapshot_ignores, variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)})
+@snapshot(
+    ignores=snapshot_ignores,
+    variants={"": rq_version >= (1, 10, 1), "pre_1_10_1": rq_version < (1, 10, 1)},
+)
 def test_queue_failing_job(sync_queue):
     # Exception raising behavior was changed in 1.10.1
     # https://github.com/rq/rq/commit/93f34c796f541ea4b1c156426d6524df05753826
@@ -208,3 +219,37 @@ if __name__ == "__main__":
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
     assert err == b"", err.decode()
+
+
+def test_perform_job_ignores_flush_error():
+    job = mock.Mock(
+        meta={},
+        func_name="tests.contrib.rq.jobs.job_add1",
+        id="job-id",
+        is_failed=False,
+        origin="q",
+    )
+    job.get_status.return_value = "finished"
+
+    with mock.patch.object(tracer, "flush", side_effect=RuntimeError("flush failed")):
+        assert traced_perform_job(lambda *_args, **_kwargs: 2, None, (job,), {}) == 2
+
+
+def test_perform_job_flush_error_does_not_mask_job_error():
+    job = mock.Mock(
+        meta={},
+        func_name="tests.contrib.rq.jobs.job_fail",
+        id="job-id",
+        is_failed=True,
+        origin="q",
+    )
+    job.get_status.return_value = "failed"
+
+    def fail(*_args, **_kwargs):
+        raise MyException()
+
+    with (
+        mock.patch.object(tracer, "flush", side_effect=RuntimeError("flush failed")),
+        pytest.raises(MyException),
+    ):
+        traced_perform_job(fail, None, (job,), {})
