@@ -149,9 +149,8 @@ include:
       coverage combine || true
 
 .ddtest_run_uv_snapshot:
-  extends:
-    - .ddtest_run_uv
-    - .ddtest_base_uv_snapshot
+  extends: .ddtest_run_uv
+  services: !reference [.ddtest_base_uv_snapshot, services]
 
 .ddtest_run_uv_gpu:
   extends:
