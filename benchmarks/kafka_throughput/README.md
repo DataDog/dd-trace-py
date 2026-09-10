@@ -8,7 +8,7 @@ repo.
 
 ## Files
 
-- `kafka_throughput.py` — the workload: `NUM_THREADS` (default 5) parallel
+- `kafka_throughput.py` — the workload: `NUM_THREADS` (default 1) parallel
   workers, each producing 1000 messages (5 headers each) to its own topic,
   flushing, then synchronously consuming and committing all 1000 back. No
   tracer-specific code — DSM is toggled purely via environment.
@@ -39,7 +39,7 @@ DD_TRACE_ENABLED=true DD_DATA_STREAMS_ENABLED=true \
 
 | Var | Default | Purpose |
 |---|---|---|
-| `NUM_THREADS` | `5` | Parallel produce/consume workers |
+| `NUM_THREADS` | `1` | Produce/consume workers. Single-threaded by default so the measurement reflects instrumentation cost rather than GIL contention; raise only for a deliberate contention diagnostic. |
 | `KAFKA_TOPIC` | `benchmark-topic` | Base topic name (per-run/per-worker suffixes appended) |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Broker address |
 | `WARMUP` | `5` | Discarded warmup iterations |

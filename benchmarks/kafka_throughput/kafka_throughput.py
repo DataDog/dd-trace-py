@@ -3,10 +3,23 @@
 Python port of the .NET ``Samples.KafkaBenchmark`` used by the
 ``dd-trace-dotnet/data-streams-monitoring`` benchmarking-platform harness.
 
-The workload is intentionally identical to the .NET one so the two languages'
-DSM overhead numbers are comparable:
+The message-level work mirrors the .NET one so the two languages' DSM overhead
+numbers are broadly comparable. Two deliberate divergences, which must be
+stated whenever the numbers are compared across languages:
 
-  * ``NUM_THREADS`` (default 5) parallel workers.
+  * thread count (1 here vs 5 in .NET, see below);
+  * process model -- .NET relaunches the binary per iteration under TimeItSharp
+    and measures main-entry to main-exit, whereas this harness runs all
+    iterations in one process with the tracer already initialised, so tracer
+    bootstrap and shutdown are excluded here and partially included there.
+
+The workload:
+
+  * ``NUM_THREADS`` (default 1) workers. Single-threaded by default: CPython
+    serializes threads on the GIL, so a multi-threaded workload measures lock
+    contention on top of instrumentation cost. Set NUM_THREADS > 1 only for a
+    deliberate contention diagnostic. Note the .NET counterpart uses 5 threads,
+    so cross-language comparisons must state the thread count.
   * Each worker produces ``MESSAGE_COUNT`` (1000) messages, each carrying 5
     headers, to its own topic, flushes, then synchronously consumes and commits
     all 1000 messages back.
@@ -114,7 +127,7 @@ def run_benchmark(run_id=0):
     of re-reading messages committed by previous iterations.
     """
     base_topic = os.environ.get("KAFKA_TOPIC", "benchmark-topic")
-    thread_count = int(os.environ.get("NUM_THREADS", "5"))
+    thread_count = int(os.environ.get("NUM_THREADS", "1"))
 
     topics = ["%s-%d-%d" % (base_topic, run_id, t) for t in range(thread_count)]
     _create_topics(topics)
