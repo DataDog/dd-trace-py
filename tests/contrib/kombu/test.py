@@ -4,10 +4,14 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.subscribers.messaging import HTTPPropagator
+from ddtrace.contrib._events.messaging import MessagingProcessEvent
+from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.contrib.internal.kombu import utils
 from ddtrace.contrib.internal.kombu.patch import patch
 from ddtrace.contrib.internal.kombu.patch import unpatch
 from ddtrace.ext import kombu as kombux
+from ddtrace.internal import core
 from ddtrace.internal.datastreams.processor import PROPAGATION_KEY_BASE_64
 from ddtrace.internal.native import DDSketch
 from ddtrace.internal.schema.default import DEFAULT_SPAN_SERVICE_NAME
@@ -78,6 +82,7 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(producer_span.error, 0)
         self.assertEqual(producer_span.get_tag("out.vhost"), "/")
         self.assertEqual(producer_span.get_tag("out.host"), "127.0.0.1")
+        self.assertEqual(producer_span.get_metric("network.destination.port"), self.TEST_PORT)
         self.assertEqual(producer_span.get_tag("kombu.exchange"), "tasks")
         self.assertEqual(producer_span.get_metric("kombu.body_length"), 18)
         self.assertEqual(producer_span.get_tag("kombu.routing_key"), "tasks")
@@ -92,8 +97,50 @@ class TestKombuPatch(TracerTestCase):
         self.assertEqual(consumer_span.error, 0)
         self.assertEqual(consumer_span.get_tag("kombu.exchange"), "tasks")
         self.assertEqual(consumer_span.get_tag("kombu.routing_key"), "tasks")
+        self.assertEqual(consumer_span.get_metric("network.destination.port"), self.TEST_PORT)
         self.assertEqual(consumer_span.get_tag("component"), "kombu")
         self.assertEqual(consumer_span.get_tag("span.kind"), "consumer")
+
+    def test_uses_messaging_events(self):
+        context_with_event = core.context_with_event
+        with mock.patch.object(core, "context_with_event", wraps=context_with_event) as context_mock:
+            self._publish_consume()
+
+        events = [call.args[0] for call in context_mock.call_args_list]
+        producer_events = [event for event in events if isinstance(event, MessagingProducerEvent)]
+        process_events = [event for event in events if isinstance(event, MessagingProcessEvent)]
+
+        self.assertEqual(len(producer_events), 1)
+        self.assertEqual(len(process_events), 1)
+
+    def test_publish_injects_trace_headers_before_dsm_dispatch(self):
+        order = []
+        dispatch = core.dispatch
+        inject = HTTPPropagator.inject
+
+        def record_dispatch(event_name, args):
+            if event_name == "kombu.amqp.publish.pre":
+                order.append("dsm")
+            return dispatch(event_name, args)
+
+        def record_inject(context, headers):
+            order.append("inject")
+            return inject(context, headers)
+
+        exchange = kombu.Exchange("trace_header_ordering")
+        queue = kombu.Queue("trace_header_ordering", exchange, routing_key="trace_header_ordering")
+        with (
+            mock.patch.object(core, "dispatch", side_effect=record_dispatch),
+            mock.patch.object(HTTPPropagator, "inject", side_effect=record_inject),
+        ):
+            self.producer.publish(
+                {"hello": "world"},
+                exchange=exchange,
+                routing_key=queue.routing_key,
+                declare=[queue],
+            )
+
+        self.assertEqual(order, ["inject", "dsm"])
 
     def _gen_distributed_spans(self):
         self._publish_consume()
