@@ -413,6 +413,29 @@ class TestLLMObsAnthropic:
         assert len(spans) == 1
         assert get_llmobs_model_provider(spans[0]) == "amazon"
 
+    @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 37), reason=BETA_SKIP_REASON)
+    @pytest.mark.asyncio
+    @patch("anthropic._base_client.AsyncAPIClient.post", new_callable=mock.AsyncMock)
+    async def test_beta_completion_async_bedrock(
+        self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans
+    ):
+        """Ensure beta messages through AsyncAnthropicBedrock emit an LLM span."""
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        llm = anthropic.AsyncAnthropicBedrock(
+            aws_access_key="test-access-key",
+            aws_secret_key="test-secret-key",
+            aws_region="us-east-1",
+        )
+        await llm.beta.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            messages=[{"role": "user", "content": "Hi"}],
+        )
+        spans = [span for trace in test_spans.pop_traces() for span in trace]
+        assert len(spans) == 1
+        assert get_llmobs_span_kind(spans[0]) == "llm"
+        assert get_llmobs_model_provider(spans[0]) == "amazon"
+
     @patch("anthropic._base_client.SyncAPIClient.post")
     def test_completion_vertex_provider(self, mock_anthropic_messages_post, anthropic, anthropic_llmobs, test_spans):
         """model_provider resolves to 'google' for the Vertex base_url (AnthropicVertex)."""

@@ -18,6 +18,8 @@ class TestAnthropicPatch(PatchTestCase.Base):
         if ANTHROPIC_VERSION >= (0, 37):
             self.assert_wrapped(anthropic.resources.beta.messages.messages.Messages.create)
             self.assert_wrapped(anthropic.resources.beta.messages.messages.AsyncMessages.create)
+            self.assert_wrapped(anthropic.lib.bedrock._beta_messages.Messages.create)
+            self.assert_wrapped(anthropic.lib.bedrock._beta_messages.AsyncMessages.create)
 
     def assert_not_module_patched(self, anthropic):
         self.assert_not_wrapped(anthropic.resources.messages.Messages.create)
@@ -25,6 +27,8 @@ class TestAnthropicPatch(PatchTestCase.Base):
         if ANTHROPIC_VERSION >= (0, 37):
             self.assert_not_wrapped(anthropic.resources.beta.messages.messages.Messages.create)
             self.assert_not_wrapped(anthropic.resources.beta.messages.messages.AsyncMessages.create)
+            self.assert_not_wrapped(anthropic.lib.bedrock._beta_messages.Messages.create)
+            self.assert_not_wrapped(anthropic.lib.bedrock._beta_messages.AsyncMessages.create)
 
     def assert_not_module_double_patched(self, anthropic):
         self.assert_not_double_wrapped(anthropic.resources.messages.Messages.create)
@@ -32,3 +36,5 @@ class TestAnthropicPatch(PatchTestCase.Base):
         if ANTHROPIC_VERSION >= (0, 37):
             self.assert_not_double_wrapped(anthropic.resources.beta.messages.messages.Messages.create)
             self.assert_not_double_wrapped(anthropic.resources.beta.messages.messages.AsyncMessages.create)
+            self.assert_not_double_wrapped(anthropic.lib.bedrock._beta_messages.Messages.create)
+            self.assert_not_double_wrapped(anthropic.lib.bedrock._beta_messages.AsyncMessages.create)

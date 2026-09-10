@@ -285,6 +285,15 @@ def test_wrappers_installed_when_flag_on(mock_execute_request, anthropic_client_
     list(result)
 
 
+def test_bedrock_beta_wrappers_installed(anthropic_sdk_buffered):
+    """Bedrock beta create methods receive the outer AI Guard streaming wrappers."""
+    from ddtrace.aiguard import _listener
+
+    bedrock_beta = pytest.importorskip("anthropic.lib.bedrock._beta_messages")
+    assert (bedrock_beta.Messages, "create") in _listener._anthropic_wrapped_targets
+    assert (bedrock_beta.AsyncMessages, "create") in _listener._anthropic_wrapped_targets
+
+
 # ---------------------------------------------------------------------------
 # Collision suppression on streaming
 # ---------------------------------------------------------------------------

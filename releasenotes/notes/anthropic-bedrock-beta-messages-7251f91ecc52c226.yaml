@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    anthropic: Adds APM and LLM Observability tracing support for beta messages API calls through
+    ``AnthropicBedrock`` and ``AsyncAnthropicBedrock``.
