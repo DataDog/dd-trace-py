@@ -185,8 +185,12 @@ def test_set_max_frames_after_fork_restart() -> None:
 
     from ddtrace.internal.datadog.profiling import ddup
     from ddtrace.internal.datadog.profiling import stack
+    from ddtrace.internal.datadog.profiling.stack import _stack
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_stack import func1
 
-    ddup.config(env="test", service="test", version="0.0.0")
+    pprof_prefix = "/tmp/test_set_max_frames_after_fork_restart"
+    ddup.config(env="test", service="test", version="0.0.0", max_nframes=64, output_filename=pprof_prefix)
     ddup.start()
     stack.set_adaptive_sampling(False)
     assert stack.start()
@@ -198,9 +202,26 @@ def test_set_max_frames_after_fork_restart() -> None:
         if pid == 0:
             try:
                 stack.stop()
-                stack.set_max_frames(32)
+                stack.set_max_frames(1)
+                assert _stack._get_frame_limits() == (1, 1024)
                 assert stack.start()
+                func1()
                 stack.stop()
+                ddup.upload()
+
+                profile = pprof_utils.parse_newest_profile(pprof_prefix + "." + str(os.getpid()))
+                found_func1_stack = False
+                for sample in pprof_utils.get_samples_with_value_type(profile, "wall-time"):
+                    locations = [
+                        pprof_utils.get_location_from_id(profile, location_id) for location_id in sample.location_id
+                    ]
+                    if not any(location.function_name == "func5" for location in locations):
+                        continue
+                    found_func1_stack = True
+                    python_locations = [location for location in locations[:-1] if location.filename != "<native>"]
+                    assert [location.function_name for location in python_locations] == ["func5"]
+                    assert locations[-1].function_name == "<1 frame omitted>"
+                assert found_func1_stack
             except BaseException:
                 traceback.print_exc()
                 os._exit(1)
@@ -696,6 +717,7 @@ def test_collect_gevent_thread_task() -> None:
     import time
 
     from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling.collector import stack
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.test_stack import _fib
@@ -706,7 +728,9 @@ def test_collect_gevent_thread_task() -> None:
     output_filename = pprof_prefix + "." + str(os.getpid())
 
     assert ddup.is_available
-    ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
+    # Greenlet logical stacks retain their existing discovery depth in this PR. Leave exporter
+    # headroom so the repeated _fib frames below prove discovery exceeded the plain-stack limit.
+    ddup.config(env="test", service=test_name, version="my_version", max_nframes=64, output_filename=pprof_prefix)
     ddup.start()
     ddup.upload()
 
@@ -723,7 +747,8 @@ def test_collect_gevent_thread_task() -> None:
 
     threads = []
 
-    with stack.StackCollector():
+    with stack.StackCollector(nframes=1):
+        assert _stack._get_frame_limits() == (1, 1024)
         for i in range(5):
             t = threading.Thread(target=_do_fib, name=f"TestThread {i}")
             t.start()
