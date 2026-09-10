@@ -429,7 +429,7 @@ detect_circular_imports:
       # resolve-base-branch.sh mints its own token only if it hits the API,
       # so don't acquire one unconditionally here.
       BASE_BRANCH=$(.gitlab/scripts/resolve-base-branch.sh)
-      git fetch origin "${BASE_BRANCH}"
+      git fetch origin -- "${BASE_BRANCH}"
       MERGE_BASE=$(git merge-base FETCH_HEAD HEAD)
       git checkout "${MERGE_BASE}"
       cd ..
