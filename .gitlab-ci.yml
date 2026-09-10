@@ -661,8 +661,10 @@ profiling_native:
   extends: .profiling_native_base
   retry: 2
   rules:
+    # Job running on main will have no retry
+    - if: !reference [.is_main]
+      when: never
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
     - changes:
         - .gitlab-ci.yml
         # Native source files by extension (C, C++, Cython, CMake modules)
@@ -705,6 +707,12 @@ profiling_native:
       # If needed, please add more versions to the list.
       - PYTHON_VERSION: ["3.12", "3.14"]
         SANITIZER: ["valgrind"]
+
+"profiling_native (main)":
+  extends: profiling_native
+  retry: 0
+  rules:
+    - if: !reference [.is_main]
 
 test-dd-sts:
   stage: tests
