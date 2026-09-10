@@ -1,3 +1,4 @@
+from typing import Optional
 from typing import cast
 
 from ddtrace._trace.subscribers._base import TracingSubscriber
@@ -11,8 +12,21 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
+
+
+def _messaging_direction(event: MessagingEvent) -> Optional[SpanDirection]:
+    """Map produce/receive/process to schema directions. Action names stay v0."""
+    if isinstance(event, MessagingProducerEvent):
+        return SpanDirection.OUTBOUND
+    if isinstance(event, MessagingReceiveEvent):
+        return SpanDirection.INBOUND
+    if isinstance(event, MessagingProcessEvent):
+        return SpanDirection.PROCESSING
+    return None
 
 
 class MessagingTracingSubscriber(TracingSubscriber[MessagingEvent]):
@@ -26,6 +40,15 @@ class MessagingTracingSubscriber(TracingSubscriber[MessagingEvent]):
     @classmethod
     def _on_context_started(cls, ctx: core.ExecutionContext[MessagingEvent]) -> None:
         event = ctx.event
+        direction = _messaging_direction(event)
+        if direction is not None and event.messaging_system:
+            event.operation_name = schematize_messaging_operation(  # type: ignore[operator]  # schema helper is selected at import
+                event.operation,
+                provider=event.messaging_system,
+                direction=direction,
+            )
+        if event.resource is None:
+            event.resource = event.operation_name
         propagated_context = None
         if (
             isinstance(event, (MessagingReceiveEvent, MessagingProcessEvent))

@@ -1,8 +1,8 @@
 [[
   {
-    "name": "rabbitmq.publish",
+    "name": "rabbitmq.send",
     "service": "aio-pika-service-alias",
-    "resource": "rabbitmq.publish",
+    "resource": "rabbitmq.send",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -41,9 +41,9 @@
     "start": 1788967536118975818
   },
      {
-       "name": "rabbitmq.get",
+       "name": "rabbitmq.receive",
        "service": "aio-pika-service-alias",
-       "resource": "rabbitmq.get",
+       "resource": "rabbitmq.receive",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -84,9 +84,9 @@
        "start": 1788967536120556392
      },
      {
-       "name": "rabbitmq.consume",
+       "name": "rabbitmq.process",
        "service": "aio-pika-service-alias",
-       "resource": "rabbitmq.consume",
+       "resource": "rabbitmq.process",
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,

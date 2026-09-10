@@ -115,3 +115,25 @@ def test_schema_v1_and_service_name_alias():
     from tests.contrib.aio_pika.test_aio_pika_snapshot import _run_pull_flow
 
     asyncio.run(_run_pull_flow("ddtrace-aio-pika-schema-snapshot"))
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_AIO_PIKA_DISTRIBUTED_TRACING": "true",
+        "DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1",
+    },
+    ddtrace_run=True,
+    err=None,
+)
+def test_schema_v1_operation_names():
+    import asyncio
+
+    from ddtrace.trace import tracer
+    from tests.contrib.aio_pika.test_aio_pika_snapshot import _run_pull_flow
+    from tests.utils import DummyWriter
+
+    writer = DummyWriter()
+    tracer._span_aggregator.writer = writer
+    asyncio.run(_run_pull_flow("ddtrace-aio-pika-schema-v1-names"))
+    names = {span.name for span in writer.pop()}
+    assert names == {"rabbitmq.send", "rabbitmq.receive", "rabbitmq.process", "rabbitmq.ack"}

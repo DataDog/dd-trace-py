@@ -183,7 +183,6 @@ async def _traced_publish(
 
     event = MessagingProducerEvent(
         operation="rabbitmq.publish",
-        resource="rabbitmq.publish",
         component=config.aio_pika.integration_name,
         integration_config=config.aio_pika,
         service=_service(),
@@ -225,7 +224,6 @@ def _traced_callback(callback: Callable[[Any], Any]) -> Callable[[Any], Awaitabl
     async def traced(message: Any) -> Any:
         event = MessagingProcessEvent(
             operation="rabbitmq.consume",
-            resource="rabbitmq.consume",
             semantic_operation="process",
             destination=_message_destination(message),
             **_incoming_event_kwargs(message),
@@ -259,7 +257,6 @@ async def _trace_receive(
     except StopAsyncIteration:
         event = MessagingReceiveEvent(
             operation="rabbitmq.get",
-            resource="rabbitmq.get",
             semantic_operation="receive",
             destination=destination,
             start_ns=start_ns,
@@ -272,7 +269,6 @@ async def _trace_receive(
     except BaseException:
         event = MessagingReceiveEvent(
             operation="rabbitmq.get",
-            resource="rabbitmq.get",
             semantic_operation="receive",
             destination=destination,
             start_ns=start_ns,
@@ -284,7 +280,6 @@ async def _trace_receive(
 
     event = MessagingReceiveEvent(
         operation="rabbitmq.get",
-        resource="rabbitmq.get",
         semantic_operation="receive",
         destination=destination,
         start_ns=start_ns,
@@ -319,7 +314,6 @@ async def _traced_process_context(original: Any, message: Any) -> AsyncIterator[
 
     event = MessagingProcessEvent(
         operation="rabbitmq.consume",
-        resource="rabbitmq.consume",
         semantic_operation="process",
         destination=_message_destination(message),
         **_incoming_event_kwargs(message),
@@ -340,7 +334,6 @@ def _action_wrapper(action: str) -> Callable[..., Awaitable[Any]]:
         destination = _message_destination(instance)
         event = MessagingActionEvent(
             operation=f"rabbitmq.{action}",
-            resource=f"rabbitmq.{action}",
             action=action,
             semantic_operation=action,
             destination=destination,
