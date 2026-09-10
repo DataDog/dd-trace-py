@@ -367,10 +367,13 @@ def _trace_background_tasks(wrapped, instance, args, kwargs):
 
     task = get_argument_value(args, kwargs, 0, "func")
     current_span = tracer.current_span()
+    module_name = getattr(starlette, "__name__", "<unknown>")
     task_name = getattr(task, "__name__", "<unknown>")
 
     async def traced_task(*args, **kwargs):
-        with tracer.start_span("starlette.background_task", resource=task_name, child_of=None, activate=True) as span:
+        with tracer.start_span(
+            f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
+        ) as span:
             if current_span:
                 span.link_span(current_span.context)
             if inspect.iscoroutinefunction(task):
