@@ -671,12 +671,7 @@ class Config(object):
         # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
         _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
 
-        trace_compute_stats_default = (
-            in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14) or agentless.enabled
-        )
-        self._trace_compute_stats = _get_config(
-            "DD_TRACE_STATS_COMPUTATION_ENABLED", trace_compute_stats_default, asbool
-        )
+        self._trace_compute_stats = _get_config("DD_TRACE_STATS_COMPUTATION_ENABLED", True, asbool)
         self._otel_stats_computation_enabled = _get_config("OTEL_TRACES_SPAN_METRICS_ENABLED", None, asbool)
         self._trace_stats_additional_tags = _get_config(
             "DD_TRACE_STATS_ADDITIONAL_TAGS",
