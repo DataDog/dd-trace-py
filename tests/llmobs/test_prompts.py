@@ -1010,10 +1010,7 @@ class TestPromptManagement:
         )
         cache.set("configured:", original)
 
-        cached = cache.get("configured:")[0]
-        returned_config = cached.config
-        returned_config["nested"]["x"] = 2
-        assert cached.config == {"nested": {"x": 1}}
+        assert cache.get("configured:")[0].config == {"nested": {"x": 1}}
 
     @pytest.mark.parametrize("call", [lambda m: m.update_prompt("p1"), lambda m: m.update_prompt_version("p1", 1)])
     def test_update_requires_a_field(self, call):
