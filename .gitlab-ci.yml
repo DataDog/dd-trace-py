@@ -585,7 +585,9 @@ prof-correctness:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
-    - changes:
+    # Bare rules:changes is true for web/API/tag pipelines; require a push.
+    - if: $CI_PIPELINE_SOURCE == "push"
+      changes:
         - .github/workflows/prof-correctness.yml
         - .gitlab-ci.yml
         - ddtrace/internal/datadog/profiling/**/*

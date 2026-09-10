@@ -29,17 +29,27 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 30m S3 poll + 60m downstream watch (matches the GitLab job timeout).
+    timeout-minutes: 90
     steps:
       - name: Resolve commit SHA
         id: sha
+        env:
+          INPUT_SHA: ${{ github.event.inputs.commit_sha }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          if [ -n "${{ github.event.inputs.commit_sha }}" ]; then
-            echo "value=${{ github.event.inputs.commit_sha }}" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "value=${{ github.event.pull_request.head.sha }}" >> "$GITHUB_OUTPUT"
+          if [ -n "$INPUT_SHA" ]; then
+            if ! printf '%s' "$INPUT_SHA" | grep -Eq '^[0-9a-fA-F]{7,64}$'; then
+              echo "error: commit_sha must be a hex git SHA" >&2
+              exit 1
+            fi
+            echo "value=${INPUT_SHA}" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "value=${PR_SHA}" >> "$GITHUB_OUTPUT"
           else
-            echo "value=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+            echo "value=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
           fi
 
       # Fork PRs cannot mint org OIDC or reach GitLab S3 wheels. Skip wait and
