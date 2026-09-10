@@ -57,7 +57,9 @@ def patch():
     if algoliasearch_version < V2 and algoliasearch_version >= V1:
         _w(algoliasearch.index, "Index.search", _patched_search)
     elif algoliasearch_version >= V2 and algoliasearch_version < V3:
-        _w(algoliasearch, "search_index.SearchIndex.search", _patched_search)
+        from algoliasearch import search_index
+
+        _w(search_index, "SearchIndex.search", _patched_search)
     else:
         return
 
