@@ -83,7 +83,7 @@ TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnknown)
     _set_pid(getpid());
     EchionSampler echion;
     FrameStack stack;
-    std::vector<_PyInterpreterFrame> frames(MAX_TASK_FRAMES + 1);
+    std::vector<_PyInterpreterFrame> frames(MAX_STACK_DISCOVERY_DEPTH + 1);
     for (size_t i = 0; i < frames.size(); i++) {
 #if PY_VERSION_HEX >= 0x030e0000
         frames[i].owner = FRAME_OWNED_BY_INTERPRETER;
@@ -96,12 +96,12 @@ TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnknown)
     // Ignored frames do not prove truncation, even when lookahead reaches its safety ceiling.
     std::unordered_set<PyObject*> seen_frames;
     auto result = unwind_frame(echion, reinterpret_cast<PyObject*>(frames.data()), stack, seen_frames, 0, true);
-    EXPECT_EQ(seen_frames.size(), MAX_TASK_FRAMES);
+    EXPECT_EQ(seen_frames.size(), MAX_STACK_DISCOVERY_DEPTH);
     EXPECT_EQ(result.frames_added, 0);
     EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
 
     // Within the probe budget, the same ignored chain can prove the stack is complete.
-    frames[MAX_TASK_FRAMES - 1].previous = nullptr;
+    frames[MAX_STACK_DISCOVERY_DEPTH - 1].previous = nullptr;
     result = unwind_frame(echion, reinterpret_cast<PyObject*>(frames.data()), stack, seen_frames, 0, true);
     EXPECT_EQ(result.truncation, TruncationStatus::NotTruncated);
 
