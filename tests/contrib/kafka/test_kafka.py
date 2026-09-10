@@ -3,21 +3,27 @@ import logging
 import os
 import random
 import time
+from types import SimpleNamespace
 
 import confluent_kafka
 from confluent_kafka import TopicPartition
 import pytest
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib._events.kafka import KafkaProcessEvent
 from ddtrace.contrib._events.kafka import KafkaProducerEvent
 from ddtrace.contrib._events.messaging import MessagingProcessEvent
 from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
+from ddtrace.contrib.internal.kafka.patch import _instrument_message
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import traced_produce
 from ddtrace.contrib.internal.kafka.patch import unpatch
+from ddtrace.internal import core
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_config
 
 from .conftest import BOOTSTRAP_SERVERS
@@ -40,7 +46,7 @@ SNAPSHOT_IGNORES = [
 def test_kafka_events_specialize_messaging_events():
     assert issubclass(KafkaProducerEvent, MessagingProducerEvent)
     assert issubclass(KafkaProcessEvent, MessagingProcessEvent)
-    assert KafkaProcessEvent.activate_distributed_headers is True
+    assert KafkaProcessEvent.activate_distributed_headers is False
 
 
 def test_consumer_created_with_logger_does_not_raise(kafka_tracer):
@@ -701,6 +707,66 @@ def test_producer_injects_trace_headers_after_key_serialization(kafka_tracer, ka
     assert "x-datadog-trace-id" not in serialized_headers[0]
     assert produced_headers is not None
     assert "x-datadog-trace-id" in produced_headers
+
+
+def test_produce_preserves_dsm_headers_when_caller_omits_headers():
+    produced_headers = None
+    instance = SimpleNamespace(_dd_bootstrap_servers="localhost:9092", _dd_cluster_id="test-cluster")
+    Pin().onto(instance)
+
+    def produce(*args, **kwargs):
+        nonlocal produced_headers
+        produced_headers = kwargs.get("headers")
+
+    def inject_dsm_headers(inst, args, kwargs, is_serializing, span):
+        headers = kwargs.get("headers", {})
+        headers["dd-pathway-ctx-base64"] = "pathway"
+        kwargs["headers"] = headers
+
+    core.on("kafka.produce.start", inject_dsm_headers)
+    try:
+        with override_config("kafka", dict(distributed_tracing_enabled=True)):
+            traced_produce(produce, instance, ("topic", PAYLOAD), {})
+        assert produced_headers is not None
+        assert produced_headers.get("dd-pathway-ctx-base64") == "pathway"
+        assert "x-datadog-trace-id" in produced_headers
+    finally:
+        core.reset_listeners("kafka.produce.start", inject_dsm_headers)
+
+
+def test_consume_restores_local_span_when_message_has_foreign_trace(kafka_tracer, test_spans):
+    carrier = {}
+    HTTPPropagator.inject(Context(trace_id=2**64 - 1, span_id=99), carrier)
+
+    class Message:
+        def topic(self):
+            return "topic"
+
+        def headers(self):
+            return list(carrier.items())
+
+        def key(self):
+            return b"key"
+
+        def offset(self):
+            return 1
+
+        def partition(self):
+            return 0
+
+        def __len__(self):
+            return 1
+
+    instance = SimpleNamespace(_group_id="group", _dd_bootstrap_servers="localhost:9092", _dd_cluster_id="test-cluster")
+    pin = Pin()
+    pin.onto(instance)
+
+    with override_config("kafka", dict(distributed_tracing_enabled=True, propagation_as_span_links=False)):
+        with kafka_tracer.trace("local") as parent:
+            _instrument_message([Message()], pin, time.time_ns(), instance, None)
+            assert kafka_tracer.current_span() is parent
+            with kafka_tracer.trace("after") as after:
+                assert after.parent_id == parent.span_id
 
 
 def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
