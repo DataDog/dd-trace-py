@@ -142,6 +142,13 @@ class DebuggerWrappingContext(WrappingContext):
     def has_probes(self) -> bool:
         return bool(self.function_probes or self.line_probes)
 
+    def _has_sampled_probes(self) -> bool:
+        # A unit of execution is only worth opening if something in it can
+        # actually be gated by the coordinated decision. A function wrapped
+        # only for non-snapshot probes (log messages, span probes, ...) has
+        # nothing to coordinate, so there is no point spending a decision on it.
+        return any(p.is_sampled() for p in chain(self.function_probes.values(), self.line_probes.values()))
+
     def _open_signals(self) -> None:
         # Group probes on the basis of whether they create new context.
         context_creators: list[Probe] = []
@@ -234,8 +241,10 @@ class DebuggerWrappingContext(WrappingContext):
         # Open the unit of execution before any probe fires, so that every probe
         # within the invocation -- function probes here, and line probes in the
         # body -- shares a single sampling decision. This is the whole reason a
-        # function with only line probes in it gets wrapped at all.
-        self.set("scope_token", self._sampler.open_scope())
+        # function with only line probes in it gets wrapped at all. Skipped
+        # when nothing here participates in coordination, so a function with
+        # only non-snapshot probes does not spend a decision for no reason.
+        self.set("scope_token", self._sampler.open_scope() if self._has_sampled_probes() else None)
 
         # A function wrapped only to scope the line probes inside it has no
         # signals to open, and opening them is far from free.

@@ -177,6 +177,27 @@ def test_non_snapshot_probes_are_not_charged():
     assert budget.has_budget() is True
 
 
+def test_non_snapshot_probes_are_not_charged_until_they_emit(roomy):
+    # Evaluating only peeks at the probe's own rate limit, so a condition that
+    # does not match must not spend the one token a zero rate ever grants.
+    probe = create_log_line_probe(
+        probe_id="log-probe",
+        source_file="test.py",
+        line=1,
+        template="",
+        segments=[],
+        rate=0.0,
+    )
+    f = frame()
+
+    assert roomy.evaluate(probe, f, None) is Decision.FIRE
+    assert roomy.evaluate(probe, f, None) is Decision.FIRE
+
+    roomy.account_for(probe, f, None)
+
+    assert roomy.evaluate(probe, f, None) is Decision.DROP_RATE
+
+
 # ---------------------------------------------------------------------------
 # Live Debugger sessions
 # ---------------------------------------------------------------------------

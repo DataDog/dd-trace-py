@@ -21,7 +21,6 @@ from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._session import Session
 from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter
-from ddtrace.internal.rate_limiter import RateLimitExceeded
 
 
 class Decision(str, Enum):
@@ -212,11 +211,17 @@ class DebuggerSampler(BudgetRateLimiterWithJitter):
         Nesting is a no-op: an inner invocation joins the unit already in scope
         rather than competing with it. With a trace running the state lives on the
         span and dies with it, so there is nothing to close and no token.
+
+        A trace that starts mid-invocation, after a tier 2 decision was already
+        made in a contextvar, inherits that decision rather than taking a second,
+        independent one: the two would disagree half the time, and the whole
+        point of a unit is that everything in it agrees.
         """
         root = tracer.current_root_span()
         if root is not None:
             if root._get_ctx_item(_EMIT_CTX_KEY) is None:
-                root._set_ctx_item(_EMIT_CTX_KEY, self.has_budget())
+                inherited = _emit.get()
+                root._set_ctx_item(_EMIT_CTX_KEY, inherited if inherited is not None else self.has_budget())
             return None
 
         if _emit.get() is not None:
@@ -241,8 +246,10 @@ class DebuggerSampler(BudgetRateLimiterWithJitter):
             if decision is None:
                 # No probed invocation has opened a unit on this trace yet, which
                 # is what happens when a line probe fires outside any probed
-                # function.
-                decision = self.has_budget()
+                # function. Inherit a tier 2 decision already in scope rather
+                # than taking a second, independent one.
+                inherited = _emit.get()
+                decision = inherited if inherited is not None else self.has_budget()
                 root._set_ctx_item(_EMIT_CTX_KEY, decision)
             return bool(decision)
 
@@ -265,7 +272,7 @@ class DebuggerSampler(BudgetRateLimiterWithJitter):
             return Decision.FIRE
 
         if not probe.is_sampled():
-            if isinstance(probe, RateLimitMixin) and probe.limiter.limit() is RateLimitExceeded:
+            if isinstance(probe, RateLimitMixin) and not probe.limiter.reserve():
                 return Decision.DROP_RATE
             return Decision.FIRE
 
@@ -286,10 +293,18 @@ class DebuggerSampler(BudgetRateLimiterWithJitter):
         spent unconditionally: a unit that overshoots puts the budget into deficit,
         and the overshoot is repaid before anything else is let through.
 
-        A probe that is not sampled is not held to the budget, and one whose trace
-        is being debugged is on the session's own accounting instead.
+        A probe that is not sampled is held to its own rate limit instead of the
+        budget, charged here rather than at the gate for the same reason: only a
+        snapshot that actually captured has paid the cost the limit protects.
+        One whose trace is being debugged is on the session's own accounting
+        instead.
         """
-        if Session.is_active_for(probe) or not probe.is_sampled():
+        if Session.is_active_for(probe):
+            return
+
+        if not probe.is_sampled():
+            if isinstance(probe, RateLimitMixin):
+                probe.limiter.spend()
             return
 
         SampleFingerprint.witness(probe, frame, trace_context)
