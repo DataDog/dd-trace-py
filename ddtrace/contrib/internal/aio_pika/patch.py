@@ -26,6 +26,8 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
+from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -33,6 +35,9 @@ from ddtrace.internal.utils.formats import asbool
 
 
 _MESSAGING_SYSTEM = "rabbitmq"
+_PUBLISH = "rabbitmq.publish"
+_GET = "rabbitmq.get"
+_CONSUME = "rabbitmq.consume"
 
 _EXCHANGE = "rabbitmq.exchange"
 _QUEUE = "rabbitmq.queue"
@@ -63,6 +68,14 @@ def _supported_versions() -> dict[str, str]:
 
 def _service() -> Optional[str]:
     return trace_utils.int_service(None, config.aio_pika)
+
+
+def _operation(v0_name: str, direction: SpanDirection) -> str:
+    return str(
+        schematize_messaging_operation(  # type: ignore[operator]  # schema helper is selected at import
+            v0_name, provider=_MESSAGING_SYSTEM, direction=direction
+        )
+    )
 
 
 def _span_links_enabled() -> bool:
@@ -182,7 +195,7 @@ async def _traced_publish(
     tags.update(_connection_tags(getattr(instance, "channel", None)))
 
     event = MessagingProducerEvent(
-        operation="rabbitmq.publish",
+        operation=_operation(_PUBLISH, SpanDirection.OUTBOUND),
         component=config.aio_pika.integration_name,
         integration_config=config.aio_pika,
         service=_service(),
@@ -223,7 +236,7 @@ def _traced_callback(callback: Callable[[Any], Any]) -> Callable[[Any], Awaitabl
     @wraps(callback)
     async def traced(message: Any) -> Any:
         event = MessagingProcessEvent(
-            operation="rabbitmq.consume",
+            operation=_operation(_CONSUME, SpanDirection.PROCESSING),
             semantic_operation="process",
             destination=_message_destination(message),
             **_incoming_event_kwargs(message),
@@ -256,7 +269,7 @@ async def _trace_receive(
         message = await wrapped(*args, **kwargs)
     except StopAsyncIteration:
         event = MessagingReceiveEvent(
-            operation="rabbitmq.get",
+            operation=_operation(_GET, SpanDirection.INBOUND),
             semantic_operation="receive",
             destination=destination,
             start_ns=start_ns,
@@ -268,7 +281,7 @@ async def _trace_receive(
         raise
     except BaseException:
         event = MessagingReceiveEvent(
-            operation="rabbitmq.get",
+            operation=_operation(_GET, SpanDirection.INBOUND),
             semantic_operation="receive",
             destination=destination,
             start_ns=start_ns,
@@ -279,7 +292,7 @@ async def _trace_receive(
             raise
 
     event = MessagingReceiveEvent(
-        operation="rabbitmq.get",
+        operation=_operation(_GET, SpanDirection.INBOUND),
         semantic_operation="receive",
         destination=destination,
         start_ns=start_ns,
@@ -313,7 +326,7 @@ async def _traced_process_context(original: Any, message: Any) -> AsyncIterator[
         return
 
     event = MessagingProcessEvent(
-        operation="rabbitmq.consume",
+        operation=_operation(_CONSUME, SpanDirection.PROCESSING),
         semantic_operation="process",
         destination=_message_destination(message),
         **_incoming_event_kwargs(message),
