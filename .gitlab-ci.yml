@@ -65,6 +65,12 @@ include:
     ref: 0f48ca35f0b3dfd19d5c0dc9f92aa977c99bebbf
     file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
+  - local: ".gitlab/retry-policies.yml"
+  # Included after the base policies so main pipelines override them without
+  # duplicating concrete job definitions or changing job identities.
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -318,20 +324,9 @@ check_requirements_lockfiles:
   stage: tests
   needs: []
   extends: .testrunner
-  variables:
-    # DD_DISABLE_VPA is required: without it VPA overrides KUBERNETES_MEMORY_*
-    # (see "overridden by VPA" in runner logs) and clamps the build container
-    # down to ~4 GiB based on its learned model. compile-and-prune-test-
-    # requirements pip-compiles every riot lockfile sequentially and peaks
-    # above that when resolving the full venv matrix (including 3.15 venvs),
-    # causing OOMKilled (exit 137).
-    DD_DISABLE_VPA: "true"
-    KUBERNETES_MEMORY_REQUEST: "8Gi"
-    KUBERNETES_MEMORY_LIMIT: "8Gi"
   script:
-    - pip install toml==0.10.2 pyyaml==6.0.2
-    - scripts/compile-and-prune-test-requirements
-    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+    - pip install toml==0.10.2
+    - scripts/test-requirements check
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
@@ -661,8 +656,9 @@ lib_injection_tests:
 # Extension-based patterns keep Python and docs out automatically; non-extension
 # build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
-  extends: .profiling_native_base
-  retry: 2
+  extends:
+    - .profiling_native_base
+    - .retry_on_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
@@ -732,6 +728,8 @@ package-oci:
       artifacts: true
     - job: "download_dependency_wheels"
       artifacts: true
+      # 3.15 cell is when: never until the python image is mirrored
+      optional: true
 
 configure_system_tests:
   variables:

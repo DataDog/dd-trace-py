@@ -311,6 +311,51 @@
         ]
     },
     {
+        "dependencyName": "anyio",
+        "integrationName": "anyio",
+        "autoInstrumented": true,
+        "versions": [
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.9"
+                    ]
+                },
+                "supportedRange": ">=3.4.0",
+                "tested": [
+                    "3.4.0",
+                    "4.12.1"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.10"
+                    ]
+                },
+                "supportedRange": ">=3.4.0",
+                "tested": [
+                    "3.7.1",
+                    "4.15.0"
+                ]
+            },
+            {
+                "testedRuntimes": {
+                    "python": [
+                        "3.11",
+                        "3.12",
+                        "3.13",
+                        "3.14"
+                    ]
+                },
+                "supportedRange": ">=3.4.0",
+                "tested": [
+                    "4.15.0"
+                ]
+            }
+        ]
+    },
+    {
         "dependencyName": "aredis",
         "integrationName": "aredis",
         "autoInstrumented": true,
@@ -2407,7 +2452,7 @@
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.15.1"
+                    "3.16.0"
                 ]
             }
         ]
@@ -2426,7 +2471,7 @@
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.15.1"
+                    "3.16.0"
                 ]
             }
         ]
@@ -2445,7 +2490,7 @@
                 },
                 "supportedRange": ">=2.11.4",
                 "tested": [
-                    "3.15.1"
+                    "3.16.0"
                 ]
             }
         ]
@@ -3486,29 +3531,19 @@
                 "supportedRange": ">=1.3",
                 "tested": [
                     "1.3.24",
-                    "2.0.40"
+                    "2.0.52"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.13"
-                    ]
-                },
-                "supportedRange": ">=1.3",
-                "tested": [
-                    "2.0.40"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.13",
                         "3.14"
                     ]
                 },
                 "supportedRange": ">=1.3",
                 "tested": [
-                    "2.0.43"
+                    "2.0.52"
                 ]
             }
         ]
