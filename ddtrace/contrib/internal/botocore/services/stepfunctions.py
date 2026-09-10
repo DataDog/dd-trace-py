@@ -45,7 +45,6 @@ def update_stepfunction_input(ctx: core.ExecutionContext, params: Any) -> None:
 def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, function_vars: dict):
     params = function_vars.get("params")
     trace_operation = function_vars.get("trace_operation")
-    pin = function_vars.get("pin")
     endpoint_name = function_vars.get("endpoint_name")
     operation = function_vars.get("operation")
 
@@ -66,7 +65,7 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, f
             "botocore.patched_stepfunctions_api_call",
             span_name=call_name,
             service=schematize_service_name(
-                "{}.{}".format(ext_service(pin, int_config=config.botocore), endpoint_name)
+                "{}.{}".format(ext_service(None, int_config=config.botocore), endpoint_name)
             ),
             span_type=SpanTypes.HTTP,
             span_key="patched_stepfunctions_api_call",
@@ -75,7 +74,6 @@ def patched_stepfunction_api_call(original_func, instance, args, kwargs: dict, f
             params=params,
             endpoint_name=endpoint_name,
             operation=operation,
-            pin=pin,
             integration_config=config.botocore,
         ) as ctx,
         span_from_context(ctx),
