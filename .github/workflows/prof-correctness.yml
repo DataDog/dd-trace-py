@@ -52,7 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
           DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
-          TEST_SCENARIOS: ${{ github.event.inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\\.(14|15)' }}
+          TEST_SCENARIOS: ${{ github.event.inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)' }}
         run: |
           # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
           TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
@@ -83,4 +83,8 @@ jobs:
           fi
 
           echo "Watching prof-correctness run ${RUN_ID}"
-          gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
+          if ! gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status; then
+            echo "---- prof-correctness failed-step logs ----"
+            gh run view "${RUN_ID}" --repo DataDog/prof-correctness --log-failed
+            exit 1
+          fi
