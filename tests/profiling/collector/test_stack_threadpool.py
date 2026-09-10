@@ -39,22 +39,22 @@ def patch_futures():
 
 
 @pytest.fixture
-def span_linking_enabled():
-    was_enabled = _span_links._span_linking_enabled
+def span_linking_active():
+    was_active = _span_links._span_linking_active
     generation = _span_links._span_link_generation
     active_span_link = _span_links._active_span_link.get()
-    _span_links.enable_span_linking()
+    _span_links.start_span_linking()
     try:
         yield
     finally:
-        _span_links.disable_span_linking()
-        _span_links._span_linking_enabled = was_enabled
+        _span_links.stop_span_linking()
+        _span_links._span_linking_active = was_active
         _span_links._span_link_generation = generation
         _span_links._set_active_span_link(active_span_link)
 
 
 def test_link_span_plain_context_uses_span_id_as_local_root(
-    monkeypatch: pytest.MonkeyPatch, span_linking_enabled: None, tracer: Tracer
+    monkeypatch: pytest.MonkeyPatch, span_linking_active: None, tracer: Tracer
 ) -> None:
     """A propagated Context without profiler metadata uses its span ID as the local root."""
     if not stack_module.is_available:
@@ -69,7 +69,7 @@ def test_link_span_plain_context_uses_span_id_as_local_root(
 
 
 def test_link_span_context_reads_profiler_meta(
-    monkeypatch: pytest.MonkeyPatch, span_linking_enabled: None, tracer: Tracer
+    monkeypatch: pytest.MonkeyPatch, span_linking_active: None, tracer: Tracer
 ) -> None:
     """A propagated Context preserves its copied local-root metadata."""
     from ddtrace.internal.datadog.profiling import context_meta
