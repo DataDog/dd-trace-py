@@ -5,10 +5,13 @@ from aiokafka.errors import MessageSizeTooLargeError
 from aiokafka.structs import TopicPartition
 import pytest
 
+from ddtrace._trace.context import Context
 from ddtrace.contrib.internal.aiokafka.patch import patch
 from ddtrace.contrib.internal.aiokafka.patch import traced_getmany
+from ddtrace.contrib.internal.aiokafka.patch import traced_getone
 from ddtrace.contrib.internal.aiokafka.patch import traced_send
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
+from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_config
 from tests.utils import override_global_tracer
 
@@ -130,6 +133,33 @@ async def test_send_span_records_delivery_future_failure(tracer, test_spans):
     assert span.finished
     assert span.error == 1
     test_spans.assert_span_count(1)
+
+
+@pytest.mark.asyncio
+async def test_getone_preserves_local_span_when_headers_are_from_another_trace(tracer, test_spans):
+    carrier = {}
+    HTTPPropagator.inject(Context(trace_id=2**64 - 1, span_id=99), carrier)
+    message = SimpleNamespace(
+        headers=[(key, value.encode("utf-8") if isinstance(value, str) else value) for key, value in carrier.items()],
+        topic="topic",
+        key=None,
+        value=PAYLOAD,
+        partition=0,
+        offset=1,
+    )
+    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
+    consumer = SimpleNamespace(_client=client, _group_id="test-group")
+
+    async def getone(*args, **kwargs):
+        return message
+
+    with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
+        with tracer.trace("local") as parent:
+            result = await traced_getone(getone, consumer, (), {})
+            assert result is message
+            assert tracer.current_span() is parent
+            with tracer.trace("after") as after:
+                assert after.parent_id == parent.span_id
 
 
 @pytest.mark.asyncio
