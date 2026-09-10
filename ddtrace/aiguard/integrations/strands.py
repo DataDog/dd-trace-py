@@ -71,14 +71,14 @@ from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import Function
 from ddtrace.aiguard._api_client import Message
-from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._api_client import new_ai_guard_client
+from ddtrace.aiguard._common import evaluate_auto
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import reset_aiguard_context_active
 from ddtrace.aiguard._context import set_aiguard_context_active
 from ddtrace.aiguard.messages import try_format_json
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings.aiguard import aiguard_config
 
 
 logger = get_logger(__name__)
@@ -293,7 +293,7 @@ class AIGuardStrandsIntegration:
             # already scanned in AfterToolCall; re-scanning would be redundant.
             ai_guard_messages = _convert_strands_messages(messages, system_prompt, exclude_tool_results=True)
             if ai_guard_messages:
-                self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
+                evaluate_auto(self._client, ai_guard_messages, AI_GUARD.INTEGRATION_STRANDS)
         except AIGuardAbortError:
             raise
         except Exception:
@@ -322,7 +322,7 @@ class AIGuardStrandsIntegration:
                 return
             ai_guard_messages = _convert_strands_messages([text_only_message])
             if ai_guard_messages:
-                self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
+                evaluate_auto(self._client, ai_guard_messages, AI_GUARD.INTEGRATION_STRANDS)
         except AIGuardAbortError:
             raise
         except Exception:
@@ -369,7 +369,7 @@ class AIGuardStrandsIntegration:
         tool_name = ""
         try:
             ai_guard_messages, tool_name = self._build_tool_call_messages(event)
-            self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
+            evaluate_auto(self._client, ai_guard_messages, AI_GUARD.INTEGRATION_STRANDS)
         except AIGuardAbortError as e:
             if self._raise_error_on_tool_calls:
                 raise
@@ -398,7 +398,7 @@ class AIGuardStrandsIntegration:
                 )
             )
 
-            self._client.evaluate(ai_guard_messages, Options(block=aiguard_config._ai_guard_block))
+            evaluate_auto(self._client, ai_guard_messages, AI_GUARD.INTEGRATION_STRANDS)
         except AIGuardAbortError as e:
             if self._raise_error_on_tool_calls:
                 raise

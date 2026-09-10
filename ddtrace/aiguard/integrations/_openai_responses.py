@@ -28,9 +28,10 @@ from ddtrace.aiguard._api_client import AIGuardAbortError
 from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import Function
 from ddtrace.aiguard._api_client import Message
-from ddtrace.aiguard._api_client import Options
 from ddtrace.aiguard._api_client import ToolCall
 from ddtrace.aiguard._common import _get
+from ddtrace.aiguard._common import evaluate_auto
+from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.aiguard._context import is_aiguard_context_active
 from ddtrace.aiguard.integrations._openai import _wrap_abort_error
 import ddtrace.internal.logger as ddlogger
@@ -444,7 +445,7 @@ def _openai_response_create_before(client: AIGuardClient, kwargs: dict[str, Any]
 
     logger.debug("AI Guard openai responses before-hook evaluating %d message(s)", len(messages))
     try:
-        client.evaluate(messages, Options(block=aiguard_config._ai_guard_block))
+        evaluate_auto(client, messages, AI_GUARD.INTEGRATION_OPENAI)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:
@@ -478,7 +479,7 @@ def _openai_response_create_after(client: AIGuardClient, kwargs: dict[str, Any],
     all_messages = request_messages + response_messages
 
     try:
-        client.evaluate(all_messages, Options(block=aiguard_config._ai_guard_block))
+        evaluate_auto(client, all_messages, AI_GUARD.INTEGRATION_OPENAI)
     except AIGuardAbortError as e:
         raise _wrap_abort_error(e)
     except Exception:

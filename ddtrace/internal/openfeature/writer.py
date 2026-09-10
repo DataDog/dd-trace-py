@@ -37,16 +37,20 @@ DEFAULT_INTERVAL = 1.0
 DEFAULT_TIMEOUT = 2.0
 
 
-class ExposureEvent(TypedDict):
-    """
-    Feature flag exposure event structure.
-    """
-
+class _RequiredExposureEvent(TypedDict):
     timestamp: int
     allocation: dict[str, str]
     flag: dict[str, str]
     variant: dict[str, str]
     subject: dict[str, Any]
+
+
+class ExposureEvent(_RequiredExposureEvent, total=False):
+    """
+    Feature flag exposure event structure.
+    """
+
+    serial_id: int
 
 
 class GeoContext(TypedDict, total=False):

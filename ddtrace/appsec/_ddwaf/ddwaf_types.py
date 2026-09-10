@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
 import ctypes.util
+from enum import Enum
 from enum import IntEnum
 from platform import system
 from typing import Any
@@ -18,6 +19,15 @@ from ddtrace.internal.settings.asm import config as asm_config
 DDWafInputType = Union[None, int, float, str, Sequence["DDWafInputType"], Mapping[str, "DDWafInputType"]]
 
 DDWafOutputType = Union[None, int, float, str, list["DDWafOutputType"], dict[str, "DDWafOutputType"]]
+
+
+class DDWafSqlTokenizer(str, Enum):
+    GENERIC = "generic"
+    MYSQL = "mysql"
+    ORACLE = "oracle"
+    POSTGRESQL = "postgresql"
+    SQLITE = "sqlite"
+
 
 log = get_logger(__name__)
 

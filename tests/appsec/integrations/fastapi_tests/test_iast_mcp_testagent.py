@@ -55,7 +55,7 @@ async def mcp_client_session(port: int):
             yield session
 
 
-def test_iast_mcp_baseline(iast_test_token):
+def test_iast_mcp_baseline(iast_test_token, free_port):
     """Baseline test: Regular CMDI endpoint works with IAST.
 
     Also validates that headers are properly processed by the middleware.
@@ -64,7 +64,7 @@ def test_iast_mcp_baseline(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8051,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=MCP_IAST_ENV,
     ) as context:
@@ -108,7 +108,7 @@ def test_iast_mcp_baseline(iast_test_token):
 
 
 @pytest.mark.asyncio
-async def test_iast_mcp_tool_call_safe(iast_test_token):
+async def test_iast_mcp_tool_call_safe(iast_test_token, free_port):
     """Test MCP tool call (safe tool) with IAST enabled using in-memory connection.
 
     This test validates that IAST can handle MCP tool calls without causing segmentation faults.
@@ -120,7 +120,7 @@ async def test_iast_mcp_tool_call_safe(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8051,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=MCP_IAST_ENV,
     ) as context:
@@ -160,7 +160,7 @@ async def test_iast_mcp_tool_call_safe(iast_test_token):
 
 
 @pytest.mark.asyncio
-async def test_iast_mcp_vulnerable_tool(iast_test_token):
+async def test_iast_mcp_vulnerable_tool(iast_test_token, free_port):
     """Test MCP vulnerable tool with IAST detection using in-memory connection.
 
     This test validates that IAST can detect vulnerabilities (CMDI) when MCP tools
@@ -177,7 +177,7 @@ async def test_iast_mcp_vulnerable_tool(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8051,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=env,
     ) as context:
@@ -228,7 +228,7 @@ async def test_iast_mcp_vulnerable_tool(iast_test_token):
 
 
 @pytest.mark.asyncio
-async def test_iast_mcp_multiple_tool_calls(iast_test_token):
+async def test_iast_mcp_multiple_tool_calls(iast_test_token, free_port):
     """Test multiple MCP tool calls to stress test IAST with MCP interaction.
 
     This test makes multiple consecutive MCP tool calls to detect potential
@@ -240,7 +240,7 @@ async def test_iast_mcp_multiple_tool_calls(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8051,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=MCP_IAST_ENV,
     ) as context:
@@ -289,7 +289,7 @@ async def test_iast_mcp_multiple_tool_calls(iast_test_token):
     assert len(spans_with_iast) >= 1
 
 
-def test_iast_mcp_header_tainting(iast_test_token):
+def test_iast_mcp_header_tainting(iast_test_token, free_port):
     """Test that HTTP headers are properly tainted by IAST.
 
     This test validates that IAST correctly taints incoming HTTP headers,
@@ -299,7 +299,7 @@ def test_iast_mcp_header_tainting(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8051,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=MCP_IAST_ENV,
     ) as context:
@@ -338,7 +338,7 @@ def test_iast_mcp_header_tainting(iast_test_token):
     assert len(spans_with_iast) >= 1
 
 
-def test_iast_mcp_header_cmdi(iast_test_token):
+def test_iast_mcp_header_cmdi(iast_test_token, free_port):
     """Test CMDI detection using tainted header value.
 
     This test validates that IAST can detect CMDI vulnerabilities when the
@@ -351,7 +351,7 @@ def test_iast_mcp_header_cmdi(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8051,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=env,
     ) as context:
@@ -408,7 +408,7 @@ def test_iast_mcp_header_cmdi(iast_test_token):
 
 
 @pytest.mark.asyncio
-async def test_iast_mcp_sse_streaming_safe_tool(iast_test_token):
+async def test_iast_mcp_sse_streaming_safe_tool(iast_test_token, free_port):
     """Test MCP tool call via HTTP/SSE streaming with IAST enabled (safe tool).
 
     This test uses the real HTTP/SSE transport to communicate with the MCP server,
@@ -419,7 +419,7 @@ async def test_iast_mcp_sse_streaming_safe_tool(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8052,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=MCP_IAST_ENV,
     ) as context:
@@ -437,7 +437,7 @@ async def test_iast_mcp_sse_streaming_safe_tool(iast_test_token):
         assert response.status_code == 200
 
         # Now test MCP via HTTP/SSE streaming
-        async with mcp_client_session(8052) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize the session
             await session.initialize()
 
@@ -462,7 +462,7 @@ async def test_iast_mcp_sse_streaming_safe_tool(iast_test_token):
 
 
 @pytest.mark.asyncio
-async def test_iast_mcp_sse_streaming_vulnerable_tool(iast_test_token):
+async def test_iast_mcp_sse_streaming_vulnerable_tool(iast_test_token, free_port):
     """Test MCP vulnerable tool via HTTP/SSE streaming with IAST detection.
 
     **MOST CRITICAL TEST** - This test uses real HTTP/SSE streaming to call
@@ -481,7 +481,7 @@ async def test_iast_mcp_sse_streaming_vulnerable_tool(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8052,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=env,
     ) as context:
@@ -500,7 +500,7 @@ async def test_iast_mcp_sse_streaming_vulnerable_tool(iast_test_token):
         assert response.status_code == 200
 
         # Test MCP vulnerable tool via HTTP/SSE streaming
-        async with mcp_client_session(8052) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize the session
             await session.initialize()
 
@@ -529,7 +529,7 @@ async def test_iast_mcp_sse_streaming_vulnerable_tool(iast_test_token):
 
 
 @pytest.mark.asyncio
-async def test_iast_mcp_sse_streaming_multiple_calls(iast_test_token):
+async def test_iast_mcp_sse_streaming_multiple_calls(iast_test_token, free_port):
     """Test multiple MCP tool calls via HTTP/SSE streaming to stress test IAST.
 
     This test makes multiple consecutive calls through a real HTTP/SSE streaming
@@ -540,7 +540,7 @@ async def test_iast_mcp_sse_streaming_multiple_calls(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8052,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=MCP_IAST_ENV,
     ) as context:
@@ -558,7 +558,7 @@ async def test_iast_mcp_sse_streaming_multiple_calls(iast_test_token):
         assert response.status_code == 200
 
         # Make multiple MCP calls via HTTP/SSE streaming
-        async with mcp_client_session(8052) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize
             await session.initialize()
 
@@ -597,7 +597,7 @@ async def test_iast_mcp_sse_streaming_multiple_calls(iast_test_token):
 
 
 @pytest.mark.asyncio
-async def test_iast_mcp_sse_streaming_stress_test_hundreds(iast_test_token):
+async def test_iast_mcp_sse_streaming_stress_test_hundreds(iast_test_token, free_port):
     """Stress test: Call the same endpoint hundreds of times via HTTP/SSE streaming.
 
     This test repeatedly calls the same MCP tool endpoint hundreds of times to detect:
@@ -614,7 +614,7 @@ async def test_iast_mcp_sse_streaming_stress_test_hundreds(iast_test_token):
         python_cmd=sys.executable,
         iast_enabled="true",
         token=iast_test_token,
-        port=8053,
+        port=free_port,
         app="tests.appsec.integrations.fastapi_tests.mcp_app:app",
         env=MCP_IAST_ENV,
     ) as context:
@@ -632,7 +632,7 @@ async def test_iast_mcp_sse_streaming_stress_test_hundreds(iast_test_token):
         assert response.status_code == 200
 
         # Make hundreds of calls to the same endpoint via HTTP/SSE streaming
-        async with mcp_client_session(8053) as session:
+        async with mcp_client_session(free_port) as session:
             # Initialize
             await session.initialize()
 

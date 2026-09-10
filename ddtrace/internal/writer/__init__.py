@@ -1,7 +1,6 @@
 from ddtrace.internal.native import AgentResponse  # noqa: F401
 
 from .writer import DEFAULT_SMA_WINDOW
-from .writer import AgentlessTraceWriter
 from .writer import AgentWriterInterface
 from .writer import HTTPWriter
 from .writer import LogWriter
@@ -14,7 +13,6 @@ from .writer_client import WriterClientBase
 
 __all__ = [
     "AgentResponse",
-    "AgentlessTraceWriter",
     "AgentWriterInterface",
     "DEFAULT_SMA_WINDOW",
     "HTTPWriter",

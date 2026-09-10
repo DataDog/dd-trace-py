@@ -34,6 +34,7 @@
 #include <echion/timing.h>
 
 class EchionSampler;
+class ThreadInfoTaskTraversalTest;
 
 class ThreadInfo
 {
@@ -43,7 +44,7 @@ class ThreadInfo
     uintptr_t thread_id;
     unsigned long native_id;
     FrameStack python_stack;
-    UnwindResult python_stack_unwind_result;
+    UnwindResult python_stack_unwind_result = UnwindResult::Unknown();
     std::vector<std::unique_ptr<StackInfo>> current_tasks;
     std::vector<std::unique_ptr<StackInfo>> current_greenlets;
 
@@ -64,7 +65,7 @@ class ThreadInfo
     [[nodiscard]] Result<void> update_cpu_time();
 
     [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
-    void unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
+    [[nodiscard]] Result<void> unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -117,6 +118,8 @@ class ThreadInfo
     };
 
   private:
+    friend class ThreadInfoTaskTraversalTest;
+
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
     bool is_asyncio_boundary_frame(EchionSampler&, const Frame&);

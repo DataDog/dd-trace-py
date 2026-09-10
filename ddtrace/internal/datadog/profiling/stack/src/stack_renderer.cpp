@@ -9,7 +9,6 @@
 
 #include "echion/echion_sampler.h"
 #include "echion/strings.h"
-#include <ddup_interface.hpp>
 #include <unordered_map>
 
 using namespace Datadog;
@@ -211,7 +210,7 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
-StackRenderer::render_truncated()
+StackRenderer::mark_truncated()
 {
     if (sample != nullptr) {
         sample->incr_dropped_frames();
@@ -227,6 +226,17 @@ StackRenderer::render_omitted_frames(size_t count)
 
     const std::string name = "<" + std::to_string(count) + " synchronous frame" + (count == 1 ? "" : "s") + " omitted>";
     sample->push_frame(name, "", 0, 0);
+}
+
+void
+StackRenderer::render_gc_frame()
+{
+    if (sample == nullptr) {
+        std::cerr << "Received a GC frame without sample storage. Some profiling data has been lost." << std::endl;
+        return;
+    }
+
+    sample->push_frame("Garbage collection", "<runtime>", 0, 0);
 }
 
 void

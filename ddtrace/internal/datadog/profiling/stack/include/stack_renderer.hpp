@@ -1,12 +1,18 @@
 #pragma once
 
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
+#if PY_VERSION_HEX >= 0x030c0000
+// https://github.com/python/cpython/issues/108216#issuecomment-1696565797
+#undef _PyGC_FINALIZED
+#endif
+
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
-
-#include "python_headers.hpp"
 
 #include "dd_wrapper/include/sample.hpp"
 
@@ -93,8 +99,9 @@ class StackRenderer
                            uint64_t task_id,
                            std::optional<int64_t> walltime_ns_override = std::nullopt);
     void render_frame(Frame& frame);
-    void render_truncated();
+    void mark_truncated();
     void render_omitted_frames(size_t count);
+    void render_gc_frame();
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
     void render_stack_end();

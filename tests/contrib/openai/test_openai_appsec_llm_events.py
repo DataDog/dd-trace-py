@@ -16,7 +16,12 @@ import asyncio
 import json
 from unittest.mock import patch
 
-import httpx
+
+try:
+    # openai>=3.0 vendors httpx as httpx2 to avoid colliding with a user's own httpx install.
+    import httpx2 as httpx
+except ImportError:
+    import httpx
 import pytest
 
 from ddtrace.internal import core

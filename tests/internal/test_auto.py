@@ -32,17 +32,23 @@ def test_auto():
         # When unloading modules we must have the HTTP clients imported already
         assert "ddtrace.internal.http" in sys.modules
 
-        # emulate socket patching (e.g. by gevent)
+        # Verify that ddtrace's HTTP connections are backed by the native Rust
+        # client and therefore have no Python socket dependency.  Even after
+        # gevent nullifies socket primitives, the connections remain usable.
         import socket  # noqa:F401
 
         socket.create_connection = None
         socket.socket = None
 
         from ddtrace.internal.http import HTTPConnection  # noqa:F401
-        import ddtrace.internal.uds as uds
 
-        assert HTTPConnection("localhost")._create_connection is not None
-        assert uds.socket.socket is not None
+        conn = HTTPConnection("localhost")
+        assert not hasattr(conn, "_create_connection"), (
+            "HTTPConnection must not hold a reference to socket.create_connection (use the native Rust client instead)"
+        )
+        assert not hasattr(conn, "sock"), (
+            "HTTPConnection must not hold a Python socket (use the native Rust client instead)"
+        )
 
 
 def test_pytest_with_gevent_and_ddtrace_auto():

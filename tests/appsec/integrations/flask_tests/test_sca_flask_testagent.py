@@ -126,13 +126,13 @@ _SCA_ENV = {
 class TestSCAFlaskTelemetry:
     """SCA telemetry e2e tests using Flask + test agent."""
 
-    def test_sca_enabled_dependencies_have_metadata_key(self, iast_test_token):
+    def test_sca_enabled_dependencies_have_metadata_key(self, iast_test_token, free_port):
         """When DD_APPSEC_SCA_ENABLED=true, dependency events include metadata key."""
         with flask_server(
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8050,
+            port=free_port,
             env=_SCA_ENV,
         ) as context:
             _, flask_client, pid = context
@@ -153,13 +153,13 @@ class TestSCAFlaskTelemetry:
             f"Sample: {all_deps[:3]}"
         )
 
-    def test_sca_disabled_dependencies_have_no_metadata_key(self, iast_test_token):
+    def test_sca_disabled_dependencies_have_no_metadata_key(self, iast_test_token, free_port):
         """When DD_APPSEC_SCA_ENABLED is not set, no metadata key on dependencies."""
         with flask_server(
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8051,
+            port=free_port,
             env={
                 "DD_TELEMETRY_HEARTBEAT_INTERVAL": "2",
             },
@@ -180,7 +180,7 @@ class TestSCAFlaskTelemetry:
             f"Sample: {deps_with_metadata_key[:3]}"
         )
 
-    def test_sca_reports_cve_metadata_after_vulnerable_call(self, iast_test_token):
+    def test_sca_reports_cve_metadata_after_vulnerable_call(self, iast_test_token, free_port):
         """When a vulnerable function is called, its CVE metadata is reported.
 
         This test:
@@ -193,7 +193,7 @@ class TestSCAFlaskTelemetry:
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8052,
+            port=free_port,
             env=_SCA_ENV,
         ) as context:
             _, flask_client, pid = context
@@ -234,7 +234,7 @@ class TestSCAFlaskTelemetry:
         )
         assert hit.get("line", 0) > 0, "Expected a non-zero caller line number"
 
-    def test_sca_same_cve_first_hit_wins(self, iast_test_token):
+    def test_sca_same_cve_first_hit_wins(self, iast_test_token, free_port):
         """Same CVE triggered from two different functions — first hit wins (max reached=1).
 
         /sca-test-requests and /sca-test-requests-alt both call
@@ -245,7 +245,7 @@ class TestSCAFlaskTelemetry:
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8053,
+            port=free_port,
             env=_SCA_ENV,
         ) as context:
             _, flask_client, pid = context
@@ -280,7 +280,7 @@ class TestSCAFlaskTelemetry:
                 f"got {len(entry['reached'])}: {entry['reached']}"
             )
 
-    def test_sca_deduplication_repeated_calls(self, iast_test_token):
+    def test_sca_deduplication_repeated_calls(self, iast_test_token, free_port):
         """Calling the same vulnerable function multiple times from the same call site
         produces only ONE reached entry per CVE.
 
@@ -292,7 +292,7 @@ class TestSCAFlaskTelemetry:
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8054,
+            port=free_port,
             env=_SCA_ENV,
         ) as context:
             _, flask_client, pid = context
@@ -321,7 +321,7 @@ class TestSCAFlaskTelemetry:
                 f"Expected at most 1 reached entry per CVE, got {len(entry['reached'])}"
             )
 
-    def test_sca_cve_registered_at_load_time(self, iast_test_token):
+    def test_sca_cve_registered_at_load_time(self, iast_test_token, free_port):
         """CVEs appear with reached=[] in telemetry without triggering any vulnerable endpoint.
 
         When SCA loads CVE data at startup, it registers all applicable CVEs
@@ -332,7 +332,7 @@ class TestSCAFlaskTelemetry:
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8055,
+            port=free_port,
             env=_SCA_ENV,
         ) as context:
             _, flask_client, pid = context
@@ -467,13 +467,13 @@ class TestSCAFlaskExtendedHeartbeat:
     pin down that contract end-to-end.
     """
 
-    def test_extended_heartbeat_includes_dependencies_with_metadata_key(self, iast_test_token):
+    def test_extended_heartbeat_includes_dependencies_with_metadata_key(self, iast_test_token, free_port):
         """SCA on: extended heartbeat carries dependencies and metadata key is preserved."""
         with flask_server(
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8056,
+            port=free_port,
             env=_SCA_EXTENDED_HEARTBEAT_ENV,
         ) as context:
             _, flask_client, pid = context
@@ -503,7 +503,7 @@ class TestSCAFlaskExtendedHeartbeat:
             f"Expected SCA-tracked deps to carry the 'metadata' key in extended heartbeat. Sample deps: {all_deps[:3]}"
         )
 
-    def test_extended_heartbeat_includes_cve_metadata_after_vulnerable_call(self, iast_test_token):
+    def test_extended_heartbeat_includes_cve_metadata_after_vulnerable_call(self, iast_test_token, free_port):
         """After a vulnerable call, CVE reachability shows up in app-extended-heartbeat too.
 
         This is the contract-critical scenario: even if the backend missed the
@@ -514,7 +514,7 @@ class TestSCAFlaskExtendedHeartbeat:
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8057,
+            port=free_port,
             env=_SCA_EXTENDED_HEARTBEAT_ENV,
         ) as context:
             _, flask_client, pid = context
@@ -549,7 +549,7 @@ class TestSCAFlaskExtendedHeartbeat:
         assert "sca_test_requests" in hit.get("symbol", "")
         assert hit.get("line", 0) > 0
 
-    def test_extended_heartbeat_dependency_list_is_full_snapshot(self, iast_test_token):
+    def test_extended_heartbeat_dependency_list_is_full_snapshot(self, iast_test_token, free_port):
         """The extended-heartbeat dependency list must be a superset of the delta channel.
 
         Compares the union of dependencies seen across app-dependencies-loaded
@@ -566,7 +566,7 @@ class TestSCAFlaskExtendedHeartbeat:
             appsec_enabled="false",
             iast_enabled="false",
             token=iast_test_token,
-            port=8058,
+            port=free_port,
             env=_SCA_EXTENDED_HEARTBEAT_ENV,
         ) as context:
             _, flask_client, pid = context

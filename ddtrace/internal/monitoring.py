@@ -28,10 +28,7 @@ from ddtrace.internal.threads import Lock
 if sys.version_info < (3, 15):
     raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
 
-# mypy's configured python_version is below 3.15, so it considers everything
-# past the guard above unreachable; that's expected here since the module
-# raises ImportError before this point on unsupported versions.
-log = get_logger(__name__)  # type: ignore[unreachable]
+log = get_logger(__name__)
 
 _E = sys.monitoring.events
 _DISABLE = sys.monitoring.DISABLE
@@ -81,6 +78,16 @@ class _IdentityWeakKeyDictionary:
             return value
         return default
 
+    def __contains__(self, key: CodeType) -> bool:
+        item = self._data.get(id(key))
+        return item is not None and item[0]() is key
+
+    def __getitem__(self, key: CodeType) -> Any:
+        item = self._data.get(id(key))
+        if item is None or item[0]() is not key:
+            raise KeyError(key)
+        return item[1]
+
     def __setitem__(self, key: CodeType, value: Any) -> None:
         key_id = id(key)
         self._data[key_id] = (weakref.ref(key, self._make_remove(key_id)), value)
@@ -90,6 +97,16 @@ class _IdentityWeakKeyDictionary:
         if key_id not in self._data:
             raise KeyError(key)
         del self._data[key_id]
+
+    def pop(self, key: CodeType, *default: Any) -> Any:
+        try:
+            value = self[key]
+        except KeyError:
+            if default:
+                return default[0]
+            raise
+        del self[key]
+        return value
 
 
 _registry: _IdentityWeakKeyDictionary = _IdentityWeakKeyDictionary()
@@ -105,6 +122,15 @@ class MonitoringEventHandler(ABC):
         Do not call :func:`register` or :func:`unregister` from inside an
         event handler method.  Doing so mutates the handler list while it is
         being iterated, which produces undefined behavior.
+
+    .. warning::
+        Exceptions from ``on_py_start``/``on_py_return``/``on_py_unwind`` are
+        not caught -- they propagate into the monitored frame and skip any
+        later handler for the same event, exactly as sys.monitoring itself
+        would deliver a callback failure. Catch your own exceptions if a
+        handler must not affect the monitored function's behavior.
+        ``on_py_line`` is caught and logged instead, since independent
+        handlers commonly share one code object's LINE registration.
     """
 
     def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
@@ -217,12 +243,10 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
         return _DISABLE
+    # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
-            try:
-                e.handler.on_py_start(code, instruction_offset)
-            except Exception:
-                log.warning("monitoring PY_START handler failed", exc_info=True)
+            e.handler.on_py_start(code, instruction_offset)
     return None
 
 
@@ -230,12 +254,10 @@ def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Op
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
         return _DISABLE
+    # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_RETURN:
-            try:
-                e.handler.on_py_return(code, instruction_offset, retval)
-            except Exception:
-                log.warning("monitoring PY_RETURN handler failed", exc_info=True)
+            e.handler.on_py_return(code, instruction_offset, retval)
     return None
 
 
@@ -243,12 +265,10 @@ def _on_py_unwind(code: CodeType, instruction_offset: int, exception: BaseExcept
     handlers: Optional[_CodeHandlers] = _registry.get(code)
     if not handlers or not handlers.snapshot:
         return _DISABLE
+    # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
     for e in handlers.snapshot:
         if e.events & _E.PY_UNWIND:
-            try:
-                e.handler.on_py_unwind(code, instruction_offset, exception)
-            except Exception:
-                log.warning("monitoring PY_UNWIND handler failed", exc_info=True)
+            e.handler.on_py_unwind(code, instruction_offset, exception)
     return None
 
 

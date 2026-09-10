@@ -63,7 +63,7 @@ def asbool(value: Union[str, bool, None]) -> bool:
     return value.lower() in ("true", "1")
 
 
-def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
+def parse_tags_str(tags_str: Optional[str], sep: Optional[str] = None) -> dict[str, str]:
     """
     Parses a string containing key-value pairs and returns a dictionary.
     Key-value pairs are delimited by ':', and pairs are separated by whitespace, comma, OR BOTH.
@@ -71,13 +71,16 @@ def parse_tags_str(tags_str: Optional[str]) -> dict[str, str]:
     This implementation aligns with the way tags are parsed by the Agent and other Datadog SDKs
 
     :param tags_str: A string of the above form to parse tags from.
+    :param sep: An explicit pair separator to use instead of auto-detecting one. Callers whose
+        values may themselves contain whitespace (and no comma) should pass "," here to avoid an
+        incorrect whitespace-based split.
     :return: A dict containing the tags that were parsed.
     """
     res: dict[str, str] = {}
     if not tags_str:
         return res
     # falling back to comma as separator
-    sep = "," if "," in tags_str else " "
+    sep = sep if sep is not None else ("," if "," in tags_str else " ")
 
     for tag in tags_str.split(sep):
         tag = tag.strip()

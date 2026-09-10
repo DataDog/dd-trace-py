@@ -151,22 +151,49 @@ PY
   # Repair wheel (ONLY PLATFORM-SPECIFIC CODE)
   section_start "repair_wheel" "Repairing wheel"
   if [[ "$(uname -s)" == "Linux" ]]; then
-    # The opt-in heap-gotter cdylib (DD_PROFILING_NATIVE_HEAP_BUILD=1) has
-    # non-standard ELF versioning sections that trip auditwheel's iter_versions
-    # parser. --exclude does not help: it only drops a SONAME from dependency
-    # grafting, while repair still parses every ELF listed in the wheel's RECORD.
-    # So the cdylib has to leave the wheel entirely and be reinserted after.
+    # Heap-gotter's ELF versioning trips auditwheel iter_versions; --exclude
+    # only skips SONAME grafting, so stash .so (+ .so.debug) out of the wheel,
+    # repair, then reinsert the runtime .so. Python zipfile: Info-ZIP globs are
+    # unreliable on archive paths.
     GOTTER_STASH_DIR="${WORK_DIR}/heap_gotter_stash"
-    GOTTER_PATTERN='*libdd_heap_gotter*.so'
-    if unzip -l "${BUILT_WHEEL_FILE}" | grep -q 'libdd_heap_gotter.*\.so$'; then
-      mkdir -p "${GOTTER_STASH_DIR}"
-      unzip -q "${BUILT_WHEEL_FILE}" "${GOTTER_PATTERN}" -d "${GOTTER_STASH_DIR}"
-      uv run --no-project scripts/zip_filter.py "${BUILT_WHEEL_FILE}" "${GOTTER_PATTERN}"
-    fi
+    mkdir -p "${GOTTER_STASH_DIR}"
+    BUILT_WHEEL_FILE="${BUILT_WHEEL_FILE}" GOTTER_STASH_DIR="${GOTTER_STASH_DIR}" \
+      uv run --no-project python - <<'PY'
+import os
+import zipfile
+from pathlib import Path
+
+import subprocess
+import sys
+
+wheel = Path(os.environ["BUILT_WHEEL_FILE"])
+stash = Path(os.environ["GOTTER_STASH_DIR"])
+marker = "libdd_heap_gotter"
+with zipfile.ZipFile(wheel, "r") as zf:
+    gotter = [
+        n
+        for n in zf.namelist()
+        if marker in Path(n).name and (n.endswith(".so") or n.endswith(".so.debug"))
+    ]
+    for name in gotter:
+        dest = stash / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(zf.read(name))
+        print(f"Stashed heap-gotter artifact: {name}")
+if gotter:
+    # zip_filter keeps RECORD consistent.
+    patterns = [f"*{marker}*.so", f"*{marker}*.so.debug", f"*/{marker}*"]
+    subprocess.check_call([sys.executable, "scripts/zip_filter.py", str(wheel), *patterns])
+with zipfile.ZipFile(wheel, "r") as zf:
+    leftover = [n for n in zf.namelist() if marker in Path(n).name]
+if leftover:
+    raise SystemExit(f"heap-gotter still in wheel before auditwheel: {leftover}")
+print(f"heap-gotter stash count before auditwheel: {len(gotter)}")
+PY
 
     auditwheel repair -w "${TMP_WHEEL_DIR}" "${BUILT_WHEEL_FILE}"
 
-    if [[ -d "${GOTTER_STASH_DIR}" ]]; then
+    if find "${GOTTER_STASH_DIR}" \( -name 'libdd_heap_gotter*.so' -o -name 'libdd_heap_gotter*.so.debug' \) 2>/dev/null | grep -q .; then
       REPAIRED_WHEEL_FILE=$(ls "${TMP_WHEEL_DIR}"/*.whl | head -n 1)
       GOTTER_STASH_DIR="${GOTTER_STASH_DIR}" REPAIRED_WHEEL_FILE="${REPAIRED_WHEEL_FILE}" \
         uv run --no-project python - <<'PY'
@@ -181,7 +208,12 @@ from pathlib import Path
 wheel = Path(os.environ["REPAIRED_WHEEL_FILE"])
 stash = Path(os.environ["GOTTER_STASH_DIR"])
 
-additions = {str(p.relative_to(stash)): p for p in sorted(stash.rglob("*")) if p.is_file()}
+# Runtime .so only; .so.debug stays in debugwheelhouse.
+additions = {
+    str(p.relative_to(stash)): p
+    for p in sorted(stash.rglob("*"))
+    if p.is_file() and p.name.endswith(".so")
+}
 if not additions:
     print("No stashed heap-gotter cdylib to reinsert")
     raise SystemExit(0)

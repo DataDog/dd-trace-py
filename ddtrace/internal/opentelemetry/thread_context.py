@@ -4,10 +4,12 @@ from typing import Optional
 from typing import Protocol
 from typing import Union
 
-from ddtrace._trace.context import Context
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.internal import core
+from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
+from ddtrace.internal._context_watcher import register_context_watcher
+from ddtrace.internal.native._native import Context
 from ddtrace.internal.settings._config import config
 
 
@@ -23,7 +25,8 @@ _ThreadContextListeners = tuple[_ContextActivationListener, _ContextSwitchListen
 
 if sys.platform == "linux":
     from ddtrace.internal.native._native import detach_otel_thread_context
-    from ddtrace.internal.native._native import update_otel_thread_context
+    from ddtrace.internal.native._native import update_otel_thread_context_from_context
+    from ddtrace.internal.native._native import update_otel_thread_context_from_span
 
     def register_otel_thread_context_listener(tracer: TracerProtocol) -> Optional[_ThreadContextListeners]:
         if not config._otel_thread_context_enabled:
@@ -33,7 +36,11 @@ if sys.platform == "linux":
             if type(ctx) is Span:
                 sampling_priority = ctx._local_root.context.sampling_priority
                 trace_flags = 1 if sampling_priority is not None and sampling_priority > 0 else 0
-                update_otel_thread_context(ctx, ctx._local_root_value, trace_flags)
+                update_otel_thread_context_from_span(ctx, ctx._local_root_value, trace_flags)
+            elif isinstance(ctx, Context):
+                sampling_priority = ctx.sampling_priority
+                trace_flags = 1 if sampling_priority is not None and sampling_priority > 0 else 0
+                update_otel_thread_context_from_context(ctx, trace_flags)
             else:
                 detach_otel_thread_context()
 
@@ -44,13 +51,9 @@ if sys.platform == "linux":
             if provider is tracer.context_provider:
                 _sync_otel_thread_context(ctx)
 
+        register_context_watcher()
         core.on("ddtrace.context_provider.activate", _on_context_provider_activate)
-        core.on("python.context.switch", _sync_active_otel_thread_context)
-
-        if sys.implementation.name == "cpython" and sys.version_info >= (3, 14):
-            from ddtrace.internal.native._native import register_context_watcher
-
-            register_context_watcher()
+        core.on(PYTHON_CONTEXT_SWITCH_EVENT, _sync_active_otel_thread_context)
         return _on_context_provider_activate, _sync_active_otel_thread_context
 
 else:

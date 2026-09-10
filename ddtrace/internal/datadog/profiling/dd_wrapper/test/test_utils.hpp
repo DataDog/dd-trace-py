@@ -1,4 +1,6 @@
 #include "ddup_interface.hpp"
+#include "sample.hpp"
+#include "sample_manager.hpp"
 
 #include <array>
 #include <atomic>
@@ -93,7 +95,7 @@ get_name()
 void
 send_sample(unsigned int id)
 {
-    auto h = ddup_start_sample();
+    auto* h = Datadog::SampleManager::start_sample();
 
     // If the sample is not a valid ID, then randomly choose one
     if (id < 1 || id > 4) {
@@ -108,29 +110,29 @@ send_sample(unsigned int id)
     // Use ID to determine what kind of sample to send
     switch (id) {
         case 1: // stack
-            ddup_push_walltime(h, 1.0, 1);
-            ddup_push_cputime(h, 1.0, 1);
-            ddup_push_exceptioninfo(h, get_name().c_str(), 1);
+            h->push_walltime(1.0, 1);
+            h->push_cputime(1.0, 1);
+            h->push_exceptioninfo(get_name().c_str(), 1);
             break;
         case 2: // lock
-            ddup_push_acquire(h, 1.0, 1);
-            ddup_push_lock_name(h, get_name().c_str());
+            h->push_acquire(1.0, 1);
+            h->push_lock_name(get_name().c_str());
             break;
         case 3: // memory
-            ddup_push_alloc(h, 1.0, 1);
+            h->push_alloc(1.0, 1);
             break;
         case 4: // heap
-            ddup_push_heap(h, 1, 1);
+            h->push_heap(1, 1);
             break;
     }
 
     for (size_t i = 0; i < 16; i++) {
         std::string file = "site-packages/" + get_name() + "/file_" + std::to_string(i) + ".py";
         std::string func = get_name() + std::to_string(i);
-        ddup_push_frame(h, func.c_str(), file.c_str(), i, 0);
+        h->push_frame(func.c_str(), file.c_str(), i, 0);
     }
-    ddup_flush_sample(h);
-    ddup_drop_sample(h);
+    h->flush_sample();
+    Datadog::SampleManager::drop_sample(h);
     h = nullptr;
 }
 

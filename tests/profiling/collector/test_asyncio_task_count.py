@@ -11,13 +11,13 @@ import pytest
 def test_asyncio_task_count_present():
     """asyncio_task_count is present and positive when asyncio tasks are active."""
     import asyncio
-    import glob
     import json
     import os
     import time
 
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     async def worker():
         await asyncio.sleep(0.5)
@@ -38,7 +38,7 @@ def test_asyncio_task_count_present():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
     found_positive = False
@@ -68,13 +68,13 @@ def test_asyncio_task_count_survives_run_teardown():
     loop was live, so the uploaded profile reported asyncio_task_count: 0 when it should have been the peak.
     """
     import asyncio
-    import glob
     import json
     import os
     import time
 
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     NUM_WORKERS = 10
     EXPECTED_PEAK = NUM_WORKERS + 1
@@ -98,7 +98,7 @@ def test_asyncio_task_count_survives_run_teardown():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected internal_metadata.json file"
 
     peak = 0

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    ASM: Fixes an issue where exceptions raised by ``open()`` or ``pathlib.Path.open()`` are
+    reported with a corrupted traceback when Exploit Prevention is enabled, showing a duplicated
+    caller frame and omitting the frame that actually raised.

@@ -8,8 +8,8 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 
 class TraceMiddleware(object):

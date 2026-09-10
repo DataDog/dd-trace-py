@@ -201,17 +201,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.3.0:
 
-  DD_PROFILING_NATIVE_TESTS:
-    type: Boolean
-    default: False
-
-    description: |
-        If set to 1, it compiles the profiling native tests. This is useful only when modifying the library’s profiling features and
-        is disabled by default.
-
-    version_added:
-        v2.16.0:
-
   DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY:
     type: Boolean
     default: False
@@ -306,7 +295,7 @@ How the Build Works
 
 .. code-block:: text
 
-    riot generate
+    scripts/run-tests
       └─ pip install -e .
            ├─ build_py  → LibraryDownloader.run()
            │    ├─ CleanLibraries.remove_artifacts()  ← SKIPPED when INCREMENTAL=1
@@ -369,7 +358,7 @@ Known Root Causes of Warm Rebuilds
 
 2. **CMakeExtension skip check gated on ``IS_EDITABLE``**
 
-   The skip check ``if IS_EDITABLE and self.INCREMENTAL`` never fired during riot's
+   The skip check ``if IS_EDITABLE and self.INCREMENTAL`` never fired during the test environment's
    ``pip install -e .`` because ``IS_EDITABLE`` was never set in that context. Fixed
    by removing the ``IS_EDITABLE`` guard.
 

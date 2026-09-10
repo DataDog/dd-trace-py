@@ -6,8 +6,7 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.span import Span
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.settings import env
-from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
@@ -41,11 +40,10 @@ class LLMObsProcessor(TraceProcessor):
         super().__init__()
         self._llmobs_span_writer = llmobs_span_writer
         self._tracer = tracer
-        self._apm_tracing_enabled = asbool(env.get("DD_APM_TRACING_ENABLED", "true"))
         self._keep_meta_struct = keep_meta_struct
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
-        drop_apm_trace = not self._apm_tracing_enabled or not self._tracer.enabled
+        drop_apm_trace = not standalone_config.apm_tracing_enabled or not self._tracer.enabled
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue

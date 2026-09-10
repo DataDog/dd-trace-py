@@ -34,6 +34,10 @@ foreach ($line in $cmdOut) {
 $env:DISTUTILS_USE_SDK = '1'
 $env:MSSdk = '1'
 
+# rust-tuf has too long paths
+Write-Host "=== Enabling git long paths ==="
+git config --global core.longpaths true
+
 Write-Host "=== Building wheel ==="
 & uv build --wheel --out-dir C:\workspace\dist C:\workspace
 if ($LASTEXITCODE -ne 0) {

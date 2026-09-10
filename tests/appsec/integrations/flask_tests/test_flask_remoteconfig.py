@@ -10,7 +10,6 @@ import uuid
 import pytest
 
 from tests.appsec.appsec_utils import gunicorn_flask_server
-from tests.appsec.integrations.flask_tests.utils import _PORT
 from tests.appsec.integrations.flask_tests.utils import _multi_requests
 from tests.appsec.integrations.flask_tests.utils import _request_200
 from tests.appsec.integrations.utils_testagent import _get_agent_client
@@ -177,9 +176,9 @@ def _request_403(client, debug_mode=False, max_retries=40, sleep_time=1):
     raise AssertionError("request_403 failed, max_retries=%d, sleep_time=%f" % (max_retries, sleep_time))
 
 
-def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
+def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled(free_port):
     token = "test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled_{}".format(str(uuid.uuid4()))
-    with gunicorn_flask_server(remote_configuration_enabled="false", token=token, port=_PORT) as context:
+    with gunicorn_flask_server(remote_configuration_enabled="false", token=token, port=free_port) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client)
@@ -191,9 +190,9 @@ def test_load_testing_appsec_ip_blocking_gunicorn_rc_disabled():
         _unblock_ip(token)
 
 
-def test_load_testing_appsec_ip_blocking_gunicorn_block():
+def test_load_testing_appsec_ip_blocking_gunicorn_block(free_port):
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_{}".format(str(uuid.uuid4()))
-    with gunicorn_flask_server(token=token, port=_PORT, use_ddtrace_cmd=False) as context:
+    with gunicorn_flask_server(token=token, port=free_port, use_ddtrace_cmd=False) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client)
@@ -207,9 +206,9 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block():
         _request_200(gunicorn_client)
 
 
-def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
+def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker(free_port):
     token = "test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(str(uuid.uuid4()))
-    with gunicorn_flask_server(token=token, port=_PORT, use_ddtrace_cmd=False) as context:
+    with gunicorn_flask_server(token=token, port=free_port, use_ddtrace_cmd=False) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client)
@@ -229,11 +228,11 @@ def test_load_testing_appsec_ip_blocking_gunicorn_block_and_kill_child_worker():
 
 
 @pytest.mark.skip(reason="_request_403 is flaky, figure out the error. APPSEC-57052")
-def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker():
+def test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker(free_port):
     token = "test_load_testing_appsec_1click_and_ip_blocking_gunicorn_block_and_kill_child_worker_{}".format(
         str(uuid.uuid4())
     )
-    with gunicorn_flask_server(appsec_enabled="", token=token, port=_PORT) as context:
+    with gunicorn_flask_server(appsec_enabled="", token=token, port=free_port) as context:
         _, gunicorn_client, pid = context
 
         _request_200(gunicorn_client, debug_mode=False)

@@ -74,6 +74,33 @@ class StartAndUnwindHandler(monitoring.MonitoringEventHandler):
         self.unwound = True
 
 
+class RaisingStartHandler(monitoring.MonitoringEventHandler):
+    def __init__(self) -> None:
+        self.called: bool = False
+
+    def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
+        self.called = True
+        raise RuntimeError("start handler exploded")
+
+
+class RaisingReturnHandler(monitoring.MonitoringEventHandler):
+    def __init__(self) -> None:
+        self.called: bool = False
+
+    def on_py_return(self, code: CodeType, instruction_offset: int, retval: object) -> None:
+        self.called = True
+        raise RuntimeError("return handler exploded")
+
+
+class RaisingUnwindHandler(monitoring.MonitoringEventHandler):
+    def __init__(self) -> None:
+        self.called: bool = False
+
+    def on_py_unwind(self, code: CodeType, instruction_offset: int, exception: BaseException) -> None:
+        self.called = True
+        raise RuntimeError("unwind handler exploded")
+
+
 @pytest.fixture
 def registered() -> Iterator[
     Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler]
@@ -237,3 +264,88 @@ def test_on_py_line_does_not_disable_when_handler_raises(
 
     result: object | None = monitoring._on_py_line(fn.__code__, fn.__code__.co_firstlineno)
     assert result is not _DISABLE
+
+
+def test_on_py_start_propagates_exception(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A PY_START handler's exception is never caught -- it always reaches the caller."""
+
+    def fn() -> None:
+        pass
+
+    handler: RaisingStartHandler = registered(fn.__code__, RaisingStartHandler())  # type: ignore[assignment]
+
+    with pytest.raises(RuntimeError, match="start handler exploded"):
+        monitoring._on_py_start(fn.__code__, 0)
+
+    assert handler.called
+
+
+def test_on_py_start_propagation_aborts_the_monitored_call(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A propagating PY_START failure must prevent the monitored function body from running."""
+
+    ran: bool = False
+
+    def fn() -> None:
+        nonlocal ran
+        ran = True
+
+    registered(fn.__code__, RaisingStartHandler())
+
+    with pytest.raises(RuntimeError, match="start handler exploded"):
+        fn()
+
+    assert not ran, "the function body must not run when a propagating PY_START handler raises"
+
+
+def test_on_py_return_propagates_exception(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A PY_RETURN handler's exception is never caught -- it always reaches the caller."""
+
+    def fn() -> None:
+        pass
+
+    handler: RaisingReturnHandler = registered(fn.__code__, RaisingReturnHandler())  # type: ignore[assignment]
+
+    with pytest.raises(RuntimeError, match="return handler exploded"):
+        monitoring._on_py_return(fn.__code__, 0, None)
+
+    assert handler.called
+
+
+def test_on_py_unwind_propagates_exception(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A PY_UNWIND handler's exception is never caught -- it always reaches the caller."""
+
+    def fn() -> None:
+        pass
+
+    handler: RaisingUnwindHandler = registered(fn.__code__, RaisingUnwindHandler())  # type: ignore[assignment]
+
+    with pytest.raises(RuntimeError, match="unwind handler exploded"):
+        monitoring._on_py_unwind(fn.__code__, 0, ValueError("original"))
+
+    assert handler.called
+
+
+def test_propagating_handler_skips_later_handlers_for_same_event(
+    registered: Callable[[CodeType, monitoring.MonitoringEventHandler], monitoring.MonitoringEventHandler],
+) -> None:
+    """A propagating handler's exception skips any sibling handler registered after it."""
+
+    def fn() -> None:
+        pass
+
+    raiser: RaisingStartHandler = registered(fn.__code__, RaisingStartHandler())  # type: ignore[assignment]
+    sibling: StartAndUnwindHandler = registered(fn.__code__, StartAndUnwindHandler())  # type: ignore[assignment]
+
+    with pytest.raises(RuntimeError, match="start handler exploded"):
+        monitoring._on_py_start(fn.__code__, 0)
+
+    assert raiser.called
+    assert not sibling.started, "a sibling handler after a propagating raiser must not run"

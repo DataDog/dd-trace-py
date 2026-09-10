@@ -1,0 +1,74 @@
+[[
+  {
+    "name": "http.client.request",
+    "service": "global-service-name",
+    "resource": "http.client.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a8706b300000000",
+      "_dd.peer.service.source": "out.host",
+      "_dd.svc_src": "httpx2",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp_16822ez,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "httpx2",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx2/x.xx.x",
+      "language": "python",
+      "out.host": "localhost",
+      "peer.service": "localhost",
+      "runtime-id": "a73450d0986748908e614780f3cd4f7c",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 679.0
+    },
+    "duration": 2360091,
+    "start": 1787233971155176386
+  }],
+[
+  {
+    "name": "http.client.request",
+    "service": "global-service-name",
+    "resource": "http.client.request",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a8706b300000000",
+      "_dd.peer.service.source": "out.host",
+      "_dd.svc_src": "httpx2",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmp_16822ez,entrypoint.type:script,entrypoint.workdir:project,svc.user:true",
+      "component": "httpx2",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx2/x.xx.x",
+      "language": "python",
+      "out.host": "localhost",
+      "peer.service": "localhost",
+      "runtime-id": "a73450d0986748908e614780f3cd4f7c",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 679.0
+    },
+    "duration": 5102226,
+    "start": 1787233971161670136
+  }]]

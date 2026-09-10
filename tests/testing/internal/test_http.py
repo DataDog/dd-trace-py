@@ -22,6 +22,7 @@ from ddtrace.testing.internal.http import Subdomain
 from ddtrace.testing.internal.http import UnixDomainSocketHTTPConnection
 from ddtrace.testing.internal.telemetry import ErrorType
 from tests.testing.mocks import mock_backend_connector
+from tests.utils import reinitialize_agentless_config
 
 
 class TestBackendConnector:
@@ -847,9 +848,28 @@ class TestBackendConnector:
         assert body.count(b"--boundary123") == 3  # 2 file separators + 1 end
 
 
+def _set_environ(monkeypatch: pytest.MonkeyPatch, environ: dict) -> None:
+    """Replace the environment, then re-resolve the settings derived from it.
+
+    The agentless settings resolve once at import, so the connector-mode decision would otherwise
+    keep answering for the environment this test session started with.
+    """
+    monkeypatch.setattr(os, "environ", environ)
+    reinitialize_agentless_config()
+
+
+@pytest.fixture(autouse=True)
+def _restore_agentless_config(monkeypatch: pytest.MonkeyPatch):
+    """Keep an in-place refresh from leaking into later tests in this process."""
+    yield
+    # Undo explicitly so the environment is back to normal *before* it is re-read.
+    monkeypatch.undo()
+    reinitialize_agentless_config()
+
+
 class TestBackendConnectorSetup:
     def test_detect_agentless_setup_ok(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "the-key"})
+        _set_environ(monkeypatch, {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "the-key"})
 
         connector_setup = BackendConnectorSetup.detect_setup()
         assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
@@ -872,9 +892,8 @@ class TestBackendConnectorSetup:
     def test_detect_agentless_setup_with_url_override_for_all_subdomains(
         self, monkeypatch: pytest.MonkeyPatch, subdomain: Subdomain
     ) -> None:
-        monkeypatch.setattr(
-            os,
-            "environ",
+        _set_environ(
+            monkeypatch,
             {
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
                 "DD_API_KEY": "the-key",
@@ -893,9 +912,8 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["dd-api-key"] == "the-key"
 
     def test_detect_agentless_setup_ok_with_site(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            os,
-            "environ",
+        _set_environ(
+            monkeypatch,
             {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "the-key", "DD_SITE": "datadoghq.eu"},
         )
 
@@ -910,9 +928,8 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["dd-api-key"] == "the-key"
 
     def test_detect_agentless_setup_no_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            os,
-            "environ",
+        _set_environ(
+            monkeypatch,
             {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true"},
         )
 
@@ -920,7 +937,7 @@ class TestBackendConnectorSetup:
             BackendConnectorSetup.detect_setup()
 
     def test_detect_evp_proxy_mode_v4_via_unix_domain_socket(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {})
+        _set_environ(monkeypatch, {})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
@@ -945,7 +962,7 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
     def test_detect_evp_proxy_mode_v4_via_http(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {})
+        _set_environ(monkeypatch, {})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
@@ -970,7 +987,7 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
     def test_detect_evp_proxy_mode_v2_via_http(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {})
+        _set_environ(monkeypatch, {})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v2/"]}).build()
@@ -995,7 +1012,7 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
     def test_detect_evp_proxy_mode_no_evp_support(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {})
+        _set_environ(monkeypatch, {})
 
         backend_connector_mock = mock_backend_connector().with_get_json_response("/info", {"endpoints": []}).build()
         with patch("ddtrace.testing.internal.http.BackendConnector", return_value=backend_connector_mock):
@@ -1003,7 +1020,7 @@ class TestBackendConnectorSetup:
                 BackendConnectorSetup.detect_setup()
 
     def test_detect_evp_proxy_mode_no_agent(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {})
+        _set_environ(monkeypatch, {})
 
         with patch(
             "ddtrace.testing.internal.http.BackendConnector.get_json", side_effect=ConnectionRefusedError("no bueno")
@@ -1012,7 +1029,7 @@ class TestBackendConnectorSetup:
                 BackendConnectorSetup.detect_setup()
 
     def test_detect_evp_proxy_mode_v4_custom_dd_trace_agent_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {"DD_TRACE_AGENT_URL": "http://somehost:1234"})
+        _set_environ(monkeypatch, {"DD_TRACE_AGENT_URL": "http://somehost:1234"})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
@@ -1031,7 +1048,7 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
     def test_detect_evp_proxy_mode_v4_custom_dd_trace_agent_hostname(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {"DD_TRACE_AGENT_HOSTNAME": "somehost", "DD_TRACE_AGENT_PORT": "5678"})
+        _set_environ(monkeypatch, {"DD_TRACE_AGENT_HOSTNAME": "somehost", "DD_TRACE_AGENT_PORT": "5678"})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
@@ -1050,7 +1067,7 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
     def test_detect_evp_proxy_mode_v4_custom_dd_agent_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {"DD_AGENT_HOST": "somehost", "DD_AGENT_PORT": "5678"})
+        _set_environ(monkeypatch, {"DD_AGENT_HOST": "somehost", "DD_AGENT_PORT": "5678"})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
@@ -1069,7 +1086,7 @@ class TestBackendConnectorSetup:
         assert connector.default_headers["X-Datadog-EVP-Subdomain"] == "api"
 
     def test_detect_evp_proxy_mode_v4_custom_dd_trace_agent_unix_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {"DD_TRACE_AGENT_URL": "unix:///some/file/name.socket"})
+        _set_environ(monkeypatch, {"DD_TRACE_AGENT_URL": "unix:///some/file/name.socket"})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
@@ -1092,7 +1109,7 @@ class TestBackendConnectorSetup:
     # --- detect_standard_setup: public env vars only ---
 
     def test_detect_standard_setup_agentless_reads_public_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "public-key"})
+        _set_environ(monkeypatch, {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "public-key"})
 
         connector_setup = BackendConnectorSetup.detect_standard_setup()
         assert isinstance(connector_setup, BackendConnectorAgentlessSetup)
@@ -1102,9 +1119,8 @@ class TestBackendConnectorSetup:
 
     def test_detect_standard_setup_agentless_ignores_internal_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """detect_standard_setup must not fall back to _CI_DD_API_KEY."""
-        monkeypatch.setattr(
-            os,
-            "environ",
+        _set_environ(
+            monkeypatch,
             {
                 "DD_CIVISIBILITY_AGENTLESS_ENABLED": "true",
                 "_CI_DD_API_KEY": "internal-key",
@@ -1120,9 +1136,8 @@ class TestBackendConnectorSetup:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         """detect_standard_setup must raise if DD_API_KEY is absent, even if _CI_DD_API_KEY is set."""
-        monkeypatch.setattr(
-            os,
-            "environ",
+        _set_environ(
+            monkeypatch,
             {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "_CI_DD_API_KEY": "internal-key"},
         )
 
@@ -1131,9 +1146,8 @@ class TestBackendConnectorSetup:
 
     def test_detect_setup_still_reads_internal_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """detect_setup (internal path) must still honour _CI_DD_API_KEY."""
-        monkeypatch.setattr(
-            os,
-            "environ",
+        _set_environ(
+            monkeypatch,
             {"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "_CI_DD_API_KEY": "internal-key"},
         )
 
@@ -1143,7 +1157,7 @@ class TestBackendConnectorSetup:
 
     def test_detect_setup_still_reads_internal_agent_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """detect_setup (internal path) must still honour _CI_DD_AGENT_URL."""
-        monkeypatch.setattr(os, "environ", {"_CI_DD_AGENT_URL": "http://internal-agent:8126"})
+        _set_environ(monkeypatch, {"_CI_DD_AGENT_URL": "http://internal-agent:8126"})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()
@@ -1155,7 +1169,7 @@ class TestBackendConnectorSetup:
         assert connector_setup.url == "http://internal-agent:8126"
 
     def test_detect_standard_setup_evp_proxy(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(os, "environ", {"DD_TRACE_AGENT_URL": "http://my-agent:8126"})
+        _set_environ(monkeypatch, {"DD_TRACE_AGENT_URL": "http://my-agent:8126"})
 
         backend_connector_mock = (
             mock_backend_connector().with_get_json_response("/info", {"endpoints": ["/evp_proxy/v4/"]}).build()

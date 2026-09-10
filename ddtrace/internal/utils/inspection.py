@@ -6,9 +6,13 @@ from functools import singledispatch
 from pathlib import Path
 from types import CodeType
 from types import FunctionType
+from types import ModuleType
 from typing import Iterator
+from typing import Optional
 from typing import cast
+import weakref
 
+from ddtrace.internal.module import BaseModuleWatchdog
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.wrapping import _code_to_fn as _CODE_TO_ORIGINAL_FUNCTION_MAPPING
@@ -163,3 +167,72 @@ def clear():
     """
     _functions_for_code_gc.cache_clear()
     _CODE_TO_ORIGINAL_FUNCTION_MAPPING.clear()
+
+
+class ModuleCodeCollector(BaseModuleWatchdog):
+    """Collect the nested code objects of every module compiled after install.
+
+    Some products need the full set of code objects a module was compiled with,
+    including ones that become unreachable from the module's namespace after
+    decoration. This watchdog collects them at compile time, before any
+    decorator runs, so that a product can still recover them regardless of what
+    decorators did to the module's namespace.
+
+    Products subscribe with register unconditionally at their own
+    product-module import time (i.e. regardless of whether the product itself
+    is enabled), so that the data is already available if the product is
+    enabled later on. A module's entry is kept until every subscriber that was
+    registered when the module was compiled has called release for it.
+    """
+
+    _subscribers: set[str] = set()
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._code: weakref.WeakKeyDictionary[ModuleType, tuple[list[CodeType], set[str]]] = weakref.WeakKeyDictionary()
+
+    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
+        self._code[module] = (list(collect_code_objects(code)), set(self._subscribers))
+        return code
+
+    def after_import(self, module: ModuleType) -> None:
+        pass
+
+    @classmethod
+    def register(cls, subscriber: str) -> None:
+        """Declare interest in the collected code objects.
+
+        This must be called unconditionally at product-module import time, not
+        gated behind the product's own enablement check, otherwise modules
+        compiled before the product enables would be missing from its data.
+        """
+        cls._subscribers.add(subscriber)
+        if not cls.is_installed():
+            cls.install()
+
+    @classmethod
+    def get_code_objects(cls, module: ModuleType) -> Optional[list[CodeType]]:
+        """Get the code objects collected for a module, if any."""
+        if not cls.is_installed():
+            return None
+        entry = cast("ModuleCodeCollector", cls._instance)._code.get(module)
+        return entry[0] if entry is not None else None
+
+    @classmethod
+    def release(cls, module: ModuleType, subscriber: str) -> None:
+        """Release a subscriber's interest in a module's collected code objects.
+
+        Once every subscriber that was registered when the module was compiled
+        has released it, the entry is discarded and the memory reclaimed by the
+        garbage collector.
+        """
+        if not cls.is_installed():
+            return
+        instance = cast("ModuleCodeCollector", cls._instance)
+        entry = instance._code.get(module)
+        if entry is None:
+            return
+        _, pending = entry
+        pending.discard(subscriber)
+        if not pending:
+            del instance._code[module]

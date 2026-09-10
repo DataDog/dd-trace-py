@@ -2,6 +2,9 @@ import threading
 
 import pytest
 
+from ddtrace.contrib.internal.google_cloud_pubsub import utils as pubsub_utils
+from ddtrace.internal.settings._config import config as dd_config
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.trace import tracer
 from tests.utils import override_config
 
@@ -20,6 +23,24 @@ TRACE_CONTEXT_KEYS = [
     "traceparent",
     "tracestate",
 ]
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_PROPAGATION_AS_SPAN_LINKS": "google_cloud_pubsub,kafka"})
+def test_propagation_as_span_links_via_trace_config():
+    from ddtrace.contrib.internal.google_cloud_pubsub import utils as pubsub_utils
+    from ddtrace.internal.settings._config import config
+
+    assert config._propagation_as_span_links == {"google_cloud_pubsub", "kafka"}
+    assert pubsub_utils._propagation_as_span_links_enabled() is True
+
+
+def test_propagation_as_span_links_deprecated_env(monkeypatch):
+    monkeypatch.setattr(dd_config, "_propagation_as_span_links", set())
+    monkeypatch.setenv("DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS", "true")
+    with pytest.warns(
+        DDTraceDeprecationWarning, match="DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_AS_SPAN_LINKS is deprecated"
+    ):
+        assert pubsub_utils._propagation_as_span_links_enabled() is True
 
 
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=3)

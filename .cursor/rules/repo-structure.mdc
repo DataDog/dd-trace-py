@@ -134,7 +134,7 @@ dd-trace-py/
 │
 ├── setup.py              # Package build configuration
 ├── pyproject.toml        # Modern Python project configuration
-├── riotfile.py           # Multi-version testing with Riot
+├── riotfile.py           # Test environment definitions
 ├── docker-compose.yml    # Development environment setup
 └── conftest.py           # Global PyTest configuration
 ```

@@ -195,6 +195,11 @@ def stop_coverage(save: bool = True, erase: bool = False) -> Optional[Any]:
 
     if not _owns_coverage_instance:
         log.debug("Coverage instance is externally managed; skipping stop")
+        if erase:
+            # Clear our reference even though we don't own the instance.  The caller
+            # asked for a clean slate; we must not touch the external session but we
+            # must reflect the "not running" state in is_coverage_running().
+            reset_coverage_state()
         return cov
 
     try:

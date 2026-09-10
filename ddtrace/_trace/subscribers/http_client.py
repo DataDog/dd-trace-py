@@ -9,6 +9,7 @@ from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.settings._config import config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -34,6 +35,9 @@ class HttpClientTracingSubscriber(TracingSubscriber):
     @classmethod
     def on_started(cls, ctx: core.ExecutionContext) -> None:
         event: HttpClientRequestEvent = ctx.event
+
+        if config._otel_trace_semantics_enabled and event.request_method:
+            span_from_context(ctx).resource = event.request_method.upper()
 
         if _http_propagation_suppressed.get():
             return

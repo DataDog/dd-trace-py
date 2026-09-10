@@ -29,9 +29,9 @@ Use this skill when you have:
 ## Key Principles
 
 1. **Always use the run-tests skill** when testing code changes - it's optimized for intelligent suite discovery
-2. **Never run pytest directly** - bypasses the project's test infrastructure (use `scripts/run-tests` or `riot` via `scripts/ddtest`)
+2. **Never run pytest directly** - use `scripts/run-tests`
 3. **Minimal venvs for iteration** - run 1-2 venvs initially, expand only if needed
-4. **Use `--dry-run` first** - see what would run before executing
+4. **Use `--list` first** - see matching environments before executing
 5. **Follow official docs** - `docs/contributing-testing.rst` is the source of truth for testing procedures
 
 ## How This Skill Works
@@ -84,11 +84,11 @@ When you modify files like:
 #### For Test-Only Changes
 When you modify `tests/` files (but not test infrastructure):
 - Run only the specific test files/functions modified
-- Use pytest args with two separators: `-- -- -k test_name` (first `--` ends `scripts/run-tests` parsing and starts riot args; second `--` tells riot to forward remaining args to pytest), or direct pytest test paths (e.g., `-- -- tests/contrib/flask/test_views.py`)
+- Pass test-command arguments after one separator, for example `-- -k test_name`
 
 #### For Test Infrastructure Changes
 When you modify:
-- `tests/conftest.py`, `tests/suitespec.yml`, `scripts/run-tests`, `riotfile.py`
+- `tests/conftest.py`, `tests/suitespec.yml`, `riotfile.py`, `.riot/requirements/`, or `scripts/run-tests`
 
 **Strategy:** Run a quick smoke test suite
 - Example: `internal` suite with 1 venv as a sanity check
@@ -102,10 +102,10 @@ I'll run the selected venvs. On the **first invocation in a session**, always ru
 scripts/run-tests --venv <hash1> --venv <hash2>
 ```
 
-On **subsequent runs**, use `-s` (riot's `--skip-base-install` flag, not to be confused with pytest's `-s`) to skip rebuilding dd-trace-py and save significant time:
+On **subsequent runs**, pass `-s` before the test-command separator to reuse the current ddtrace installation:
 
 ```bash
-scripts/run-tests --venv <hash1> --venv <hash2> -- -s
+scripts/run-tests -s --venv <hash1> --venv <hash2>
 ```
 
 **When to use `-s` (skip base install) on subsequent runs:**
@@ -138,7 +138,7 @@ This will:
 
 For re-running specific tests (use `-s` since the venv is already built):
 ```bash
-scripts/run-tests --venv <hash> -- -s -- -vv -k test_name
+scripts/run-tests -s --venv <hash> -- -vv -k test_name
 ```
 
 ## When Tests Fail
@@ -233,7 +233,7 @@ scripts/run-tests --list ddtrace/contrib/internal/flask/patch.py
 scripts/run-tests --venv e06abee
 
 # Subsequent runs: use -s since only Python files changed
-scripts/run-tests --venv e06abee -- -s
+scripts/run-tests -s --venv e06abee
 ```
 
 ### Example 2: Fixing a Core Tracing Issue
@@ -252,7 +252,7 @@ scripts/run-tests --list ddtrace/_trace/tracer.py
 scripts/run-tests --venv abc123 --venv def456
 
 # Subsequent runs: use -s since only Python files changed
-scripts/run-tests --venv abc123 --venv def456 -- -s
+scripts/run-tests -s --venv abc123 --venv def456
 ```
 
 ### Example 3: Fixing a Test-Specific Bug
@@ -264,10 +264,10 @@ scripts/run-tests --list tests/contrib/flask/test_views.py
 # Output shows: contrib::flask suite
 
 # First run: no -s
-scripts/run-tests --venv flask_py311 -- -- -vv tests/contrib/flask/test_views.py
+scripts/run-tests --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
 
 # Subsequent runs: use -s to skip rebuild
-scripts/run-tests --venv flask_py311 -- -s -- -vv tests/contrib/flask/test_views.py
+scripts/run-tests -s --venv flask_py311 -- -vv tests/contrib/flask/test_views.py
 ```
 
 ### Example 4: Iterating on a Failing Test
@@ -275,7 +275,7 @@ scripts/run-tests --venv flask_py311 -- -s -- -vv tests/contrib/flask/test_views
 After the first run shows a test failing, use `-s` to iterate quickly:
 
 ```bash
-scripts/run-tests --venv flask_py311 -- -s -- -vv -k test_view_called_twice
+scripts/run-tests -s --venv flask_py311 -- -vv -k test_view_called_twice
 # Focused on the specific failing test with verbose output
 ```
 
@@ -283,7 +283,7 @@ scripts/run-tests --venv flask_py311 -- -s -- -vv -k test_view_called_twice
 
 ### DO ✅
 
-- **Use `-s` on subsequent runs**: After the first run builds the venv, pass `-- -s` to skip rebuild when only Python files changed
+- **Use `-s` on subsequent runs**: Reuse the current ddtrace installation when only Python files changed
 - **Start small**: Run 1 venv first, expand only if needed
 - **Be specific**: Use pytest `-k` filter when re-running failures
 - **Check git**: Verify you're testing the right files with `git status`
@@ -310,7 +310,7 @@ scripts/run-tests --venv flask_py311 -- -s -- -vv -k test_view_called_twice
   - Where to put tests in the repository
   - Prerequisites (Docker, uv)
   - Complete `scripts/run-tests` usage examples
-  - Riot environment management details
+  - Test environment and dependency-lock details
   - Running specific test files and functions
   - Test debugging strategies
 
@@ -354,10 +354,10 @@ docker compose down
 
 The `scripts/run-tests` system:
 - Maps source files to test suites using patterns in `tests/suitespec.yml`
-- Uses `riot` to manage multiple Python/package combinations as venvs
+- Runs isolated Python/package combinations selected by suite
 - Each venv is a self-contained environment
 - Docker services are managed per suite lifecycle
-- Use `-- <riot args> -- <pytest args>` for mixed passthrough. The first `--` is consumed by `scripts/run-tests`, and the second `--` is consumed by `riot` before forwarding remaining args to pytest. If you only need pytest args, use `-- -- <pytest args>`.
+- Pass test-command arguments after one `--` separator.
 
 ### Supported Suite Types
 

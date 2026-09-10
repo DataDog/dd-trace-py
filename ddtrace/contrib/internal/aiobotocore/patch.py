@@ -62,7 +62,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> dict[str, str]:
-    return {"aiobotocore": ">=1.0.0"}
+    return {"aiobotocore": ">=1.0.0", "botocore": ">=1.15.32"}
 
 
 def _aiobotocore_before_sign_handler(request, **kwargs):
