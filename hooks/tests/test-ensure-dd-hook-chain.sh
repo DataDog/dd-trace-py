@@ -1,7 +1,7 @@
 #!/usr/bin/env sh
 # Tests for hooks/scripts/ensure-dd-hook-chain.sh
 #
-# Uses GIT_CONFIG_GLOBAL so no real laptop git config is touched.
+# Uses GIT_CONFIG_GLOBAL / GIT_CONFIG_SYSTEM so no real laptop git config is touched.
 # Run with: sh hooks/tests/test-ensure-dd-hook-chain.sh
 
 set -eu
@@ -14,8 +14,9 @@ TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 GLOBAL_CFG="$TMPDIR_TEST/global.gitconfig"
+SYSTEM_CFG="$TMPDIR_TEST/system.gitconfig"
 export GIT_CONFIG_GLOBAL="$GLOBAL_CFG"
-export GIT_CONFIG_SYSTEM=/dev/null
+export GIT_CONFIG_SYSTEM="$SYSTEM_CFG"
 
 assert_equals() {
     expected="$1"
@@ -32,6 +33,7 @@ assert_equals() {
 setup_repo() {
     global_hooks_path="${1:-}"
     local_hooks_path="${2:-}"
+    system_hooks_path="${3:-}"
 
     rm -rf "$TMPDIR_TEST/repo"
     mkdir -p "$TMPDIR_TEST/repo"
@@ -43,6 +45,15 @@ setup_repo() {
 EOF
     else
         printf '' >"$GLOBAL_CFG"
+    fi
+
+    if [ -n "$system_hooks_path" ]; then
+        cat >"$SYSTEM_CFG" <<EOF
+[core]
+	hooksPath = $system_hooks_path
+EOF
+    else
+        printf '' >"$SYSTEM_CFG"
     fi
 
     (
@@ -90,6 +101,18 @@ assert_equals ".git/hooks" "$(local_hooks_path)" "non-DD global hooksPath: local
 setup_repo "/usr/local/dd/global_hooks" "/tmp/does-not-exist/hooks"
 run_ensure
 assert_equals "/tmp/does-not-exist/hooks" "$(local_hooks_path)" "non-existent local hooksPath left alone"
+
+setup_repo "" ".git/hooks" "/usr/local/dd/global_hooks"
+run_ensure
+assert_equals "" "$(local_hooks_path)" "system-only DD hooksPath: local .git/hooks override removed"
+
+setup_repo "/tmp/custom-global-hooks" ".git/hooks" "/usr/local/dd/global_hooks"
+run_ensure
+assert_equals ".git/hooks" "$(local_hooks_path)" "global overrides system DD hooksPath: local left alone"
+
+setup_repo "" ".git/hooks" "/tmp/custom-system-hooks"
+run_ensure
+assert_equals ".git/hooks" "$(local_hooks_path)" "non-DD system hooksPath: local .git/hooks left alone"
 
 echo "test-ensure-dd-hook-chain: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

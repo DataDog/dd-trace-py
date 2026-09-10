@@ -25,9 +25,14 @@ log() {
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 cd "$repo_root"
 
+# Non-local hooksPath only: global overrides system. Unscoped --get would
+# return the local override we are trying to detect.
 global_hooks="$(git config --global --get core.hooksPath 2>/dev/null || true)"
-# Only repair when the DD-managed global hook chain is configured. An unrelated
-# global hooksPath plus a deliberate local .git/hooks override may be intentional.
+if [ -z "$global_hooks" ]; then
+  global_hooks="$(git config --system --get core.hooksPath 2>/dev/null || true)"
+fi
+# Only repair when the DD-managed hook chain is configured. An unrelated
+# hooksPath plus a deliberate local .git/hooks override may be intentional.
 if [ "$global_hooks" != "/usr/local/dd/global_hooks" ]; then
   exit 0
 fi
