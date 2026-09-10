@@ -10,14 +10,6 @@ on:
       - ddtrace/internal/datadog/profiling/**
       - ddtrace/profiling/**
       - src/native/**
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/prof-correctness.yml
-      - ddtrace/internal/datadog/profiling/**
-      - ddtrace/profiling/**
-      - src/native/**
   workflow_dispatch:
     inputs:
       commit_sha:
