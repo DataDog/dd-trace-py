@@ -273,6 +273,13 @@ finalize() {
 
 # Test wheel
 test_wheel() {
+  # AIDEV-NOTE: These one-pipeline build controls are not OpenTelemetry SDK configuration.
+  unset \
+    OTEL_OPERATOR_IMAGES_ENABLED \
+    OTEL_OPERATOR_IMAGE_NAME \
+    OTEL_OPERATOR_LANGUAGE \
+    OTEL_OPERATOR_IMAGE_MAX_SIZE_BYTES
+
   section_start "test_wheel" "Testing wheel"
   export UV_LINK_MODE=copy
   export TEST_WHEEL_DIR="${WORK_DIR}/test_wheel"
