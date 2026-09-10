@@ -16,6 +16,7 @@
 #include <cstdint>
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 
 #if defined PL_LINUX
@@ -59,16 +60,12 @@ class ThreadInfo
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
     bool using_uvloop = false; // Whether this thread is using uvloop instead of asyncio
+    std::optional<size_t> asyncio_boundary_index;
 
     [[nodiscard]] Result<void> update_cpu_time();
 
     [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
     [[nodiscard]] Result<void> unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
-
-    // Number of frames in python_stack from the asyncio boundary frame (inclusive) up to the root,
-    // that is to say the asyncio machinery plus the synchronous entry point. Returns the size of the
-    // whole stack when the boundary frame is not there.
-    [[nodiscard]] size_t find_upper_python_stack_size(EchionSampler&) const;
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -125,6 +122,7 @@ class ThreadInfo
 
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
+    bool is_asyncio_boundary_frame(EchionSampler&, const Frame&);
     [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
     void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long, microsecond_t wall_time_us);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);

@@ -5,14 +5,31 @@
 
 #include "dd_wrapper/include/profiler_state.hpp"
 
+size_t
+rendered_location_count(const Frame& frame)
+{
+    size_t count = frame.is_in_gc ? 2 : 1;
+    if (frame.code_object == 0 || frame.lasti < 0) {
+        return count;
+    }
+
+    auto& registry = Datadog::ProfilerState::get().native_call_registry;
+    const int offset_bytes = frame.lasti * static_cast<int>(sizeof(_Py_CODEUNIT));
+    return registry.lookup(frame.code_object, offset_bytes, frame.first_lineno) ? count + 1 : count;
+}
+
 void
-FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
+FrameStack::render(EchionSampler& echion, TruncationStatus truncation, size_t omission_index, size_t omitted_frames)
 {
     auto& renderer = echion.renderer();
     auto& registry = Datadog::ProfilerState::get().native_call_registry;
 
-    for (auto it = this->begin(); it != this->end(); ++it) {
-        auto& frame = *it;
+    for (size_t i = 0; i < size(); ++i) {
+        if (i == omission_index) {
+            renderer.render_omitted_frames(omitted_frames);
+        }
+
+        auto& frame = (*this)[i];
 
         // The collection runs underneath everything the frame is doing, including a native call
         // such as gc.collect that is still in progress. Locations are leaf-to-root, so the GC
@@ -36,6 +53,9 @@ FrameStack::render(EchionSampler& echion, TruncationStatus truncation)
         renderer.render_frame(frame);
     }
 
+    if (omission_index == size()) {
+        renderer.render_omitted_frames(omitted_frames);
+    }
     if (truncation == TruncationStatus::Truncated) {
         renderer.mark_truncated();
     }
@@ -56,7 +76,7 @@ unwind_frame(EchionSampler& echion,
              bool detect_truncation)
 {
     seen_frames.clear();
-    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
+    if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_STACK_DISCOVERY_DEPTH)) {
         return UnwindResult::Unknown();
     }
 
@@ -64,12 +84,12 @@ unwind_frame(EchionSampler& echion,
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
-        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_TASK_FRAMES;
+        const bool at_limit = result.frames_added >= max_frames_to_add || stack.size() >= MAX_STACK_DISCOVERY_DEPTH;
         if (at_limit) {
             if (!detect_truncation) {
                 return result;
             }
-            if (frames_probed_after_limit >= MAX_TASK_FRAMES) {
+            if (frames_probed_after_limit >= MAX_STACK_DISCOVERY_DEPTH) {
                 // Exhausting the probe budget does not prove another reportable frame exists.
                 return result;
             }

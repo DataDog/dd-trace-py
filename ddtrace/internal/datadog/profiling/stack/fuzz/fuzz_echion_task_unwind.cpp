@@ -37,7 +37,7 @@ LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         // Point gc_frame at the outermost coroutine frame so the GC-marker path is exercised.
         PyObject* gc_frame = (*maybe_task)->coro ? (*maybe_task)->coro->frame : nullptr;
         auto gc_frame_scope = echion_sampler.use_gc_frame(gc_frame);
-        (void)(*maybe_task)->unwind(echion_sampler, stack, using_uvloop);
+        (void)(*maybe_task)->unwind(echion_sampler, stack, using_uvloop, MAX_STACK_DISCOVERY_DEPTH);
     }
 
     g_data = nullptr;

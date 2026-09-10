@@ -47,8 +47,14 @@ class FrameStack : public std::vector<Frame>
   public:
     using Key = Frame::Key;
 
-    void render(EchionSampler& echion, TruncationStatus truncation);
+    void render(EchionSampler& echion,
+                TruncationStatus truncation,
+                size_t omission_index = SIZE_MAX,
+                size_t omitted_frames = 0);
 };
+
+[[nodiscard]] size_t
+rendered_location_count(const Frame& frame);
 
 // Forward declaration
 class EchionSampler;
@@ -95,6 +101,8 @@ class StackInfo
     uint64_t task_id;
     bool on_cpu;
     FrameStack stack;
+    size_t omission_index = SIZE_MAX;
+    size_t omitted_frames = 0;
 
     // Per-task override wall-time to use in reservoir sampling.
     // nullopt means "use the thread-level wall time"

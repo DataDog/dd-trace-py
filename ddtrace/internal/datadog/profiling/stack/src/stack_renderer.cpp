@@ -218,6 +218,17 @@ StackRenderer::mark_truncated()
 }
 
 void
+StackRenderer::render_omitted_frames(size_t count)
+{
+    if (sample == nullptr || count == 0) {
+        return;
+    }
+
+    const std::string name = "<" + std::to_string(count) + " synchronous frame" + (count == 1 ? "" : "s") + " omitted>";
+    sample->push_frame(name, "", 0, 0);
+}
+
+void
 StackRenderer::render_gc_frame()
 {
     if (sample == nullptr) {
