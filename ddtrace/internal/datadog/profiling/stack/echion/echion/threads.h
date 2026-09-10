@@ -25,6 +25,8 @@
 #include <mach/mach.h>
 #endif
 
+#include "cpu_sample_ring.hpp"
+
 #include <echion/errors.h>
 #include <echion/greenlets.h>
 #include <echion/interp.h>
@@ -33,6 +35,7 @@
 #include <echion/timing.h>
 
 class EchionSampler;
+class ThreadInfoTaskTraversalTest;
 
 class ThreadInfo
 {
@@ -52,7 +55,7 @@ class ThreadInfo
 #elif defined PL_DARWIN
     mach_port_t mach_port;
 #endif
-    microsecond_t cpu_time;
+    microsecond_t cpu_time = 0;
 
     uintptr_t asyncio_loop = 0;
     uintptr_t tstate_addr = 0; // Remote address of PyThreadState for accessing asyncio_tasks_head
@@ -60,8 +63,18 @@ class ThreadInfo
 
     [[nodiscard]] Result<void> update_cpu_time();
 
-    [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t);
-    void unwind(EchionSampler&, PyThreadState*);
+    [[nodiscard]] Result<void> sample(EchionSampler&, PyThreadState*, microsecond_t, bool include_cpu_time = true);
+    void sample_cpu_timer(EchionSampler&,
+                          PyThreadState*,
+                          FrameStack&&,
+                          microsecond_t,
+                          const Datadog::CpuTimer::RawSample&);
+    void unwind(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
+
+    // Number of frames in python_stack from the asyncio boundary frame (inclusive) up to the root,
+    // that is to say the asyncio machinery plus the synchronous entry point. Returns the size of the
+    // whole stack when the boundary frame is not there.
+    [[nodiscard]] size_t find_upper_python_stack_size(EchionSampler&) const;
 
     // ------------------------------------------------------------------------
 #if defined PL_LINUX
@@ -87,10 +100,13 @@ class ThreadInfo
                                                                     const char* name)
     {
 #if defined PL_LINUX
-        clockid_t cpu_clock_id;
-        if (pthread_getcpuclockid(static_cast<pthread_t>(thread_id), &cpu_clock_id)) {
-            return ErrorKind::ThreadInfoError;
-        }
+        // pthread_getcpuclockid() dereferences pthread_t, but Python's thread_id can be
+        // a gevent greenlet ID or a stale value. Derive the Linux per-thread clock from
+        // the kernel TID instead. clock_gettime() safely rejects an invalid TID with EINVAL.
+        constexpr uint64_t CPUCLOCK_SCHED = 2;
+        constexpr uint64_t CPUCLOCK_PERTHREAD_MASK = 4;
+        auto cpu_clock_id =
+          static_cast<clockid_t>((~static_cast<uint64_t>(native_id) << 3) | (CPUCLOCK_SCHED | CPUCLOCK_PERTHREAD_MASK));
 
         auto result = std::make_unique<ThreadInfo>(thread_id, native_id, name, cpu_clock_id);
 #elif defined PL_DARWIN
@@ -111,20 +127,33 @@ class ThreadInfo
     };
 
   private:
+    using TaskAddressCallback = std::function<void(TaskObj*)>;
+
+    friend class ThreadInfoTaskTraversalTest;
+
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
-    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*);
-    void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long);
+    [[nodiscard]] Result<void> unwind_tasks(EchionSampler&, PyThreadState*, microsecond_t wall_time_us);
+    void unwind_greenlets(EchionSampler&, PyThreadState*, unsigned long, microsecond_t wall_time_us);
     [[nodiscard]] Result<std::vector<TaskInfo::Ptr>> get_all_tasks(EchionSampler&, PyThreadState* tstate);
+    // The output vector allows malformed linked-list sources to roll back their snapshots without deferring reads.
+    template<class T>
+    [[nodiscard]] Result<void> for_each_task_address(EchionSampler&,
+                                                     PyThreadState* tstate,
+                                                     std::vector<T>& tasks,
+                                                     const TaskAddressCallback& callback);
 #if PY_VERSION_HEX >= 0x030e0000
-    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(EchionSampler& echion,
-                                                                 std::vector<TaskInfo::Ptr>& tasks);
-    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(EchionSampler& echion,
-                                                                      PyThreadState* tstate,
-                                                                      std::vector<TaskInfo::Ptr>& tasks);
-    [[nodiscard]] Result<void> get_tasks_from_linked_list(EchionSampler& echion,
-                                                          uintptr_t head_addr,
-                                                          std::vector<TaskInfo::Ptr>& tasks);
+    template<class T>
+    [[nodiscard]] Result<void> get_tasks_from_thread_linked_list(std::vector<T>& tasks,
+                                                                 const TaskAddressCallback& callback);
+    template<class T>
+    [[nodiscard]] Result<void> get_tasks_from_interpreter_linked_list(PyThreadState* tstate,
+                                                                      std::vector<T>& tasks,
+                                                                      const TaskAddressCallback& callback);
+    template<class T>
+    [[nodiscard]] Result<void> get_tasks_from_linked_list(uintptr_t head_addr,
+                                                          std::vector<T>& tasks,
+                                                          const TaskAddressCallback& callback);
 #endif
 };
 

@@ -40,7 +40,7 @@ endif()
 
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
-    target_include_directories(${name} PRIVATE ../include)
+    target_include_directories(${name} PRIVATE ../include $<TARGET_PROPERTY:_native,INTERFACE_INCLUDE_DIRECTORIES>)
     target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper ${Python3_LIBRARIES})
     add_ddup_config(${name})
     if(NOT APPLE)
@@ -69,12 +69,6 @@ function(dd_wrapper_add_test name)
         PROPERTIES # We start new threads after fork(), and we want to continue running the tests after that instead of
                    # dying.
                    ENVIRONMENT "TSAN_OPTIONS=die_after_fork=0:suppressions=${CMAKE_CURRENT_SOURCE_DIR}/TSan.supp")
-
-    if(LIB_INSTALL_DIR)
-        get_filename_component(_test_install_dir "${LIB_INSTALL_DIR}" DIRECTORY)
-        set(_test_install_dir "${_test_install_dir}/test")
-        install(TARGETS ${name} RUNTIME DESTINATION ${_test_install_dir})
-    endif()
 endfunction()
 
 # Add the tests

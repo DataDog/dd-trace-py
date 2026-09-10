@@ -5,7 +5,6 @@ from enum import Enum
 from json import loads
 import logging
 import re
-from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
@@ -20,11 +19,15 @@ from ddtrace.constants import _USER_ID_KEY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_BYTES
+from ddtrace.internal.constants import DD_TRACE_TRACESTATE_MAX_ITEMS
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.http import HTTPConnection
 from ddtrace.internal.settings import env
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
@@ -70,15 +73,7 @@ def classify_media_type(content_type: Optional[str]) -> MediaType:
     return MediaType.UNKNOWN
 
 
-if TYPE_CHECKING:
-    import http.client as httplib
-
-    from ddtrace.internal.http import HTTPConnection
-    from ddtrace.internal.http import HTTPSConnection
-    from ddtrace.internal.uds import UDSHTTPConnection
-
-ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
-Connector = Callable[[], ContextManager["httplib.HTTPConnection"]]
+Connector = Callable[[], ContextManager[HTTPConnection]]
 
 
 log = logging.getLogger(__name__)
@@ -169,7 +164,7 @@ def connector(url: str, **kwargs: Any) -> Connector:
     """
 
     @contextmanager
-    def _connector_context() -> Generator[Union["httplib.HTTPConnection", "httplib.HTTPSConnection"], None, None]:
+    def _connector_context() -> Generator[HTTPConnection, None, None]:
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()
@@ -219,6 +214,111 @@ def w3c_get_dd_list_member(context):
                 log.debug("tracestate would exceed 256 char limit with tag: %s. Tag will not be added.", next_tag)
 
     return ";".join(tags)
+
+
+def w3c_get_tracestate_list_member(tracestate: str, key: str) -> Optional[str]:
+    """Return the last value for key in a tracestate string."""
+    prefix = key + "="
+    value = None
+    for raw_member in tracestate.split(","):
+        member = raw_member.strip()
+        if member.startswith(prefix):
+            value = member[len(prefix) :]
+    return value
+
+
+def _w3c_tracestate_member_exceeds_item_char_cap(member: str) -> bool:
+    return len(member) > DD_TRACE_TRACESTATE_ITEM_MAX_CHARS
+
+
+def _w3c_tracestate_drop_items_until_count_prefer_oversized(items: list[str], max_count: int) -> None:
+    """Shrink items in place, preferring to remove oversized members first."""
+    if len(items) <= max_count:
+        return
+    excess = len(items) - max_count
+    removed = 0
+    kept: list[str] = []
+    for member in items:
+        if removed < excess and _w3c_tracestate_member_exceeds_item_char_cap(member):
+            removed += 1
+            continue
+        kept.append(member)
+    items[:] = kept
+    if len(items) > max_count:
+        del items[max_count:]
+
+
+def _w3c_tracestate_pack_members_to_byte_limit(members: list[str], protected_count: int) -> list[str]:
+    """Pack whole list-members into the W3C byte budget.
+
+    The first protected member is always retained. Additional protected members are
+    retained when they fit; if one does not fit, all members to its right are dropped.
+    """
+    packed: list[str] = []
+    total_bytes = 0
+    for index, member in enumerate(members):
+        segment_bytes = len(member.encode("utf-8")) + (1 if packed else 0)
+        if protected_count and index == 0:
+            packed.append(member)
+            total_bytes += segment_bytes
+            continue
+        if total_bytes + segment_bytes <= DD_TRACE_TRACESTATE_MAX_BYTES:
+            packed.append(member)
+            total_bytes += segment_bytes
+            continue
+        if index < protected_count:
+            break
+        if _w3c_tracestate_member_exceeds_item_char_cap(member):
+            log.debug("tracestate skipping list-member over item char limit while fitting byte budget")
+            continue
+        log.debug(
+            "tracestate byte length exceeds maximum (%d), truncating whole entries",
+            DD_TRACE_TRACESTATE_MAX_BYTES,
+        )
+        break
+    return packed
+
+
+def w3c_tracestate_members_after_limits(members: list[str]) -> list[str]:
+    """Apply W3C limits while protecting the last dd= and ot= members."""
+    members = [member.strip() for member in members if member.strip()]
+    protected: list[str] = []
+    protected_prefixes = ("dd=", "ot=")
+    for prefix in protected_prefixes:
+        for member in reversed(members):
+            if member.startswith(prefix):
+                protected.append(member)
+                break
+
+    others = [member for member in members if not member.startswith(protected_prefixes)]
+    max_others = DD_TRACE_TRACESTATE_MAX_ITEMS - len(protected)
+    if len(others) > max_others:
+        log.debug(
+            "tracestate list-member count exceeds maximum (%d), truncating",
+            DD_TRACE_TRACESTATE_MAX_ITEMS,
+        )
+        _w3c_tracestate_drop_items_until_count_prefer_oversized(others, max_others)
+
+    prioritized = protected + others
+    return _w3c_tracestate_pack_members_to_byte_limit(prioritized, len(protected))
+
+
+def w3c_build_tracestate_members(tracestate: str, dd_list_member: str = "") -> list[str]:
+    """Merge a rebuilt dd= member into canonical tracestate and enforce limits."""
+    members = tracestate.split(",") if tracestate else []
+    if dd_list_member:
+        members.append("dd=" + dd_list_member)
+    return w3c_tracestate_members_after_limits(members)
+
+
+def w3c_update_tracestate_list_member(tracestate: str, key: str, value: Optional[str]) -> str:
+    """Replace or remove a tracestate list-member and return canonical tracestate."""
+    prefix = key + "="
+    members = [member.strip() for member in tracestate.split(",") if member.strip()]
+    members = [member for member in members if not member.startswith(prefix)]
+    if value:
+        members.append(prefix + value)
+    return ",".join(w3c_tracestate_members_after_limits(members))
 
 
 @cached()
@@ -307,24 +407,21 @@ class Response(object):
         )
 
 
-def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType:
-    """Return an HTTP connection to the given URL."""
+def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> HTTPConnection:
+    """Return an HTTP connection for the given URL.
+
+    Only scheme, host, and port are used — the path is stripped so callers can
+    pass a full endpoint URL here and still supply the request path themselves
+    via ``conn.request()``.
+    """
     parsed = verify_url(url)
-    hostname = parsed.hostname or ""
-    path = parsed.path or "/"
 
-    from ddtrace.internal.http import HTTPConnection
-    from ddtrace.internal.http import HTTPSConnection
-    from ddtrace.internal.uds import UDSHTTPConnection
+    if parsed.scheme == "unix":
+        return HTTPConnection("unix://" + parsed.path, timeout=timeout)
 
-    if parsed.scheme == "https":
-        return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
-    elif parsed.scheme == "http":
-        return HTTPConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
-    elif parsed.scheme == "unix":
-        return UDSHTTPConnection(path, hostname, parsed.port, timeout=timeout)
-
-    raise ValueError("Unsupported protocol '%s'" % parsed.scheme)
+    # Strip path/query/fragment; _replace uses netloc so IPv6 brackets are kept.
+    base_url = parsed._replace(path="", params="", query="", fragment="").geturl()
+    return HTTPConnection(base_url, timeout=timeout)
 
 
 def verify_url(url: str) -> parse.ParseResult:

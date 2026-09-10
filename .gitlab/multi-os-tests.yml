@@ -3,6 +3,8 @@
 
 .multi_os_test_base:
   stage: tests
+  # multi-OS runners (especially windows) are prone to flaky infra/test failures
+  retry: 2
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
@@ -20,13 +22,13 @@ os tests ubuntu:
         matrix:
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp310-cp310"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp312-cp312"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
           - ARCH_TAG: "amd64"
             PYTHON_TAG: "cp314-cp314"
-            IMAGE_TAG: "v113741238-d2b8243-manylinux2014_x86_64"
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
   variables:
     WHEEL_PATTERN: "manylinux2014*x86_64.whl"
     PLATFORM: "Ubuntu"

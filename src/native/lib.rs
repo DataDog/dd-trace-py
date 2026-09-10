@@ -3,7 +3,10 @@ mod crashtracker;
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
 mod config;
+mod context;
 mod context_provider;
+#[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
+mod context_watcher;
 mod contextvar;
 mod data_pipeline;
 #[cfg(feature = "stats")]
@@ -18,6 +21,7 @@ mod library_config;
 mod log;
 #[cfg(target_os = "linux")]
 mod otel_thread_ctx;
+mod process_metrics;
 mod py_string;
 mod rand;
 mod rc_shm;
@@ -67,7 +71,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     #[cfg(target_os = "linux")]
     {
         m.add_wrapped(wrap_pyfunction!(
-            otel_thread_ctx::update_otel_thread_context
+            otel_thread_ctx::update_otel_thread_context_from_span
+        ))?;
+        m.add_wrapped(wrap_pyfunction!(
+            otel_thread_ctx::update_otel_thread_context_from_context
         ))?;
         m.add_wrapped(wrap_pyfunction!(
             otel_thread_ctx::detach_otel_thread_context
@@ -83,8 +90,10 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     span::register_native_span(m)?;
     event_hub::register_event_hub(m)?;
     contextvar::register_contextvar(m)?;
+    context::register_context(m)?;
     context_provider::register_context_provider(m)?;
     rand::register_rand(m)?;
+    process_metrics::register_process_metrics(m)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::flatten_key_value, m)?)?;
     m.add_function(wrap_pyfunction!(ddtrace_utils::is_sequence, m)?)?;
     m.add_wrapped(pyo3::wrap_pymodule!(config::config_module))?;
@@ -101,6 +110,9 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Add tracer_flare submodule
     m.add_wrapped(pyo3::wrap_pymodule!(tracer_flare::native_flare))?;
+
+    #[cfg(all(Py_3_14, not(any(PyPy, GraalPy))))]
+    context_watcher::register(m)?;
 
     Ok(())
 }

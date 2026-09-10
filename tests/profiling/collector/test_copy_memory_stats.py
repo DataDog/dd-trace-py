@@ -10,13 +10,13 @@ import pytest
 )
 def test_copy_memory_error_count_present():
     """copy_memory_error_count is always emitted (even when 0) and is non-negative."""
-    import glob
     import json
     import os
     import time
 
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     p = profiler.Profiler(tracer=tracer)
     p.start()
@@ -24,7 +24,7 @@ def test_copy_memory_error_count_present():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
     for f in files:
@@ -51,13 +51,13 @@ def test_copy_memory_error_count_present():
 )
 def test_fast_copy_memory_disabled():
     """fast_copy_memory_enabled is False when _DD_PROFILING_STACK_FAST_COPY=false."""
-    import glob
     import json
     import os
     import time
 
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     p = profiler.Profiler(tracer=tracer)
     p.start()
@@ -65,13 +65,14 @@ def test_fast_copy_memory_disabled():
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
     for i, f in enumerate(files):
         is_last_file = i == len(files) - 1
         with open(f) as fp:
             metadata = json.load(fp)
+
         if not is_last_file:
             assert "fast_copy_memory_enabled" in metadata, f"Missing fast_copy_memory_enabled in {f}: {metadata}"
             assert metadata["fast_copy_memory_enabled"] is False, (
@@ -91,15 +92,17 @@ def test_fast_copy_memory_disabled():
 )
 def test_fast_copy_memory_enabled() -> None:
     """Sampler runs on the syscall copy during warmup, then upgrades to safe_memcpy (PROF-14568)."""
-    import glob
     import json
     import os
     import time
+    from typing import Any
+    from typing import Optional
 
     # Underscore-prefixed, so only on the _stack submodule (`import *` skips it).
     from ddtrace.internal.datadog.profiling.stack import _stack
     from ddtrace.profiling import profiler
     from ddtrace.trace import tracer
+    from tests.profiling.collector import pprof_utils
 
     _stack._set_fast_copy_warmup_seconds(1.0)
 
@@ -121,18 +124,33 @@ def test_fast_copy_memory_enabled() -> None:
             break
         time.sleep(0.05)
 
+    assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
+    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"
+
+    # The upgrade flips the flag at the start of a sampling cycle, but the stats it
+    # feeds are only written at the end of that cycle, so stopping here could flush a
+    # window that never saw the upgrade. Wait out an upload interval instead.
+    time.sleep(2)
     p.stop()
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
-    files = sorted(glob.glob(output_filename + ".*.internal_metadata.json"))
+    files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
-    with open(files[-1]) as fp:
-        metadata = json.load(fp)
+    # A window with no completed sampling cycle inherits the previous window's fast-copy
+    # state, so it says nothing about what the sampler is running on.
+    metadata: Optional[dict[str, Any]] = None
+    for f in reversed(files):
+        with open(f) as fp:
+            candidate = json.load(fp)
+
+        if candidate["sampling_event_count"] > 0:
+            metadata = candidate
+            break
+
+    assert metadata is not None, f"Expected an upload window with at least one sampling cycle: {files}"
+
     assert metadata["fast_copy_memory_user_disabled"] is False, metadata
     assert metadata["fast_copy_memory_capable"] is True, metadata
     assert metadata["fast_copy_memory_syscall_fallback"] is False, metadata
     assert metadata["fast_copy_memory_enabled"] is True, metadata
-
-    assert saw_warmup, "Expected the sampler to run on the syscall copy during the warmup window"
-    assert saw_upgrade, "Expected the sampler to upgrade to safe_memcpy after warmup"

@@ -60,7 +60,8 @@ if __name__ == "__main__":
             )
             print("IAST module load tests completed successfully")
         finally:
-            os.environ = orig_env
+            os.environ.clear()
+            os.environ.update(orig_env)
 
     # ASM WAF smoke test
     if platform.system() != "Linux" or sys.maxsize > 2**32:
@@ -71,6 +72,11 @@ if __name__ == "__main__":
         import ddtrace.appsec._ddwaf  # noqa: F401
 
         assert module.loaded
+
+        from ddtrace.internal.products import manager
+
+        assert not manager._failed, "product plugins failed to load: %s" % (manager._failed,)
+
         print("WAF module load test completed successfully")
     else:
         # Skip the test for 32-bit Linux systems

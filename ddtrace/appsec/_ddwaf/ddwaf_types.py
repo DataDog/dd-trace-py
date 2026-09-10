@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from collections.abc import Sequence
 import ctypes
 import ctypes.util
+from enum import Enum
 from enum import IntEnum
 from platform import system
 from typing import Any
@@ -15,7 +16,18 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
 
-DDWafRulesType = Union[None, int, float, str, list[Any], dict[str, Any]]
+DDWafInputType = Union[None, int, float, str, Sequence["DDWafInputType"], Mapping[str, "DDWafInputType"]]
+
+DDWafOutputType = Union[None, int, float, str, list["DDWafOutputType"], dict[str, "DDWafOutputType"]]
+
+
+class DDWafSqlTokenizer(str, Enum):
+    GENERIC = "generic"
+    MYSQL = "mysql"
+    ORACLE = "oracle"
+    POSTGRESQL = "postgresql"
+    SQLITE = "sqlite"
+
 
 log = get_logger(__name__)
 
@@ -121,7 +133,7 @@ class ddwaf_object(ctypes.Union):
 
     def __init__(
         self,
-        struct: Optional[DDWafRulesType] = None,
+        struct: Optional[DDWafInputType] = None,
         observator: Optional[_observator] = None,
         max_objects: int = DDWAF_MAX_CONTAINER_SIZE,
         max_depth: int = DDWAF_MAX_CONTAINER_DEPTH,
@@ -133,7 +145,7 @@ class ddwaf_object(ctypes.Union):
         _build_ddwaf_object(ctypes.pointer(self), struct, observator, max_objects, max_depth, max_string_length)
 
     @classmethod
-    def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
+    def create_without_limits(cls, struct: DDWafInputType) -> "ddwaf_object":
         return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
 
     @classmethod
@@ -148,7 +160,7 @@ class ddwaf_object(ctypes.Union):
         return obj
 
     @property
-    def struct(self) -> DDWafRulesType:
+    def struct(self) -> DDWafOutputType:
         """Generate a python structure from ddwaf_object"""
         t = self.type
         if t == DDWAF_OBJ_TYPE.DDWAF_OBJ_SMALL_STRING:

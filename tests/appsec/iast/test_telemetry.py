@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
@@ -35,6 +37,23 @@ from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
 
 
+@pytest.fixture(autouse=True)
+def empty_telemetry_session(request):
+    """Start every telemetry test with an empty session.
+
+    These tests assert on metric names, counts and exact lists, so a metric emitted by
+    whatever ran before is enough to fail them. Draining the native worker first pushes out
+    anything it still holds, so clear() actually leaves nothing behind.
+
+    Only for tests that already use the session: requesting it unconditionally would make the
+    pure metric_verbosity cases xfail when no test agent is running.
+    """
+    if "test_agent_session" in request.fixturenames:
+        request.getfixturevalue("telemetry_writer").periodic(force_flush=True)
+        request.getfixturevalue("test_agent_session").clear()
+    yield
+
+
 def _get_iast_metrics(test_agent_session, telemetry_writer):
     """Flush the native worker and return the iast-namespace generate-metrics series."""
     telemetry_writer.periodic(force_flush=True)
@@ -43,6 +62,23 @@ def _get_iast_metrics(test_agent_session, telemetry_writer):
         if series.get("namespace") == TELEMETRY_NAMESPACE.IAST.value:
             metrics.append(series)
     return metrics
+
+
+def _wait_for_iast_metrics(test_agent_session, telemetry_writer, select, tries=10, delay=0.1):
+    """Keep flushing until select() finds the series the caller is waiting for.
+
+    One force_flush is not enough: the native worker keeps its own flush schedule, so a series can
+    reach the test agent several flushes later. Returns (selected, every series seen), the latter
+    for assertion messages.
+    """
+    all_metrics = []
+    for _ in range(tries):
+        all_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
+        selected = select(all_metrics)
+        if selected:
+            return selected, all_metrics
+        time.sleep(delay)
+    return [], all_metrics
 
 
 def _get_iast_logs(test_agent_session, telemetry_writer):
@@ -55,12 +91,26 @@ def _get_iast_logs(test_agent_session, telemetry_writer):
 
 
 def _assert_instrumented_sink(test_agent_session, telemetry_writer, vuln_type):
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    assert len(generate_metrics) == 1, "Expected 1 generate_metrics"
-    assert [metric["metric"] for metric in generate_metrics] == ["instrumented.sink"]
-    assert [metric["tags"] for metric in generate_metrics] == [[f"vulnerability_type:{vuln_type.lower()}"]]
-    assert [metric["points"][0][1] for metric in generate_metrics][0] >= 1
-    assert [metric["type"] for metric in generate_metrics] == ["count"]
+    # Select the series this test is about instead of asserting on the whole session: the worker
+    # flushes on its own schedule, so the session also holds series queued before it was cleared
+    # (executed.sink from the lib's own agent traffic, or an earlier test's).
+    expected_tags = [f"vulnerability_type:{vuln_type.lower()}"]
+
+    def select(metrics):
+        return [
+            metric for metric in metrics if metric["metric"] == "instrumented.sink" and metric["tags"] == expected_tags
+        ]
+
+    generate_metrics, all_metrics = _wait_for_iast_metrics(test_agent_session, telemetry_writer, select)
+    assert generate_metrics, (
+        f"Expected an instrumented.sink metric tagged {expected_tags}, got "
+        f"{[(metric['metric'], metric['tags']) for metric in all_metrics]}"
+    )
+    # Check every series rather than how many: the native worker can flush mid-patching and
+    # split one metric over several, but each of them still has to be well formed.
+    for metric in generate_metrics:
+        assert metric["type"] == "count"
+    assert sum(point[1] for metric in generate_metrics for point in metric["points"]) >= 1
 
 
 @pytest.mark.parametrize(
@@ -149,15 +199,23 @@ def test_metric_executed_sink(
         finally:
             AppSecIastSpanProcessor.disable()
 
-        generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
+        # Select the weak_hash series this test produced: the session also holds sinks from the
+        # lib's own agent traffic (http.client) and series the worker flushed late.
+        filtered_metrics, generate_metrics = _wait_for_iast_metrics(
+            test_agent_session,
+            telemetry_writer,
+            lambda metrics: [
+                metric
+                for metric in metrics
+                if metric["metric"] == "executed.sink" and metric["tags"] == ["vulnerability_type:weak_hash"]
+            ],
+        )
         _testing_unpatch_iast()
 
-    assert len(generate_metrics) == 1
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    filtered_metrics = [metric for metric in generate_metrics if metric["tags"][0] == "vulnerability_type:weak_hash"]
-    assert [metric["tags"] for metric in filtered_metrics] == [["vulnerability_type:weak_hash"]]
-    assert [metric["metric"] for metric in filtered_metrics] == ["executed.sink"]
+    assert filtered_metrics, (
+        "Expected an executed.sink metric tagged vulnerability_type:weak_hash, got "
+        f"{[(metric['metric'], metric['tags']) for metric in generate_metrics]}"
+    )
     assert span.get_metric("_dd.iast.telemetry.executed.sink.weak_hash") == expected_num_metrics
     # request.tainted metric is None because AST is not running in this test
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) is None
@@ -188,15 +246,17 @@ def test_metric_instrumented_propagation(no_request_sampling, telemetry_writer, 
     with override_global_config(dict(_iast_enabled=True, _iast_telemetry_report_lvl=TELEMETRY_INFORMATION_NAME)):
         _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    filtered_metrics = [
-        metric["metric"]
-        for metric in generate_metrics
-        if metric["metric"] not in ["executed.sink", "instrumented.sink"]
-    ]
-    assert filtered_metrics == ["instrumented.propagation"]
+    # Select by name rather than by excluding the names known to leak in: the worker can flush
+    # mid-patching (splitting instrumented.propagation across series) and can flush an earlier
+    # test's series into this session.
+    filtered_metrics, all_metrics = _wait_for_iast_metrics(
+        test_agent_session,
+        telemetry_writer,
+        lambda metrics: [metric for metric in metrics if metric["metric"] == "instrumented.propagation"],
+    )
+    assert filtered_metrics, (
+        f"Expected an instrumented.propagation metric, got {sorted({metric['metric'] for metric in all_metrics})}"
+    )
 
 
 def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agent_session, tracer):
@@ -226,12 +286,19 @@ def test_metric_request_tainted(no_request_sampling, telemetry_writer, test_agen
         finally:
             AppSecIastSpanProcessor.disable()
 
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    # Remove potential sinks from internal usage of the lib (like http.client, used to communicate with
-    # the agent)
-    filtered_metrics = [metric["metric"] for metric in generate_metrics if metric["metric"] != "executed.sink"]
-    assert filtered_metrics == ["executed.source", "request.tainted"]
-    assert len(filtered_metrics) == 2, "Expected 2 generate_metrics"
+    # Both series have to be there, but not alone: executed.sink comes from the lib's own agent
+    # traffic (http.client), and the worker can flush an earlier test's series into this session.
+    expected = {"executed.source", "request.tainted"}
+
+    def select(metrics):
+        names = {metric["metric"] for metric in metrics}
+        return sorted(expected) if expected <= names else []
+
+    filtered_metrics, all_metrics = _wait_for_iast_metrics(test_agent_session, telemetry_writer, select)
+    assert filtered_metrics == sorted(expected), (
+        f"Expected {sorted(expected)} among the iast metrics, got "
+        f"{sorted({metric['metric'] for metric in all_metrics})}"
+    )
     assert span.get_metric(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED) > 0
 
 
@@ -341,19 +408,34 @@ def test_django_instrumented_metrics(telemetry_writer, test_agent_session):
     with override_global_config(dict(_iast_enabled=True, _iast_debug=True)):
         _on_django_patch()
 
-    generate_metrics = _get_iast_metrics(test_agent_session, telemetry_writer)
-    metrics_source_tags_result = [metric["tags"][0] for metric in generate_metrics]
+    expected_source_types = {
+        f"source_type:{origin_to_str(origin)}"
+        for origin in (
+            OriginType.HEADER_NAME,
+            OriginType.HEADER,
+            OriginType.PATH_PARAMETER,
+            OriginType.PATH,
+            OriginType.COOKIE,
+            OriginType.COOKIE_NAME,
+            OriginType.PARAMETER,
+            OriginType.PARAMETER_NAME,
+            OriginType.BODY,
+        )
+    }
 
-    assert len(metrics_source_tags_result) == 9
-    assert f"source_type:{origin_to_str(OriginType.HEADER_NAME)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.HEADER)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PATH_PARAMETER)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PATH)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.COOKIE)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.COOKIE_NAME)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PARAMETER)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.PARAMETER_NAME)}" in metrics_source_tags_result
-    assert f"source_type:{origin_to_str(OriginType.BODY)}" in metrics_source_tags_result
+    # Only instrumented.source carries a source_type tag; instrumented.propagation has none.
+    # Wait for the whole set: the worker can flush the source series several flushes apart.
+    def select(metrics):
+        tags = {metric["tags"][0] for metric in metrics if metric["metric"] == "instrumented.source" and metric["tags"]}
+        return tags if expected_source_types <= tags else set()
+
+    source_types, all_metrics = _wait_for_iast_metrics(test_agent_session, telemetry_writer, select)
+
+    assert source_types == expected_source_types, (
+        f"Missing {sorted(expected_source_types - source_types)}, unexpected "
+        f"{sorted(source_types - expected_source_types)}, in "
+        f"{sorted({metric['metric'] for metric in all_metrics})}"
+    )
 
 
 def test_django_instrumented_metrics_iast_disabled(telemetry_writer, test_agent_session):

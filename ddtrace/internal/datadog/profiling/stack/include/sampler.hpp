@@ -4,8 +4,12 @@
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
+#include <exception>
 #include <mutex>
+#include <optional>
 #include <random>
+#include <string>
+#include <typeinfo>
 #include <vector>
 
 #include "constants.hpp"
@@ -18,6 +22,14 @@
 class EchionSampler;
 
 namespace Datadog {
+
+// The unexpected exception that terminated the sampling thread. type_name is the raw
+// (mangled, on gcc/clang) result of typeid(e).name().
+struct SamplingThreadError
+{
+    std::string type_name;
+    std::string message;
+};
 
 enum class PauseResult : std::uint8_t
 {
@@ -64,6 +76,12 @@ class Sampler
     std::mutex pause_mutex_;
     std::condition_variable pause_cv_;
 
+    // Set when the sampling thread aborts on an unexpected exception. The sampling thread
+    // has no GIL, so the failure is stashed here for the Python side to drain and report.
+    std::mutex sampling_thread_error_mutex_;
+    std::optional<SamplingThreadError> sampling_thread_error_;
+    void record_sampling_thread_error(const std::exception& e);
+
     // This is a singleton, so no public constructor
     Sampler();
 
@@ -78,13 +96,20 @@ class Sampler
     double target_overhead = g_target_overhead;
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
+    bool gc_tracking_enabled_ = false;
     std::minstd_rand rng{ std::random_device{}() };
-    std::vector<PyThreadState> thread_candidates;
+
+    struct ThreadCandidate
+    {
+        PyThreadState tstate;
+        PyObject* gc_frame;
+    };
+    std::vector<ThreadCandidate> thread_candidates;
     void adapt_sampling_interval();
 
     // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
     // when max_threads_per_sample is set).
-    void capture_samples(microsecond_t wall_time_us);
+    void capture_samples(microsecond_t wall_time_us, bool include_wall_sampler_cpu_time);
 
     // Rolling window for p_stable: ring buffer of process_delta values (us CPU per adapt window).
     // p_stable is the p-th percentile of this buffer, giving a stable estimate of app CPU usage
@@ -109,6 +134,7 @@ class Sampler
     // Tracks whether the sampler was running when prefork was called,
     // so that postfork_parent/restart_after_fork can restore it.
     bool was_running_at_fork_{ false };
+    std::atomic<uint64_t> greenlet_native_id_generation_{ 0 };
 
     void atfork_child();
     friend void stack_atfork_prepare();
@@ -126,7 +152,7 @@ class Sampler
     void stop();
     PauseResult pause();
     void resume();
-    void register_thread(uint64_t id, uint64_t native_id, const char* name);
+    void register_thread(uint64_t id, uint64_t native_id, const char* name, PyThreadState* tstate = nullptr);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
     void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
@@ -136,7 +162,11 @@ class Sampler
     void track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame);
     void untrack_greenlet(uintptr_t greenlet_id);
     void link_greenlets(uintptr_t parent, uintptr_t child);
-    void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
+    void record_greenlet_switch(uintptr_t origin_id,
+                                PyObject* origin_frame,
+                                uintptr_t target_id,
+                                PyObject* target_frame,
+                                bool update_target_frame);
     void set_uvloop_mode(uintptr_t thread_id, bool value);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
@@ -145,6 +175,11 @@ class Sampler
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
     bool is_running() const { return thread_running.load(); }
+
+    // Returns the error that terminated the sampling thread, clearing it so it is
+    // reported at most once.
+    std::optional<SamplingThreadError> take_sampling_thread_error();
+
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)
@@ -152,6 +187,9 @@ class Sampler
         max_sampling_period_us = std::max(max_interval_us, static_cast<microsecond_t>(g_min_sampling_period_us));
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
+    void set_max_tasks_per_sample(unsigned int value);
+    void set_gc_enabled(bool value) { gc_tracking_enabled_ = value; }
+    bool gc_enabled() const { return gc_tracking_enabled_; }
 
     // Set the absolute overhead floor as "core percent" units (1 = 0.01 core = 10 mcores).
     // Converted to us of CPU budget per adaptation window.

@@ -111,12 +111,16 @@ def test_service_enable_agent_service_precedence_over_service(tracer):
 
 def test_service_enable_service_used_as_ml_app_fallback(tracer):
     """When neither agent_service nor ml_app is set, service is used as the ml app."""
+    # Guard against leaked enabled=True from a prior failed test
+    llmobs_service.disable()
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app=None)):
         llmobs_service.enable(_tracer=tracer, agentless_enabled=False, service="<service>")
-        with llmobs_service.workflow() as span:
-            pass
-        assert get_llmobs_ml_app(span) == "<service>"
-        llmobs_service.disable()
+        try:
+            with llmobs_service.workflow() as span:
+                pass
+            assert get_llmobs_ml_app(span) == "<service>"
+        finally:
+            llmobs_service.disable()
 
 
 @pytest.mark.subprocess(
@@ -124,13 +128,12 @@ def test_service_enable_service_used_as_ml_app_fallback(tracer):
 )
 def test_enable_agentless():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable(agentless_enabled=True)
     assert llmobs_service.enabled
     assert llmobs_service._instance._llmobs_span_writer._agentless is True
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
 
 
@@ -181,30 +184,28 @@ def test_enable_agentless_when_agent_does_not_have_proxy(tracer, agent_missing_p
 @pytest.mark.subprocess(env={"DD_API_KEY": "<not-a-real-key>"})
 def test_configure_agentless_writer_swaps_writer():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     llmobs_service.enable(agentless_enabled=False)
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.enable(agentless_enabled=True)
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(env={"DD_API_KEY": "", "DD_LLMOBS_AGENTLESS_ENABLED": "1"})
 def test_enable_without_api_key_does_not_swap_apm_writer():
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
     try:
         llmobs_service.enable()
     except ValueError:
         pass
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(
@@ -349,15 +350,14 @@ def test_service_disable(tracer):
 def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
     """disable() reverts the APM writer when enable() was the one that switched it to agentless."""
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
     llmobs_service.enable()
     assert llmobs_service._instance._apm_writer_switched_to_agentless is True
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.disable()
-    assert not isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is False
 
 
 @pytest.mark.subprocess(
@@ -371,14 +371,13 @@ def test_disable_reverts_agentless_writer_when_llmobs_enabled_it():
 def test_disable_does_not_revert_agentless_writer_when_already_agentless():
     """disable() leaves the APM writer alone when the writer was already agentless before enable()."""
     import ddtrace
-    from ddtrace.internal.writer import AgentlessTraceWriter
     from ddtrace.llmobs import LLMObs as llmobs_service
 
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
     llmobs_service.enable()
     assert llmobs_service._instance._apm_writer_switched_to_agentless is False
     llmobs_service.disable()
-    assert isinstance(ddtrace.tracer._span_aggregator.writer, AgentlessTraceWriter)
+    assert ddtrace.tracer._span_aggregator.writer.agentless is True
 
 
 def test_enable_disable_keeps_global_config_llmobs_enabled_in_sync(tracer):
@@ -3439,7 +3438,7 @@ def _make_mock_response(status, body):
 
 @pytest.fixture
 def mock_get_connection(llmobs):
-    with mock.patch("ddtrace.llmobs._writer.get_connection") as m:
+    with mock.patch("ddtrace.llmobs._writer.HTTPConnection") as m:
         yield m
 
 
@@ -3591,3 +3590,79 @@ class TestExperimentScope:
         with llmobs.task(name="standalone_task") as span:
             data = span._get_struct_tag(LLMOBS_STRUCT.KEY)
             assert "scope" not in data.get("_dd", {})
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agentless_via_keyword_argument_repoints_remote_configuration():
+    """Remote Configuration read the environment at import; the keyword argument came later."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True)
+
+    assert remoteconfig_poller._client.agentless is True
+    assert remoteconfig_poller._state == remoteconfig_poller._online
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_SITE": "datad0g.com",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_API_KEY": None,
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_an_api_key_passed_in_code_repoints_remote_configuration():
+    """The key exists nowhere in the environment, so only the late switch can supply it."""
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    assert remoteconfig_poller._client.agentless is False
+
+    llmobs_service.enable(agentless_enabled=True, api_key="a-key-from-code")
+
+    assert remoteconfig_poller._client.agentless is True
+
+    captured = {}
+
+    def _fake_native(_runtime, **kwargs):
+        captured.update(kwargs)
+        return object()
+
+    import ddtrace.internal.native as native_mod
+
+    native_mod.RemoteConfigClient = _fake_native
+    remoteconfig_poller._client.ensure_native()
+    assert captured["api_key"] == "a-key-from-code"
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_API_KEY": "<not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "test-ml-app",
+        "DD_AGENTLESS_ENABLED": None,
+        "DD_LLMOBS_AGENTLESS_ENABLED": None,
+    },
+    err=None,
+)
+def test_agent_bound_llmobs_leaves_remote_configuration_on_the_agent():
+    from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
+    from ddtrace.llmobs import LLMObs as llmobs_service
+
+    llmobs_service.enable(agentless_enabled=False)
+
+    assert remoteconfig_poller._client.agentless is False
+    assert remoteconfig_poller._state == remoteconfig_poller._agent_check

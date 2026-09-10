@@ -331,7 +331,7 @@ wheel directory layout.
   output, not just in source code.
 - **Flag for human verification:** If this change affects build layout, linking,
   or conditional compilation, it must be tested on an actual release wheel
-  (in-tree/riot builds may not reproduce wheel-specific issues).
+  (in-tree editable builds may not reproduce wheel-specific issues).
 - For linking changes, have the symbols been verified present in the final
   `.so`?
 
@@ -492,7 +492,6 @@ frame_ptr = <PyFrameObject*><PyObject*>frame
 # _ddup.pyx — NULL check + defensive NULL assignment
 def __dealloc__(self):
     if self.ptr is not NULL:
-        ddup_drop_sample(self.ptr)
+        SampleManager.drop_sample(self.ptr)
         self.ptr = NULL
 ```
-

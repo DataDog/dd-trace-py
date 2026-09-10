@@ -8,7 +8,7 @@ from typing import Union
 
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._ddwaf.ddwaf_types import DEFAULT_ALLOCATOR
-from ddtrace.appsec._ddwaf.ddwaf_types import DDWafRulesType
+from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_builder
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_builder_add_or_update_config
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_builder_build_instance
@@ -323,7 +323,7 @@ class DDWaf:
     def run(
         self,
         target: Union[DDWafContext, DDWafSubContext],
-        data: DDWafRulesType,
+        data: DDWafInputType,
         timeout_ms: float = DEFAULT.WAF_TIMEOUT,
     ) -> DDWaf_result:
         # Single data object per call; persistence depends on the eval target chosen by the caller
@@ -357,14 +357,14 @@ class DDWaf:
             return DDWaf_result(error, [], {}, 0, 0, False, self.empty_observator, {})
         main_res = DDWaf_result(
             error,
-            result["events"],
-            result["actions"],
-            result["duration"] / 1e3,
+            result["events"],  # type: ignore[arg-type]
+            result["actions"],  # type: ignore[arg-type]
+            result["duration"] / 1e3,  # type: ignore[operator]
             (time.monotonic() - start) * 1e6,
-            result["timeout"],
+            result["timeout"],  # type: ignore[arg-type]
             observator,
-            result["attributes"],
-            result["keep"],
+            result["attributes"],  # type: ignore[arg-type]
+            result["keep"],  # type: ignore[arg-type]
         )
         ddwaf_object_free(result_obj)
         return main_res

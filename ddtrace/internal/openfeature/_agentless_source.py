@@ -285,7 +285,7 @@ class AgentlessConfigurationSource(PeriodicService):
                 self._in_flight_conn = conn
             # Suppress self-tracing: no HTTP span, no trace-header injection.
             setattr(conn, _HTTPLIB_NO_TRACE_REQUEST, True)
-            conn.request("GET", self._request_target, None, self._headers())  # type: ignore[no-untyped-call]
+            conn.request("GET", self._request_target, None, self._headers())
             resp = conn.getresponse()
             body = resp.read()
             return _PollResponse(

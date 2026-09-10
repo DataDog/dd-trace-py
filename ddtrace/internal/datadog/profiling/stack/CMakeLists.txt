@@ -57,6 +57,7 @@ endif()
 # Specify the target C-extension that we want to build
 add_library(
     ${EXTENSION_NAME} SHARED
+    src/cpu_timer.cpp
     src/echion/danger.cc
     src/echion/frame.cc
     src/echion/greenlets.cc
@@ -69,6 +70,7 @@ add_library(
     src/echion/tasks.cc
     src/echion/threads.cc
     src/echion/vm.cc
+    src/gc_frame_tracker.cpp
     src/origin_task_links.cpp
     src/sampler.cpp
     src/stack.cpp

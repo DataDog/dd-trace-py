@@ -14,6 +14,10 @@ class traceback_t
     /* Sample object storing the stacktrace */
     Datadog::Sample sample;
 
+    /* Monotonic timestamp of when this allocation was sampled.
+     * Used at export time to compute object age for lifecycle analysis. */
+    int64_t birth_ns = 0;
+
     /* Constructor - also collects frames from the current Python frame chain. */
     traceback_t(size_t size, size_t weighted_size, uint16_t max_nframe, PyMemAllocatorDomain domain);
 
