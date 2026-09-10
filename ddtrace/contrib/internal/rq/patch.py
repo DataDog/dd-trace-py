@@ -116,6 +116,7 @@ def traced_perform_job(func, instance, args, kwargs):
     event = MessagingProcessEvent(
         operation="rq.worker.perform_job",
         request_headers=job.meta,
+        activate_distributed_headers=True,
         component=config.rq.integration_name,
         integration_config=config.rq_worker,
         service=trace_utils.int_service(None, config.rq_worker),
