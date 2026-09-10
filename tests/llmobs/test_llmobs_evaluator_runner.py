@@ -44,7 +44,11 @@ def test_evaluator_runner_buffer_limit(mock_evaluator_logs):
 @pytest.mark.vcr_logs
 def test_evaluator_runner_periodic_enqueues_eval_metric(mock_llmobs_eval_metric_writer, active_evaluator_runner):
     active_evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, DUMMY_SPAN)
-    active_evaluator_runner.periodic()
+    # periodic() normally runs each evaluation on a background executor, making the eval metric
+    # enqueue asynchronous and racy to assert on. `_wait_sync=True` runs evaluations inline instead,
+    # so the assertion below is deterministic.
+    active_evaluator_runner.periodic(_wait_sync=True)
+
     mock_llmobs_eval_metric_writer.enqueue.assert_called_once_with(
         _dummy_evaluator_eval_metric_event(span_id="123", trace_id="1234")
     )

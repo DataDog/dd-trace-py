@@ -32,14 +32,19 @@ from ddtrace.llmobs._integrations.utils import _openai_parse_input_response_mess
 from ddtrace.llmobs._integrations.utils import _openai_parse_output_response_messages
 from ddtrace.llmobs._integrations.utils import format_image_part
 from ddtrace.llmobs._integrations.utils import format_image_part_with_guard
+from ddtrace.llmobs._integrations.utils import get_messages_from_anthropic_content
+from ddtrace.llmobs._integrations.utils import get_tool_definitions_from_anthropic_tools
 from ddtrace.llmobs._integrations.utils import is_renderable_image_mime
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_tool_call_from_streamed_chunk
+from ddtrace.llmobs._integrations.utils import openai_get_metadata_from_response
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
+from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import get_llmobs_input_messages
 from ddtrace.llmobs._utils import get_llmobs_input_prompt
+from ddtrace.llmobs._utils import get_llmobs_metadata
 from ddtrace.llmobs._utils import get_llmobs_tags
 from ddtrace.llmobs._utils import safe_json
 from tests.utils import override_global_config
@@ -491,6 +496,71 @@ def test_chat_streamed_output_does_not_leak_tool_results_into_input(tracer):
     tool_results = input_messages[0].get("tool_results", [])
     assert len(tool_results) == 1
     assert tool_results[0]["result"] == "from-input"
+
+
+def _chat_choice(finish_reason, content="hi"):
+    return SimpleNamespace(message=SimpleNamespace(role="assistant", content=content), finish_reason=finish_reason)
+
+
+class TestOpenAIFinishReasonMetadata:
+    """finish_reason must reach span metadata so content-filtered responses are distinguishable.
+
+    A content-filtered chat completion is a successful (200) response whose content is empty, so
+    without the finish_reason it is indistinguishable from a model that simply returned nothing.
+    """
+
+    def _metadata_from_chat(self, tracer, response):
+        with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(span, kind="llm")
+            openai_set_meta_tags_from_chat(span, {"messages": [{"role": "user", "content": "hi"}]}, response)
+            return get_llmobs_metadata(span)
+
+    def test_chat_content_filter(self, tracer):
+        response = SimpleNamespace(choices=[_chat_choice("content_filter", content=None)])
+        assert self._metadata_from_chat(tracer, response)["finish_reason"] == "content_filter"
+
+    def test_chat_stop(self, tracer):
+        response = SimpleNamespace(choices=[_chat_choice("stop")])
+        assert self._metadata_from_chat(tracer, response)["finish_reason"] == "stop"
+
+    def test_chat_multiple_choices_comma_joined(self, tracer):
+        """n > 1 stays a single string key, comma-joined in choice order."""
+        response = SimpleNamespace(choices=[_chat_choice("stop"), _chat_choice("content_filter")])
+        assert self._metadata_from_chat(tracer, response)["finish_reason"] == "stop,content_filter"
+
+    def test_chat_streamed(self, tracer):
+        streamed = [{"role": "assistant", "content": "", "finish_reason": "content_filter"}]
+        assert self._metadata_from_chat(tracer, streamed)["finish_reason"] == "content_filter"
+
+    def test_chat_absent_when_not_reported(self, tracer):
+        response = SimpleNamespace(choices=[_chat_choice(None)])
+        assert "finish_reason" not in self._metadata_from_chat(tracer, response)
+
+    def test_chat_no_response_leaves_metadata_clean(self, tracer):
+        assert "finish_reason" not in self._metadata_from_chat(tracer, None)
+
+    def test_completion(self, tracer):
+        response = SimpleNamespace(choices=[SimpleNamespace(text="", finish_reason="content_filter")])
+        with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(span, kind="llm")
+            openai_set_meta_tags_from_completion(span, {"prompt": "hi"}, response)
+            assert get_llmobs_metadata(span)["finish_reason"] == "content_filter"
+
+    def test_completion_streamed(self, tracer):
+        streamed = [{"text": "", "finish_reason": "content_filter"}]
+        with tracer.trace("openai.request", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(span, kind="llm")
+            openai_set_meta_tags_from_completion(span, {"prompt": "hi"}, streamed)
+            assert get_llmobs_metadata(span)["finish_reason"] == "content_filter"
+
+    def test_response_api_incomplete_details(self):
+        """The responses API reports the same signal under incomplete_details.reason."""
+        response = SimpleNamespace(incomplete_details=SimpleNamespace(reason="content_filter"))
+        assert openai_get_metadata_from_response(response)["finish_reason"] == "content_filter"
+
+    def test_response_api_completed(self):
+        response = SimpleNamespace(incomplete_details=None)
+        assert "finish_reason" not in openai_get_metadata_from_response(response)
 
 
 def test_basic_functionality():
@@ -1267,3 +1337,285 @@ class TestAgentManifestPrimitives:
             "primary": {"region": "us1", "tier": "gold"},
             "replica": {"region": "us1", "tier": "gold"},
         }
+
+
+class TestAnthropicContentBlocks:
+    """Anthropic Messages responses are a list of tagged content blocks.
+
+    The Anthropic SDK and Bedrock InvokeModel integrations both receive this shape, since
+    Bedrock passes Anthropic request/response bodies through unchanged.
+    """
+
+    TOOL_USE = {"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {"city": "Paris"}}
+    TEXT = {"type": "text", "text": "Let me check."}
+    THINKING = {"type": "thinking", "thinking": "They want Paris weather."}
+
+    def test_text_block(self):
+        assert get_messages_from_anthropic_content("assistant", [self.TEXT]) == [
+            {"content": "Let me check.", "role": "assistant"}
+        ]
+
+    def test_string_content(self):
+        assert get_messages_from_anthropic_content("assistant", "hello") == [{"content": "hello", "role": "assistant"}]
+
+    def test_tool_use_block_captures_the_tool_call(self):
+        assert get_messages_from_anthropic_content("assistant", [self.TOOL_USE]) == [
+            {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_weather",
+                        "arguments": {"city": "Paris"},
+                        "tool_id": "toolu_01",
+                        "type": "tool_use",
+                    }
+                ],
+            }
+        ]
+
+    def test_tool_use_after_text_does_not_drop_the_text(self):
+        """A block list is walked in full: indexing only the first block loses later blocks."""
+        messages = get_messages_from_anthropic_content("assistant", [self.TOOL_USE, self.TEXT])
+
+        assert len(messages) == 2
+        assert messages[0]["tool_calls"][0]["name"] == "get_weather"
+        assert messages[1]["content"] == "Let me check."
+
+    def test_parallel_tool_use_blocks(self):
+        second = {"type": "tool_use", "id": "toolu_02", "name": "get_time", "input": {"tz": "CET"}}
+
+        messages = get_messages_from_anthropic_content("assistant", [self.TOOL_USE, second])
+
+        assert [m["tool_calls"][0]["name"] for m in messages] == ["get_weather", "get_time"]
+
+    def test_thinking_block_becomes_a_reasoning_message(self):
+        messages = get_messages_from_anthropic_content("assistant", [self.THINKING, self.TEXT])
+
+        assert messages[0] == {"content": "They want Paris weather.", "role": "reasoning"}
+        assert messages[1] == {"content": "Let me check.", "role": "assistant"}
+
+    def test_tool_use_arguments_given_as_a_json_string(self):
+        block = dict(self.TOOL_USE, input='{"city": "Paris"}')
+
+        messages = get_messages_from_anthropic_content("assistant", [block])
+
+        assert messages[0]["tool_calls"][0]["arguments"] == {"city": "Paris"}
+
+    def test_tool_result_block(self):
+        block = {"type": "tool_result", "tool_use_id": "toolu_01", "content": [{"text": "18C"}]}
+
+        messages = get_messages_from_anthropic_content("user", [block])
+
+        assert messages[0]["tool_results"] == [{"result": "18C", "tool_id": "toolu_01", "type": "tool_result"}]
+
+    def test_non_iterable_content(self):
+        assert get_messages_from_anthropic_content("assistant", None) == []
+
+
+class TestBedrockInvokeModelOutputMessages:
+    """`_extract_output_message` handles every Bedrock provider's response shape.
+
+    Non-Anthropic providers hand it a string or list of strings; Anthropic models hand it
+    the Messages API content-block list.
+    """
+
+    @pytest.fixture
+    def extract(self):
+        from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
+
+        return BedrockIntegration._extract_output_message
+
+    def test_plain_string_response(self, extract):
+        assert extract({"text": "hello"}) == [{"content": "hello"}]
+
+    def test_list_of_strings_response(self, extract):
+        assert extract({"text": ["a", "b"]}) == [
+            {"content": "a"},
+            {"content": "b"},
+        ]
+
+    def test_empty_response(self, extract):
+        assert extract({"text": []}) == []
+
+    def test_anthropic_tool_use_only_response(self, extract):
+        """Claude returning only a tool call must still produce a tool call on the span."""
+        response = {"text": [{"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {"city": "Paris"}}]}
+
+        messages = extract(response)
+
+        assert messages == [
+            {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_weather",
+                        "arguments": {"city": "Paris"},
+                        "tool_id": "toolu_01",
+                        "type": "tool_use",
+                    }
+                ],
+            }
+        ]
+
+    def test_anthropic_text_and_tool_use_response(self, extract):
+        response = {
+            "text": [
+                {"type": "text", "text": "Let me check."},
+                {"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {"city": "Paris"}},
+            ]
+        }
+
+        messages = extract(response)
+
+        assert len(messages) == 2
+        assert messages[0]["content"] == "Let me check."
+        assert messages[1]["tool_calls"][0]["name"] == "get_weather"
+
+    def test_anthropic_thinking_then_text_response(self, extract):
+        """Extended thinking puts a non-text block first; the answer must survive it."""
+        response = {
+            "text": [
+                {"type": "thinking", "thinking": "They want Paris weather."},
+                {"type": "text", "text": "It is 18C."},
+            ]
+        }
+
+        messages = extract(response)
+
+        assert messages[0]["role"] == "reasoning"
+        assert messages[1]["content"] == "It is 18C."
+
+
+class TestBedrockInvokeModelInputMessages:
+    """Anthropic conversation history sent back to `InvokeModel` contains tool blocks.
+
+    Agent loops replay the assistant's `tool_use` and the user's `tool_result`, so those
+    blocks have to survive input extraction or the trace shows a model answering from nowhere.
+    """
+
+    @pytest.fixture
+    def extract(self):
+        from ddtrace.llmobs._integrations.bedrock import BedrockIntegration
+
+        return BedrockIntegration._extract_input_message
+
+    def test_plain_string_prompt(self, extract):
+        assert extract("hello") == [{"content": "hello"}]
+
+    def test_text_blocks(self, extract):
+        prompt = [{"role": "user", "content": [{"type": "text", "text": "hi"}]}]
+
+        assert extract(prompt) == [{"content": "hi", "role": "user"}]
+
+    def test_tool_use_block_is_captured(self, extract):
+        prompt = [
+            {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {"city": "Paris"}}],
+            }
+        ]
+
+        messages = extract(prompt)
+
+        assert messages == [
+            {
+                "content": "",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_weather",
+                        "arguments": {"city": "Paris"},
+                        "tool_id": "toolu_01",
+                        "type": "tool_use",
+                    }
+                ],
+            }
+        ]
+
+    def test_tool_result_block_is_captured(self, extract):
+        prompt = [
+            {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "toolu_01", "content": [{"text": "18C"}]}],
+            }
+        ]
+
+        messages = extract(prompt)
+
+        assert messages[0]["tool_results"] == [{"result": "18C", "tool_id": "toolu_01", "type": "tool_result"}]
+
+    def test_full_agent_loop_history(self, extract):
+        """The whole replayed conversation must survive, not just its text turns."""
+        prompt = [
+            {"role": "user", "content": [{"type": "text", "text": "weather in Paris?"}]},
+            {
+                "role": "assistant",
+                "content": [{"type": "tool_use", "id": "toolu_01", "name": "get_weather", "input": {"city": "Paris"}}],
+            },
+            {
+                "role": "user",
+                "content": [{"type": "tool_result", "tool_use_id": "toolu_01", "content": [{"text": "18C"}]}],
+            },
+        ]
+
+        messages = extract(prompt)
+
+        assert len(messages) == 3
+        assert messages[0]["content"] == "weather in Paris?"
+        assert messages[1]["tool_calls"][0]["name"] == "get_weather"
+        assert messages[2]["tool_results"][0]["result"] == "18C"
+
+    def test_thinking_block_becomes_reasoning(self, extract):
+        prompt = [{"role": "assistant", "content": [{"type": "thinking", "thinking": "considering"}]}]
+
+        assert extract(prompt) == [{"content": "considering", "role": "reasoning"}]
+
+    def test_unknown_block_type_is_stringified_not_dropped(self, extract):
+        """A block type we do not model yet must still be visible on the span."""
+        prompt = [{"role": "user", "content": [{"type": "some_future_type", "payload": 1}]}]
+
+        messages = extract(prompt)
+
+        assert len(messages) == 1
+        assert "some_future_type" in messages[0]["content"]
+
+
+class TestAnthropicToolDefinitions:
+    """Bedrock `InvokeModel` sends Anthropic-format tool definitions, not the Converse shape."""
+
+    def test_empty(self):
+        assert get_tool_definitions_from_anthropic_tools([]) == []
+        assert get_tool_definitions_from_anthropic_tools(None) == []
+
+    def test_tool_definition(self):
+        tools = [
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "input_schema": {"type": "object", "properties": {"city": {"type": "string"}}},
+            }
+        ]
+
+        assert get_tool_definitions_from_anthropic_tools(tools) == [
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "schema": {"type": "object", "properties": {"city": {"type": "string"}}},
+            }
+        ]
+
+    def test_deferred_tool_omits_description_and_schema(self):
+        tools = [
+            {
+                "name": "deferred",
+                "description": "should not be captured",
+                "input_schema": {"type": "object"},
+                "defer_loading": True,
+            }
+        ]
+
+        assert get_tool_definitions_from_anthropic_tools(tools) == [
+            {"name": "deferred", "description": "", "schema": {}}
+        ]

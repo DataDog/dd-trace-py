@@ -38,7 +38,7 @@ _TASK_CONTEXT_IS_READABLE = sys.version_info >= (3, 12)
 _task_span_finalizers: dict[int, weakref.finalize[..., typing.Any]] = {}
 
 
-def _clear_anyio_thread_span() -> None:
+def _safe_clear_thread_span() -> None:
     try:
         _span_links.clear_thread_span()
     except Exception:  # nosec B110
@@ -49,11 +49,11 @@ def _run_with_anyio_span(func: typing.Callable[..., typing.Any], *args: typing.A
     try:
         _span_links.link_thread_span_context()
     except Exception:  # nosec B110
-        _clear_anyio_thread_span()
+        _safe_clear_thread_span()
     try:
         return func(*args)
     finally:
-        _clear_anyio_thread_span()
+        _safe_clear_thread_span()
 
 
 def _clear_native_task_span(task_id: int) -> None:
@@ -110,9 +110,7 @@ def _(to_thread: ModuleType) -> None:
         kwargs: dict[str, typing.Any],
     ) -> typing.Any:
         try:
-            func = typing.cast(
-                "typing.Optional[typing.Callable[..., typing.Any]]", get_argument_value(args, kwargs, 0, "func")
-            )
+            func: typing.Optional[typing.Callable[..., typing.Any]] = get_argument_value(args, kwargs, 0, "func")
             if func is None:
                 return f(*args, **kwargs)
             args, kwargs = set_argument_value(args, kwargs, 0, "func", partial(_run_with_anyio_span, func))

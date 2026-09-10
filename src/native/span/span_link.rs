@@ -9,6 +9,10 @@ use pyo3::{
 use crate::ddtrace_utils::flatten_key_value_vec as flatten_key_value_vec_fn;
 use crate::py_string::PyBackedString;
 
+/// Marks a `flags` value as set, in the native `u32` where the Python `Option<i64>` cannot survive.
+/// A link to a dropped trace carries `Some(0)`, so a reader needs this bit to tell it from `None`.
+pub(crate) const SPAN_LINK_FLAGS_PRESENT: u32 = 1 << 31;
+
 #[pyo3::pyclass(frozen, name = "SpanLink", module = "ddtrace.internal.native._native")]
 pub struct SpanLink {
     #[pyo3(get)]
