@@ -12,7 +12,7 @@ include:
   - local: ".gitlab/retry-policies.yml"
   - local: ".gitlab/retry-policies-main.yml"
     rules:
-      - if: $CI_COMMIT_REF_NAME == "main"
+      - if: $CI_COMMIT_REF_NAME == "gnufede/ci-no-retry-on-main-test"
 
 workflow:
   auto_cancel:

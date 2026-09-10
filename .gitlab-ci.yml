@@ -67,7 +67,7 @@ include:
   # duplicating concrete job definitions or changing job identities.
   - local: ".gitlab/retry-policies-main.yml"
     rules:
-      - if: $CI_COMMIT_REF_NAME == "main"
+      - if: $CI_COMMIT_REF_NAME == "gnufede/ci-no-retry-on-main-test"
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -590,7 +590,7 @@ prof-correctness:
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
-    - if: $CI_COMMIT_REF_NAME == "main"
+    - if: $CI_COMMIT_REF_NAME == "gnufede/ci-no-retry-on-main-test"
     - changes:
         - .gitlab-ci.yml
         - ddtrace/internal/datadog/profiling/**/*
