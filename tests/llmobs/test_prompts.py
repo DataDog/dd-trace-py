@@ -181,6 +181,65 @@ class TestPrompts:
         assert messages[0]["content"] == "You are helpful assistant."
         assert messages[1]["content"] == "What is Python?"
 
+    def test_render_chat_message_placeholders(self):
+        template = [
+            {"role": "system", "content": "You are {{persona}}."},
+            {"type": "placeholder", "name": "history"},
+            {"type": "placeholder", "name": "examples"},
+            {"type": "placeholder", "name": "history"},
+            {"role": "user", "content": "{{question}}"},
+        ]
+        prompt = ManagedPrompt(id="assistant", version="1", label=None, source="registry", template=template)
+        history = [{"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}}]
+
+        assert prompt.format(persona="concise", question="Help", history=history, examples=[]) == [
+            {"role": "system", "content": "You are concise."},
+            {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
+            {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
+            {"role": "user", "content": "Help"},
+        ]
+
+    @pytest.mark.parametrize(
+        "variables, error",
+        [
+            ({}, "Missing value"),
+            ({"history": "not-a-list"}, "must be a list"),
+            ({"history": [{"role": "user"}]}, "string role and content"),
+            (
+                {"history": [{"type": "placeholder", "name": "nested", "role": "user", "content": "x"}]},
+                "string role and content",
+            ),
+        ],
+    )
+    def test_render_chat_message_placeholder_errors(self, variables, error):
+        prompt = ManagedPrompt(
+            id="assistant",
+            version="1",
+            label=None,
+            source="registry",
+            template=[{"type": "placeholder", "name": "history"}],
+        )
+
+        with pytest.raises(ValueError, match=error):
+            prompt.format(**variables)
+
+    def test_message_placeholder_annotation_excludes_runtime_messages(self, tracer):
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False)
+        template = [
+            {"role": "system", "content": "You are {{persona}}."},
+            {"type": "placeholder", "name": "history"},
+        ]
+        prompt = ManagedPrompt(id="assistant", version="1", label=None, source="registry", template=template)
+
+        annotation = prompt.to_annotation_dict(persona="concise", history=[{"role": "user", "content": "private"}])
+
+        with LLMObs.annotation_context(prompt=annotation):
+            with LLMObs.llm(model_name="test-model", name="test") as span:
+                prompt_data = get_llmobs_input_prompt(span)
+
+        assert prompt_data["chat_template"] == template
+        assert prompt_data["variables"] == {"persona": "concise"}
+
     def test_caching_returns_from_cache(self):
         """Second call returns cached prompt without API call."""
         call_count = 0

@@ -183,7 +183,7 @@ from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.types import Agent
-from ddtrace.llmobs.types import ChatMessage
+from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
@@ -2129,7 +2129,7 @@ class LLMObs(Service):
     def create_prompt(
         cls,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         title: str = "",
         description: str = "",
@@ -2172,7 +2172,7 @@ class LLMObs(Service):
     def create_prompt_version(
         cls,
         prompt_id: str,
-        template: list[ChatMessage],
+        template: Sequence[ChatTemplateItem],
         *,
         description: str = "",
         user_version: str = "",

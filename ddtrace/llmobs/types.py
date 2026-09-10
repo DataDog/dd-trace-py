@@ -1,5 +1,6 @@
 from typing import Any
 from typing import Callable
+from typing import Literal
 from typing import Optional
 from typing import TypedDict
 from typing import Union
@@ -95,6 +96,16 @@ class ChatMessage(TypedDict):
 
     role: str
     content: str
+
+
+class MessagePlaceholder(TypedDict):
+    """A named insertion point for runtime messages in a chat prompt template."""
+
+    type: Literal["placeholder"]
+    name: str
+
+
+ChatTemplateItem = Union[ChatMessage, MessagePlaceholder]
 
 
 class PromptResponse(TypedDict, total=False):
