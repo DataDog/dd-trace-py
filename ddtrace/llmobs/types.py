@@ -200,6 +200,7 @@ class Prompt(TypedDict, total=False):
         rag_query_variables: list[str] - a list of variable key names that contains query information
         prompt_uuid: str - the uuid of the prompt (set internally by LLMObs.get_prompt)
         prompt_version_uuid: str - the uuid of the prompt version (set internally by LLMObs.get_prompt)
+        config: dict[str, JSONType] - application-consumed configuration stored with this prompt version
     """
 
     version: str
@@ -213,6 +214,7 @@ class Prompt(TypedDict, total=False):
     rag_query_variables: list[str]
     prompt_uuid: str
     prompt_version_uuid: str
+    config: dict[str, JSONType]
 
 
 class Agent(TypedDict, total=False):
