@@ -3,12 +3,12 @@ import kombu
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 
 # project
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -72,23 +72,6 @@ def patch():
     _w("kombu", "Producer._publish", traced_publish)
     _w("kombu", "Consumer.receive", traced_receive)
 
-    # We do not provide a service for producer spans since they represent
-    # external calls to another service.
-    # Instead the service should be inherited from the parent.
-    if config.service:
-        prod_service = None
-    # DEV: backwards-compatibility for users who set a kombu service
-    else:
-        prod_service = config.kombu.service or DEFAULT_SERVICE
-
-    Pin(
-        service=schematize_service_name(prod_service),
-    ).onto(kombu.messaging.Producer)
-
-    Pin(service=schematize_service_name(config.kombu.service or config.kombu["service_name"])).onto(
-        kombu.messaging.Consumer
-    )
-
 
 def unpatch():
     if getattr(kombu, "_datadog_patch", False):
@@ -102,9 +85,19 @@ def unpatch():
 #
 
 
+def _producer_service_name():
+    # Producer spans represent calls to an external service and inherit the
+    # parent service unless the legacy Kombu service behavior is in use.
+    service = None if config.service else config.kombu.service or DEFAULT_SERVICE
+    return schematize_service_name(service)
+
+
+def _consumer_service_name():
+    return schematize_service_name(config.kombu.service or config.kombu["service_name"])
+
+
 def traced_receive(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     # Signature only takes 2 args: (body, message)
@@ -116,7 +109,7 @@ def traced_receive(func, instance, args, kwargs):
         schematize_messaging_operation(kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING),
         span_type=SpanTypes.WORKER,
     ) as s:
-        set_service_and_source(s, pin.service, config.kombu)
+        set_service_and_source(s, _consumer_service_name(), config.kombu)
         s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
@@ -136,15 +129,14 @@ def traced_receive(func, instance, args, kwargs):
 
 
 def traced_publish(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     with tracer.trace(
         schematize_messaging_operation(kombux.PUBLISH_NAME, provider="kombu", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.WORKER,
     ) as s:
-        set_service_and_source(s, pin.service, config.kombu)
+        set_service_and_source(s, _producer_service_name(), config.kombu)
         s._set_attribute(COMPONENT, config.kombu.integration_name)
 
         # set span.kind to the type of operation being performed
@@ -154,8 +146,6 @@ def traced_publish(func, instance, args, kwargs):
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
         s._set_attribute(kombux.EXCHANGE, exchange_name)
-        if pin.tags:
-            s.set_tags(pin.tags)
         s._set_attribute(kombux.ROUTING_KEY, get_routing_key_from_args(args))
         s.set_tags(extract_conn_tags(instance.channel.connection))
         s._set_attribute(kombux.BODY_LEN, get_body_length_from_args(args))
