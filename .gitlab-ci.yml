@@ -316,8 +316,8 @@ check_requirements_lockfiles:
   needs: []
   extends: .testrunner
   script:
-    - pip install toml==0.10.2 pyyaml==6.0.2
-    - scripts/test-env check
+    - pip install toml==0.10.2
+    - scripts/test-requirements check
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 

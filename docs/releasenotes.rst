@@ -127,7 +127,7 @@ Generating a Release Note
 
 You can generate a release note with the command line tool ``reno`` via ``uv``::
 
-    $ uv run --no-project --with reno reno new <title-slug>
+    $ uvx --from 'reno==4.1.0' reno new <title-slug>
 
 The ``<title-slug>`` is used as the prefix for a new file created in ``releasenotes/notes``.
 The ``<title-slug>`` is used internally and is not visible in the the product documentation.

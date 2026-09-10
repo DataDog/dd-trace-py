@@ -8,7 +8,6 @@ build_base_venvs:
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: '12'
     PIP_VERBOSE: '0'
-    DD_PROFILING_NATIVE_TESTS: '1'
     DD_USE_SCCACHE: '1'
     # S3-backed sccache, matches the wheel-build jobs in .gitlab/package.yml
     SCCACHE_BUCKET: 'dd-trace-py-builds'
@@ -39,7 +38,10 @@ build_base_venvs:
     fi
     echo "Running smoke tests"
     # Do not pass -s here: this job owns the editable install that materializes source-tree artifacts such as libddwaf.
-    smoke_hash=$(scripts/test-env list smoke_test --python "$PYTHON_VERSION")
+    smoke_hash=$(
+      scripts/run-tests --all-suites --list |
+        jq -r --arg python "$PYTHON_VERSION" '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == $python) | .hash'
+    )
     rm -rf ".cache/uv-test-environments/${{smoke_hash}}-"*
     scripts/run-tests --venv "$smoke_hash"
     # Preserve source-tree imports while building editable metadata only once per Python.

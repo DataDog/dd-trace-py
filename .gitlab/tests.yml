@@ -40,7 +40,7 @@ include:
         scripts/run-tests -s --venv "${environment_hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
-        "Changes detected in uv locks. Run scripts/test-env lock and commit the result."
+        "Changes detected in uv locks. Run scripts/test-requirements lock and commit the result."
 
 .test_base_snapshot:
   extends: .test_base

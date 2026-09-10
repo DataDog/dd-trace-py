@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       integration_name:
-        description: "Test suite name to update"
+        description: "Test environment name to update"
         required: true
         type: string
       package_name:
@@ -87,7 +87,7 @@ jobs:
       - name: Regenerate test locks
         env:
           TARGET_PACKAGE: ${{ inputs.integration_name }}
-        run: scripts/test-env refresh "$TARGET_PACKAGE" >/dev/null
+        run: scripts/test-requirements lock --upgrade "$TARGET_PACKAGE" >/dev/null
 
       - name: Run integration registry update
         run: python scripts/integration_registry/update_and_format_registry.py

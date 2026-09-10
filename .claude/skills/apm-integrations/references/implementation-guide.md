@@ -73,11 +73,12 @@ See the **llmobs-integrations** skill for the full LLM-specific implementation g
 Add a matrix entry to the nearest `suitespec.yml` file. Follow a similar integration's dependency and Python-version combinations.
 
 Key rules:
-- `name` must match the integration name used in `PATCH_MODULES`
+- A variant's `name` is the exact environment name passed to `scripts/test-requirements lock`; use the integration name as
+  its base and add a qualifier when needed
 - `command` points to the test directory
 - Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
 - Cover the oldest supported and latest compatible dependency versions
-- Regenerate the committed locks with `scripts/test-env lock <suite>`
+- Regenerate the committed locks with `scripts/test-requirements lock <environment-name>`
 
 ### suitespec.yml
 
