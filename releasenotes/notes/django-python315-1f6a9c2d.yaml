@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    django: Adds support for running the Django integration on Python 3.15.
