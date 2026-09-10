@@ -252,6 +252,8 @@ async def traced_getmany(func, instance, args, kwargs):
         topic=None,
         bootstrap_servers=bootstrap_servers,
         group_id=group_id,
+        use_active_context=False,
+        activate=False,
         component=config.aiokafka.integration_name,
         integration_config=config.aiokafka,
         service=trace_utils.ext_service(None, config.aiokafka),
