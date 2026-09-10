@@ -608,10 +608,8 @@ prof-correctness:
       # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
       TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
       echo "Triggering prof-correctness for commit ${CI_COMMIT_SHA} (scenarios: ${TEST_SCENARIOS})"
-      # Temporary e2e probe (--ref): remove after the compare-style fail.
       gh workflow run downstream-python.yml \
         --repo DataDog/prof-correctness \
-        --ref vlad/downstream-max-pp-0 \
         -f dd_trace_py_commit_sha="${CI_COMMIT_SHA}" \
         -f "test_scenarios=${TEST_SCENARIOS}"
 
