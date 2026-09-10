@@ -20,6 +20,7 @@ Tracing
 .. autoclass:: ddtrace.trace.Context
     :members:
     :undoc-members:
+    :inherited-members:
 
 .. autoclass:: ddtrace.propagation.http.HTTPPropagator
     :members:

@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    tracing: Adds OpenTelemetry consistent probability sampling state (``ot.th`` and ``ot.rv``) to spans exported
+    through OTLP when ``OTEL_TRACES_EXPORTER=otlp`` is configured, allowing downstream collectors to preserve and
+    extrapolate sampling decisions.

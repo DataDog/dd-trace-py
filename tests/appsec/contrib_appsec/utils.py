@@ -1468,7 +1468,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
 
         with (
             override_global_config(
-                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, _apm_tracing_enabled=apm_tracing_enabled)
+                dict(_asm_enabled=True, _api_security_enabled=apisec_enabled, apm_tracing_enabled=apm_tracing_enabled)
             ),
             mock_metric_points() as mocked,
         ):
@@ -1754,7 +1754,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ),
         ]
         + [
-            ("ssrf", {f"url_{p1}_1": "169.254.169.254", f"url_{p2}_2": "169.254.169.253"}, "rasp-934-100", (f1, f2))
+            ("ssrf", {f"url_{p1}_1": "127.0.0.1:1", f"url_{p2}_2": "127.0.0.1:2"}, "rasp-934-100", (f1, f2))
             for (p1, f1), (p2, f2) in itertools.product(
                 [
                     ("urlopen_string", "do_open"),
@@ -1762,6 +1762,8 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                     ("requests", "urlopen"),
                     ("httpx", "send"),
                     ("httpx_async", "send"),
+                    ("httpx2", "send"),
+                    ("httpx2_async", "send"),
                 ],
                 repeat=2,
             )
@@ -2213,7 +2215,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
-    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async"])
+    @pytest.mark.parametrize(
+        "endpoint", ["urlopen_request", "urlopen_string", "httpx", "httpx_async", "httpx2", "httpx2_async"]
+    )
     def test_api10(self, endpoint, interface, get_tag):
         """test api10 on downstream request headers on rasp endpoint"""
         TAG_AGENT: str = "TAG_API10_REQ_HEADERS"
@@ -2243,7 +2247,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             ("response-status", None, "TAG_API10_RESP_STATUS"),
         ],
     )
-    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
     def test_api10_addresses(self, integration, route, data, tag, interface, api10_http_server_port, get_tag):
         """test api10 on downstream request/response headers and body"""
 
@@ -2266,7 +2270,7 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
             c_tag = get_tag("_dd.appsec.trace.mark")
             assert c_tag == tag, f"[{c_tag}] is not [{tag}] {self.body(response)}"
 
-    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async"])
+    @pytest.mark.parametrize("integration", ["", "_requests", "_httpx", "_httpx_async", "_httpx2", "_httpx2_async"])
     def test_api10_addresses_redirects(self, integration, interface, api10_http_server_port, entry_span):
         INSPECTED_FINAL_RESP_BODY = "apiA-100-004"
         INSPECTED_REDIRECT_RESP_HEADERS = "apiA-100-006"

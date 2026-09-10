@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: fixes an issue where ``_DD_TRACE_WRITER_ADDITIONAL_HEADERS`` header values
+    containing a whitespace (for example ``Bearer <token>``) were incorrectly parsed, resulting in
+    a truncated header value that caused LLM Observability spans to be dropped.
