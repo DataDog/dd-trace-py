@@ -130,12 +130,16 @@ VENDOR_DIR = DDTRACE_DIR / "vendor"
 CARGO_TARGET_DIR = NATIVE_CRATE.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
 DD_CARGO_ARGS = shlex.split(os.getenv("DD_CARGO_ARGS", ""))
 
+# TODO(py-315): locked pyo3 is 0.28.3 (ABI3_MAX_MINOR = 14). Native 3.15
+# support is pyo3 0.29.0, but libdatadog v43.0.0 libdd-ffe still requires
+# pyo3 = "^0.28" and cargo cannot unify (both crates links = "python").
+# Keep this env-var workaround until libdd publishes a tag that allows ^0.29.
+if sys.version_info >= (3, 15):
+    os.environ.setdefault("PYO3_USE_ABI3_FORWARD_COMPATIBILITY", "1")
+
 
 def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
-
-
-BUILD_PROFILING_NATIVE_TESTS = _env_truthy("DD_PROFILING_NATIVE_TESTS")
 
 
 def is_musl_libc() -> bool:
@@ -304,7 +308,7 @@ def is_64_bit_python():
 
 
 rust_features = ["stats"]
-if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
     rust_features.append("profiling")
     if not SERVERLESS_BUILD:
         rust_features.append("crashtracker")
@@ -896,7 +900,7 @@ class CustomBuildExt(build_ext):
             self.build_rust()
 
         # Build libdd_wrapper before building other extensions that depend on it
-        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+        if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
             with _time_phase("build_libdd_wrapper"):
                 self.build_libdd_wrapper()
 
@@ -1483,10 +1487,7 @@ class CustomBuildExt(build_ext):
             ext.source_dir, cmake_build_dir, output_dir, extension_basename, ext.build_type
         )
 
-        if BUILD_PROFILING_NATIVE_TESTS:
-            cmake_args += ["-DBUILD_TESTING=ON"]
-        else:
-            cmake_args += ["-DBUILD_TESTING=OFF"]
+        cmake_args += ["-DBUILD_TESTING=OFF"]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
@@ -1806,7 +1807,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 15):
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 16):
         # Memory profiler now uses CMake to support Abseil dependency
         MEMALLOC_DIR = HERE / "ddtrace" / "profiling" / "collector"
         memalloc_cmake_args = []
@@ -1868,7 +1869,7 @@ if os.getenv("DD_CYTHONIZE", "1").lower() in ("1", "yes", "on", "true"):
             ),
         ]
 
-        if sys.version_info < (3, 15):
+        if sys.version_info < (3, 16):
             _cython_sources += [
                 CythonExtension(
                     "ddtrace.profiling._threading",
@@ -1945,7 +1946,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"]
             + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
-            + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,

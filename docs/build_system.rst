@@ -201,17 +201,6 @@ These environment variables modify aspects of the build process.
     version_added:
         v3.3.0:
 
-  DD_PROFILING_NATIVE_TESTS:
-    type: Boolean
-    default: False
-
-    description: |
-        If set to 1, it compiles the profiling native tests. This is useful only when modifying the library’s profiling features and
-        is disabled by default.
-
-    version_added:
-        v2.16.0:
-
   DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY:
     type: Boolean
     default: False

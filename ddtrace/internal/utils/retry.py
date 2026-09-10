@@ -47,6 +47,7 @@ def retry(
             # Last chance to succeed
             try:
                 result = f(*args, **kwargs)
+                exception = None
             except Exception as e:
                 exception = e
                 result = e
