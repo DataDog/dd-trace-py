@@ -88,12 +88,18 @@ def check_python_tags_current(repo_root: Path) -> list[str]:
     if not pyproject.exists():
         return [f"Cannot cross-check PYTHON_TAGS: {pyproject} not found"]
 
-    with pyproject.open("rb") as f:
-        requires_python: str | None = tomllib.load(f).get("project", {}).get("requires-python")
+    try:
+        with pyproject.open("rb") as f:
+            requires_python: str | None = tomllib.load(f).get("project", {}).get("requires-python")
+    except Exception as exc:
+        return [f"Cannot cross-check PYTHON_TAGS: failed to read {pyproject}: {exc}"]
     if not requires_python:
         return ["Cannot cross-check PYTHON_TAGS: project.requires-python is unset in pyproject.toml"]
 
-    specifier: SpecifierSet = SpecifierSet(requires_python)
+    try:
+        specifier: SpecifierSet = SpecifierSet(requires_python)
+    except Exception as exc:
+        return [f"Cannot cross-check PYTHON_TAGS: invalid requires-python ({requires_python}): {exc}"]
     problems: list[str] = []
 
     excluded: list[str] = [t for t in PYTHON_TAGS if not specifier.contains(f"3.{python_tag_minor(t)}")]
