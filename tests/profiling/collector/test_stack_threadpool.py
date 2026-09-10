@@ -43,10 +43,9 @@ def test_link_span_plain_context_uses_span_id_as_local_root(monkeypatch: pytest.
         pytest.skip("stack profiler not available")
 
     calls = []
-    monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
+    monkeypatch.setattr(stack_module._stack, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
-    collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
+    stack_module.link_span(ctx)
 
     assert calls == [(456, 456, None)]
 
@@ -59,11 +58,10 @@ def test_link_span_context_reads_profiler_meta(monkeypatch: pytest.MonkeyPatch, 
         pytest.skip("stack profiler not available")
 
     calls = []
-    monkeypatch.setattr(stack_module, "link_span", lambda *args: calls.append(args))
+    monkeypatch.setattr(stack_module._stack, "link_span", lambda *args: calls.append(args))
     ctx = Context(trace_id=123, span_id=456)
     context_meta.attach_profiler_link(ctx, local_root_span_id=789, span_type="web")
-    collector = stack.StackCollector(tracer=tracer)
-    collector._link_span(tracer.context_provider, ctx)
+    stack_module.link_span(ctx)
 
     assert calls == [(456, 789, "web")]
 
