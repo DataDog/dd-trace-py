@@ -43,7 +43,7 @@ include:
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
-        "Changes detected in committed test locks. Run scripts/test-env lock and commit the result."
+        "Changes detected in committed test locks. Run scripts/test-requirements lock and commit the result."
       ./scripts/check-diff "scripts/integration_registry/registry.yaml" \
         "Registry YAML file (scripts/integration_registry/registry.yaml) was modified. Please run: scripts/integration_registry/update_and_format_registry.py and commit the changes."
 

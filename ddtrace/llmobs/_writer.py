@@ -151,8 +151,11 @@ class BaseLLMObsWriter(PeriodicService):
 
         self._send_payload_with_retry = fibonacci_backoff_with_jitter(
             attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self.interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, Response),
+            initial_wait=0.618 * self._timeout / (1.618**self.RETRY_ATTEMPTS) / 2,
+            # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
+            until=lambda result: (
+                isinstance(result, Response) and result.status not in (408, 429) and result.status < 500
+            ),
         )(self._send_payload)
 
     def start(self, *args, **kwargs):
@@ -213,9 +216,16 @@ class BaseLLMObsWriter(PeriodicService):
         if not enc_llm_events:
             return
         try:
-            self._send_payload_with_retry(enc_llm_events, len(events))
-        except Exception:
-            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="connection_error")
+            response = self._send_payload_with_retry(enc_llm_events, len(events))
+            if response.status >= 300:
+                telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error="http_error")
+        except Exception as error:
+            error_type = (
+                "http_error"
+                if isinstance(error, RetryError) and error.args and isinstance(error.args[0], Response)
+                else "connection_error"
+            )
+            telemetry.record_dropped_payload(len(events), event_type=self.EVENT_TYPE, error=error_type)
             logger.error(
                 "failed to send %d LLMObs %s events to %s",
                 len(events),
@@ -240,7 +250,6 @@ class BaseLLMObsWriter(PeriodicService):
                     resp.read(),
                     extra={"send_to_telemetry": False},
                 )
-                telemetry.record_dropped_payload(num_events, event_type=self.EVENT_TYPE, error="http_error")
             else:
                 logger.debug("sent %d LLMObs %s events to %s", num_events, self.EVENT_TYPE, self._url)
             return Response.from_http_response(resp)
@@ -319,16 +328,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         try:
             return self._request_with_retry(method, path, body, timeout)
         except RetryError as e:
-            # Return the last response if all retries were exhausted on 5xx
+            # Return the last response if all retries were exhausted on a retryable HTTP error.
             if isinstance(e.args[0], Response):
                 return e.args[0]
             raise
 
     @fibonacci_backoff_with_jitter(
         attempts=BaseLLMObsWriter.RETRY_ATTEMPTS,
-        # Retries on 5xx server errors and connection failures, returns immediately on 2xx/4xx
+        # Retry on timeouts, rate limits, 5xx server errors, and connection failures.
         initial_wait=0.618 * TIMEOUT / (1.618**BaseLLMObsWriter.RETRY_ATTEMPTS) / 2,
-        until=lambda result: isinstance(result, Response) and result.status < 500,
+        until=lambda result: isinstance(result, Response) and result.status not in (408, 429) and result.status < 500,
     )
     def _request_with_retry(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {"Content-Type": "application/json", **self._auth_headers()}

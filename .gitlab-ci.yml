@@ -317,8 +317,7 @@ check_requirements_lockfiles:
   extends: .testrunner
   script:
     - pip install toml==0.10.2
-    - scripts/test-env check
-    - scripts/check-diff '.riot/requirements/' 'Mismatches found between .riot/requirements/*.txt and riotfile.py. Run scripts/compile-and-prune-test-requirements and commit the result.'
+    - scripts/test-requirements check
     - python scripts/requirements_to_csv.py
     - scripts/check-diff 'requirements.csv' 'Tracer dependency requirements in requirements.csv is out of date. Run `python scripts/requirements_to_csv.py` and commit the result.'
 
