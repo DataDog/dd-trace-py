@@ -9,14 +9,17 @@ from types import CoroutineType
 
 import pytest
 
+from ddtrace.internal.compat import CURRENT_MAX_PY_VERSION
 from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
-from ddtrace.internal.compat import PY_315_VERSION_INFO
+from ddtrace.internal.compat import NEXT_PY_VERSION
+from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 
-# wrap() is live on 3.15 until 3.16. Do not skipif on NEXT_MAX_PY (3.15).
-_WRAP_ON_315: bool = PY_315_VERSION_INFO <= PYTHON_VERSION_INFO[:2] < (3, 16)
+# wrap() is live on CURRENT_MAX_PY_VERSION until NEXT_PY_VERSION_INFO.
+# Do not skipif on NEXT_MAX_PY (packaging +1, still 3.15).
+_WRAP_ON_315: bool = CURRENT_MAX_PY_VERSION <= PYTHON_VERSION_INFO[:2] < NEXT_PY_VERSION_INFO
 
 
 def test_max_and_next_max_py_version_constants() -> None:
@@ -25,10 +28,17 @@ def test_max_and_next_max_py_version_constants() -> None:
     assert NEXT_MAX_PY == (3, 15)
 
 
-def test_py315_api_floor_is_not_aliased_to_max() -> None:
-    assert PY_315_VERSION_INFO == (3, 15)
-    assert PY_315_VERSION_INFO is not MAX_PY
-    assert PY_315_VERSION_INFO is not NEXT_MAX_PY
+def test_current_max_py_version_is_not_aliased_to_packaging() -> None:
+    assert CURRENT_MAX_PY_VERSION == (3, 15)
+    assert CURRENT_MAX_PY_VERSION is not MAX_PY
+    assert CURRENT_MAX_PY_VERSION is not NEXT_MAX_PY
+
+
+def test_next_py_version_is_wrap_fail_close() -> None:
+    assert NEXT_PY_VERSION_INFO == (3, 16)
+    assert NEXT_PY_VERSION == "3.16"
+    assert NEXT_PY_VERSION_INFO is not NEXT_MAX_PY
+    assert NEXT_PY_VERSION_INFO is not CURRENT_MAX_PY_VERSION
 
 
 def test_wrapping_modules_import():
@@ -102,7 +112,7 @@ def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
     """wrap() must fail closed from 3.16 on."""
     import ddtrace.internal.wrapping as wrapping
 
-    monkeypatch.setattr(wrapping, "PY", (3, 16))
+    monkeypatch.setattr(wrapping, "PY", NEXT_PY_VERSION_INFO)
 
     def f() -> None:
         return None

@@ -11,10 +11,12 @@ import wrapt
 
 __all__ = [
     "maybe_stringify",
+    "CURRENT_MAX_PY_VERSION",
     "MAX_PY",
-    "NEXT_PY_UNSUPPORTED_MSG",
     "NEXT_MAX_PY",
-    "PY_315_VERSION_INFO",
+    "NEXT_PY_UNSUPPORTED_MSG",
+    "NEXT_PY_VERSION",
+    "NEXT_PY_VERSION_INFO",
     "PYTHON_VERSION_INFO",
 ]
 
@@ -25,14 +27,19 @@ PYTHON_VERSION_INFO = sys.version_info
 MAX_PY: tuple[int, int] = (3, 14)
 
 # First unsupported CPython for packaging (last-supported+1). wrap() fail-closes
-# at (3, 16), not here.
+# at NEXT_PY_VERSION_INFO, not here.
 NEXT_MAX_PY: tuple[int, int] = (MAX_PY[0], MAX_PY[1] + 1)
-NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Python 3.16 and later)"
 
-# CPython 3.15 introduced sys.monitoring PY_UNWIND / PEP 810 import packing.
+# CPython API floor / wrap-live (sys.monitoring PY_UNWIND, PEP 810 import packing).
 # Currently equal to NEXT_MAX_PY; do not alias — they diverge when MAX_PY bumps.
 # Not MAX_PY — do not bump this when MAX_PY moves.
-PY_315_VERSION_INFO: tuple[int, int] = (3, 15)
+CURRENT_MAX_PY_VERSION: tuple[int, int] = (3, 15)
+
+# First CPython that wrapping / bytecode injection do not support yet.
+# Not NEXT_MAX_PY — packaging +1 is still (3, 15) until 3.15 GAs.
+NEXT_PY_VERSION_INFO: tuple[int, int] = (3, 16)
+NEXT_PY_VERSION: str = "%s.%s" % NEXT_PY_VERSION_INFO
+NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Python %s and later)" % NEXT_PY_VERSION
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:

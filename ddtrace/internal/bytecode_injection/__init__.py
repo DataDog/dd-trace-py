@@ -9,7 +9,7 @@ from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import PY_315_VERSION_INFO
+from ddtrace.internal.compat import CURRENT_MAX_PY_VERSION
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -31,9 +31,9 @@ class InvalidLine(Exception):
     """
 
 
-# mypy only folds sys.version_info against literals. PY_315_VERSION_INFO is the
+# mypy only folds sys.version_info against literals. CURRENT_MAX_PY_VERSION is the
 # runtime floor; the literal keeps this 3.15-only import off the 3.10 checker.
-assert PY_315_VERSION_INFO == (3, 15)  # nosec B101
+assert CURRENT_MAX_PY_VERSION == (3, 15)  # nosec B101
 if sys.version_info >= (3, 15):
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
