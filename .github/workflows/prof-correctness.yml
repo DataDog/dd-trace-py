@@ -29,7 +29,6 @@ permissions:
 jobs:
   trigger-downstream:
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Resolve commit SHA
         id: sha

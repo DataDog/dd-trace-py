@@ -581,7 +581,6 @@ prof-correctness:
   tags: ["arch:amd64"]
   needs:
     - job: "upload all"
-  allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
