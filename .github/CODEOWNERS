@@ -25,15 +25,16 @@ tests/integration/                  @DataDog/apm-core-python
 # Files which can be approved by anyone
 # DEV: This helps not requiring apm-core-python to review new files added
 #      or files which changes often with most PRs
+# tests file are kept under @DataDog/apm-core-python to have a real owner.
 ddtrace/constants.py                @DataDog/apm-python
 releasenotes/                       @DataDog/apm-python
-tests/snapshots/                    @DataDog/apm-python
+tests/snapshots/                    @DataDog/apm-core-python @DataDog/apm-python
 riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 .uv/                                @DataDog/python-guild
 CHANGELOG.md                        @DataDog/apm-python
 ddtrace/internal/telemetry/         @DataDog/apm-python
-tests/telemetry                     @DataDog/apm-python
+tests/telemetry                     @DataDog/apm-core-python @DataDog/apm-python
 supported-configurations.json       @DataDog/apm-python
 ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 
@@ -41,6 +42,7 @@ ddtrace/internal/settings/_supported_configurations.py @DataDog/apm-python
 # Repository tooling defaults. Domain-specific rules below take precedence.
 AGENTS.md                           @DataDog/python-guild
 .claude/                            @DataDog/python-guild
+.llm-validation/                    @DataDog/python-guild
 .cursor/                            @DataDog/python-guild
 .sg/                                @DataDog/python-guild
 hooks/                              @DataDog/python-guild
@@ -407,3 +409,16 @@ scripts/integration_registry/                   @DataDog/apm-idm-python
 
 # Benchmarks CI setup
 /.gitlab/benchmarks             @DataDog/apm-ecosystems-performance @DataDog/apm-core-python
+
+# Per-team microbenchmark SLO thresholds. Each file is owned by the team
+# responsible for its gates, so editing a threshold routes review to that
+# team via CODEOWNERS (last match wins, overriding the .gitlab/benchmarks
+# default above). scripts/lint slo-ownership checks this stays consistent.
+.gitlab/benchmarks/slos/apm-core-python.yml              @DataDog/apm-core-python
+.gitlab/benchmarks/slos/apm-sdk-capabilities-python.yml @DataDog/apm-sdk-capabilities-python
+.gitlab/benchmarks/slos/asm-python.yml                  @DataDog/asm-python
+.gitlab/benchmarks/slos/apm-python.yml                   @DataDog/apm-python
+.gitlab/benchmarks/slos/apm-idm-python.yml               @DataDog/apm-idm-python
+.gitlab/benchmarks/slos/profiling-python.yml             @DataDog/profiling-python
+.gitlab/benchmarks/slos/debugger-python.yml              @DataDog/debugger-python
+.gitlab/benchmarks/slos/feature-flagging-and-experimentation-sdk.yml @DataDog/feature-flagging-and-experimentation-sdk
