@@ -291,10 +291,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     event = KafkaProcessEvent(
         operation=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         topic=topic,
-        bootstrap_servers=instance._dd_bootstrap_servers,
         group_id=instance._group_id,
         distributed_context=distributed_context,
         use_active_context=distributed_context is None,
+        activate=distributed_context is None,
+        span_links=links,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
         service=trace_utils.ext_service(pin, config.kafka),
@@ -302,8 +303,6 @@ def _instrument_message(messages, pin, start_ns, instance, err):
 
     with core.context_with_event(event) as event_ctx:
         span = span_from_context(event_ctx)
-        if links:
-            core.dispatch("kafka.consume.link_spans", (span, links))
 
         # reset span start time to before function call
         span.start_ns = start_ns

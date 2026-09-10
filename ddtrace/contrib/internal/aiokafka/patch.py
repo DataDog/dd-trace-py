@@ -300,7 +300,9 @@ async def traced_getmany(func, instance, args, kwargs):
                             for key, val in record.headers
                             if val is not None
                         }
-                        span.link_span(HTTPPropagator.extract(dd_headers))
+                        link_ctx = HTTPPropagator.extract(dd_headers)
+                        if link_ctx.trace_id and link_ctx.span_id:
+                            event.span_links.append(link_ctx)
 
         core.dispatch("aiokafka.getmany.message", (instance, ctx, messages))
 

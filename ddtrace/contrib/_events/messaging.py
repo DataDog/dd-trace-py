@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import MutableMapping
 from typing import Optional
@@ -8,6 +9,10 @@ from ddtrace._trace.events import TracingEvent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.core.events import event_field
+
+
+if TYPE_CHECKING:
+    from ddtrace._trace.context import Context
 
 
 class MessagingEvents(str, Enum):
@@ -41,3 +46,4 @@ class MessagingProcessEvent(MessagingEvent):
     span_type = SpanTypes.WORKER
 
     request_headers: Optional[MutableMapping[str, Any]] = event_field(default=None)
+    span_links: list["Context"] = event_field(default_factory=list)
