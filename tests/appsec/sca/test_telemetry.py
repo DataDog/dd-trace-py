@@ -281,8 +281,11 @@ def _make_writer_and_tracker(sca_enabled=False, deps=None, enabled=True):
 
     appsec_telemetry_config.SCA_ENABLED = sca_enabled
     writer = TelemetryWriter.__new__(TelemetryWriter)
-    writer._service_lock = MagicMock()
+    writer._metric_lock = MagicMock()
     writer._enabled = enabled
+    # The native worker is mocked: _report_dependencies() forwards to worker.add_dependency and
+    # returns the reported records, which is what these tests assert on.
+    writer._worker = MagicMock()
     tracker = DependencyTracker()
     if deps:
         tracker._imported_dependencies = deps
@@ -631,82 +634,3 @@ class TestScaTrackerNameNormalization:
             result = update_imported_dependencies({}, ["requests"])
 
         assert result == []
-
-
-class TestScaSnapshotForHeartbeat:
-    """Tests for SCA metadata in extended-heartbeat dependency snapshots."""
-
-    def test_returns_all_entries_serialized(self):
-        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-
-        tracker = DependencyTracker()
-        tracker._imported_dependencies = {
-            "requests": DependencyEntry(name="requests", version="2.28.0", metadata=[]),
-            "flask": DependencyEntry(name="flask", version="3.0.0"),
-        }
-        tracker._imported_dependencies["requests"].add_metadata("CVE-1", "mod", "func", 10)
-
-        snapshot = tracker.snapshot_for_heartbeat()
-
-        assert len(snapshot) == 2
-        by_name = {d["name"]: d for d in snapshot}
-        assert by_name["requests"]["version"] == "2.28.0"
-        assert "metadata" in by_name["requests"]
-        assert len(by_name["requests"]["metadata"]) == 1
-        # flask has metadata=None -> no "metadata" key
-        assert "metadata" not in by_name["flask"]
-
-    def test_includes_already_sent_metadata(self):
-        """Extended heartbeat must re-send sent metadata (include_all_metadata=True)."""
-        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-
-        entry = DependencyEntry(name="requests", version="2.28.0", metadata=[])
-        entry.add_metadata("CVE-1", "mod", "func", 10)
-        entry.mark_all_metadata_sent()
-
-        tracker = DependencyTracker()
-        tracker._imported_dependencies = {"requests": entry}
-
-        snapshot = tracker.snapshot_for_heartbeat()
-        assert len(snapshot[0]["metadata"]) == 1
-
-    def test_serialization_holds_lock_against_concurrent_mutation(self):
-        """Concurrent attach_metadata must not race iteration inside json.dumps.
-
-        Spawns a writer thread repeatedly adding CVEs to a tracked entry while the
-        heartbeat serializer builds snapshots. Without the lock, the writer thread
-        could append to ReachabilityMetadata.value["reached"] mid-serialization —
-        json.dumps on a list being mutated in another thread is not safe.
-        """
-        import threading
-
-        from ddtrace.internal.telemetry.dependency_tracker import DependencyTracker
-
-        appsec_telemetry_config.SCA_ENABLED = True
-        tracker = DependencyTracker()
-        tracker._imported_dependencies["requests"] = DependencyEntry(name="requests", version="2.28.0", metadata=[])
-
-        stop = threading.Event()
-        errors: list[BaseException] = []
-
-        def writer():
-            i = 0
-            while not stop.is_set():
-                try:
-                    tracker.attach_metadata("requests", f"CVE-{i}", "mod", "func", i)
-                    i += 1
-                except BaseException as exc:  # pragma: no cover — asserted below
-                    errors.append(exc)
-                    return
-
-        t = threading.Thread(target=writer, daemon=True)
-        t.start()
-        try:
-            for _ in range(200):
-                snapshot = tracker.snapshot_for_heartbeat()
-                assert snapshot and snapshot[0]["name"] == "requests"
-        finally:
-            stop.set()
-            t.join(timeout=2)
-
-        assert not errors, errors

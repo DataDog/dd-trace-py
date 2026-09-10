@@ -51,6 +51,48 @@ def test_periodic_double_start():
     t.join()
 
 
+@pytest.mark.subprocess(timeout=10)
+def test_periodic_thread_gilstate_reentry_during_thread_state_cleanup():
+    """Thread and context-local destructors may re-enter PyGILState during worker teardown."""
+    import contextvars
+    import ctypes
+    import threading
+
+    from ddtrace.internal._threads import PERIODIC_STOP
+    from ddtrace.internal._threads import PeriodicThread
+
+    ensure = ctypes.pythonapi.PyGILState_Ensure
+    ensure.argtypes = []
+    ensure.restype = ctypes.c_int
+    release = ctypes.pythonapi.PyGILState_Release
+    release.argtypes = [ctypes.c_int]
+    release.restype = None
+
+    local = threading.local()
+    context_value = contextvars.ContextVar("context_value")
+    finalized = []
+
+    class ReenterPyGILState:
+        def __init__(self, kind):
+            self.kind = kind
+
+        def __del__(self):
+            finalized.append(self.kind)
+            state = ensure()
+            release(state)
+
+    def target():
+        local.value = ReenterPyGILState("thread-local")
+        context_value.set(ReenterPyGILState("context-local"))
+        return PERIODIC_STOP
+
+    thread = PeriodicThread(0.001, target, name="SignalUploader", no_wait_at_start=True)
+    thread.start()
+    thread.join()
+
+    assert sorted(finalized) == ["context-local", "thread-local"]
+
+
 def test_periodic_join_positional_timeout_is_honored():
     """Regression: PeriodicThread.join(timeout) passed positionally was ignored.
 
@@ -561,6 +603,63 @@ def test_autorestart_false_service_restarts_in_parent_after_fork():
         "after a fork. Fix: _after_fork() must always restart in the parent, "
         "respecting __autorestart__ only in the child."
     )
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires fork")
+@pytest.mark.subprocess
+def test_nested_fork_preserves_periodic_thread_restart_policy():
+    """A nested fork must not force-restart workers inherited by the intermediate child."""
+    import os
+    from threading import Event
+    from time import sleep
+
+    from ddtrace.internal import periodic
+
+    inherited_ran = Event()
+
+    class InheritedService(periodic.PeriodicService):
+        def periodic(self):
+            inherited_ran.set()
+
+    inherited = InheritedService(interval=0.05, autorestart=False)
+    inherited.start()
+    assert inherited_ran.wait(timeout=2)
+    inherited_ran.clear()
+
+    pid = os.fork()
+    if pid == 0:
+        local_ran = Event()
+
+        class LocalService(periodic.PeriodicService):
+            def periodic(self):
+                local_ran.set()
+
+        local = LocalService(interval=0.05, autorestart=False)
+        local.start()
+        assert local_ran.wait(timeout=2)
+        local_ran.clear()
+
+        grandchild_pid = os.fork()
+        if grandchild_pid == 0:
+            os._exit(0)
+        _, grandchild_status = os.waitpid(grandchild_pid, 0)
+        assert os.waitstatus_to_exitcode(grandchild_status) == 0
+
+        # The nested-fork parent timer must resume workers that were active locally, while
+        # leaving the autorestart=False worker inherited from the root process stopped.
+        sleep(0.5)
+        if local._worker is not None:
+            local._worker.awake()
+        assert local_ran.wait(timeout=2)
+        assert not inherited_ran.is_set()
+        local.stop()
+        local.join()
+        os._exit(0)
+
+    _, status = os.waitpid(pid, 0)
+    inherited.stop()
+    inherited.join()
+    assert os.waitstatus_to_exitcode(status) == 0
 
 
 def test_periodic_service_no_immediate_run_after_fork():

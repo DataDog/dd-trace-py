@@ -61,7 +61,8 @@ intern_string(std::string_view s);
     X(trace_type, "trace type")                                                                                        \
     X(class_name, "class name")                                                                                        \
     X(lock_name, "lock name")                                                                                          \
-    X(gpu_device_name, "gpu device name")
+    X(gpu_device_name, "gpu device name")                                                                              \
+    X(allocator_domain, "allocator domain")
 
 #define X_ENUM(a, b) a,
 #define X_STR(a, b) b,

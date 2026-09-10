@@ -1,0 +1,22 @@
+id: no-rst-double-backticks
+message: Use single backticks (`name`) in comments, not rST-style double backticks (``name``)
+severity: warning
+language: Python
+files:
+  - "ddtrace/**"
+ignores:
+  - "ddtrace/vendor/**"
+  - "ddtrace/appsec/_iast/_taint_tracking/_vendor/**"
+  - "**/*.pyi"
+rule:
+  kind: comment
+  regex: "``"
+
+note: |
+  Comments are never Sphinx-rendered. Use a single backtick or the bare name.
+
+  Bad:  # ``logging.__version__``
+  Good: # `logging.__version__`
+
+  Rendered docstrings (public API and automodule targets) stay rST and may
+  use double backticks. See AGENTS.md "Docstrings and Comments".

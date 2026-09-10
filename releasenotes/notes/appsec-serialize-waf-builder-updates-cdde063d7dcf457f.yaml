@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: Fixes a rare crash that can occur when rules are updated concurrently.

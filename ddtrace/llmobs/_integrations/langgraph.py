@@ -61,6 +61,14 @@ class LangGraphIntegration(BaseLLMIntegration):
         if instance:
             self._graph_spans_to_graph_instances[span] = instance
 
+        # Stamp agent name at start so children resolve the correct pagent_name.
+        # instance is captured before **kwargs so _llmobs_agent_name_at_start can't reach it;
+        # stamp here after super().trace() has already written the kind.
+        if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
+            agent_name = getattr(instance, "name", None) if instance else None
+            if agent_name:
+                _annotate_llmobs_span_data(span, name=agent_name)
+
         return span
 
     def _llmobs_set_tags(

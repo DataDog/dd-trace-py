@@ -2,18 +2,14 @@ import json
 from queue import SimpleQueue as Queue
 import time
 import typing as t
-from typing import Any
-from urllib.parse import quote
 
-from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import add_tags
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import Probe
+from ddtrace.debugging._uploader import build_debugger_sender
 from ddtrace.internal import runtime
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import FormData
-from ddtrace.internal.utils.http import connector
-from ddtrace.internal.utils.http import multipart
+from ddtrace.internal.native import DebuggerTrackType
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
@@ -27,20 +23,16 @@ ErrorInfo = tuple[str, str]
 class ProbeStatusLogger:
     RETRY_ATTEMPTS = 3
     RETRY_INTERVAL = 1
-    ENDPOINT = "/debugger/v1/diagnostics"
 
     def __init__(self, service: str) -> None:
         self._service = service
         self._queue: Queue[str] = Queue()
-        self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
+        self._sender = build_debugger_sender()
         # Make it retryable
         self._write_payload_with_backoff = fibonacci_backoff_with_jitter(
             initial_wait=0.618 * self.RETRY_INTERVAL / (1.618**self.RETRY_ATTEMPTS) / 2,
             attempts=self.RETRY_ATTEMPTS,
         )(self._write_payload)
-
-        if di_config._tags_in_qs and di_config.tags:
-            self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
 
     def _payload(
         self, probe: Probe, status: str, message: str, timestamp: float, error: t.Optional[ErrorInfo] = None
@@ -73,27 +65,22 @@ class ProbeStatusLogger:
 
         return json.dumps(payload)
 
-    def _write_payload(self, data: tuple[bytes, dict[str, Any]]) -> None:
-        body, headers = data
+    def _write_payload(self, body: bytes) -> None:
         try:
             log.debug("Sending probe status payload: %r", body)
-            with self._connect() as conn:
-                conn.request(
-                    "POST",
-                    "/debugger/v1/diagnostics",
-                    body,
-                    headers=headers,
-                )
-                resp = conn.getresponse()
-                if not (200 <= resp.status < 300):
-                    log.error("Failed to upload payload: [%d] %r", resp.status, resp.read())
-                    meter.increment("upload.error", tags={"status": str(resp.status)})
-                else:
-                    meter.increment("upload.success")
-                    meter.distribution("upload.size", len(body))
+            response = self._sender.send(body, DebuggerTrackType.Diagnostics)
         except Exception:
             log.error("Failed to write payload", exc_info=True)
             meter.increment("error")
+            return
+
+        if not response.accepted:
+            log.error("Failed to upload payload: [%d] %r", response.status, response.body)
+            meter.increment("upload.error", tags={"status": str(response.status)})
+            return
+
+        meter.increment("upload.success")
+        meter.distribution("upload.size", len(body))
 
     def _enqueue(self, probe: Probe, status: str, message: str, error: t.Optional[ErrorInfo] = None) -> None:
         self._queue.put_nowait(self._payload(probe, status, message, time.time(), error))
@@ -108,18 +95,7 @@ class ProbeStatusLogger:
             msgs.append(self._queue.get_nowait())
 
         try:
-            self._write_payload_with_backoff(
-                multipart(
-                    parts=[
-                        FormData(
-                            name="event",
-                            filename="event.json",
-                            data=f"[{','.join(msgs)}]",
-                            content_type="json",
-                        )
-                    ]
-                )
-            )
+            self._write_payload_with_backoff(f"[{','.join(msgs)}]".encode("utf-8"))
         except Exception:
             log.error("Failed to write probe status after retries", exc_info=True)
 

@@ -129,6 +129,73 @@ def test_context_serializable_reactivate():
     assert context._reactivate == serialized_context._reactivate
 
 
+def test_context_accepts_legacy_pickle_state():
+    context = Context(trace_id=123, span_id=321, sampling_priority=1, meta={"meta": "value"})
+    legacy_state = context.__getstate__()[:-1]
+    restored = Context.__new__(Context)
+
+    restored.__setstate__(legacy_state)
+
+    assert restored == context
+    assert restored._otel_sampling_state_data is None
+    assert restored._otel_sampling_state_owner is None
+
+
+def test_context_pickle_preserves_pending_otel_sampling_state():
+    context = Context(trace_id=123, span_id=321, sampling_priority=1)
+    context._otel_sampling_state_data = 0.1
+
+    restored = pickle.loads(pickle.dumps(context))
+
+    assert restored._otel_sampling_state_data == 0.1
+    assert restored._otel_sampling_state_owner is None
+
+
+def test_copy_populates_every_getstate_slot(tracer):
+    """Guard against a future state-field drop in Context.copy().
+
+    The native implementation constructs child contexts directly while sharing trace-level
+    dictionaries and deferred OTel sampling state. A dropped field would only surface later
+    during serialization or propagation, so pin both the pickle round trip and every state field.
+    """
+    with tracer.trace("parent"):
+        with tracer.trace("child") as child:
+            # Force the lazy child context to materialize through Context.copy().
+            child_ctx = child.context
+
+    # pickle.dumps calls __getstate__, which reads every slot copy() is responsible for.
+    assert pickle.loads(pickle.dumps(child_ctx)) == child_ctx
+
+    # Explicit tripwire: every field __getstate__ reads is exposed by the native Context.
+    for slot in (
+        "trace_id",
+        "span_id",
+        "_meta",
+        "_metrics",
+        "_span_links",
+        "_baggage",
+        "_is_remote",
+        "_reactivate",
+        "_otel_sampling_state_data",
+        "_otel_sampling_state_owner",
+    ):
+        assert hasattr(child_ctx, slot), f"copy() must set slot {slot!r}"
+    # __getstate__ itself must not raise (reads all of the above at once).
+    assert child_ctx.__getstate__() == pickle.loads(pickle.dumps(child_ctx)).__getstate__()
+
+
+@pytest.mark.parametrize(("sampling_priority", "expected_flags"), [(0, "02"), (1, "03")])
+def test_traceparent_preserves_inherited_random_trace_id_flag(sampling_priority, expected_flags):
+    context = Context(
+        trace_id=11803532876627986230,
+        span_id=67667974448284343,
+        sampling_priority=sampling_priority,
+        meta={"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-03"},
+    )
+
+    assert context._traceparent == ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-{}".format(expected_flags))
+
+
 @pytest.mark.parametrize(
     "context,expected_traceparent",
     [
@@ -385,12 +452,63 @@ def test_is_remote():
     ctx = Context(trace_id=123, span_id=321)
     assert ctx._is_remote is True
 
-    # Span.context.is_remote should ALWAYS evaluate to False.
+    # A local span built from a remote Context materializes a NON-remote context:
+    # copy() forces _is_remote=False, so a local child can never be mistaken for remote.
     local_span = Span("span_with_context", context=ctx)
-    local_span.context.trace_id = 123
-    local_span.context.span_id = 321
-    local_span.context._is_remote = False
+    assert local_span.context._is_remote is False
 
     # is_remote should be set to False on root spans.
     root = Span("root")
     assert root.context._is_remote is False
+
+
+# =============================================================================
+# Cyclic GC support
+# =============================================================================
+#
+# Mirrors the regression tests in tests/tracer/test_span_data.py for SpanData:
+# native pyclasses that hold `Py<PyDict>` / `Py<PyList>` fields without
+# implementing `__traverse__` / `__clear__` are invisible to CPython's cyclic
+# GC, so a cycle passing through one of those fields (e.g. `_baggage`) leaks
+# forever. These tests build the canonical cycle (context -> dict -> list ->
+# context) and assert that `gc.collect()` reclaims it.
+
+
+def _count_objects_of_type(typename):
+    import gc
+
+    return sum(1 for o in gc.get_objects() if type(o).__name__ == typename)
+
+
+def test_context_is_gc_tracked():
+    import gc
+
+    assert gc.is_tracked(Context())
+
+
+def test_context_baggage_cycle_is_collectable():
+    """Cycles formed via `_baggage` must be reclaimed by `gc.collect()`."""
+    import gc
+
+    gc.collect()
+
+    initial = _count_objects_of_type("Context")
+    gc_was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        N = 200
+        for _ in range(N):
+            ctx = Context()
+            cycle_list = []
+            ctx.set_baggage_item("self_ref", cycle_list)
+            cycle_list.append(ctx)
+            del ctx
+            del cycle_list
+        # All N cycles still alive (gc disabled, refcount can't break the cycle).
+        assert _count_objects_of_type("Context") - initial == N
+        freed = gc.collect()
+        assert freed > 0, "gc.collect freed nothing — Context is not GC-tracked"
+        assert _count_objects_of_type("Context") == initial
+    finally:
+        if gc_was_enabled:
+            gc.enable()

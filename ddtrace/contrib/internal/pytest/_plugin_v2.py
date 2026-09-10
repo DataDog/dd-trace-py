@@ -43,6 +43,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
+from ddtrace.contrib.internal.pytest._utils import is_enabled
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
 from ddtrace.contrib.internal.pytest._xdist import XdistHooks
@@ -78,9 +79,9 @@ from ddtrace.internal.test_visibility.api import InternalTestModule
 from ddtrace.internal.test_visibility.api import InternalTestSession
 from ddtrace.internal.test_visibility.api import InternalTestSuite
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils import deprecations as deprecation_utils
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.vendor.debtcollector import _utils as deprecation_utils
-from ddtrace.vendor.debtcollector import deprecate
 
 
 if _pytest_version_supports_retries():
@@ -467,8 +468,6 @@ def pytest_configure(config: pytest_Config) -> None:
         )
 
     try:
-        from ddtrace.contrib.internal.pytest.plugin import is_enabled
-
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)

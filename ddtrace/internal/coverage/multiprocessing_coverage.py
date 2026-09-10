@@ -22,6 +22,7 @@ import typing as t
 from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.coverage.code import _get_ctx_covered_lines
 from ddtrace.internal.coverage.code import ctx_coverage_enabled
+from ddtrace.internal.coverage.threading_coverage import _patch_threading
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 
@@ -104,10 +105,11 @@ class CoverageCollectingMultiprocess(BaseProcess):
         """
         # Install the module code collector
         if self._dd_coverage_enabled:
-            # Avoid circular import since the installer imports uses _patch_multiprocessing()
-            from ddtrace.internal.coverage.installer import install
-
-            install(include_paths=self._dd_coverage_include_paths)
+            # Inline the installer logic to avoid a circular import:
+            # installer.py imports _patch_multiprocessing from this module.
+            ModuleCodeCollector.install(include_paths=self._dd_coverage_include_paths)
+            _patch_multiprocessing()
+            _patch_threading()
             ModuleCodeCollector.start_coverage()
 
         # Call the original bootstrap method
@@ -204,9 +206,10 @@ class Stowaway:
         include_paths = [Path(include_path_str) for include_path_str in json.loads(state["include_paths_strs"])]
 
         if state["dd_coverage_enabled"]:
-            from ddtrace.internal.coverage.installer import install
-
-            install(include_paths=include_paths)
+            # Inline the installer logic to avoid a circular import:
+            # installer.py imports _patch_multiprocessing from this module.
+            ModuleCodeCollector.install(include_paths=include_paths)
+            _patch_threading()
             _patch_multiprocessing()
 
 

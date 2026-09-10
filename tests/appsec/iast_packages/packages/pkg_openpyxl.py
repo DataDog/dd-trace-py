@@ -5,6 +5,7 @@ https://pypi.org/project/openpyxl/
 """
 
 import os
+import tempfile
 
 from flask import Blueprint
 from flask import request
@@ -31,17 +32,16 @@ def pkg_openpyxl_view():
         # Write the parameter value to the first cell
         ws["A1"] = param_value
 
-        # Save the workbook to a file
-        file_path = "example.xlsx"
-        wb.save(file_path)
+        # Private directory per request: xdist workers share a cwd, so under a fixed name one
+        # request's cleanup removes the file another request is still reading.
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            file_path = os.path.join(tmp_dir, "example.xlsx")
+            wb.save(file_path)
 
-        # Read back the value from the file to ensure it was written correctly
-        wb_read = openpyxl.load_workbook(file_path)
-        ws_read = wb_read.active
-        read_value = ws_read["A1"].value
-
-        # Clean up the created file
-        os.remove(file_path)
+            # Read back the value from the file to ensure it was written correctly
+            wb_read = openpyxl.load_workbook(file_path)
+            ws_read = wb_read.active
+            read_value = ws_read["A1"].value
 
         result_output = f"Written value: {read_value}"
 

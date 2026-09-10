@@ -102,8 +102,8 @@ def _get_skippable_api_response():
 
 
 def _get_tests_api_response(
-    tests_body: t.Optional[dict] = None,
-    page_info: t.Optional[dict] = None,
+    tests_body: t.Optional[dict[str, t.Any]] = None,
+    page_info: t.Optional[dict[str, t.Any]] = None,
 ):
     response: dict[str, t.Any] = {
         "data": {"id": "J0ucvcSApX8", "type": "ci_app_libraries_tests", "attributes": {"tests": {}}}

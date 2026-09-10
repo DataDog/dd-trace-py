@@ -18,6 +18,7 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.core import ExecutionContext
+from ddtrace.internal.core.events import Event
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import http as http_utils
@@ -80,7 +81,7 @@ async def _on_asgi_request_parse_body(receive: _ASGIReceive, headers: Mapping[st
     return receive, None
 
 
-def _asgi_make_block_content(ctx: ExecutionContext, url: str) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
+def _asgi_make_block_content(ctx: ExecutionContext[Event], url: str) -> tuple[int, list[tuple[bytes, bytes]], bytes]:
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
     headers = ctx.get_item("headers")
@@ -88,7 +89,6 @@ def _asgi_make_block_content(ctx: ExecutionContext, url: str) -> tuple[int, list
     if req_span is None:
         raise ValueError("request span not found")
     block_config = get_blocked() or Block_config()
-    ctype = None
     if block_config.type == "none":
         content = b""
         resp_headers = [
@@ -97,13 +97,10 @@ def _asgi_make_block_content(ctx: ExecutionContext, url: str) -> tuple[int, list
         ]
     else:
         content = http_utils._get_blocked_template(block_config.content_type, block_config.block_id).encode("UTF-8")
-        # ctype = f"{ctype}; charset=utf-8" can be considered at some point
         resp_headers = [(b"content-type", block_config.content_type.encode())]
     status = block_config.status_code
     try:
         req_span._set_attribute(RESPONSE_HEADERS + ".content-length", str(len(content)))
-        if ctype is not None:
-            req_span._set_attribute(RESPONSE_HEADERS + ".content-type", ctype)
         req_span._set_attribute(http.STATUS_CODE, str(status))
         query_string = environ.get("QUERY_STRING")
         _set_url_tag(middleware.integration_config, req_span, url, query_string)

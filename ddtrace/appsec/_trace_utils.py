@@ -1,7 +1,11 @@
+from collections.abc import Mapping
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Optional
+from typing import TypeVar
+from typing import Union
+from typing import cast
 
-from ddtrace._trace.span import Span
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -17,9 +21,13 @@ from ddtrace.ext import user
 from ddtrace.internal import core
 from ddtrace.internal import span_bus
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.appsec.prototypes import SpanProtocol
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings.asm import config as asm_config
 
+
+if TYPE_CHECKING:
+    from ddtrace._trace.span import Span
 
 log = get_logger(__name__)
 
@@ -30,19 +38,20 @@ _NO_ROOT_SPAN_WARNING = (
 )
 
 _BLOCKING_ACTIONS = frozenset({WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION})
+_T = TypeVar("_T")
 
 
 def _is_blocking(res: Optional[DDWaf_result]) -> bool:
     return res is not None and not _BLOCKING_ACTIONS.isdisjoint(res.actions)
 
 
-def _maybe_hash(value: Optional[str], mode: str) -> Optional[str]:
+def _maybe_hash(value: Optional[_T], mode: str) -> Optional[Union[_T, str]]:
     if value is not None and mode == LOGIN_EVENTS_MODE.ANON and isinstance(value, str):
         return _hash_user_id(value)
     return value
 
 
-def _asm_manual_keep(span: Span) -> None:
+def _asm_manual_keep(span: SpanProtocol) -> None:
     from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
     from ddtrace.internal.constants import TraceSource
     from ddtrace.internal.sampling import SamplingMechanism
@@ -53,19 +62,19 @@ def _asm_manual_keep(span: Span) -> None:
     span._set_attribute(SAMPLING_DECISION_TRACE_TAG_KEY, f"-{SamplingMechanism.APPSEC}")
 
     # set trace source propagation tag (_dd.p.ts) with the ASM bit
-    add_trace_source(span, TraceSource.ASM)
+    add_trace_source(cast("Span", span), TraceSource.ASM)
 
 
-def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
+def _handle_metadata(entry_span: SpanProtocol, prefix: str, metadata: Mapping[str, object]) -> None:
     MAX_DEPTH = 6
-    stack = [(prefix, metadata, 1)]
+    stack: list[tuple[str, Any, int]] = [(prefix, metadata, 1)]
     while stack:
         current_prefix, data, level = stack.pop()
         if isinstance(data, list):
             if level < MAX_DEPTH:
                 for i, v in enumerate(data):
                     stack.append((f"{current_prefix}.{i}", v, level + 1))
-        elif isinstance(data, dict):
+        elif isinstance(data, Mapping):
             if level < MAX_DEPTH:
                 for k, v in data.items():
                     stack.append((f"{current_prefix}.{k}", v, level + 1))
@@ -78,13 +87,13 @@ def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
 def _track_user_login_common(
     tracer: Any,
     success: bool,
-    metadata: Optional[dict] = None,
+    metadata: Optional[Mapping[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
     email: Optional[str] = None,
-    span: Optional[Span] = None,
-) -> Optional[Span]:
+    span: Optional[SpanProtocol] = None,
+) -> Optional[SpanProtocol]:
     if span is None:
         span = _asm_request_context.get_entry_span()
     if not span and (current_span := span_bus.get_span()):
@@ -133,8 +142,8 @@ def _track_user_login_common(
 
 def track_user_login_success_event(
     tracer: Any,
-    user_id: Optional[str],
-    metadata: Optional[dict] = None,
+    user_id: Optional[object],
+    metadata: Optional[Mapping[str, object]] = None,
     login: Optional[str] = None,
     name: Optional[str] = None,
     email: Optional[str] = None,
@@ -143,7 +152,7 @@ def track_user_login_success_event(
     session_id: Optional[str] = None,
     propagate: bool = False,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
-    span: Optional[Span] = None,
+    span: Optional[SpanProtocol] = None,
 ) -> None:
     """
     Add a new login success tracking event. The parameters after metadata (name, email,
@@ -175,7 +184,18 @@ def track_user_login_success_event(
             span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
         else:
             span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.success.usr.id", str(user_id))
-    set_user(None, user_id or "", name, email, scope, role, session_id, propagate, span, may_block=False)
+    set_user(
+        None,
+        str(user_id) if user_id else "",
+        name,
+        email,
+        scope,
+        role,
+        session_id,
+        propagate,
+        cast("Span", span),
+        may_block=False,
+    )
     if in_asm_context():
         custom_data = {
             "REQUEST_USER_ID": str(initial_user_id) if initial_user_id else None,
@@ -194,9 +214,9 @@ def track_user_login_success_event(
 
 def track_user_login_failure_event(
     tracer: Any,
-    user_id: Optional[str],
+    user_id: Optional[object],
     exists: Optional[bool] = None,
-    metadata: Optional[dict] = None,
+    metadata: Optional[Mapping[str, object]] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
     login: Optional[str] = None,
     name: Optional[str] = None,
@@ -269,7 +289,7 @@ def track_user_signup_event(
         if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT}.sdk", "true")
         else:
-            span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT_MODE}.auto.mode", str(login_events_mode))
+            span._set_attribute(f"{APPSEC.USER_SIGNUP_EVENT_MODE}.auto.mode", login_events_mode)
 
         return
     else:

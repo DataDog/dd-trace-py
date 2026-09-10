@@ -5,6 +5,7 @@ import requests
 
 from ddtrace import config
 from ddtrace import tracer
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -16,7 +17,7 @@ from ddtrace.internal.settings import env
 from ddtrace.internal.settings._opentelemetry import ExporterConfig
 from ddtrace.internal.settings._opentelemetry import _is_otlp_traces_exporter_enabled
 from ddtrace.internal.settings._opentelemetry import otel_config
-from ddtrace.internal.settings.asm import config as asm_config
+from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.internal.utils import get_argument_value
 
 
@@ -117,7 +118,7 @@ def _get_service_name(request, hostname) -> Optional[str]:
 def _wrap_send(func, instance, args, kwargs):
     """Trace the `Session.send` instance method"""
     # skip if tracing is not enabled
-    if not tracer.enabled and not asm_config._apm_opt_out:
+    if not tracer.enabled and not standalone_config.apm_opt_out:
         return func(*args, **kwargs)
 
     request = get_argument_value(args, kwargs, 0, "request")
@@ -152,3 +153,13 @@ def _wrap_send(func, instance, args, kwargs):
         finally:
             if response is not None:
                 ctx.event.set_response(response)
+
+
+def _wrap_adapter_send(func, instance, args, kwargs):
+    # Scoped to the per-hop HTTPAdapter.send (not Session.send, which recurses on
+    # redirects) so redirected requests.request spans aren't also suppressed.
+    token = _http_propagation_suppressed.set(True)
+    try:
+        return func(*args, **kwargs)
+    finally:
+        _http_propagation_suppressed.reset(token)

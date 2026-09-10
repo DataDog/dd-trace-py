@@ -64,14 +64,107 @@ if [ -z "${COMPOSE_PROJECT_NAME:-}" ]; then
     export COMPOSE_PROJECT_NAME="ddtracepy-${PATH_HASH}"
 fi
 
-COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
+if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
+    COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.base.yml")
+    COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.podman.yml")
+else
+    COMPOSE_FILES=("-f" "$PROJECT_ROOT/docker-compose.yml")
+fi
 if command -v nvidia-smi >/dev/null 2>&1; then
     COMPOSE_FILES+=("-f" "$PROJECT_ROOT/docker-compose.gpu.yml")
 fi
 
-docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
-       -e DD_TRACE_AGENT_URL \
-       --rm \
-       -i \
-       testrunner \
-       bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+if [ "${DD_TEST_PODMAN_COMPAT:-0}" = "1" ]; then
+    COMPOSE_COMMAND=(docker compose "${COMPOSE_FILES[@]}")
+    # Podman does not have a --build flag like docker so
+    # we need to run the build command before
+    if [ "$BUILD_FLAG" = "--build" ]; then
+        "${COMPOSE_COMMAND[@]}" build testrunner
+    fi
+
+    RUN_ARGS=()
+
+    # The image normally runs as `bits` (uid 1000), but Podman's host user
+    # namespace preserves the caller's ownership on the bind-mounted checkout.
+    # When that owner is not uid 1000, `bits` cannot write build artifacts.
+    # Run as the caller instead; Docker Desktop handles ownership mapping, so
+    # keep this override scoped to the Podman path. Override with
+    # DD_TEST_USER (e.g. DD_TEST_USER=1000:1000), or set it empty to keep the
+    # image's default user.
+    RUN_AS_USER="${DD_TEST_USER-$(id -u):$(id -g)}"
+    if [ -n "$RUN_AS_USER" ]; then
+        RUN_ARGS+=(--user "$RUN_AS_USER")
+        # --user can change HOME from /home/bits to the invoking user's home.
+        # Keep the image's preinstalled Rust and Python toolchain locations so
+        # native extension builds do not look for them under that new home.
+        RUN_ARGS+=(
+            -e "PATH=/home/bits/.cargo/bin:/home/bits/.local/bin:/home/bits/.pyenv/shims:/home/bits/.pyenv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+            -e "CARGO_HOME=/home/bits/.cargo"
+            -e "RUSTUP_HOME=/home/bits/.rustup"
+        )
+    fi
+
+    if [ -n "${DD_TRACE_AGENT_URL+x}" ]; then
+        # docker compose run does not forward arbitrary host environment
+        # variables, so pass its endpoint to snapshot tests.
+        RUN_ARGS+=(-e "DD_TRACE_AGENT_URL=$DD_TRACE_AGENT_URL")
+    fi
+
+    # The remote Podman wrapper disables automatic proxy propagation. Forward
+    # both casings because curl accepts only lowercase http_proxy and callers
+    # can provide different NO_PROXY and no_proxy values.
+    for variable in HTTP_PROXY HTTPS_PROXY NO_PROXY http_proxy https_proxy no_proxy; do
+        if [ -n "${!variable+x}" ]; then
+            RUN_ARGS+=(-e "${variable}=${!variable}")
+        fi
+    done
+
+    # Mount a caller-provided CA bundle only when it is a regular host file.
+    # Without one, use the testrunner image's own system trust store so Podman
+    # remains usable on hosts with different CA bundle locations.
+    for variable in REQUESTS_CA_BUNDLE SSL_CERT_FILE PIP_CERT; do
+        candidate="${!variable:-}"
+        if [ -f "$candidate" ]; then
+            CA_BUNDLE="$candidate"
+            break
+        fi
+    done
+    if [ -n "${CA_BUNDLE:-}" ]; then
+        CONTAINER_CA_BUNDLE=/etc/ssl/certs/ddtrace-test-runner-ca.pem
+        RUN_ARGS+=(
+            -v "${CA_BUNDLE}:${CONTAINER_CA_BUNDLE}:ro"
+            -e "SSL_CERT_FILE=${CONTAINER_CA_BUNDLE}"
+            -e "REQUESTS_CA_BUNDLE=${CONTAINER_CA_BUNDLE}"
+            -e "PIP_CERT=${CONTAINER_CA_BUNDLE}"
+            -e "CURL_CA_BUNDLE=${CONTAINER_CA_BUNDLE}"
+            -e "GIT_SSL_CAINFO=${CONTAINER_CA_BUNDLE}"
+        )
+    fi
+
+    # Preserve service settings selected by scripts/run-tests. Unlike Docker's
+    # normal Compose path, the Podman path constructs its own run arguments.
+    for variable in $(compgen -e); do
+        case "$variable" in
+            TEST_*) RUN_ARGS+=(-e "${variable}=${!variable}") ;;
+        esac
+    done
+
+    if [ -n "${DD_TEST_RUNTIME_PROBE+x}" ]; then
+        RUN_ARGS+=(-e "DD_TEST_RUNTIME_PROBE=$DD_TEST_RUNTIME_PROBE")
+    fi
+
+    # Remove the one-off testrunner container after its command finishes.
+    RUN_ARGS+=(--rm)
+
+    "${COMPOSE_COMMAND[@]}" run "${RUN_ARGS[@]}" \
+        testrunner \
+        bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+else
+    docker compose ${COMPOSE_FILES[@]} run $BUILD_FLAG \
+           -e DD_TRACE_AGENT_URL \
+           -e DD_TEST_RUNTIME_PROBE \
+           --rm \
+           -i \
+           testrunner \
+           bash -c "(git config --global --add safe.directory /home/bits/project || true) && $CMD"
+fi

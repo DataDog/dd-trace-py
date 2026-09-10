@@ -1,0 +1,35 @@
+[[
+  {
+    "name": "http.request",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "http.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "http",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6a8708f900000000",
+      "_dd.svc_src": "httpx2",
+      "_dd.tags.process": "entrypoint.basedir:ddtrace_subprocess_dir,entrypoint.name:tmpxf05smqd,entrypoint.type:script,entrypoint.workdir:project,svc.auto:ddtrace_subprocess_dir",
+      "component": "httpx2",
+      "http.method": "GET",
+      "http.status_code": "200",
+      "http.url": "http://localhost:8001/status/200",
+      "http.useragent": "python-httpx2/2.12.0",
+      "language": "python",
+      "out.host": "localhost",
+      "runtime-id": "96e260e256e246d68e8ee177a5e32db7",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1.0,
+      "_dd.top_level": 1.0,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1.0,
+      "process_id": 530.0
+    },
+    "duration": 3697651,
+    "start": 1787234553797133377
+  }]]

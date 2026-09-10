@@ -1,9 +1,13 @@
-#include "sample.hpp"
-
+// TODO(py-315): Python.h must be included first, before any system or project headers.
+// CPython's pyconfig.h defines _POSIX_C_SOURCE and _XOPEN_SOURCE to their current
+// POSIX standard values (202405L on 3.15+). If system headers (included transitively
+// via libdatadog_helpers.hpp → features.h) are pulled in first, they define older
+// values (200809L), and pyconfig.h's later redefinition triggers -Werror on GCC/Clang.
 #define PY_SSIZE_T_CLEAN
-
 #include <Python.h>
 #include <frameobject.h>
+
+#include "sample.hpp"
 
 #include "libdatadog_helpers.hpp"
 #include "profiler_state.hpp"
@@ -726,6 +730,42 @@ Datadog::Sample::push_class_name(std::string_view class_name)
         if (!already_warned) {
             already_warned = true;
             std::cerr << "bad push" << std::endl;
+        }
+        return false;
+    }
+    return true;
+}
+
+bool
+Datadog::Sample::push_allocator_domain(AllocatorDomain allocator_domain)
+{
+    /*
+     * Map the closed enum to a label value and copy it into the sample's string
+     * arena, which is pre-reserved and retained across clear(), so this does
+     * not allocate on the hook path.
+     */
+    std::string_view value;
+    switch (allocator_domain) {
+        case AllocatorDomain::obj:
+            value = "obj";
+            break;
+        case AllocatorDomain::mem:
+            value = "mem";
+            break;
+        case AllocatorDomain::raw:
+            value = "raw";
+            break;
+        case AllocatorDomain::unknown:
+        default:
+            value = "unknown";
+            break;
+    }
+
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    if (!push_label(ExportLabelKey::allocator_domain, value)) {
+        if (!already_warned) {
+            already_warned = true;
+            std::cerr << "bad push allocator domain" << std::endl;
         }
         return false;
     }

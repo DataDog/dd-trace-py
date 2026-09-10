@@ -59,6 +59,11 @@ class MyLibIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract and annotate all LLMObs fields."""
         tools = self._extract_tools(kwargs)
+        metadata = self._extract_metadata(kwargs)
+        # Gate on the response, not span.error: an errored span can still carry a valid
+        # response. Merge so response-derived keys never clobber the request params.
+        if response is not None:
+            metadata.update(self._extract_response_metadata(response))
         _annotate_llmobs_span_data(
             span,
             kind="llm",
@@ -66,7 +71,7 @@ class MyLibIntegration(BaseLLMIntegration):
             model_provider="mylib",
             input_messages=self._extract_input_messages(kwargs),
             output_messages=self._extract_output_messages(response),
-            metadata=self._extract_metadata(kwargs),
+            metadata=metadata,
             metrics=self._extract_usage(response),
             tool_definitions=tools or None,
         )
@@ -79,6 +84,7 @@ Common helpers (implement only what applies):
 - `_extract_usage(self, response: Any) -> dict[str, int]` — map library token field names to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`
 - `_extract_tools(self, kwargs: dict[str, Any]) -> list[ToolDefinition]` — convert `tools` list to `ToolDefinition` list
 - `_extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]` — pick scalar request params: `temperature`, `top_p`, `max_tokens`, etc.
+- `_extract_response_metadata(self, response: Any) -> dict[str, Any]` — pick scalar params the provider reports on the *response* and that `metrics`/`output_messages` do not already cover. The stop reason is the established case: record it as `finish_reason`, omit the key when the provider reports none, and comma-join per-choice reasons in choice order when a request returns multiple choices so the value stays a single string. See the Response Metadata section of `SKILL.md` for the per-provider sources and `_openai_finish_reason_metadata()` in `_integrations/utils.py` for the comma-join helper.
 
 Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__` entry).
 
@@ -113,13 +119,24 @@ For the agent pattern (tool child spans within streams), see `ddtrace/llmobs/_in
 
 Different libraries structure messages differently — implement only the helpers you need. Read `ddtrace/llmobs/_integrations/anthropic.py` for full code examples.
 
+**Check `_integrations/utils.py` first.** Providers reachable through more than one API share a payload format, and the extraction for it belongs there rather than in each integration. Anthropic content blocks, for example, are parsed by `get_messages_from_anthropic_content()`, `anthropic_tool_call_from_block()`, `anthropic_tool_result_from_block()`, and `get_tool_definitions_from_anthropic_tools()`, which the Anthropic and Amazon Bedrock integrations both call. Converse-format payloads have their own equivalents. Reuse or extend those helpers instead of copying the logic; duplicated parsers drift as providers add content block types.
+
 - `_extract_input_messages(kwargs)` — handle system message, multi-part content blocks, tool results
 - `_extract_output_messages(response)` — handle text blocks, tool use blocks, thinking blocks
 - `_extract_usage(response)` — map library-specific token field names to metric keys
 - `_extract_tools(kwargs)` — convert `tools` kwarg to `ToolDefinition` list
 - `_extract_audio_parts(...)` — for multimodal audio providers, populate `Message.audio_parts` with `AudioPart` entries containing `mime_type` plus either inline base64 `content` or an `attachment_key`
+- `_extract_<lib>_image_source(...)` — same, for `Message.image_parts`. See `anthropic.py`
 
-`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper.
+`MyLibIntegration` owns this extraction logic. Keep provider-specific message, tool, metadata, and token normalization in the integration subclass rather than in the patch wrapper — except where a payload format is shared with another integration, which belongs in `_integrations/utils.py` as above.
+
+### Inline Media Size Guards
+
+Oversized inline media makes `_writer._truncate_span_event` blank the span's entire input **and** output, not just the offending field. So route media through `format_audio_part_with_guard()` / `format_image_part_with_guard()`, which return `None` and let the caller keep a text marker.
+
+- Pass raw data, not a pre-encoded string, so an oversized payload is rejected before paying to encode it.
+- Do non-size rejection (bad MIME, non-ASCII "base64", a `Path`) in the *extractor*. If the guard returns `None` for a non-size reason, the caller's "too large" marker starts lying.
+- Each guard bounds one part. Several that each fit can still exceed the event limit — no cross-field budget exists yet.
 
 ### Metadata Hygiene
 
@@ -135,6 +152,56 @@ Do not dump raw `kwargs` into LLMObs metadata. Prefer shared helpers such as `ge
 
 Normalize `INPUT_TOKENS_METRIC_KEY` to the total input tokens sent to the model, including cached and non-cached tokens. Providers report this differently: Anthropic reports non-cached `input_tokens` separately from cache read/write input tokens, so add `input_tokens + cache_creation_input_tokens + cache_read_input_tokens`; OpenAI reports prompt/input tokens as the combined total and exposes cached tokens separately in details.
 
+## Agent Integrations: Stamp Kind and Name at Span Start
+
+Agent integrations have a critical ordering constraint. `_resolve_parent_agent()` in `ddtrace/llmobs/_utils.py` resolves agent attribution when a **child** span activates, not when the parent finishes. Under LIFO nesting the parent span is still open when the child starts — so any field written at span *finish* time is invisible to children that have already been attributed.
+
+**Contract: any integration that produces `kind="agent"` LLMObs spans must stamp kind at span creation, not at finish.**
+
+`BaseLLMIntegration.trace()` and `LlmTracingSubscriber.on_started` both call `_stamp_llmobs_span_kind_at_start()` automatically. Integrations should not call it directly; instead override the two hooks below.
+
+### Hooks to implement for agent spans
+
+**`_llmobs_span_kind(self, operation_id, span, **kwargs) -> Optional[str]`**
+
+Return `"agent"` when the kwargs signal an agent span. The base-class default returns `"agent"` when `kwargs.get("kind") == "agent"`. Override only when the integration uses a different signal (e.g. `operation="agent"` for CrewAI, `interface_type="agent"` for Bedrock). Must be determinable at `trace()` call time — do NOT rely on data available only at finish.
+
+**`_llmobs_agent_name_at_start(self, span, **kwargs) -> Optional[str]`**
+
+Return the agent's LLMObs display name when it can be determined at `trace()` call time. Return `None` to fall back to the span resource name. Override when the integration can resolve the name from kwargs (e.g. Google ADK passes `_dd_agent=<agent_instance>` and the integration reads `agent.name`).
+
+If the integration's `trace()` captures the instance reference before `**kwargs` (e.g. LangGraph), `_llmobs_agent_name_at_start` cannot reach it through `super().trace()`. In that case, stamp the name directly in the integration's `trace()` override after calling `super()`:
+
+```python
+def trace(self, operation_id, submit_to_llmobs=False, **kwargs):
+    span = super().trace(operation_id, submit_to_llmobs=submit_to_llmobs, **kwargs)
+    # instance captured before **kwargs; stamp name after super() has written the kind
+    if submit_to_llmobs and self.llmobs_enabled and kwargs.get("kind") == "agent":
+        agent_name = getattr(instance, "name", None) if instance else None
+        if agent_name:
+            _annotate_llmobs_span_data(span, name=agent_name)
+    return span
+```
+
+### Example: Google ADK
+
+Patch layer passes the agent object via a private kwarg:
+```python
+span = integration.trace(
+    "%s.%s" % (instance.__class__.__name__, wrapped.__name__),
+    kind="agent",
+    submit_to_llmobs=True,
+    _dd_agent=agent,   # <-- agent instance available at trace() call time
+)
+```
+
+Integration overrides the hook:
+```python
+def _llmobs_agent_name_at_start(self, span: Span, **kwargs: Any) -> Optional[str]:
+    agent = kwargs.get("_dd_agent")
+    return getattr(agent, "name", None) if agent else None
+```
+
 ## LLM-Specific Registration Checklist
 
 In addition to the full checklist in the apm-integrations [Implementation Guide](../../apm-integrations/references/implementation-guide.md):
@@ -143,5 +210,5 @@ In addition to the full checklist in the apm-integrations [Implementation Guide]
 - [ ] `ddtrace/llmobs/_integrations/__init__.py` — import + `__all__` entry
 - [ ] `ddtrace/contrib/internal/{name}/patch.py` — uses `LlmRequestEvent` + `core.context_with_event()` for standard LLM request spans (see anthropic for pattern)
 - [ ] `tests/llmobs/suitespec.yml` — LLMObs test suite entry
-- [ ] `riotfile.py` — test dependencies match the suite style; include `vcrpy` only when cassette replay is used
+- [ ] Test dependencies match the suite style; include `vcrpy` only when cassette replay is used
 - [ ] `docs/index.rst` — add integration to the docs index

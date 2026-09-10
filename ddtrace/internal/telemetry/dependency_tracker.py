@@ -11,7 +11,6 @@ single DependencyTracker instance.
 
 from importlib.metadata import PackageNotFoundError
 import re
-from threading import Lock
 from typing import Any
 from typing import Iterable
 from typing import Optional
@@ -20,6 +19,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.packages import get_module_distribution_versions
 from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
+from ddtrace.internal.threads import Lock
 
 from . import modules
 from .dependency import DependencyEntry
@@ -118,19 +118,6 @@ class DependencyTracker:
                 entry.mark_initial_sent()
                 entry.mark_all_metadata_sent()
         return re_report
-
-    def snapshot_for_heartbeat(self) -> list[dict[str, Any]]:
-        """Return serialized dependency dicts for the extended heartbeat payload.
-
-        Serialization happens under the lock so that concurrent SCA mutations
-        (``attach_metadata`` / ``register_cve``) cannot race the iteration of
-        ``entry.metadata`` or the ``reached`` list inside ``json.dumps``. The
-        payload is a list of fresh dicts safe to hand off to the transport.
-        """
-        with self._lock:
-            return [
-                entry.to_telemetry_dict(include_all_metadata=True) for entry in self._imported_dependencies.values()
-            ]
 
     def _ensure_entry(self, package_name: str) -> None:
         """Auto-create a DependencyEntry if SCA is active and package not yet tracked.
