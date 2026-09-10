@@ -3,20 +3,13 @@
 
 .multi_os_test_base:
   stage: tests
+  extends: .retry_on_failure
   variables:
     DD_IAST_ENABLED: "false"
     DD_REMOTE_CONFIGURATION_ENABLED: "false"
 
-.multi_os_test_retry:
-  retry: 2
-  rules:
-    # Job running on main will have no retry
-    - if: !reference [.is_main]
-      when: never
-    - when: on_success
-
 os tests ubuntu:
-  extends: [ .multi_os_test_base, .multi_os_test_retry ]
+  extends: .multi_os_test_base
   image: registry.ddbuild.io/images/mirror/ubuntu:25.04
   tags: ["arch:amd64"]
   parallel:
@@ -42,14 +35,8 @@ os tests ubuntu:
     - apt-get update && apt-get install -y curl
     - bash .gitlab/scripts/multi-os-tests.sh
 
-"os tests ubuntu (main)":
-  extends: "os tests ubuntu"
-  retry: 0
-  rules:
-    - if: !reference [.is_main]
-
 os tests macos:
-  extends: [ .multi_os_test_base, .multi_os_test_retry ]
+  extends: .multi_os_test_base
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-trace-py-sonoma-latest"
   tags: ["macos:tart"]
   needs: [ "build macos arm64" ]
@@ -65,14 +52,8 @@ os tests macos:
         bash .gitlab/scripts/multi-os-tests.sh
       done
 
-"os tests macos (main)":
-  extends: "os tests macos"
-  retry: 0
-  rules:
-    - if: !reference [.is_main]
-
 os tests windows:
-  extends: [ .multi_os_test_base, .multi_os_test_retry ]
+  extends: .multi_os_test_base
   tags: ["windows-v2:2022"]
   needs:
     - job: "build windows"
@@ -86,9 +67,3 @@ os tests windows:
       - PYTHON_VERSION: ["3.10", "3.12", "3.14"]
   script:
     - powershell -File .gitlab/scripts/multi-os-tests.ps1
-
-"os tests windows (main)":
-  extends: "os tests windows"
-  retry: 0
-  rules:
-    - if: !reference [.is_main]

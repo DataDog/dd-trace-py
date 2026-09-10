@@ -41,9 +41,9 @@
 
 ".debugging/exploration":
   stage: tests
-  extends: .testrunner
-  # Do not specify retry on this template, but handle it on individual jobs
-  # Reminder : they must not be retried on main
+  extends:
+    - .testrunner
+    - .retry_on_failure
   timeout: 30m
   variables:
     DD_DEBUGGER_EXPL_OUTPUT_FILE: "${CI_PROJECT_DIR}/debugger-expl.txt"
@@ -66,11 +66,7 @@
   extends:
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
-  retry: 2
   rules:
-    # Job running on main will have no retry
-    - if: !reference [.is_main]
-      when: never
     - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
       changes: *exploration_changes
       allow_failure: true
@@ -88,23 +84,11 @@
     python${PYTHON_VERSION} scripts/ci/install
     python${PYTHON_VERSION} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning" -k "not test_documentation"'
 
-"debugging/exploration/boto3 (main)":
-  extends: "debugging/exploration/boto3"
-  retry: 0
-  rules:
-    - if: !reference [.is_main]
-      changes: *exploration_changes
-    - when: never
-
 "debugging/exploration/botocore":
   extends:
     - ".debugging/exploration"
     - ".exploration_needs_build_linux_amd64"
-  retry: 2
   rules:
-    # Job running on main will have no retry
-    - if: !reference [.is_main]
-      when: never
     - if: $RELEASE_ALLOW_TEST_FAILURES == "true"
       changes: *exploration_changes
       allow_failure: true
@@ -126,11 +110,3 @@
     cd boto3
     python${PYTHON_VERSION} scripts/ci/install
     python${PYTHON_VERSION} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning" -k "not test_documentation"'
-
-"debugging/exploration/botocore (main)":
-  extends: "debugging/exploration/botocore"
-  retry: 0
-  rules:
-    - if: !reference [.is_main]
-      changes: *exploration_changes
-    - when: never
