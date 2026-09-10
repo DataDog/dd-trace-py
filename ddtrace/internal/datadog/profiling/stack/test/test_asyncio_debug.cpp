@@ -12,6 +12,12 @@
 #include <fcntl.h>
 #include <link.h>
 #include <unistd.h>
+
+extern "C"
+{
+    __attribute__((section(".AsyncioDebug"), used)) PyAsyncioDebugOffsets
+      process_asyncio_debug_offsets = { { 512, 8, 16, 24, 25, 32, 40 }, { 4096, 128 }, { 1024, 8, 16, 256 } };
+}
 #endif
 
 namespace {
@@ -167,6 +173,28 @@ class AsyncioElfTest : public ::testing::Test
         return read_asyncio_debug_offsets_from_elf(fd, binary);
     }
 };
+
+TEST(AsyncioElfDiscovery, ReadsProcessExecutableWithoutBuildId)
+{
+    std::optional<AsyncioOffsets> offsets;
+    dl_iterate_phdr(
+      [](dl_phdr_info* binary, size_t, void* data) {
+          if (binary->dlpi_name != nullptr && binary->dlpi_name[0] != '\0') {
+              return 0;
+          }
+          const int fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
+          if (fd >= 0) {
+              *static_cast<std::optional<AsyncioOffsets>*>(data) = read_asyncio_debug_offsets_from_elf(fd, *binary);
+              close(fd);
+          }
+          return 1;
+      },
+      &offsets);
+
+    ASSERT_TRUE(offsets);
+    EXPECT_EQ(offsets->interpreter_tasks_head, process_asyncio_debug_offsets.interpreter.asyncio_tasks_head);
+    EXPECT_EQ(offsets->thread_tasks_head, process_asyncio_debug_offsets.thread.asyncio_tasks_head);
+}
 
 TEST_F(AsyncioElfTest, ReadsLoadedTableAndSupportsExtendedSectionNumbering)
 {

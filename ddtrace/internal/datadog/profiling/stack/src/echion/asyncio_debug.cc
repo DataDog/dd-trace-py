@@ -151,6 +151,19 @@ has_gnu_build_id(const unsigned char* notes, size_t size)
 }
 
 bool
+is_process_executable(int fd, const dl_phdr_info& binary)
+{
+    if (binary.dlpi_name != nullptr && binary.dlpi_name[0] != '\0') {
+        return false;
+    }
+
+    struct stat file_info;
+    struct stat executable_info;
+    return fstat(fd, &file_info) == 0 && stat("/proc/self/exe", &executable_info) == 0 &&
+           file_info.st_dev == executable_info.st_dev && file_info.st_ino == executable_info.st_ino;
+}
+
+bool
 matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, const dl_phdr_info& binary)
 {
     bool matched_build_id = false;
@@ -179,7 +192,9 @@ matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, con
             matched_build_id = true;
         }
     }
-    return matched_build_id;
+    // /proc/self/exe is a kernel reference to the exact executable backing this process, including after unlink or
+    // replacement. Other paths can race with replacement and therefore still require a matching GNU build ID.
+    return matched_build_id || is_process_executable(fd, binary);
 }
 
 int

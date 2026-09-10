@@ -48,14 +48,15 @@ parse_asyncio_debug_offsets(const PyAsyncioDebugOffsets* offsets);
 #if defined(__linux__)
 struct dl_phdr_info;
 
-// Reads section metadata from a borrowed regular-file descriptor, requiring its GNU build ID and program headers to
-// match the loaded binary. Truncated, unsupported, or mismatched metadata returns no offsets.
+// Reads section metadata from a borrowed regular-file descriptor, requiring its program headers to match the loaded
+// binary. Shared libraries also require a matching GNU build ID; the main executable is identified through the
+// kernel-owned /proc/self/exe reference. Truncated, unsupported, or mismatched metadata returns no offsets.
 std::optional<AsyncioOffsets>
 read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary);
 #endif
 
-// Discovers the runtime table without caching failures. Linux requires readable ELF section headers and a GNU build ID;
-// macOS uses the loaded Mach-O metadata. Missing metadata omits native task-list attribution, not thread stacks.
-// Call during asyncio initialization, never from the sampling thread.
+// Discovers the runtime table without caching failures. Linux requires readable ELF section headers and either the
+// exact /proc/self/exe reference or a GNU build ID; macOS uses the loaded Mach-O metadata. Missing metadata omits
+// native task-list attribution, not thread stacks. Call during asyncio initialization, never from the sampling thread.
 std::optional<AsyncioOffsets>
 find_asyncio_debug_offsets();
