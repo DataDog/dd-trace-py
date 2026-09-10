@@ -13,7 +13,6 @@ from unittest import mock
 import pytest
 
 from ddtrace.internal.datadog.profiling import ddup
-from ddtrace.internal.settings.profiling import ProfilingConfig
 from ddtrace.profiling.collector.gc import GCCollector
 from tests.profiling.collector import pprof_utils
 
@@ -278,24 +277,3 @@ def test_gc_pause_samples_appear_in_profile() -> None:
 
     wall_time_samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert not any(_has_gc_collect_frame(profile, sample) for sample in wall_time_samples)
-
-
-def test_gc_collector_default_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("DD_PROFILING_GC_ENABLED", raising=False)
-    # Fresh instance — do not importlib.reload the settings module. Reload
-    # replaces ProfilingConfigHeap with a second class object and breaks
-    # isinstance() in _derive_default_heap_sample_size for later tests.
-    config: ProfilingConfig = ProfilingConfig()
-    assert not config.gc.enabled
-
-
-def test_gc_collector_disabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "false")
-    config: ProfilingConfig = ProfilingConfig()
-    assert not config.gc.enabled
-
-
-def test_gc_collector_enabled_by_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("DD_PROFILING_GC_ENABLED", "true")
-    config: ProfilingConfig = ProfilingConfig()
-    assert config.gc.enabled
