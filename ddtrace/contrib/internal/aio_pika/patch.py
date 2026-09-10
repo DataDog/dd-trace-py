@@ -3,10 +3,13 @@ from collections.abc import Awaitable
 from collections.abc import Callable
 from collections.abc import MutableMapping
 from contextlib import asynccontextmanager
+from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import wraps
 import inspect
 from time import time_ns
 from typing import Any
+from typing import Iterator
 from typing import Optional
 from typing import cast
 
@@ -29,7 +32,6 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 
 
-_COMPONENT = "aio_pika"
 _MESSAGING_SYSTEM = "rabbitmq"
 
 _EXCHANGE = "rabbitmq.exchange"
@@ -46,6 +48,10 @@ config._add(  # type: ignore[no-untyped-call]
     },
 )
 
+# Task-local identity of the IncomingMessage currently covered by a process span.
+# Used only to suppress a nested message.process() span; it is not event data.
+_PROCESSING_MESSAGE: ContextVar[Any] = ContextVar("ddtrace.aio_pika.processing_message", default=None)
+
 
 def get_version() -> str:
     return str(getattr(aio_pika, "__version__", ""))
@@ -60,7 +66,7 @@ def _service() -> Optional[str]:
 
 
 def _span_links_enabled() -> bool:
-    return _COMPONENT in config._propagation_as_span_links
+    return config.aio_pika.integration_name in config._propagation_as_span_links
 
 
 def _string_headers(message: Any) -> dict[str, str]:
@@ -135,7 +141,7 @@ def _message_destination(message: Any) -> str:
 
 def _incoming_event_kwargs(message: Any) -> dict[str, Any]:
     return {
-        "component": _COMPONENT,
+        "component": config.aio_pika.integration_name,
         "integration_config": config.aio_pika,
         "service": _service(),
         "request_headers": _string_headers(message),
@@ -178,7 +184,7 @@ async def _traced_publish(
     event = MessagingProducerEvent(
         operation="rabbitmq.publish",
         resource="rabbitmq.publish",
-        component=_COMPONENT,
+        component=config.aio_pika.integration_name,
         integration_config=config.aio_pika,
         service=_service(),
         distributed_headers=headers,
@@ -198,22 +204,13 @@ def _is_iterator_callback(callback: Any) -> bool:
     )
 
 
-def _active_process_event_for(message: Any) -> Optional[MessagingProcessEvent]:
-    """Return the active Process event handling this exact message, if any."""
-    current: Optional[core.ExecutionContext[Any]] = core.current
-    while current is not None:
-        try:
-            event = current.event
-        except AttributeError:
-            event = None
-        if (
-            isinstance(event, MessagingProcessEvent)
-            and event.component == config.aio_pika.integration_name
-            and event.message is message
-        ):
-            return event
-        current = current.parent
-    return None
+@contextmanager
+def _mark_processing(message: Any) -> Iterator[None]:
+    token = _PROCESSING_MESSAGE.set(message)
+    try:
+        yield
+    finally:
+        _PROCESSING_MESSAGE.reset(token)
 
 
 async def _call_callback(callback: Callable[[Any], Any], message: Any) -> Any:
@@ -231,10 +228,9 @@ def _traced_callback(callback: Callable[[Any], Any]) -> Callable[[Any], Awaitabl
             resource="rabbitmq.consume",
             semantic_operation="process",
             destination=_message_destination(message),
-            message=message,
             **_incoming_event_kwargs(message),
         )
-        with core.context_with_event(event):
+        with _mark_processing(message), core.context_with_event(event):
             return await _call_callback(callback, message)
 
     return traced
@@ -316,7 +312,7 @@ async def _traced_anext(
 
 @asynccontextmanager
 async def _traced_process_context(original: Any, message: Any) -> AsyncIterator[Any]:
-    if _active_process_event_for(message) is not None:
+    if _PROCESSING_MESSAGE.get() is message:
         async with original as incoming:
             yield incoming
         return
@@ -326,10 +322,9 @@ async def _traced_process_context(original: Any, message: Any) -> AsyncIterator[
         resource="rabbitmq.consume",
         semantic_operation="process",
         destination=_message_destination(message),
-        message=message,
         **_incoming_event_kwargs(message),
     )
-    with core.context_with_event(event):
+    with _mark_processing(message), core.context_with_event(event):
         async with original as incoming:
             yield incoming
 
@@ -349,7 +344,7 @@ def _action_wrapper(action: str) -> Callable[..., Awaitable[Any]]:
             action=action,
             semantic_operation=action,
             destination=destination,
-            component=_COMPONENT,
+            component=config.aio_pika.integration_name,
             integration_config=config.aio_pika,
             service=_service(),
             messaging_system=_MESSAGING_SYSTEM,
