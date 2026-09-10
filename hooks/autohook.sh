@@ -32,6 +32,22 @@ echo() {
     builtin echo "[Autohook] $@";
 }
 
+# Invoked via .git/hooks/* symlinks; resolve the real hooks/ directory.
+autohook_script_dir() {
+    local source="${BASH_SOURCE[0]}"
+    while [ -L "$source" ]; do
+        local dir
+        dir="$(cd -P "$(dirname "$source")" && pwd)"
+        source="$(readlink "$source")"
+        [[ $source != /* ]] && source="$dir/$source"
+    done
+    cd -P "$(dirname "$source")" && pwd
+}
+
+SCRIPT_DIR="$(autohook_script_dir)"
+# shellcheck source=scripts/hook-telemetry.sh
+source "$SCRIPT_DIR/scripts/hook-telemetry.sh"
+
 
 install() {
     hook_types=(
@@ -105,11 +121,17 @@ main() {
                 for s in "${failed_scripts[@]}"; do
                     echo "  x $s"
                 done
+                dd_hook_telemetry_autohook_execution "$hook_type" "true" "$number_of_symlinks"
                 exit $hook_exit_code
               else
                 echo "A $hook_type script exited with non-zero code $hook_exit_code (non-blocking, continuing)."
               fi
             fi
+            blocked="false"
+            if [[ $hook_exit_code != 0 ]]; then
+                blocked="true"
+            fi
+            dd_hook_telemetry_autohook_execution "$hook_type" "$blocked" "$number_of_symlinks"
         fi
     fi
 }
