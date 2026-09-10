@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    crashtracking: fix crash reports being sent to the wrong intake when ``DD_AGENTLESS_ENABLED``
+    is set. The errors-intake upload was incorrectly reusing the same endpoint configured for the
+    telemetry crash-report path, sending it to the telemetry intake host instead of the dedicated
+    errors-intake host.

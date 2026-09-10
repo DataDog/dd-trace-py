@@ -1,4 +1,3 @@
-import json
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Awaitable
@@ -7,13 +6,13 @@ from typing import Optional
 
 from wrapt import wrap_function_wrapper as _w
 
+from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib._events.http_client import HttpClientSendEvent
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.wrappers import unwrap as _u
 
@@ -29,13 +28,9 @@ class HttpxPatcher:
         self,
         module: Any,
         integration_config: "IntegrationConfig",
-        request_event_name: Optional[str] = None,
-        send_event_name: Optional[str] = None,
     ) -> None:
         self._module = module
         self._integration_config = integration_config
-        self._request_event_name = request_event_name
-        self._send_event_name = send_event_name
 
     def _wrapped_sync_send_single_request(
         self,
@@ -53,7 +48,7 @@ class HttpxPatcher:
                 request_headers=request.headers,
                 request_body=lambda: request.content,
             ),
-            context_name_override=self._send_event_name,
+            context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
         ) as ctx:
             response = None
             try:
@@ -61,7 +56,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response_attributes(response)
+                    ctx.event.set_response(response)
 
     async def _wrapped_async_send_single_request(
         self,
@@ -79,7 +74,7 @@ class HttpxPatcher:
                 request_headers=request.headers,
                 request_body=lambda: request.content,
             ),
-            context_name_override=self._send_event_name,
+            context_name_override=HttpClientEvents.HTTPX_SEND_REQUEST.value,
         ) as ctx:
             response = None
             try:
@@ -87,7 +82,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    ctx.event.set_response_attributes(response)
+                    ctx.event.set_response(response)
 
     async def _wrapped_async_send(
         self,
@@ -110,7 +105,7 @@ class HttpxPatcher:
                 query=ensure_text(request.url.query),
                 target_host=request.url.host,
             ),
-            context_name_override=self._request_event_name,
+            context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
         ) as ctx:
             response = None
             try:
@@ -118,7 +113,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    _set_response(ctx.event, response)
+                    ctx.event.set_response(response)
 
     def _wrapped_sync_send(
         self,
@@ -141,7 +136,7 @@ class HttpxPatcher:
                 query=ensure_text(request.url.query),
                 target_host=request.url.host,
             ),
-            context_name_override=self._request_event_name,
+            context_name_override=HttpClientEvents.HTTPX_REQUEST.value,
         ) as ctx:
             response = None
             try:
@@ -149,7 +144,7 @@ class HttpxPatcher:
                 return response
             finally:
                 if response is not None:
-                    _set_response(ctx.event, response)
+                    ctx.event.set_response(response)
 
     def patch(self) -> None:
         if getattr(self._module, "_datadog_patch", False):
@@ -172,21 +167,6 @@ class HttpxPatcher:
         _u(self._module.Client, "send")
         _u(self._module.Client, "_send_single_request")
         _u(self._module.AsyncClient, "_send_single_request")
-
-
-def _set_response(event: HttpClientRequestEvent, response: Any) -> None:
-    event.set_response_attributes(response)
-
-    if not asm_config._asm_enabled:
-        return
-
-    # Preserve HTTPX response JSON for AppSec SSRF analysis without retaining the response.
-    try:
-        if not response.is_closed or not response.content:
-            return
-        event.set_response_body(response.json())
-    except (RuntimeError, json.JSONDecodeError, UnicodeDecodeError):
-        event.set_response_body(None)
 
 
 def httpx_url_to_str(url: Any) -> str:
