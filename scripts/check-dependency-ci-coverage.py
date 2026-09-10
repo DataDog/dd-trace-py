@@ -37,7 +37,7 @@ Warnings:
 - 'latest' is outside declared bounds (intentional early detection, but should use explicit bounds)
 
 Silencing:
-- Add '# ci-deps: allow' at the end of a line in suitespec or CI files to silence errors/warnings
+- Add '# ci-deps: allow' at the end of a line in CI files to silence errors/warnings
 - Silenced items are summarized at the end of the output
 """
 
