@@ -1,10 +1,10 @@
 from ddtrace import config
-from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.messaging import MessagingProcessEvent
+from ddtrace.contrib._events.messaging import MessagingProducerEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -12,6 +12,10 @@ from ddtrace.internal.settings._config import _get_config
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.trace import tracer
+
+
+log = get_logger(__name__)
 
 
 config._add(
@@ -36,6 +40,14 @@ QUEUE_NAME = "queue.name"
 JOB_FUNC_NAME = "job.func_name"
 
 
+def _safe_flush() -> None:
+    """Flush completed spans without allowing transport errors to affect jobs."""
+    try:
+        tracer.flush()
+    except Exception:
+        log.debug("rq: tracer flush after job raised", exc_info=True)
+
+
 def get_version() -> str:
     import rq
 
@@ -58,29 +70,24 @@ def traced_queue_enqueue_job(func, instance, args, kwargs):
     else:
         resource = func_name
 
-    with (
-        core.context_with_data(
-            "rq.queue.enqueue_job",
-            span_name=schematize_messaging_operation(
-                "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
-            ),
-            service=trace_utils.int_service(None, config.rq),
-            resource=resource,
-            span_type=SpanTypes.WORKER,
-            integration_config=config.rq,
-            tags={
-                COMPONENT: config.rq.integration_name,
-                SPAN_KIND: SpanKind.PRODUCER,
-                QUEUE_NAME: instance.name,
-                JOB_ID: job.id,
-                JOB_FUNC_NAME: job.func_name,
-            },
-        ) as ctx,
-        span_from_context(ctx),
-    ):
-        # If the queue is_async then add distributed tracing headers to the job
-        if instance.is_async:
-            core.dispatch("rq.queue.enqueue_job", (ctx, job.meta))
+    event = MessagingProducerEvent(
+        operation=schematize_messaging_operation(
+            "rq.queue.enqueue_job", provider="rq", direction=SpanDirection.OUTBOUND
+        ),
+        distributed_headers=job.meta if instance.is_async else None,
+        component=config.rq.integration_name,
+        integration_config=config.rq,
+        service=trace_utils.int_service(None, config.rq),
+        resource=resource,
+        measured=False,
+        tags={
+            QUEUE_NAME: instance.name,
+            JOB_ID: job.id,
+            JOB_FUNC_NAME: job.func_name,
+        },
+    )
+
+    with core.context_with_event(event):
         return func(*args, **kwargs)
 
 
@@ -106,29 +113,22 @@ def traced_perform_job(func, instance, args, kwargs):
     # `perform_job` is executed in a freshly forked, short-lived instance
     job = get_argument_value(args, kwargs, 0, "job")
 
+    event = MessagingProcessEvent(
+        operation="rq.worker.perform_job",
+        request_headers=job.meta,
+        component=config.rq.integration_name,
+        integration_config=config.rq_worker,
+        service=trace_utils.int_service(None, config.rq_worker),
+        resource=job.func_name,
+        measured=False,
+        tags={JOB_ID: job.id},
+    )
+
     try:
-        with (
-            core.context_with_data(
-                "rq.worker.perform_job",
-                span_name="rq.worker.perform_job",
-                service=trace_utils.int_service(None, config.rq_worker),
-                span_type=SpanTypes.WORKER,
-                resource=job.func_name,
-                integration_config=config.rq_worker,
-                distributed_headers=job.meta,
-                activate_distributed_headers=True,
-                tags={
-                    COMPONENT: config.rq.integration_name,
-                    SPAN_KIND: SpanKind.CONSUMER,
-                    JOB_ID: job.id,
-                },
-            ) as ctx,
-            span_from_context(ctx),
-        ):
+        with core.context_with_event(event) as ctx:
             try:
                 return func(*args, **kwargs)
             finally:
-                # call _after_perform_job handler for job status and origin
                 # In RQ 2.x, get_status() raises InvalidJobOperation when the
                 # job key no longer exists in Redis (e.g. result_ttl=0).
                 # is_failed calls get_status() internally, so it can raise too.
@@ -140,13 +140,16 @@ def traced_perform_job(func, instance, args, kwargs):
                     job_failed = job.is_failed
                 except Exception:
                     job_failed = False
-                span_tags = {"job.status": status or "None", "job.origin": job.origin}
-                core.dispatch("rq.worker.perform_job", (ctx, job_failed, span_tags))
+                span = span_from_context(ctx)
+                if job_failed:
+                    span.error = 1
+                span._set_attribute("job.status", status or "None")
+                span._set_attribute("job.origin", job.origin)
 
     finally:
         # Force flush to agent since the process `os.exit()`s
         # immediately after this method returns
-        core.dispatch("rq.worker.after.perform.job", (ctx,))
+        _safe_flush()
 
 
 def traced_job_perform(func, instance, args, kwargs):
