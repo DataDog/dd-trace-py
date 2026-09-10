@@ -194,6 +194,18 @@ def _blocking_waf_result():
     return DDWaf_result(1, [], {WAF_ACTIONS.BLOCK_ACTION: {}}, 0.0, 0.0, False, _observator(), {})
 
 
+@contextlib.contextmanager
+def _downstream_url(full_url):
+    """Publish full_url in a thread-local core context, the way the outer client hooks do.
+
+    The root context is the ContextVar default, so a URL published there is visible to ddtrace's
+    own writer threads, whose flush requests would consume the RASP decision meant for the test.
+    """
+    with core.context_with_data("test.downstream_request"):
+        core.set_item("full_url", full_url)
+        yield
+
+
 def test_http_connection_request_blocks_on_a_waf_block_decision():
     """A SSRF_REQ block must still propagate out of the migrated http.client hook."""
     unpatch_common_modules()
@@ -204,8 +216,8 @@ def test_http_connection_request_blocks_on_a_waf_block_decision():
     httplib_unpatch()
     try:
         patch_common_modules()
-        core.set_item("full_url", "http://127.0.0.1:1/")
         with (
+            _downstream_url("http://127.0.0.1:1/"),
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
             mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
             mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()) as call_waf,
@@ -220,7 +232,6 @@ def test_http_connection_request_blocks_on_a_waf_block_decision():
         # A context leaves no wrapper frame, so the crop anchor must name the wrapped function.
         assert call_waf.call_args.kwargs["crop_trace"] == "request"
     finally:
-        core.discard_item("full_url")
         unpatch_common_modules()
 
 
@@ -243,8 +254,8 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
         universal = _UniversalWrappingContext.extract(concrete.__wrapped__)
 
         for _ in range(3):
-            core.set_item("full_url", "http://127.0.0.1:1/")
             with (
+                _downstream_url("http://127.0.0.1:1/"),
                 mock.patch.object(cmp, "get_rasp_capability", return_value=True),
                 mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
                 mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()),
@@ -258,7 +269,45 @@ def test_a_blocked_request_leaves_no_wrapping_storage_behind():
         assert concrete._storage.get() is None
         assert universal._storage.get() is None
     finally:
-        core.discard_item("full_url")
+        httplib_unpatch()
+        unpatch_common_modules()
+
+
+def test_a_concurrent_request_does_not_consume_the_pending_block():
+    """A downstream URL is per-request state, so another thread's request must not consume it.
+
+    ddtrace's writer threads flush through http.client.HTTPConnection.request, and they share the
+    root core context with the test, so a URL published there would arm the hook for them too.
+    """
+    unpatch_common_modules()
+    import http.client
+    import threading
+
+    from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
+
+    httplib_unpatch()
+    try:
+        patch_common_modules()
+        with (
+            _downstream_url("http://127.0.0.1:1/"),
+            mock.patch.object(cmp, "get_rasp_capability", return_value=True),
+            mock.patch.object(cmp, "get_active_asm_context", return_value=mock.Mock(downstream_requests=0)),
+            mock.patch.object(cmp, "call_waf_callback", return_value=_blocking_waf_result()),
+            mock.patch.object(cmp, "get_blocked", return_value={"status_code": 403}),
+        ):
+
+            def flush():
+                with contextlib.suppress(BaseException):
+                    http.client.HTTPConnection("127.0.0.1", 1, timeout=1).request("GET", "/flush")
+
+            thread = threading.Thread(target=flush)
+            thread.start()
+            thread.join()
+
+            conn = http.client.HTTPConnection("127.0.0.1", 1, timeout=1)
+            with pytest.raises(BlockingException):
+                conn.request("GET", "/")
+    finally:
         httplib_unpatch()
         unpatch_common_modules()
 
@@ -783,9 +832,9 @@ def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib(path):
     try:
         httplib_patch()
         patch_common_modules()
-        core.set_item("full_url", f"http://127.0.0.1:1{path}")
         env = mock.Mock(downstream_requests=0)
         with (
+            _downstream_url(f"http://127.0.0.1:1{path}"),
             mock.patch.object(cmp, "get_rasp_capability", return_value=True),
             mock.patch.object(cmp, "get_active_asm_context", return_value=env),
             # The shared wrapt wrapper resolves these through a deferred import.
@@ -806,7 +855,6 @@ def test_downstream_ssrf_address_keeps_the_host_under_the_httplib_contrib(path):
                 conn.request("GET", path)
     finally:
         asm_config._asm_enabled, asm_config._ep_enabled = was_asm, was_ep
-        core.discard_item("full_url")
         unpatch_common_modules()
         with contextlib.suppress(Exception):
             httplib_unpatch()
