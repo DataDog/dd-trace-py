@@ -167,12 +167,11 @@ environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 te
 
 Use ``scripts/test-env`` to inspect and maintain locks:
 
-* ``list [suite]`` prints declared lock hashes for a full or unambiguous short suite name.
 * ``check`` reports missing or obsolete lock files across all environments.
 * ``lock [environment-name ...]`` generates missing locks for exact environment names.
 * ``lock --upgrade [environment-name ...]`` upgrades existing locks for exact environment names.
 
-Without a suite or environment name, ``list`` and ``lock`` operate on all environments.
+Without an environment name, ``lock`` operates on all environments.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
