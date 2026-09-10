@@ -1,11 +1,11 @@
+#define PY_SSIZE_T_CLEAN
+#include <Python.h>
+
 #include <atomic>
 #include <mutex>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
-
-#define PY_SSIZE_T_CLEAN
-#include <Python.h>
 
 #include "_memalloc_debug.h"
 #include "_memalloc_heap.h"
