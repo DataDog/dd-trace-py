@@ -1,6 +1,5 @@
 from contextvars import Context
 from contextvars import ContextVar
-from functools import wraps
 import sys
 from typing import Any
 from typing import Callable
@@ -30,18 +29,34 @@ def context_switches_require_fallback() -> bool:
     return core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT) and not is_context_watcher_registered()
 
 
+def copy_identity(wrapped: Callable[..., Any], wrapper: Callable[..., Any]) -> None:
+    """Copy the wrapped callable's name onto wrapper, unlike functools.wraps, only when present.
+
+    functools.wraps unconditionally copies __module__/__doc__/__dict__ and sets __wrapped__, which
+    changes a plain function's introspection and is wasted work here: callers only rely on the
+    thread/task name Trio derives from __name__, and only when the wrapped callable has one (a
+    functools.partial does not).
+    """
+    for attr in ("__name__", "__qualname__"):
+        value = getattr(wrapped, attr, None)
+        if value is not None:
+            setattr(wrapper, attr, value)
+
+
 def wrap_worker_context(func: Callable[..., Any]) -> Callable[..., Any]:
     """Publish the copied worker context on entry and an empty context on exit."""
 
-    @wraps(func)
     def wrapped(*args: Any, **kwargs: Any) -> Any:
-        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+        if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
         # Clear the delegation marker so nested worker boundaries remain visible.
         token = CONTEXT_SWITCH_WORKER_INSTRUMENTED.set(False)
         try:
             return func(*args, **kwargs)
         finally:
             CONTEXT_SWITCH_WORKER_INSTRUMENTED.reset(token)
-            Context().run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
+            if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+                Context().run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
 
+    copy_identity(func, wrapped)
     return wrapped

@@ -1,10 +1,12 @@
 """Publish context switches around Trio tasks and worker-thread callables."""
 
-from functools import wraps
+from contextvars import Context
 from importlib.metadata import version
+import threading
 from typing import Any
 from typing import Callable
 from typing import cast
+import weakref
 
 import trio
 import trio.abc
@@ -16,6 +18,7 @@ from ddtrace.internal import core
 from ddtrace.internal._context_watcher import CONTEXT_SWITCH_WORKER_INSTRUMENTED
 from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 from ddtrace.internal._context_watcher import context_switches_require_fallback
+from ddtrace.internal._context_watcher import copy_identity
 from ddtrace.internal._context_watcher import wrap_worker_context
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -32,72 +35,96 @@ def _supported_versions() -> dict[str, str]:
 
 
 class _ContextSwitchInstrument(trio.abc.Instrument):  # type: ignore[misc]  # Trio 0.21 has no usable Instrument types.
-    """Publish the context entered and left by each Trio task step."""
+    """Publish the context entered and left by each Trio task step.
+
+    One instance is built per run (in _wrapped_run, or directly by patch() when it runs inside an
+    already-active run) instead of sharing one process-global singleton, so unpatch() disabling
+    every instrument it knows about can never retire a *different* run's instrument. enabled still
+    exists, per instance, because Trio can only remove an instrument from the thread running its
+    owning loop: a foreign-thread unpatch() can only ask this run's own next task step to retire it.
+    """
 
     def __init__(self) -> None:
-        self.enabled = False
-
-    def enable(self) -> None:
-        """Allow task hooks to publish until the next disable call."""
         self.enabled = True
 
-    def disable(self) -> None:
-        """Make every registered instance inert until each run can retire it safely."""
-        self.enabled = False
-
     def before_task_step(self, task: Any) -> None:
-        """Publish task entry inside its copied context or retire before an unmatched entry."""
+        """Publish task entry inside a copy of its context, or retire before an unmatched entry."""
         if not self.enabled:
             trio.lowlevel.remove_instrument(self)
             return
-        task.context.run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
+        if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+            task.context.copy().run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
 
     def after_task_step(self, task: Any) -> None:
-        """Publish ambient restoration before retiring after an in-step disable."""
-        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+        """Publish ambient restoration, then retire if disabled since the matching entry."""
+        if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
         if not self.enabled:
             trio.lowlevel.remove_instrument(self)
 
 
-_CONTEXT_SWITCH_INSTRUMENT = _ContextSwitchInstrument()
+_installed = False
+# Every instrument currently owned by a run, so unpatch() can disable all of them regardless of
+# which thread runs them. A WeakSet drops an entry on its own once that run (and thus the
+# instrument) is garbage collected, so a run that ends without ever being unpatched leaks nothing.
+_active_instruments: "weakref.WeakSet[_ContextSwitchInstrument]" = weakref.WeakSet()
+_active_instruments_lock = threading.Lock()
+
+
+def _new_instrument() -> _ContextSwitchInstrument:
+    instrument = _ContextSwitchInstrument()
+    with _active_instruments_lock:
+        _active_instruments.add(instrument)
+    return instrument
+
+
+def _disable_active_instruments() -> None:
+    with _active_instruments_lock:
+        instruments = list(_active_instruments)
+    for instrument in instruments:
+        instrument.enabled = False
 
 
 def patch() -> None:
-    """Patch Trio when the native context watcher is unavailable."""
-    if getattr(trio, "_datadog_patch", False) or not context_switches_require_fallback():
+    """Patch Trio, installing the fallback hooks only when the native context watcher can't cover them."""
+    global _installed
+    if getattr(trio, "_datadog_patch", False):
         return
 
-    _CONTEXT_SWITCH_INSTRUMENT.enable()
-    wrap(trio.run, _wrapped_run)
-    wrap(trio.lowlevel.start_guest_run, _wrapped_run)
-    wrap(trio.to_thread.run_sync, _wrapped_run_sync)
-    wrap(trio.from_thread.run_sync, _wrapped_from_thread_run_sync)
-    try:
-        trio.lowlevel.add_instrument(_CONTEXT_SWITCH_INSTRUMENT)
-    except RuntimeError:
-        # No active Trio run is expected during normal startup patching.
-        pass
+    if not _installed and context_switches_require_fallback():
+        wrap(trio.run, _wrapped_run)
+        wrap(trio.lowlevel.start_guest_run, _wrapped_run)
+        wrap(trio.to_thread.run_sync, _wrapped_run_sync)
+        wrap(trio.from_thread.run_sync, _wrapped_from_thread_run_sync)
+        _installed = True
+        try:
+            # Instrument the run already active on this thread, if any. Future runs started
+            # through the wraps above pick up their own instrument via _wrapped_run instead.
+            trio.lowlevel.add_instrument(_new_instrument())
+        except RuntimeError:
+            pass
     trio._datadog_patch = True
 
 
 def unpatch() -> None:
     """Remove Trio context-switch instrumentation."""
-    _CONTEXT_SWITCH_INSTRUMENT.disable()
+    global _installed
     if not getattr(trio, "_datadog_patch", False):
         return
 
-    unwrap(trio.run, _wrapped_run)
-    unwrap(trio.lowlevel.start_guest_run, _wrapped_run)
-    unwrap(trio.to_thread.run_sync, _wrapped_run_sync)
-    unwrap(trio.from_thread.run_sync, _wrapped_from_thread_run_sync)
+    _disable_active_instruments()
+    if _installed:
+        unwrap(trio.run, _wrapped_run)
+        unwrap(trio.lowlevel.start_guest_run, _wrapped_run)
+        unwrap(trio.to_thread.run_sync, _wrapped_run_sync)
+        unwrap(trio.from_thread.run_sync, _wrapped_from_thread_run_sync)
+        _installed = False
     trio._datadog_patch = False
 
 
 def _wrapped_run(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Add the singleton once while preserving every caller-provided instrument."""
-    instruments = kwargs.get("instruments", ())
-    if not any(instrument is _CONTEXT_SWITCH_INSTRUMENT for instrument in instruments):
-        kwargs["instruments"] = (*instruments, _CONTEXT_SWITCH_INSTRUMENT)
+    """Add a run-scoped instrument while preserving every caller-provided instrument."""
+    kwargs["instruments"] = (*kwargs.get("instruments", ()), _new_instrument())
     return wrapped(*args, **kwargs)
 
 
@@ -112,18 +139,29 @@ def _wrapped_run_sync(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs
 
 
 def _wrap_from_thread_callback(fn: Callable[..., Any]) -> Callable[..., Any]:
-    """Publish callback entry while the task-step instrument owns Trio restoration."""
+    """Publish callback entry and, on every exit, the ambient restoration for that callback.
 
-    @wraps(fn)
+    Restoration can't wait for the task-step instrument alone: Trio's entry-queue task drains a
+    whole batch of queued callbacks (other from_thread callbacks, run_sync_soon jobs) inside one
+    task step, so after_task_step only fires once the batch is done. Publishing here too keeps
+    each callback's own restoration from leaking into the next one in the same batch.
+    """
+
     def wrapped(*args: Any, **kwargs: Any) -> Any:
-        core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
-        return fn(*args, **kwargs)
+        if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+            core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
+        try:
+            return fn(*args, **kwargs)
+        finally:
+            if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
+                Context().run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
 
+    copy_identity(fn, wrapped)
     return wrapped
 
 
 def _wrapped_from_thread_run_sync(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Wrap callbacks entering Trio from threads without publishing a synthetic exit."""
+    """Wrap callbacks entering Trio from threads, publishing their own entry and exit."""
     fn = cast(Callable[..., Any], get_argument_value(args, kwargs, 0, "fn"))
     args, kwargs = set_argument_value(args, kwargs, 0, "fn", _wrap_from_thread_callback(fn))
     return wrapped(*args, **kwargs)

@@ -21,13 +21,15 @@ from tests.tracer.test_otel_thread_context import _published_context
 def clean_patch(monkeypatch):
     """Restore the Trio patch state after a test changes the fallback gate."""
     was_patched = getattr(trio, "_datadog_patch", False)
-    original_gate = trio_patch.context_switches_require_fallback
     trio_patch.unpatch()
     try:
         yield
     finally:
+        # Undo every monkeypatch.setattr the test made (e.g. stubbing context_watcher.core or
+        # the fallback gate) before touching patch state: monkeypatch's own teardown runs after
+        # this fixture's, so unpatch()/patch() below would otherwise still see the test's stubs.
+        monkeypatch.undo()
         trio_patch.unpatch()
-        monkeypatch.setattr(trio_patch, "context_switches_require_fallback", original_gate)
         if was_patched:
             trio_patch.patch()
 
@@ -52,7 +54,9 @@ def test_task_switches_publish_resumed_context(clean_patch, monkeypatch):
             nursery.start_soon(child, "second")
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(trio_patch, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        trio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     trio_patch.patch()
     trio.run(exercise)
 
@@ -104,7 +108,9 @@ def test_guest_run_publishes_task_contexts_and_restoration(clean_patch, monkeypa
             nursery.start_soon(child, "second")
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(trio_patch, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        trio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     trio_patch.patch()
     trio.lowlevel.start_guest_run(
         exercise,
@@ -148,7 +154,9 @@ def test_patch_inside_active_run_instruments_current_run(clean_patch, monkeypatc
         assert len(switches) == switch_count
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(trio_patch, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        trio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     trio.run(exercise)
 
 
@@ -188,7 +196,9 @@ def test_patch_unpatch_patch_inside_active_run_does_not_duplicate_events(clean_p
         assert switches[-1] == "task"
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(trio_patch, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        trio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     trio.run(exercise)
 
 
@@ -227,7 +237,9 @@ def test_unpatch_from_foreign_thread_retires_active_instrument(tracer, clean_pat
             thread_errors.append(exc)
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(trio_patch, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        trio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     if sys.platform == "linux":
         listeners = register_otel_thread_context_listener(tracer)
         assert listeners is not None
@@ -282,7 +294,9 @@ def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, fails):
             assert await trio.to_thread.run_sync(worker) == "done"
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(context_watcher, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        context_watcher, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     trio_patch.patch()
     trio.run(exercise)
 
@@ -337,7 +351,7 @@ def test_from_thread_run_sync_publishes_inferred_callback_context(clean_patch, m
             assert await trio.to_thread.run_sync(worker) == "done"
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    recorder = SimpleNamespace(dispatch=record_context_switch)
+    recorder = SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
     monkeypatch.setattr(trio_patch, "core", recorder)
     monkeypatch.setattr(context_watcher, "core", recorder)
     trio_patch.patch()
@@ -383,7 +397,9 @@ def test_from_thread_run_sync_publishes_foreign_callback_context(clean_patch, mo
         foreign_thread.join()
 
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(trio_patch, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        trio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     trio_patch.patch()
     trio.run(exercise)
 

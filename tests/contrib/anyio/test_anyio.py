@@ -18,13 +18,15 @@ from ddtrace.internal._context_watcher import PYTHON_CONTEXT_SWITCH_EVENT
 def clean_patch(monkeypatch):
     """Restore the AnyIO patch state after a test changes the fallback gate."""
     was_patched = getattr(anyio, "_datadog_patch", False)
-    original_gate = anyio_patch.context_switches_require_fallback
     anyio_patch.unpatch()
     try:
         yield
     finally:
+        # Undo every monkeypatch.setattr the test made (e.g. stubbing context_watcher.core or
+        # the fallback gate) before touching patch state: monkeypatch's own teardown runs after
+        # this fixture's, so unpatch()/patch() below would otherwise still see the test's stubs.
+        monkeypatch.undo()
         anyio_patch.unpatch()
-        monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", original_gate)
         if was_patched:
             anyio_patch.patch()
 
@@ -55,7 +57,9 @@ def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, fa
             assert await anyio.to_thread.run_sync(func=worker) == "done"
 
     monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(context_watcher, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        context_watcher, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     anyio_patch.patch()
     anyio.run(exercise, backend=backend)
 
@@ -81,8 +85,12 @@ def test_trio_backend_does_not_double_publish_worker_context(clean_patch, monkey
     trio_patch.unpatch()
     monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", lambda: True)
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(trio_patch, "core", SimpleNamespace(dispatch=record_context_switch))
-    monkeypatch.setattr(context_watcher, "core", SimpleNamespace(dispatch=record_context_switch))
+    monkeypatch.setattr(
+        trio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
+    monkeypatch.setattr(
+        context_watcher, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
+    )
     anyio_patch.patch()
     trio_patch.patch()
     try:
@@ -126,7 +134,7 @@ def test_nested_trio_worker_inside_anyio_worker_is_published(clean_patch, monkey
     trio_patch.unpatch()
     monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", lambda: True)
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    recorder = SimpleNamespace(dispatch=record_context_switch)
+    recorder = SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
     monkeypatch.setattr(trio_patch, "core", recorder)
     monkeypatch.setattr(context_watcher, "core", recorder)
     anyio_patch.patch()
@@ -174,7 +182,7 @@ def test_from_thread_run_sync_uses_trio_boundary_once(clean_patch, monkeypatch):
     trio_patch.unpatch()
     monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", lambda: True)
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
-    recorder = SimpleNamespace(dispatch=record_context_switch)
+    recorder = SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
     monkeypatch.setattr(trio_patch, "core", recorder)
     monkeypatch.setattr(context_watcher, "core", recorder)
     anyio_patch.patch()

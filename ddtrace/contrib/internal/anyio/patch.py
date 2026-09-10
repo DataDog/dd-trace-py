@@ -26,21 +26,30 @@ def _supported_versions() -> dict[str, str]:
     return {"anyio": ">=3.4.0"}
 
 
+_installed = False
+
+
 def patch() -> None:
-    """Patch AnyIO worker calls when the native context watcher is unavailable."""
-    if getattr(anyio, "_datadog_patch", False) or not context_switches_require_fallback():
+    """Patch AnyIO, installing the fallback hook only when the native context watcher can't cover it."""
+    global _installed
+    if getattr(anyio, "_datadog_patch", False):
         return
 
-    wrap(anyio.to_thread.run_sync, _wrapped_run_sync)
+    if not _installed and context_switches_require_fallback():
+        wrap(anyio.to_thread.run_sync, _wrapped_run_sync)
+        _installed = True
     anyio._datadog_patch = True
 
 
 def unpatch() -> None:
     """Remove AnyIO worker-call instrumentation."""
+    global _installed
     if not getattr(anyio, "_datadog_patch", False):
         return
 
-    unwrap(anyio.to_thread.run_sync, _wrapped_run_sync)
+    if _installed:
+        unwrap(anyio.to_thread.run_sync, _wrapped_run_sync)
+        _installed = False
     anyio._datadog_patch = False
 
 

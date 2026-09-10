@@ -469,6 +469,7 @@ suites:
       - '@futures'
       - '@ci_visibility'
       - '@vendor'
+      - '@context_watcher'
       - tests/tracer/*
       - tests/snapshots/test_*
     retry: 2
