@@ -62,6 +62,12 @@ include:
     ref: 0f48ca35f0b3dfd19d5c0dc9f92aa977c99bebbf
     file: '/ci/llm-validation.gitlab-ci.yml'
   - local: ".gitlab/ci-templates.yml" # Reusable templates (setup_ci_deps, etc.)
+  - local: ".gitlab/retry-policies.yml"
+  # Included after the base policies so main pipelines override them without
+  # duplicating concrete job definitions or changing job identities.
+  - local: ".gitlab/retry-policies-main.yml"
+    rules:
+      - if: $CI_COMMIT_REF_NAME == "main"
   - local: ".gitlab/one-pipeline.locked.yml"
   - local: ".gitlab/services.yml" # Include early so others can use the definitions
   - local: ".gitlab/package.yml"
@@ -647,8 +653,9 @@ lib_injection_tests:
 # Extension-based patterns keep Python and docs out automatically; non-extension
 # build files (CMakeLists.txt, .sh, .supp) are listed separately.
 profiling_native:
-  extends: .profiling_native_base
-  retry: 2
+  extends:
+    - .profiling_native_base
+    - .retry_on_failure
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "main"
