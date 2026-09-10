@@ -60,17 +60,16 @@ def _collect_suitespecs() -> dict:
     for s, root, ns_prefix in specfiles:
         path_parts = s.relative_to(root).parts[:-1]
         namespace = "::".join(path_parts) if path_parts else ns_prefix or None
-        with YAML() as yaml:
+        with YAML(typ="safe") as yaml:
             data = yaml.load(s)
-            suites = data.get("suites", {})
-            if namespace is not None:
-                for name, spec in list(suites.items()):
-                    if "pattern" not in spec:
-                        spec["pattern"] = name
-                    suites[f"{namespace}::{name}"] = spec
-                    del suites[name]
-            for k, v in suitespec.items():
-                v.update(data.get(k, {}))
+        suitespec["components"].update(data["components"])
+
+        for name, value in data["suites"].items():
+            spec = value.copy()
+            full_name = f"{namespace}::{name}" if namespace is not None else name
+            if namespace is not None and "pattern" not in spec:
+                spec["pattern"] = name
+            suitespec["suites"][full_name] = spec
 
     return suitespec
 
@@ -204,7 +203,8 @@ def _runs(
     runs = []
     for run in run_specs:
         run_environment = base_environment.copy()
-        run_environment.update(run.get("env", {}))
+        if "env" in run:
+            run_environment.update(run["env"])
         run_command = run.get("command", command)
         if not isinstance(run_command, str):
             raise MatrixError("each matrix run needs a command")
