@@ -398,7 +398,7 @@ def _scale_suites(
 
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
-    from tests import suitespec
+    import suitespec
 
     suites = suitespec.get_suites()
 
@@ -993,9 +993,10 @@ import ruamel.yaml as _ruamel_yaml  # noqa: E402
 
 _testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
 TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
-# Make the project root and scripts folders available for importing.
+# Make the project root, scripts, and tests folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
+sys.path.append(str(ROOT / "tests"))
 
 # Single source of truth for the benchmark SLO naming regexes lives in
 # check_slo_ownership.py; import them here so both this generator and the
