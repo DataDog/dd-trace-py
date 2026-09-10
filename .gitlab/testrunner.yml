@@ -10,6 +10,13 @@ variables:
   tags: [ "arch:amd64" ]
   timeout: 20m
   before_script:
+    # AIDEV-NOTE: These one-pipeline build controls are not OpenTelemetry SDK configuration.
+    - >-
+      unset
+      OTEL_OPERATOR_IMAGES_ENABLED
+      OTEL_OPERATOR_IMAGE_NAME
+      OTEL_OPERATOR_LANGUAGE
+      OTEL_OPERATOR_IMAGE_MAX_SIZE_BYTES
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
     - pyenv global 3.12 3.9 3.10 3.11 3.13 3.14 3.15-dev
