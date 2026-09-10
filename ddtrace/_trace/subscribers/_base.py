@@ -75,7 +75,6 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
     span_kwargs: dict[str, Any] = {
         "span_type": event.span_type,
         "resource": event.resource,
-        "service": event.service,
         "activate": event.activate,
     }
 

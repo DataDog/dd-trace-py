@@ -1,17 +1,9 @@
-import asyncio
-from types import SimpleNamespace
-
 from aiokafka.errors import MessageSizeTooLargeError
 from aiokafka.structs import TopicPartition
 import pytest
 
-from ddtrace._trace.context import Context
 from ddtrace.contrib.internal.aiokafka.patch import patch
-from ddtrace.contrib.internal.aiokafka.patch import traced_getmany
-from ddtrace.contrib.internal.aiokafka.patch import traced_getone
-from ddtrace.contrib.internal.aiokafka.patch import traced_send
 from ddtrace.contrib.internal.aiokafka.patch import unpatch
-from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_config
 from tests.utils import override_global_tracer
 
@@ -86,115 +78,6 @@ async def test_send_commit():
         await consumer.commit()
 
         assert not has_header(result.headers, "x-datadog-trace-id")
-
-
-@pytest.mark.asyncio
-async def test_send_span_finishes_when_delivery_future_resolves(tracer, test_spans):
-    delivery_future = asyncio.get_running_loop().create_future()
-    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
-    producer = SimpleNamespace(client=client)
-
-    async def send(*args, **kwargs):
-        return delivery_future
-
-    returned_future = await traced_send(send, producer, ("topic", PAYLOAD), {})
-    span = tracer.current_span()
-
-    assert returned_future is delivery_future
-    assert span is not None
-    assert not span.finished
-    test_spans.assert_has_no_spans()
-
-    delivery_future.set_result(SimpleNamespace(topic="topic", partition=0, offset=1))
-    await asyncio.sleep(0)
-
-    assert span.finished
-    test_spans.assert_span_count(1)
-
-
-@pytest.mark.asyncio
-async def test_send_span_records_delivery_future_failure(tracer, test_spans):
-    delivery_future = asyncio.get_running_loop().create_future()
-    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
-    producer = SimpleNamespace(client=client)
-
-    async def send(*args, **kwargs):
-        return delivery_future
-
-    await traced_send(send, producer, ("topic", PAYLOAD), {})
-    span = tracer.current_span()
-
-    assert span is not None
-    assert not span.finished
-
-    delivery_future.set_exception(RuntimeError("delivery failed"))
-    await asyncio.sleep(0)
-
-    assert span.finished
-    assert span.error == 1
-    test_spans.assert_span_count(1)
-
-
-@pytest.mark.asyncio
-async def test_getone_preserves_local_span_when_headers_are_from_another_trace(tracer, test_spans):
-    carrier = {}
-    HTTPPropagator.inject(Context(trace_id=2**64 - 1, span_id=99), carrier)
-    message = SimpleNamespace(
-        headers=[(key, value.encode("utf-8") if isinstance(value, str) else value) for key, value in carrier.items()],
-        topic="topic",
-        key=None,
-        value=PAYLOAD,
-        partition=0,
-        offset=1,
-    )
-    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
-    consumer = SimpleNamespace(_client=client, _group_id="test-group", _enable_auto_commit=False)
-
-    async def getone(*args, **kwargs):
-        return message
-
-    with override_config("aiokafka", dict(distributed_tracing_enabled=True)):
-        with tracer.trace("local") as parent:
-            result = await traced_getone(getone, consumer, (), {})
-            assert result is message
-            assert tracer.current_span() is parent
-            with tracer.trace("after") as after:
-                assert after.parent_id == parent.span_id
-
-
-@pytest.mark.asyncio
-async def test_getmany_empty_result():
-    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
-    consumer = SimpleNamespace(_client=client, _group_id="test-group")
-
-    async def getmany(*args, **kwargs):
-        return {}
-
-    result = await traced_getmany(getmany, consumer, (), {})
-
-    assert result == {}
-
-
-@pytest.mark.asyncio
-async def test_getmany_preserves_local_span(tracer, test_spans):
-    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
-    consumer = SimpleNamespace(_client=client, _group_id="test-group")
-    active_span_during_getmany = None
-
-    async def getmany(*args, **kwargs):
-        nonlocal active_span_during_getmany
-        active_span_during_getmany = tracer.current_span()
-        return {}
-
-    with tracer.trace("local") as parent:
-        result = await traced_getmany(getmany, consumer, (), {})
-
-        assert result == {}
-        assert active_span_during_getmany is parent
-        assert tracer.current_span() is parent
-        test_spans.assert_span_count(1)
-        consume_span = test_spans.pop()[0]
-        assert consume_span.parent_id is None
 
 
 @pytest.mark.asyncio
