@@ -3,16 +3,21 @@ import logging
 import os
 import random
 import time
+from types import SimpleNamespace
 
 import confluent_kafka
 from confluent_kafka import TopicPartition
 import pytest
 
+from ddtrace._trace.context import Context
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
+from ddtrace.contrib.internal.kafka.patch import _instrument_message
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace.contrib.internal.kafka.patch import unpatch
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
+from ddtrace.propagation.http import HTTPPropagator
 from tests.utils import override_config
 
 from .conftest import BOOTSTRAP_SERVERS
@@ -657,6 +662,50 @@ def test_context_header_injection_works_no_client_added_headers(kafka_topic, pro
                 propagation_asserted = True
 
         assert propagation_asserted is True
+
+
+def test_consume_restores_active_span_after_foreign_distributed_context(kafka_tracer):
+    carrier = {}
+    HTTPPropagator.inject(Context(trace_id=2**64 - 1, span_id=99), carrier)
+
+    class Message:
+        def topic(self):
+            return "topic"
+
+        def headers(self):
+            return list(carrier.items())
+
+        def key(self):
+            return b"key"
+
+        def value(self):
+            return PAYLOAD
+
+        def error(self):
+            return None
+
+        def offset(self):
+            return 1
+
+        def partition(self):
+            return 0
+
+        def __len__(self):
+            return 1
+
+    instance = SimpleNamespace(
+        _group_id="group",
+        _dd_bootstrap_servers="localhost:9092",
+        _dd_cluster_id="test-cluster",
+        _auto_commit=False,
+    )
+    pin = Pin()
+    pin.onto(instance)
+
+    with override_config("kafka", dict(distributed_tracing_enabled=True, propagation_as_span_links=False)):
+        with kafka_tracer.trace("local") as parent:
+            _instrument_message([Message()], pin, time.time_ns(), instance, None)
+            assert kafka_tracer.current_span() is parent
 
 
 def test_consumer_uses_active_context_when_no_valid_distributed_context_exists(
