@@ -26,7 +26,7 @@ Individual pre-commit hooks (run in numeric order):
 | Hook | Description |
 |------|-------------|
 | `01-format-and-lint` | Formats and lints staged Python files |
-| `02-run-mypy` | Type-checks staged Python files |
+| `02-run-mypy` | Type-checks staged production Python files (tests/ skipped; matches CI typing) |
 | `03-run-codespell` | Spell-checks staged files |
 | `04-run-clang-format` | Formats staged C/C++ files with clang-format |
 | `05-run-bandit` | Security-scans staged production Python files |
