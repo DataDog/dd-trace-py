@@ -277,7 +277,11 @@ class TestPrompts:
         def get_fallback():
             nonlocal call_count
             call_count += 1
-            return {"template": "Lazy: {name}", "version": "local-v1"}
+            return {
+                "template": "Lazy: {name}",
+                "version": "local-v1",
+                "config": {"model": {"temperature": 0}},
+            }
 
         with mock_api(500, "Error"):
             prompt = LLMObs.get_prompt("greeting", fallback=get_fallback)
@@ -286,14 +290,6 @@ class TestPrompts:
         assert prompt.source == "fallback"
         assert prompt.version == "local-v1"
         assert prompt.format(name="Bob") == "Lazy: Bob"
-
-    def test_structured_fallback_config(self):
-        with mock_api(404, "Not Found"):
-            prompt = LLMObs.get_prompt(
-                "missing",
-                fallback={"template": "Hello", "config": {"model": {"temperature": 0}}},
-            )
-
         assert prompt.config == {"model": {"temperature": 0}}
 
     def test_callable_fallback_not_called_on_success(self):
