@@ -11,7 +11,6 @@ from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
-from ddtrace.internal.settings.asm import config as asm_config
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -48,16 +47,6 @@ def patch():
     urllib3.__datadog_patch = True
 
     _w("urllib3", "connectionpool.HTTPConnectionPool.urlopen", _wrap_urlopen)
-    if asm_config._load_modules:
-        from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
-        from ddtrace.appsec._common_module_patches import wrapped_urllib3_make_request_6D4E8B2A1F095C73 as _make_request
-
-        _w("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request)
-        if hasattr(urllib3, "_request_methods"):
-            _w("urllib3._request_methods", "RequestMethods.request", _wrap_request)
-        else:
-            # Old version before https://github.com/urllib3/urllib3/pull/2398
-            _w("urllib3.request", "RequestMethods.request", _wrap_request)
 
 
 def unpatch():
