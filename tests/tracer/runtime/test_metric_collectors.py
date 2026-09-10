@@ -305,12 +305,15 @@ class TestGCRuntimeMetricCollector(BaseTestCase):
         from ddtrace.internal.runtime.gc_monitor import gc_pause_monitor
         from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
-        worker: RuntimeWorker = RuntimeWorker()
-        worker.start()
         monitor = gc_pause_monitor()
-        self.assertGreaterEqual(monitor._refcount, 1)
-        worker.stop()
-        self.assertEqual(monitor._refcount, 0)
+        before: int = monitor._refcount
+        worker: RuntimeWorker = RuntimeWorker()
+        try:
+            worker.start()
+            self.assertEqual(monitor._refcount, before + 1)
+        finally:
+            worker.stop()
+        self.assertEqual(monitor._refcount, before)
 
     def test_init_failure_releases_monitor(self) -> None:
         import gc

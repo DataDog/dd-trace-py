@@ -23,8 +23,11 @@ CPUs one run needs. This is what decides whether your commit runs a given scenar
 which need a live Datadog agent alongside the benchmark. Everything else goes straight to the
 platform's `run-benchmarks.sh`.
 
-**`bp-runner.microbenchmarks.fail-on-breach.template.yml`** — The SLOs the `check-slo-breaches` gate
-checks results against: one threshold per scenario config. Scenario names here are
+**`bp-runner.microbenchmarks.fail-on-breach.template.yml`** is no longer the source of truth;
+the SLOs now live in one per-team file under **`.gitlab/benchmarks/slos/`** (see [SLO ownership](#slo-ownership)).
+`scripts/gen_gitlab_config.py` merges those into the single generated
+`bp-runner.microbenchmarks.fail-on-breach.yml` that the `check-slo-breaches` gate checks results
+against: one threshold per scenario config. Scenario names are
 `<lowercased scenario class name>-<config name>` — the `start-finish` config of the `Span` class in
 `benchmarks/span/` is `span-start-finish`.
 
@@ -78,7 +81,7 @@ Execution, once per pipeline:
    `type: 'microbenchmark'` is required; the generator selects on it. `cpus_per_run` groups
    scenarios into jobs — leave it at `1` unless the scenario genuinely needs more.
 
-4. Add an SLO per config to `bp-runner.microbenchmarks.fail-on-breach.template.yml` so
+4. Add an SLO per config to your team's file under `.gitlab/benchmarks/slos/` so
    `check-slo-breaches` gates on it, keyed `<lowercased class name>-<config name>`:
 
    ```yaml
@@ -88,7 +91,12 @@ Execution, once per pipeline:
    ```
 
    Base the number on your local run with a small margin above it (roughly 10%), not on the
-   measurement exactly. A scenario with no entry here runs and reports but is not gated.
+   measurement exactly. A scenario with no entry runs and reports but is not gated.
+
+   Each file under `slos/` is owned by a team via `.github/CODEOWNERS` (the file name is the
+   team slug, e.g. `apm-sdk-capabilities-python.yml`), so editing a threshold routes review to
+   that team automatically. If your team has no file yet, add one named `<team-slug>.yml`, add a
+   matching CODEOWNERS rule, and push — `tests-gen` validates SLO integrity via gen_gitlab_config.py.
 
 5. Verify the generated config before pushing:
 
@@ -143,6 +151,25 @@ reports its numbers, so trends stay visible; it just does not fail the pipeline.
 
 Marking a benchmark flaky is a stopgap, not a resolution: it means nothing is watching that code
 path for regressions. Open an issue to either stabilize the scenario or remove it.
+
+## SLO ownership
+
+SLO thresholds live in one per-team file under `.gitlab/benchmarks/slos/`, named
+`<team-slug>.yml` (e.g. `apm-sdk-capabilities-python.yml`). Each file is owned by its team via
+`.github/CODEOWNERS`, so editing a threshold routes review to that team automatically — GitHub
+CODEOWNERS is file-level, so splitting the SLOs by team into separate files is what lets the gate
+route per team. `scripts/gen_gitlab_config.py` merges all of these into the single generated
+`bp-runner.microbenchmarks.fail-on-breach.yml` consumed by `check-slo-breaches`.
+
+`gen_gitlab_config.py` also validates structural integrity every time it runs (i.e. on every PR
+via the `tests-gen` job) and fails the build if an SLO gets orphaned — specifically if:
+
+- an SLO points at a benchmark class or config that no longer exists,
+- an SLO appears in more than one team file (two teams must not own the same gate), or
+- a benchmark config has no SLO entry.
+
+When you add, rename, or delete a benchmark scenario, config, or SLO threshold, push and fix
+what `tests-gen` reports in the same PR.
 
 ## Rebuilding the CI Docker image
 
