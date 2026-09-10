@@ -1298,8 +1298,13 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
                 auto maybe_task = TaskInfo::create(echion, address);
                 if (maybe_task) {
                     auto task = std::move(*maybe_task);
+                    const auto task_id = reinterpret_cast<uintptr_t>(task->origin);
+                    Datadog::TaskSpanContext task_span_context;
+                    task_span_context.use_task_attribution = true;
+                    task_span_context.span = Datadog::SpanLinks::get_instance().get_active_span_from_logical_id(
+                      Datadog::SpanLinkDomain::AsyncioTask, task_id);
                     task->name.visit_string([&](std::string_view task_name) {
-                        renderer.render_task_begin(task_name, true, reinterpret_cast<uintptr_t>(task->origin));
+                        renderer.render_task_begin(task_name, true, task_id, std::nullopt, task_span_context);
                     });
 
                     if (const CoroutineFingerprint* fingerprint = matching_active_fingerprint(echion, *task, raw)) {
@@ -1319,8 +1324,10 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
     if (raw.greenlet_id != 0) {
         auto snapshot = snapshot_greenlet(echion, raw.greenlet_id);
         if (snapshot && greenlet_snapshot_matches(echion, *snapshot, tstate, native_id, captured_stack)) {
-            snapshot->name.visit_string(
-              [&](std::string_view task_name) { renderer.render_task_begin(task_name, true, snapshot->greenlet_id); });
+            const Datadog::TaskSpanContext task_span_context;
+            snapshot->name.visit_string([&](std::string_view task_name) {
+                renderer.render_task_begin(task_name, true, snapshot->greenlet_id, std::nullopt, task_span_context);
+            });
             append_greenlet_parents(echion, *snapshot, tstate, captured_stack);
         }
     }

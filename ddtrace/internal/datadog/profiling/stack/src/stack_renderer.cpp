@@ -114,6 +114,9 @@ StackRenderer::render_cpu_sample_begin(std::string_view name,
     if (failed) {
         return;
     }
+    thread_span = SpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
+    span_attribution_resolved = false;
+
     // Return an incomplete Sample before asking the pool for its replacement.
     sample.reset();
     // Keep acquisition separate from the reset above so start_sample() can reuse the slot we just returned.
@@ -135,13 +138,6 @@ StackRenderer::render_cpu_sample_begin(std::string_view name,
     thread_state.now_time_ns = now_ns;
     thread_state.wall_time_ns = 0;
     thread_state.cpu_time_ns = 1000 * cpu_time_us;
-
-    const std::optional<Span> active_span = ThreadSpanLinks::get_instance().get_active_span_from_thread_id(thread_id);
-    if (active_span) {
-        sample->push_span_id(active_span->span_id);
-        sample->push_local_root_span_id(active_span->local_root_span_id);
-        sample->push_trace_type(std::string_view(active_span->span_type));
-    }
 }
 
 void
