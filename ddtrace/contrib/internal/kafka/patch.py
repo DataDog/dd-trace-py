@@ -51,6 +51,7 @@ config._add(
         _default_service=schematize_service_name("kafka"),
         distributed_tracing_enabled=asbool(env.get("DD_KAFKA_PROPAGATION_ENABLED", default=False)),
         trace_empty_poll_enabled=asbool(env.get("DD_KAFKA_EMPTY_POLL_ENABLED", default=True)),
+        propagation_as_span_links="kafka" in config._propagation_as_span_links,
     ),
 )
 
@@ -266,17 +267,32 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 def _instrument_message(messages, pin, start_ns, instance, err):
     ctx = None
-    # First message is used to extract context and enrich datadog spans
-    # This approach aligns with the opentelemetry confluent kafka semantics
+    links = []
     first_message = messages[0] if len(messages) else None
-    if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
-        ctx = Propagator.extract(dict(first_message.headers()))
+    if config.kafka.distributed_tracing_enabled:
+        if config.kafka.propagation_as_span_links:
+            # Relate the consume span to every message's producer via span links rather
+            # than continuing any single producer's trace. This applies to both poll() (a
+            # single message) and consume() (a batch): no producer is privileged as the
+            # parent, so no producer trace is polluted by the consume span's children.
+            for message in messages:
+                if message is None or not message.headers():
+                    continue
+                link_ctx = Propagator.extract(dict(message.headers()))
+                if link_ctx is not None and link_ctx.trace_id is not None:
+                    links.append(link_ctx)
+        elif first_message is not None and first_message.headers():
+            # First message is used to extract context and enrich datadog spans
+            # This approach aligns with the opentelemetry confluent kafka semantics
+            ctx = Propagator.extract(dict(first_message.headers()))
     with tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         span_type=SpanTypes.WORKER,
         child_of=ctx if ctx is not None and ctx.trace_id is not None else tracer.context_provider.active(),
         activate=True,
     ) as span:
+        if links:
+            core.dispatch("kafka.consume.link_spans", (span, links))
         set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
         # reset span start time to before function call
         span.start_ns = start_ns
