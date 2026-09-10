@@ -18,7 +18,6 @@ from ddtrace.appsec._common_module_patches import _SsrfUrllib3MakeRequest
 from ddtrace.appsec._common_module_patches import _SsrfUrllib3Urlopen
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
-from ddtrace.appsec._common_module_patches import wrapped_urllib3_urlopen
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import WAF_ACTIONS
 from ddtrace.appsec._patch_utils import try_unwrap
@@ -742,28 +741,33 @@ def test_urllib3_poolmanager_redirect_inspects_absolute_target():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
 
-    # Stand in for HTTPConnectionPool._make_request: record the inspected URL then release it,
-    # exactly as the real RASP wrapper does, so the set/discard flow across redirects is faithful.
+    # Stand in for the real _make_request hook: record the inspected URL then release it, so the
+    # set/discard flow across redirects is faithful. Drives the shipped urlopen context above it.
     inspected = []
 
-    def _make_request_recorder(func, instance, args, kwargs):
-        inspected.append(core.find_item("full_url"))
-        core.discard_item("full_url")
-        return func(*args, **kwargs)
+    class _MakeRequestRecorder(_RaspContext):
+        def __enter__(self):
+            super().__enter__()
+            inspected.append(core.find_item("full_url"))
+            core.discard_item("full_url")
+            return self
 
     core.discard_item("full_url")
-    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool.urlopen", wrapped_urllib3_urlopen)
-    try_wrap_function_wrapper("urllib3.connectionpool", "HTTPConnectionPool._make_request", _make_request_recorder)
+    try_wrap_context("urllib3.connectionpool", "HTTPConnectionPool.urlopen", _SsrfUrllib3Urlopen)
+    try_wrap_context("urllib3.connectionpool", "HTTPConnectionPool._make_request", _MakeRequestRecorder)
     try:
-        pool_manager = urllib3.PoolManager(num_pools=1)
-        try:
-            response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
-            assert response.status == 200
-        finally:
-            pool_manager.clear()
+        # The context gates on the capability, where the old wrapt wrapper published the URL
+        # unconditionally, so this has to be on for the URL to be published at all.
+        with mock.patch.object(cmp, "get_rasp_capability", return_value=True):
+            pool_manager = urllib3.PoolManager(num_pools=1)
+            try:
+                response = pool_manager.request("GET", "http://127.0.0.1:{}/source".format(port), timeout=10)
+                assert response.status == 200
+            finally:
+                pool_manager.clear()
     finally:
-        try_unwrap("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
-        try_unwrap("urllib3.connectionpool", "HTTPConnectionPool._make_request")
+        try_unwrap_context("urllib3.connectionpool", "HTTPConnectionPool.urlopen")
+        try_unwrap_context("urllib3.connectionpool", "HTTPConnectionPool._make_request")
         core.discard_item("full_url")
         server.shutdown()
         server.server_close()

@@ -8,7 +8,6 @@ from typing import Union
 from urllib.parse import urlsplit
 from urllib.parse import urlunparse
 
-from ddtrace.appsec._asm_request_context import _get_asm_context
 from ddtrace.appsec._asm_request_context import call_waf_callback
 from ddtrace.appsec._asm_request_context import get_active_asm_context
 from ddtrace.appsec._asm_request_context import get_blocked
@@ -406,45 +405,6 @@ def _parse_headers_urllib3(headers):
         return {}
 
 
-def wrapped_urllib3_make_request_6D4E8B2A1F095C73(original_request_callable, instance, args, kwargs):
-    full_url = core.find_item("full_url")
-    env = _get_asm_context()
-    do_rasp = get_rasp_capability("ssrf") and full_url is not None and env is not None
-    if not do_rasp:
-        return original_request_callable(*args, **kwargs)
-    core.discard_item("full_url")
-    # Run this outgoing request in its own core context so concurrent urllib3 requests each get a
-    # distinct subcontext (shared only by this request's SSRF_REQ + SSRF_RES). When an outer client
-    # (e.g. requests) already owns a scope, open_rasp_subcontext_scope finds it (walks up) and
-    # reuses it. Dropping this context releases the holder, so no explicit close is needed.
-    with core.context_with_data("rasp.ssrf.urllib3"):
-        open_rasp_subcontext_scope()
-        use_body = core.find_item("use_body", False)
-        method = args[1] if len(args) > 1 else kwargs.get("method", None)
-        body = args[3] if len(args) > 3 else kwargs.get("body", None)
-        headers = _parse_headers_urllib3(args[4] if len(args) > 4 else kwargs.get("headers", {}))
-        addresses = {EXPLOIT_PREVENTION.ADDRESS.SSRF: full_url, "DOWN_REQ_METHOD": method, "DOWN_REQ_HEADERS": headers}
-        content_type = headers.get("Content-Type", None) or headers.get("content-type", None)
-        if use_body and content_type == "application/json":
-            try:
-                addresses["DOWN_REQ_BODY"] = json.loads(body)
-            except Exception:
-                pass  # nosec
-        res = call_waf_callback(
-            addresses,
-            crop_trace="wrapped_urllib3_make_request_6D4E8B2A1F095C73",
-            rule_type=EXPLOIT_PREVENTION.TYPE.SSRF_REQ,
-        )
-        env.downstream_requests += 1
-        if res and _must_block(res.actions):
-            raise BlockingException(get_blocked(), EXPLOIT_PREVENTION.BLOCKING, EXPLOIT_PREVENTION.TYPE.SSRF, full_url)
-        # api10 redirect (3xx) response analysis is intentionally NOT done here: urllib3 bottoms
-        # out in http.client.HTTPConnection.getresponse (_SsrfHttpConnectionGetresponse), which
-        # already sends DOWN_RES_STATUS/DOWN_RES_HEADERS for 3xx responses within this same SSRF
-        # subcontext. Re-inspecting here would double-call the WAF.
-        return original_request_callable(*args, **kwargs)
-
-
 def _urllib3_absolute_url(instance, path: str) -> str:
     try:
         port = getattr(instance, "port", None)
@@ -452,20 +412,6 @@ def _urllib3_absolute_url(instance, path: str) -> str:
         return urlunparse((instance.scheme, netloc, path, "", "", ""))
     except Exception:  # nosec
         return path
-
-
-def wrapped_urllib3_urlopen(original_open_callable, instance, args, kwargs):
-    # urlopen(method, url, ...): url is positional arg 1 (also on redirect re-invocation).
-    full_url = args[1] if len(args) > 1 else kwargs.get("url", None)
-    if isinstance(full_url, str) and full_url.startswith("/") and instance is not None:
-        # PoolManager passes a relative URI; rebuild the absolute URL so SSRF/API10 sees the host.
-        full_url = _urllib3_absolute_url(instance, full_url)
-    if core.find_item("full_url") is None:
-        core.set_item("full_url", full_url)
-    try:
-        return original_open_callable(*args, **kwargs)
-    finally:
-        core.discard_item("full_url")
 
 
 class _SsrfUrllib3Urlopen(_ScopedRaspContext):
