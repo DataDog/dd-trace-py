@@ -3531,29 +3531,19 @@
                 "supportedRange": ">=1.3",
                 "tested": [
                     "1.3.24",
-                    "2.0.40"
+                    "2.0.52"
                 ]
             },
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.13"
-                    ]
-                },
-                "supportedRange": ">=1.3",
-                "tested": [
-                    "2.0.40"
-                ]
-            },
-            {
-                "testedRuntimes": {
-                    "python": [
+                        "3.13",
                         "3.14"
                     ]
                 },
                 "supportedRange": ">=1.3",
                 "tested": [
-                    "2.0.43"
+                    "2.0.52"
                 ]
             }
         ]
