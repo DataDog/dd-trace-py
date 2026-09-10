@@ -2507,8 +2507,9 @@ class LLMObs(Service):
                 session_id = parent_ctx._meta.get(PROPAGATED_SESSION_ID_KEY)
                 sample_rate = parent_ctx._meta.get(PROPAGATED_SAMPLE_RATE)
                 sampling_decision = parent_ctx._meta.get(PROPAGATED_SAMPLING_DECISION)
-                # Continued from another process: the decision was frozen there and is
-                # inherited above, so there is no local state to resolve against.
+                # A Context carries strings, not objects, so the shared state cannot cross it --
+                # only the values above. They are current, not a floor: whoever built the Context
+                # resolved the decision first.
                 sampling_state = None
         else:
             parent_id = ROOT_PARENT_ID

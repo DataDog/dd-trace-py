@@ -229,8 +229,8 @@ class LLMObsSamplingResolver:
     def resolve(self, span: Any) -> tuple[Optional[str], Optional[str]]:
         """Return this trace's frozen ``(sample_rate, sampling_decision)``, computing it once.
 
-        Returns ``(None, None)`` for a span with no local root -- a trace continued from another
-        process, whose decision was frozen there and inherited. Callers fall back accordingly.
+        Returns ``(None, None)`` for a span activated from a Context, which carries no state but
+        does carry an already-resolved decision. Callers fall back to what such a span holds.
         """
         state: Optional[_TraceSampling] = span._get_ctx_item(LLMOBS_SAMPLING)
         if state is None:

@@ -1349,6 +1349,45 @@ def test_a_child_finishing_does_not_freeze_the_decision(llmobs, llmobs_events):
     assert decisions == {("0", "0")}
 
 
+@pytest.fixture
+def patched_futures():
+    from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+    from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+
+    patch_futures()
+    yield
+    unpatch_futures()
+
+
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_partial_flush_after_a_thread_handoff_keeps_one_decision(llmobs, llmobs_events, tracer, patched_futures):
+    """A partially flushed chunk must not mix the frozen decision with the stale floor.
+
+    The hand-off freezes the decision, but the thread child holds no state and leads the chunk:
+    spans arrive in creation order and the root has not finished. main-child meanwhile still
+    carries the floor copied off the root, so skipping the chunk would split the trace.
+    """
+    import concurrent.futures
+
+    tracer._span_aggregator.partial_flush_enabled = True
+    tracer._span_aggregator.partial_flush_min_spans = 2
+
+    def fn():
+        with llmobs.task("thread-child"):
+            return 42
+
+    with llmobs.workflow("root") as root:
+        llmobs.annotate(root, tags={"tier": "gold"})
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            assert executor.submit(fn).result() == 42
+        with llmobs.task("main-child"):
+            pass
+
+    assert len(llmobs_events) == 3
+    decisions = {(e["name"], e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("root", "0", "0"), ("thread-child", "0", "0"), ("main-child", "0", "0")}
+
+
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
 def test_decision_frozen_at_injection_is_not_revised(llmobs, llmobs_events):
     """Once the decision has left the process it must not change, even if a later tag would match.

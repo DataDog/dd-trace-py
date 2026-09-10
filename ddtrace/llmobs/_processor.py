@@ -86,8 +86,14 @@ class LLMObsProcessor(TraceProcessor):
             if llmobs_trace_id is not None:
                 groups.setdefault(llmobs_trace_id, []).append(span)
         for spans in groups.values():
-            # Any span in the group carries the pointer to the trace's root.
-            sample_rate, sampling_decision = self._sampling_resolver.resolve(spans[0])
+            # A span activated from a Context holds no state, so the first one may not be
+            # resolvable. Every span in the group shares one root, so ask until one answers
+            # rather than letting a stateless span skip the whole group.
+            sample_rate, sampling_decision = None, None
+            for span in spans:
+                sample_rate, sampling_decision = self._sampling_resolver.resolve(span)
+                if sampling_decision is not None:
+                    break
             if sample_rate is not None and sampling_decision is not None:
                 for span in spans:
                     self._write_sampling_decision(span, sample_rate, sampling_decision)
