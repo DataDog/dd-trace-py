@@ -159,7 +159,6 @@ serverless lambda tests:
   stage: tests
   needs: []
   script:
-  script:
     - |
       echo -e "\e[0Ksection_start:`date +%s`:sg_test[collapsed=true]\r\e[0KValidate ast-grep rules"
       scripts/lint sg-test
