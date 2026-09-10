@@ -45,13 +45,16 @@ components:
   errortracking:
     - ddtrace/errortracking/*
     - ddtrace/internal/settings/errortracking.py
-  ci_visibility:
+  ci_visibility_benchmark:
     # The pytest (CI Visibility / Test Visibility) plugin and its supporting modules.
+    # Named ci_visibility_benchmark (not ci_visibility) to avoid overwriting the
+    # component of the same name in tests/ci_visibility/suitespec.yml.
     - ddtrace/testing/*
     - ddtrace/testing/internal/*
     - ddtrace/internal/ci_visibility/*
     - ddtrace/internal/test_visibility/*
     - ddtrace/internal/coverage/*
+    - ddtrace/contrib/internal/coverage/*
     - ddtrace/ext/test_visibility/*
   appsec_iast:
     - ddtrace/appsec/iast/*
@@ -403,7 +406,7 @@ suites:
       - '@core'
       - '@tracing'
       - '@vendor'
-      - '@ci_visibility'
+      - '@ci_visibility_benchmark'
       - benchmarks/pytest_plugin/*
       - benchmarks/suitespec.yml
     cpus_per_run: 1
