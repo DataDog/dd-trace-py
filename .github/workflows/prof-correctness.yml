@@ -111,8 +111,10 @@ jobs:
           # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
           TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
           echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA}"
+          # Temporary DQ probe (--ref): remove after the red run.
           gh workflow run downstream-python.yml \
             --repo DataDog/prof-correctness \
+            --ref vlad/fake-dq-lock-miss \
             -f "dd_trace_py_commit_sha=${DD_TRACE_PY_SHA}" \
             -f "test_scenarios=${TEST_SCENARIOS}"
 
