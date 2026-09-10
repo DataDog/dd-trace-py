@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <string_view>
-#include <vector>
 
 namespace Datadog {
 
@@ -31,7 +30,6 @@ class ProfileBorrow
 
     // Accessors
     rust::Box<ddprof::EncodedProfile> serialize();
-    std::vector<std::uint8_t> serialize_to_vec();
     bool add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint);
     bool add_endpoint_count(std::string_view endpoint, std::int64_t value);
     ProfilerStats& stats();

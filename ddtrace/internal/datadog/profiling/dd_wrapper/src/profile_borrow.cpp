@@ -43,13 +43,6 @@ Datadog::ProfileBorrow::serialize()
     return profile_ptr->cur_profile.value()->serialize();
 }
 
-std::vector<std::uint8_t>
-Datadog::ProfileBorrow::serialize_to_vec()
-{
-    auto encoded = profile_ptr->cur_profile.value()->serialize_to_vec();
-    return std::vector<std::uint8_t>(encoded.data(), encoded.data() + encoded.size());
-}
-
 bool
 Datadog::ProfileBorrow::add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint)
 {

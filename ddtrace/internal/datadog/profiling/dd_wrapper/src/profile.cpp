@@ -211,14 +211,6 @@ Datadog::Profile::val()
     return val_idx;
 }
 
-std::vector<std::uint8_t>
-Datadog::Profile::serialize_to_vec()
-{
-    const std::lock_guard<std::mutex> lock(profile_mtx);
-    auto encoded = cur_profile.value()->serialize_to_vec();
-    return std::vector<std::uint8_t>(encoded.data(), encoded.data() + encoded.size());
-}
-
 bool
 Datadog::Profile::add_endpoint(std::int64_t local_root_span_id, std::string_view endpoint)
 {
