@@ -198,10 +198,11 @@ def traced_produce(func, instance, args, kwargs):
         distributed_headers=tracing_headers,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
-        service=trace_utils.ext_service(pin, config.kafka),
     )
 
-    with core.context_with_event(event) as ctx:
+    ctx = core.context_with_event(event)
+    ctx.set_item("service", trace_utils.ext_service(pin, config.kafka))
+    with ctx:
         span = span_from_context(ctx)
         cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
@@ -298,10 +299,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         span_links=links,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
-        service=trace_utils.ext_service(pin, config.kafka),
     )
 
-    with core.context_with_event(event) as event_ctx:
+    event_ctx = core.context_with_event(event)
+    event_ctx.set_item("service", trace_utils.ext_service(pin, config.kafka))
+    with event_ctx:
         span = span_from_context(event_ctx)
 
         # reset span start time to before function call
