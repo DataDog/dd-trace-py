@@ -176,6 +176,9 @@ class AsyncioElfTest : public ::testing::Test
 
 TEST(AsyncioElfDiscovery, ReadsProcessExecutableWithoutBuildId)
 {
+#if defined(TEST_RUNNING_ON_VALGRIND)
+    GTEST_SKIP() << "/proc/self/exe identifies Valgrind rather than the test executable";
+#endif
     std::optional<AsyncioOffsets> offsets;
     dl_iterate_phdr(
       [](dl_phdr_info* binary, size_t, void* data) {

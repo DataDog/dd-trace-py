@@ -113,6 +113,9 @@ configure_stack_internal_test(test_asyncio_debug)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     # Exercise /proc/self/exe identity validation when the executable has no GNU build ID.
     target_link_options(test_asyncio_debug PRIVATE -Wl,--build-id=none -Wl,--undefined=process_asyncio_debug_offsets)
+    if(DO_VALGRIND)
+        target_compile_definitions(test_asyncio_debug PRIVATE TEST_RUNNING_ON_VALGRIND)
+    endif()
 endif()
 
 dd_wrapper_add_test(test_task_traversal test_task_traversal.cpp)
