@@ -25,7 +25,7 @@ class EchionSampler;
 enum class TruncationStatus
 {
     // Detection was disabled or could not finish safely.
-    Unchecked,
+    Unknown,
     NotTruncated,
     Truncated,
 };
@@ -33,9 +33,9 @@ enum class TruncationStatus
 struct UnwindResult
 {
     size_t frames_added = 0;
-    TruncationStatus truncation = TruncationStatus::Unchecked;
+    TruncationStatus truncation = TruncationStatus::Unknown;
 
-    static UnwindResult Unchecked() { return UnwindResult{ 0, TruncationStatus::Unchecked }; }
+    static UnwindResult Unknown() { return UnwindResult{ 0, TruncationStatus::Unknown }; }
 };
 
 // ----------------------------------------------------------------------------
@@ -58,9 +58,9 @@ class EchionSampler;
 // the sampling thread should pass EchionSampler::seen_frames_scratch() so the
 // hash table's capacity is reused across calls instead of reallocated per call.
 // seen_frames is cleared on entry.
-// Disabling detection always returns Unchecked. With detection enabled, only a
+// Disabling detection always returns Unknown. With detection enabled, only a
 // reportable frame beyond the limit proves Truncated; reaching the end proves
-// NotTruncated. An incomplete probe (read failure, cycle, or safety limit) stays Unchecked.
+// NotTruncated. An incomplete probe (read failure, cycle, or safety limit) stays Unknown.
 UnwindResult
 unwind_frame(EchionSampler& echion,
              PyObject* frame_addr,

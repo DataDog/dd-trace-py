@@ -65,20 +65,20 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
     EXPECT_TRUE(thread.current_greenlets.empty());
 }
 
-TEST(StackUnwind, DisabledDetectionRemainsUnchecked)
+TEST(StackUnwind, DisabledDetectionRemainsUnknown)
 {
     EchionSampler echion;
     FrameStack stack;
     auto result = unwind_frame(echion, nullptr, stack, 1, false);
     EXPECT_EQ(result.frames_added, 0);
-    EXPECT_EQ(result.truncation, TruncationStatus::Unchecked);
+    EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
 
     result = unwind_frame(echion, nullptr, stack, 1, true);
     EXPECT_EQ(result.truncation, TruncationStatus::NotTruncated);
 }
 
 #if PY_VERSION_HEX >= 0x030c0000
-TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnchecked)
+TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnknown)
 {
     _set_pid(getpid());
     EchionSampler echion;
@@ -98,7 +98,7 @@ TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnchecked)
     auto result = unwind_frame(echion, reinterpret_cast<PyObject*>(frames.data()), stack, seen_frames, 0, true);
     EXPECT_EQ(seen_frames.size(), MAX_TASK_FRAMES);
     EXPECT_EQ(result.frames_added, 0);
-    EXPECT_EQ(result.truncation, TruncationStatus::Unchecked);
+    EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
 
     // Within the probe budget, the same ignored chain can prove the stack is complete.
     frames[MAX_TASK_FRAMES - 1].previous = nullptr;
@@ -107,7 +107,7 @@ TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnchecked)
 
     result = unwind_frame(echion, reinterpret_cast<PyObject*>(frames.data()), stack, seen_frames, 0, false);
     EXPECT_TRUE(seen_frames.empty());
-    EXPECT_EQ(result.truncation, TruncationStatus::Unchecked);
+    EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
 }
 #endif
 

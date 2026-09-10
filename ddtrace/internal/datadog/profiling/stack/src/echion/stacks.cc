@@ -57,10 +57,10 @@ unwind_frame(EchionSampler& echion,
 {
     seen_frames.clear();
     if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
-        return UnwindResult::Unchecked();
+        return UnwindResult::Unknown();
     }
 
-    auto result = UnwindResult::Unchecked();
+    auto result = UnwindResult::Unknown();
     size_t frames_probed_after_limit = 0;
     PyObject* current_frame_addr = frame_addr;
     while (current_frame_addr != NULL) {
