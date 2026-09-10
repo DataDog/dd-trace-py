@@ -14,6 +14,9 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  # Test the OpenTelemetry Operator-compatible Python image jobs from one-pipeline.
+  OTEL_OPERATOR_IMAGES_ENABLED: "true"
+  OTEL_OPERATOR_LANGUAGE: python
   # VPA Template configuration
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
