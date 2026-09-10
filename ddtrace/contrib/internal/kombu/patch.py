@@ -108,6 +108,7 @@ def traced_receive(func, instance, args, kwargs):
             kombux.RECEIVE_NAME, provider="kombu", direction=SpanDirection.PROCESSING
         ),
         request_headers=message.headers,
+        activate_distributed_headers=True,
         component=config.kombu.integration_name,
         integration_config=config.kombu,
         service=pin.service,
