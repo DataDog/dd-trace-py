@@ -176,7 +176,6 @@ def _generate_locks(
     environments: Sequence[TestEnvironment],
     all_environments: Sequence[TestEnvironment],
     *,
-    jobs: int = 4,
     upgrade: bool = False,
 ) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
     if not environments:
@@ -192,7 +191,7 @@ def _generate_locks(
     compiled: dict[Path, str] = {}
     cutoff = cooldown_cutoff()
     errors = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, jobs)) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
         futures = {
             executor.submit(compile_environment, environment, exclude_newer=cutoff, upgrade=upgrade): (
                 lockfile,
@@ -244,10 +243,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
     lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
     lock_parser.add_argument("names", nargs="*", help="Exact test environment names; defaults to all.")
-    lock_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
     refresh_parser = subparsers.add_parser("refresh", help="Refresh one named test environment, or all by default.")
     refresh_parser.add_argument("name", nargs="?", help="Exact test environment name; defaults to all.")
-    refresh_parser.add_argument("--jobs", type=int, default=4, help="Number of concurrent uv resolvers.")
     args = parser.parse_args(argv)
 
     matrices = get_test_environments(nightly=False)
@@ -267,7 +264,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         written, pruned = _generate_locks(
             selected,
             environments,
-            jobs=args.jobs,
             upgrade=args.command == "refresh",
         )
         message = f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s)."
