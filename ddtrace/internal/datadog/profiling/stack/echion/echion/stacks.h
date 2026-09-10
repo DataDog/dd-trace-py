@@ -12,6 +12,8 @@
 #include <utility>
 #include <vector>
 
+#include "span_links.hpp"
+
 #include <echion/config.h>
 #include <echion/frame.h>
 #include <echion/task_name.h>
@@ -69,6 +71,9 @@ class StackInfo
     // correlate stack and lock samples on the timeline.
     uint64_t task_id;
     bool on_cpu;
+    // Task span attribution snapshotted while this stack is unwound. When use_task_attribution is true, span is
+    // authoritative even when empty, suppressing physical-thread fallback to avoid borrowing another task's span.
+    Datadog::TaskSpanContext span_context;
     FrameStack stack;
 
     // Per-task override wall-time to use in reservoir sampling.

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Python.h>
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -16,8 +18,6 @@
 
 #include "echion/task_name.h"
 #include "echion/timing.h"
-
-#include <Python.h>
 
 class EchionSampler;
 
@@ -155,6 +155,7 @@ class Sampler
     void register_thread(uint64_t id, uint64_t native_id, const char* name, PyThreadState* tstate = nullptr);
     void unregister_thread(uint64_t id);
     void track_asyncio_loop(uintptr_t thread_id, PyObject* loop);
+    bool is_asyncio_loop_registered(uintptr_t thread_id);
     void init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
     void weak_link_tasks(PyObject* parent, PyObject* child);
