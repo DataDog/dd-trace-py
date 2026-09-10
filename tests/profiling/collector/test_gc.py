@@ -238,8 +238,21 @@ def _has_gc_collect_frame(profile: pprof_pb2.Profile, sample: pprof_pb2.Sample) 
     )
 
 
-def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
-    output_filename: str = _setup_profiler(tmp_path, "test_gc_pause_samples_appear_in_profile")
+# ddup.start() is process-global (std::call_once). A sibling collector test
+# that started ddup first would freeze the profile schema without gc-time.
+@pytest.mark.subprocess(env=dict(DD_PROFILING_GC_ENABLED="true"))
+def test_gc_pause_samples_appear_in_profile() -> None:
+    import gc
+    from pathlib import Path
+    import tempfile
+
+    from ddtrace.internal.datadog.profiling import ddup
+    from ddtrace.profiling.collector.gc import GCCollector
+    from tests.profiling.collector import pprof_utils
+    from tests.profiling.collector.test_gc import _has_gc_collect_frame
+    from tests.profiling.collector.test_gc import _setup_profiler
+
+    output_filename: str = _setup_profiler(Path(tempfile.mkdtemp()), "test_gc_pause_samples_appear_in_profile")
 
     col: GCCollector = GCCollector()
     col.start()
@@ -254,15 +267,16 @@ def test_gc_pause_samples_appear_in_profile(tmp_path: Path) -> None:
 
     ddup.upload()
 
-    profile: pprof_pb2.Profile = pprof_utils.parse_newest_profile(output_filename)
-    gc_time_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "gc-time")
-    gc_count_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "gc-samples")
+    # Quoted: subprocess body is exec'd without `from __future__ import annotations`.
+    profile: "pprof_pb2.Profile" = pprof_utils.parse_newest_profile(output_filename)
+    gc_time_samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "gc-time")
+    gc_count_samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "gc-samples")
 
-    gc_pause_samples: list[pprof_pb2.Sample] = [s for s in gc_time_samples if _has_gc_collect_frame(profile, s)]
+    gc_pause_samples: "list[pprof_pb2.Sample]" = [s for s in gc_time_samples if _has_gc_collect_frame(profile, s)]
     assert len(gc_pause_samples) > 0, "Expected at least one gc.collect gc-time sample"
     assert len(gc_count_samples) > 0, "Expected gc-samples values in the profile"
 
-    wall_time_samples: list[pprof_pb2.Sample] = pprof_utils.get_samples_with_value_type(profile, "wall-time")
+    wall_time_samples: "list[pprof_pb2.Sample]" = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert not any(_has_gc_collect_frame(profile, sample) for sample in wall_time_samples)
 
 

@@ -243,6 +243,10 @@ class _ProfilerInstance(service.Service):
             timeout=profiling_config.api_timeout_ms,
             process_tags=self.process_tags,
         )
+        if self._gc_collector_enabled:
+            # SAMPLE_TYPE_GC is opt-in (not in SampleType::All). Register it
+            # before ddup.start() freezes the native profile sample-type schema.
+            ddup.config_sample_type(ddup.SAMPLE_TYPE_GC)
         ddup.start()
 
         # Surface the effective profiler configuration on each uploaded profile
