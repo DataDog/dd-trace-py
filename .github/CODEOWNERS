@@ -409,3 +409,17 @@ scripts/integration_registry/                   @DataDog/apm-idm-python
 
 # Benchmarks CI setup
 /.gitlab/benchmarks             @DataDog/apm-ecosystems-performance @DataDog/apm-core-python
+
+# Per-team microbenchmark SLO thresholds. Each file is owned by the team
+# responsible for its gates, so editing a threshold routes review to that
+# team via CODEOWNERS (last match wins, overriding the .gitlab/benchmarks
+# default above). scripts/lint slo-ownership checks this stays consistent.
+.gitlab/benchmarks/slos/apm-core-python.yml              @DataDog/apm-core-python
+.gitlab/benchmarks/slos/apm-sdk-capabilities-python.yml @DataDog/apm-sdk-capabilities-python
+.gitlab/benchmarks/slos/asm-python.yml                  @DataDog/asm-python
+.gitlab/benchmarks/slos/apm-python.yml                   @DataDog/apm-python
+.gitlab/benchmarks/slos/apm-idm-python.yml               @DataDog/apm-idm-python
+.gitlab/benchmarks/slos/profiling-python.yml             @DataDog/profiling-python
+.gitlab/benchmarks/slos/debugger-python.yml              @DataDog/debugger-python
+.gitlab/benchmarks/slos/feature-flagging-and-experimentation-sdk.yml @DataDog/feature-flagging-and-experimentation-sdk
+.gitlab/benchmarks/slos/ci-app-libraries.yml             @DataDog/ci-app-libraries
