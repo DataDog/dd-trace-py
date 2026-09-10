@@ -914,6 +914,41 @@ def test_racing_start():
         assert len(writer._encoder) == 100
 
 
+def test_native_exporter_shutdown_waits_for_send():
+    send_started = threading.Event()
+    release_send = threading.Event()
+    shutdown_called = threading.Event()
+
+    class Exporter:
+        def send(self, payload):
+            send_started.set()
+            assert release_send.wait(timeout=2)
+
+        def shutdown(self, timeout):
+            shutdown_called.set()
+
+    writer = NativeWriter("http://localhost:9126")
+    original_exporter = writer._exporter
+    writer._exporter = Exporter()
+    writer._shutdown_exporter(original_exporter)
+
+    send_thread = threading.Thread(target=writer._send_payload, args=(b"payload", 1, writer._clients[0]))
+    send_thread.start()
+    assert send_started.wait(timeout=2)
+
+    shutdown_thread = threading.Thread(target=writer.shutdown_exporter)
+    shutdown_thread.start()
+    assert not shutdown_called.wait(timeout=0.1)
+
+    release_send.set()
+    send_thread.join(timeout=2)
+    shutdown_thread.join(timeout=2)
+
+    assert not send_thread.is_alive()
+    assert not shutdown_thread.is_alive()
+    assert shutdown_called.is_set()
+
+
 def test_bad_encoding(monkeypatch):
     with override_global_config({"_trace_api": "foo"}):
         writer = NativeWriter("http://localhost:9126")
