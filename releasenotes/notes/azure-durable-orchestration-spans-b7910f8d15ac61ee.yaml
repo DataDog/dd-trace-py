@@ -4,7 +4,4 @@ features:
     azure_durable_functions: Adds tracing for orchestration function invocations and,
     when Durable Functions distributed tracing V2 is enabled, connects durable
     orchestration and activity spans to the originating trace without requiring
-    OpenTelemetry configuration. Entity invocations are traced independently when
-    Azure does not provide their Python workers with parent trace context.
-    Successful orchestration replays are suppressed while failed replay activations
-    remain visible as error spans.
+    OpenTelemetry configuration.
