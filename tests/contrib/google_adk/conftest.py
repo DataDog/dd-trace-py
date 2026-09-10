@@ -3,6 +3,7 @@ from typing import Any
 from unittest import mock
 from unittest.mock import MagicMock
 
+import google.adk
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.code_executors import UnsafeLocalCodeExecutor
@@ -11,11 +12,13 @@ from google.adk.runners import InMemoryRunner
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
 from google.adk.tools.function_tool import FunctionTool
+from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 import pytest
 
 from ddtrace.contrib.internal.google_adk.patch import patch as adk_patch
 from ddtrace.contrib.internal.google_adk.patch import unpatch as adk_unpatch
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from tests.contrib.google_adk.utils import get_request_vcr
 from tests.utils import override_global_config
@@ -141,3 +144,50 @@ def create_test_message(text: str) -> types.Content:
         role="user",
         parts=[types.Part(text=text)],
     )
+
+
+ADK_VERSION = parse_version(google.adk.__version__)
+
+# google-adk >= 2.7.0 removed `__call_tool_live` and routes streaming tools through
+# `__call_tool_async`, which then returns an async generator.
+streaming_via_call_tool_async = pytest.mark.skipif(
+    ADK_VERSION < (2, 7, 0),
+    reason="streaming tools are dispatched through __call_tool_live before google-adk 2.7.0",
+)
+
+
+def call_tool_async(module):
+    """Return the wrapped tool dispatch function.
+
+    Looked up with getattr so the name is not mangled when referenced from a class body.
+    """
+    return getattr(module.flows.llm_flows.functions, "__call_tool_async")
+
+
+async def stream_values(count: int):
+    """A streaming tool, which google-adk 2.7.0+ dispatches through `__call_tool_async`."""
+    for i in range(count):
+        yield {"value": i}
+
+
+async def stream_then_raise(count: int):
+    """A streaming tool that fails partway through the stream."""
+    for i in range(count):
+        yield {"value": i}
+    raise RuntimeError("stream blew up")
+
+
+@pytest.fixture
+def streaming_tool_context(adk):
+    """A ToolContext backed by a real Session, whose `state` ToolContext reads on init.
+
+    The agent is built here rather than reused from `test_runner` so this does not depend on
+    `test_spans`, which requires a DummyWriter and so is unusable once LLMObs is enabled.
+    """
+    invocation_context = InvocationContext(
+        invocation_id="test_invocation",
+        agent=LlmAgent(name="test_agent", model=Gemini(model="gemini-2.5-pro")),
+        session=Session(id="test-session", app_name="TestADKApp", user_id="test-user", state={}, events=[]),
+        session_service=MagicMock(spec=BaseSessionService),
+    )
+    return ToolContext(invocation_context=invocation_context)

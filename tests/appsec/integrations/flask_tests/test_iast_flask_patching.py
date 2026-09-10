@@ -2,11 +2,10 @@ import pytest
 
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_flask_server
-from tests.appsec.integrations.flask_tests.utils import _PORT
 from tests.appsec.integrations.flask_tests.utils import _request_200
 
 
-def test_flask_iast_ast_patching_import_error():
+def test_flask_iast_ast_patching_import_error(free_port):
     """this is a regression test for a bug with IAST + BeautifulSoup4, we were catching the ImportError exception in
     ddtrace.appsec._iast._loader
     try:
@@ -17,7 +16,7 @@ def test_flask_iast_ast_patching_import_error():
         pass
     """
     with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
+        appsec_enabled="false", iast_enabled="true", token=None, port=free_port, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
@@ -44,7 +43,7 @@ def test_flask_iast_ast_patching_import_error():
         "subn",
     ],
 )
-def test_flask_iast_ast_patching_re(style, endpoint, function):
+def test_flask_iast_ast_patching_re(style, endpoint, function, free_port):
     """
     Tests re module patching end to end by checking that re.sub is propagating properly
     """
@@ -54,7 +53,7 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
 
         filename = quote_plus("Isaac Newton")
     with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
+        appsec_enabled="false", iast_enabled="true", token=None, port=free_port, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
@@ -72,13 +71,13 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
         "stringio-read",
     ],
 )
-def test_flask_iast_ast_patching_io(style, function, endpoint="io"):
+def test_flask_iast_ast_patching_io(style, function, free_port, endpoint="io"):
     """
     Tests _io/io BytesIO and StringIO patching end to end
     """
     filename = "path_traversal_test_file.txt"
     with flask_server(
-        appsec_enabled="false", iast_enabled="true", token=None, port=_PORT, assert_debug=False
+        appsec_enabled="false", iast_enabled="true", token=None, port=free_port, assert_debug=False
     ) as context:
         _, flask_client, pid = context
 
@@ -88,11 +87,11 @@ def test_flask_iast_ast_patching_io(style, function, endpoint="io"):
         assert response.content == b"OK"
 
 
-def test_multiple_requests():
+def test_multiple_requests(free_port):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    with gunicorn_flask_server(remote_configuration_enabled="false", iast_enabled="true", port=_PORT) as context:
+    with gunicorn_flask_server(remote_configuration_enabled="false", iast_enabled="true", port=free_port) as context:
         _, client, pid = context
 
         _request_200(

@@ -19,8 +19,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-use datadog_ipc::one_way_shared_memory::{create_anon_pair, OneWayShmReader, OneWayShmWriter};
-use datadog_ipc::platform::{FileBackedHandle, MappedMem, ShmHandle};
+use libdd_ipc::one_way_shared_memory::{create_anon_pair, OneWayShmReader, OneWayShmWriter};
+use libdd_ipc::platform::{FileBackedHandle, MappedMem, ShmHandle};
 use libdd_remote_config::fetch::FileStorage;
 use libdd_remote_config::file_change_tracker::{FilePath, UpdatedFiles};
 use libdd_remote_config::RemoteConfigPath;
@@ -513,7 +513,7 @@ impl ShmReader {
                     Err(_) => continue,
                 };
 
-                if !enabled.contains(&parsed.product.to_string()) {
+                if !enabled.contains(&parsed.product().to_string()) {
                     continue;
                 }
 

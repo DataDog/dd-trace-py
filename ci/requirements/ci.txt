@@ -678,9 +678,8 @@ rich==14.2.0 \
     # via
     #   riot
     #   twine
-riot==0.22.0 \
-    --hash=sha256:8acd845bbdec248a21521aad1db9cb5323be8c6e2b4928509eb2025153252ada \
-    --hash=sha256:c92493dc906a7adf111efcefc30c4a21d67d2a6b00cae2bcc9c83237ca308b0b
+riot==0.23.0 \
+    --hash=sha256:acb57ade142013354b0ecab342b5123fe6bacb81504eb87fe494ac5e6d1ec25a
     # via -r ci/requirements/ci.in
 secretstorage==3.3.3 \
     --hash=sha256:2403533ef369eca6d2ba81718576c5e0f564d5cca1b58f73a8b23e7d4eeebd77 \

@@ -9,15 +9,15 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
-from ddtrace.contrib._events.dbapi import DbApiEvent
+from ddtrace.contrib._events.dbapi import DbQueryEvent
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.deprecations import deprecate
 from ddtrace.trace import tracer
-from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
@@ -144,7 +144,7 @@ class TracedCursor(wrapt.ObjectProxy):
         """Wraps the cursor.executemany method"""
         self._self_last_execute_operation = query
         if isinstance(query, str):
-            core.dispatch_event(DbApiEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
         #      These differences should be overridden at the integration specific layer (e.g. in `sqlite3/patch.py`)
@@ -165,7 +165,7 @@ class TracedCursor(wrapt.ObjectProxy):
         """Wraps the cursor.execute method"""
         self._self_last_execute_operation = query
         if isinstance(query, str):
-            core.dispatch_event(DbApiEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
+            core.dispatch_event(DbQueryEvent(query=query, span_name_prefix=self._self_dbapi_span_name_prefix))
 
         # Always return the result as-is
         # DEV: Some libraries return `None`, others `int`, and others the cursor objects
