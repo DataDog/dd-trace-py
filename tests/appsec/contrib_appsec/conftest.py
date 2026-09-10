@@ -21,6 +21,10 @@ import time  # noqa: E402
 
 import pytest  # noqa: E402
 
+# patch requests here: patch() is one-shot and installs the AppSec Session.request
+# wrapper only if _load_modules is true, which a test may have turned off by then
+import requests  # noqa: E402,F401
+
 from ddtrace.internal.constants import FLASK_RESOURCE_FULL  # noqa: E402
 from ddtrace.internal.settings.asm import config as asm_config  # noqa: E402
 from tests.utils import TracerSpanContainer  # noqa: E402
@@ -135,7 +139,7 @@ def api10_http_server_port(monkeypatch):
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Api10Handler)
     _, port = server.server_address
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=lambda: server.serve_forever(poll_interval=0.01), daemon=True)
     thread.start()
 
     deadline = time.monotonic() + 2.0

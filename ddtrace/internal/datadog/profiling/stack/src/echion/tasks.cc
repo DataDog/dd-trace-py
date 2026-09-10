@@ -263,6 +263,9 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
         // For a running Task, unwind_frame would also yield the asyncio runtime frames "on top"
         // of the Task frame, but we would discard those anyway. Limiting to 1 frame avoids walking
         // the Frame chain unnecessarily.
+        // A coroutine that triggers a collection itself (e.g. by calling gc.collect) is both the
+        // interpreter's on-CPU frame and a Task frame. unwind_tasks substitutes these frames for
+        // their python_stack counterparts, so the marker has to be carried here as well.
         auto new_frames = unwind_frame(echion, frame, stack, echion.seen_frames_scratch(), 1);
         assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 

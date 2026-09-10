@@ -26,6 +26,13 @@
         "default": null
       }
     ],
+    "DD_AGENTLESS_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
     "DD_AGENTLESS_LOG_SUBMISSION_ENABLED": [
       {
         "implementation": "A",
@@ -842,6 +849,20 @@
         "implementation": "B",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": null
       }
     ],
     "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": [
@@ -1929,7 +1950,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "deprecated": true
       }
     ],
     "DD_GOOGLE_CLOUD_PUBSUB_PROPAGATION_ENABLED": [
@@ -2041,6 +2063,30 @@
         "aliases": [
           "DD_HTTPLIB_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_HTTPX2_DISTRIBUTED_TRACING": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
+    "DD_HTTPX2_SERVICE": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null,
+        "aliases": [
+          "DD_HTTPX2_SERVICE_NAME"
+        ]
+      }
+    ],
+    "DD_HTTPX2_SPLIT_BY_DOMAIN": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_HTTPX_DISTRIBUTED_TRACING": [
@@ -2930,9 +2976,9 @@
     ],
     "DD_PROFILING_MEMORY_MEM_DOMAIN_ENABLED": [
       {
-        "implementation": "A",
+        "implementation": "B",
         "type": "boolean",
-        "default": "false"
+        "default": "true"
       }
     ],
     "DD_PROFILING_NAME_INSPECT_DIR": [
@@ -2950,13 +2996,6 @@
       }
     ],
     "DD_PROFILING_NATIVE_HEAP_ENABLED": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
-    "DD_PROFILING_NATIVE_TESTS": [
       {
         "implementation": "A",
         "type": "boolean",
@@ -3017,6 +3056,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "true"
+      }
+    ],
+    "DD_PROFILING_STACK_GC_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
       }
     ],
     "DD_PROFILING_STACK_NATIVE_FRAMES": [
@@ -3302,6 +3348,20 @@
         "aliases": [
           "DD_REDIS_SERVICE_NAME"
         ]
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
+      }
+    ],
+    "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": ""
       }
     ],
     "DD_REMOTE_CONFIGURATION_ENABLED": [
@@ -3825,6 +3885,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_ANYIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_AIOHTTP_CLIENT_ENABLED": [
       {
         "implementation": "A",
@@ -4346,6 +4413,13 @@
         "default": "false"
       }
     ],
+    "DD_TRACE_HTTPX2_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
+      }
+    ],
     "DD_TRACE_HTTPX_ENABLED": [
       {
         "implementation": "A",
@@ -4663,6 +4737,13 @@
         "implementation": "A",
         "type": "map",
         "default": ""
+      }
+    ],
+    "DD_TRACE_PROPAGATION_AS_SPAN_LINKS": [
+      {
+        "implementation": "A",
+        "type": "string",
+        "default": null
       }
     ],
     "DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT": [

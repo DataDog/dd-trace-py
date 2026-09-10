@@ -33,6 +33,7 @@
 #include <echion/timing.h>
 
 class EchionSampler;
+class ThreadInfoTaskTraversalTest;
 
 class ThreadInfo
 {
@@ -120,6 +121,8 @@ class ThreadInfo
 
   private:
     using TaskAddressCallback = std::function<void(TaskObj*)>;
+
+    friend class ThreadInfoTaskTraversalTest;
 
     void reset_cycle_state() noexcept;
     void render_unwound_stacks(EchionSampler&);
