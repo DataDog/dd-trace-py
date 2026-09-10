@@ -484,8 +484,6 @@ Traces
 
          **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
 
-         **Note** that the JSON array must be wrapped in single quotes (') to avoid problems with escaping of the double quote (") character.
-
      version_added:
         v4.15.0:
 
