@@ -176,6 +176,28 @@ async def test_getmany_empty_result():
 
 
 @pytest.mark.asyncio
+async def test_getmany_preserves_local_span(tracer, test_spans):
+    client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
+    consumer = SimpleNamespace(_client=client, _group_id="test-group")
+    active_span_during_getmany = None
+
+    async def getmany(*args, **kwargs):
+        nonlocal active_span_during_getmany
+        active_span_during_getmany = tracer.current_span()
+        return {}
+
+    with tracer.trace("local") as parent:
+        result = await traced_getmany(getmany, consumer, (), {})
+
+        assert result == {}
+        assert active_span_during_getmany is parent
+        assert tracer.current_span() is parent
+        test_spans.assert_span_count(1)
+        consume_span = test_spans.pop()[0]
+        assert consume_span.parent_id is None
+
+
+@pytest.mark.asyncio
 @pytest.mark.snapshot()
 async def test_send_multiple_servers():
     topic = await create_topic("send_multiple_servers")
