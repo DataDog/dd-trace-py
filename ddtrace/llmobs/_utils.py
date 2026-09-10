@@ -65,7 +65,7 @@ from ddtrace.trace import Span
 
 
 if TYPE_CHECKING:
-    from ddtrace.llmobs._writer import LLMObsSpanData
+    from ddtrace.llmobs._event_types import LLMObsSpanData
 
 
 log = get_logger(__name__)
