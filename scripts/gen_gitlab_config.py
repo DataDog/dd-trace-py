@@ -760,7 +760,17 @@ def gen_pre_checks() -> None:
     check(
         name="Check project dependencies",
         command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
-        paths={"pyproject.toml", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
+        paths={
+            "pyproject.toml",
+            "tests/suitespec.py",
+            "tests/suitespec.yml",
+            "tests/**/suitespec.yml",
+            "benchmarks/suitespec.yml",
+            ".gitlab-ci.yml",
+            ".gitlab/**/*.yml",
+            ".github/workflows/*.yml",
+            "scripts/check-dependency-ci-coverage.py",
+        },
     )
     check(
         name="Check package version",
