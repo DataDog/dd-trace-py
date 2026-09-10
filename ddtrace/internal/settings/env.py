@@ -23,7 +23,7 @@ from ddtrace.internal.settings._supported_configurations import DEPRECATED_CONFI
 from ddtrace.internal.settings._supported_configurations import SUPPORTED_CONFIGURATIONS
 
 
-# AIDEV-NOTE: Use stdlib logging here instead of ddtrace.internal.logger.get_logger.
+# Use stdlib logging here instead of ddtrace.internal.logger.get_logger.
 # ddtrace/internal/logger.py imports ddtrace.internal.settings.env, so using
 # get_logger() would create a circular import at module-load time.
 logger = logging.getLogger(__name__)
