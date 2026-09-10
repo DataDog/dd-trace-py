@@ -42,6 +42,31 @@ jobs:
             echo "value=${{ github.sha }}" >> "$GITHUB_OUTPUT"
           fi
 
+      # GitLab uploads install.sh after wheel build (~15m). Poll before dispatch
+      # so downstream does not 404. Same timeout/interval as download-s3-wheels.sh.
+      - name: Wait for S3 install.sh
+        env:
+          DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
+        run: |
+          INSTALL_URL="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}/install.sh"
+          POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
+          POLL_INTERVAL="${POLL_INTERVAL:-30}"
+          echo "Polling for: ${INSTALL_URL}"
+          elapsed=0
+          while true; do
+            if curl -sf -o /dev/null "${INSTALL_URL}"; then
+              echo "install.sh found after ${elapsed}s"
+              break
+            fi
+            if [ "$elapsed" -ge "$POLL_TIMEOUT" ]; then
+              echo "error: timed out after ${POLL_TIMEOUT}s waiting for ${INSTALL_URL}" >&2
+              exit 1
+            fi
+            echo "Not available yet (${elapsed}s elapsed), retrying in ${POLL_INTERVAL}s..."
+            sleep "${POLL_INTERVAL}"
+            elapsed=$((elapsed + POLL_INTERVAL))
+          done
+
       - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
         id: octo-sts
         with:
