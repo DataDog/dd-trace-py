@@ -2,6 +2,7 @@ import logging
 import sys
 import warnings
 
+import ddtrace
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.settings import env
@@ -50,11 +51,6 @@ def cleanup_loaded_modules() -> None:
         if spec is not None and getattr(spec, "_initializing", False):
             return
         del sys.modules[module_name]
-
-    # We need to import these modules to make sure they grab references to the
-    # right modules before we start unloading stuff.
-    import ddtrace.internal.http  # noqa
-    import ddtrace.internal.uds  # noqa
 
     # Unload all the modules that we have imported, except for the ddtrace one.
     # NB: this means that every `import threading` anywhere in `ddtrace/` code

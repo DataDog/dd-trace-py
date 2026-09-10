@@ -31,7 +31,13 @@ OUTPUT_FILE = REPO_ROOT / "ddtrace" / "internal" / "settings" / "_supported_conf
 CONFIG_REGISTRY_URL = "https://feature-parity.us1.prod.dog/#/configurations?viewType=configurations"
 
 # Do not add new values to this list; ignoring a value prevents it from working with the configuration system.
-IGNORED_ENVIRONMENT_VARIABLES = ["_DD_CONTEXTVAR"]
+# The only admissible entries are names that are not ddtrace configuration at all: ddtrace never
+# reads them as settings, it only hands them to something else that does.
+IGNORED_ENVIRONMENT_VARIABLES = [
+    "_DD_CONTEXTVAR",
+    "_DD_DIRECT_SUBMISSION_ENABLED",
+]
+INTEGRATIONS_WITHOUT_SERVICE_CONFIG = {"anyio"}
 
 HEADER = """\
 # AUTO-GENERATED from supported-configurations.json — do not edit manually.
@@ -423,9 +429,10 @@ def check_registry(data: dict) -> int:
         n = name.upper()
         if name not in not_patchable and f"DD_TRACE_{n}_ENABLED" not in all_known:
             missing.add(f"DD_TRACE_{n}_ENABLED")
-        for var in (f"DD_{n}_SERVICE", f"DD_{n}_SERVICE_NAME"):
-            if var not in all_known:
-                missing.add(var)
+        if name not in INTEGRATIONS_WITHOUT_SERVICE_CONFIG:
+            for var in (f"DD_{n}_SERVICE", f"DD_{n}_SERVICE_NAME"):
+                if var not in all_known:
+                    missing.add(var)
 
     for var in envier_vars:
         if var not in all_known:

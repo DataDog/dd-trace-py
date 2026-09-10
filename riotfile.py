@@ -1,8 +1,16 @@
 # type: ignore
 import logging
 import os
+import typing as t
+from typing import TYPE_CHECKING
 
+from packaging.version import InvalidVersion
+from packaging.version import Version
 from riot import Venv
+
+
+if TYPE_CHECKING:
+    from riot.venv import VenvInstance
 
 
 logger = logging.getLogger(__name__)
@@ -15,6 +23,7 @@ SUPPORTED_PYTHON_VERSIONS: list[tuple[int, int]] = [
     (3, 12),
     (3, 13),
     (3, 14),
+    (3, 15),
 ]
 
 
@@ -33,6 +42,8 @@ def version_to_str(version: tuple[int, int]) -> str:
     '3.13'
     >>> version_to_str((3, 14))
     '3.14'
+    >>> version_to_str((3, 15))
+    '3.15'
     >>> version_to_str((3, ))
     '3'
     """
@@ -54,6 +65,8 @@ def str_to_version(version: str) -> tuple[int, int]:
     (3, 13)
     >>> str_to_version("3.14")
     (3, 14)
+    >>> str_to_version("3.15")
+    (3, 15)
     >>> str_to_version("3")
     (3,)
     """
@@ -61,7 +74,10 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
-MAX_PYTHON_VERSION = version_to_str(max(SUPPORTED_PYTHON_VERSIONS))
+# 3.15 is listed so select_pys(max_version="3.15") can opt in. Default stays
+# 3.14 so uncapped suites do not mix 3.15 hashes into 3.9-3.14 --exitfirst jobs.
+# Wrap-heavy suites stay at the default until wrap() is live on 3.15.
+MAX_PYTHON_VERSION = "3.14"
 
 
 def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
@@ -75,6 +91,8 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     []
     >>> select_pys(min_version='3.9', max_version='3.10')
     ['3.9', '3.10']
+    >>> select_pys(max_version='3.15')
+    ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     """
     min_version = str_to_version(min_version)
     max_version = str_to_version(max_version)
@@ -138,6 +156,7 @@ venv = Venv(
             pys=["3.10"],
             command="pytest {cmdargs} tests/meta",
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_CIVISIBILITY_FLAKY_RETRY_ENABLED": "0",
             },
         ),
@@ -219,6 +238,8 @@ venv = Venv(
                 "requests": latest,
                 "flask": latest,
                 "pytest-xdist": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -242,6 +263,8 @@ venv = Venv(
                 "aiosqlite": latest,
                 "tortoise-orm": latest,
                 "peewee": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec",
@@ -255,6 +278,7 @@ venv = Venv(
             pys=["3.10", "3.11", "3.12"],
             command="pytest --no-cov tests/appsec/iast_aggregated_memcheck/test_aggregated_memleaks.py",
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_IAST_ENABLED": "true",
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.,scripts.iast.",
             },
@@ -278,6 +302,8 @@ venv = Venv(
                 "dill": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -330,6 +356,8 @@ venv = Venv(
                 "httpx": "<0.28.0",
                 "uvicorn": "==0.33.0",
                 "pytest-asyncio": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -341,7 +369,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.13"),
+                    pys=select_pys(min_version="3.9"),
                     pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
                 ),
                 Venv(
@@ -350,11 +378,15 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
-                    pkgs={"fastapi": "~=0.114.2", "mcp": "==1.20.0"},
+                    # mcp 1.21.2 is the first release that stops importing pydantic internals that
+                    # pydantic 2.14 removed; 1.24+ rejects the SSE tests' Host header.
+                    pkgs={"fastapi": "~=0.114.2", "mcp": "==1.21.2"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.10"),
-                    pkgs={"fastapi": latest, "pydantic": "~=2.12.1", "mcp": "==1.20.0"},
+                    # pydantic 2.12 is the first release with cp314 wheels and 2.12.x has none for
+                    # cp315, so this pin stays open across the 2.x line.
+                    pkgs={"fastapi": latest, "pydantic": "~=2.12", "mcp": "==1.21.2"},
                 ),
             ],
         ),
@@ -397,7 +429,10 @@ venv = Venv(
         ),
         Venv(
             name="tracer",
-            command="pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
+            command=(
+                "pytest -v {cmdargs} --ignore=tests/tracer/test_uwsgi_shutdown.py "
+                "--ignore=tests/tracer/test_uwsgi_fork_hooks.py tests/tracer/"
+            ),
             pkgs={
                 "msgpack": latest,
                 "coverage": latest,
@@ -413,6 +448,10 @@ venv = Venv(
                 "freezegun": latest,
             },
             env={
+                "DDTEST_SUITE_PATH": "tests/tracer",
+                "DDTEST_TESTS_LOCATION": "tests/tracer/**/test*.py",
+                "DD_TEST_OPTIMIZATION_RUNNER_TESTS_EXCLUDE_PATTERN": "tests/tracer/test_uwsgi_*.py",
+                "_DD_PYTEST_XDIST_INFERRED_SERVICE": "tests.tracer",
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "_DD_CIVISIBILITY_PARTIAL_FLUSH_MIN_SPANS": "50",
@@ -445,7 +484,9 @@ venv = Venv(
                 ),
                 Venv(
                     name="tracer-uwsgi",
-                    command="pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py",
+                    command=(
+                        "pytest -v {cmdargs} tests/tracer/test_uwsgi_shutdown.py tests/tracer/test_uwsgi_fork_hooks.py"
+                    ),
                     pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
                     pkgs={"uwsgi": latest},
                 ),
@@ -481,9 +522,14 @@ venv = Venv(
         ),
         Venv(
             name="integration",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration",
+                "DDTEST_TESTS_LOCATION": "tests/integration/**/test*.py",
+                "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} tests/integration/",
+            command="pytest -vv --no-cov --ignore-glob='*civisibility*' {cmdargs} ${{DDTEST_SUITE_PATH}}/",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -503,9 +549,13 @@ venv = Venv(
         ),
         Venv(
             name="integration-civisibility",
+            env={
+                "DDTEST_SUITE_PATH": "tests/integration/test_integration_civisibility.py",
+                "DDTEST_TESTS_LOCATION": "tests/integration/test_integration_civisibility.py",
+            },
             # Enabling coverage for integration tests breaks certain tests in CI
             # Also, running two separate pytest sessions, the ``civisibility`` one with --no-ddtrace
-            command="pytest --no-cov {cmdargs} tests/integration/test_integration_civisibility.py",
+            command="pytest --no-cov {cmdargs} ${{DDTEST_SUITE_PATH}}",
             pkgs={"msgpack": [latest], "coverage": latest, "pytest-randomly": latest},
             pys=select_pys(),
             venvs=[
@@ -552,6 +602,7 @@ venv = Venv(
             pys=select_pys(),
             command="python -X importtime scripts/global-lock-detection.py",
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_DYNAMIC_INSTRUMENTATION_ENABLED": "1",
                 "DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "1",
                 "DD_EXCEPTION_REPLAY_ENABLED": "1",
@@ -613,6 +664,7 @@ venv = Venv(
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+                "UV_NO_CACHE": "1",
             },
             command="pytest -v -n auto --dist=worksteal {cmdargs} tests/internal/",
             pkgs={
@@ -657,6 +709,13 @@ venv = Venv(
                         "zope-event": "==5.0",
                         "zope-interface": "==7.2",
                     },
+                ),
+                Venv(
+                    command="pytest -v {cmdargs} tests/internal/bytecode_injection/test_pyarmor_obfuscation.py",
+                    pys=select_pys(),
+                    # Pin wrapt to a single version to avoid needlessly multiplying this
+                    # venv, which doesn't exercise wrapt-specific behavior.
+                    pkgs={"pyarmor": latest, "wrapt": latest},
                 ),
             ],
         ),
@@ -731,7 +790,7 @@ venv = Venv(
         Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
         ),
         Venv(
             name="ddtracerun",
@@ -875,12 +934,17 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    command="pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' tests/contrib/bottle/",
+                    command=(
+                        "python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py' "
+                        "tests/contrib/bottle/"
+                    ),
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
                 ),
                 Venv(
-                    command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py",
+                    command=(
+                        "python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py"
+                    ),
                     env={"DD_SERVICE": "bottle-app"},
                     pys=select_pys(max_version="3.9"),
                     pkgs={"bottle": [">=0.12,<0.13", latest]},
@@ -1172,7 +1236,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.13"),
+                    pys=select_pys(max_version="3.15"),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -1557,16 +1621,18 @@ venv = Venv(
         Venv(
             name="pynamodb",
             command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/pynamodb",
-            # TODO: Py312 requires changes to test code
-            pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
                 "pynamodb": ["~=5.3", "<6.0"],
-                "moto": ">=1.0,<2.0",
-                "cfn-lint": "~=0.53.1",
-                "Jinja2": "~=2.10.0",
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
             },
+            venvs=[
+                Venv(pys=["3.9"], pkgs={"moto": "==5.1.22"}),
+                Venv(
+                    pys=select_pys(min_version="3.10", max_version="3.12"),
+                    pkgs={"moto": "==5.2.3"},
+                ),
+            ],
         ),
         Venv(
             name="starlette",
@@ -1589,7 +1655,7 @@ venv = Venv(
                     # starlette added support for Python 3.9 in 0.14
                     pys="3.9",
                     pkgs={
-                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"],
+                        "starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0", latest],
                         "httpx": "~=0.22.0",
                     },
                 ),
@@ -1597,7 +1663,7 @@ venv = Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
                     pkgs={
-                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest],
+                        "starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0"],
                         "httpx": "~=0.27.0",
                     },
                 ),
@@ -1607,12 +1673,12 @@ venv = Venv(
                     pkgs={"starlette": ["~=0.21.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
-                    pkgs={"starlette": latest, "httpx": "~=0.27.0"},
-                ),
-                Venv(
-                    pys=select_pys(min_version="3.9", max_version="3.11"),
-                    pkgs={"starlette": [latest], "httpx": "~=0.22.0"},
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "starlette": latest,
+                        "httpx2": latest,
+                        "anyio": latest,
+                    },
                 ),
             ],
         ),
@@ -1822,6 +1888,8 @@ venv = Venv(
                 "webtest": [latest],
                 "tests/contrib/pyramid/pserve_app": [latest],
                 "pytest-randomly": latest,
+                # pkg_resources was removed in v82.0.0
+                "setuptools": "<82",
             },
             venvs=[
                 Venv(
@@ -1903,6 +1971,16 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="anyio",
+            command="pytest {cmdargs} tests/contrib/anyio",
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                Venv(pys="3.9", pkgs={"anyio": "==3.4.0", "trio": "<0.22"}),
+                Venv(pys="3.10", pkgs={"anyio": "<4.0", "trio": "<0.22"}),
+                Venv(pys=select_pys(), pkgs={"anyio": latest, "trio": latest}),
+            ],
+        ),
+        Venv(
             name="aiomysql",
             command="pytest {cmdargs} tests/contrib/aiomysql",
             venvs=[
@@ -1935,6 +2013,7 @@ venv = Venv(
                 "pytest-xdist": latest,
             },
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
@@ -1991,6 +2070,7 @@ venv = Venv(
                 "pytest-xdist": latest,
             },
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_AGENT_PORT": "9126",
                 "DD_PYTEST_USE_NEW_PLUGIN": "false",
             },
@@ -2030,6 +2110,7 @@ venv = Venv(
                 "pytest-timeout": latest,
             },
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_AGENT_PORT": "9126",
                 "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "0",
                 # Disable coverage report upload for this suite: these tests exercise the
@@ -2087,6 +2168,9 @@ venv = Venv(
         ),
         Venv(
             name="asynctest",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
+            },
             command="pytest {cmdargs} tests/contrib/asynctest/",
             pkgs={
                 "pytest-randomly": latest,
@@ -2099,6 +2183,9 @@ venv = Venv(
         ),
         Venv(
             name="pytest_bdd",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
+            },
             command="pytest {cmdargs} tests/testing/internal/pytest/test_pytest_bdd.py",
             pkgs={
                 "msgpack": latest,
@@ -2130,6 +2217,9 @@ venv = Venv(
         ),
         Venv(
             name="pytest_benchmark",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} --no-cov tests/testing/internal/pytest/test_pytest_benchmark.py",
             pkgs={
@@ -2142,6 +2232,9 @@ venv = Venv(
         ),
         Venv(
             name="pytest:flaky",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} --no-cov -p no:flaky tests/testing/internal/pytest/test_pytest_flaky.py",
             pkgs={
@@ -2282,6 +2375,7 @@ venv = Venv(
                             "~=1.8.1",
                             "~=1.10.0",
                             "~=2.0.0",  # first major version; removed Job.get_id() in favour of job.id property
+                            "~=2.7.0",  # split rq/worker.py into a package; SimpleWorker no longer subclasses Worker
                             latest,
                         ],
                         # https://github.com/rq/rq/issues/1469 rq [1.0,1.8] is incompatible with click 8.0+
@@ -2290,7 +2384,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.13"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -2313,6 +2407,28 @@ venv = Venv(
                     pys=select_pys(min_version="3.13"),
                     pkgs={
                         "legacy-cgi": latest,
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="httpx2",
+            command="pytest {cmdargs} tests/contrib/httpx2",
+            pkgs={
+                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9"],
+                    pkgs={
+                        "httpx2": "~=2.0.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
             ],
@@ -2847,6 +2963,11 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/asyncio",
             pkgs={
                 "pytest-randomly": latest,
+                # Only latest is exercised. The surface the context-switch shim wraps has held
+                # from 0.14.0 (the oldest release supporting a Python this tracer supports)
+                # through 0.22.1, and tests/contrib/asyncio/test_context_switch.py fails if a
+                # release stops delegating call_at to call_later.
+                "uvloop": latest,
             },
             venvs=[
                 Venv(
@@ -2887,46 +3008,6 @@ venv = Venv(
                         "openai": [latest, "<2.0.0", "~=1.76.2", "==1.66.0"],
                         "pillow": latest,
                     },
-                ),
-            ],
-        ),
-        Venv(
-            name="opentracer",
-            pkgs={"opentracing": latest, "pytest-randomly": latest},
-            venvs=[
-                Venv(
-                    pys=select_pys(),
-                    command="pytest {cmdargs} tests/opentracer/core",
-                ),
-                Venv(
-                    pys=select_pys(),
-                    command="pytest {cmdargs} tests/opentracer/test_tracer_asyncio.py",
-                    pkgs={"pytest-asyncio": "==0.21.1"},
-                ),
-                Venv(
-                    command="pytest {cmdargs} tests/opentracer/test_tracer_gevent.py",
-                    venvs=[
-                        Venv(
-                            pys="3.9",
-                            pkgs={"gevent": latest, "greenlet": latest},
-                        ),
-                        Venv(
-                            pys="3.10",
-                            pkgs={"gevent": latest},
-                        ),
-                        Venv(
-                            pys="3.11",
-                            pkgs={"gevent": latest},
-                        ),
-                        Venv(
-                            pys="3.12",
-                            pkgs={"gevent": "~=23.9.0"},
-                        ),
-                        Venv(
-                            pys=select_pys(min_version="3.13"),
-                            pkgs={"gevent": latest},
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -3068,6 +3149,9 @@ venv = Venv(
         ),
         Venv(
             name="langchain",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest -v {cmdargs} tests/contrib/langchain",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -3145,6 +3229,9 @@ venv = Venv(
         ),
         Venv(
             name="litellm",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3170,6 +3257,9 @@ venv = Venv(
         ),
         Venv(
             name="llama_index",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/llama_index",
             pys=select_pys(min_version="3.10", max_version="3.13"),
             pkgs={
@@ -3230,6 +3320,9 @@ venv = Venv(
         ),
         Venv(
             name="vertexai",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/vertexai",
             pys=select_pys(min_version="3.9", max_version="3.12"),
             pkgs={
@@ -3253,6 +3346,9 @@ venv = Venv(
         ),
         Venv(
             name="mistralai",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/mistralai",
             pys=select_pys(min_version="3.10"),
             pkgs={
@@ -3262,6 +3358,9 @@ venv = Venv(
         ),
         Venv(
             name="google_genai",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/google_genai",
             pys=select_pys(),
             pkgs={
@@ -3271,6 +3370,9 @@ venv = Venv(
         ),
         Venv(
             name="crewai",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/crewai",
             pys=select_pys(min_version="3.10", max_version="3.12"),
             pkgs={
@@ -3282,6 +3384,9 @@ venv = Venv(
         ),
         Venv(
             name="pydantic_ai",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/pydantic_ai",
             pkgs={
                 "pytest-asyncio": latest,
@@ -3314,6 +3419,7 @@ venv = Venv(
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "ray[default]": ["~=2.46.0", "~=2.54.1"],
@@ -3322,6 +3428,7 @@ venv = Venv(
         Venv(
             name="ray_serve",
             command="pytest {cmdargs} tests/contrib/ray_serve",
+            env={"RAY_ENABLE_UV_RUN_RUNTIME_ENV": "0"},
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
                 "fastapi": latest,
@@ -3331,6 +3438,9 @@ venv = Venv(
         ),
         Venv(
             name="logbook",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
             pkgs={
@@ -3340,6 +3450,9 @@ venv = Venv(
         ),
         Venv(
             name="loguru",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/loguru",
             pkgs={
@@ -3349,6 +3462,9 @@ venv = Venv(
         ),
         Venv(
             name="molten",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest -n 8 --dist=worksteal {cmdargs} tests/contrib/molten",
             pys=select_pys(),
             pkgs={
@@ -3360,6 +3476,9 @@ venv = Venv(
         ),
         Venv(
             name="gunicorn",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/gunicorn",
             pkgs={
                 "requests": latest,
@@ -3372,6 +3491,7 @@ venv = Venv(
         Venv(
             name="kafka",
             env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
             },
@@ -3398,6 +3518,9 @@ venv = Venv(
         ),
         Venv(
             name="aws_lambda",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/aws_lambda",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3409,6 +3532,9 @@ venv = Venv(
         ),
         Venv(
             name="aws_durable_execution_sdk_python",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
             pys=select_pys(min_version="3.11"),
             pkgs={
@@ -3419,6 +3545,7 @@ venv = Venv(
         Venv(
             name="aiokafka",
             env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
                 "_DD_TRACE_STATS_WRITER_INTERVAL": "1000000000",
                 "DD_DATA_STREAMS_ENABLED": "true",
             },
@@ -3432,6 +3559,9 @@ venv = Venv(
         ),
         Venv(
             name="google_cloud_pubsub",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/google_cloud_pubsub",
             pkgs={
                 "falcon": latest,
@@ -3461,6 +3591,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_cosmos",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_cosmos",
             pys=select_pys(),
             pkgs={
@@ -3472,6 +3605,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_eventhubs",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3481,6 +3617,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3490,6 +3629,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_durable_functions",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_durable_functions",
             pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
@@ -3498,6 +3640,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions:cosmos",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions_cosmos",
             pys=select_pys(min_version="3.11", max_version="3.13"),
             pkgs={
@@ -3509,6 +3654,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions:eventhubs",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions_eventhubs",
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -3519,6 +3667,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_functions:servicebus",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_functions_servicebus",
             pys=select_pys(min_version="3.9", max_version="3.11"),
             pkgs={
@@ -3528,6 +3679,9 @@ venv = Venv(
         ),
         Venv(
             name="azure_servicebus",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/azure_servicebus",
             venvs=[
                 Venv(
@@ -3548,6 +3702,9 @@ venv = Venv(
         ),
         Venv(
             name="sourcecode",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/sourcecode",
             pys=select_pys(),
             pkgs={
@@ -3569,6 +3726,7 @@ venv = Venv(
                 "gevent": latest,
             },
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_AGENT_PORT": "9126",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3583,6 +3741,7 @@ venv = Venv(
                 "gevent": latest,
             },
             env={
+                "DD_TRACE_PY_ENABLE_ITR_FOR_JOB": "false",
                 "DD_AGENT_PORT": "9126",
             },
             pys=select_pys(min_version="3.9", max_version="3.13"),
@@ -3610,6 +3769,9 @@ venv = Venv(
         ),
         Venv(
             name="llmobs",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             venvs=[
                 Venv(
                     command="pytest -n auto --dist=worksteal {cmdargs} tests/llmobs",
@@ -3652,17 +3814,23 @@ venv = Venv(
         ),
         Venv(
             name="vllm",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/vllm",
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
                 "torch": latest,
-                "vllm": ">=0.10.2",
+                "vllm": ["~=0.10.2", latest],
             },
             pys=select_pys(min_version="3.10", max_version="3.13"),
         ),
         Venv(
             name="valkey",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/valkey",
             pkgs={
                 "valkey": latest,
@@ -3680,12 +3848,13 @@ venv = Venv(
                 "DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY": "1",
                 "CPUCOUNT": "12",
                 "PYTHONWARNINGS": "ignore::UserWarning:gevent.events",
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+                "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "false",
             },
             pkgs={
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
-                "pytest-cpp": latest,
                 #
                 # pytest-benchmark depends on cpuinfo which dropped support for Python<=3.6 in 9.0
                 # See https://github.com/workhorsy/py-cpuinfo/issues/177
@@ -3938,6 +4107,8 @@ venv = Venv(
                 "flask-babel": latest,
                 "sqlalchemy": latest,
                 "pytest-randomly": latest,
+                # Pinned to the version we previously vendored, to avoid API drift.
+                "psutil": "==7.1.3",
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4004,10 +4175,12 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4057,10 +4230,12 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django_iast",
-            command="pytest tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_django.py::Test_Django {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4114,6 +4289,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "django": "~=5.1",
             },
             env={
@@ -4128,13 +4304,15 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_no_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4174,13 +4352,15 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_flask_iast",
-            command="pytest -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
+            command="pytest -n auto --dist=load -vv tests/appsec/contrib_appsec/test_flask.py::Test_Flask {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
@@ -4227,6 +4407,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "flask": "~=3.0",
             },
             env={
@@ -4241,8 +4422,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4263,32 +4445,38 @@ venv = Venv(
                     pkgs={
                         "fastapi": "==0.86.0",
                         "anyio": "==3.7.1",
+                        # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+                        "httpx2": "~=2.0.0",
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "==0.94.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.14"],
                     pkgs={
                         "fastapi": "==0.141.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
             ],
         ),
         Venv(
             name="appsec_threats_fastapi_iast",
-            command="pytest tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_fastapi.py::Test_FastAPI {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "pytest": latest,
                 "pytest-cov": latest,
                 "requests": latest,
@@ -4309,24 +4497,29 @@ venv = Venv(
                     pkgs={
                         "fastapi": "==0.86.0",
                         "anyio": "==3.7.1",
+                        # httpcore2>=2.3 uses fast_acquire, which AnyIO added in 4.5.
+                        "httpx2": "~=2.0.0",
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "==0.94.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "fastapi": "~=0.114.2",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
                 Venv(
                     pys=["3.10", "3.14"],
                     pkgs={
                         "fastapi": "==0.141.1",
+                        "httpx2": ["~=2.0.0", latest],
                     },
                 ),
             ],
@@ -4340,6 +4533,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "httpx": "<0.28.0",
+                "httpx2": ["~=2.0.0", latest],
                 "fastapi": "~=0.114.2",
             },
             env={
@@ -4354,12 +4548,15 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_no_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
@@ -4389,12 +4586,15 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_tornado_iast",
-            command="pytest tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
+            command="pytest -n auto --dist=load tests/appsec/contrib_appsec/test_tornado.py::Test_Tornado {cmdargs}",
             pkgs={
+                "pytest-xdist": latest,
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
             },
             env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_API_SECURITY_SAMPLE_DELAY": "0",
@@ -4428,6 +4628,7 @@ venv = Venv(
             pkgs={
                 "requests": latest,
                 "httpx": latest,
+                "httpx2": ["~=2.0.0", latest],
                 "tornado": "~=6.5",
             },
             env={
@@ -4461,6 +4662,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_api",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/aiguard/api/",
             pkgs={
                 "requests": latest,
@@ -4469,6 +4673,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_langchain",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/aiguard/langchain/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4505,6 +4712,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_openai",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/aiguard/openai/",
             pkgs={
                 "pytest-asyncio": "==0.23.7",
@@ -4536,6 +4746,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_anthropic",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/aiguard/anthropic/",
             pys=select_pys(),
             pkgs={
@@ -4556,6 +4769,9 @@ venv = Venv(
         ),
         Venv(
             name="claude_agent_sdk",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/contrib/claude_agent_sdk/",
             pys=select_pys(min_version="3.10"),
             pkgs={
@@ -4565,6 +4781,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_strands",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/aiguard/strands_hooks/",
             pkgs={
                 "strands-agents": ">=1.29.0",
@@ -4573,6 +4792,9 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_litellm_guardrail",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/aiguard/litellm_guardrail/",
             pkgs={
                 "pytest-asyncio": latest,
@@ -4594,9 +4816,79 @@ venv = Venv(
         ),
         Venv(
             name="sca",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
             command="pytest {cmdargs} tests/appsec/sca/",
             pkgs={"jsonschema": latest},
             pys=select_pys(),
         ),
     ],
 )
+
+
+_ITR_MIN_PYTHON_VERSION = Version("3.12")
+
+
+def _is_true(value: str) -> bool:
+    return value.lower() in ("true", "1")
+
+
+def _python_hint_to_version(hint: str) -> t.Optional[Version]:
+    try:
+        return Version(hint)
+    except InvalidVersion:
+        return None
+
+
+def _is_protected_ci_branch() -> bool:
+    branch = os.environ.get("CI_COMMIT_BRANCH", "")
+    return branch == "main" or branch.startswith("mq-")
+
+
+def _configure_ci_itr_environment(env: dict[str, str], python_hint: str, environment_hash: str) -> None:
+    python_version = _python_hint_to_version(python_hint)
+
+    if python_hint:
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash},test.configuration.python:{python_hint}"
+    else:
+        env["_CI_DD_TAGS"] = f"test.configuration.riot_hash:{environment_hash}"
+
+    # ITR is enabled by default for Python >= 3.12, unless the venv explicitly opts out
+    # via DD_TRACE_PY_ENABLE_ITR_FOR_JOB=false.
+    if (
+        _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_FOR_JOB", "true"))
+        and "DD_CIVISIBILITY_ITR_ENABLED" not in env
+        and python_version is not None
+        and python_version >= _ITR_MIN_PYTHON_VERSION
+    ):
+        env["DD_CIVISIBILITY_ITR_ENABLED"] = "true"
+
+        # Test skipping is disabled by default (PREVENT_TEST_SKIPPING=1), unless the venv
+        # explicitly opts in via DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB=true.
+        if _is_true(env.get("DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB", "false")):
+            env["_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING"] = "0"
+        else:
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+        if _is_protected_ci_branch():
+            env.setdefault("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", "true")
+            env.setdefault("_DD_CIVISIBILITY_ITR_PREVENT_TEST_SKIPPING", "1")
+
+
+def _configure_ci_itr_env_for_instance(inst: "VenvInstance") -> None:
+    if not inst.env:
+        inst.env = {}
+    _configure_ci_itr_environment(inst.env, getattr(inst.py, "_hint", ""), inst.short_hash)
+
+
+_venv_instances = venv.instances
+
+
+def _ci_itr_venv_instances(parent_inst: t.Optional["VenvInstance"] = None) -> t.Generator["VenvInstance", None, None]:
+    for inst in _venv_instances(parent_inst):
+        _configure_ci_itr_env_for_instance(inst)
+        yield inst
+
+
+venv.instances = _ci_itr_venv_instances

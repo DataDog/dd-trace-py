@@ -16,8 +16,8 @@ def _get_iast_metrics(test_agent_session, telemetry_writer):
     ]
 
 
-def test_iast_span_metrics():
-    with flask_server(iast_enabled="true", token=None, port=8050) as context:
+def test_iast_span_metrics(free_port):
+    with flask_server(iast_enabled="true", token=None, port=free_port) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")

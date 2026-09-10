@@ -31,12 +31,17 @@ debug = "line-tables-only"
 codegen-units = 1
 
 [features]
+default = ["live-heap"]
 # Forwards to the upstream crate's test-support surface so integration tests can
 # assert the patched GOT hooks actually ran (hit counter) without needing a
 # live eBPF uprobe attach. Never enabled for shipped wheels.
 test-support = ["libdd-profiling-heap-gotter/test-support"]
 
+# Default-on live-heap (ddheap:free + retain flags). Sole enablement path for
+# upstream live-heap — keeps cfg! / live_heap_enabled() in lockstep with the
+# artifact. Omit via --no-default-features for alloc-only builds.
+live-heap = ["libdd-profiling-heap-gotter/live-heap"]
+
 [dependencies]
-# Pinned to the published crates.io release. `live-heap` enables balanced
-# alloc/free sampling so the profiler can report retained (live) heap.
-libdd-profiling-heap-gotter = { version = "1.0.0", features = ["live-heap"] }
+# Live-heap only via the feature above, not unconditionally.
+libdd-profiling-heap-gotter = { version = "1.0.0" }

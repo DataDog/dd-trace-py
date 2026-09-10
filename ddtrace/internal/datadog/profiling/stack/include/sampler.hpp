@@ -1,12 +1,18 @@
 #pragma once
 
+#include <Python.h>
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <mutex>
+#include <optional>
 #include <random>
+#include <string>
+#include <typeinfo>
 #include <vector>
 
 #include "constants.hpp"
@@ -14,11 +20,17 @@
 #include "echion/task_name.h"
 #include "echion/timing.h"
 
-#include <Python.h>
-
 class EchionSampler;
 
 namespace Datadog {
+
+// The unexpected exception that terminated the sampling thread. type_name is the raw
+// (mangled, on gcc/clang) result of typeid(e).name().
+struct SamplingThreadError
+{
+    std::string type_name;
+    std::string message;
+};
 
 enum class PauseResult : std::uint8_t
 {
@@ -65,6 +77,12 @@ class Sampler
     std::mutex pause_mutex_;
     std::condition_variable pause_cv_;
 
+    // Set when the sampling thread aborts on an unexpected exception. The sampling thread
+    // has no GIL, so the failure is stashed here for the Python side to drain and report.
+    std::mutex sampling_thread_error_mutex_;
+    std::optional<SamplingThreadError> sampling_thread_error_;
+    void record_sampling_thread_error(const std::exception& e);
+
     // This is a singleton, so no public constructor
     Sampler();
 
@@ -79,8 +97,15 @@ class Sampler
     double target_overhead = g_target_overhead;
     microsecond_t max_sampling_period_us = g_max_sampling_period_us;
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
+    bool gc_tracking_enabled_ = false;
     std::minstd_rand rng{ std::random_device{}() };
-    std::vector<PyThreadState> thread_candidates;
+
+    struct ThreadCandidate
+    {
+        PyThreadState tstate;
+        PyObject* gc_frame;
+    };
+    std::vector<ThreadCandidate> thread_candidates;
     void adapt_sampling_interval();
 
     // Captures one sampling cycle across all threads (or a reservoir-sampled subset thereof
@@ -153,6 +178,11 @@ class Sampler
     [[nodiscard]] size_t max_frames() const;
     [[nodiscard]] size_t frame_cache_capacity() const;
     bool is_running() const { return thread_running.load(); }
+
+    // Returns the error that terminated the sampling thread, clearing it so it is
+    // reported at most once.
+    std::optional<SamplingThreadError> take_sampling_thread_error();
+
     void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
     void set_target_overhead(double value) { target_overhead = value; }
     void set_max_sampling_period(microsecond_t max_interval_us)
@@ -161,6 +191,8 @@ class Sampler
     }
     void set_max_threads_per_sample(unsigned int value) { max_threads_per_sample = value; }
     void set_max_tasks_per_sample(unsigned int value);
+    void set_gc_enabled(bool value) { gc_tracking_enabled_ = value; }
+    bool gc_enabled() const { return gc_tracking_enabled_; }
 
     // Set the absolute overhead floor as "core percent" units (1 = 0.01 core = 10 mcores).
     // Converted to us of CPU budget per adaptation window.

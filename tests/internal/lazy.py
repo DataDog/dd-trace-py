@@ -1,4 +1,4 @@
-from ddtrace.internal.module import lazy
+from ddtrace.internal.lazy import lazy
 
 
 print("lazy loaded")
