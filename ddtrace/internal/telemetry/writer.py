@@ -8,6 +8,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Union
+import weakref
 
 from ddtrace.internal.endpoints import HttpEndPoint
 from ddtrace.internal.endpoints import endpoint_collection
@@ -189,7 +190,9 @@ class TelemetryWriter:
         # Callbacks notified whenever the native worker is replaced or torn down. Handles issued by
         # a worker die with it, so anything holding one (the trace exporter, for its trace_api.*
         # health metrics) has to be handed the new one rather than keeping a stale clone.
-        self._worker_subscribers: list[Callable[[Optional["TelemetryWorker"]], None]] = []
+        # Keep these callbacks weak because this process-global writer must not retain
+        # per-tracer exporters and their native runtime workers.
+        self._worker_subscribers: list[weakref.WeakMethod] = []
         # Fork-safe periodic that polls sys.modules for newly imported dependencies. Created
         # once in enable(); forked children inherit and auto-resume it (see the class docstring).
         self._deps_collector: Optional[PeriodicService] = None
@@ -214,9 +217,11 @@ class TelemetryWriter:
             # makes app_shutdown's final flush run BEFORE the runtime is torn down — otherwise
             # the closing flush (app-closing, shutdown deps/endpoints) is lost on a dead runtime.
             atexit.register(self.app_shutdown)
-            # Rebuild the native worker in forked children (registered AFTER the native
-            # runtime's after_fork_child hook, which get_native_runtime() registered
-            # during enable(), so the shared runtime is restarted before we rebuild).
+            # Rebuild the native worker in Python-managed forked children. The parent prepare hook
+            # marks the inherited worker for child-side removal; the shared runtime and replacement
+            # worker restart lazily after all child hooks have completed.
+            forksafe.register_before_fork(self._prepare_fork_writer)
+            forksafe.register_after_parent(self._resume_fork_writer)
             forksafe.register(self._fork_writer)
             get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
@@ -289,7 +294,7 @@ class TelemetryWriter:
         Enable the instrumentation telemetry collection service. If the service has already been
         activated before, this method does nothing. Use ``disable`` to turn off the telemetry collection service.
         """
-        if not self._enabled:
+        if not self._enabled or forksafe.in_child_hook():
             return False
 
         if self._worker is not None:
@@ -396,11 +401,27 @@ class TelemetryWriter:
             self._notify_worker_changed(None)
 
     def _subscribe_worker_changes(self, callback: "Callable[[Optional[TelemetryWorker]], None]") -> None:
-        if callback not in self._worker_subscribers:
-            self._worker_subscribers.append(callback)
+        if any(subscriber() == callback for subscriber in self._worker_subscribers):
+            return
+
+        writer_ref = weakref.ref(self)
+
+        def remove_subscriber(subscriber: weakref.WeakMethod) -> None:
+            writer = writer_ref()
+            if writer is None:
+                return
+            try:
+                writer._worker_subscribers.remove(subscriber)
+            except ValueError:
+                return
+
+        self._worker_subscribers.append(weakref.WeakMethod(callback, remove_subscriber))
 
     def _notify_worker_changed(self, worker: Optional["TelemetryWorker"]) -> None:
-        for callback in list(self._worker_subscribers):
+        for subscriber in list(self._worker_subscribers):
+            callback = subscriber()
+            if callback is None:
+                continue
             try:
                 callback(worker)
             except Exception:
@@ -910,15 +931,29 @@ class TelemetryWriter:
         # worker owns the message-batch seq_id and resets it when rebuilt.
         TelemetryWriter._sequence_configurations = itertools.count(1)
 
+    def _prepare_fork_writer(self) -> None:
+        # This runs in the parent, before fork, where the worker-registry mutex is valid.
+        # The setting is copied into the child and restored in the parent callback.
+        if self._worker is not None:
+            try:
+                self._worker.set_fork_restart(False)
+            except Exception:
+                log.debug("Failed to disable telemetry worker fork restart", exc_info=True)
+
+    def _resume_fork_writer(self) -> None:
+        if self._worker is not None:
+            try:
+                self._worker.set_fork_restart(True)
+            except Exception:
+                log.debug("Failed to restore telemetry worker fork restart", exc_info=True)
+
     def _fork_writer(self) -> None:
-        # Runs in the child after fork. The inherited native worker was spawned with
-        # restart_on_fork=False, so the shared runtime drops it (without app-closing) in the
-        # child; the inherited Python handle is now inert. Drop it and rebuild lazily on the
-        # child's next telemetry call (enable()), bound to the child's own runtime and session
-        # ids (get_runtime_id()/get_parent_runtime_id() now reflect the child), heartbeating
-        # without re-emitting app-started.
-        # NOTE: rebuilding here, inside the fork-hook chain, trips a tokio IO-safety abort
-        # (spawning on the just-restarted runtime from within the after-fork callbacks).
+        # Runs in the child after a Python-managed fork. The parent-side prepare hook already
+        # marked the inherited worker to be dropped without shutdown when the shared runtime
+        # restarts. Rebuild lazily on the child's next telemetry call (enable()); the replacement
+        # is bound to the child's runtime and session ids and heartbeats without app-started.
+        # NOTE: rebuilding here, inside the fork-hook chain, starts Tokio before process managers
+        # such as Celery finish closing inherited file descriptors.
         #
         # This hook is registered before the tracer's _child_after_fork (TelemetryWriter is
         # constructed before the tracer), so it always runs before the trace-exporter rebuild

@@ -2,6 +2,7 @@ import abc
 import binascii
 from collections import defaultdict
 import gzip
+import os
 import socket
 import sys
 import threading
@@ -749,6 +750,9 @@ def _build_base_exporter_builder(
         .set_git_commit_sha(commit_sha)
         .set_client_computed_top_level()
     )
+    # Python recreates the exporter lazily in the child, so its inherited workers
+    # must not also be restarted by the shared runtime.
+    builder.set_restart_after_fork(False)
     # Only report the hostname when DD_TRACE_REPORT_HOSTNAME is enabled. Otherwise it must be omitted
     # from both the trace payload and the OTLP resource attributes (host.name).
     if config._report_hostname:
@@ -851,7 +855,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
 
+        self._owner_pid = os.getpid()
         self._exporter = self._create_exporter()
+
+    def __del__(self) -> None:
+        # WorkerHandle must be explicitly stopped; dropping the native exporter leaves its
+        # background workers registered on the process-wide runtime.
+        try:
+            if getattr(self, "_owner_pid", None) != os.getpid():
+                return
+            exporter = getattr(self, "_exporter", None)
+            if exporter is not None:
+                exporter.shutdown(3_000_000_000)
+        except Exception:  # nosec B110 - destructors must not raise
+            pass
 
     @staticmethod
     def _parse_otlp_headers(raw: str) -> list:
@@ -952,6 +969,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._exporter = self._create_exporter()
         try:
             old_exporter.shutdown(3_000_000_000)
+        except Exception:
+            _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
+
+    def shutdown_exporter(self) -> None:
+        """Tear down the native exporter without going through stop()."""
+        try:
+            self._exporter.shutdown(3_000_000_000)
         except Exception:
             _safelog(log.warning, "failed to shutdown exporter", exc_info=True)
 

@@ -135,7 +135,7 @@ impl HttpClientPy {
         retry_jitter: bool,
         treat_http_errors_as_errors: bool,
     ) -> PyResult<Self> {
-        let rt = runtime.as_arc().clone();
+        let rt = runtime.as_arc()?;
 
         // Parse the base URL to validate it and extract the canonical base origin.
         // unix:// is not a registered URL scheme so we handle it first; http/https
