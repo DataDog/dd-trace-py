@@ -59,6 +59,11 @@ class MyLibIntegration(BaseLLMIntegration):
     ) -> None:
         """Extract and annotate all LLMObs fields."""
         tools = self._extract_tools(kwargs)
+        metadata = self._extract_metadata(kwargs)
+        # Gate on the response, not span.error: an errored span can still carry a valid
+        # response. Merge so response-derived keys never clobber the request params.
+        if response is not None:
+            metadata.update(self._extract_response_metadata(response))
         _annotate_llmobs_span_data(
             span,
             kind="llm",
@@ -66,7 +71,7 @@ class MyLibIntegration(BaseLLMIntegration):
             model_provider="mylib",
             input_messages=self._extract_input_messages(kwargs),
             output_messages=self._extract_output_messages(response),
-            metadata=self._extract_metadata(kwargs),
+            metadata=metadata,
             metrics=self._extract_usage(response),
             tool_definitions=tools or None,
         )
@@ -79,6 +84,7 @@ Common helpers (implement only what applies):
 - `_extract_usage(self, response: Any) -> dict[str, int]` — map library token field names to `INPUT_TOKENS_METRIC_KEY` / `OUTPUT_TOKENS_METRIC_KEY` / `TOTAL_TOKENS_METRIC_KEY`
 - `_extract_tools(self, kwargs: dict[str, Any]) -> list[ToolDefinition]` — convert `tools` list to `ToolDefinition` list
 - `_extract_metadata(self, kwargs: dict[str, Any]) -> dict[str, Any]` — pick scalar request params: `temperature`, `top_p`, `max_tokens`, etc.
+- `_extract_response_metadata(self, response: Any) -> dict[str, Any]` — pick scalar params the provider reports on the *response* and that `metrics`/`output_messages` do not already cover. The stop reason is the established case: record it as `finish_reason`, omit the key when the provider reports none, and comma-join per-choice reasons in choice order when a request returns multiple choices so the value stays a single string. See the Response Metadata section of `SKILL.md` for the per-provider sources and `_openai_finish_reason_metadata()` in `_integrations/utils.py` for the comma-join helper.
 
 Register in `ddtrace/llmobs/_integrations/__init__.py` (import + `__all__` entry).
 
