@@ -164,6 +164,11 @@ the locks and commit both changes:
 
 Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
 environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+On Apple Silicon, select that image architecture explicitly:
+
+.. code-block:: bash
+
+  $ DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/ddtest scripts/test-requirements lock <environment-name>
 
 Use ``scripts/test-requirements`` to inspect and maintain locks:
 
