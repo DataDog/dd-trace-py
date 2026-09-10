@@ -1,0 +1,2237 @@
+{
+  "integrations": {
+    "aiobotocore": {
+      "highest_tested_dependency_versions": {
+        "aiobotocore": "3.9.1",
+        "botocore": "1.43.75"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aiobotocore": {
+          "3.10": "3.9.0",
+          "3.11": "3.9.0",
+          "3.12": "3.9.0",
+          "3.13": "3.9.0",
+          "3.14": "3.9.0",
+          "3.15": "3.9.1",
+          "3.9": "3.5.0"
+        },
+        "botocore": {
+          "3.10": "1.43.56",
+          "3.11": "1.43.56",
+          "3.12": "1.43.56",
+          "3.13": "1.43.56",
+          "3.14": "1.43.56",
+          "3.15": "1.43.75",
+          "3.9": "1.42.91"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aiohttp": {
+      "highest_tested_dependency_versions": {
+        "aiohttp": "3.14.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aiohttp": {
+          "3.10": "3.14.3",
+          "3.11": "3.14.3",
+          "3.12": "3.14.3",
+          "3.13": "3.14.3",
+          "3.14": "3.14.3",
+          "3.15": "3.14.3",
+          "3.9": "3.13.5"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aiohttp_jinja2": {
+      "highest_tested_dependency_versions": {
+        "aiohttp-jinja2": "1.6"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aiohttp-jinja2": {
+          "3.10": "1.6",
+          "3.11": "1.6",
+          "3.12": "1.6",
+          "3.13": "1.6",
+          "3.14": "1.6",
+          "3.15": "1.6",
+          "3.9": "1.6"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aiokafka": {
+      "highest_tested_dependency_versions": {
+        "aiokafka": "0.14.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aiokafka": {
+          "3.10": "0.14.0",
+          "3.11": "0.14.0",
+          "3.12": "0.14.0",
+          "3.13": "0.14.0",
+          "3.14": "0.14.0",
+          "3.15": "0.14.0",
+          "3.9": "0.12.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aiomysql": {
+      "highest_tested_dependency_versions": {
+        "aiomysql": "0.3.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aiomysql": {
+          "3.10": "0.3.2",
+          "3.11": "0.3.2",
+          "3.12": "0.3.2",
+          "3.13": "0.3.2",
+          "3.14": "0.3.2",
+          "3.15": "0.3.2",
+          "3.9": "0.3.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aiopg": {
+      "highest_tested_dependency_versions": {
+        "aiopg": "1.4.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aiopg": {
+          "3.10": "1.4.0",
+          "3.11": "1.4.0",
+          "3.12": "1.4.0",
+          "3.13": "1.4.0",
+          "3.14": "1.4.0",
+          "3.15": "1.4.0",
+          "3.9": "1.4.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "algoliasearch": {
+      "highest_tested_dependency_versions": {
+        "algoliasearch": "2.6.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "algoliasearch": {
+          "3.10": "2.6.3",
+          "3.11": "2.6.3",
+          "3.12": "2.6.3",
+          "3.13": "2.6.3",
+          "3.14": "2.6.3",
+          "3.15": "2.6.3",
+          "3.9": "2.6.3"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "anthropic": {
+      "highest_tested_dependency_versions": {
+        "anthropic": "1.4.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "anthropic": {
+          "3.10": "0.117.0",
+          "3.11": "0.117.0",
+          "3.12": "0.117.0",
+          "3.13": "0.117.0",
+          "3.14": "0.117.0",
+          "3.15": "1.4.0",
+          "3.9": "0.117.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aredis": {
+      "highest_tested_dependency_versions": {
+        "aredis": "1.1.8"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aredis": {
+          "3.10": "1.1.8",
+          "3.11": "1.1.8",
+          "3.12": "1.1.8",
+          "3.13": "1.1.8",
+          "3.14": "1.1.8",
+          "3.15": "1.1.8",
+          "3.9": "1.1.8"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "asyncio": {
+      "highest_tested_dependency_versions": {
+        "pytest-asyncio": "1.4.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pytest-asyncio": {
+          "3.10": "0.21.1",
+          "3.11": "0.21.1",
+          "3.12": "0.21.1",
+          "3.13": "1.2.0",
+          "3.14": "1.2.0",
+          "3.15": "1.4.0",
+          "3.9": "0.21.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "asyncpg": {
+      "highest_tested_dependency_versions": {
+        "asyncpg": "0.31.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "asyncpg": {
+          "3.10": "0.31.0",
+          "3.11": "0.31.0",
+          "3.12": "0.31.0",
+          "3.13": "0.31.0",
+          "3.14": "0.31.0",
+          "3.15": "0.31.0",
+          "3.9": "0.31.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "avro": {
+      "highest_tested_dependency_versions": {
+        "avro": "1.12.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "avro": {
+          "3.10": "1.12.2",
+          "3.11": "1.12.2",
+          "3.12": "1.12.2",
+          "3.13": "1.12.2",
+          "3.14": "1.12.2",
+          "3.15": "1.12.2",
+          "3.9": "1.12.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aws_durable_execution_sdk_python": {
+      "highest_tested_dependency_versions": {
+        "aws-durable-execution-sdk-python": "1.7.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "aws-durable-execution-sdk-python": {
+          "3.11": "1.4.0",
+          "3.12": "1.4.0",
+          "3.13": "1.4.0",
+          "3.14": "1.4.0",
+          "3.15": "1.7.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "aws_lambda": {
+      "highest_tested_dependency_versions": {
+        "datadog-lambda": "8.127.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "datadog-lambda": {
+          "3.10": "6.105.0",
+          "3.11": "6.105.0",
+          "3.12": "6.105.0",
+          "3.13": "6.105.0",
+          "3.14": "8.127.0",
+          "3.15": "8.123.0",
+          "3.9": "6.105.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "azure_cosmos": {
+      "highest_tested_dependency_versions": {
+        "azure-cosmos": "4.16.4"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "azure-cosmos": {
+          "3.10": "4.15.0",
+          "3.11": "4.15.0",
+          "3.12": "4.15.0",
+          "3.13": "4.15.0",
+          "3.14": "4.15.0",
+          "3.15": "4.16.4",
+          "3.9": "4.15.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "azure_durable_functions": {
+      "highest_tested_dependency_versions": {
+        "azure-functions": "2.3.0",
+        "azure-functions-durable": "1.7.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "azure-functions": {
+          "3.10": "1.24.0",
+          "3.11": "1.24.0",
+          "3.12": "1.24.0",
+          "3.13": "1.24.0",
+          "3.14": "2.3.0",
+          "3.15": "2.3.0",
+          "3.9": "1.24.0"
+        },
+        "azure-functions-durable": {
+          "3.10": "1.4.0",
+          "3.11": "1.4.0",
+          "3.12": "1.5.0",
+          "3.13": "1.5.0",
+          "3.14": "1.7.0",
+          "3.15": "1.7.0",
+          "3.9": "1.4.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "azure_eventhubs": {
+      "highest_tested_dependency_versions": {
+        "azure-eventhub": "5.15.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "azure-eventhub": {
+          "3.10": "5.15.0",
+          "3.11": "5.15.0",
+          "3.12": "5.15.0",
+          "3.13": "5.15.0",
+          "3.14": "5.15.1",
+          "3.15": "5.15.1",
+          "3.9": "5.15.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "azure_functions": {
+      "highest_tested_dependency_versions": {
+        "azure-functions": "2.3.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "azure-functions": {
+          "3.10": "1.23.0",
+          "3.11": "1.24.0",
+          "3.12": "1.24.0",
+          "3.13": "2.0.0",
+          "3.14": "2.3.0",
+          "3.15": "2.3.0",
+          "3.9": "1.23.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "azure_servicebus": {
+      "highest_tested_dependency_versions": {
+        "azure-servicebus": "7.14.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "azure-servicebus": {
+          "3.10": "7.14.2",
+          "3.11": "7.14.2",
+          "3.12": "7.14.2",
+          "3.13": "7.14.2",
+          "3.14": "7.14.2",
+          "3.15": "7.14.3",
+          "3.9": "7.14.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "botocore": {
+      "highest_tested_dependency_versions": {
+        "boto3": "1.38.26",
+        "botocore": "1.38.26"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "boto3": {
+          "3.10": "1.38.26",
+          "3.11": "1.38.26",
+          "3.12": "1.38.26",
+          "3.13": "1.38.26",
+          "3.14": "1.38.26",
+          "3.15": "1.38.26",
+          "3.9": "1.38.26"
+        },
+        "botocore": {
+          "3.10": "1.38.26",
+          "3.11": "1.38.26",
+          "3.12": "1.38.26",
+          "3.13": "1.38.26",
+          "3.14": "1.38.26",
+          "3.15": "1.38.26",
+          "3.9": "1.38.26"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "bottle": {
+      "highest_tested_dependency_versions": {
+        "bottle": "0.13.4"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "bottle": {
+          "3.10": "0.13.4",
+          "3.11": "0.13.4",
+          "3.12": "0.13.4",
+          "3.13": "0.13.4",
+          "3.14": "0.13.4",
+          "3.15": "0.13.4",
+          "3.9": "0.13.4"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "celery": {
+      "highest_tested_dependency_versions": {
+        "celery": "5.6.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "celery": {
+          "3.10": "5.5.3",
+          "3.11": "5.5.3",
+          "3.12": "5.5.3",
+          "3.13": "5.5.3",
+          "3.14": "5.5.3",
+          "3.15": "5.6.3",
+          "3.9": "5.5.3"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "cherrypy": {
+      "highest_tested_dependency_versions": {
+        "cherrypy": "18.10.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "cherrypy": {
+          "3.10": "18.10.0",
+          "3.11": "18.10.0",
+          "3.12": "18.10.0",
+          "3.13": "18.10.0",
+          "3.14": "18.10.0",
+          "3.15": "18.10.0",
+          "3.9": "18.10.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "claude_agent_sdk": {
+      "highest_tested_dependency_versions": {
+        "claude-agent-sdk": "0.2.152"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "claude-agent-sdk": {
+          "3.10": "0.1.49",
+          "3.11": "0.1.49",
+          "3.12": "0.1.49",
+          "3.13": "0.1.49",
+          "3.14": "0.1.49",
+          "3.15": "0.2.152"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "consul": {
+      "highest_tested_dependency_versions": {
+        "python-consul": "1.1.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "python-consul": {
+          "3.10": "1.1.0",
+          "3.11": "1.1.0",
+          "3.12": "1.1.0",
+          "3.13": "1.1.0",
+          "3.14": "1.1.0",
+          "3.15": "1.1.0",
+          "3.9": "1.1.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "crewai": {
+      "highest_tested_dependency_versions": {
+        "crewai": "0.157.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "crewai": {
+          "3.10": "0.157.0",
+          "3.11": "0.157.0",
+          "3.12": "0.157.0"
+        }
+      },
+      "highest_tested_python": "3.12",
+      "python": {
+        "3.14": "not_scheduled",
+        "3.15": "not_scheduled"
+      }
+    },
+    "ddtrace_api": {
+      "highest_tested_dependency_versions": {},
+      "highest_tested_dependency_versions_by_python": {},
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "django": {
+      "highest_tested_dependency_versions": {
+        "django": "5.2.17"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "django": {
+          "3.10": "5.2.17",
+          "3.11": "5.2.17",
+          "3.12": "5.2.17",
+          "3.13": "5.2.17",
+          "3.14": "5.2.17",
+          "3.15": "5.2.17",
+          "3.9": "4.2.30"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "dogpile_cache": {
+      "highest_tested_dependency_versions": {
+        "dogpile-cache": "1.5.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "dogpile-cache": {
+          "3.10": "1.3.0",
+          "3.11": "1.3.0",
+          "3.12": "1.3.0",
+          "3.13": "1.3.3",
+          "3.14": "1.4.0",
+          "3.15": "1.5.0",
+          "3.9": "1.3.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "dramatiq": {
+      "highest_tested_dependency_versions": {
+        "dramatiq": "2.2.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "dramatiq": {
+          "3.10": "2.2.1",
+          "3.11": "2.2.1",
+          "3.12": "2.2.1",
+          "3.13": "2.2.1",
+          "3.14": "2.2.1",
+          "3.15": "2.2.1",
+          "3.9": "1.18.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "elasticsearch": {
+      "highest_tested_dependency_versions": {
+        "elastic-transport": "9.4.2",
+        "elasticsearch": "9.5.0",
+        "elasticsearch1": "1.10.0",
+        "elasticsearch2": "2.5.1",
+        "elasticsearch5": "5.5.6",
+        "elasticsearch6": "6.8.2",
+        "elasticsearch7": "7.17.13",
+        "opensearch-py": "3.2.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "elastic-transport": {
+          "3.10": "9.4.2",
+          "3.11": "9.4.2",
+          "3.12": "9.4.2",
+          "3.13": "9.4.2",
+          "3.14": "9.4.2",
+          "3.15": "9.4.2",
+          "3.9": "9.1.0"
+        },
+        "elasticsearch": {
+          "3.10": "9.4.1",
+          "3.11": "9.4.1",
+          "3.12": "9.4.1",
+          "3.13": "9.4.1",
+          "3.14": "9.4.1",
+          "3.15": "9.5.0",
+          "3.9": "9.1.3"
+        },
+        "elasticsearch1": {
+          "3.10": "1.10.0",
+          "3.11": "1.10.0",
+          "3.12": "1.10.0",
+          "3.13": "1.10.0",
+          "3.14": "1.10.0",
+          "3.15": "1.10.0",
+          "3.9": "1.10.0"
+        },
+        "elasticsearch2": {
+          "3.10": "2.5.1",
+          "3.11": "2.5.1",
+          "3.12": "2.5.1",
+          "3.13": "2.5.1",
+          "3.14": "2.5.1",
+          "3.15": "2.5.1",
+          "3.9": "2.5.1"
+        },
+        "elasticsearch5": {
+          "3.10": "5.5.6",
+          "3.11": "5.5.6",
+          "3.12": "5.5.6",
+          "3.13": "5.5.6",
+          "3.14": "5.5.6",
+          "3.15": "5.5.6",
+          "3.9": "5.5.6"
+        },
+        "elasticsearch6": {
+          "3.10": "6.8.2",
+          "3.11": "6.8.2",
+          "3.12": "6.8.2",
+          "3.13": "6.8.2",
+          "3.14": "6.8.2",
+          "3.15": "6.8.2",
+          "3.9": "6.8.2"
+        },
+        "elasticsearch7": {
+          "3.10": "7.17.13",
+          "3.11": "7.17.13",
+          "3.12": "7.17.13",
+          "3.13": "7.17.13",
+          "3.14": "7.17.13",
+          "3.15": "7.17.13",
+          "3.9": "7.17.13"
+        },
+        "opensearch-py": {
+          "3.10": "2.8.0",
+          "3.11": "2.8.0",
+          "3.12": "2.8.0",
+          "3.13": "2.8.0",
+          "3.14": "3.0.0",
+          "3.15": "3.2.0",
+          "3.9": "2.8.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "falcon": {
+      "highest_tested_dependency_versions": {
+        "falcon": "4.3.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "falcon": {
+          "3.10": "4.2.0",
+          "3.11": "4.2.0",
+          "3.12": "4.2.0",
+          "3.13": "4.2.0",
+          "3.14": "4.2.0",
+          "3.15": "4.3.1",
+          "3.9": "4.2.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "fastapi": {
+      "highest_tested_dependency_versions": {
+        "fastapi": "0.141.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "fastapi": {
+          "3.10": "0.139.0",
+          "3.11": "0.139.0",
+          "3.12": "0.139.0",
+          "3.13": "0.139.0",
+          "3.14": "0.139.0",
+          "3.15": "0.141.1",
+          "3.9": "0.128.8"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "flask": {
+      "highest_tested_dependency_versions": {
+        "flask": "3.1.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "flask": {
+          "3.10": "3.1.3",
+          "3.11": "3.1.3",
+          "3.12": "3.1.3",
+          "3.13": "3.1.3",
+          "3.14": "3.1.3",
+          "3.15": "3.1.3",
+          "3.9": "3.1.3"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "flask_cache": {
+      "highest_tested_dependency_versions": {
+        "flask-cache": "0.13.1",
+        "flask-caching": "2.5.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "flask-cache": {
+          "3.9": "0.13.1"
+        },
+        "flask-caching": {
+          "3.10": "2.1.0",
+          "3.11": "2.1.0",
+          "3.12": "2.3.0",
+          "3.13": "2.3.0",
+          "3.14": "2.5.1",
+          "3.15": "2.5.1",
+          "3.9": "2.1.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "futures": {
+      "highest_tested_dependency_versions": {},
+      "highest_tested_dependency_versions_by_python": {},
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "gevent": {
+      "highest_tested_dependency_versions": {
+        "gevent": "26.8.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "gevent": {
+          "3.10": "26.5.0",
+          "3.11": "26.5.0",
+          "3.12": "26.5.0",
+          "3.13": "26.5.0",
+          "3.14": "26.5.0",
+          "3.15": "26.8.0",
+          "3.9": "21.1.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "google_adk": {
+      "highest_tested_dependency_versions": {
+        "google-adk": "2.8.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "google-adk": {
+          "3.10": "2.8.0",
+          "3.11": "2.8.0",
+          "3.12": "2.8.0",
+          "3.13": "2.8.0",
+          "3.14": "2.8.0",
+          "3.15": "2.8.0",
+          "3.9": "1.18.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "google_cloud_pubsub": {
+      "highest_tested_dependency_versions": {
+        "google-cloud-pubsub": "2.40.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "google-cloud-pubsub": {
+          "3.10": "2.37.0",
+          "3.11": "2.37.0",
+          "3.12": "2.37.0",
+          "3.13": "2.37.0",
+          "3.14": "2.37.0",
+          "3.15": "2.40.0",
+          "3.9": "2.37.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "google_genai": {
+      "highest_tested_dependency_versions": {
+        "google-genai": "2.22.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "google-genai": {
+          "3.10": "1.21.1",
+          "3.11": "1.21.1",
+          "3.12": "1.21.1",
+          "3.13": "1.21.1",
+          "3.14": "1.41.0",
+          "3.15": "2.22.0",
+          "3.9": "1.21.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "graphql": {
+      "highest_tested_dependency_versions": {
+        "graphql-core": "3.2.12"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "graphql-core": {
+          "3.10": "3.2.6",
+          "3.11": "3.2.6",
+          "3.12": "3.2.6",
+          "3.13": "3.2.6",
+          "3.14": "3.2.6",
+          "3.15": "3.2.12",
+          "3.9": "3.2.6"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "grpc": {
+      "highest_tested_dependency_versions": {
+        "grpcio": "1.83.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "grpcio": {
+          "3.10": "1.66.1",
+          "3.11": "1.66.1",
+          "3.12": "1.66.1",
+          "3.13": "1.68.1",
+          "3.14": "1.75.1",
+          "3.15": "1.83.1",
+          "3.9": "1.66.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "httplib": {
+      "highest_tested_dependency_versions": {},
+      "highest_tested_dependency_versions_by_python": {},
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "httpx": {
+      "highest_tested_dependency_versions": {
+        "httpx": "0.28.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "httpx": {
+          "3.10": "0.27.2",
+          "3.11": "0.27.2",
+          "3.12": "0.27.2",
+          "3.13": "0.28.1",
+          "3.14": "0.28.1",
+          "3.15": "0.28.1",
+          "3.9": "0.27.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "httpx2": {
+      "highest_tested_dependency_versions": {
+        "httpx2": "2.12.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "httpx2": {
+          "3.10": "2.12.0",
+          "3.11": "2.12.0",
+          "3.12": "2.12.0",
+          "3.13": "2.12.0",
+          "3.14": "2.12.0",
+          "3.15": "2.12.0",
+          "3.9": "2.0.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "jinja2": {
+      "highest_tested_dependency_versions": {
+        "jinja2": "3.1.6"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "jinja2": {
+          "3.10": "3.1.2",
+          "3.11": "3.1.2",
+          "3.12": "3.1.2",
+          "3.13": "3.1.4",
+          "3.14": "3.1.6",
+          "3.15": "3.1.6",
+          "3.9": "3.1.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "kafka": {
+      "highest_tested_dependency_versions": {
+        "confluent-kafka": "2.15.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "confluent-kafka": {
+          "3.10": "2.14.0",
+          "3.11": "2.14.0",
+          "3.12": "2.14.0",
+          "3.13": "2.14.0",
+          "3.14": "2.15.0",
+          "3.15": "2.15.0",
+          "3.9": "2.14.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "kombu": {
+      "highest_tested_dependency_versions": {
+        "kombu": "5.6.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "kombu": {
+          "3.10": "5.6.2",
+          "3.11": "5.6.2",
+          "3.12": "5.6.2",
+          "3.13": "5.6.2",
+          "3.14": "5.6.2",
+          "3.15": "5.6.2",
+          "3.9": "5.6.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "langchain": {
+      "highest_tested_dependency_versions": {
+        "langchain-core": "1.6.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "langchain-core": {
+          "3.10": "1.5.3",
+          "3.11": "1.5.3",
+          "3.12": "1.5.3",
+          "3.13": "1.6.2",
+          "3.14": "1.6.2",
+          "3.15": "1.6.2",
+          "3.9": "0.3.86"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "langgraph": {
+      "highest_tested_dependency_versions": {
+        "langgraph": "1.2.11",
+        "langgraph-checkpoint": "4.2.0",
+        "langgraph-prebuilt": "1.1.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "langgraph": {
+          "3.10": "1.2.11",
+          "3.11": "1.2.11",
+          "3.12": "1.2.11",
+          "3.13": "1.2.11",
+          "3.14": "1.2.11",
+          "3.15": "1.2.11",
+          "3.9": "0.6.11"
+        },
+        "langgraph-checkpoint": {
+          "3.10": "4.2.0",
+          "3.11": "4.2.0",
+          "3.12": "4.2.0",
+          "3.13": "4.2.0",
+          "3.14": "4.2.0",
+          "3.15": "4.2.0",
+          "3.9": "2.1.2"
+        },
+        "langgraph-prebuilt": {
+          "3.10": "1.1.0",
+          "3.11": "1.1.0",
+          "3.12": "1.1.0",
+          "3.13": "1.1.0",
+          "3.14": "1.1.0",
+          "3.15": "1.1.0",
+          "3.9": "0.6.5"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "litellm": {
+      "highest_tested_dependency_versions": {
+        "litellm": "1.80.16"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "litellm": {
+          "3.10": "1.80.16",
+          "3.11": "1.80.16",
+          "3.12": "1.80.16",
+          "3.13": "1.80.16",
+          "3.14": "1.80.16",
+          "3.15": "1.80.16",
+          "3.9": "1.80.16"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "llama_index": {
+      "highest_tested_dependency_versions": {
+        "llama-index-core": "0.14.24"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "llama-index-core": {
+          "3.10": "0.14.18",
+          "3.11": "0.14.18",
+          "3.12": "0.14.18",
+          "3.13": "0.14.18",
+          "3.14": "0.14.24",
+          "3.15": "0.14.24"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "logbook": {
+      "highest_tested_dependency_versions": {
+        "logbook": "1.10.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "logbook": {
+          "3.10": "1.10.1",
+          "3.11": "1.10.1",
+          "3.12": "1.10.1",
+          "3.13": "1.10.1",
+          "3.14": "1.10.1",
+          "3.15": "1.10.1",
+          "3.9": "1.10.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "logging": {
+      "highest_tested_dependency_versions": {},
+      "highest_tested_dependency_versions_by_python": {},
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "loguru": {
+      "highest_tested_dependency_versions": {
+        "loguru": "0.7.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "loguru": {
+          "3.10": "0.7.2",
+          "3.11": "0.7.2",
+          "3.12": "0.7.2",
+          "3.13": "0.7.2",
+          "3.14": "0.7.3",
+          "3.15": "0.7.3",
+          "3.9": "0.7.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "mako": {
+      "highest_tested_dependency_versions": {
+        "mako": "1.4.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "mako": {
+          "3.10": "1.4.1",
+          "3.11": "1.4.1",
+          "3.12": "1.4.1",
+          "3.13": "1.4.1",
+          "3.14": "1.4.1",
+          "3.15": "1.4.1",
+          "3.9": "1.3.12"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "mariadb": {
+      "highest_tested_dependency_versions": {
+        "mariadb": "1.1.14"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "mariadb": {
+          "3.10": "1.1.14",
+          "3.11": "1.1.14",
+          "3.12": "1.1.14",
+          "3.13": "1.1.14",
+          "3.14": "1.1.14",
+          "3.15": "1.1.14",
+          "3.9": "1.1.14"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "mcp": {
+      "highest_tested_dependency_versions": {
+        "mcp": "2.2.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "mcp": {
+          "3.10": "1.28.1",
+          "3.11": "1.28.1",
+          "3.12": "1.28.1",
+          "3.13": "1.28.1",
+          "3.14": "1.28.1",
+          "3.15": "2.2.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "mistralai": {
+      "highest_tested_dependency_versions": {
+        "mistralai": "2.10.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "mistralai": {
+          "3.10": "2.8.0",
+          "3.11": "2.8.0",
+          "3.12": "2.8.0",
+          "3.13": "2.8.0",
+          "3.14": "2.8.0",
+          "3.15": "2.10.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "mlflow": {
+      "highest_tested_dependency_versions": {
+        "mlflow": "3.16.0",
+        "mlflow-skinny": "3.16.0",
+        "mlflow-tracing": "3.16.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "mlflow": {
+          "3.10": "2.11.4",
+          "3.11": "2.11.4",
+          "3.12": "3.15.1",
+          "3.13": "3.15.1",
+          "3.14": "3.16.0",
+          "3.15": "3.16.0"
+        },
+        "mlflow-skinny": {
+          "3.12": "3.15.1",
+          "3.13": "3.15.1",
+          "3.14": "3.16.0",
+          "3.15": "3.16.0"
+        },
+        "mlflow-tracing": {
+          "3.12": "3.15.1",
+          "3.13": "3.15.1",
+          "3.14": "3.16.0",
+          "3.15": "3.16.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "molten": {
+      "highest_tested_dependency_versions": {
+        "molten": "1.0.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "molten": {
+          "3.10": "1.0.2",
+          "3.11": "1.0.2",
+          "3.12": "1.0.2",
+          "3.13": "1.0.2",
+          "3.14": "1.0.2",
+          "3.15": "1.0.2",
+          "3.9": "1.0.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "mysql": {
+      "highest_tested_dependency_versions": {
+        "mysql-connector-python": "26.7.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "mysql-connector-python": {
+          "3.10": "8.2.0",
+          "3.11": "8.2.0",
+          "3.12": "9.0.0",
+          "3.13": "9.0.0",
+          "3.14": "9.4.0",
+          "3.15": "26.7.0",
+          "3.9": "8.2.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "mysqldb": {
+      "highest_tested_dependency_versions": {
+        "mysqlclient": "2.2.6"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "mysqlclient": {
+          "3.10": "2.2.1",
+          "3.11": "2.2.1",
+          "3.12": "2.2.1",
+          "3.13": "2.2.6",
+          "3.14": "2.2.6",
+          "3.15": "2.2.6",
+          "3.9": "2.2.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "openai": {
+      "highest_tested_dependency_versions": {
+        "openai": "3.11.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "openai": {
+          "3.10": "3.3.1",
+          "3.11": "3.3.1",
+          "3.12": "3.3.1",
+          "3.13": "3.3.1",
+          "3.14": "3.11.0",
+          "3.15": "3.11.0",
+          "3.9": "2.48.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "openai_agents": {
+      "highest_tested_dependency_versions": {
+        "openai-agents": "0.22.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "openai-agents": {
+          "3.10": "0.17.7",
+          "3.11": "0.17.7",
+          "3.12": "0.17.7",
+          "3.13": "0.17.7",
+          "3.14": "0.22.2",
+          "3.15": "0.22.2",
+          "3.9": "0.8.4"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "protobuf": {
+      "highest_tested_dependency_versions": {
+        "protobuf": "7.36.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "protobuf": {
+          "3.10": "7.35.1",
+          "3.11": "7.35.1",
+          "3.12": "7.35.1",
+          "3.13": "7.35.1",
+          "3.14": "7.35.1",
+          "3.15": "7.36.1",
+          "3.9": "6.33.6"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "psycopg": {
+      "highest_tested_dependency_versions": {
+        "psycopg": "3.3.5",
+        "psycopg2-binary": "2.9.12"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "psycopg": {
+          "3.10": "3.3.4",
+          "3.11": "3.3.4",
+          "3.12": "3.3.4",
+          "3.13": "3.3.4",
+          "3.14": "3.3.4",
+          "3.15": "3.3.5",
+          "3.9": "3.2.13"
+        },
+        "psycopg2-binary": {
+          "3.10": "2.9.10",
+          "3.11": "2.9.10",
+          "3.12": "2.9.10",
+          "3.13": "2.9.10",
+          "3.14": "2.9.10",
+          "3.15": "2.9.12",
+          "3.9": "2.9.10"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pydantic_ai": {
+      "highest_tested_dependency_versions": {
+        "pydantic-ai-slim": "1.63.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pydantic-ai-slim": {
+          "3.10": "1.63.0",
+          "3.11": "1.63.0",
+          "3.12": "1.63.0",
+          "3.13": "1.63.0",
+          "3.14": "1.63.0",
+          "3.15": "1.63.0",
+          "3.9": "0.8.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pylibmc": {
+      "highest_tested_dependency_versions": {
+        "pylibmc": "1.6.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pylibmc": {
+          "3.10": "1.6.3",
+          "3.11": "1.6.3",
+          "3.12": "1.6.3",
+          "3.13": "1.6.3",
+          "3.14": "1.6.3",
+          "3.15": "1.6.3",
+          "3.9": "1.6.3"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pymemcache": {
+      "highest_tested_dependency_versions": {
+        "pymemcache": "4.0.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pymemcache": {
+          "3.10": "4.0.0",
+          "3.11": "4.0.0",
+          "3.12": "4.0.0",
+          "3.13": "4.0.0",
+          "3.14": "4.0.0",
+          "3.15": "4.0.0",
+          "3.9": "4.0.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pymongo": {
+      "highest_tested_dependency_versions": {
+        "pymongo": "4.18.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pymongo": {
+          "3.10": "4.17.0",
+          "3.11": "4.17.0",
+          "3.12": "4.17.0",
+          "3.13": "4.17.0",
+          "3.14": "4.17.0",
+          "3.15": "4.18.0",
+          "3.9": "4.17.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pymysql": {
+      "highest_tested_dependency_versions": {
+        "pymysql": "1.2.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pymysql": {
+          "3.10": "1.2.0",
+          "3.11": "1.2.0",
+          "3.12": "1.2.0",
+          "3.13": "1.2.0",
+          "3.14": "1.2.0",
+          "3.15": "1.2.0",
+          "3.9": "1.2.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pynamodb": {
+      "highest_tested_dependency_versions": {
+        "pynamodb": "5.5.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pynamodb": {
+          "3.10": "5.5.1",
+          "3.11": "5.5.1",
+          "3.12": "5.5.1",
+          "3.13": "5.5.1",
+          "3.14": "5.5.1",
+          "3.15": "5.5.1",
+          "3.9": "5.5.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pyodbc": {
+      "highest_tested_dependency_versions": {
+        "pyodbc": "5.3.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pyodbc": {
+          "3.10": "5.3.0",
+          "3.11": "5.3.0",
+          "3.12": "5.3.0",
+          "3.13": "5.3.0",
+          "3.14": "5.3.0",
+          "3.15": "5.3.0",
+          "3.9": "5.3.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pyramid": {
+      "highest_tested_dependency_versions": {
+        "pyramid": "2.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pyramid": {
+          "3.10": "2.1",
+          "3.11": "2.1",
+          "3.12": "2.1",
+          "3.13": "2.1",
+          "3.14": "2.1",
+          "3.15": "2.1",
+          "3.9": "2.0.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pytest": {
+      "highest_tested_dependency_versions": {
+        "pytest": "9.1.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pytest": {
+          "3.10": "9.0.3",
+          "3.11": "9.0.3",
+          "3.12": "9.0.3",
+          "3.13": "9.0.3",
+          "3.14": "9.1.1",
+          "3.15": "9.1.1",
+          "3.9": "8.4.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "pytorch": {
+      "highest_tested_dependency_versions": {
+        "torch": "2.12.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "torch": {
+          "3.10": "2.7.1",
+          "3.11": "2.7.1",
+          "3.12": "2.12.0",
+          "3.9": "2.7.1"
+        }
+      },
+      "highest_tested_python": "3.12",
+      "python": {
+        "3.14": "not_scheduled",
+        "3.15": "not_scheduled"
+      }
+    },
+    "ray": {
+      "highest_tested_dependency_versions": {
+        "ray": "2.54.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "ray": {
+          "3.11": "2.54.1",
+          "3.12": "2.54.1",
+          "3.13": "2.54.1"
+        }
+      },
+      "highest_tested_python": "3.13",
+      "python": {
+        "3.14": "not_scheduled",
+        "3.15": "not_scheduled"
+      }
+    },
+    "ray_serve": {
+      "highest_tested_dependency_versions": {
+        "ray": "2.54.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "ray": {
+          "3.11": "2.54.1",
+          "3.12": "2.54.1",
+          "3.13": "2.54.1"
+        }
+      },
+      "highest_tested_python": "3.13",
+      "python": {
+        "3.14": "not_scheduled",
+        "3.15": "not_scheduled"
+      }
+    },
+    "redis": {
+      "highest_tested_dependency_versions": {
+        "redis": "8.1.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "redis": {
+          "3.10": "5.0.1",
+          "3.11": "5.0.1",
+          "3.12": "5.2.0",
+          "3.13": "5.1.1",
+          "3.14": "6.4.0",
+          "3.15": "8.1.0",
+          "3.9": "5.0.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "rediscluster": {
+      "highest_tested_dependency_versions": {
+        "redis-py-cluster": "2.1.3"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "redis-py-cluster": {
+          "3.10": "2.1.3",
+          "3.11": "2.1.3",
+          "3.12": "2.1.3",
+          "3.13": "2.1.3",
+          "3.14": "2.1.3",
+          "3.15": "2.1.3",
+          "3.9": "2.1.3"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "requests": {
+      "highest_tested_dependency_versions": {
+        "requests": "2.34.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "requests": {
+          "3.10": "2.34.2",
+          "3.11": "2.34.2",
+          "3.12": "2.34.2",
+          "3.13": "2.34.2",
+          "3.14": "2.34.2",
+          "3.15": "2.34.2",
+          "3.9": "2.32.5"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "rq": {
+      "highest_tested_dependency_versions": {
+        "rq": "2.12.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "rq": {
+          "3.10": "2.12.0",
+          "3.11": "2.12.0",
+          "3.12": "2.12.0",
+          "3.13": "2.12.0",
+          "3.14": "2.12.0",
+          "3.15": "2.12.0",
+          "3.9": "2.8.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "sanic": {
+      "highest_tested_dependency_versions": {
+        "sanic": "23.12.2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "sanic": {
+          "3.10": "22.12.0",
+          "3.11": "23.12.2",
+          "3.12": "23.12.2",
+          "3.13": "23.12.2",
+          "3.14": "23.12.2",
+          "3.15": "23.12.2",
+          "3.9": "22.12.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "snowflake": {
+      "highest_tested_dependency_versions": {
+        "snowflake-connector-python": "4.0.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "snowflake-connector-python": {
+          "3.10": "3.6.0",
+          "3.11": "3.6.0",
+          "3.12": "3.11.0",
+          "3.13": "3.12.2",
+          "3.14": "3.17.2",
+          "3.15": "4.0.0",
+          "3.9": "3.6.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "sqlalchemy": {
+      "highest_tested_dependency_versions": {
+        "sqlalchemy": "2.0.52"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "sqlalchemy": {
+          "3.10": "2.0.40",
+          "3.11": "2.0.40",
+          "3.12": "2.0.40",
+          "3.13": "2.0.40",
+          "3.14": "2.0.43",
+          "3.15": "2.0.52",
+          "3.9": "2.0.40"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "sqlite3": {
+      "highest_tested_dependency_versions": {
+        "pysqlite3-binary": "0.5.4.post2"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "pysqlite3-binary": {
+          "3.10": "0.5.2.post3",
+          "3.11": "0.5.2.post3",
+          "3.12": "0.5.2.post3",
+          "3.13": "0.5.4.post2",
+          "3.14": "0.5.4.post2",
+          "3.9": "0.5.2.post3"
+        }
+      },
+      "highest_tested_python": "3.14",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "not_scheduled"
+      }
+    },
+    "starlette": {
+      "highest_tested_dependency_versions": {
+        "starlette": "1.6.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "starlette": {
+          "3.10": "1.6.0",
+          "3.11": "1.6.0",
+          "3.12": "1.6.0",
+          "3.13": "1.6.0",
+          "3.14": "1.6.0",
+          "3.15": "1.6.0",
+          "3.9": "0.49.3"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "structlog": {
+      "highest_tested_dependency_versions": {
+        "structlog": "26.1.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "structlog": {
+          "3.10": "26.1.0",
+          "3.11": "26.1.0",
+          "3.12": "26.1.0",
+          "3.13": "26.1.0",
+          "3.14": "26.1.0",
+          "3.15": "26.1.0",
+          "3.9": "25.5.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "subprocess": {
+      "highest_tested_dependency_versions": {},
+      "highest_tested_dependency_versions_by_python": {},
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "tornado": {
+      "highest_tested_dependency_versions": {
+        "tornado": "6.5.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "tornado": {
+          "3.10": "6.3.1",
+          "3.11": "6.3.1",
+          "3.12": "6.3.1",
+          "3.13": "6.4.1",
+          "3.14": "6.4.1",
+          "3.15": "6.4.1",
+          "3.9": "6.5.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "unittest": {
+      "highest_tested_dependency_versions": {},
+      "highest_tested_dependency_versions_by_python": {},
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "urllib3": {
+      "highest_tested_dependency_versions": {
+        "urllib3": "2.7.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "urllib3": {
+          "3.10": "2.7.0",
+          "3.11": "2.7.0",
+          "3.12": "2.7.0",
+          "3.13": "2.7.0",
+          "3.14": "2.7.0",
+          "3.15": "2.7.0",
+          "3.9": "2.6.3"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "valkey": {
+      "highest_tested_dependency_versions": {
+        "valkey": "6.1.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "valkey": {
+          "3.10": "6.0.2",
+          "3.11": "6.0.2",
+          "3.12": "6.0.2",
+          "3.13": "6.0.2",
+          "3.14": "6.1.1",
+          "3.15": "6.1.1",
+          "3.9": "6.0.2"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "vertexai": {
+      "highest_tested_dependency_versions": {
+        "google-cloud-aiplatform": "1.71.1",
+        "vertexai": "1.71.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "google-cloud-aiplatform": {
+          "3.10": "1.71.1",
+          "3.11": "1.71.1",
+          "3.12": "1.71.1",
+          "3.13": "1.71.1",
+          "3.14": "1.71.1",
+          "3.15": "1.71.1",
+          "3.9": "1.71.1"
+        },
+        "vertexai": {
+          "3.10": "1.71.1",
+          "3.11": "1.71.1",
+          "3.12": "1.71.1",
+          "3.13": "1.71.1",
+          "3.14": "1.71.1",
+          "3.15": "1.71.1",
+          "3.9": "1.71.1"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "vertica": {
+      "highest_tested_dependency_versions": {
+        "vertica-python": "0.7.4"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "vertica-python": {
+          "3.10": "0.7.4",
+          "3.11": "0.7.4",
+          "3.12": "0.7.4",
+          "3.13": "0.7.4",
+          "3.14": "0.7.4",
+          "3.15": "0.7.4",
+          "3.9": "0.7.4"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    },
+    "vllm": {
+      "highest_tested_dependency_versions": {
+        "vllm": "0.27.1"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "vllm": {
+          "3.10": "0.27.1",
+          "3.11": "0.27.1",
+          "3.12": "0.27.1",
+          "3.13": "0.27.1"
+        }
+      },
+      "highest_tested_python": "3.13",
+      "python": {
+        "3.14": "not_scheduled",
+        "3.15": "not_scheduled"
+      }
+    },
+    "yaaredis": {
+      "highest_tested_dependency_versions": {
+        "yaaredis": "3.0.0"
+      },
+      "highest_tested_dependency_versions_by_python": {
+        "yaaredis": {
+          "3.10": "3.0.0",
+          "3.11": "3.0.0",
+          "3.12": "3.0.0",
+          "3.13": "3.0.0",
+          "3.14": "3.0.0",
+          "3.15": "3.0.0",
+          "3.9": "3.0.0"
+        }
+      },
+      "highest_tested_python": "3.15",
+      "python": {
+        "3.14": "scheduled",
+        "3.15": "scheduled"
+      }
+    }
+  },
+  "not_scheduled": {
+    "3.14": [
+      "crewai",
+      "pytorch",
+      "ray",
+      "ray_serve",
+      "vllm"
+    ],
+    "3.15": [
+      "crewai",
+      "pytorch",
+      "ray",
+      "ray_serve",
+      "sqlite3",
+      "vllm"
+    ]
+  },
+  "python_compatibility_versions": [
+    "3.14",
+    "3.15"
+  ],
+  "scheduled_for_both": [
+    "aiobotocore",
+    "aiohttp",
+    "aiohttp_jinja2",
+    "aiokafka",
+    "aiomysql",
+    "aiopg",
+    "algoliasearch",
+    "anthropic",
+    "aredis",
+    "asyncio",
+    "asyncpg",
+    "avro",
+    "aws_durable_execution_sdk_python",
+    "aws_lambda",
+    "azure_cosmos",
+    "azure_durable_functions",
+    "azure_eventhubs",
+    "azure_functions",
+    "azure_servicebus",
+    "botocore",
+    "bottle",
+    "celery",
+    "cherrypy",
+    "claude_agent_sdk",
+    "consul",
+    "ddtrace_api",
+    "django",
+    "dogpile_cache",
+    "dramatiq",
+    "elasticsearch",
+    "falcon",
+    "fastapi",
+    "flask",
+    "flask_cache",
+    "futures",
+    "gevent",
+    "google_adk",
+    "google_cloud_pubsub",
+    "google_genai",
+    "graphql",
+    "grpc",
+    "httplib",
+    "httpx",
+    "httpx2",
+    "jinja2",
+    "kafka",
+    "kombu",
+    "langchain",
+    "langgraph",
+    "litellm",
+    "llama_index",
+    "logbook",
+    "logging",
+    "loguru",
+    "mako",
+    "mariadb",
+    "mcp",
+    "mistralai",
+    "mlflow",
+    "molten",
+    "mysql",
+    "mysqldb",
+    "openai",
+    "openai_agents",
+    "protobuf",
+    "psycopg",
+    "pydantic_ai",
+    "pylibmc",
+    "pymemcache",
+    "pymongo",
+    "pymysql",
+    "pynamodb",
+    "pyodbc",
+    "pyramid",
+    "pytest",
+    "redis",
+    "rediscluster",
+    "requests",
+    "rq",
+    "sanic",
+    "snowflake",
+    "sqlalchemy",
+    "starlette",
+    "structlog",
+    "subprocess",
+    "tornado",
+    "unittest",
+    "urllib3",
+    "valkey",
+    "vertexai",
+    "vertica",
+    "yaaredis"
+  ]
+}
