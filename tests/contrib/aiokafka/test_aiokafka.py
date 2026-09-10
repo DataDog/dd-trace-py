@@ -148,7 +148,7 @@ async def test_getone_preserves_local_span_when_headers_are_from_another_trace(t
         offset=1,
     )
     client = SimpleNamespace(_bootstrap_servers=[BOOTSTRAP_SERVERS], _dd_cluster_id="test-cluster")
-    consumer = SimpleNamespace(_client=client, _group_id="test-group")
+    consumer = SimpleNamespace(_client=client, _group_id="test-group", _enable_auto_commit=False)
 
     async def getone(*args, **kwargs):
         return message
