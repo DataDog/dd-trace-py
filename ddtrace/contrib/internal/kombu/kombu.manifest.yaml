@@ -8,6 +8,5 @@ packages:
 category:
 - messaging.consumer
 - messaging.producer
-systems:
-- rabbitmq
+systems: []
 creation_date: '2018-11-06'
