@@ -729,6 +729,8 @@ package-oci:
       artifacts: true
     - job: "download_dependency_wheels"
       artifacts: true
+      # 3.15 cell is when: never until the python image is mirrored
+      optional: true
 
 configure_system_tests:
   variables:
