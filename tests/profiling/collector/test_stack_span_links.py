@@ -22,11 +22,11 @@ pytestmark = pytest.mark.skipif(not stack.is_available, reason="stack profiler n
 
 @pytest.fixture(autouse=True)
 def restore_span_linking_state():
-    enabled = _span_links._span_linking_enabled
+    active = _span_links._span_linking_active
     generation = _span_links._span_link_generation
     active_span_link = _span_links._active_span_link.get()
     providers = list(_span_links._logical_span_providers)
-    _span_links._span_linking_enabled = False
+    _span_links._span_linking_active = False
     _span_links._set_active_span_link(None)
     _span_links._logical_span_providers.clear()
     _span_links.stack.reset_span_links()
@@ -34,7 +34,7 @@ def restore_span_linking_state():
         yield
     finally:
         _span_links.stack.reset_span_links()
-        _span_links._span_linking_enabled = enabled
+        _span_links._span_linking_active = active
         _span_links._span_link_generation = generation
         _span_links._set_active_span_link(active_span_link)
         _span_links._logical_span_providers[:] = providers
@@ -53,7 +53,7 @@ def test_context_deactivation_clears_physical_span_link(monkeypatch: pytest.Monk
     cleared = []
     monkeypatch.setattr(_span_links.stack, "clear_span", lambda: cleared.append(True))
 
-    _span_links.enable_span_linking()
+    _span_links.start_span_linking()
     _span_links.link_span(None, None)
 
     assert cleared == [True]
@@ -73,7 +73,7 @@ def test_span_activation_uses_highest_priority_logical_provider(monkeypatch: pyt
 
     _span_links.register_logical_span_provider(low_priority_provider, priority=10)
     _span_links.register_logical_span_provider(high_priority_provider, priority=20)
-    _span_links.enable_span_linking()
+    _span_links.start_span_linking()
 
     _span_links.link_span(_info(101), None)
     _span_links.unregister_logical_span_provider(high_priority_provider)
@@ -107,7 +107,7 @@ def test_logical_detachment_does_not_clear_thread_link(monkeypatch: pytest.Monke
     monkeypatch.setattr(_span_links.stack, "clear_span", lambda: pytest.fail("unexpected thread clear"))
 
     _span_links.register_logical_span_provider(lambda: _target(_span_links.SpanLinkDomain.GEVENT_GREENLET, 33))
-    _span_links.enable_span_linking()
+    _span_links.start_span_linking()
     _span_links.link_span(_info(303), None)
     _span_links.link_span(None, None)
 
@@ -123,13 +123,13 @@ def test_inherited_context_seeds_logical_span_for_current_generation(monkeypatch
     monkeypatch.setattr(_span_links.stack, "link_logical_span", lambda *args: linked.append(args))
     monkeypatch.setattr(_span_links.stack, "clear_logical_span", lambda *args: cleared.append(args))
 
-    _span_links.enable_span_linking()
+    _span_links.start_span_linking()
     _span_links.link_span(_info(701), None)
     inherited_context = contextvars.copy_context()
     assert _span_links.link_logical_span_context(_span_links.SpanLinkDomain.ASYNCIO_TASK, 71, inherited_context)
 
-    _span_links.disable_span_linking()
-    _span_links.enable_span_linking()
+    _span_links.stop_span_linking()
+    _span_links.start_span_linking()
     assert not _span_links.link_logical_span_context(_span_links.SpanLinkDomain.ASYNCIO_TASK, 72, inherited_context)
 
     assert linked == [(_span_links.SpanLinkDomain.ASYNCIO_TASK, 71, 701, 701, None)]
@@ -145,7 +145,7 @@ def test_inherited_context_rejects_finished_span(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(_span_links.stack, "clear_logical_span", lambda *args: cleared.append(args))
 
     span = Span("test")
-    _span_links.enable_span_linking()
+    _span_links.start_span_linking()
     _span_links.link_span(_info(span.span_id), span)
     inherited_context = contextvars.copy_context()
     span.finish()
@@ -160,7 +160,7 @@ def test_postfork_reset_invalidates_all_inherited_span_link_state(monkeypatch: p
     resets = []
     monkeypatch.setattr(_span_links.stack, "reset_span_links", lambda: resets.append(True))
 
-    _span_links.enable_span_linking()
+    _span_links.start_span_linking()
     _span_links.link_span(_info(701), None)
     generation = _span_links._span_link_generation
     _span_links._reset_span_link_state()

@@ -44,7 +44,7 @@ class _SpanLinkContext(typing.NamedTuple):
 
 _LogicalSpanProvider = typing.Callable[[], typing.Optional[LogicalSpanTarget]]
 
-_span_linking_enabled = False
+_span_linking_active = False
 _span_link_generation = 0
 _active_span_link: contextvars.ContextVar[typing.Optional[_SpanLinkContext]] = contextvars.ContextVar(
     "ddtrace_profiling_active_span_link", default=None
@@ -70,17 +70,17 @@ def _reset_span_link_state() -> None:
     _set_active_span_link(None)
 
 
-def enable_span_linking() -> None:
-    global _span_linking_enabled
+def start_span_linking() -> None:
+    global _span_linking_active
 
     _reset_span_link_state()
-    _span_linking_enabled = True
+    _span_linking_active = True
 
 
-def disable_span_linking() -> None:
-    global _span_linking_enabled
+def stop_span_linking() -> None:
+    global _span_linking_active
 
-    _span_linking_enabled = False
+    _span_linking_active = False
     _set_active_span_link(None)
     stack.reset_span_links()
 
@@ -135,7 +135,7 @@ def _clear_span(target: typing.Optional[LogicalSpanTarget]) -> None:
 
 def link_span(span_info: typing.Optional[_SpanInfo], source: typing.Optional[typing.Any]) -> None:
     """Route a tracing activation to its physical thread or native-tracked logical context."""
-    if not _span_linking_enabled:
+    if not _span_linking_active:
         return
     target = _current_logical_span_target()
     if span_info is None:
@@ -153,7 +153,7 @@ def link_logical_span_context(
     task_context: typing.Optional[contextvars.Context] = None,
 ) -> bool:
     """Seed a logical execution context from inherited profiler ContextVar state."""
-    if not _span_linking_enabled:
+    if not _span_linking_active:
         return False
     linked_span = task_context.get(_active_span_link) if task_context is not None else _active_span_link.get()
     target = LogicalSpanTarget(domain, logical_id)
@@ -175,5 +175,5 @@ def clear_logical_span(domain: SpanLinkDomain, logical_id: int) -> None:
 
 def unlink_finished_span(span_id: int) -> None:
     """Atomically remove every current target derived from a finished span."""
-    if _span_linking_enabled:
+    if _span_linking_active:
         stack.unlink_finished_span(span_id)
