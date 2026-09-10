@@ -3852,6 +3852,7 @@ venv = Venv(
                 "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "false",
             },
             pkgs={
+                "anyio": latest,
                 "gunicorn": latest,
                 "jsonschema": latest,
                 "zstandard": latest,
