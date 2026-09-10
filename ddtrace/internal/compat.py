@@ -12,7 +12,6 @@ import wrapt
 __all__ = [
     "maybe_stringify",
     "MAX_PY",
-    "MAX_PY_VERSION",
     "NEXT_PY_UNSUPPORTED_MSG",
     "NEXT_MAX_PY",
     "PY_315_VERSION_INFO",
@@ -24,14 +23,14 @@ PYTHON_VERSION_INFO = sys.version_info
 # Last officially supported CPython. Matches requires-python <3.15.
 # TODO(py-315): bump MAX_PY to (3, 15) after 3.15 GAs
 MAX_PY: tuple[int, int] = (3, 14)
-MAX_PY_VERSION: str = f"{MAX_PY[0]}.{MAX_PY[1]}"
 
 # First unsupported CPython for packaging (last-supported+1). wrap() fail-closes
 # at (3, 16), not here.
 NEXT_MAX_PY: tuple[int, int] = (MAX_PY[0], MAX_PY[1] + 1)
-NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Python %s and later)" % "3.16"
+NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Python 3.16 and later)"
 
 # CPython 3.15 introduced sys.monitoring PY_UNWIND / PEP 810 import packing.
+# Currently equal to NEXT_MAX_PY; do not alias — they diverge when MAX_PY bumps.
 # Not MAX_PY — do not bump this when MAX_PY moves.
 PY_315_VERSION_INFO: tuple[int, int] = (3, 15)
 

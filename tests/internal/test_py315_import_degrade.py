@@ -10,7 +10,6 @@ from types import CoroutineType
 import pytest
 
 from ddtrace.internal.compat import MAX_PY
-from ddtrace.internal.compat import MAX_PY_VERSION
 from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PY_315_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
@@ -21,7 +20,6 @@ _WRAP_ON_315: bool = PY_315_VERSION_INFO <= PYTHON_VERSION_INFO[:2] < (3, 16)
 
 
 def test_max_and_next_max_py_version_constants() -> None:
-    assert MAX_PY_VERSION == "3.14"
     assert MAX_PY == (3, 14)
     assert NEXT_MAX_PY == (MAX_PY[0], MAX_PY[1] + 1)
     assert NEXT_MAX_PY == (3, 15)
@@ -30,6 +28,7 @@ def test_max_and_next_max_py_version_constants() -> None:
 def test_py315_api_floor_is_not_aliased_to_max() -> None:
     assert PY_315_VERSION_INFO == (3, 15)
     assert PY_315_VERSION_INFO is not MAX_PY
+    assert PY_315_VERSION_INFO is not NEXT_MAX_PY
 
 
 def test_wrapping_modules_import():
