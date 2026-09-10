@@ -224,6 +224,9 @@ def traced_produce(func, instance, args, kwargs):
         span._set_attribute(kafkax.TOMBSTONE, str(value is None))
 
         if tracing_headers:
+            # Re-read after kafka.produce.start: DSM may have replaced kwargs["headers"]
+            # with a pathway-bearing mapping distinct from the empty object captured above.
+            headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
             if isinstance(headers, dict):
                 headers.update(tracing_headers)
             else:
@@ -264,7 +267,7 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 def _instrument_message(messages, pin, start_ns, instance, err):
     first_message = messages[0] if len(messages) else None
     topic = str(first_message.topic()) if first_message is not None else None
-    request_headers = None
+    distributed_context = None
     links = []
     if config.kafka.distributed_tracing_enabled:
         if config.kafka.propagation_as_span_links:
@@ -281,14 +284,17 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         elif first_message is not None and first_message.headers():
             # First message is used to extract context and enrich datadog spans
             # This approach aligns with the opentelemetry confluent kafka semantics
-            request_headers = dict(first_message.headers())
+            extracted = Propagator.extract(dict(first_message.headers()))
+            if extracted is not None and extracted.trace_id is not None:
+                distributed_context = extracted
 
     event = KafkaProcessEvent(
         operation=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         topic=topic,
         bootstrap_servers=instance._dd_bootstrap_servers,
         group_id=instance._group_id,
-        request_headers=request_headers,
+        distributed_context=distributed_context,
+        use_active_context=distributed_context is None,
         component=config.kafka.integration_name,
         integration_config=config.kafka,
         service=trace_utils.ext_service(pin, config.kafka),
