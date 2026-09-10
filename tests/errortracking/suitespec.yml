@@ -18,4 +18,3 @@ suites:
       variants:
         - name: errortracker
           dependencies: [flask, 'pip==26.2.1']
-          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', flask]

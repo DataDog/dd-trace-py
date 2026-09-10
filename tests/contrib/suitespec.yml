@@ -1383,8 +1383,7 @@ suites:
         - name: flask_cache
           python: ['3.9']
           integration: flask_cache
-          dependencies: ['pytest~=6.0', 'pytest-mock==2.0.0', 'pytest-cov~=3.0', blinker, pytest-randomly, python-memcached, 'redis~=2.0', 'flask~=0.12.0', 'werkzeug<1.0', 'Flask-Cache~=0.13.1', 'Jinja2~=2.10.0', 'more_itertools<8.11.0', 'itsdangerous<2.0', 'markupsafe<2.0', exceptiongroup]
-          riot_lock_dependencies: [mock, 'pytest~=6.0', 'pytest-mock==2.0.0', coverage, 'pytest-cov~=3.0', opentracing, 'hypothesis<6.45.1', python-memcached, 'redis~=2.0', blinker, pytest-randomly, 'flask~=0.12.0', 'Werkzeug<1.0', 'Flask-Cache~=0.13.1', 'werkzeug<1.0', 'Jinja2~=2.10.0', 'more_itertools<8.11.0', 'itsdangerous<2.0', 'markupsafe<2.0', exceptiongroup]
+          dependencies: ['pytest~=6.0', 'pytest-mock==2.0.0', 'pytest-cov~=3.0', python-memcached, 'redis~=2.0', blinker, pytest-randomly, 'flask~=0.12.0', 'Flask-Cache~=0.13.1', 'werkzeug<1.0', 'Jinja2~=2.10.0', 'more_itertools<8.11.0', 'itsdangerous<2.0', 'markupsafe<2.0', exceptiongroup]
         - name: flask_cache
           python: ['3.9', '3.10', '3.11']
           integration: flask_cache

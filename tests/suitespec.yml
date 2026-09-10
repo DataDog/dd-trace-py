@@ -386,8 +386,11 @@ suites:
       command: pytest {cmdargs} tests/lib_injection/
       variants:
         - name: lib_injection
-          dependencies: [PyYAML, 'pip==26.0.1; python_version < ''3.10''', 'pip==26.2.1; python_version >= ''3.10''', pytest-randomly]
-          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', PyYAML, pytest-randomly]
+          python: ['3.9']
+          dependencies: [PyYAML, 'pip==26.0.1', pytest-randomly]
+        - name: lib_injection
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [PyYAML, 'pip==26.2.1', pytest-randomly]
   runtime:
     paths:
       - '@bootstrap'

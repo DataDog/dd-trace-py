@@ -140,22 +140,15 @@ class TestEnvironment:
     integration_name: str
     python: str
     direct_dependencies: tuple[str, ...]
-    # Preserve historical Riot lock hashes when uv requires a different dependency declaration.
-    riot_lock_dependencies: tuple[str, ...]
     runs: tuple[TestRun, ...]
 
     @property
     def lockfile(self) -> Path:
-        return LOCK_ROOT / f"{self.lock_hash}.txt"
-
-    @property
-    def lock_hash(self) -> str:
-        return _test_environment_hash(self.name, self.python, self.riot_lock_dependencies)
+        return LOCK_ROOT / f"{self.hash}.txt"
 
     @property
     def hash(self) -> str:
-        name = f"{self.suite}::{self.name}"
-        return _test_environment_hash(name, self.python, self.direct_dependencies)
+        return _test_environment_hash(self.name, self.python, self.direct_dependencies)
 
 
 def _requirement_key(requirement: str) -> str:
@@ -212,7 +205,7 @@ def _variant_settings(
     matrix: dict[str, Any],
     variant: dict[str, Any],
     nightly: bool,
-) -> tuple[tuple[str, ...], tuple[str, ...], str, tuple[TestRun, ...]]:
+) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
     if nightly:
@@ -225,8 +218,7 @@ def _variant_settings(
     command = variant.get("command", matrix.get("command"))
     run_specs = variant.get("runs", matrix.get("runs"))
     integration = variant.get("integration", suite_config.get("integration", variant["name"].split(":", 1)[0]))
-    riot_lock_dependencies = tuple(variant.get("riot_lock_dependencies", dependencies))
-    return dependencies, riot_lock_dependencies, integration, _runs(command, environment, run_specs)
+    return dependencies, integration, _runs(command, environment, run_specs)
 
 
 def _expand_suite_matrix(
@@ -250,7 +242,7 @@ def _expand_suite_matrix(
         python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies, riot_lock_dependencies, integration, runs = _variant_settings(
+        dependencies, integration, runs = _variant_settings(
             suite,
             suite_config,
             matrix,
@@ -265,7 +257,6 @@ def _expand_suite_matrix(
                     integration_name=integration,
                     python=python,
                     direct_dependencies=dependencies,
-                    riot_lock_dependencies=riot_lock_dependencies,
                     runs=runs,
                 )
             )
