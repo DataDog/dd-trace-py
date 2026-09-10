@@ -73,12 +73,12 @@ See the **llmobs-integrations** skill for the full LLM-specific implementation g
 Add a matrix entry to the nearest `suitespec.yml` file. Follow a similar integration's dependency and Python-version combinations.
 
 Key rules:
-- A variant's `name` is the exact environment name passed to `scripts/test-env lock`; use the integration name as
+- A variant's `name` is the exact environment name passed to `scripts/test-requirements lock`; use the integration name as
   its base and add a qualifier when needed
 - `command` points to the test directory
 - Add `vcrpy` only when the suite uses vcrpy cassettes; follow nearby integrations for `latest` vs pinned versions
 - Cover the oldest supported and latest compatible dependency versions
-- Regenerate the committed locks with `scripts/test-env lock <environment-name>`
+- Regenerate the committed locks with `scripts/test-requirements lock <environment-name>`
 
 Until the test-runner migration is complete, mirror environment changes in `riotfile.py` and run
 [`test_uv_suitespec_matches_riot`](https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py).

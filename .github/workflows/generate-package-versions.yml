@@ -85,7 +85,7 @@ jobs:
           OUTDATED_ENVIRONMENTS=$(scripts/freshvenvs.py output)
           VENV_NAME=${OUTDATED_ENVIRONMENTS%% *}
           if [[ -n "$VENV_NAME" ]]; then
-            scripts/test-env lock --upgrade "$VENV_NAME" >/dev/null
+            scripts/test-requirements lock --upgrade "$VENV_NAME" >/dev/null
           fi
           echo "venv_name=$VENV_NAME" >> "$GITHUB_OUTPUT"
           echo "VENV_NAME=$VENV_NAME" >> "$GITHUB_ENV"
