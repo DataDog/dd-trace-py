@@ -10,6 +10,8 @@ import pytest
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.contrib.internal.grpc.aio_client_interceptor import _StreamStreamClientInterceptor
+from ddtrace.contrib.internal.grpc.aio_client_interceptor import _UnaryStreamClientInterceptor
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.contrib.internal.grpc.utils import _parse_rpc_repr_string
@@ -37,6 +39,9 @@ class _CoroHelloServicer(HelloServicer):
             context.set_code(grpc.StatusCode.OK)
             message = ";".join(w.key + "=" + w.value for w in metadata if w.key.startswith("x-datadog"))
             return HelloReply(message=message)
+
+        if request.name == "slow":
+            await asyncio.sleep(1)
 
         if request.name == "exception":
             await context.abort(grpc.StatusCode.INVALID_ARGUMENT, "abort_details")
@@ -162,6 +167,17 @@ class DummyClientInterceptor(aio.UnaryUnaryClientInterceptor):
 
     def add_done_callback(self, unused_callback):
         pass
+
+
+class _CompletedStreamCall:
+    def add_done_callback(self, callback):
+        callback(self)
+
+    def done(self):
+        return True
+
+    def __repr__(self):
+        return 'status = StatusCode.OK, details = "complete"'
 
 
 @pytest.fixture(autouse=True)
@@ -401,6 +417,18 @@ async def test_unary_cancellation(server_info, tracer):
     assert len(spans) == 0
 
 
+@pytest.mark.parametrize("server_info", [_CoroHelloServicer()], indirect=True)
+async def test_unary_timeout_finishes_client_span(server_info, tracer):
+    async with aio.insecure_channel(server_info.target) as channel:
+        stub = HelloStub(channel)
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(stub.SayHello(HelloRequest(name="slow")), timeout=0.01)
+
+    await asyncio.sleep(0.1)
+    client_spans = [span for span in _get_spans(tracer) if span.service == "grpc-aio-client"]
+    assert len(client_spans) == 1
+
+
 @pytest.mark.parametrize(
     "server_info", [_CoroHelloServicer(), _AsyncGenHelloServicer(), _SyncHelloServicer()], indirect=True
 )
@@ -428,6 +456,37 @@ async def test_server_streaming(server_info, tracer):
         expected_port=server_info.target.rsplit(":", 1)[-1],
     )
     _check_server_span(server_span, "grpc-aio-server", "SayHelloTwice", "server_streaming")
+
+
+@pytest.mark.parametrize(
+    "interceptor,intercept_method,request_arg",
+    [
+        (_UnaryStreamClientInterceptor("localhost", 50051), "intercept_unary_stream", HelloRequest(name="test")),
+        (
+            _StreamStreamClientInterceptor("localhost", 50051),
+            "intercept_stream_stream",
+            iter([HelloRequest(name="test")]),
+        ),
+    ],
+    ids=["server_streaming", "bidi_streaming"],
+)
+async def test_streaming_uniterated_finishes_client_span(tracer, interceptor, intercept_method, request_arg):
+    call = _CompletedStreamCall()
+
+    async def continuation(client_call_details, request):
+        return call
+
+    client_call_details = aio.ClientCallDetails(
+        b"/helloworld.Hello/SayHelloTwice",
+        None,
+        None,
+        None,
+        None,
+    )
+    await getattr(interceptor, intercept_method)(continuation, client_call_details, request_arg)
+
+    client_spans = [span for span in _get_spans(tracer) if span.service == "grpc-aio-client"]
+    assert len(client_spans) == 1
 
 
 @pytest.mark.parametrize(

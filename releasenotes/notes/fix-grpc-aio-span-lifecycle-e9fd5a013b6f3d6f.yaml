@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: Fixes an issue where cancelled or unconsumed asynchronous client calls retain unfinished tracing spans.
