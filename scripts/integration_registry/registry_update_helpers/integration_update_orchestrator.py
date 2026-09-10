@@ -15,7 +15,10 @@ class IntegrationUpdateOrchestrator:
     REGISTRY_UPDATER_CLASS = "IntegrationRegistryUpdater"
     MAIN_UPDATE_SCRIPT = "scripts/integration_registry/update_and_format_registry.py"
     UPDATER_LOCK_FILE = "scripts/integration_registry/registry.yaml.lock"
-    LOCK_MAX_WAIT_SECONDS = 15
+    LOCK_MAX_WAIT_SECONDS = 60
+    # Lock files older than this are assumed to be left over from a crashed/killed process rather
+    # than an active holder, and are safe to clear before attempting to acquire the lock.
+    STALE_LOCK_MAX_AGE_SECONDS = 120
 
     def __init__(self, project_root: str):
         self.project_root = project_root
@@ -24,7 +27,7 @@ class IntegrationUpdateOrchestrator:
         self.venv_lock_file_path = os.path.join(project_root, ".venv-registry-tools.lock")
         self.updater_lock_file_path = os.path.join(project_root, self.UPDATER_LOCK_FILE)
 
-    def _acquire_lock(self, lock_file_path):
+    def _acquire_lock(self, lock_file_path: str) -> bool:
         start_time = time.monotonic()
         while time.monotonic() - start_time < self.LOCK_MAX_WAIT_SECONDS:
             try:
@@ -39,10 +42,30 @@ class IntegrationUpdateOrchestrator:
         print(f"Timeout acquiring lock {lock_file_path}", file=sys.stderr)
         return False
 
-    def _release_lock(self, lock_file_path):
+    def _release_lock(self, lock_file_path: str) -> None:
         try:
             os.remove(lock_file_path)
         except Exception:
+            pass
+
+    def _ensure_no_stale_lock(self, lock_file_path: str) -> None:
+        try:
+            age = time.time() - os.path.getmtime(lock_file_path)
+        except OSError:
+            return
+        if age < self.STALE_LOCK_MAX_AGE_SECONDS:
+            return
+
+        # Rename so only one worker wins stale lock reclamation.
+        tmp_path = lock_file_path + f".stale.{os.getpid()}"
+        try:
+            os.rename(lock_file_path, tmp_path)
+        except OSError:
+            return
+
+        try:
+            os.remove(tmp_path)
+        except OSError:
             pass
 
     def _ensure_tooling_venv(self):
@@ -148,12 +171,7 @@ class IntegrationUpdateOrchestrator:
         updater_succeeded = False
 
         try:
-            # Remove potentially stale venv lock file
-            if os.path.exists(self.venv_lock_file_path):
-                try:
-                    os.remove(self.venv_lock_file_path)
-                except OSError:
-                    pass
+            self._ensure_no_stale_lock(self.venv_lock_file_path)
 
             # Setup Tooling Venv
             try:
@@ -166,12 +184,7 @@ class IntegrationUpdateOrchestrator:
                 if venv_lock_acquired:
                     self._release_lock(self.venv_lock_file_path)
 
-            # Remove potentially stale updater lock file
-            if os.path.exists(self.updater_lock_file_path):
-                try:
-                    os.remove(self.updater_lock_file_path)
-                except OSError:
-                    pass
+            self._ensure_no_stale_lock(self.updater_lock_file_path)
 
             # Run Update Process
             tooling_python = os.path.join(self.tooling_env_path, "bin", "python")
@@ -200,9 +213,4 @@ class IntegrationUpdateOrchestrator:
                     self._run_subprocess(cmd_main, 20, self.project_root, "Main Update Script", verbose=True)
 
         finally:
-            # Cleanup updater's lock file
-            if os.path.exists(self.updater_lock_file_path):
-                try:
-                    os.remove(self.updater_lock_file_path)
-                except OSError:
-                    pass
+            self._ensure_no_stale_lock(self.updater_lock_file_path)
