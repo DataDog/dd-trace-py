@@ -42,7 +42,7 @@ class PriorityCategory(object):
     RULE_DYNAMIC = "rule_dynamic"
 
 
-# AIDEV-NOTE: sampling mechanism is an opaque integer; validate syntax/range only, not enum
+# sampling mechanism is an opaque integer; validate syntax/range only, not enum
 # membership, or unenumerated-but-valid ids get silently dropped (#13516, #19335). Do not re-tighten.
 _MAX_SAMPLING_MECHANISM = 255  # libdatadog encodes the sampling mechanism as a u8
 VALID_SAMPLING_DECISIONS = frozenset("-%d" % value for value in range(_MAX_SAMPLING_MECHANISM + 1))
@@ -276,7 +276,7 @@ def _set_sampling_tags(
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
-    # AIDEV-NOTE: Injection treats a non-None sampling priority as the publication marker for the
+    # Injection treats a non-None sampling priority as the publication marker for the
     # complete decision. Publish the deferred ot= state and priority together in one native call,
     # which does not release the GIL, so concurrent branches cannot observe a partial decision.
     span.context._publish_sampling_decision(priorities[priority_index], sample_rate, probabilistic_decision)

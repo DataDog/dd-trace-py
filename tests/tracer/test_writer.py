@@ -1178,15 +1178,54 @@ def test_writer_telemetry_enabled_on_linux(
     ]:
         getattr(mock_builder, method_name).return_value = mock_builder
 
-    with mock_sys_platform(platform):
-        with override_global_config(dict(_telemetry_enabled=config_value)):
+    # override_global_config must enter under the real platform. Mocking sys.platform first
+    # can make a cold AppSec import fail, which recreates the tracer writer and double-counts
+    # builder.set_restart_after_fork on the patched TraceExporterBuilder.
+    with override_global_config(dict(_telemetry_enabled=config_value)):
+        with mock_sys_platform(platform):
             _writer = NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
 
-            if expected_enabled:
-                mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
-            else:
-                mock_builder.enable_telemetry.assert_not_called()
-            mock_builder.set_restart_after_fork.assert_called_once_with(False)
+        if expected_enabled:
+            mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id(), config._debug_mode)
+        else:
+            mock_builder.enable_telemetry.assert_not_called()
+        mock_builder.set_restart_after_fork.assert_called_once_with(False)
+
+
+@pytest.mark.subprocess(err=None, env={"DD_APPSEC_ENABLED": "false"})
+def test_writer_telemetry_platform_mock_does_not_rebuild_exporter_on_import_cold():
+    """Import-cold: override_global_config must not construct NativeWriter before the test writer."""
+    import sys
+    from unittest import mock
+
+    from ddtrace.internal.writer import NativeWriter
+    from tests.utils import override_global_config
+
+    with mock.patch("ddtrace.internal.native.TraceExporterBuilder") as builder_class:
+        builder = mock.Mock()
+        builder_class.return_value = builder
+        builder.build.return_value = mock.Mock()
+        for method_name in (
+            "set_url",
+            "set_hostname",
+            "set_language",
+            "set_language_version",
+            "set_language_interpreter",
+            "set_tracer_version",
+            "set_git_commit_sha",
+            "set_client_computed_top_level",
+            "set_input_format",
+            "set_output_format",
+            "enable_telemetry",
+        ):
+            getattr(builder, method_name).return_value = builder
+
+        with override_global_config(dict(_telemetry_enabled=False)):
+            assert builder.set_restart_after_fork.call_count == 0
+            with mock.patch.object(sys, "platform", "darwin"):
+                NativeWriter("http://localhost:8126/v0.5/traces", sync_mode=True)
+            builder.set_restart_after_fork.assert_called_once_with(False)
+            builder.enable_telemetry.assert_not_called()
 
 
 @pytest.mark.subprocess(

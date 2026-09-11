@@ -227,8 +227,8 @@ def use_dummy_writer():
 def auto_enable_crashtracking():
     # Crashtracking is only supported on linux right now
     # TODO: Default to `True` when Windows and Darwin are supported
-    # is_available is False when the native crashtracker isn't built, e.g. on Python 3.15
-    # (setup.py gates the Rust crashtracker feature on sys.version_info < (3, 15)).
+    # is_available is False when the native crashtracker isn't compiled in.
+    # setup.py compiles it through 3.15 (sys.version_info < (3, 16)).
     yield platform.system() == "Linux" and crashtracking.is_available
 
 
