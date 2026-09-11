@@ -1,0 +1,243 @@
+#!/usr/bin/env scripts/uv-run-script
+# -*- mode: python -*-
+# /// script
+# requires-python = ">=3.9"
+# dependencies = [
+#     "ruamel.yaml>=0.17.21",
+# ]
+# ///
+
+from __future__ import annotations
+
+import argparse
+from collections.abc import Sequence
+import concurrent.futures
+from pathlib import Path
+import platform
+import subprocess
+import sys
+import tempfile
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(PROJECT_ROOT))
+
+from scripts.check_lockfile_cooldown import cooldown_cutoff  # noqa: E402
+from scripts.check_lockfile_cooldown import main as check_lockfile_cooldown  # noqa: E402
+from tests.suitespec import LOCK_PLATFORM  # noqa: E402
+from tests.suitespec import LOCK_ROOT  # noqa: E402
+from tests.suitespec import TestEnvironment  # noqa: E402
+from tests.suitespec import get_test_environments  # noqa: E402
+
+
+class LockError(RuntimeError):
+    """Raised when concrete test-environment locks cannot be generated."""
+
+
+def _select_named_environments(
+    environments: Sequence[TestEnvironment], requested: Sequence[str]
+) -> tuple[TestEnvironment, ...]:
+    if not requested:
+        return tuple(environments)
+
+    names = set(requested)
+    unknown = sorted(names - {environment.name for environment in environments})
+    if unknown:
+        raise LockError(f"unknown test environment name(s): {', '.join(unknown)}")
+    return tuple(environment for environment in environments if environment.name in names)
+
+
+def _require_lock_platform(command: str) -> None:
+    machine = platform.machine().lower()
+    if sys.platform == "linux" and machine in {"amd64", "x86_64"}:
+        return
+    detected = f"{platform.system() or sys.platform} {platform.machine() or 'unknown'}"
+    raise LockError(
+        f"test locks can only be generated on Linux x86-64; detected {detected}.\n"
+        f"Run scripts/ddtest scripts/test-requirements {command} [name] on a Linux x86-64 host, "
+        "or use the Linux x86-64 testrunner image used by CI."
+    )
+
+
+def compile_environment(
+    environment: TestEnvironment,
+    *,
+    exclude_newer: str,
+    upgrade: bool,
+) -> str:
+    if not environment.riot_lock_dependencies:
+        raise LockError(f"environment has no dependencies: {environment.lock_hash}")
+
+    with tempfile.TemporaryDirectory(prefix=f"ddtrace-{environment.lock_hash}-") as temporary:
+        temporary_path = Path(temporary)
+        requirements = temporary_path / "requirements.in"
+        output = temporary_path / "requirements.txt"
+        requirements.write_text("\n".join(sorted(environment.riot_lock_dependencies, key=str.casefold)) + "\n")
+        existing_lock = PROJECT_ROOT / environment.lockfile
+        if existing_lock.is_file():
+            output.write_text(existing_lock.read_text())
+        command = [
+            "uv",
+            "pip",
+            "compile",
+            "--python-version",
+            environment.python,
+            "--python-platform",
+            LOCK_PLATFORM,
+            "--exclude-newer",
+            exclude_newer,
+            "--no-annotate",
+            "--no-header",
+            "--no-strip-extras",
+            "--no-progress",
+            "--no-python-downloads",
+            "--no-sources",
+            "--output-file",
+            str(output),
+        ]
+        if upgrade:
+            command.append("--upgrade")
+        command.append(str(requirements))
+        try:
+            subprocess.run(command, cwd=PROJECT_ROOT, check=True, text=True, capture_output=True)
+        except subprocess.CalledProcessError as error:
+            details = (error.stderr or error.stdout or "").strip()
+            suffix = f"\n{details}" if details else ""
+            raise LockError(f"failed to lock {environment.name}/{environment.lock_hash}{suffix}") from error
+        return output.read_text()
+
+
+def _write_lock(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_file():
+        header = []
+        for line in path.read_text().splitlines(keepends=True):
+            if line.strip() and not line.startswith("#"):
+                break
+            header.append(line)
+        content = "".join(header) + content
+    with tempfile.NamedTemporaryFile(mode="w", dir=path.parent, delete=False) as temporary:
+        temporary.write(content)
+        temporary_path = Path(temporary.name)
+    temporary_path.replace(path)
+
+
+def _unique_lock_environments(environments: Sequence[TestEnvironment]) -> dict[Path, TestEnvironment]:
+    unique: dict[Path, TestEnvironment] = {}
+    for environment in environments:
+        existing = unique.setdefault(environment.lockfile, environment)
+        if (existing.python, existing.riot_lock_dependencies) != (
+            environment.python,
+            environment.riot_lock_dependencies,
+        ):
+            raise LockError(f"incompatible test environments share {environment.lockfile}")
+    return unique
+
+
+def _lock_inventory(environments: Sequence[TestEnvironment]) -> tuple[set[Path], set[Path]]:
+    expected = set(_unique_lock_environments(environments))
+    root = PROJECT_ROOT / LOCK_ROOT
+    committed = {path.relative_to(PROJECT_ROOT) for path in root.glob("*.txt")}
+    return expected, committed
+
+
+def _generate_locks(
+    environments: Sequence[TestEnvironment],
+    all_environments: Sequence[TestEnvironment],
+    *,
+    upgrade: bool = False,
+) -> tuple[tuple[Path, ...], tuple[Path, ...]]:
+    if not environments:
+        raise LockError("no concrete test environments selected")
+
+    lock_environments = _unique_lock_environments(environments)
+    if not upgrade:
+        lock_environments = {
+            lockfile: environment
+            for lockfile, environment in lock_environments.items()
+            if not (PROJECT_ROOT / lockfile).is_file()
+        }
+    compiled: dict[Path, str] = {}
+    cutoff = cooldown_cutoff()
+    errors = []
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(compile_environment, environment, exclude_newer=cutoff, upgrade=upgrade): (
+                lockfile,
+                environment,
+            )
+            for lockfile, environment in lock_environments.items()
+        }
+        for future in concurrent.futures.as_completed(futures):
+            lockfile, environment = futures[future]
+            try:
+                compiled[lockfile] = future.result()
+            except LockError as error:
+                errors.append(error)
+    if errors:
+        raise LockError("\n\n".join(str(error) for error in errors))
+
+    written = []
+    for lockfile in lock_environments:
+        _write_lock(PROJECT_ROOT / lockfile, compiled[lockfile])
+        written.append(lockfile)
+
+    expected, committed = _lock_inventory(all_environments)
+    pruned = sorted(committed - expected)
+    for lockfile in pruned:
+        (PROJECT_ROOT / lockfile).unlink()
+    return tuple(written), tuple(pruned)
+
+
+def _check_locks(environments: Sequence[TestEnvironment]) -> int:
+    expected, committed = _lock_inventory(environments)
+    missing = sorted(expected - committed)
+    obsolete = sorted(committed - expected)
+    errors = []
+    if missing:
+        errors.append("missing test locks:\n" + "\n".join(f"  {path}" for path in missing))
+    if obsolete:
+        errors.append("obsolete test locks:\n" + "\n".join(f"  {path}" for path in obsolete))
+    if errors:
+        raise LockError("\n".join(errors))
+    return len(expected)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Manage concrete locks for test environments.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers.add_parser("check", help="Check that declared environments and committed test locks match.")
+    lock_parser = subparsers.add_parser("lock", help="Generate and prune concrete test-environment locks.")
+    lock_parser.add_argument("names", nargs="*", help="Exact test environment names; defaults to all.")
+    lock_parser.add_argument("--upgrade", action="store_true", help="Upgrade dependencies in selected locks.")
+    args = parser.parse_args(argv)
+
+    environments = tuple(
+        environment for matrix in get_test_environments(nightly=False).values() for environment in matrix
+    )
+    try:
+        if args.command == "check":
+            print(f"Validated {_check_locks(environments)} concrete test locks.")
+            return 0
+
+        _require_lock_platform(args.command)
+        selected = _select_named_environments(environments, args.names)
+        written, pruned = _generate_locks(
+            selected,
+            environments,
+            upgrade=args.upgrade,
+        )
+        message = f"Locked {len(written)} concrete environment(s); pruned {len(pruned)} obsolete lock(s)."
+        if args.upgrade:
+            cooldown_status = check_lockfile_cooldown([str(PROJECT_ROOT / path) for path in written])
+            if cooldown_status:
+                target = ", ".join(args.names) or "all test environments"
+                raise LockError(f"cooldown validation failed for {target}")
+        print(message)
+        return 0
+    except LockError as error:
+        parser.error(str(error))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

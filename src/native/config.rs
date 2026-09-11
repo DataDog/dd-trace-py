@@ -34,7 +34,7 @@ fn set_128_bit_trace_id_enabled_py(val: bool) {
 
 /// Whether errors in event listeners should be re-raised (DD_TESTING_RAISE).
 ///
-/// Default is `false`. Set by Python `Config.__init__` via
+/// Default is `false`. Set through the process-global Python config via
 /// `ddtrace.internal.native.config.set_raise` at startup.
 static RAISE: AtomicBool = AtomicBool::new(false);
 
