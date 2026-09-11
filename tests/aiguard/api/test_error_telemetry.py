@@ -15,6 +15,7 @@ import pytest
 
 from ddtrace.aiguard import AIGuardClientError
 from ddtrace.aiguard._api_client import _classify_transport_error
+from ddtrace.aiguard._api_client import _loggable_endpoint
 from ddtrace.aiguard._api_client import _status_tag
 from ddtrace.aiguard._constants import AI_GUARD
 from ddtrace.internal.native import ConnectionFailedError
@@ -119,3 +120,69 @@ class TestErrorTelemetryTags:
 
         assert tags["source"] == AI_GUARD.SOURCE_SDK
         assert tags["integration"] == AI_GUARD.INTEGRATION_NONE
+
+
+class TestInternalErrorsAreNotAttributedToTransport:
+    """Only the transport and response paths set a specific type, so anything raised elsewhere in
+    evaluate() is our own code failing and must not land in the buckets egress alerting reads.
+    """
+
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_failure_before_the_request_reports_internal_error(self, add_count_metric, ai_guard_client):
+        """_get_tool_name runs before the HTTP call, so its failure never reaches the classifier."""
+        with patch.object(ai_guard_client, "_get_tool_name", side_effect=RuntimeError("bug")):
+            with pytest.raises(RuntimeError):
+                ai_guard_client.evaluate(MESSAGES)
+
+        errors = _error_metrics(add_count_metric)
+        assert len(errors) == 1
+        assert errors[0]["type"] == AI_GUARD.ERROR_INTERNAL
+
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_failure_after_the_response_reports_internal_error(self, add_count_metric, ai_guard_client):
+        """A raise while building the result is equally ours, and equally not a transport failure."""
+        response = mock_evaluate_response("ALLOW")
+        with patch.object(ai_guard_client, "_execute_request", return_value=response):
+            with patch.object(ai_guard_client, "_messages_for_meta_struct", side_effect=RuntimeError("bug")):
+                with pytest.raises(RuntimeError):
+                    ai_guard_client.evaluate(MESSAGES)
+
+        errors = _error_metrics(add_count_metric)
+        assert len(errors) == 1
+        assert errors[0]["type"] == AI_GUARD.ERROR_INTERNAL
+
+
+class TestEndpointIsNotLoggedVerbatim:
+    """Customers are asked for these debug logs during investigations, so an endpoint override
+    carrying credentials must not end up in them.
+    """
+
+    @pytest.mark.parametrize(
+        "url,expected",
+        [
+            ("https://api.example.com/ai-guard", "https://api.example.com/ai-guard"),
+            ("https://api.example.com:8443/ai-guard", "https://api.example.com:8443/ai-guard"),
+            # userinfo and query credentials are dropped
+            ("https://user:s3cret@api.example.com/ai-guard", "https://api.example.com/ai-guard"),
+            ("https://api.example.com/ai-guard?token=s3cret", "https://api.example.com/ai-guard"),
+            ("https://user:s3cret@api.example.com/ai-guard?token=t0ken", "https://api.example.com/ai-guard"),
+            # nothing usable to log, and never the raw value
+            ("not a url", "<unparseable>"),
+            ("", "<unparseable>"),
+        ],
+    )
+    def test_credentials_are_stripped(self, url, expected):
+        assert _loggable_endpoint(url) == expected
+
+    @pytest.mark.parametrize("secret", ["s3cret", "t0ken"])
+    def test_no_secret_reaches_the_startup_log(self, secret, caplog):
+        from ddtrace.aiguard._api_client import AIGuardClient
+
+        with caplog.at_level("DEBUG", logger="ddtrace.aiguard._api_client"):
+            AIGuardClient(
+                endpoint="https://user:s3cret@api.example.com/ai-guard?token=t0ken",
+                api_key="test-api-key",
+                app_key="test-app-key",
+            )
+
+        assert secret not in caplog.text

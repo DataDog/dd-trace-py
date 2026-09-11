@@ -134,6 +134,24 @@ def _classify_transport_error(exc: BaseException) -> str:
     return AI_GUARD.ERROR_CLIENT if isinstance(exc, HttpClientError) else AI_GUARD.ERROR_INTERNAL
 
 
+def _loggable_endpoint(url: str) -> str:
+    """The endpoint with any credentials stripped, for debug logs.
+
+    An endpoint override can carry userinfo or a query credential, and these logs are exactly what
+    customers are asked to share during an investigation, so keep only scheme, host, port and path.
+    """
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        if not host:
+            return "<unparseable>"
+        return f"{parsed.scheme}://{host}{parsed.path}" if parsed.scheme else f"{host}{parsed.path}"
+    except Exception:
+        return "<unparseable>"
+
+
 def _status_tag(status: Optional[int]) -> str:
     """Clamp a response status to the declared allowlist, keeping the tag bounded."""
     return str(status) if status in AI_GUARD.STATUSES else AI_GUARD.STATUS_OTHER
@@ -166,7 +184,8 @@ class AIGuardClient:
 
         # Logged once so a single debug capture answers which host was contacted and with which
         # timeout, without asking for a reproduction.
-        logger.debug("AI Guard client ready: endpoint=%s timeout=%ss", self._endpoint, self._timeout)
+        self._loggable_endpoint = _loggable_endpoint(endpoint)
+        logger.debug("AI Guard client ready: endpoint=%s timeout=%ss", self._loggable_endpoint, self._timeout)
 
     @staticmethod
     def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
@@ -317,9 +336,11 @@ class AIGuardClient:
 
         from ddtrace.trace import tracer
 
-        # Classifies the error metric when a raise below escapes. Transport failures and
-        # unexpected internal errors keep the default; response-driven raises narrow it.
-        error_type: str = AI_GUARD.ERROR_CLIENT
+        # Classifies the error metric when a raise below escapes. Transport and response paths
+        # each set their own type, so anything still holding the default failed inside our own
+        # code, which is what internal_error means; client_error is reserved for a transport
+        # failure the native client reports but we do not recognise.
+        error_type: str = AI_GUARD.ERROR_INTERNAL
         error_status: Optional[int] = None
         call_path_tags = self._call_path_tags(source, integration)
 
@@ -488,7 +509,7 @@ class AIGuardClient:
                     "AI Guard evaluation failed (%s) for %d messages via %s",
                     error_type,
                     len(messages),
-                    self._endpoint,
+                    self._loggable_endpoint,
                     exc_info=True,
                 )
                 raise
