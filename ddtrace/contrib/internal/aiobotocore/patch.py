@@ -4,7 +4,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 
-# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# _http_propagation_suppressed is the shared seam telling the
 # aiohttp-layer subscriber to skip its own injection during AWS calls; _wrapped_api_call
 # is one of its two permitted setters. See the ownership contract on its
 # definition in ddtrace/_trace/subscribers/http_client.py.
@@ -13,7 +13,7 @@ from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 
-# AIDEV-NOTE: Shared with botocore; this integration registers its own owner-gated
+# Shared with botocore; this integration registers its own owner-gated
 # wrapper via _ensure_before_sign_handler. See botocore/patch.py for the contract.
 from ddtrace.contrib.internal.botocore.patch import _ensure_before_sign_handler
 from ddtrace.contrib.internal.botocore.patch import _inject_trace_headers_handler

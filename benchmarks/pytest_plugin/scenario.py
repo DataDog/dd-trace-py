@@ -9,20 +9,20 @@ import bm
 class PytestPlugin(bm.Scenario):
     """Macrobenchmark for the ddtrace pytest (CI Visibility / Test Visibility) plugin.
 
-    Runs a generated corpus of trivial ``assert True`` tests through pytest, with and
-    without ``--ddtrace``, measuring whole-session wall time. The ddtrace run uses the
+    Runs a generated corpus of trivial assert-True tests through pytest, with and
+    without --ddtrace, measuring whole-session wall time. The ddtrace run uses the
     plugin's hermetic offline (payload-files) mode so no network is involved: the
     backend connector is NoOp (all features off) and event payloads are written to a
     temp directory instead of being sent over HTTP. This isolates the synchronous
-    per-test overhead — span lifecycle, source-location discovery, the coverage
-    context manager, and per-test telemetry — which is what adoption-sensitive
+    per-test overhead -- span lifecycle, source-location discovery, the coverage
+    context manager, and per-test telemetry -- which is what adoption-sensitive
     customers pay for fast unit-test suites.
 
     The benchmark platform compares a baseline ddtrace (PyPI) against the candidate
     (local) build for each config, so a fix that lowers per-test overhead shows up as
-    a faster candidate session for the ``ddtrace`` config. The ``baseline`` config
-    (no ``--ddtrace``) is a control: the plugin is loaded but never activated, so
-    both versions should match.
+    a faster candidate session for the ddtrace config. The baseline config
+    (no --ddtrace) is a control: the plugin is disabled entirely, so both versions
+    should match.
     """
 
     ntests: int
@@ -56,7 +56,6 @@ class PytestPlugin(bm.Scenario):
             {
                 "DD_TEST_OPTIMIZATION_PAYLOADS_IN_FILES": "true",
                 "TEST_UNDECLARED_OUTPUTS_DIR": payload_dir,
-                "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false",
                 # Provide static git metadata so session start does not attempt to discover
                 # or upload a real repository (which would also touch the network).
                 "DD_GIT_REPOSITORY_URL": "https://github.com/example/ddbench",
@@ -80,6 +79,12 @@ class PytestPlugin(bm.Scenario):
         ]
         if self.ddtrace:
             args.append("--ddtrace")
+        else:
+            # Explicitly disable the ddtrace pytest plugin so the baseline config
+            # measures pure pytest, not just pytest without --ddtrace (the plugin
+            # still loads and registers hooks unless deactivated).
+            args.append("-p")
+            args.append("no:ddtrace")
 
         def _(loops: int):
             for _ in range(loops):
@@ -95,4 +100,11 @@ class PytestPlugin(bm.Scenario):
                         "pytest exited {}:\n{}".format(result.returncode, result.stderr.decode()[-1000:])
                     )
 
-        yield _
+        try:
+            yield _
+        finally:
+            # Clean up the corpus and payload files so repeated pyperf samples do
+            # not accumulate in /tmp and perturb later measurements.
+            import shutil
+
+            shutil.rmtree(workdir, ignore_errors=True)

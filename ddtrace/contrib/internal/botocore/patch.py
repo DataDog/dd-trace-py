@@ -16,7 +16,7 @@ import ddtrace
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 
-# AIDEV-NOTE: _http_propagation_suppressed is the shared seam telling the
+# _http_propagation_suppressed is the shared seam telling the
 # urllib3-layer subscriber to skip its own injection during AWS calls. See the
 # ownership contract on its definition in ddtrace/_trace/subscribers/http_client.py.
 from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
@@ -136,7 +136,7 @@ def _inject_trace_headers_handler(request, **kwargs):
     ):
         return
 
-    # AIDEV-NOTE: Uses the global tracer's current_span() because the before-sign
+    # Uses the global tracer's current_span() because the before-sign
     # event hands us the AWSRequest, not the client, so there's no Pin to read here.
     span = ddtrace.tracer.current_span()
     if span is None:
@@ -167,7 +167,7 @@ def _botocore_before_sign_handler(request, **kwargs):
     _inject_trace_headers_handler(request, **kwargs)
 
 
-# AIDEV-NOTE: Also imported by ddtrace.contrib.internal.aiobotocore.patch;
+# Also imported by ddtrace.contrib.internal.aiobotocore.patch;
 # rename in lockstep. Each integration passes its own owner-gated handler.
 def _ensure_before_sign_handler(client, handler) -> bool:
     """Register ``handler`` for ``before-sign`` on this client's emitter, once.
