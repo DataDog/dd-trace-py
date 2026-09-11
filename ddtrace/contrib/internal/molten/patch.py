@@ -122,9 +122,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
             if event.set_resource:
                 event.resource = None
 
-            if exc_info is None:
-                return start_response(status, response_headers)
-
             return start_response(status, response_headers, exc_info)
 
         return wrapped(environ, traced_start_response, **kwargs)

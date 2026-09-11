@@ -491,7 +491,7 @@ class TestMolten(TracerTestCase):
                             web_span = traces[0][0]
                             assert web_span._parent is None
 
-    def test_route_metadata_available_during_handler_execution(self):
+    def test_request_metadata_available_during_handler_execution(self):
         observed = {}
 
         def handler():
