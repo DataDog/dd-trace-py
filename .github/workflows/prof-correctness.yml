@@ -1,0 +1,144 @@
+# Triggers prof-correctness downstream-python on profiling path changes.
+# Default scenarios: python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)
+# See DataDog/prof-correctness scenarios/python_downstream_gate/README.md
+name: Profiling correctness
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/prof-correctness.yml
+      - ddtrace/internal/datadog/profiling/**
+      - ddtrace/profiling/**
+      - src/native/**
+  workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: dd-trace-py commit SHA (defaults to HEAD)
+        required: false
+        type: string
+      test_scenarios:
+        description: prof-correctness scenario regexp
+        required: false
+        default: python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  trigger-downstream:
+    runs-on: ubuntu-latest
+    # 30m S3 poll + 60m downstream watch (matches the GitLab job timeout).
+    timeout-minutes: 90
+    steps:
+      - name: Resolve commit SHA
+        id: sha
+        env:
+          INPUT_SHA: ${{ github.event.inputs.commit_sha }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ -n "$INPUT_SHA" ]; then
+            if ! printf '%s' "$INPUT_SHA" | grep -Eq '^[0-9a-fA-F]{7,64}$'; then
+              echo "error: commit_sha must be a hex git SHA" >&2
+              exit 1
+            fi
+            echo "value=${INPUT_SHA}" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT_NAME" = "pull_request" ]; then
+            echo "value=${PR_SHA}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=${HEAD_SHA}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Fork PRs cannot mint org OIDC or reach GitLab S3 wheels. Skip wait and
+      # dispatch so the check succeeds instead of failing unauthorized.
+      - name: Guard same-repo dispatch
+        id: gate
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ] && [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping downstream trigger for forked PR ${HEAD_REPO}"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # GitLab uploads install.sh after wheel build (~15m). Poll before dispatch
+      # so downstream does not 404. Same timeout/interval as download-s3-wheels.sh.
+      - name: Wait for S3 install.sh
+        if: steps.gate.outputs.run == 'true'
+        env:
+          DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
+        run: |
+          INSTALL_URL="https://dd-trace-py-builds.s3.amazonaws.com/${DD_TRACE_PY_SHA}/install.sh"
+          POLL_TIMEOUT="${POLL_TIMEOUT:-1800}"
+          POLL_INTERVAL="${POLL_INTERVAL:-30}"
+          echo "Polling for: ${INSTALL_URL}"
+          elapsed=0
+          while true; do
+            if curl -sf -o /dev/null "${INSTALL_URL}"; then
+              echo "install.sh found after ${elapsed}s"
+              break
+            fi
+            if [ "$elapsed" -ge "$POLL_TIMEOUT" ]; then
+              echo "error: timed out after ${POLL_TIMEOUT}s waiting for ${INSTALL_URL}" >&2
+              exit 1
+            fi
+            echo "Not available yet (${elapsed}s elapsed), retrying in ${POLL_INTERVAL}s..."
+            sleep "${POLL_INTERVAL}"
+            elapsed=$((elapsed + POLL_INTERVAL))
+          done
+
+      - uses: DataDog/dd-octo-sts-action@96a25462dbcb10ebf0bfd6e2ccc917d2ab235b9a # v1.0.4
+        if: steps.gate.outputs.run == 'true'
+        id: octo-sts
+        with:
+          scope: DataDog/prof-correctness
+          policy: dd-trace-py.github.trigger-ci
+
+      - name: Trigger prof-correctness downstream-python
+        if: steps.gate.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          DD_TRACE_PY_SHA: ${{ steps.sha.outputs.value }}
+          TEST_SCENARIOS: ${{ github.event.inputs.test_scenarios || 'python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)' }}
+        run: |
+          # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
+          TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
+          echo "Triggering prof-correctness for commit ${DD_TRACE_PY_SHA}"
+          gh workflow run downstream-python.yml \
+            --repo DataDog/prof-correctness \
+            -f "dd_trace_py_commit_sha=${DD_TRACE_PY_SHA}" \
+            -f "test_scenarios=${TEST_SCENARIOS}"
+
+          RUN_ID=""
+          for _ in $(seq 1 30); do
+            RUN_ID="$(gh run list \
+              --repo DataDog/prof-correctness \
+              --workflow=downstream-python.yml \
+              --event workflow_dispatch \
+              --limit 20 \
+              --json databaseId,displayTitle,headSha,event,createdAt \
+              --jq "[.[] | select(.displayTitle == \"dd-trace-py downstream (${DD_TRACE_PY_SHA})\" and .createdAt >= \"${TRIGGERED_AT}\")][0].databaseId // empty")"
+            if [ -n "${RUN_ID}" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "${RUN_ID}" ]; then
+            echo "error: no DataDog/prof-correctness downstream-python run found for sha ${DD_TRACE_PY_SHA} (expected title 'dd-trace-py downstream (${DD_TRACE_PY_SHA})') dispatched at/after ${TRIGGERED_AT}" >&2
+            exit 1
+          fi
+
+          echo "Watching prof-correctness run ${RUN_ID}"
+          if ! gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status; then
+            echo "---- prof-correctness failed-step logs ----"
+            gh run view "${RUN_ID}" --repo DataDog/prof-correctness --log-failed
+            exit 1
+          fi
