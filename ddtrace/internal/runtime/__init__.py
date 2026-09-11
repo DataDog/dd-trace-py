@@ -12,6 +12,7 @@ __all__ = [
     "get_runtime_id",
     "get_parent_runtime_id",
     "get_runtime_propagation_envs",
+    "refresh_identity",
 ]
 
 
@@ -31,15 +32,34 @@ _PARENT_RUNTIME_ID: t.Optional[str] = env.get(_ENV_PARENT_SESSION_ID)
 # IMPORTANT: Do not change t.Set to set until minimum Python version is 3.11+
 # Module-level set[...] in Python 3.10 affects import timing. See packages.py for details.
 _ON_RUNTIME_ID_CHANGE: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
+_ON_RUNTIME_IDENTITY_REFRESH: t.Set[t.Callable[[str], None]] = set()  # noqa: UP006
 
 
 def on_runtime_id_change(cb: t.Callable[[str], None]) -> None:
     """Register a callback to be called when the runtime ID changes.
 
-    This can happen after a fork.
+    This happens after a fork and when refresh_identity() runs.
     """
     global _ON_RUNTIME_ID_CHANGE
     _ON_RUNTIME_ID_CHANGE.add(cb)
+
+
+def on_runtime_identity_refresh(cb: t.Callable[[str], None]) -> None:
+    """Register a callback to be called after an explicit runtime identity refresh.
+
+    This is separate from the fork callback because a logical runtime replacement
+    must not be treated as a child process or update the fork lineage.
+    """
+    global _ON_RUNTIME_IDENTITY_REFRESH
+    _ON_RUNTIME_IDENTITY_REFRESH.add(cb)
+
+
+def _refresh_runtime_id() -> None:
+    global _RUNTIME_ID
+
+    _RUNTIME_ID = _generate_runtime_id()
+    for cb in _ON_RUNTIME_ID_CHANGE:
+        cb(_RUNTIME_ID)
 
 
 @forksafe.register
@@ -51,8 +71,23 @@ def _set_runtime_id():
         _ANCESTOR_RUNTIME_ID = _RUNTIME_ID
 
     _PARENT_RUNTIME_ID = _RUNTIME_ID
-    _RUNTIME_ID = _generate_runtime_id()
-    for cb in _ON_RUNTIME_ID_CHANGE:
+    _refresh_runtime_id()
+
+
+def refresh_identity() -> None:
+    """Regenerate the runtime ID without recording fork lineage.
+
+    Unlike a fork, this does not update _PARENT_RUNTIME_ID / _ANCESTOR_RUNTIME_ID:
+    the previous runtime ID was not a real parent process, so recording it there
+    would make get_process_role() and friends misreport a fork lineage that never
+    existed. Use this when a new logical process instance is created by a mechanism
+    other than fork().
+    """
+    # Notify consumers that only need the new ID first. The explicit refresh
+    # callbacks below are for components that must rebuild restore-sensitive
+    # state, which is different from the fork handling in _set_runtime_id().
+    _refresh_runtime_id()
+    for cb in _ON_RUNTIME_IDENTITY_REFRESH:
         cb(_RUNTIME_ID)
 
 
