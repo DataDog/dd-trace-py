@@ -1,8 +1,8 @@
 #pragma once
 
-#include <cassert>
-
 #include <Python.h>
+
+#include <cassert>
 
 /* Release the GIL. For debugging when GIL release allows memory profiling functions
  * to interleave from different threads. Call near C Python API calls. */

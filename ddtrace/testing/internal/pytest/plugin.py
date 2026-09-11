@@ -24,6 +24,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.coverage.utils import handle_coverage_report
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.settings import env
+from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.utils.inspection import undecorated
 from ddtrace.testing.internal.ci import CITag
 from ddtrace.testing.internal.constants import TAG_TRUE
@@ -31,6 +32,7 @@ from ddtrace.testing.internal.constants import ITRSkippingLevel
 from ddtrace.testing.internal.errors import SetupError
 from ddtrace.testing.internal.git import get_workspace_path
 from ddtrace.testing.internal.logging import catch_and_log_exceptions
+from ddtrace.testing.internal.logging import protect_ddtrace_stream_handlers
 from ddtrace.testing.internal.logging import setup_logging
 from ddtrace.testing.internal.offline_mode import get_offline_mode
 from ddtrace.testing.internal.pytest._discovery import is_discovery_mode_enabled
@@ -310,13 +312,14 @@ class TestOptPlugin(TestOptPluginProtocol):
             self.enable_ddtrace_trace_filter = True
 
         # Agentless log submission: explicit opt-in via DD_AGENTLESS_LOG_SUBMISSION_ENABLED.
-        # Requires DD_CIVISIBILITY_AGENTLESS_ENABLED.
+        # Requires agentless mode (i.e. DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED)
         self.enable_agentless_log_submission = asbool(env.get("DD_AGENTLESS_LOG_SUBMISSION_ENABLED"))
         if self.enable_agentless_log_submission:
-            if not asbool(env.get("DD_CIVISIBILITY_AGENTLESS_ENABLED")):
+            if not agentless_config.ci_visibility:
                 log.warning(
-                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but DD_CIVISIBILITY_AGENTLESS_ENABLED is not. "
-                    "Log submission to Datadog requires agentless mode; logs will not be forwarded."
+                    "DD_AGENTLESS_LOG_SUBMISSION_ENABLED is set but agentless mode is not enabled. "
+                    "Set DD_AGENTLESS_ENABLED or DD_CIVISIBILITY_AGENTLESS_ENABLED; "
+                    "logs will not be forwarded."
                 )
                 self.enable_agentless_log_submission = False
             elif not asbool(env.get("_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER")):
@@ -441,7 +444,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # AIDEV-NOTE: This hook runs in every process, so an xdist session uploads one report per process, each
+        # This hook runs in every process, so an xdist session uploads one report per process, each
         # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
         # for a session, so the partial uploads add up to full coverage.
         #
@@ -1564,6 +1567,13 @@ def _is_option_true(option: str, early_config: pytest.Config, args: list[str]) -
 def pytest_load_initial_conftests(
     early_config: pytest.Config, parser: pytest.Parser, args: list[str]
 ) -> t.Generator[None, None, None]:
+    # NOTE: Register before the enablement guard: importing the tracer also
+    # registers its exit hook without --ddtrace (#16712). Cleanup runs in LIFO order,
+    # so registering before capture starts lets this rescan run after capture cleanup
+    # and include handlers installed by later hooks. Never disable propagation: healthy
+    # root handlers must still receive tracer diagnostics, including at shutdown.
+    early_config.add_cleanup(protect_ddtrace_stream_handlers)
+
     if not _is_enabled_early(early_config, args):
         yield
         return
@@ -1605,6 +1615,20 @@ def pytest_load_initial_conftests(
     yield
 
 
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_sessionfinish() -> t.Generator[None, None, None]:
+    # Fixture capture streams can already be closed when session teardown starts.
+    protect_ddtrace_stream_handlers()
+    yield
+
+
+@pytest.hookimpl(tryfirst=True, hookwrapper=True)
+def pytest_unconfigure() -> t.Generator[None, None, None]:
+    # This also runs after collection errors and includes sessionfinish reconfiguration.
+    protect_ddtrace_stream_handlers()
+    yield
+
+
 def setup_coverage_collection() -> None:
     workspace_path = get_workspace_path()
     install_coverage(workspace_path, file_level_coverage=asbool(env.get("_DD_COVERAGE_FILE_LEVEL", "false")))
@@ -1623,7 +1647,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if is_discovery_mode_enabled():
         # Register hook specs so item_to_test_ref can call the custom name hooks during
         # discovery, giving the same module/suite/name resolution as a real test run.
-        # AIDEV-NOTE: BddTestOptPlugin is not registered here, so pytest-bdd tests will
+        # BddTestOptPlugin is not registered here, so pytest-bdd tests will
         # fall back to nodeid-based names rather than feature-file names during discovery.
         # TODO: register BddTestOptPlugin in discovery mode to support pytest-bdd.
         import ddtrace.testing.internal.pytest._discovery as _ddtrace_discovery

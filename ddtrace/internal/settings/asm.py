@@ -15,11 +15,11 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
 from ddtrace.internal.settings._core import DDConfig
-from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 
 
 def _validate_non_negative_int(r: int) -> None:
@@ -49,21 +49,12 @@ def _parse_optional_string(value: str) -> Optional[str]:
 def build_libddwaf_filename() -> str:
     """
     Build the filename of the libddwaf library to load.
-    """
-    _DIRNAME = os.path.dirname(os.path.dirname(__file__))
-    FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
-    ARCHI = machine().lower()
-    # 32-bit-Python on 64-bit-Windows
-    if system() == "Windows" and ARCHI == "amd64":
-        from sys import maxsize
 
-        if maxsize <= (1 << 32):
-            ARCHI = "x86"
-    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
-    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    return os.path.join(
-        _DIRNAME, "..", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
-    )
+    This is the path of the library bundled in the package, or, when the build
+    did not bundle one, the SONAME for the dynamic linker to resolve.
+    """
+    libddwaf_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "appsec", "_ddwaf", "libddwaf")
+    return _libddwaf_platform.resolve_library(libddwaf_dir, system(), machine(), sys.maxsize > (1 << 32))
 
 
 class ASMConfig(DDConfig):
@@ -88,7 +79,6 @@ class ASMConfig(DDConfig):
     _iast_truncation_max_value_length = DDConfig.var(
         int, IAST.ENV_DD_IAST_TRUNCATION_MAX_VALUE_LENGTH, default=IAST_TRUNCATION_MAX_VALUE_LENGTH_DEFAULT
     )
-    _apm_tracing_enabled = DDConfig.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
     _use_metastruct_for_iast = True
 
@@ -111,7 +101,7 @@ class ASMConfig(DDConfig):
     # updated in API Manager enable/disable
     _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
-    _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
+    _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf, system())
     _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(
@@ -208,7 +198,6 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_value_regexp",
         "_asm_processed_span_types",
         "_asm_http_span_types",
-        "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
         "_is_testing_instrumentation_for_waf",
         "_iast_enabled",
@@ -263,9 +252,9 @@ class ASMConfig(DDConfig):
     _bypass_instrumentation_for_waf = False
     _is_testing_instrumentation_for_waf = False
 
-    # AIDEV-NOTE: Only runtime gate for IAST version support; the native extensions are not
-    # version-gated in setup.py. This bound intentionally leads requires-python (currently <3.15):
-    # IAST already works on 3.15, so do not "resync" it downwards until 3.15 ships in the matrix.
+    # TODO(py-315): Only runtime gate for IAST version support; the native extensions are not
+    # version-gated in setup.py. This bound intentionally leads requires-python in pyproject.toml, so
+    # do not "resync" it downwards; 3.15 itself is still untested for IAST, tracked by issue #17843.
     # IAST supported on python 3.6 to 3.15 and never on windows
     _iast_supported: bool = ((3, 6, 0) <= sys.version_info < (3, 16, 0)) and not (
         sys.platform.startswith("win") or sys.platform.startswith("cygwin")
@@ -321,19 +310,6 @@ class ASMConfig(DDConfig):
     @property
     def _api_security_feature_active(self) -> bool:
         return self._asm_libddwaf_available and self._asm_enabled and self._api_security_enabled
-
-    @property
-    def _apm_opt_out(self) -> bool:
-        # AI Guard standalone opt-out. Import lazily: ai_guard settings pull in the aiguard package,
-        # so a top-level import would give asm an import-time dependency on it.
-        from ddtrace.internal.settings.aiguard import aiguard_config
-
-        return (
-            self._asm_enabled
-            or self._iast_enabled
-            or appsec_telemetry_config.SCA_ENABLED is True
-            or aiguard_config._ai_guard_enabled
-        ) and not self._apm_tracing_enabled
 
     @property
     def _user_event_mode(self) -> str:

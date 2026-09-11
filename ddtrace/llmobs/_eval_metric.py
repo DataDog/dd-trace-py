@@ -50,7 +50,7 @@ class _SubmissionTelemetryContext:
     target_type: str = "other"
 
 
-# AIDEV-NOTE: _resolve_agent_service and LLMObsSubmitEvaluationError intentionally remain owned by
+# _resolve_agent_service and LLMObsSubmitEvaluationError intentionally remain owned by
 # _llmobs. Callers inject them here to preserve their existing state and import paths without a cycle.
 def _build_evaluation_metric_event(
     *,
@@ -256,7 +256,7 @@ def _build_feedback_metric_event(
         if not span["span_id"]:
             telemetry_context.error = "invalid_span"
             raise ValueError("`span` must contain a non-empty string span_id.")
-        # AIDEV-NOTE: LLMObs.export_span() also returns trace_id, while callers may supply
+        # LLMObs.export_span() also returns trace_id, while callers may supply
         # dictionaries with additional fields. Feedback targets must contain exactly one
         # top-level identifier, so span= intentionally emits only span_id and is wire-equivalent
         # to passing span_id= directly.

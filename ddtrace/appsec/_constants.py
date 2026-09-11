@@ -30,7 +30,6 @@ class APPSEC(metaclass=Constant_Class):
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
     AGENTIC_ONBOARDING: Literal["DD_APPSEC_AGENTIC_ONBOARDING"] = "DD_APPSEC_AGENTIC_ONBOARDING"
-    APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
@@ -416,7 +415,7 @@ class STACK_TRACE(metaclass=Constant_Class):
     TAG: Literal["_dd.stack"] = "_dd.stack"
 
 
-# AIDEV-NOTE: AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the
+# AI_GUARD constants moved to ddtrace/aiguard/_constants.py to align with the
 # top-level aiguard package. Import from there: `from ddtrace.aiguard._constants import AI_GUARD`.
 
 

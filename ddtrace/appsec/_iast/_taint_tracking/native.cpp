@@ -5,9 +5,10 @@
  * - Aspects: common string operations are replaced by functions that propagate the taint variables.
  * - Taint ranges: Information related to tainted values.
  */
+#include <pybind11/pybind11.h>
+
 #include <memory>
 #include <pthread.h>
-#include <pybind11/pybind11.h>
 
 #include "aspects/aspect_extend.h"
 #include "aspects/aspect_index.h"

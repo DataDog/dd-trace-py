@@ -33,7 +33,10 @@ Typed event-driven pattern using `core.context_with_event()` with `TracingEvent`
 subclasses and `TracingSubscriber`. Infrastructure exists in `ddtrace/_trace/events.py`
 and `ddtrace/_trace/subscribers/`. Read concrete contrib examples such as
 `ddtrace/contrib/internal/httpx/patch.py` and `ddtrace/contrib/internal/aiohttp/patch.py`.
-See `ddtrace/internal/core/__init__.py` for the API.
+See `ddtrace/internal/core/__init__.py` for the API. An event is available through
+its synchronous `context.ended` subscriber dispatch and is released immediately
+afterward. Deferred integrations must set `dispatch_end_event=False` and call
+`ctx.dispatch_ended_event()` only after they have attached all final event data.
 
 **`context_with_data()` + `trace_handlers.py`** (preferred for existing): Wrappers use
 `with core.context_with_data(...)` to emit events that `trace_handlers.py`
@@ -43,7 +46,7 @@ flask, httpx, django. This pattern decouples patch code from span creation.
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call
 `Pin.get_from(instance)` to get the tracer, then use `tracer.trace()` to create
-spans directly. Still used by redis, kafka, grpc, graphql, requests, celery, etc.
+spans directly. Still used by redis, kafka, grpc, graphql, celery, etc.
 
 ## LLM Integration Pattern
 
@@ -62,4 +65,5 @@ workflow; LLMObs lifecycle and extraction details belong in that skill.
 | `ddtrace/_trace/subscribers/_base.py` | TracingSubscriber base (NEW events API) |
 | `ddtrace/internal/core/__init__.py` | Core API (context_with_data, context_with_event) |
 | `ddtrace/internal/core/events.py` | Event + event_field() primitives |
-| `riotfile.py` | Test environment matrix |
+| `tests/*/suitespec.yml` | Test environment matrix |
+| `scripts/run-tests` | Test execution interface |

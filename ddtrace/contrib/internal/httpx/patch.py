@@ -2,7 +2,6 @@ import httpx
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib._events.http_client import HttpClientEvents
 from ddtrace.ext import SpanKind
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.settings import env
@@ -34,12 +33,7 @@ def _supported_versions() -> dict[str, str]:
     return {"httpx": ">=0.25"}
 
 
-_patcher = HttpxPatcher(
-    httpx,
-    config.httpx,
-    request_event_name=HttpClientEvents.HTTPX_REQUEST.value,
-    send_event_name=HttpClientEvents.HTTPX_SEND_REQUEST.value,
-)
+_patcher = HttpxPatcher(httpx, config.httpx)
 
 
 def patch() -> None:
