@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace.contrib.internal.redis_utils import _get_pipeline_command_args
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
@@ -11,7 +12,10 @@ async def instrumented_async_execute_command(func, instance, args, kwargs):
 
 
 async def instrumented_async_execute_pipeline(func, instance, args, kwargs):
-    cmds = [stringify_cache_args(c, cmd_max_len=config.redis.cmd_max_length) for c, _ in instance.command_stack]
+    cmds = [
+        stringify_cache_args(_get_pipeline_command_args(command), cmd_max_len=config.redis.cmd_max_length)
+        for command in instance.command_stack
+    ]
     with _instrument_redis_execute_pipeline(config.redis, cmds, instance):
         return await func(*args, **kwargs)
 
