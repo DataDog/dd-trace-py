@@ -1,7 +1,6 @@
 import sys
 
 from ddtrace import config
-from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
@@ -55,19 +54,7 @@ class TraceMiddleware(object):
             event,
             dispatch_end_event=False,
         ) as ctx:
-            request_span = span_from_context(ctx)
             req.env[self._request_context_key] = ctx
-
-            # Preserve the previous behavior: request metadata is available
-            # before Falcon executes resource handlers.
-            trace_utils.set_http_meta(
-                span=request_span,
-                integration_config=event.integration_config,
-                method=event.request_method,
-                url=event.request_url,
-                query=event.query,
-                request_headers=event.request_headers,
-            )
 
     def process_resource(self, req, resp, resource, params):
         ctx = req.env.get(self._request_context_key)
