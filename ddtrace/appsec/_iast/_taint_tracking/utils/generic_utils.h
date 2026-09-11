@@ -38,4 +38,4 @@ py::object
 safe_import(const char*, const char*);
 
 bool
-is_pointer_this_builtin(PyObject* orig_function, const char* builtin_name);
+is_pointer_builtin_str(PyObject* orig_function);

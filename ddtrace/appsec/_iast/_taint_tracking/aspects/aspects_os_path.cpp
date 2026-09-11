@@ -87,9 +87,11 @@ api_ospathjoin_aspect(StrType& first_part, const py::args& args)
         }
 
         if (not result_ranges.empty()) {
-            PyObject* new_result = new_pyobject_id(result_o.ptr());
-            set_ranges(new_result, result_ranges, tx_map);
-            return py::reinterpret_steal<StrType>(new_result);
+            if (PyObject* new_result = new_pyobject_id(result_o.ptr())) {
+                set_ranges(new_result, result_ranges, tx_map);
+                return py::reinterpret_steal<StrType>(new_result);
+            }
+            PyErr_Clear();
         }
 
         return result_o;
@@ -234,6 +236,7 @@ api_ospathnormcase_aspect(const StrType& path)
             set_ranges(new_result, result_ranges, tx_map);
             return py::reinterpret_steal<StrType>(new_result);
         }
+        PyErr_Clear();
 
         return result_o;
     });

@@ -197,46 +197,44 @@ api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const 
     return py::reinterpret_steal<StrType>(new_result);
 }
 
-PyObject*
+py::object
 api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
                                        const TaintRangeRefs& ranges_orig,
                                        const PyTextType py_str_type)
 {
-    CHECK_IAST_INITIALIZED_OR_RETURN(taint_escaped_text);
+    if (taint_escaped_text == nullptr) {
+        return {};
+    }
+    auto original = py::reinterpret_borrow<py::object>(taint_escaped_text);
+    CHECK_IAST_INITIALIZED_OR_RETURN(original);
 
-    if (taint_escaped_text == nullptr or ranges_orig.empty()) {
-        return taint_escaped_text;
+    if (ranges_orig.empty()) {
+        return original;
     }
 
     const auto text_pyobj_opt = PyObjectToPyText(taint_escaped_text);
     if (!text_pyobj_opt.has_value()) {
-        return taint_escaped_text;
+        return original;
     }
 
     switch (py_str_type) {
         case PyTextType::UNICODE: {
             // text_pyobj_opt.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
             const auto text_str = py::reinterpret_borrow<py::str>(*text_pyobj_opt);
-            auto obj = api_convert_escaped_text_to_taint_text<py::str>(text_str, ranges_orig);
-            Py_INCREF(obj.ptr());
-            return obj.ptr();
+            return api_convert_escaped_text_to_taint_text<py::str>(text_str, ranges_orig);
         }
         case PyTextType::BYTES: {
             // text_pyobj_opt.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
             const auto text_bytes = py::reinterpret_borrow<py::bytes>(*text_pyobj_opt);
-            auto obj = api_convert_escaped_text_to_taint_text<py::bytes>(text_bytes, ranges_orig);
-            Py_INCREF(obj.ptr());
-            return obj.ptr();
+            return api_convert_escaped_text_to_taint_text<py::bytes>(text_bytes, ranges_orig);
         }
         case PyTextType::BYTEARRAY: {
             // text_pyobj_opt.value throws a compile error: 'value' is unavailable: introduced in macOS 10.13
             const auto text_bytearray = py::reinterpret_borrow<py::bytearray>(*text_pyobj_opt);
-            auto obj = api_convert_escaped_text_to_taint_text<py::bytearray>(text_bytearray, ranges_orig);
-            Py_INCREF(obj.ptr());
-            return obj.ptr();
+            return api_convert_escaped_text_to_taint_text<py::bytearray>(text_bytearray, ranges_orig);
         }
         default:
-            return taint_escaped_text;
+            return original;
     }
 }
 
@@ -442,8 +440,7 @@ api_set_ranges_on_splitted(const StrType& source_str,
 bool
 has_pyerr()
 {
-    PythonErrorGuard error_guard;
-    return error_guard.has_error();
+    return PyErr_Occurred() != nullptr;
 }
 
 std::string
