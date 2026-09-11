@@ -1,5 +1,7 @@
 #pragma once
 
+#define PY_SSIZE_T_CLEAN
+#define Py_BUILD_CORE
 #include <Python.h>
 
 #include <algorithm>
@@ -16,6 +18,7 @@
 
 #include "constants.hpp"
 
+#include "echion/interp.h"
 #include "echion/task_name.h"
 #include "echion/timing.h"
 
@@ -98,6 +101,7 @@ class Sampler
     unsigned int max_threads_per_sample = g_default_max_threads_per_sample;
     bool gc_tracking_enabled_ = false;
     std::minstd_rand rng{ std::random_device{}() };
+    std::vector<InterpreterInfo> interpreter_candidates;
 
     struct ThreadCandidate
     {
