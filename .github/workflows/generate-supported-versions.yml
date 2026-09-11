@@ -48,6 +48,19 @@ jobs:
         with:
           python-version: "3.14"
 
+      - name: Setup Python 3.15
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.15"
+          allow-prereleases: true
+
+      # Last setup-python wins as `python`. install.sh is from main
+      # (requires-python <3.15); keep 3.14 as the default interpreter.
+      - name: Use Python 3.14 as default
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.14"
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a # v4.0.0
 
