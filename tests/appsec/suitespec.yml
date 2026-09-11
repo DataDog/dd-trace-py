@@ -58,6 +58,8 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         PYTHONFAULTHANDLER: '1'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
+      # pip 25+ changed dist-info registration, so pip is absent from packages_distributions().
+      # TODO: fix the first-party detection logic in iastpatch.c
       variants:
         - name: appsec_iast_default
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']

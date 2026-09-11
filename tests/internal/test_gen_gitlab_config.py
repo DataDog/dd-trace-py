@@ -98,12 +98,12 @@ def test_ddtest_requires_a_test_path_for_every_venv(gen_gitlab_config_mod):
         )
 
 
-def test_ddtest_uv_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
+def test_ddtest_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
     output = io.StringIO()
     ddtest_jobs = gen_gitlab_config_mod._ddtest_module()
     metadata = {
-        "uv123": (
-            ".riot/requirements/uv123.txt",
+        "env123": (
+            ".riot/requirements/env123.txt",
             "tests/tracer/**/test*.py",
             "pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/",
             "PYTHONOPTIMIZE=1",
@@ -116,20 +116,20 @@ def test_ddtest_uv_jobs_preserve_the_suite_command(gen_gitlab_config_mod):
         stage="core",
         clean_name="tracer",
         config={"env": {}},
-        environments=[("uv123", "3.12")],
+        environments=[("env123", "3.12")],
         k=1,
         metadata=metadata,
         wait_lockfile=".riot/requirements/wait.txt",
     )
 
     content = output.getvalue()
-    assert "extends: .ddtest_plan_uv" in content
-    assert "extends: .ddtest_run_uv" in content
-    assert "DDTEST_UV_COMMAND_uv123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
-    assert "DDTEST_UV_ENV_uv123: PYTHONOPTIMIZE=1" in content
+    assert "extends: .ddtest_plan" in content
+    assert "extends: .ddtest_run" in content
+    assert "DDTEST_COMMAND_env123: pytest -v --ignore=tests/tracer/test_uwsgi_shutdown.py tests/tracer/" in content
+    assert "DDTEST_ENV_env123: PYTHONOPTIMIZE=1" in content
 
 
-def test_ddtest_uv_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):
+def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_mod):
     payload = gen_gitlab_config_mod._shell_environment(
         {
             "DDTEST_PYTEST_ADDOPTS": "-vv --ignore-glob='*civisibility*'",
@@ -168,7 +168,7 @@ def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_
     assert "$DD_API_KEY" not in config
 
 
-def test_migrated_jobs_use_uv_environments(gen_gitlab_config_mod):
+def test_jobs_use_declared_environments(gen_gitlab_config_mod):
     environment_hashes = ("first", "second", "third")
     config = str(
         gen_gitlab_config_mod.JobSpec(
@@ -200,7 +200,7 @@ def test_unpinned_jobs_allow_prerelease_dependencies(gen_gitlab_config_mod, monk
     assert "    UV_PRERELEASE: allow" in config
 
 
-def test_migrated_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
+def test_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
     with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value=".riot/requirements/wait.txt"):
         config = str(
             gen_gitlab_config_mod.JobSpec(name="requests", stage="contrib", suite="contrib::requests", snapshot=True)

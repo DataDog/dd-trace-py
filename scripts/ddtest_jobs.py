@@ -61,7 +61,7 @@ def ddtest_k(config: dict) -> int:
 
 def _ddtest_base(snapshot: bool, gpu: bool) -> str:
     """Return the hidden base template a ddtest suite's before_script references."""
-    base = ".ddtest_base_uv"
+    base = ".ddtest_base"
     if gpu:
         base += "_gpu"
     if snapshot:
@@ -74,14 +74,14 @@ def _ddtest_plan_template(gpu: bool) -> str:
     no traces, so it never needs the testagent and has no snapshot
     variant — snapshot suites and non-snapshot suites plan the same way.
     """
-    tpl = ".ddtest_plan_uv"
+    tpl = ".ddtest_plan"
     if gpu:
         tpl += "_gpu"
     return tpl
 
 
 def _ddtest_run_template(snapshot: bool, gpu: bool) -> str:
-    tpl = ".ddtest_run_uv"
+    tpl = ".ddtest_run"
     if gpu:
         tpl += "_gpu"
     if snapshot:
@@ -197,8 +197,8 @@ def emit_ddtest_jobs(
         "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
     }
     for hash_, (_lockfile, _location, command, environment) in metadata.items():
-        extra_variables[f"DDTEST_UV_COMMAND_{hash_}"] = command
-        extra_variables[f"DDTEST_UV_ENV_{hash_}"] = environment
+        extra_variables[f"DDTEST_COMMAND_{hash_}"] = command
+        extra_variables[f"DDTEST_ENV_{hash_}"] = environment
     emit_variables(extra_variables)
     if retry is not None:
         print(f"  retry: {retry}", file=f)
@@ -233,8 +233,8 @@ def emit_ddtest_jobs(
         emit_before_script(plan=False)
         run_variables = {"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"}
         for hash_, (_lockfile, _location, command, environment) in metadata.items():
-            run_variables[f"DDTEST_UV_COMMAND_{hash_}"] = command
-            run_variables[f"DDTEST_UV_ENV_{hash_}"] = environment
+            run_variables[f"DDTEST_COMMAND_{hash_}"] = command
+            run_variables[f"DDTEST_ENV_{hash_}"] = environment
         emit_variables(run_variables)
         print("  parallel:", file=f)
         print("    matrix:", file=f)
