@@ -204,10 +204,7 @@ def test_evaluate_http_error(mock_execute_request, telemetry_mock, ai_guard_clie
     assert exc_info.value.errors == errors
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
     assert_telemetry(
-        telemetry_mock,
-        "error",
-        (("type", "bad_status"),),
-        extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM), ("status", str(mock_response.status))),
+        telemetry_mock, "error", (("type", "bad_status"),), extra=(("http_status", str(mock_response.status)),)
     )
 
 
@@ -228,10 +225,7 @@ def test_evaluate_http_error_empty_json_body(mock_execute_request, telemetry_moc
     assert exc_info.value.errors == []
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
     assert_telemetry(
-        telemetry_mock,
-        "error",
-        (("type", "bad_status"),),
-        extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM), ("status", str(mock_response.status))),
+        telemetry_mock, "error", (("type", "bad_status"),), extra=(("http_status", str(mock_response.status)),)
     )
 
 
@@ -250,9 +244,7 @@ def test_evaluate_invalid_json(mock_execute_request, telemetry_mock, ai_guard_cl
     assert str(exc_info.value) == "AI Guard service returned an undecodable response body: Invalid JSON"
     assert exc_info.value.status == 200
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
-    assert_telemetry(
-        telemetry_mock, "error", (("type", "bad_response"),), extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM),)
-    )
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -270,10 +262,7 @@ def test_evaluate_invalid_json_error_status(mock_execute_request, telemetry_mock
     assert exc_info.value.status == 502
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
     assert_telemetry(
-        telemetry_mock,
-        "error",
-        (("type", "bad_status"),),
-        extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM), ("status", str(mock_response.status))),
+        telemetry_mock, "error", (("type", "bad_status"),), extra=(("http_status", str(mock_response.status)),)
     )
 
 
@@ -288,9 +277,7 @@ def test_evaluate_transport_failure(mock_execute_request, telemetry_mock, ai_gua
 
     assert str(exc_info.value) == "Unexpected error calling AI Guard service: Connection refused"
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
-    assert_telemetry(
-        telemetry_mock, "error", (("type", AI_GUARD.ERROR_CONNECTION),), extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM),)
-    )
+    assert_telemetry(telemetry_mock, "error", (("type", AI_GUARD.ERROR_CONNECTION),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -307,9 +294,7 @@ def test_evaluate_malformed_response(mock_execute_request, telemetry_mock, ai_gu
 
     assert str(exc_info.value).startswith("AI Guard service returned unexpected response format")
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
-    assert_telemetry(
-        telemetry_mock, "error", (("type", "bad_response"),), extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM),)
-    )
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -326,9 +311,7 @@ def test_evaluate_invalid_action(mock_execute_request, telemetry_mock, ai_guard_
         == "AI Guard service returned unrecognized action: 'GO_TO_SLEEP'. Expected ['ALLOW', 'DENY', 'ABORT']"
     )
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),))
-    assert_telemetry(
-        telemetry_mock, "error", (("type", "bad_response"),), extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM),)
-    )
+    assert_telemetry(telemetry_mock, "error", (("type", "bad_response"),))
 
 
 @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
@@ -447,12 +430,7 @@ def test_evaluate_error_metrics_report_call_path_tags(mock_execute_request, tele
 
     assert_telemetry(telemetry_mock, "requests", (("error", "true"),), source="auto", integration="anthropic")
     assert_telemetry(
-        telemetry_mock,
-        "error",
-        (("type", AI_GUARD.ERROR_CONNECTION),),
-        source="auto",
-        integration="anthropic",
-        extra=(("endpoint", AI_GUARD.ENDPOINT_CUSTOM),),
+        telemetry_mock, "error", (("type", AI_GUARD.ERROR_CONNECTION),), source="auto", integration="anthropic"
     )
 
 

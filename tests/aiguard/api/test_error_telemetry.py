@@ -49,7 +49,7 @@ class TestClassification:
             (ConnectionFailedError("refused"), AI_GUARD.ERROR_CONNECTION),
             (TimedOutError("too slow"), AI_GUARD.ERROR_TIMEOUT),
             (InvalidConfigError("bad url"), AI_GUARD.ERROR_INVALID_CONFIG),
-            (HttpIoError("broken pipe"), AI_GUARD.ERROR_IO),
+            (HttpIoError("broken pipe"), AI_GUARD.ERROR_NETWORK),
             # An unrecognised transport failure still reports as a transport problem.
             (HttpClientError("something else"), AI_GUARD.ERROR_CLIENT),
             # Our own bug must not inflate the transport buckets that alerting reads.
@@ -77,16 +77,15 @@ class TestErrorTelemetryTags:
         tags = _evaluate_failing_with(ai_guard_client, ConnectionFailedError("refused"), add_count_metric)
 
         assert tags["type"] == AI_GUARD.ERROR_CONNECTION
-        assert tags["endpoint"] == AI_GUARD.ENDPOINT_CUSTOM
         # No status: nothing answered, so reporting one would be a lie.
-        assert "status" not in tags
+        assert "http_status" not in tags
 
     @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
     def test_timeout_is_reported_as_its_own_type(self, add_count_metric, ai_guard_client):
         tags = _evaluate_failing_with(ai_guard_client, TimedOutError("too slow"), add_count_metric)
 
         assert tags["type"] == AI_GUARD.ERROR_TIMEOUT
-        assert "status" not in tags
+        assert "http_status" not in tags
 
     @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
     def test_internal_error_is_not_reported_as_a_transport_failure(self, add_count_metric, ai_guard_client):
@@ -111,7 +110,7 @@ class TestErrorTelemetryTags:
         errors = _error_metrics(add_count_metric)
         assert len(errors) == 1
         assert errors[0]["type"] == AI_GUARD.ERROR_BAD_STATUS
-        assert errors[0]["status"] == expected_status
+        assert errors[0]["http_status"] == expected_status
 
     @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
     def test_call_path_tags_are_still_present(self, add_count_metric, ai_guard_client):

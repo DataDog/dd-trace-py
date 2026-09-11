@@ -4,6 +4,6 @@ fixes:
     AI Guard: Fixes an issue where every failed evaluation reported the same ``client_error``
     telemetry type, making it impossible to tell a request that never reached Datadog from one
     that was rejected. The ``ai_guard.error`` metric now reports ``connection_failed``,
-    ``timeout``, ``invalid_config``, ``io_error`` and ``internal_error`` types, adds the response
-    status to ``bad_status`` errors, and records whether ``DD_AI_GUARD_ENDPOINT`` was overridden.
-    Debug logs now include the resolved endpoint and the failure classification.
+    ``timeout``, ``invalid_config``, ``network_error`` and ``internal_error`` types, and adds an
+    ``http_status`` tag to ``bad_status`` errors. Debug logs now include the resolved endpoint and
+    the failure classification.

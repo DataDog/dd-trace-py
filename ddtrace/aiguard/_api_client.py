@@ -117,7 +117,7 @@ _TRANSPORT_ERROR_TYPES: tuple[tuple[type[BaseException], str], ...] = (
     (ConnectionFailedError, AI_GUARD.ERROR_CONNECTION),
     (TimedOutError, AI_GUARD.ERROR_TIMEOUT),
     (InvalidConfigError, AI_GUARD.ERROR_INVALID_CONFIG),
-    (HttpIoError, AI_GUARD.ERROR_IO),
+    (HttpIoError, AI_GUARD.ERROR_NETWORK),
 )
 
 
@@ -164,17 +164,9 @@ class AIGuardClient:
 
         self._timeout = aiguard_config._ai_guard_timeout // 1000
 
-        self._endpoint_tag = (
-            AI_GUARD.ENDPOINT_CUSTOM if aiguard_config._ai_guard_endpoint else AI_GUARD.ENDPOINT_DEFAULT
-        )
-        # Logged once so a single debug capture answers which host was contacted, with which
-        # timeout, and whether the endpoint was overridden, without asking for a reproduction.
-        logger.debug(
-            "AI Guard client ready: endpoint=%s (%s) timeout=%ss",
-            self._endpoint,
-            self._endpoint_tag,
-            self._timeout,
-        )
+        # Logged once so a single debug capture answers which host was contacted and with which
+        # timeout, without asking for a reproduction.
+        logger.debug("AI Guard client ready: endpoint=%s timeout=%ss", self._endpoint, self._timeout)
 
     @staticmethod
     def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
@@ -483,11 +475,11 @@ class AIGuardClient:
 
             except Exception:
                 self._add_request_to_telemetry((("error", "true"),) + call_path_tags)
-                error_tags = call_path_tags + (("endpoint", self._endpoint_tag),)
+                error_tags = call_path_tags
                 # Only bad_status has a status to report, and an absent tag stays distinguishable
                 # from a status we deliberately clamped away.
                 if error_status is not None:
-                    error_tags += (("status", _status_tag(error_status)),)
+                    error_tags += (("http_status", _status_tag(error_status)),)
                 self._add_error_to_telemetry(error_type, error_tags)
                 # Log the classification and target, but only the size of the conversation: the
                 # messages may carry sensitive data that redaction would have removed, and this

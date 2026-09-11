@@ -54,20 +54,15 @@ class AI_GUARD(metaclass=Constant_Class):
     ERROR_CONNECTION: Literal["connection_failed"] = "connection_failed"
     ERROR_TIMEOUT: Literal["timeout"] = "timeout"
     ERROR_INVALID_CONFIG: Literal["invalid_config"] = "invalid_config"
-    ERROR_IO: Literal["io_error"] = "io_error"
+    ERROR_NETWORK: Literal["network_error"] = "network_error"
     # Anything raised inside our own code rather than by the transport. Kept separate so tracer
     # bugs do not inflate the transport buckets that customer-egress alerting reads.
     ERROR_INTERNAL: Literal["internal_error"] = "internal_error"
 
-    # Values of the "status" tag, set only on bad_status errors. Clamped to this allowlist so the
-    # tag cannot grow a new series per status a service ever returns.
+    # Values of the "http_status" tag, set only on bad_status errors. Clamped to this allowlist so
+    # the tag cannot grow a new series per status a service ever returns.
     STATUSES: tuple[int, ...] = (401, 403, 404, 408, 413, 429, 500, 502, 503, 504)
     STATUS_OTHER: Literal["other"] = "other"
-
-    # Values of the "endpoint" tag: whether DD_AI_GUARD_ENDPOINT overrode the default, so a
-    # misconfigured override shows up next to the failures it causes.
-    ENDPOINT_DEFAULT: Literal["default"] = "default"
-    ENDPOINT_CUSTOM: Literal["custom"] = "custom"
     # A replacement the service asked for could not be applied. Reported per affected path, and
     # never fails the evaluation, see the redaction errors addendum of the AI Guard redaction RFC.
     ERROR_REDACTION: Literal["redaction_error"] = "redaction_error"
