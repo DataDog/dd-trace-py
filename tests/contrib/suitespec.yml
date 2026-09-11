@@ -11,6 +11,8 @@ components:
     - ddtrace/ext/kafka.py
   algoliasearch:
     - ddtrace/contrib/internal/algoliasearch/*
+  anyio:
+    - ddtrace/contrib/internal/anyio/*
   asgi:
     - ddtrace/contrib/asgi.py
     - ddtrace/contrib/internal/asgi/*
@@ -424,6 +426,29 @@ suites:
       variants:
         - name: algoliasearch
           dependencies: ['urllib3~=1.26.15', pytest-randomly, 'algoliasearch~=2.6']
+  anyio:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@anyio'
+      - tests/contrib/anyio/*
+    services:
+      - testagent
+    snapshot: false
+    venvs_per_job: 3
+    matrix:
+      command: pytest {cmdargs} tests/contrib/anyio
+      variants:
+        - name: anyio
+          python: ['3.9']
+          dependencies: [pytest-randomly, 'anyio==3.4.0', 'trio<0.22']
+        - name: anyio
+          python: ['3.10']
+          dependencies: [pytest-randomly, 'anyio<4.0', 'trio<0.22']
+        - name: anyio
+          dependencies: [pytest-randomly, anyio, trio]
   aredis:
     parallelism: 1
     paths:
@@ -1267,6 +1292,7 @@ suites:
       - '@core'
       - '@contrib'
       - '@tracing'
+      - '@anyio'
       - '@starlette'
       - '@fastapi'
       - '@asgi'
@@ -1890,7 +1916,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    parallelism: 6
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
