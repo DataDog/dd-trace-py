@@ -154,6 +154,8 @@ class JobSpec:
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
         env["TEST_SUITE"] = self.suite or self.name
+        if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
+            env["UV_PRERELEASE"] = "allow"
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -641,6 +643,7 @@ def gen_build_docs() -> None:
             "ddtrace/*",
             "scripts/docs/*",
             "scripts/gen_gitlab_config.py",
+            ".uv/build-docs--py310--*.txt",
             "benchmarks/README.rst",
             ".readthedocs.yml",
         }

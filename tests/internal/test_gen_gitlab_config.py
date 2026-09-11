@@ -192,6 +192,14 @@ def test_migrated_jobs_use_uv_environments(gen_gitlab_config_mod):
     assert configured_hashes == set(environment_hashes)
 
 
+def test_unpinned_jobs_allow_prerelease_dependencies(gen_gitlab_config_mod, monkeypatch):
+    monkeypatch.setenv("UNPIN_DEPENDENCIES", "true")
+
+    config = str(gen_gitlab_config_mod.JobSpec(name="tracer", stage="core", suite="tracer"))
+
+    assert "    UV_PRERELEASE: allow" in config
+
+
 def test_migrated_snapshot_job_uses_defined_base(gen_gitlab_config_mod):
     with mock.patch.object(gen_gitlab_config_mod, "_wait_lockfile", return_value=".riot/requirements/wait.txt"):
         config = str(

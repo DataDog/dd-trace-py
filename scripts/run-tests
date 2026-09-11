@@ -634,6 +634,7 @@ class TestRunner:
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
+        run_env["TEST_SUITE"] = environment.integration_name
         if self.in_ci:
             _configure_ci_itr_environment(run_env, environment.python, environment.hash)
         return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
