@@ -16,7 +16,7 @@ import bytecode
 from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.compat import is_wrap_supported
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
@@ -226,7 +226,7 @@ CONTEXT_FOOT = Assembly()
 
 if not is_wrap_supported():
     raise NotImplementedError("This version of Python is not supported yet")
-elif sys.version_info >= NEXT_MAX_PY:
+elif is_at_least_next_max_py():
     # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
     # needed.
     pass
@@ -443,9 +443,9 @@ elif sys.version_info >= (3, 9):
 # (3.15+) the stack is:
 #   monitored function → monitoring._on_py_start → uwc.on_py_start → __enter__
 # so the monitored frame is three levels up.
-_ENTER_FRAME_DEPTH = 3 if sys.version_info >= NEXT_MAX_PY else 1
+_ENTER_FRAME_DEPTH = 3 if is_at_least_next_max_py() else 1
 
-if sys.version_info >= NEXT_MAX_PY:
+if is_at_least_next_max_py():
     from ddtrace.internal import monitoring as _monitoring
 
     # Keyed by code object: drives sys.monitoring dispatch and is_wrapped/extract lookup.
@@ -608,7 +608,7 @@ class WrappingContext(BaseWrappingContext):
             pass
 
 
-if sys.version_info >= NEXT_MAX_PY:
+if is_at_least_next_max_py():
     # Monitoring-based instrumentation has negligible per-function overhead, so
     # there is no benefit to deferring wrapping until first call. On Python 3.15+
     # this is a transparent alias for WrappingContext kept only for API compatibility.
@@ -703,7 +703,7 @@ class ContextWrappedFunction(Protocol):
 
 # On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
 # it can be registered directly with the multiplexer via register(code, self).
-if sys.version_info >= NEXT_MAX_PY:
+if is_at_least_next_max_py():
     from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
 
     _UWC_BASES: tuple[type, ...] = (BaseWrappingContext, _MonitoringEventHandler)
@@ -868,7 +868,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         return t.cast(T, super().__return__(value))
 
-    if sys.version_info >= NEXT_MAX_PY:
+    if is_at_least_next_max_py():
         # Exceptions here are deliberately left uncaught (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
         # with-statement semantics -- safe because this is the only handler
@@ -1297,7 +1297,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             _registry.pop(f, None)
 
 
-if sys.version_info >= NEXT_MAX_PY:
+if is_at_least_next_max_py():
 
     def _finalize_monitoring_wrap(
         self_ref: "weakref.ref[_UniversalWrappingContext]",

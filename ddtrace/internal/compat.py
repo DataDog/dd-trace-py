@@ -15,6 +15,7 @@ __all__ = [
     "NEXT_MAX_PY",
     "NEXT_PY_UNSUPPORTED_MSG",
     "PYTHON_VERSION_INFO",
+    "is_at_least_next_max_py",
     "is_py_version_within_bounds",
     "is_wrap_supported",
 ]
@@ -40,6 +41,12 @@ def is_py_version_within_bounds(version: Optional[tuple[int, ...]] = None) -> bo
     """True if version is at or below last officially supported CPython (MAX_PY)."""
     version = version or PYTHON_VERSION_INFO[:2]
     return version[:2] <= MAX_PY
+
+
+def is_at_least_next_max_py(version: Optional[tuple[int, ...]] = None) -> bool:
+    """True if version is at or past NEXT_MAX_PY."""
+    version = version or PYTHON_VERSION_INFO[:2]
+    return version[:2] >= NEXT_MAX_PY
 
 
 def is_wrap_supported(version: Optional[tuple[int, ...]] = None) -> bool:

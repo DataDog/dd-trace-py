@@ -1,5 +1,4 @@
 from collections import deque
-import sys
 from types import CodeType
 from types import FunctionType
 from typing import Any  # noqa:F401
@@ -9,8 +8,8 @@ from bytecode import Bytecode
 from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
-from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
@@ -31,7 +30,7 @@ class InvalidLine(Exception):
     """
 
 
-if sys.version_info >= NEXT_MAX_PY:
+if is_at_least_next_max_py():
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos

@@ -22,11 +22,12 @@ from typing import Optional
 import weakref
 
 from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if sys.version_info < NEXT_MAX_PY:
+if not is_at_least_next_max_py():
     raise ImportError("ddtrace.internal.monitoring requires Python %s.%s+" % NEXT_MAX_PY)
 
 log = get_logger(__name__)
