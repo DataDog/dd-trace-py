@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Resolved a rare crash that could occur during interpreter shutdown.
