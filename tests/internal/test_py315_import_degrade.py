@@ -1,10 +1,15 @@
 """Python 3.15 wrapping: trampoline plus 3.15 generator/coroutine assemblies.
 
-wrap() / wrap_bytecode() run on 3.15 and fail closed from 3.16.
-@lazy uses WrappingContext.wrap() (sys.monitoring) on 3.15. inject_hook is
-monitoring-based on 3.15.
+wrap() / wrap_bytecode() run on NEXT_MAX_PY and fail closed from NEXT_MAX_PY+1.
+@lazy uses WrappingContext.wrap() (sys.monitoring) on NEXT_MAX_PY. inject_hook is
+monitoring-based on NEXT_MAX_PY.
 """
 
+# mypy: follow-imports=silent
+from __future__ import annotations
+
+from pathlib import Path
+import re
 from types import CoroutineType
 
 import pytest
@@ -16,17 +21,23 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 # wrap() is live on NEXT_MAX_PY until NEXT_MAX_PY + 1 minor.
 _FAIL_CLOSE: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
-_WRAP_ON_315: bool = NEXT_MAX_PY <= PYTHON_VERSION_INFO[:2] < _FAIL_CLOSE
+_WRAP_ON_NEXT_MAX: bool = NEXT_MAX_PY <= PYTHON_VERSION_INFO[:2] < _FAIL_CLOSE
+
+_REPO_ROOT: Path = Path(__file__).resolve().parents[2]
+_REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
+    r'^requires-python\s*=\s*"[^"]*<(\d+)\.(\d+)"',
+    re.MULTILINE,
+)
 
 
-def test_max_and_next_max_py_version_constants() -> None:
-    assert MAX_PY == (3, 14)
-    assert NEXT_MAX_PY == (3, 15)
-
-
-def test_wrap_fail_close_is_next_max_plus_one() -> None:
-    fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
-    assert fail_close == (3, 16)
+def test_max_py_matches_requires_python_upper_bound() -> None:
+    pyproject: str = (_REPO_ROOT / "pyproject.toml").read_text()
+    match: re.Match[str] | None = _REQUIRES_PYTHON_UPPER.search(pyproject)
+    assert match is not None, "pyproject.toml requires-python must have an exclusive <X.Y upper bound"
+    major: int = int(match.group(1))
+    minor: int = int(match.group(2))
+    last_supported: tuple[int, int] = (major, minor - 1)
+    assert MAX_PY == last_supported
 
 
 def test_wrapping_modules_import():
@@ -37,7 +48,7 @@ def test_wrapping_modules_import():
     import ddtrace.internal.wrapping.generators  # noqa: F401
 
 
-@pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() trampoline on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="wrap() trampoline on 3.15")
 def test_wrap_runs_on_315():
     from ddtrace.internal.wrapping import wrap
 
@@ -68,7 +79,7 @@ def test_wrap_runs_on_315():
     assert seen == ["sync", "gen"]
 
 
-@pytest.mark.skipif(not _WRAP_ON_315, reason="wrap() coroutine on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="wrap() coroutine on 3.15")
 @pytest.mark.asyncio
 async def test_wrap_coroutine_on_315():
     from ddtrace.internal.wrapping import wrap
@@ -115,7 +126,7 @@ def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
         wrapping.wrap_bytecode(wrapper, f)
 
 
-@pytest.mark.skipif(not _WRAP_ON_315, reason="lazy module wrap on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="lazy module wrap on 3.15")
 def test_lazy_module_decorator_without_bytecode_wrap():
     import tests.internal.lazy as lazy_module
 
@@ -132,7 +143,7 @@ def test_exec_lazy_init_without_source():
     assert module_globals["exported"] == 123
 
 
-@pytest.mark.skipif(not _WRAP_ON_315, reason="debugging products load on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="debugging products load on 3.15")
 def test_debugging_products_load_without_failure():
     from ddtrace.internal.products import ProductManager
 
@@ -147,7 +158,7 @@ def test_debugging_products_load_without_failure():
         assert product_name not in product_manager._failed
 
 
-@pytest.mark.skipif(not _WRAP_ON_315, reason="inject_hook on 3.15")
+@pytest.mark.skipif(not _WRAP_ON_NEXT_MAX, reason="inject_hook on 3.15")
 def test_inject_hook_does_not_raise_on_315():
     from ddtrace.internal.bytecode_injection import inject_hook
     from ddtrace.internal.utils.inspection import linenos
