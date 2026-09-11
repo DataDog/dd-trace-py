@@ -213,11 +213,12 @@ def test_rate_limiter_with_jitter_expected_calls(rate_limit):
     acc = []
 
     exceeded = 0
-    for i in range(rate_limit * 10):
-        try:
-            limiter.limit(lambda n: acc.append(n), i)
-        except RateLimitExceeded:
-            exceeded += 1
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic", return_value=limiter.last_time):
+        for i in range(rate_limit * 10):
+            try:
+                limiter.limit(lambda n: acc.append(n), i)
+            except RateLimitExceeded:
+                exceeded += 1
 
     assert not set(range(rate_limit)) < set(acc)
     assert len(acc) == rate_limit
@@ -230,31 +231,32 @@ def test_rate_limiter_with_jitter_expected_calls_tau(rate_limit):
     acc = []
 
     exceeded = 0
-    for i in range(rate_limit * 10):
-        try:
-            limiter.limit(lambda n: acc.append(n), i)
-        except RateLimitExceeded:
-            exceeded += 1
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic", return_value=limiter.last_time):
+        for i in range(rate_limit * 10):
+            try:
+                limiter.limit(lambda n: acc.append(n), i)
+            except RateLimitExceeded:
+                exceeded += 1
 
-    # With tau = 1 / rate_limit we have an initial budget of 1 and therefore we
-    # expect a single call in a tight loop.
     assert acc == [0]
 
 
 @pytest.mark.parametrize("rate_limit", list(range(10)))
 def test_rate_limiter_with_jitter_expected_calls_decorator(rate_limit):
     acc = []
+    limiter = BudgetRateLimiterWithJitter(limit_rate=rate_limit)
 
-    @BudgetRateLimiterWithJitter(limit_rate=rate_limit)
+    @limiter
     def appender(n):
         acc.append(n)
 
     exceeded = 0
-    for i in range(rate_limit * 10):
-        try:
-            appender(i)
-        except RateLimitExceeded:
-            exceeded += 1
+    with mock.patch("ddtrace.internal.rate_limiter.time.monotonic", return_value=limiter.last_time):
+        for i in range(rate_limit * 10):
+            try:
+                appender(i)
+            except RateLimitExceeded:
+                exceeded += 1
 
     assert not set(range(rate_limit)) < set(acc)
     assert len(acc) == rate_limit
