@@ -30,7 +30,7 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.compat import CURRENT_MAX_PY_VERSION
+from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.wrapping import unwrap as _internal_unwrap
 from ddtrace.internal.wrapping import wrap as _internal_wrap
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -127,7 +127,7 @@ def test_internal_wrap_nested_unwrap_restores():
 
 @pytest.mark.xfail(
     strict=True,
-    condition=sys.version_info < CURRENT_MAX_PY_VERSION,
+    condition=sys.version_info < NEXT_MAX_PY,
     reason="WrappingContext.unwrap restores behaviour but rebuilds the code object instead of "
     "reinstating the original, so __code__ identity is not restored after a wrap->unwrap round-trip",
 )
