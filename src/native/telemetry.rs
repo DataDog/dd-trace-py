@@ -225,9 +225,11 @@ impl TelemetryWorkerPy {
             });
         }
 
-        // Keep this worker alive across native libc forks. The SharedRuntime's
-        // pthread_atfork child handler marks the runtime for restart; the first Python-facing
-        // telemetry operation rebuilds the runtime and resets this worker. Deferring the restart
+        // Keep this worker alive across native libc forks. The SharedRuntime's pthread_atfork
+        // child handler marks the runtime for restart; native-only forks still restart the worker
+        // with the runtime. Python-managed forks abandon the inherited runtime instead of calling
+        // after_fork_child(), so this flag is not consulted there. The first Python-facing
+        // telemetry operation lazily restarts the runtime and resets workers; deferring the restart
         // avoids starting Tokio threads in transient fork+exec children.
         let (handle, worker) = builder.build_worker::<NativeCapabilities>(None);
         let worker_handle = shared_runtime
@@ -247,6 +249,25 @@ impl TelemetryWorkerPy {
         self.handle
             .send_start()
             .map_err(|e| PyValueError::new_err(format!("failed to start telemetry worker: {e}")))
+    }
+
+    /// Configure whether this worker restarts when the shared runtime restarts in a fork child.
+    fn set_fork_restart(&self, restart_on_fork: bool) -> PyResult<()> {
+        if let Some(worker_handle) = self
+            .worker_handle
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
+            worker_handle
+                .set_fork_restart(restart_on_fork)
+                .map_err(|e| {
+                    PyValueError::new_err(format!(
+                        "failed to configure telemetry worker fork restart: {e}"
+                    ))
+                })?;
+        }
+        Ok(())
     }
 
     /// Flush + tear the worker down, emitting app-closing (in origin process).
