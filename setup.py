@@ -707,8 +707,8 @@ class LibraryDownloader(BuildPyCommand):
         if self.no_bundle_libddwaf:
             if CURRENT_OS != "Linux":
                 raise RuntimeError(
-                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no "
-                    "SONAME to load there (ddtrace.internal._libddwaf_platform.system_library_name), "
+                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no system "
+                    "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
                     "so libddwaf must be bundled" % CURRENT_OS
                 )
             print("Not bundling libddwaf: the runtime will load the system library")

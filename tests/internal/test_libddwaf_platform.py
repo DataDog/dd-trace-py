@@ -1,6 +1,7 @@
 import ast
 import os
 from pathlib import Path
+import platform
 
 import pytest
 
@@ -11,15 +12,18 @@ from ddtrace.internal.settings.asm import build_libddwaf_filename
 SETUP_PY = Path(__file__).resolve().parents[2] / "setup.py"
 
 
-def _setup_py_literal(class_name, attribute):
+def _setup_py_literal(attribute, class_name=None):
     tree = ast.parse(SETUP_PY.read_text())
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef) and node.name == class_name:
-            for statement in node.body:
-                targets = getattr(statement, "targets", [])
-                if targets and getattr(targets[0], "id", None) == attribute:
-                    return ast.literal_eval(statement.value)
-    raise AssertionError("%s.%s not found in setup.py" % (class_name, attribute))
+    body = tree.body
+    if class_name is not None:
+        classes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name == class_name]
+        assert classes, "%s not found in setup.py" % class_name
+        body = classes[0].body
+    for statement in body:
+        targets = getattr(statement, "targets", [])
+        if targets and getattr(targets[0], "id", None) == attribute:
+            return ast.literal_eval(statement.value)
+    raise AssertionError("%s not found in setup.py" % attribute)
 
 
 def _bundle(libddwaf_dir, arch, system="Linux"):
@@ -50,7 +54,7 @@ def test_target_arch(system, machine, is_64bit, expected):
 
 
 def test_target_arch_matches_the_directories_the_build_creates():
-    releases = _setup_py_literal("LibDDWafDownload", "available_releases")
+    releases = _setup_py_literal("available_releases", "LibDDWafDownload")
     machines = {
         "Linux": ["x86_64", "aarch64"],
         "Darwin": ["x86_64", "arm64"],
@@ -63,16 +67,31 @@ def test_target_arch_matches_the_directories_the_build_creates():
 
 
 @pytest.mark.parametrize(
-    "system,bundled,soname",
+    "system,bundled,system_names",
     [
-        ("Linux", "libddwaf.so", "libddwaf.so.2"),
-        ("Darwin", "libddwaf.dylib", None),
-        ("Windows", "libddwaf.dll", None),
+        ("Linux", "libddwaf.so", ("libddwaf.so.2", "libddwaf.so")),
+        ("Darwin", "libddwaf.dylib", ()),
+        ("Windows", "libddwaf.dll", ()),
     ],
 )
-def test_library_names(system, bundled, soname):
+def test_library_names(system, bundled, system_names):
     assert layout.bundled_library_name(system) == bundled
-    assert layout.system_library_name(system) == soname
+    assert layout.system_library_names(system) == system_names
+
+
+def test_the_abi_major_is_the_pinned_libddwaf_major():
+    pinned = _setup_py_literal("LIBDDWAF_VERSION")
+
+    assert layout.ABI_MAJOR == int(pinned.split(".")[0]), pinned
+
+
+def test_an_unversioned_name_is_tried_after_the_versioned_one():
+    # libddwaf sets no SOVERSION upstream, so a from-source install is plain libddwaf.so.
+    assert layout.load_candidates("libddwaf.so.2", "Linux") == ("libddwaf.so.2", "libddwaf.so")
+
+
+def test_a_bundled_library_is_the_only_candidate():
+    assert layout.load_candidates("/pkg/x86_64/lib/libddwaf.so", "Linux") == ("/pkg/x86_64/lib/libddwaf.so",)
 
 
 def test_the_bundled_library_wins(tmp_path):
@@ -81,11 +100,11 @@ def test_the_bundled_library_wins(tmp_path):
     assert layout.resolve_library(str(tmp_path), "Linux", "x86_64") == str(library)
 
 
-def test_the_soname_is_used_when_nothing_is_bundled(tmp_path):
+def test_the_system_library_is_used_when_nothing_is_bundled(tmp_path):
     resolved = layout.resolve_library(str(tmp_path), "Linux", "x86_64")
 
     assert resolved == "libddwaf.so.2"
-    assert layout.is_loadable(resolved)
+    assert layout.is_loadable(resolved, "Linux")
 
 
 def test_a_bundled_library_for_another_architecture_is_ignored(tmp_path):
@@ -94,15 +113,20 @@ def test_a_bundled_library_for_another_architecture_is_ignored(tmp_path):
     assert layout.resolve_library(str(tmp_path), "Linux", "x86_64") == "libddwaf.so.2"
 
 
-def test_the_bundled_path_is_returned_where_there_is_no_soname(tmp_path):
+def test_the_bundled_path_is_returned_where_there_is_no_system_library(tmp_path):
     resolved = layout.resolve_library(str(tmp_path), "Windows", "AMD64")
 
     assert resolved == os.path.join(str(tmp_path), "x64", "lib", "libddwaf.dll")
-    assert not layout.is_loadable(resolved)
+    assert not layout.is_loadable(resolved, "Windows")
+    assert layout.load_candidates(resolved, "Windows") == (resolved,)
 
 
 def test_a_missing_bundled_library_is_not_loadable(tmp_path):
-    assert not layout.is_loadable(str(tmp_path / "x86_64" / "lib" / "libddwaf.so"))
+    assert not layout.is_loadable(str(tmp_path / "x86_64" / "lib" / "libddwaf.so"), "Linux")
+
+
+def test_an_unknown_name_is_not_loadable():
+    assert not layout.is_loadable("libddwaf.so.99", "Linux")
 
 
 def test_the_installed_library_loads():
@@ -111,4 +135,4 @@ def test_the_installed_library_loads():
     version = ddwaf_types.ddwaf_get_version().decode()
 
     assert version.startswith("%d." % layout.ABI_MAJOR), version
-    assert layout.is_loadable(build_libddwaf_filename())
+    assert layout.is_loadable(build_libddwaf_filename(), platform.system())

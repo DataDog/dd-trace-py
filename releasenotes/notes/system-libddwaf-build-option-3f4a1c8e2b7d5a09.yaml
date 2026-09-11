@@ -2,6 +2,7 @@
 features:
   - |
     AAP: Adds the ``build_py`` option ``--no-bundle-libddwaf``, set through the ``[build_py]``
-    section of ``setup.cfg``, which builds the package without a bundled libddwaf so that the
-    system library is loaded at runtime instead (``libddwaf.so.2``, resolved by the dynamic
-    linker). Intended for Linux distribution packages; default builds bundle libddwaf as before.
+    section of ``setup.cfg``, which builds the package without a bundled libddwaf. The library is
+    then loaded from the system at import time (``libddwaf.so.2``, then ``libddwaf.so``, resolved by
+    the dynamic linker, and required to be 2.x). Intended for Linux distribution packages; default
+    builds bundle libddwaf as before.

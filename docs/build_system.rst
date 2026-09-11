@@ -291,8 +291,7 @@ architecture into the package. Distribution packagers cannot do that: they build
 package libddwaf separately rather than vendoring it.
 
 The ``build_py`` command therefore takes a ``--no-bundle-libddwaf`` option. With it, nothing is downloaded and no library is
-bundled; at import time the loader asks the dynamic linker for ``libddwaf.so.2`` instead, so the library installed on the
-system is used. Being a command option rather than an environment variable, it is set through ``setup.cfg``, which is how it
+bundled. Being a command option rather than an environment variable, it is set through ``setup.cfg``, which is how it
 reaches ``build_py`` through a PEP 517 frontend such as ``pip``:
 
 .. code-block:: ini
@@ -301,22 +300,38 @@ reaches ``build_py`` through a PEP 517 frontend such as ``pip``:
     no_bundle_libddwaf = 1
 
 It can also be passed on the command line for a direct ``python setup.py build_py --no-bundle-libddwaf`` invocation. Default
-builds read no such section and are unaffected.
+builds read no such section and bundle the library as before.
 
-What the packaging must guarantee:
+How the library is found at runtime
+"""""""""""""""""""""""""""""""""""
 
-- ``libddwaf.so.2`` is installed where the dynamic linker looks for it — a normal ``/usr/lib64`` install registered in
-  ``ld.so.cache`` is enough, and the ``-devel`` package is not needed since the SONAME rather than the unversioned
-  ``libddwaf.so`` symlink is requested. Otherwise, ``LD_LIBRARY_PATH`` also works.
+The loader uses the bundled library when the package contains one. When it does not — which is what the option produces,
+but also what a partial or damaged install looks like — it asks the dynamic linker instead, trying ``libddwaf.so.2`` and
+then ``libddwaf.so``. Both names are tried because libddwaf's own CMake sets no ``SOVERSION``: an install built from
+upstream sources is plain ``libddwaf.so``, while a distribution that adds a ``SOVERSION`` ships ``libddwaf.so.2`` in its
+runtime package and keeps ``libddwaf.so`` in ``-devel``. The versioned name is tried first so that the runtime package is
+preferred over a development symlink.
+
+Because an unversioned SONAME guarantees no ABI, the loader checks ``ddwaf_get_version()`` once the library is in: anything
+that is not 2.x is refused.
+
+What the packaging must guarantee
+"""""""""""""""""""""""""""""""""
+
+- The library is installed where the dynamic linker looks for it — a normal ``/usr/lib64`` install registered in
+  ``ld.so.cache`` is enough, and ``-devel`` is not required since the versioned name is tried first. ``LD_LIBRARY_PATH``
+  also works.
 - The package declares a runtime dependency on libddwaf. The library is loaded at import time, not linked at build time, so
   the build succeeds whether or not libddwaf is installed.
-- libddwaf 2.x: the bindings follow that major version, which is why its SONAME is the one requested.
+- libddwaf 2.x, at least 2.0.0: every ``ddwaf_*`` symbol ddtrace resolves is present in 2.0.0, whose public header is
+  identical to 2.0.1's. ``LIBDDWAF_VERSION`` in ``setup.py`` is the version ddtrace pins and tests against, so prefer that
+  one; a 3.x will need a new ddtrace release.
 
-If the library cannot be loaded, AppSec logs a warning and disables itself; the rest of the tracer is unaffected. The version
-actually loaded is reported in telemetry, so a mismatch is visible.
+If the library cannot be loaded, or is not 2.x, AppSec logs a warning and disables itself; the rest of the tracer is
+unaffected. The version actually loaded is reported in telemetry, so a mismatch is visible.
 
-Linux only: elsewhere the runtime has no SONAME to fall back to, so the build fails rather than produce a package whose
-AppSec cannot load.
+Linux only: elsewhere the runtime has no system library to fall back to, so the build fails rather than produce a package
+whose AppSec cannot load.
 
 Debugging Build Performance
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~

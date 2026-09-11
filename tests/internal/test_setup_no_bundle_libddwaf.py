@@ -6,8 +6,6 @@ import shutil
 
 import pytest
 
-from ddtrace.internal import _libddwaf_platform as layout
-
 
 SETUP_PY = Path(__file__).resolve().parents[2] / "setup.py"
 
@@ -122,7 +120,6 @@ def test_a_bundled_library_is_not_staged_again_after_switching(tmp_path):
     downloader.run()
 
     assert _staged(downloader) == []
-    assert layout.resolve_library(str(Path(downloader.build_lib) / "x"), "Linux", "aarch64") == "libddwaf.so.2"
 
 
 def test_the_bundled_library_comes_back_when_the_option_is_dropped(tmp_path):
@@ -136,3 +133,24 @@ def test_the_bundled_library_comes_back_when_the_option_is_dropped(tmp_path):
     downloader.run()
 
     assert _staged(downloader) == ["libddwaf.so"]
+
+
+def test_setup_cfg_sets_the_option_on_the_build_py_command(tmp_path, monkeypatch):
+    """The documented way to pass the option: setuptools maps setup.cfg onto the command."""
+    from setuptools.command.build_py import build_py
+    from setuptools.dist import Distribution
+
+    source = SETUP_PY.read_text()
+    code = source[source.index("class LibraryDownloader(BuildPyCommand):") : source.index("class CleanLibraries(")]
+    namespace = {"BuildPyCommand": build_py}
+    exec(code, namespace)  # noqa: S102
+
+    (tmp_path / "setup.cfg").write_text("[build_py]\nno_bundle_libddwaf = 1\n")
+    monkeypatch.chdir(tmp_path)
+    distribution = Distribution({"script_name": "setup.py", "cmdclass": {"build_py": namespace["LibraryDownloader"]}})
+    distribution.parse_config_files()
+
+    command = distribution.get_command_obj("build_py")
+
+    assert isinstance(command, namespace["LibraryDownloader"])
+    assert command.no_bundle_libddwaf is True

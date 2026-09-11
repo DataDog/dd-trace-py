@@ -101,7 +101,7 @@ class ASMConfig(DDConfig):
     # updated in API Manager enable/disable
     _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
-    _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf)
+    _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf, system())
     _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(
