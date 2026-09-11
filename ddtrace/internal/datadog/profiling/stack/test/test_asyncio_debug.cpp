@@ -176,12 +176,16 @@ class AsyncioElfTest : public ::testing::Test
     }
 };
 
-TEST(AsyncioElfDiscovery, ReadsProcessExecutableWithoutBuildId)
+TEST(AsyncioElfDiscovery, ReadsBuildIdFreeProcessExecutableAndNamedMapping)
 {
 #if defined(TEST_RUNNING_ON_VALGRIND)
     GTEST_SKIP() << "/proc/self/exe identifies Valgrind rather than the test executable";
 #endif
-    std::optional<AsyncioOffsets> offsets;
+    struct DiscoveryResults
+    {
+        std::optional<AsyncioOffsets> executable;
+        std::optional<AsyncioOffsets> named_mapping;
+    } results;
     dl_iterate_phdr(
       [](dl_phdr_info* binary, size_t, void* data) {
           if (binary->dlpi_name != nullptr && binary->dlpi_name[0] != '\0') {
@@ -189,16 +193,22 @@ TEST(AsyncioElfDiscovery, ReadsProcessExecutableWithoutBuildId)
           }
           const int fd = open("/proc/self/exe", O_RDONLY | O_CLOEXEC);
           if (fd >= 0) {
-              *static_cast<std::optional<AsyncioOffsets>*>(data) = read_asyncio_debug_offsets_from_elf(fd, *binary);
+              auto* output = static_cast<DiscoveryResults*>(data);
+              output->executable = read_asyncio_debug_offsets_from_elf(fd, *binary);
+              dl_phdr_info named_binary = *binary;
+              named_binary.dlpi_name = "/proc/self/exe";
+              output->named_mapping = read_asyncio_debug_offsets_from_elf(fd, named_binary);
               close(fd);
           }
           return 1;
       },
-      &offsets);
+      &results);
 
-    ASSERT_TRUE(offsets);
-    EXPECT_EQ(offsets->interpreter_tasks_head, process_asyncio_debug_offsets.interpreter.asyncio_tasks_head);
-    EXPECT_EQ(offsets->thread_tasks_head, process_asyncio_debug_offsets.thread.asyncio_tasks_head);
+    for (const auto& offsets : { results.executable, results.named_mapping }) {
+        ASSERT_TRUE(offsets);
+        EXPECT_EQ(offsets->interpreter_tasks_head, process_asyncio_debug_offsets.interpreter.asyncio_tasks_head);
+        EXPECT_EQ(offsets->thread_tasks_head, process_asyncio_debug_offsets.thread.asyncio_tasks_head);
+    }
 }
 
 TEST_F(AsyncioElfTest, ReadsLoadedTableAndSupportsExtendedSectionNumbering)

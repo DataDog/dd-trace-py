@@ -10,6 +10,7 @@
 #include <array>
 #include <bit>
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 
@@ -18,6 +19,7 @@
 #include <fcntl.h>
 #include <link.h>
 #include <sys/stat.h>
+#include <sys/sysmacros.h>
 #include <unistd.h>
 #elif defined(__APPLE__)
 #include <mach-o/dyld.h>
@@ -221,23 +223,90 @@ has_gnu_build_id(const unsigned char* notes, size_t size)
 }
 
 bool
-is_process_executable(int fd, const dl_phdr_info& binary)
+is_process_executable(const struct stat& file_info, const dl_phdr_info& binary)
 {
     if (binary.dlpi_name != nullptr && binary.dlpi_name[0] != '\0') {
         return false;
     }
 
-    struct stat file_info;
     struct stat executable_info;
-    return fstat(fd, &file_info) == 0 && stat("/proc/self/exe", &executable_info) == 0 &&
-           file_info.st_dev == executable_info.st_dev && file_info.st_ino == executable_info.st_ino;
+    return stat("/proc/self/exe", &executable_info) == 0 && file_info.st_dev == executable_info.st_dev &&
+           file_info.st_ino == executable_info.st_ino;
+}
+
+bool
+mapping_contains_segment(uint64_t start,
+                         uint64_t end,
+                         uint64_t file_offset,
+                         const dl_phdr_info& binary,
+                         const ElfW(Phdr) & segment)
+{
+    if (segment.p_type != PT_LOAD || segment.p_filesz == 0 ||
+        segment.p_vaddr > std::numeric_limits<uintptr_t>::max() - binary.dlpi_addr) {
+        return false;
+    }
+
+    const uint64_t segment_address = binary.dlpi_addr + segment.p_vaddr;
+    if (segment_address < start || segment_address >= end) {
+        return false;
+    }
+    const uint64_t bytes_before_segment = segment_address - start;
+    return segment.p_offset >= bytes_before_segment && file_offset == segment.p_offset - bytes_before_segment;
+}
+
+bool
+matches_loaded_mapping(const struct stat& file_info, const dl_phdr_info& binary)
+{
+    FILE* maps = std::fopen("/proc/self/maps", "r");
+    if (maps == nullptr) {
+        return false;
+    }
+    defer
+    {
+        std::fclose(maps);
+    };
+
+    // A maps entry identifies the mapped file by device and inode. Match its address and file offset to a PT_LOAD
+    // segment first, then compare that identity with the file opened through dlpi_name.
+    std::array<char, 4096> line;
+    while (std::fgets(line.data(), line.size(), maps) != nullptr) {
+        unsigned long long start = 0;
+        unsigned long long end = 0;
+        unsigned long long file_offset = 0;
+        unsigned int device_major = 0;
+        unsigned int device_minor = 0;
+        unsigned long long inode = 0;
+        if (std::sscanf(line.data(),
+                        "%llx-%llx %*4s %llx %x:%x %llu",
+                        &start,
+                        &end,
+                        &file_offset,
+                        &device_major,
+                        &device_minor,
+                        &inode) != 6 ||
+            device_major != major(file_info.st_dev) || device_minor != minor(file_info.st_dev) ||
+            inode != static_cast<unsigned long long>(file_info.st_ino)) {
+            continue;
+        }
+
+        for (ElfW(Half) i = 0; i < binary.dlpi_phnum; ++i) {
+            if (mapping_contains_segment(start, end, file_offset, binary, binary.dlpi_phdr[i])) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 // Section addresses come from the open file, but the load bias and section contents come from the loaded binary. The
 // library path may have been replaced since the loader mapped it, so combining metadata from different files could
 // produce a valid-looking address into unrelated memory. Match the file against loader-owned metadata before using it.
 bool
-matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, const dl_phdr_info& binary)
+matches_loaded_binary(int fd,
+                      uint64_t file_size,
+                      const struct stat& file_info,
+                      const ElfW(Ehdr) & header,
+                      const dl_phdr_info& binary)
 {
     // Program headers define the loaded segment layout. Require the file's complete table to equal the table retained
     // by the dynamic loader before comparing identity metadata within those segments.
@@ -245,7 +314,9 @@ matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, con
         return false;
     }
 
+    bool loaded_has_build_id = false;
     bool matched_build_id = false;
+    bool inspected_all_notes = true;
     for (ElfW(Half) i = 0; i < header.e_phnum; ++i) {
         ElfW(Phdr) segment;
         if (!read_at(fd, file_size, header.e_phoff + i * sizeof(segment), &segment, sizeof(segment)) ||
@@ -255,27 +326,45 @@ matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, con
         // Matching layouts alone do not prove file identity because two builds can have identical program headers.
         // Compare the GNU build ID note from the file with the copy mapped in memory. ELF notes are small, immutable
         // metadata, so cap scratch space and avoid allocating while inspecting them.
+        if (segment.p_type != PT_NOTE) {
+            continue;
+        }
+
         std::array<unsigned char, 4096> file_notes;
         std::array<unsigned char, 4096> loaded_notes;
-        if (segment.p_type != PT_NOTE || segment.p_filesz > file_notes.size() ||
-            !section_is_loaded(binary, segment.p_vaddr, segment.p_filesz)) {
+        if (segment.p_filesz > file_notes.size() || !section_is_loaded(binary, segment.p_vaddr, segment.p_filesz)) {
+            inspected_all_notes = false;
             continue;
         }
         const size_t size = static_cast<size_t>(segment.p_filesz);
         // The loader exposes virtual addresses as integers.
         // NOLINTNEXTLINE(performance-no-int-to-ptr)
         const auto* address = reinterpret_cast<const void*>(binary.dlpi_addr + segment.p_vaddr);
+        if (copy_generic(address, loaded_notes.data(), size) != 0) {
+            inspected_all_notes = false;
+            continue;
+        }
+        if (!has_gnu_build_id(loaded_notes.data(), size)) {
+            continue;
+        }
+
+        loaded_has_build_id = true;
         if (read_at(fd, file_size, segment.p_offset, file_notes.data(), size) &&
-            copy_generic(address, loaded_notes.data(), size) == 0 &&
-            std::memcmp(file_notes.data(), loaded_notes.data(), size) == 0 &&
-            has_gnu_build_id(file_notes.data(), size)) {
+            std::memcmp(file_notes.data(), loaded_notes.data(), size) == 0) {
             matched_build_id = true;
         }
     }
-    // /proc/self/exe is a kernel reference to the exact executable backing this process, including after unlink or
-    // replacement, so its device and inode are sufficient when no build ID exists. Shared-library paths can race with
-    // replacement and therefore require a matching GNU build ID.
-    return matched_build_id || is_process_executable(fd, binary);
+
+    if (loaded_has_build_id) {
+        return matched_build_id;
+    }
+    if (!inspected_all_notes) {
+        return false;
+    }
+
+    // /proc/self/exe refers to the executable backing this process even after unlink or replacement. For other
+    // build-ID-free objects, /proc/self/maps retains the loaded file's device and inode.
+    return is_process_executable(file_info, binary) || matches_loaded_mapping(file_info, binary);
 }
 
 std::optional<AsyncioOffsets>
@@ -350,7 +439,7 @@ read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary)
     const auto file_size = static_cast<uint64_t>(file_info.st_size);
 
     auto header = read_and_validate_elf_header(fd, file_size);
-    if (!header || !matches_loaded_binary(fd, file_size, *header, binary)) {
+    if (!header || !matches_loaded_binary(fd, file_size, file_info, *header, binary)) {
         return std::nullopt;
     }
 
