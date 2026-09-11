@@ -95,6 +95,48 @@ cmake -S "${SOURCE_DIR}" -B "${BUILD_DIR}" \
 # Copy LSan suppression file next to the binaries so it can be referenced at runtime
 cp "${SCRIPT_DIR}/lsan.supp" "${BUILD_DIR}/fuzz/lsan.supp"
 
+# ---- Step 4: Smoke test each built binary ----
+# Verify each fuzzer can actually start. libFuzzer's -help=1 forces the dynamic
+# loader to resolve every shared library (libpython, libdd_wrapper, _native) and
+# runs the binary's global constructors before printing its help to stderr. A
+# binary that cannot start (unresolvable/incompatible libpython, a crashing
+# global constructor, a missing symbol, ...) never reaches that help output, so
+# we treat reaching libFuzzer's help as proof of a successful startup.
+#
+# AIDEV-NOTE: Success is keyed on the help OUTPUT, not the exit code. These
+# harnesses embed CPython/echion global state and can hit a flaky SIGSEGV in
+# global teardown at process exit on some Python versions (observed on 3.13/3.14,
+# non-deterministic across targets and runs). That teardown crash is irrelevant
+# to fuzzing -- the fuzzer runs with runs=-1 and never exits normally -- so
+# gating on the exit status made this build fail non-deterministically. Reaching
+# help proves the binary starts; the exit-time teardown crash is tracked
+# separately and must not fail the build here.
+echo "=== Smoke testing fuzz binaries (-help=1) ==="
+SMOKE_FAILURES=0
+for TARGET in "${FUZZ_TARGETS[@]}"; do
+    BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
+    echo "Smoke test: ${BINARY_PATH} -help=1"
+    # Capture stdout+stderr and ignore the exit status (see AIDEV-NOTE above);
+    # success is decided from the presence of libFuzzer's help output.
+    SMOKE_OUTPUT="$(LD_LIBRARY_PATH="${LIB_INSTALL_DIR}:${PYTHON_LIBDIR}:${LD_LIBRARY_PATH:-}" \
+        ASAN_OPTIONS=detect_leaks=0 \
+        "${BINARY_PATH}" -help=1 2>&1 || true)"
+    if printf '%s\n' "${SMOKE_OUTPUT}" | grep -qi "Verbosity level"; then
+        echo "Smoke test passed: ${TARGET} (reached libFuzzer initialization)"
+    else
+        echo "Smoke test FAILED: ${TARGET} did not reach libFuzzer initialization"
+        echo "----- ${TARGET} -help=1 output -----"
+        printf '%s\n' "${SMOKE_OUTPUT}"
+        echo "------------------------------------"
+        SMOKE_FAILURES=$((SMOKE_FAILURES + 1))
+    fi
+done
+if [ "${SMOKE_FAILURES}" -ne 0 ]; then
+    echo "Startup smoke test failed for ${SMOKE_FAILURES} target(s)"
+    exit 1
+fi
+echo "All fuzz binaries reached libFuzzer initialization"
+
 # Register the built binaries in the manifest file for the CI infrastructure to discover
 for TARGET in "${FUZZ_TARGETS[@]}"; do
     BINARY_PATH="${BUILD_DIR}/fuzz/${TARGET}"
