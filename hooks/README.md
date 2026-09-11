@@ -10,7 +10,9 @@ To install all git hooks, run:
 hooks/autohook.sh install
 ```
 
-This will create symlinks in `.git/hooks/` for all configured hook types.
+This will create symlinks in the repository's shared hooks directory for all configured
+hook types. Running it once covers the main checkout and every `git worktree` created
+from it, so it does not need to be repeated per worktree.
 
 ## Available Hooks
 
@@ -164,12 +166,14 @@ git commit --no-verify  # Skip pre-commit hooks
 
 To disable specific hooks:
 ```bash
-chmod -x .git/hooks/<hook-type>
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+chmod -x "$HOOKS_DIR/<hook-type>"
 ```
 
 To re-enable:
 ```bash
-chmod +x .git/hooks/<hook-type>
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+chmod +x "$HOOKS_DIR/<hook-type>"
 ```
 
 ## Troubleshooting
@@ -177,7 +181,8 @@ chmod +x .git/hooks/<hook-type>
 ### Hook Not Running
 Check if hooks are installed:
 ```bash
-ls -la .git/hooks/
+HOOKS_DIR="$(git rev-parse --git-path hooks)"
+ls -la "$HOOKS_DIR/"
 ```
 
 If missing, run:
