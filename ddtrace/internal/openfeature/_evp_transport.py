@@ -8,6 +8,7 @@ import http.client as httplib
 import os
 import socket
 import threading
+import time
 from typing import Any
 from typing import Optional
 from typing import TypeVar
@@ -25,6 +26,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import TimedOutError
+from ddtrace.internal.openfeature._agentless import normalize_agentless_site
 from ddtrace.internal.settings._agent import config as agent_config
 from ddtrace.internal.settings.env import dd_environ
 from ddtrace.internal.settings.openfeature import AGENTLESS
@@ -32,12 +34,19 @@ from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.settings.openfeature import resolve_configuration_source
 from ddtrace.internal.utils.http import get_connection
+from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
 
 DIRECT_INTAKE_PREFIX = "https://event-platform-intake."
-DIRECT_RETRY_STATUSES = frozenset((403, 404, 405))
+DIRECT_RETRY_STATUSES = frozenset((404, 405))
+DEFAULT_ROUTE_RECOVERY_INTERVAL = 30.0
+EVP_ORIGIN_HEADERS = {
+    "DD-EVP-ORIGIN": "dd-trace-py",
+    "DD-EVP-ORIGIN-VERSION": __version__,
+}
+WINDOWS_WSAECONNREFUSED = 10061
 
 _T = TypeVar("_T")
 
@@ -46,15 +55,10 @@ def _build_direct_intake(site: str) -> Optional[str]:
     # AIDEV-NOTE: DD_SITE is user-controlled and this endpoint carries DD-API-KEY.
     # Keep the configured value confined to ASCII DNS labels so URL parsers cannot
     # reinterpret credentials, delimiters, percent escapes, or IDNA dot variants.
-    normalized_site = site.strip().lower()
-    if not normalized_site or len(normalized_site) > 230:
+    try:
+        normalized_site = normalize_agentless_site(site)
+    except ValueError:
         return None
-
-    for label in normalized_site.split("."):
-        if not label or len(label) > 63 or label.startswith("-") or label.endswith("-"):
-            return None
-        if any(not ("a" <= character <= "z" or "0" <= character <= "9" or character == "-") for character in label):
-            return None
 
     hostname = "event-platform-intake.%s" % normalized_site
     intake = DIRECT_INTAKE_PREFIX + normalized_site
@@ -91,6 +95,7 @@ class EVPRoute:
     base_path: str
     headers: dict[str, str]
     direct: bool = False
+    agentless_local: bool = False
     fallback: Optional["EVPRoute"] = None
 
     def endpoint(self, product_path: str) -> str:
@@ -102,19 +107,29 @@ def get_evp_connection(
     timeout: float,
     connection_factory: Callable[..., Any] = get_connection,
 ) -> Any:
-    """Return a connection for ``route``, tunneling direct HTTPS through the configured proxy."""
+    """Return a connection for ``route``, tunneling direct HTTPS through the configured proxy.
+
+    The shared native connection follows redirects automatically, so direct
+    event delivery deliberately uses ``HTTPSConnection``. Its request API does
+    not follow redirects, keeping ``DD-API-KEY`` confined to the validated
+    intake origin. A non-default factory remains available for isolated tests.
+    """
     if not route.direct:
+        return connection_factory(route.intake, timeout=timeout)
+    if connection_factory is not get_connection:
         return connection_factory(route.intake, timeout=timeout)
 
     origin = urlsplit(route.intake)
-    if origin.scheme != "https" or origin.hostname is None or urllib_request.proxy_bypass(origin.netloc):
-        return connection_factory(route.intake, timeout=timeout)
+    if origin.scheme != "https" or origin.hostname is None:
+        raise ValueError("Feature Flagging direct intake must use HTTPS")
+    if urllib_request.proxy_bypass(origin.netloc):
+        return httplib.HTTPSConnection(origin.hostname, origin.port or 443, timeout=timeout)
 
     # DD_PROXY_HTTPS is the tracer-specific spelling used by system-tests and
     # HTTPS_PROXY/https_proxy are the standard process-wide equivalents.
     proxy_url = dd_environ.get("DD_PROXY_HTTPS") or urllib_request.getproxies().get("https")
     if not proxy_url:
-        return connection_factory(route.intake, timeout=timeout)
+        return httplib.HTTPSConnection(origin.hostname, origin.port or 443, timeout=timeout)
     if "://" not in proxy_url:
         proxy_url = "http://" + proxy_url
 
@@ -140,7 +155,11 @@ def _is_definitive_pre_send_failure(error: BaseException) -> bool:
         return True
     if isinstance(error, socket.gaierror):
         return error.errno in (socket.EAI_AGAIN, socket.EAI_NONAME)
-    return isinstance(error, OSError) and error.errno in (errno.ECONNREFUSED, errno.ENOENT)
+    return isinstance(error, OSError) and error.errno in (
+        errno.ECONNREFUSED,
+        errno.ENOENT,
+        WINDOWS_WSAECONNREFUSED,
+    )
 
 
 def _is_ambiguous_io_failure(error: BaseException) -> bool:
@@ -159,40 +178,55 @@ class FeatureFlagEVPRouteSelector:
         api_key: Optional[str],
         site: str,
         info_provider: Callable[[str], Optional[dict[str, Any]]] = agent.info,
+        clock: Callable[[], float] = time.monotonic,
+        recovery_interval: float = DEFAULT_ROUTE_RECOVERY_INTERVAL,
     ) -> None:
         self._configuration_source = configuration_source
         self._agent_url = agent_url
         self._api_key = api_key
         self._site = site
         self._info_provider = info_provider
+        self._clock = clock
+        self._recovery_interval = recovery_interval
         self._lock = threading.RLock()
         self._pid = os.getpid()
         self._selected = False
         self._route: Optional[EVPRoute] = None
+        self._recover_at = 0.0
         self._unavailable_warning_logged = False
+        self._invalid_site_warning_logged = False
 
     def select(self) -> Optional[EVPRoute]:
-        """Return the active route, discovering Agent EVP support at most once per process."""
+        """Return the active route, serializing discovery across event writers."""
         with self._lock:
             self._reset_after_fork()
-            if self._selected:
-                return self._route
 
-            self._selected = True
-            local = self._discover_local_route()
+            # Remote Configuration preserves its historical Agent-only v2 path.
+            # It never discovers v4, acquires direct credentials, or participates
+            # in the Agentless unavailable-state cooldown.
             if self._configuration_source == REMOTE_CONFIG:
-                self._route = local
+                if not self._selected:
+                    self._selected = True
+                    self._route = self._local_route(EVP_PROXY_AGENT_BASE_PATH)
                 return self._route
 
             if self._configuration_source != AGENTLESS:
                 return None
 
+            if self._selected:
+                if self._route is not None or self._clock() < self._recover_at:
+                    return self._route
+                self._selected = False
+
+            self._selected = True
+            local = self._discover_local_route()
             direct = self._direct_route()
             if local is not None:
                 self._route = EVPRoute(
                     intake=local.intake,
                     base_path=local.base_path,
                     headers=local.headers,
+                    agentless_local=True,
                     fallback=direct,
                 )
             else:
@@ -201,8 +235,13 @@ class FeatureFlagEVPRouteSelector:
             if self._route is None and not self._unavailable_warning_logged:
                 self._unavailable_warning_logged = True
                 log.warning(
-                    "Feature Flagging event delivery disabled: no compatible local EVP route or direct credentials"
+                    "Feature Flagging event delivery is temporarily unavailable; local EVP discovery will retry "
+                    "after the recovery interval"
                 )
+            if self._route is None:
+                self._recover_at = self._clock() + self._recovery_interval
+            else:
+                self._recover_at = 0.0
             return self._route
 
     def send(self, route: EVPRoute, send_once: Callable[[EVPRoute], _T]) -> _T:
@@ -223,12 +262,19 @@ class FeatureFlagEVPRouteSelector:
                 # direct intake.
                 self._activate_direct(route, fallback)
                 raise AmbiguousLocalEVPDeliveryError("local EVP delivery outcome is unknown") from error
+            if route.agentless_local:
+                if fallback is not None:
+                    self._activate_direct(route, fallback)
+                else:
+                    self._mark_unavailable(route)
             raise
 
         status = getattr(response, "status", None)
-        if route.fallback is not None and status in DIRECT_RETRY_STATUSES:
-            self._activate_direct(route, route.fallback)
-            return send_once(route.fallback)
+        if route.agentless_local and status in DIRECT_RETRY_STATUSES:
+            if route.fallback is not None:
+                self._activate_direct(route, route.fallback)
+                return send_once(route.fallback)
+            self._mark_unavailable(route)
         return response
 
     def _reset_after_fork(self) -> None:
@@ -238,6 +284,9 @@ class FeatureFlagEVPRouteSelector:
         self._pid = pid
         self._selected = False
         self._route = None
+        self._recover_at = 0.0
+        self._unavailable_warning_logged = False
+        self._invalid_site_warning_logged = False
 
     def _discover_local_route(self) -> Optional[EVPRoute]:
         try:
@@ -246,18 +295,27 @@ class FeatureFlagEVPRouteSelector:
             log.debug("Feature Flagging EVP route discovery failed", exc_info=True)
             return None
 
-        endpoints = agent_info.get("endpoints", ()) if agent_info else ()
+        raw_endpoints = agent_info.get("endpoints", ()) if agent_info else ()
+        endpoints = raw_endpoints if isinstance(raw_endpoints, (list, tuple)) else ()
+        advertised = {str(endpoint).rstrip("/") for endpoint in endpoints}
         base_path = None
-        if any(str(endpoint).startswith(EVP_PROXY_AGENT_BASE_PATH_V4) for endpoint in endpoints):
+        if EVP_PROXY_AGENT_BASE_PATH_V4 in advertised:
             base_path = EVP_PROXY_AGENT_BASE_PATH_V4
-        elif any(str(endpoint).startswith(EVP_PROXY_AGENT_BASE_PATH) for endpoint in endpoints):
+        elif EVP_PROXY_AGENT_BASE_PATH in advertised:
             base_path = EVP_PROXY_AGENT_BASE_PATH
         if base_path is None:
             return None
+        return self._local_route(base_path)
+
+    def _local_route(self, base_path: str) -> EVPRoute:
         return EVPRoute(
             intake=self._agent_url,
             base_path=base_path,
-            headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE},
+            headers={
+                "Content-Type": "application/json",
+                EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE,
+                **EVP_ORIGIN_HEADERS,
+            },
         )
 
     def _direct_route(self) -> Optional[EVPRoute]:
@@ -265,11 +323,14 @@ class FeatureFlagEVPRouteSelector:
             return None
         intake = _build_direct_intake(self._site)
         if intake is None:
+            if not self._invalid_site_warning_logged:
+                self._invalid_site_warning_logged = True
+                log.warning("Feature Flagging direct event delivery disabled because DD_SITE is invalid")
             return None
         return EVPRoute(
             intake=intake,
             base_path="",
-            headers={"DD-API-KEY": self._api_key},
+            headers={"Content-Type": "application/json", "DD-API-KEY": self._api_key, **EVP_ORIGIN_HEADERS},
             direct=True,
         )
 
@@ -277,6 +338,12 @@ class FeatureFlagEVPRouteSelector:
         with self._lock:
             if self._route == route:
                 self._route = fallback
+
+    def _mark_unavailable(self, route: EVPRoute) -> None:
+        with self._lock:
+            if self._route == route:
+                self._route = None
+                self._recover_at = self._clock() + self._recovery_interval
 
 
 _SELECTOR_LOCK = threading.RLock()

@@ -15,7 +15,6 @@ from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.openfeature._evp_transport import AmbiguousLocalEVPDeliveryError
 from ddtrace.internal.openfeature._evp_transport import EVPRoute
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
@@ -26,7 +25,6 @@ from ddtrace.internal.settings.openfeature import config as ffe_config
 from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
-from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 
 
 logger = get_logger(__name__)
@@ -96,8 +94,6 @@ class ExposureWriter(PeriodicService):
     /evp_proxy/v2/api/v2/exposures
     """
 
-    RETRY_ATTEMPTS = 3
-
     def __init__(
         self,
         interval: Optional[float] = None,
@@ -131,13 +127,6 @@ class ExposureWriter(PeriodicService):
             "Content-Type": "application/json",
             EVP_SUBDOMAIN_HEADER_NAME: EXPOSURE_SUBDOMAIN_NAME,
         }
-
-        # Setup retry mechanism
-        self._send_payload_with_retry = fibonacci_backoff_with_jitter(
-            attempts=self.RETRY_ATTEMPTS,
-            initial_wait=0.618 * self._interval / (1.618**self.RETRY_ATTEMPTS) / 2,
-            until=lambda result: isinstance(result, (Response, AmbiguousLocalEVPDeliveryError)),
-        )(self._send_payload)
 
         logger.debug(
             "ExposureWriter initialized with intake=%s, endpoint=%s, enabled=%s, interval=%s",
@@ -208,7 +197,7 @@ class ExposureWriter(PeriodicService):
             route = self._route_selector.select()
             if route is None:
                 return
-            self._send_payload_with_retry(payload, len(events), route)
+            self._send_payload(payload, len(events), route)
         except Exception:
             logger.debug("failed to send %d exposure events to %s", len(events), self._intake, exc_info=True)
 
@@ -245,7 +234,7 @@ class ExposureWriter(PeriodicService):
 
         def send_once(active_route: EVPRoute) -> Response:
             endpoint = active_route.endpoint(EXPOSURE_ENDPOINT)
-            headers = {"Content-Type": "application/json", **active_route.headers}
+            headers = dict(active_route.headers)
             connection_factory = self._connection_factory or get_connection
             conn = get_evp_connection(active_route, self._timeout, connection_factory)
             try:

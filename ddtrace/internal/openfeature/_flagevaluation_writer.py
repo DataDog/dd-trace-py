@@ -1230,7 +1230,7 @@ class FlagEvaluationWriter(PeriodicService):
 
         def send_once(active_route: EVPRoute) -> httplib.HTTPResponse:
             endpoint = active_route.endpoint("/api/v2/flagevaluation")
-            headers = {"Content-Type": "application/json", **active_route.headers}
+            headers = dict(active_route.headers)
             connection_factory = self._connection_factory or get_connection
             conn = typing.cast(
                 _FlagEvaluationConnection,

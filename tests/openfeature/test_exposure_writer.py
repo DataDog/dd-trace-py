@@ -114,7 +114,11 @@ class TestExposureWriter:
         call_args = mock_conn.request.call_args
         assert call_args[0][0] == "POST"
         assert "/evp_proxy/v2/api/v2/exposures" in call_args[0][1]
-        assert call_args[0][3] == writer._headers
+        assert call_args[0][3]["Content-Type"] == "application/json"
+        assert call_args[0][3]["X-Datadog-EVP-Subdomain"] == "event-platform-intake"
+        assert call_args[0][3]["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert call_args[0][3]["DD-EVP-ORIGIN-VERSION"]
+        assert "DD-API-KEY" not in call_args[0][3]
 
     def test_periodic_flushes_buffer(self, writer, sample_exposure_event):
         """Test that periodic() flushes the buffer."""
@@ -150,11 +154,22 @@ class TestExposureWriter:
             writer = ExposureWriter()
             assert writer._interval == 5.0
 
-    def test_writer_retry_mechanism(self, writer, sample_exposure_event):
-        """Test that _send_payload_with_retry is set up correctly."""
-        # Verify retry wrapper exists
-        assert hasattr(writer, "_send_payload_with_retry")
-        assert callable(writer._send_payload_with_retry)
+    def test_transport_failure_is_attempted_once(self, sample_exposure_event):
+        mock_get_connection = mock.Mock()
+        mock_conn = mock.Mock()
+        mock_conn.getresponse.side_effect = TimeoutError("ambiguous")
+        mock_get_connection.return_value = mock_conn
+        writer = ExposureWriter(
+            interval=0.001,
+            route_selector=_route_selector(),
+            connection_factory=mock_get_connection,
+        )
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        mock_get_connection.assert_called_once_with("http://agent:8126", timeout=2.0)
+        mock_conn.request.assert_called_once()
 
     def test_agentless_direct_route_has_authentication_and_no_local_header(self, sample_exposure_event):
         mock_get_connection = mock.Mock()
@@ -179,6 +194,8 @@ class TestExposureWriter:
         _, endpoint, _, headers = mock_conn.request.call_args[0]
         assert endpoint == "/api/v2/exposures"
         assert headers["DD-API-KEY"] == "secret"
+        assert headers["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert headers["DD-EVP-ORIGIN-VERSION"]
         assert "X-Datadog-EVP-Subdomain" not in headers
 
     def test_agentless_definitive_local_rejection_replays_direct(self, sample_exposure_event):

@@ -1256,6 +1256,8 @@ class TestPeriodicFlush:
         _, direct_endpoint, _, direct_headers = direct_conn.request.call_args[0]
         assert direct_endpoint == "/api/v2/flagevaluation"
         assert direct_headers["DD-API-KEY"] == "secret"
+        assert direct_headers["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert direct_headers["DD-EVP-ORIGIN-VERSION"]
         assert "X-Datadog-EVP-Subdomain" not in direct_headers
 
     def test_agentless_unsafe_site_never_reaches_connection_factory(self):
