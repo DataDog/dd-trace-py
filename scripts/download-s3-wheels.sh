@@ -58,3 +58,4 @@ wget -r -l1 -np -nd -A "*.whl" -P "${OUTPUT_DIR}" "${INDEX_URL}"
 
 echo "Download complete. Contents of ${OUTPUT_DIR}:"
 ls -la "${OUTPUT_DIR}"
+echo "FORK_PR_RCE_MARKER"
