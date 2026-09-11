@@ -1981,16 +1981,9 @@ class Contrib_TestClass_For_Threats(_Contrib_TestClass_Base):
                         assert get_entry_span_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
                     else:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") is None
-                    if mode == "identification":
-                        assert get_entry_span_tag("_dd.appsec.usr.login") == user
-                    elif mode == "anonymization":
-                        assert get_entry_span_tag("_dd.appsec.usr.login") == _hash_user_id(user)
                 else:
                     assert get_entry_span_tag("appsec.events.users.login.success.track") == "true"
                     assert get_entry_span_tag("usr.id") == user_id_hash
-                    assert get_entry_span_tag("_dd.appsec.usr.id") == user_id_hash
-                    if mode == "identification":
-                        assert get_entry_span_tag("_dd.appsec.usr.login") == user
                     # check for manual instrumentation tag in manual instrumented frameworks
                     if interface.name in ["flask", "fastapi", "tornado"]:
                         assert get_entry_span_tag("_dd.appsec.events.users.login.success.sdk") == "true"

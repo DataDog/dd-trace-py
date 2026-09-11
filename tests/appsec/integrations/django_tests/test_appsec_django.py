@@ -94,13 +94,11 @@ def test_create_new_user(client, test_spans, tracer):
         if hasattr(result, "headers"):
             assert result.headers["content-type"].startswith("text/html")
         assert root.get_tag("appsec.events.users.signup.usr.login") == "john"
-        assert root.get_tag("_dd.appsec.usr.login") == "john"
         assert root.get_tag("_dd.appsec.events.users.signup.auto.mode") == "identification", root.get_tag(
             "_dd.appsec.events.users.signup.auto.mode"
         )
         assert root.get_tag("appsec.events.users.signup.track") == "true"
         assert root.get_tag("appsec.events.users.signup.usr.id")
-        assert root.get_tag("_dd.appsec.usr.id")
 
 
 _BLOCKED_USER = "123456"

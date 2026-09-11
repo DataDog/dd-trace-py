@@ -123,8 +123,6 @@ def _track_user_login_common(
 
         if login:
             span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.{success_str}.usr.login", login)
-            if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-                span._set_attribute(APPSEC.USER_LOGIN_USERNAME, login)
             span._set_attribute(f"{tag_prefix}.login", login)
 
         if email:
@@ -180,9 +178,7 @@ def track_user_login_success_event(
     session_id = _maybe_hash(session_id, real_mode)
     span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     if user_id:
-        if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-            span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
-        else:
+        if login_events_mode == LOGIN_EVENTS_MODE.SDK:
             span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.success.usr.id", str(user_id))
     set_user(
         None,
@@ -242,8 +238,6 @@ def track_user_login_failure_event(
         span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.{user.EXISTS}", exists_str)
     if user_id:
         user_id = _maybe_hash(user_id, real_mode)
-        if login_events_mode != LOGIN_EVENTS_MODE.SDK:
-            span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
         span._set_attribute(f"{APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC}.failure.{user.ID}", str(user_id))
     span._set_attribute(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, real_mode)
     # if called from the SDK, set the login, email and name
@@ -278,11 +272,9 @@ def track_user_signup_event(
             user_id = _maybe_hash(user_id, login_events_mode)
             span._set_attribute(user.ID, str(user_id))
             span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERID, str(user_id))
-            span._set_attribute(APPSEC.USER_LOGIN_USERID, str(user_id))
         if login:
             login = _maybe_hash(login, login_events_mode)
             span._set_attribute(APPSEC.USER_SIGNUP_EVENT_USERNAME, str(login))
-            span._set_attribute(APPSEC.USER_LOGIN_USERNAME, str(login))
         _asm_manual_keep(span)
 
         # This is used to mark if the call was done from the SDK of the automatic login events
@@ -388,8 +380,6 @@ def block_request_if_user_blocked(userid: str, mode: str = "sdk", session_id: Op
         if userid:
             if mode == LOGIN_EVENTS_MODE.ANON:
                 userid = _hash_user_id(str(userid))
-            if mode != LOGIN_EVENTS_MODE.SDK:
-                entry_span._set_attribute(APPSEC.USER_LOGIN_USERID, str(userid))
             entry_span._set_attribute(user.ID, str(userid))
     if should_block_user(None, userid, session_id):
         _asm_request_context.block_request()
