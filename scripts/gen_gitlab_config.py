@@ -106,14 +106,14 @@ class JobSpec:
         lines.append("  needs:")
         lines.append("    - prechecks")
         if self.python_versions:
-            lines.append("    - job: build_base_venvs")
+            lines.append("    - job: build_base_test_artifacts")
             lines.append("      artifacts: true")
             lines.append("      parallel:")
             lines.append("        matrix:")
             for pv in sorted(self.python_versions):
                 lines.append(f'          - PYTHON_VERSION: "{pv}"')
         else:
-            lines.append("    - job: build_base_venvs")
+            lines.append("    - job: build_base_test_artifacts")
             lines.append("      artifacts: true")
 
         # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
@@ -134,7 +134,7 @@ class JobSpec:
         if self.snapshot:
             wait_for.append("testagent")
 
-        # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
+        # Bake NIGHTLY_BUILD into script (same approach as build_base_test_artifacts template)
         # so the value is set when tests-gen runs and is present in the child job.
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
@@ -198,7 +198,7 @@ class SuiteVenvInfo:
         return len(self.environment_hashes)
 
 
-# Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
+# Module-level state: populated by gen_required_suites, consumed by gen_build_base_test_artifacts
 _global_python_versions: set[str] = set()
 _needs_base_venvs = True
 
@@ -536,7 +536,7 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
         )
 
-    # Populate the module-level global so gen_build_base_venvs can use it
+    # Populate the module-level global so gen_build_base_test_artifacts can use it
     _global_python_versions = set()
     for info in suite_venv_info.values():
         _global_python_versions.update(info.python_versions)
@@ -648,7 +648,7 @@ def gen_build_docs() -> None:
             ".readthedocs.yml",
         }
     ):
-        # build_docs uses Python 3.10; ensure it's included in build_base_venvs
+        # build_docs uses Python 3.10; ensure it is included in build_base_test_artifacts
         _global_python_versions.add("3.10")
         _needs_base_venvs = True
 
@@ -658,7 +658,7 @@ def gen_build_docs() -> None:
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print("    - job: build_base_venvs", file=f)
+            print("    - job: build_base_test_artifacts", file=f)
             print("      artifacts: true", file=f)
             print("      parallel:", file=f)
             print("        matrix:", file=f)
@@ -840,7 +840,7 @@ def gen_cached_testrunner() -> None:
         )
 
 
-def gen_build_base_venvs() -> None:
+def gen_build_base_test_artifacts() -> None:
     """Generate the list of base jobs for building virtual environments.
 
     We need to generate this dynamically from a template because it depends
@@ -865,7 +865,7 @@ def gen_build_base_venvs() -> None:
     with TESTS_GEN.open("a") as f:
         f.write(
             template(
-                "build-base-venvs",
+                "build-base-test-artifacts",
                 python_versions=python_versions_str,
                 unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
                 nightly_build=_get_bool_env("NIGHTLY_BUILD"),

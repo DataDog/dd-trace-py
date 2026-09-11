@@ -164,13 +164,13 @@ def emit_ddtest_jobs(
             for key, value in extra.items():
                 print(f"    {key}: {value}", file=f)
 
-    def emit_needs_build_base_venvs(needed_environments: list[tuple[str, str]]) -> None:
-        print("    - job: build_base_venvs", file=f)
+    def emit_needs_build_base_test_artifacts(needed_environments: list[tuple[str, str]]) -> None:
+        print("    - job: build_base_test_artifacts", file=f)
         print("      artifacts: true", file=f)
         print("      parallel:", file=f)
         print("        matrix:", file=f)
         # Dedup PYTHON_VERSIONs: several hashes share a Python version, but
-        # build_base_venvs only needs to be downloaded once per version.
+        # build_base_test_artifacts only needs to be downloaded once per version.
         seen_py: set[str] = set()
         for _h, py in needed_environments:
             if py in seen_py:
@@ -187,7 +187,7 @@ def emit_ddtest_jobs(
     print(f"  stage: {stage}", file=f)
     print("  needs:", file=f)
     print("    - prechecks", file=f)
-    emit_needs_build_base_venvs(environments)
+    emit_needs_build_base_test_artifacts(environments)
     emit_services(plan=True)
     emit_before_script(plan=True)
     hash_python = " ".join(f"{h}:{py}:{metadata[h][0]}:{metadata[h][1]}" for h, py in environments)
@@ -212,7 +212,7 @@ def emit_ddtest_jobs(
     # Matrix expressions are not available on all GitLab versions used by CI,
     # so emit one run job per Python version instead of dynamically matching a
     # need from the run matrix. This keeps each run job's artifact download
-    # limited to its own build_base_venvs matrix entry.
+    # limited to its own build_base_test_artifacts matrix entry.
     environments_by_python: dict[str, list[tuple[str, str]]] = {}
     for environment in environments:
         environments_by_python.setdefault(environment[1], []).append(environment)
@@ -224,7 +224,7 @@ def emit_ddtest_jobs(
         print(f"  stage: {stage}", file=f)
         print("  needs:", file=f)
         print("    - prechecks", file=f)
-        emit_needs_build_base_venvs(python_environments)
+        emit_needs_build_base_test_artifacts(python_environments)
         # Each run downloads the single plan artifact (which contains all
         # hashes' plans, partitioned by hash) and restores its own hash's plan.
         print("    - job: " + plan_name, file=f)
