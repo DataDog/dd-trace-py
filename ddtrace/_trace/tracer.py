@@ -382,6 +382,10 @@ class Tracer(object):
                 compute_stats_enabled,
                 appsec_enabled,
                 iast_enabled,
+                # Without this the sampling processor keeps a stale apm_opt_out, so a runtime
+                # switch into standalone would send traces with neither the 1 trace per minute
+                # limit nor _dd.apm.enabled=0, and they would be billed as ordinary APM.
+                apm_tracing_disabled,
             ]
         ):
             self._recreate(

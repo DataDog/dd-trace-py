@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where enabling LLM Observability together with
+    ``DD_APM_TRACING_ENABLED=false`` discarded every trace, so AI Guard, App and API
+    Protection, Code Security and Software Composition Analysis reported no spans while
+    running in standalone mode. These traces are now sent, and APM billing stays opted out.
+  - |
+    tracing: Fixes an issue where switching a product into standalone mode at runtime with
+    ``tracer.configure(apm_tracing_disabled=True)`` did not apply the standalone sampling
+    settings, so traces were sent without the one trace per minute limit and without the
+    ``_dd.apm.enabled=0`` metric that opts them out of APM billing.

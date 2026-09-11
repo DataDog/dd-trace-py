@@ -32,8 +32,9 @@ class LLMObsProcessor(TraceProcessor):
     Single owner of:
       * per-span LLMObs export routing (mode and event are stamped on the span by
         ``LLMObs._on_span_finish``);
-      * dropping the APM trace when either ``DD_APM_TRACING_ENABLED=false`` or the
-        tracer is disabled at runtime (replaces the legacy ``APMTracingEnabledFilter``).
+      * dropping the APM trace when APM tracing is off or the tracer is disabled at
+        runtime (replaces the legacy APMTracingEnabledFilter), unless a product is
+        running standalone and needs its traces delivered anyway.
     """
 
     def __init__(self, llmobs_span_writer: LLMObsSpanWriter, tracer: "Tracer", keep_meta_struct: bool = False) -> None:
@@ -43,7 +44,11 @@ class LLMObsProcessor(TraceProcessor):
         self._keep_meta_struct = keep_meta_struct
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
-        drop_apm_trace = not standalone_config.apm_tracing_enabled or not self._tracer.enabled
+        # Standalone products (AI Guard, AppSec, IAST, SCA) run with APM tracing off and the tracer
+        # disabled on purpose, and still need their traces delivered, so never drop them here.
+        drop_apm_trace = not standalone_config.apm_opt_out and (
+            not standalone_config.apm_tracing_enabled or not self._tracer.enabled
+        )
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue

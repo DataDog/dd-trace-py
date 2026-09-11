@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
@@ -17,6 +18,7 @@ from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._processor import LLMObsProcessor
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
+from tests.utils import DummyWriter
 from tests.utils import override_global_config
 
 
@@ -381,3 +383,83 @@ class TestSamplingPriorityKeyPresent:
         with tracer.trace("apm-span") as span:
             span.context.sampling_priority = USER_REJECT
             assert span.context._metrics[_SAMPLING_PRIORITY_KEY] == USER_REJECT
+
+
+class TestStandaloneKeepsAPMTrace:
+    """Standalone products (AI Guard, AppSec, IAST, SCA) turn APM tracing off and disable the
+    tracer on purpose, and still need their traces delivered, so the processor must not drop them.
+    """
+
+    @pytest.mark.parametrize(
+        "apm_tracing_enabled,tracer_enabled,apm_opt_out,expect_dropped",
+        [
+            # A product runs standalone: APM tracing off and tracer disabled, trace must survive.
+            (False, False, True, False),
+            # APM tracing off with no standalone product: drop, as before.
+            (False, False, False, True),
+            # Tracer disabled at runtime with no standalone product: drop, as before.
+            (True, False, False, True),
+            # Nothing disabled: keep, as before.
+            (True, True, False, False),
+        ],
+    )
+    def test_drop_decision_respects_apm_opt_out(self, apm_tracing_enabled, tracer_enabled, apm_opt_out, expect_dropped):
+        mock_tracer = mock.MagicMock()
+        mock_tracer.enabled = tracer_enabled
+        processor = LLMObsProcessor(mock.MagicMock(), mock_tracer)
+        # A non-LLM span keeps this focused on the drop decision, not on event routing.
+        trace = [Span("web.request", span_type=SpanTypes.WEB)]
+
+        with mock.patch("ddtrace.llmobs._processor.standalone_config") as config:
+            config.apm_tracing_enabled = apm_tracing_enabled
+            config.apm_opt_out = apm_opt_out
+            result = processor.process_trace(trace)
+
+        assert result is (None if expect_dropped else trace)
+
+
+class TestStandaloneKeepsLLMObsRoutingIntact:
+    """Keeping the APM trace for a standalone product must not disturb LLMObs' own delivery: the
+    event still reaches the LLMObs intake exactly once and never also rides the kept trace.
+    """
+
+    @pytest.fixture
+    def llmobs_standalone(self, tracer):
+        llmobs_service.disable()
+        with override_global_config(
+            {
+                "_llmobs_ml_app": "test-ml-app",
+                "_dd_api_key": "<not-a-real-key>",
+                "service": "tests.llmobs",
+            }
+        ):
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            # Standalone always resolves to an LLMOBS_* export mode, so the event is routed to the
+            # LLMObs intake instead of riding the APM trace.
+            llmobs_service._instance._export_mode = LLMObsExportMode.LLMOBS_AGENT_PROXY
+            llmobs_service._instance._llmobs_span_writer.stop()
+            mock_writer = mock.MagicMock()
+            llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
+            yield mock_writer
+            llmobs_service.disable()
+
+    def test_trace_kept_and_llmobs_event_enqueued_exactly_once(self, llmobs_standalone, tracer):
+        mock_writer = llmobs_standalone
+        # Installed after enable(), which recreates the writer.
+        apm_writer = DummyWriter(trace_flush_enabled=False)
+        tracer._span_aggregator.writer = apm_writer
+
+        with mock.patch("ddtrace.llmobs._processor.standalone_config") as config:
+            config.apm_opt_out = True
+            config.apm_tracing_enabled = False
+            with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                _annotate_llm_span(span)
+
+        # The standalone product's trace reaches the APM writer.
+        assert [s.name for t in apm_writer.pop_traces() for s in t] == ["llm-span"]
+        # The LLMObs event still goes to its own intake exactly once: not dropped, not duplicated.
+        mock_writer.enqueue.assert_called_once()
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+        # Scrubbed, so the payload does not also ride the now-kept trace.
+        assert not _get_llmobs_data_metastruct(span)
