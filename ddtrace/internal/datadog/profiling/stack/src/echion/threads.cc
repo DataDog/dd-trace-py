@@ -1104,7 +1104,7 @@ matching_active_fingerprint(EchionSampler& echion, const TaskInfo& task, const R
     }
 
     FrameStack active_stack;
-    if (unwind_frame(echion, active->frame, active_stack, echion.seen_frames_scratch(), 1) != 1) {
+    if (unwind_frame(echion, active->frame, active_stack, echion.seen_frames_scratch(), 1, false).frames_added != 1) {
         return nullptr;
     }
     return fingerprint_matches_frame(*fingerprint, active_stack[0]) ? fingerprint : nullptr;
@@ -1143,7 +1143,7 @@ append_greenlet_parents(EchionSampler& echion,
         GreenletInfo parent(0, parent_frame, parent_name);
         parent.unwind(echion, parent_frame, tstate, parent_stack);
         for (const Frame& frame : parent_stack) {
-            if (captured_stack.size() >= max_frames) {
+            if (captured_stack.size() >= MAX_TASK_FRAMES) {
                 return;
             }
             const bool already_captured =
@@ -1169,11 +1169,11 @@ stitch_captured_stack(FrameStack captured_stack,
         return fingerprint_matches_frame(fingerprint, frame);
     });
     if (captured_boundary == captured_stack.end() || logical_boundary == logical_stack.end() ||
-        captured_stack.size() >= max_frames) {
+        captured_stack.size() >= MAX_TASK_FRAMES) {
         return captured_stack;
     }
 
-    const size_t available = max_frames - captured_stack.size();
+    const size_t available = MAX_TASK_FRAMES - captured_stack.size();
     std::vector<Frame> logical_ancestors;
     logical_ancestors.reserve(std::min(available, static_cast<size_t>(logical_stack.end() - logical_boundary - 1)));
     for (auto it = logical_boundary + 1; it != logical_stack.end() && logical_ancestors.size() < available; ++it) {
