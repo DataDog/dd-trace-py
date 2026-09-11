@@ -2,9 +2,10 @@ import consul
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -35,9 +36,6 @@ def patch():
         return
     consul.__datadog_patch = True
 
-    pin = Pin(service=schematize_service_name(consulx.SERVICE))
-    pin.onto(consul.Consul.KV)
-
     for f_name in _KV_FUNCS:
         _w("consul", "Consul.KV.%s" % f_name, wrap_function(f_name))
 
@@ -53,8 +51,7 @@ def unpatch():
 
 def wrap_function(name):
     def trace_func(wrapped, instance, args, kwargs):
-        pin = Pin.get_from(instance)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
 
         # Only patch the synchronous implementation
@@ -69,7 +66,9 @@ def wrap_function(name):
             resource=resource,
             span_type=SpanTypes.HTTP,
         ) as span:
-            set_service_and_source(span, pin.service, config.consul)
+            set_service_and_source(
+                span, ext_service(None, config.consul, default=schematize_service_name(consulx.SERVICE)), config.consul
+            )
             span._set_attribute(COMPONENT, config.consul.integration_name)
 
             span._set_attribute(net.TARGET_HOST, instance.agent.http.host)
