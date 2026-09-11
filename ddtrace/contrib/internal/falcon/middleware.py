@@ -32,9 +32,6 @@ class TraceMiddleware(object):
             config.falcon["distributed_tracing"] = distributed_tracing
 
     def process_request(self, req, resp):
-        # Falcon uppercases all header names.
-        headers = {key.lower(): value for key, value in req.headers.items()}
-
         event = WebFrameworkRequestEvent(
             http_operation="falcon.request",
             component=config.falcon.integration_name,
@@ -42,12 +39,15 @@ class TraceMiddleware(object):
             service=self.service,
             request_method=req.method,
             request_url=req.url,
-            request_headers=headers,
+            # Preserve the header mapping passed to set_http_meta before this
+            # migration. Distributed propagation normalizes header names
+            # independently.
+            request_headers=req.headers,
             query=req.query_string,
             request_route=None,
             allow_default_resource=True,
             activate_distributed_headers=True,
-            headers_case_sensitive=True,
+            headers_case_sensitive=False,
         )
 
         with core.context_with_event(
