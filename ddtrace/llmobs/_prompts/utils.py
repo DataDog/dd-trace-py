@@ -59,13 +59,24 @@ def render_chat(messages: list[ChatTemplateItem], variables: dict[str, Any]) -> 
             if not isinstance(value, list):
                 raise ValueError(f"Message placeholder '{name}' must be a list of messages")
             for message in value:
+                content = message.get("content") if isinstance(message, dict) else None
                 if (
                     not isinstance(message, dict)
                     or not isinstance(message.get("role"), str)
-                    or not isinstance(message.get("content"), str)
                     or message.get("type") == "placeholder"
+                    or ("content" in message and content is not None and not isinstance(content, str))
+                    or (
+                        not isinstance(content, str)
+                        and not any(
+                            isinstance(message.get(field), list) and message[field]
+                            for field in ("tool_calls", "tool_results")
+                        )
+                    )
                 ):
-                    raise ValueError(f"Message placeholder '{name}' must contain messages with string role and content")
+                    raise ValueError(
+                        f"Message placeholder '{name}' must contain messages with "
+                        "a string role and text or tool content"
+                    )
                 rendered.append(cast(Message, dict(message)))
             continue
         role = cast(str, msg.get("role") or "")

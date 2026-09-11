@@ -191,10 +191,22 @@ class TestPrompts:
         ]
         prompt = ManagedPrompt(id="assistant", version="1", label=None, source="registry", template=template)
         history = [{"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}}]
+        tools = [
+            {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [{"name": "lookup", "arguments": {"id": 1}, "tool_id": "call-1"}],
+            },
+            {
+                "role": "tool",
+                "tool_results": [{"name": "lookup", "result": "found", "tool_id": "call-1"}],
+            },
+        ]
 
-        assert prompt.format(persona="concise", question="Help", history=history, examples=[]) == [
+        assert prompt.format(persona="concise", question="Help", history=history, examples=tools) == [
             {"role": "system", "content": "You are concise."},
             {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
+            *tools,
             {"role": "user", "content": "Keep {{opaque}}", "provider_field": {"id": 1}},
             {"role": "user", "content": "Help"},
         ]
@@ -204,10 +216,16 @@ class TestPrompts:
         [
             ({}, "Missing value"),
             ({"history": "not-a-list"}, "must be a list"),
-            ({"history": [{"role": "user"}]}, "string role and content"),
+            ({"history": [{"role": "user"}]}, "string role and text or tool content"),
+            ({"history": [{"role": "assistant", "content": None}]}, "string role and text or tool content"),
+            ({"history": [{"role": "assistant", "tool_calls": []}]}, "string role and text or tool content"),
+            (
+                {"history": [{"role": "assistant", "content": [{"type": "image"}], "tool_calls": [{}]}]},
+                "string role and text or tool content",
+            ),
             (
                 {"history": [{"type": "placeholder", "name": "nested", "role": "user", "content": "x"}]},
-                "string role and content",
+                "string role and text or tool content",
             ),
         ],
     )
