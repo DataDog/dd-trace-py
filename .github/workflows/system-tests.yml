@@ -138,10 +138,17 @@ jobs:
   tracer-release:
     needs:
       - download-s3-wheels
-    uses: DataDog/system-tests/.github/workflows/system-tests.yml@6bcdc71f0db7d262a02541a07546630784e7acdf
+    # NOTE: pinned to the previous system-tests ref. The bumped ref (6bcdc71f)
+    # pulls in a parametric hang (agent-pool POC #7235 + ~3k lines of new
+    # parametric tests stall ~7% of the suite indefinitely; pytest-timeout is
+    # installed but not activated). This job runs the PARAMETRIC scenario via the
+    # tracer-release group, so it hangs on the new ref. It does not run any SSI /
+    # Debian 11 scenario, so it does not need the EOL fix. Keep on the last
+    # known-good ref until the upstream hang is fixed.
+    uses: DataDog/system-tests/.github/workflows/system-tests.yml@77e6da9b53639436525bf7bfb076723e18e102c3
     with:
       library: python
-      ref: '6bcdc71f0db7d262a02541a07546630784e7acdf'
+      ref: '77e6da9b53639436525bf7bfb076723e18e102c3'
       binaries_artifact: wheels-manylinux_x86_64
       desired_execution_time: 900
       scenarios_groups: tracer-release
