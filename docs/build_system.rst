@@ -303,7 +303,7 @@ It can also be passed on the command line for a direct ``python setup.py build_p
 builds read no such section and bundle the library as before.
 
 How the library is found at runtime
-"""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 The loader uses the bundled library when the package contains one. When it does not — which is what the option produces,
 but also what a partial or damaged install looks like — it asks the dynamic linker instead, trying ``libddwaf.so.2`` and
@@ -316,7 +316,7 @@ Because an unversioned SONAME guarantees no ABI, the loader checks ``ddwaf_get_v
 that is not 2.x is refused.
 
 What the packaging must guarantee
-"""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - The library is installed where the dynamic linker looks for it — a normal ``/usr/lib64`` install registered in
   ``ld.so.cache`` is enough, and ``-devel`` is not required since the versioned name is tried first. ``LD_LIBRARY_PATH``
