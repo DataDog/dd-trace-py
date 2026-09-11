@@ -1,23 +1,22 @@
+from typing import Optional
 from urllib.parse import urlencode
 
 import molten
-import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings import env
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 
+from .wrappers import MOLTEN_REQUEST_EVENT_KEY
 from .wrappers import WrapperComponent
 from .wrappers import WrapperMiddleware
 from .wrappers import WrapperRenderer
@@ -66,6 +65,14 @@ def unpatch():
         _u(molten.App, "__call__")
 
 
+def _parse_status_code(status: str) -> Optional[int]:
+    code, _, _ = status.partition(" ")
+    try:
+        return int(code)
+    except (TypeError, ValueError):
+        return None
+
+
 def patch_app_call(wrapped, instance, args, kwargs):
     pin = Pin.get_from(molten)
 
@@ -77,70 +84,47 @@ def patch_app_call(wrapped, instance, args, kwargs):
     environ, start_response = args
 
     request = molten.http.Request.from_environ(environ)
-    resource = func_name(wrapped)
+    request_headers = dict(request.headers)
 
-    with (
-        core.context_with_data(
-            "molten.request",
-            span_name=schematize_url_operation("molten.request", protocol="http", direction=SpanDirection.INBOUND),
-            span_type=SpanTypes.WEB,
-            service=trace_utils.int_service(pin, config.molten),
-            resource=resource,
-            tags={},
-            distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
-            integration_config=config.molten,
-            allow_default_resource=True,
-            activate_distributed_headers=True,
-            headers_case_sensitive=True,
-        ) as ctx,
-        span_from_context(ctx) as req_span,
-    ):
-        ctx.set_item("req_span", req_span)
-        core.dispatch("web.request.start", (ctx, config.molten))
+    url = "%s://%s:%s%s" % (
+        request.scheme,
+        request.host,
+        request.port,
+        request.path,
+    )
 
-        @wrapt.function_wrapper
-        def _w_start_response(wrapped, instance, args, kwargs):
-            pin = Pin.get_from(molten)
-            if not pin or not pin.enabled():
-                return wrapped(*args, **kwargs)
+    query = urlencode(dict(request.params))
 
-            status, headers, exc_info = args
-            code, _, _ = status.partition(" ")
+    event = WebFrameworkRequestEvent(
+        http_operation="molten.request",
+        component=config.molten.integration_name,
+        integration_config=config.molten,
+        service=trace_utils.int_service(pin, config.molten),
+        resource=func_name(wrapped),
+        tags={"molten.version": get_version()},
+        request_method=request.method,
+        request_url=url,
+        request_headers=request_headers,
+        query=query,
+        request_route=None,
+        allow_default_resource=True,
+        activate_distributed_headers=True,
+        headers_case_sensitive=True,
+    )
 
-            core.dispatch(
-                "web.request.finish",
-                (req_span, config.molten, request.method, None, code, None, None, None, None, False),
-            )
+    with core.context_with_event(event) as ctx:
+        ctx.set_item("req_span", span_from_context(ctx))
+        ctx.set_item(MOLTEN_REQUEST_EVENT_KEY, event)
 
-            return wrapped(*args, **kwargs)
+        def traced_start_response(status, response_headers, exc_info=None):
+            event.response_status_code = _parse_status_code(status)
 
-        # patching for extracting response code
-        start_response = _w_start_response(start_response)
+            if event.set_resource:
+                event.resource = None
 
-        url = "%s://%s:%s%s" % (
-            request.scheme,
-            request.host,
-            request.port,
-            request.path,
-        )
-        ctx.set_item("additional_tags", {"molten.version": molten.__version__})
-        core.dispatch(
-            "web.request.finish",
-            (
-                req_span,
-                config.molten,
-                request.method,
-                url,
-                None,
-                urlencode(dict(request.params)),
-                request.headers,
-                None,
-                None,
-                False,
-            ),
-        )
+            return start_response(status, response_headers, exc_info)
 
-        return wrapped(environ, start_response, **kwargs)
+        return wrapped(environ, traced_start_response, **kwargs)
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
