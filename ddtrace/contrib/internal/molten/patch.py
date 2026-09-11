@@ -1,11 +1,7 @@
-from typing import Any
-from typing import Callable
 from typing import Optional
-from typing import cast
 from urllib.parse import urlencode
 
 import molten
-import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -120,17 +116,18 @@ def patch_app_call(wrapped, instance, args, kwargs):
         ctx.set_item("req_span", span_from_context(ctx))
         ctx.set_item(MOLTEN_REQUEST_EVENT_KEY, event)
 
-        @wrapt.function_wrapper
-        def _w_start_response(wrapped, instance, args, kwargs):
-            status = args[0]
+        def traced_start_response(status, response_headers, exc_info=None):
             event.response_status_code = _parse_status_code(status)
+
             if event.set_resource:
                 event.resource = None
-            return wrapped(*args, **kwargs)
 
-        start_response_wrapper = cast(Callable[..., Any], _w_start_response)
-        traced_response = start_response_wrapper(start_response)
-        return wrapped(environ, traced_response, **kwargs)
+            if exc_info is None:
+                return start_response(status, response_headers)
+
+            return start_response(status, response_headers, exc_info)
+
+        return wrapped(environ, traced_start_response, **kwargs)
 
 
 def patch_app_init(wrapped, instance, args, kwargs):
