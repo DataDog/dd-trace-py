@@ -48,25 +48,27 @@ class MiddlewareTestCase(TracerTestCase, testing.TestCase, FalconTestCase):
     ],
 )
 def test_process_response_route_includes_root_path(root_path, uri_template, want_route):
+    middleware = TraceMiddleware()
     span = mock.MagicMock()
+    ctx = mock.MagicMock()
+    ctx.event = mock.MagicMock()
+
     req = mock.MagicMock()
     req.root_path = root_path
     req.uri_template = uri_template
     req.method = "GET"
+    req.env = {
+        middleware._request_context_key: ctx,
+    }
+
     resp = mock.MagicMock()
     resp.status = "200 OK"
     resp._headers = {}
 
-    middleware = TraceMiddleware()
-    with (
-        mock.patch("ddtrace.contrib.internal.falcon.middleware.tracer.current_span", return_value=span),
-        mock.patch("ddtrace.contrib.internal.falcon.middleware.core.dispatch") as mocked_dispatch,
-    ):
+    with mock.patch("ddtrace.contrib.internal.falcon.middleware.span_from_context", return_value=span):
         middleware.process_response(req, resp, mock.MagicMock(), req_succeeded=True)
 
-    web_finish_calls = [c for c in mocked_dispatch.call_args_list if c.args and c.args[0] == "web.request.finish"]
-    assert web_finish_calls, "expected a web.request.finish dispatch"
-    # ``route`` is the second-to-last positional in the args tuple.
-    args_tuple = web_finish_calls[-1].args[1]
-    route_arg = args_tuple[-2]
-    assert route_arg == want_route
+    assert ctx.event.request_route == want_route
+    assert ctx.event.response_status_code == 200
+    assert ctx.event.response_headers == {}
+    ctx.dispatch_ended_event.assert_called_once_with()

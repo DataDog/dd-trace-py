@@ -236,6 +236,46 @@ class FalconTestCase(FalconTestMixin):
         assert span.get_tag("http.request.headers.my-header") == "my_value"
         assert span.get_tag("http.response.headers.my-response-header") == "my_response_value"
 
+    def test_request_metadata_available_during_resource_execution(self):
+        observed = {}
+        test_tracer = self.tracer
+
+        class Resource(object):
+            def on_get(self, req, resp):
+                span = test_tracer.current_root_span()
+                assert span is not None
+
+                observed["resource"] = span.resource
+                observed["method"] = span.get_tag(httpx.METHOD)
+                observed["url"] = span.get_tag(httpx.URL)
+
+                # Ensure event finalization does not overwrite application
+                # customization.
+                span.resource = "custom"
+
+        self.api.add_route("/inspect", Resource())
+        response = self.make_test_call(
+            "/inspect",
+            expected_status_code=200,
+        )
+
+        expected_resource = "GET {}.{}".format(
+            Resource.__module__,
+            Resource.__name__,
+        )
+
+        assert response.status_code == 200
+        assert observed == {
+            "resource": expected_resource,
+            "method": "GET",
+            "url": "http://falconframework.org/inspect",
+        }
+
+        traces = self.pop_traces()
+        assert len(traces) == 1
+        assert len(traces[0]) == 1
+        assert traces[0][0].resource == "custom"
+
     def test_inferred_spans_api_gateway_default(self):
         headers = {
             "x-dd-proxy": "aws-apigateway",
