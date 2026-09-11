@@ -23,3 +23,30 @@ def record_early_flake_detection_tests_count(early_flake_detection_count: int):
         EARLY_FLAKE_DETECTION_TELEMETRY.RESPONSE_TESTS.value,
         early_flake_detection_count,
     )
+
+
+def record_early_flake_detection_pages_fetched(pages: int):
+    log.debug("Recording early flake detection pages fetched telemetry: %s", pages)
+    telemetry_writer.add_distribution_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY,
+        "early_flake_detection.pages_fetched",
+        pages,
+    )
+
+
+def record_early_flake_detection_total_fetch_ms(total_ms: float):
+    log.debug("Recording early flake detection total fetch ms telemetry: %s", total_ms)
+    telemetry_writer.add_distribution_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY,
+        "early_flake_detection.total_fetch_ms",
+        total_ms,
+    )
+
+
+def record_early_flake_detection_total_request_ms(total_ms: float):
+    log.debug("Recording early flake detection total request ms telemetry: %s", total_ms)
+    telemetry_writer.add_distribution_metric(
+        TELEMETRY_NAMESPACE.CIVISIBILITY,
+        "early_flake_detection.total_request_ms",
+        total_ms,
+    )
