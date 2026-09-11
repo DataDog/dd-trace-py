@@ -30,15 +30,18 @@ def clean_patch(monkeypatch):
             trio_patch.patch()
 
 
+@pytest.mark.parametrize("backend", ["asyncio", "trio"])
 @pytest.mark.parametrize("fails", [False, True])
-def test_asyncio_worker_publishes_context(clean_patch, monkeypatch, fails):
-    """AnyIO owns worker publication when its asyncio backend executes the callable."""
+def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, fails):
+    """Each backend publishes one entry and exit pair for an AnyIO worker."""
     marker = ContextVar("marker", default=None)
+    main_thread = threading.get_ident()
     switches = []
 
     def record_context_switch(event):
         assert event == PYTHON_CONTEXT_SWITCH_EVENT
-        switches.append(marker.get())
+        if threading.get_ident() != main_thread:
+            switches.append(marker.get())
 
     def worker():
         assert marker.get() == "caller"
@@ -50,42 +53,17 @@ def test_asyncio_worker_publishes_context(clean_patch, monkeypatch, fails):
         marker.set("caller")
         if fails:
             with pytest.raises(RuntimeError, match="worker failure"):
-                await anyio.to_thread.run_sync(worker)
+                await anyio.to_thread.run_sync(func=worker)
         else:
-            assert await anyio.to_thread.run_sync(worker) == "done"
+            assert await anyio.to_thread.run_sync(func=worker) == "done"
 
-    monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", lambda: True)
-    monkeypatch.setattr(
-        anyio_patch, "core", SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
-    )
-    anyio_patch.patch()
-    anyio.run(exercise, backend="asyncio")
-
-    assert switches == ["caller", None]
-
-
-def test_trio_backend_delegates_worker_publication(clean_patch, monkeypatch):
-    """The AnyIO facade leaves the actual Trio worker boundary to Trio."""
-    marker = ContextVar("marker", default=None)
-    main_thread = threading.get_ident()
-    switches = []
-
-    def record_context_switch(event):
-        assert event == PYTHON_CONTEXT_SWITCH_EVENT
-        if threading.get_ident() != main_thread:
-            switches.append(marker.get())
-
-    async def exercise():
-        marker.set("caller")
-        await anyio.to_thread.run_sync(lambda: None)
-
-    recorder = SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
     monkeypatch.setattr(anyio_patch, "context_switches_require_fallback", lambda: True)
     monkeypatch.setattr(trio_patch, "context_switches_require_fallback", lambda: True)
+    recorder = SimpleNamespace(dispatch=record_context_switch, has_listeners=lambda event: True)
     monkeypatch.setattr(anyio_patch, "core", recorder)
     monkeypatch.setattr(trio_patch, "core", recorder)
     anyio_patch.patch()
     trio_patch.patch()
-    anyio.run(exercise, backend="trio")
+    anyio.run(exercise, backend=backend)
 
     assert switches == ["caller", None]
