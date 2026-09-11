@@ -2057,10 +2057,13 @@ suites:
         - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/
       variants:
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'pymemcache~=3.4.2']
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'pymemcache~=3.5']
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pymemcache]
   pymongo:
     paths:
