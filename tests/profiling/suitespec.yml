@@ -36,7 +36,15 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'protobuf==3.19.0']
         - name: profile
+          python: ['3.9', '3.10', '3.11']
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
+        - name: profile
+          python: ['3.12', '3.13', '3.14']
+          dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, protobuf]
+          runs:
+            - env: {}
+            - env:
+                _DD_PROFILING_STACK_CPU_TIMER_ENABLED: '1'
         - name: profile
           dependencies: [gunicorn, jsonschema, zstandard, pytest-benchmark, 'py-cpuinfo~=8.0.0', 'pytest-asyncio==0.21.1', pytest-randomly, numpy, uwsgi, 'gunicorn[gevent]', gevent, protobuf]
           env:

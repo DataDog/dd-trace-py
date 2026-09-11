@@ -13,7 +13,12 @@ class ThreadInfoTaskTraversalTest : public ::testing::Test
                                  uintptr_t head,
                                  std::vector<TaskInfo::Ptr>& tasks)
     {
-        return thread.get_tasks_from_linked_list(echion, head, tasks);
+        return thread.get_tasks_from_linked_list(head, tasks, [&](TaskObj* address) {
+            auto task = TaskInfo::create(echion, address);
+            if (task && reinterpret_cast<uintptr_t>((*task)->loop) == thread.asyncio_loop) {
+                tasks.push_back(std::move(*task));
+            }
+        });
     }
 
     static Result<std::vector<TaskInfo::Ptr>> get_all_tasks(ThreadInfo& thread,
