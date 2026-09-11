@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._integrations import GoogleAdkIntegration
+from ddtrace.llmobs._integrations.google_utils import extract_messages_from_adk_events
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
 from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from ddtrace.llmobs._utils import get_llmobs_parent_id
@@ -43,6 +44,81 @@ AGENT_MANIFEST_METADATA = {
         }
     }
 }
+
+
+def _adk_text_event(text, partial=None):
+    from google.adk.events import Event
+    from google.genai import types
+
+    return Event(
+        author="model",
+        content=types.Content(role="model", parts=[types.Part(text=text)]),
+        partial=partial,
+    )
+
+
+def test_extract_messages_drops_streaming_partials():
+    """Streaming runs yield each partial chunk plus a final assembled event; only the
+    assembled message should be recorded, not every chunk followed by the full text again."""
+    events = [
+        _adk_text_event("Hello ", partial=True),
+        _adk_text_event("from ", partial=True),
+        _adk_text_event("ADK.", partial=True),
+        _adk_text_event("Hello from ADK."),
+    ]
+    assert extract_messages_from_adk_events(events) == [{"role": "assistant", "content": "Hello from ADK."}]
+
+
+def test_extract_messages_keeps_partials_without_assembled_event():
+    """run_live yields only partial events, so those must not be dropped."""
+    events = [
+        _adk_text_event("Hello ", partial=True),
+        _adk_text_event("live.", partial=True),
+    ]
+    assert extract_messages_from_adk_events(events) == [
+        {"role": "assistant", "content": "Hello "},
+        {"role": "assistant", "content": "live."},
+    ]
+
+
+def test_extract_messages_keeps_partials_with_contentless_control_events():
+    """run_live control events (e.g. turn_complete) are non-partial but carry no content;
+    they must not cause the partial text to be dropped."""
+    from google.adk.events import Event
+
+    events = [
+        _adk_text_event("Hello ", partial=True),
+        _adk_text_event("live.", partial=True),
+        Event(author="model", turn_complete=True),
+    ]
+    assert extract_messages_from_adk_events(events) == [
+        {"role": "assistant", "content": "Hello "},
+        {"role": "assistant", "content": "live."},
+    ]
+
+
+def test_extract_messages_keeps_partials_when_only_tool_call_is_assembled():
+    """A live turn can mix partial text with a non-partial function-call event; the partial
+    chunks are the only record of the text, so a non-partial event without an assembled text
+    part must not suppress them."""
+    from google.adk.events import Event
+    from google.genai import types
+
+    tool_call_event = Event(
+        author="model",
+        content=types.Content(
+            role="model",
+            parts=[types.Part(function_call=types.FunctionCall(name="lookup", args={"q": "x"}))],
+        ),
+    )
+    events = [
+        _adk_text_event("Hello ", partial=True),
+        _adk_text_event("live.", partial=True),
+        tool_call_event,
+    ]
+    messages = extract_messages_from_adk_events(events)
+    assert [m.get("content") for m in messages[:2]] == ["Hello ", "live."]
+    assert messages[2]["tool_calls"][0]["name"] == "lookup"
 
 
 class TestLLMObsGoogleADK:
