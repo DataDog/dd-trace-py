@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where agent attribution was propagated to downstream services
+    from spans that had no agent ancestor. Because the propagated ``_dd.p.*`` values are stored on
+    trace-level state shared by every span in the trace, the attribution written while inside an
+    agent span outlived it, so any later span in the same trace that injected distributed headers or
+    crossed a thread/asyncio boundary sent that agent's name and span ID as its own. Work unrelated
+    to an agent was therefore attributed to whichever agent had most recently propagated context.
