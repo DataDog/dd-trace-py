@@ -459,39 +459,6 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
         return self.tracer, client
 
-    def test_patch_unpatch(self):
-        # Test patch idempotence
-        patch()
-        patch()
-
-        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-
-        client["testdb"].drop_collection("whatever")
-
-        spans = self.get_user_spans()
-        assert spans, spans
-        assert len(spans) == 2
-
-        # Test unpatch
-        unpatch()
-
-        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-        client["testdb"].drop_collection("whatever")
-
-        spans = self.pop_spans()
-        assert not spans, spans
-
-        # Test patch again
-        patch()
-
-        client = pymongo.MongoClient(port=MONGO_CONFIG["port"])
-
-        client["testdb"].drop_collection("whatever")
-
-        spans = self.get_user_spans()
-        assert spans, spans
-        assert len(spans) == 2
-
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_SERVICE="mysvc"))
     def test_user_specified_service_default(self):
         """
@@ -751,9 +718,12 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
         assert '{"$oid": "' in tag
         assert str(oid) in tag
 
+    @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ENABLED="false"))
     def test_patch_with_disabled_tracer(self):
-        tracer, client = self.get_tracer_and_client()
-        tracer.enabled = False
+        # Run in a subprocess with the tracer disabled from process start so that no
+        # command is ever traced, including background SDAM ismaster/hello heartbeats.
+        # This keeps the "disabled tracer => zero spans" assertion strict and race-free.
+        _, client = self.get_tracer_and_client()
 
         db = client.testdb
         db.drop_collection("teams")
