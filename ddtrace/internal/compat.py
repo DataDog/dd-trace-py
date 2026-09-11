@@ -16,7 +16,7 @@ __all__ = [
     "NEXT_PY_UNSUPPORTED_MSG",
     "PYTHON_VERSION_INFO",
     "is_py_version_within_bounds",
-    "should_wrap_fail_close",
+    "is_wrap_supported",
 ]
 
 PYTHON_VERSION_INFO = sys.version_info
@@ -26,7 +26,7 @@ PYTHON_VERSION_INFO = sys.version_info
 MAX_PY: tuple[int, int] = (3, 14)
 
 # Next CPython: packaging exclusive ceiling and wrap-live floor.
-# wrap() fail-closes at NEXT_MAX_PY + 1 minor, derived in should_wrap_fail_close.
+# wrap() is supported through NEXT_MAX_PY; is_wrap_supported is False from +1 minor.
 # TODO(py-315): bump NEXT_MAX_PY to (3, 16) after 3.15 GAs
 NEXT_MAX_PY: tuple[int, int] = (3, 15)
 
@@ -42,11 +42,11 @@ def is_py_version_within_bounds(version: Optional[tuple[int, ...]] = None) -> bo
     return version[:2] <= MAX_PY
 
 
-def should_wrap_fail_close(version: Optional[tuple[int, ...]] = None) -> bool:
-    """True from NEXT_MAX_PY + 1 minor onward (wrap/lazy fail-close)."""
-    fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
+def is_wrap_supported(version: Optional[tuple[int, ...]] = None) -> bool:
+    """True through NEXT_MAX_PY (wrap/lazy/context live). False from +1 minor."""
     version = version or PYTHON_VERSION_INFO[:2]
-    return version[:2] >= fail_close
+    fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
+    return version[:2] < fail_close
 
 
 def ensure_text(s, encoding="utf-8", errors="ignore") -> str:

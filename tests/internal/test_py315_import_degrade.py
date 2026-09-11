@@ -18,11 +18,11 @@ from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.compat import is_py_version_within_bounds
-from ddtrace.internal.compat import should_wrap_fail_close
+from ddtrace.internal.compat import is_wrap_supported
 
 
-# wrap() is live on NEXT_MAX_PY until should_wrap_fail_close().
-_WRAP_ON_NEXT_MAX: bool = NEXT_MAX_PY <= PYTHON_VERSION_INFO[:2] and not should_wrap_fail_close()
+# wrap() is live on NEXT_MAX_PY while is_wrap_supported().
+_WRAP_ON_NEXT_MAX: bool = NEXT_MAX_PY <= PYTHON_VERSION_INFO[:2] and is_wrap_supported()
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
@@ -44,9 +44,9 @@ def test_max_py_matches_requires_python_upper_bound() -> None:
 def test_version_bound_helpers() -> None:
     assert is_py_version_within_bounds(MAX_PY)
     assert not is_py_version_within_bounds(NEXT_MAX_PY)
-    assert not should_wrap_fail_close(NEXT_MAX_PY)
+    assert is_wrap_supported(NEXT_MAX_PY)
     fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
-    assert should_wrap_fail_close(fail_close)
+    assert not is_wrap_supported(fail_close)
 
 
 def test_wrapping_modules_import():
