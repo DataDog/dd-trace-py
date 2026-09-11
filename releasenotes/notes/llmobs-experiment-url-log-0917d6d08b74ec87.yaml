@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: Experiments now log a link to view the experiment in the LLM
+    Observability UI when a run completes (previously this was only logged for reruns).
