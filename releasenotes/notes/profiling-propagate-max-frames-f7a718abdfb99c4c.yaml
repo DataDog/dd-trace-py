@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    profiling: This fix reduces profiler memory and CPU overhead by truncating stacks at the configured limits.

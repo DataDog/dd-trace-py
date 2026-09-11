@@ -5,6 +5,38 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <optional>
+
+namespace {
+
+constexpr char STACK_CAPTURE_CONTEXT[] = "StackCaptureContext";
+
+struct StackCaptureContext
+{
+    EchionSampler* echion;
+    FrameStack stack;
+    std::optional<UnwindResult> unwind_result;
+};
+
+PyObject*
+capture_stack(PyObject* capsule, PyObject* Py_UNUSED(args))
+{
+    auto* context = static_cast<StackCaptureContext*>(PyCapsule_GetPointer(capsule, STACK_CAPTURE_CONTEXT));
+    if (context == nullptr) {
+        return nullptr;
+    }
+
+    auto unwind_result = unwind_python_stack(*context->echion, PyThreadState_Get(), context->stack, 2);
+    if (!unwind_result) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to unwind test stack");
+        return nullptr;
+    }
+
+    context->unwind_result = *unwind_result;
+    Py_RETURN_NONE;
+}
+
+} // namespace
 
 #if defined PL_LINUX
 TEST(ThreadInfoCreate, IgnoresNonPthreadPythonThreadId)
@@ -51,11 +83,118 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
     thread.current_tasks.push_back(std::make_unique<StackInfo>(TaskName::from_literal("stale-task"), false, 1));
     thread.current_greenlets.push_back(std::make_unique<StackInfo>(TaskName::from_literal("stale-greenlet"), false, 2));
 
-    thread.unwind(echion, &empty_tstate, 0);
+    auto result = thread.unwind(echion, &empty_tstate, 0);
+#if PY_VERSION_HEX >= 0x030b0000 && PY_VERSION_HEX < 0x030d0000
+    // A null C frame must fail, not masquerade as a successfully unwound empty stack.
+    EXPECT_FALSE(result);
+    EXPECT_EQ(result.error(), ErrorKind::FrameError);
+#else
+    EXPECT_TRUE(result);
+#endif
+    EXPECT_EQ(thread.python_stack_unwind_result.frames_added, 0);
 
     EXPECT_TRUE(thread.current_tasks.empty());
     EXPECT_TRUE(thread.current_greenlets.empty());
 }
+
+TEST(StackUnwind, ReportsFramesAndTruncationAtLimit)
+{
+    if (!Py_IsInitialized()) {
+        Py_Initialize();
+    }
+    _set_pid(getpid());
+
+    EchionSampler echion;
+    StackCaptureContext context{ &echion, {}, std::nullopt };
+    PyObject* capsule = PyCapsule_New(&context, STACK_CAPTURE_CONTEXT, nullptr);
+    ASSERT_NE(capsule, nullptr);
+
+    static PyMethodDef capture_method = {
+        "capture_stack",
+        capture_stack,
+        METH_NOARGS,
+        nullptr,
+    };
+    PyObject* capture = PyCFunction_NewEx(&capture_method, capsule, nullptr);
+    ASSERT_NE(capture, nullptr);
+
+    PyObject* globals = PyDict_New();
+    ASSERT_NE(globals, nullptr);
+    ASSERT_EQ(PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins()), 0);
+    ASSERT_EQ(PyDict_SetItemString(globals, "capture_stack", capture), 0);
+
+    PyObject* result = PyRun_String(R"(
+def outer():
+    middle()
+def middle():
+    inner()
+def inner():
+    capture_stack()
+outer()
+)",
+                                    Py_file_input,
+                                    globals,
+                                    globals);
+    if (result == nullptr) {
+        PyErr_Print();
+    }
+    ASSERT_NE(result, nullptr);
+    ASSERT_TRUE(context.unwind_result.has_value());
+    EXPECT_EQ(context.stack.size(), 2);
+    EXPECT_EQ(context.unwind_result->frames_added, 2);
+    EXPECT_EQ(context.unwind_result->truncation, TruncationStatus::Truncated);
+
+    Py_DECREF(result);
+    Py_DECREF(globals);
+    Py_DECREF(capture);
+    Py_DECREF(capsule);
+}
+
+TEST(StackUnwind, DisabledDetectionRemainsUnknown)
+{
+    EchionSampler echion;
+    FrameStack stack;
+    auto result = unwind_frame(echion, nullptr, stack, 1, false);
+    EXPECT_EQ(result.frames_added, 0);
+    EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
+
+    result = unwind_frame(echion, nullptr, stack, 1, true);
+    EXPECT_EQ(result.truncation, TruncationStatus::NotTruncated);
+}
+
+#if PY_VERSION_HEX >= 0x030c0000
+TEST(StackUnwind, ProbeBudgetExhaustionRemainsUnknown)
+{
+    _set_pid(getpid());
+    EchionSampler echion;
+    FrameStack stack;
+    std::vector<_PyInterpreterFrame> frames(MAX_TASK_FRAMES + 1);
+    for (size_t i = 0; i < frames.size(); i++) {
+#if PY_VERSION_HEX >= 0x030e0000
+        frames[i].owner = FRAME_OWNED_BY_INTERPRETER;
+#else
+        frames[i].owner = FRAME_OWNED_BY_CSTACK;
+#endif
+        frames[i].previous = i + 1 < frames.size() ? &frames[i + 1] : nullptr;
+    }
+
+    // Ignored frames do not prove truncation, even when lookahead reaches its safety ceiling.
+    std::unordered_set<PyObject*> seen_frames;
+    auto result = unwind_frame(echion, reinterpret_cast<PyObject*>(frames.data()), stack, seen_frames, 0, true);
+    EXPECT_EQ(seen_frames.size(), MAX_TASK_FRAMES);
+    EXPECT_EQ(result.frames_added, 0);
+    EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
+
+    // Within the probe budget, the same ignored chain can prove the stack is complete.
+    frames[MAX_TASK_FRAMES - 1].previous = nullptr;
+    result = unwind_frame(echion, reinterpret_cast<PyObject*>(frames.data()), stack, seen_frames, 0, true);
+    EXPECT_EQ(result.truncation, TruncationStatus::NotTruncated);
+
+    result = unwind_frame(echion, reinterpret_cast<PyObject*>(frames.data()), stack, seen_frames, 0, false);
+    EXPECT_TRUE(seen_frames.empty());
+    EXPECT_EQ(result.truncation, TruncationStatus::Unknown);
+}
+#endif
 
 TEST(SamplingCycleState, GreenletSwitchPreservesLinkedParentFrame)
 {
