@@ -10,11 +10,10 @@ from starlette.middleware import Middleware
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
-from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -207,7 +206,6 @@ def patch():
     starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
-    Pin().onto(starlette)
 
     core.on("asgi.collect_routes", _collect_routes_from_app)
 
@@ -220,7 +218,7 @@ def patch():
         _w("starlette.routing", "Mount.handle", traced_handler)
 
     if not is_wrapted(starlette.background.BackgroundTasks.add_task):
-        _w("starlette.background", "BackgroundTasks.add_task", _trace_background_tasks(starlette))
+        _w("starlette.background", "BackgroundTasks.add_task", _trace_background_tasks)
 
 
 def unpatch():
@@ -363,11 +361,13 @@ def traced_handler(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-@with_traced_module
-def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
+def _trace_background_tasks(wrapped, instance, args, kwargs):
+    if not is_tracing_enabled():
+        return wrapped(*args, **kwargs)
+
     task = get_argument_value(args, kwargs, 0, "func")
     current_span = tracer.current_span()
-    module_name = getattr(module, "__name__", "<unknown>")
+    module_name = getattr(starlette, "__name__", "<unknown>")
     task_name = getattr(task, "__name__", "<unknown>")
 
     async def traced_task(*args, **kwargs):
@@ -382,4 +382,4 @@ def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
                 await run_in_threadpool(task, *args, **kwargs)
 
     args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
-    wrapped(*args, **kwargs)
+    return wrapped(*args, **kwargs)

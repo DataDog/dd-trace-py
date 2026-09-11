@@ -142,7 +142,7 @@ def patch():
     _w("fastapi.routing", "serialize_response", traced_serialize_response)
 
     if not is_wrapted(fastapi.BackgroundTasks.add_task):
-        _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks(fastapi))
+        _w("fastapi", "BackgroundTasks.add_task", _trace_background_tasks)
     # We need to check that Starlette instrumentation hasn't already patched these
     if not is_wrapted(fastapi.routing.APIRoute.__init__):
         _w("fastapi.routing", "APIRoute.__init__", traced_route_init)
