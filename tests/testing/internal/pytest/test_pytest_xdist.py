@@ -351,7 +351,7 @@ def _git_commit(project_dir: Path, message: str = "test commit") -> None:
 # Tests
 # ---------------------------------------------------------------------------
 
-# AIDEV-NOTE: These tests use subprocess to run pytest with xdist, pointing at
+# These tests use subprocess to run pytest with xdist, pointing at
 # a local mock HTTP server.  This is the only way to truly test multi-process
 # xdist behavior since inline_run + EventCapture cannot cross process boundaries.
 
@@ -898,7 +898,7 @@ class TestXdistWorkerCrashRestart:
         worker.
 
         This test documents the current behavior — it is a known limitation.
-        AIDEV-NOTE: If the writer is changed to flush after each test, or to
+        If the writer is changed to flush after each test, or to
         use a non-daemon thread with proper shutdown, this test should be updated.
         """
         # Use -n 1 so there is only one worker. Put a passing test and a
@@ -979,7 +979,7 @@ class TestXdistWorkerCrashRestart:
 
         # Some or all healthy tests may be lost too if they shared a worker
         # with a crash test (their events were buffered but not flushed).
-        # AIDEV-NOTE: This documents real data loss. The number of surviving
+        # This documents real data loss. The number of surviving
         # ok tests depends on scheduling luck. We only assert the session
         # event (from the main process) is always present.
         session_events = mock_server.get_session_events()
