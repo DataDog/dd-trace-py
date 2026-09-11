@@ -38,16 +38,14 @@ NEXT_PY_UNSUPPORTED_MSG: str = "This version of CPython is not supported yet (Py
 
 def is_py_version_within_bounds(version: Optional[tuple[int, ...]] = None) -> bool:
     """True if version is at or below last officially supported CPython (MAX_PY)."""
-    if version is None:
-        return PYTHON_VERSION_INFO[:2] <= MAX_PY
+    version = version or PYTHON_VERSION_INFO[:2]
     return version[:2] <= MAX_PY
 
 
 def should_wrap_fail_close(version: Optional[tuple[int, ...]] = None) -> bool:
     """True from NEXT_MAX_PY + 1 minor onward (wrap/lazy fail-close)."""
     fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
-    if version is None:
-        return PYTHON_VERSION_INFO[:2] >= fail_close
+    version = version or PYTHON_VERSION_INFO[:2]
     return version[:2] >= fail_close
 
 
