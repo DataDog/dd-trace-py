@@ -162,7 +162,10 @@ include:
         ddtest run --platform python --framework pytest --command "${!command_var}" \
           --ci-node "${CI_NODE_INDEX}" --ci-node-workers 1
       rm -f "${requirements}"
-      coverage combine || true
+      coverage_files=(.coverage.*)
+      if [[ ${#coverage_files[@]} -gt 1 ]]; then
+        coverage combine
+      fi
 
 .ddtest_run_snapshot:
   extends: .ddtest_run
