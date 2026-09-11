@@ -80,13 +80,12 @@ class TraceMiddleware(object):
         if ctx is None:
             return
 
-        span = span_from_context(ctx)
-        if span is None:
-            return
-
-        event: WebFrameworkRequestEvent = ctx.event
-
         try:
+            span = span_from_context(ctx)
+            if span is None:
+                return
+
+            event: WebFrameworkRequestEvent = ctx.event
             status = resp.status.partition(" ")[0]
 
             # Falcon does not always map errors or unmatched routes to the
