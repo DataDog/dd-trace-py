@@ -1,0 +1,4 @@
+fixes:
+  - |
+    profiling: Fixes missing or severely inflated asyncio task profiles when using a Python 3.14
+    patch release different from the one used to build ``ddtrace``.
