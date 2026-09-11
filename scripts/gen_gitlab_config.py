@@ -83,6 +83,7 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
+    skip_pip_cache: bool = False  # ignored
     suite: t.Optional[str] = None
 
     python_versions: t.Optional[set[str]] = None
