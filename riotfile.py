@@ -1981,6 +1981,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="trio",
+            command="pytest {cmdargs} tests/contrib/trio",
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                Venv(pys="3.9", pkgs={"trio": "==0.21.0"}),
+                Venv(pys=select_pys(), pkgs={"trio": latest}),
+            ],
+        ),
+        Venv(
             name="aiomysql",
             command="pytest {cmdargs} tests/contrib/aiomysql",
             venvs=[
