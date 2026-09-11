@@ -1,0 +1,14 @@
+_v: 1
+name: google_cloud_pubsub
+display_name: Google Cloud Pub/Sub
+description: Instruments Google Cloud Pub/Sub message publishing and consumption, including pull and push delivery, plus topic,
+  subscription, and schema administration.
+packages:
+- name: google-cloud-pubsub
+category:
+- messaging.consumer
+- messaging.producer
+- rpc.client
+systems:
+- gcp.pubsub
+creation_date: '2026-03-17'

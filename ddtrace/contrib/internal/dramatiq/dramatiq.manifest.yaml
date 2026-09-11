@@ -1,0 +1,10 @@
+_v: 1
+name: dramatiq
+display_name: Dramatiq
+description: Instruments sending Dramatiq actor tasks to brokers, tracing enqueue calls without tracing background task execution.
+packages:
+- name: dramatiq
+category:
+- messaging.producer
+systems: []
+creation_date: '2024-03-27'
