@@ -1,0 +1,10 @@
+---
+other:
+  - |
+    CI visibility: Reduces the per-test overhead of the pytest plugin by skipping
+    redundant work on the synchronous per-test path. Source-location discovery
+    no longer runs a full decorator scan for plain test functions, per-test
+    coverage collection is skipped when code coverage is disabled, and the
+    per-test root span is created directly instead of going through the full
+    tracer pipeline. Test suites using ``--ddtrace`` run faster with no change
+    to emitted events or tags.

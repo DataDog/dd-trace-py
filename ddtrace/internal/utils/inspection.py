@@ -122,6 +122,13 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             except AttributeError:
                 pass
 
+        # Fast path: the current function already matches and none of the explicit
+        # wrapper relationships above led to an original function. This covers the
+        # common plain-function case while preserving the original precedence for a
+        # same-name function held by a decorator closure or attribute.
+        if _isinstance(g, FunctionType) and match(g):
+            return g
+
         # Last resort
         try:
             for v in (object.__getattribute__(g, a) for a in object.__dir__(g)):

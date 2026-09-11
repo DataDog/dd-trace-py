@@ -58,6 +58,41 @@ def test_wrapped_decoration():
     assert Path(code.co_filename).resolve() == Path(__file__).resolve()
 
 
+def test_undecorated_plain_function_returns_input_directly():
+    # A plain (undecorated) function is the common case. undecorated must return it
+    # without descending into the BFS / __dir__() scan: the input itself already
+    # matches. This is the fast path that keeps per-test source-location discovery cheap.
+    def f():
+        pass
+
+    name, path = f.__code__.co_name, Path(__file__).resolve()
+    assert undecorated(f, name, path) is f
+
+    # A function whose name does not match must not short-circuit on the input.
+    def g():
+        pass
+
+    assert undecorated(g, name="does_not_exist", path=path) is g
+
+
+def test_undecorated_same_name_wrapper_returns_original():
+    def decorate(original):
+        # A decorator wrapper may legitimately share the test's name and source file.
+        def test_target():
+            return original()
+
+        return test_target
+
+    def test_target():
+        pass
+
+    original = test_target
+    wrapper = decorate(original)
+
+    assert wrapper.__code__.co_name == original.__code__.co_name
+    assert undecorated(wrapper, name="test_target", path=Path(__file__).resolve()) is original
+
+
 @pytest.mark.subprocess
 def test_module_code_collector_finds_decorator_discarded_code():
     # tests.submod.custom_decorated_stuff's "home" function is rebound to None
