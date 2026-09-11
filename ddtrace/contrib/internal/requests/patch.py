@@ -2,7 +2,6 @@ import requests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.settings import env
@@ -27,7 +26,6 @@ config._add(
 
 # always patch our `TracedSession` when imported
 _w(TracedSession, "send", _wrap_send)
-Pin(_config=config.requests).onto(TracedSession)
 # always wrapped, like TracedSession.send above; a no-op unless urllib3 tracing is enabled
 _w(requests.adapters.HTTPAdapter, "send", _wrap_adapter_send)
 
@@ -52,7 +50,6 @@ def patch():
         from ddtrace.appsec._common_module_patches import wrapped_request_D8CB81E472AF98A2 as _wrap_request
 
         _w("requests", "Session.request", _wrap_request)
-    Pin(_config=config.requests).onto(requests.Session)
 
 
 def unpatch():

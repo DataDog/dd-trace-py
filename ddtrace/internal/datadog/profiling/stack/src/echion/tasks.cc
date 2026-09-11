@@ -266,12 +266,13 @@ TaskInfo::unwind(EchionSampler& echion, FrameStack& stack, bool using_uvloop)
         // A coroutine that triggers a collection itself (e.g. by calling gc.collect) is both the
         // interpreter's on-CPU frame and a Task frame. unwind_tasks substitutes these frames for
         // their python_stack counterparts, so the marker has to be carried here as well.
-        auto new_frames = unwind_frame(echion, frame, stack, echion.seen_frames_scratch(), 1);
-        assert(new_frames <= 1 && "expected exactly 1 frame to be unwound (or 0 in case of an error)");
+        auto frame_unwind_result = unwind_frame(echion, frame, stack, echion.seen_frames_scratch(), 1, false);
+        assert(frame_unwind_result.frames_added <= 1 &&
+               "expected exactly 1 frame to be unwound (or 0 in case of an error)");
 
         // If we failed to unwind the Frame, stop unwinding the coroutine chain; otherwise we could
         // end up with Stacks with missing Frames between two coroutines Frames.
-        if (new_frames == 0) {
+        if (frame_unwind_result.frames_added == 0) {
             break;
         }
 

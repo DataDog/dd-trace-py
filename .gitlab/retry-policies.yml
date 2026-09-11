@@ -1,0 +1,14 @@
+# Retry policies for non-main pipelines. A later conditional include overrides
+# these hidden jobs on main without changing the concrete jobs that extend them.
+.retry_on_failure:
+  retry: 2
+
+.retry_on_infrastructure_failure:
+  retry:
+    max: 2
+    when:
+      - unknown_failure
+      - data_integrity_failure
+      - runner_system_failure
+      - scheduler_failure
+      - api_failure

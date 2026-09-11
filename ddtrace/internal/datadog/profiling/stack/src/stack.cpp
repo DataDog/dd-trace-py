@@ -691,6 +691,23 @@ stack_cpu_timer_debug_set_fault_injection(PyObject* Py_UNUSED(self), PyObject* a
 }
 
 static PyObject*
+stack_set_max_frames(PyObject* Py_UNUSED(self), PyObject* args)
+{
+    unsigned long long max_frames;
+
+    if (!PyArg_ParseTuple(args, "K", &max_frames)) {
+        return NULL;
+    }
+
+    if (!Sampler::get().set_max_frames(max_frames)) {
+        PyErr_SetString(PyExc_RuntimeError, "cannot change max frames while the stack sampler is running");
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
+static PyObject*
 stack_set_max_tasks(PyObject* Py_UNUSED(self), PyObject* args)
 {
     unsigned int max_tasks;
@@ -702,6 +719,15 @@ stack_set_max_tasks(PyObject* Py_UNUSED(self), PyObject* args)
     Sampler::get().set_max_tasks_per_sample(max_tasks);
 
     Py_RETURN_NONE;
+}
+
+static PyObject*
+stack_get_frame_limits(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    const auto& sampler = Sampler::get();
+    return Py_BuildValue("KK",
+                         static_cast<unsigned long long>(sampler.max_frames()),
+                         static_cast<unsigned long long>(sampler.frame_cache_capacity()));
 }
 
 static PyObject*
@@ -1368,6 +1394,14 @@ static PyMethodDef stack_methods[] = {
       stack_cpu_timer_debug_set_fault_injection,
       METH_VARARGS,
       "Enable private CPU timer fault injection" },
+    { "set_max_frames",
+      stack_set_max_frames,
+      METH_VARARGS,
+      "Set the collection limit for thread stacks without task or greenlet stitching" },
+    { "_get_frame_limits",
+      stack_get_frame_limits,
+      METH_NOARGS,
+      "Get the configured stack collection limit and frame cache capacity" },
     { "set_max_tasks",
       stack_set_max_tasks,
       METH_VARARGS,

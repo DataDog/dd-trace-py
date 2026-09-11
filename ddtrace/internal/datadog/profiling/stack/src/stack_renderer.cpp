@@ -274,6 +274,14 @@ StackRenderer::render_frame(Frame& frame)
 }
 
 void
+StackRenderer::mark_truncated()
+{
+    if (sample != nullptr) {
+        sample->incr_dropped_frames();
+    }
+}
+
+void
 StackRenderer::render_gc_frame()
 {
     if (sample == nullptr) {

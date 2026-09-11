@@ -1,9 +1,8 @@
 import aiohttp_jinja2
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -25,8 +24,10 @@ def _supported_versions() -> dict[str, str]:
     return {"aiohttp_jinja2": ">=1.5.0"}
 
 
-@with_traced_module
-def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
+def traced_render_template(func, instance, args, kwargs):
+    if not is_tracing_enabled():
+        return func(*args, **kwargs)
+
     # original signature:
     # render_template(template_name, request, context, *, app_key=APP_KEY, encoding='utf-8')
     template_name = get_argument_value(args, kwargs, 0, "template_name")
@@ -48,8 +49,7 @@ def traced_render_template(aiohttp_jinja2, pin, func, instance, args, kwargs):
 
 
 def _patch(aiohttp_jinja2):
-    Pin().onto(aiohttp_jinja2)
-    wrap("aiohttp_jinja2", "render_template", traced_render_template(aiohttp_jinja2))
+    wrap("aiohttp_jinja2", "render_template", traced_render_template)
 
 
 def patch():

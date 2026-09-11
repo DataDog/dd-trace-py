@@ -113,6 +113,7 @@ class StackRenderer
                            std::optional<int64_t> walltime_ns_override,
                            const TaskSpanContext& task_span_context);
     void render_frame(Frame& frame);
+    void mark_truncated();
     void render_gc_frame();
     void render_cpu_time(microsecond_t cpu_time_us);
     void render_native_frame(const std::string& name, const std::string& module);
