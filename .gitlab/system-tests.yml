@@ -32,7 +32,8 @@
     - |
       echo -e "\e[0Ksection_start:`date +%s`:system_deps\r\e[0KInstalling system dependencies"
       # build-essential needed for C extensions like zstandard
-      apt-get update && apt-get install -y --no-install-recommends patchelf build-essential
+      apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 update && \
+        apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=3 install -y --no-install-recommends patchelf build-essential
       # Install up to date node.js
       curl --output - "https://nodejs.org/dist/v24.14.1/node-v24.14.1-linux-x64.tar.xz" | tar -xJ --strip-components 1 -C /usr/local/
       npm install -g @datadog/datadog-ci
