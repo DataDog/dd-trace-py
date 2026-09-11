@@ -1,7 +1,5 @@
-from tornado import template
-
 from ddtrace import config
-from ddtrace._trace.pin import Pin
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
@@ -14,9 +12,7 @@ def generate(func, renderer, args, kwargs):
     may be called everywhere, the execution is traced in a tracer StackContext that
     inherits the current one if it's already available.
     """
-    # get the module pin
-    pin = Pin.get_from(template)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     # change the resource and the template name
@@ -28,7 +24,7 @@ def generate(func, renderer, args, kwargs):
 
     # trace the original call
     with tracer.trace("tornado.template", resource=resource, span_type=SpanTypes.TEMPLATE) as span:
-        set_service_and_source(span, pin.service, config.tornado)
+        set_service_and_source(span, config.tornado._default_service, config.tornado)
         span._set_attribute(COMPONENT, config.tornado.integration_name)
 
         span._set_attribute("tornado.template_name", template_name)

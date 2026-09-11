@@ -1,11 +1,9 @@
 from urllib.parse import urlparse
 
-from tornado import template
 from tornado.routing import PathMatches
 import tornado.web
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
 from ddtrace.contrib.internal.tornado.handlers import _path_for_path_match
@@ -100,7 +98,6 @@ def tracer_config(__init__, app, args, kwargs):
     if tags:
         tracer.set_tags(tags)
 
-    pin = Pin(service=service)
-    pin.onto(template)
+    config.tornado._default_service = service
 
     _collect_endpoints(app)
