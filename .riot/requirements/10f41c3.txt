@@ -19,7 +19,7 @@ elastic-transport==9.2.1
 elasticsearch==9.4.0
 events==0.5
 frozenlist==1.8.0
-gevent==26.5.0
+gevent==26.7.0
 greenlet==3.5.1
 grpcio==1.81.0
 hypothesis==6.45.0
