@@ -1199,7 +1199,7 @@ class TestUnixDomainSocketTimeout:
 class TestBackendTimeoutEnvVar:
     """Tests for DD_CIVISIBILITY_BACKEND_API_TIMEOUT_MILLIS parsing via _parse_timeout_millis."""
 
-    # AIDEV-NOTE: Tests call _parse_timeout_millis() directly to avoid importlib.reload, which
+    # Tests call _parse_timeout_millis() directly to avoid importlib.reload, which
     # mutates the module's __dict__ in place and breaks isinstance checks in other test classes
     # (old imported class objects see new reloaded classes via shared __globals__).
 
