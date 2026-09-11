@@ -225,11 +225,12 @@ impl TelemetryWorkerPy {
             });
         }
 
-        // Keep this worker alive across native libc forks. Python-managed forks leak the
-        // inherited runtime instead of calling after_fork_child(), so this flag is not
-        // consulted there. Native-only forks still restart the worker with the runtime.
-        // The first Python-facing telemetry operation lazily restarts the runtime and resets workers;
-        // deferring the restart avoids starting Tokio threads in transient fork+exec children.
+        // Keep this worker alive across native libc forks. The SharedRuntime's pthread_atfork
+        // child handler marks the runtime for restart; native-only forks still restart the worker
+        // with the runtime. Python-managed forks abandon the inherited runtime instead of calling
+        // after_fork_child(), so this flag is not consulted there. The first Python-facing
+        // telemetry operation lazily restarts the runtime and resets workers; deferring the restart
+        // avoids starting Tokio threads in transient fork+exec children.
         let (handle, worker) = builder.build_worker::<NativeCapabilities>(None);
         let worker_handle = shared_runtime
             .spawn_worker(worker, true)

@@ -56,7 +56,7 @@ def update_record(ctx, record: dict[str, Any], stream: str, inject_trace_context
 def select_records_for_injection(params: list[Any], inject_trace_context: bool) -> list[tuple[Any, bool]]:
     records_to_inject_into = []
     if "Records" in params and params["Records"]:
-        # AIDEV-NOTE: Kinesis PutRecords originally injected trace context into only the
+        # Kinesis PutRecords originally injected trace context into only the
         # first record in the batch (see PR #3178 for the original discussion). We now
         # inject every record because downstream consumers can receive records
         # individually rather than as the original producer batch.
