@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# mypy: follow-imports=silent
 import gc
 import inspect
 import os
