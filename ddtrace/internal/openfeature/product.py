@@ -1,4 +1,4 @@
-from ddtrace.internal.settings.openfeature import config as ffe_config
+from ddtrace.internal.settings.openfeature import config
 
 
 requires = ["remote-configuration"]
@@ -12,7 +12,7 @@ def enabled():
     from ddtrace.internal.openfeature._source_selection import DISABLED
     from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
 
-    return resolve_configuration_source(ffe_config) != DISABLED
+    return resolve_configuration_source(config) != DISABLED
 
 
 def start():
@@ -22,7 +22,7 @@ def start():
     from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
     from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
 
-    if resolve_configuration_source(ffe_config) == REMOTE_CONFIG:
+    if resolve_configuration_source(config) == REMOTE_CONFIG:
         from ddtrace.internal.openfeature._remoteconfiguration import enable_featureflags_rc
 
         enable_featureflags_rc()
@@ -36,7 +36,7 @@ def stop(join=False):
     from ddtrace.internal.openfeature._source_selection import REMOTE_CONFIG
     from ddtrace.internal.openfeature._source_selection import resolve_configuration_source
 
-    if resolve_configuration_source(ffe_config) == REMOTE_CONFIG:
+    if resolve_configuration_source(config) == REMOTE_CONFIG:
         from ddtrace.internal.openfeature._remoteconfiguration import disable_featureflags_rc
 
         disable_featureflags_rc()

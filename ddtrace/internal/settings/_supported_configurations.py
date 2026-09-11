@@ -991,6 +991,7 @@ DEPRECATED_CONFIGURATIONS: frozenset[str] = frozenset(
 
 SENSITIVE_CONFIGURATIONS: frozenset[str] = frozenset(
     {
+        "DD_AI_GUARD_ENDPOINT",
         "DD_API_KEY",
         "DD_APP_KEY",
         "DD_FEATURE_FLAGS_CONFIGURATION_SOURCE_AGENTLESS_BASE_URL",

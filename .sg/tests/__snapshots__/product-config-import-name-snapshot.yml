@@ -1,0 +1,189 @@
+id: product-config-import-name
+snapshots:
+  ? |
+    class Product:
+        class ProductConfig:
+            from ddtrace.internal.settings.aiguard import aiguard_config as config
+  : labels:
+    - source: |-
+        class Product:
+            class ProductConfig:
+                from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: primary
+      start: 0
+      end: 118
+    - source: from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: secondary
+      start: 48
+      end: 118
+  ? |
+    class ProductConfig:
+        from ddtrace.internal.settings.aiguard import aiguard_config as config
+  : labels:
+    - source: |-
+        class ProductConfig:
+            from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: primary
+      start: 0
+      end: 95
+    - source: from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: secondary
+      start: 25
+      end: 95
+  ? |
+    class ProductConfig:
+        from ddtrace.internal.settings.openfeature import (config)
+  : labels:
+    - source: from ddtrace.internal.settings.openfeature import (config)
+      style: primary
+      start: 25
+      end: 83
+    - source: |-
+        class ProductConfig:
+            from ddtrace.internal.settings.openfeature import (config)
+      style: secondary
+      start: 0
+      end: 83
+  ? |
+    class ProductConfig:
+        from ddtrace.internal.settings.openfeature import config
+  : labels:
+    - source: from ddtrace.internal.settings.openfeature import config
+      style: primary
+      start: 25
+      end: 81
+    - source: |-
+        class ProductConfig:
+            from ddtrace.internal.settings.openfeature import config
+      style: secondary
+      start: 0
+      end: 81
+  ? |
+    def start():
+        from ddtrace.internal.settings._config import config
+        from ddtrace.internal.settings.aiguard import aiguard_config as config
+  : labels:
+    - source: |-
+        def start():
+            from ddtrace.internal.settings._config import config
+            from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: primary
+      start: 0
+      end: 144
+    - source: from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: secondary
+      start: 74
+      end: 144
+  ? |
+    def start():
+        from ddtrace.internal.settings._config import config
+        from ddtrace.internal.settings.openfeature import (config)
+  : labels:
+    - source: from ddtrace.internal.settings.openfeature import (config)
+      style: primary
+      start: 74
+      end: 132
+    - source: |-
+        def start():
+            from ddtrace.internal.settings._config import config
+            from ddtrace.internal.settings.openfeature import (config)
+      style: secondary
+      start: 0
+      end: 132
+  ? |
+    def start():
+        from ddtrace.internal.settings._config import config
+        from ddtrace.internal.settings.openfeature import config
+  : labels:
+    - source: from ddtrace.internal.settings.openfeature import config
+      style: primary
+      start: 74
+      end: 130
+    - source: |-
+        def start():
+            from ddtrace.internal.settings._config import config
+            from ddtrace.internal.settings.openfeature import config
+      style: secondary
+      start: 0
+      end: 130
+  ? |
+    def start():
+        from ddtrace.internal.settings.aiguard import (
+            aiguard_config as config,
+        )
+  : labels:
+    - source: |-
+        def start():
+            from ddtrace.internal.settings.aiguard import (
+                aiguard_config as config,
+            )
+      style: primary
+      start: 0
+      end: 104
+    - source: |-
+        from ddtrace.internal.settings.aiguard import (
+                aiguard_config as config,
+            )
+      style: secondary
+      start: 17
+      end: 104
+  ? |
+    def start():
+        from ddtrace.internal.settings.aiguard import aiguard_config as config
+  : labels:
+    - source: |-
+        def start():
+            from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: primary
+      start: 0
+      end: 87
+    - source: from ddtrace.internal.settings.aiguard import aiguard_config as config
+      style: secondary
+      start: 17
+      end: 87
+  ? |
+    def start():
+        from ddtrace.internal.settings.openfeature import (config)
+  : labels:
+    - source: from ddtrace.internal.settings.openfeature import (config)
+      style: primary
+      start: 17
+      end: 75
+    - source: |-
+        def start():
+            from ddtrace.internal.settings.openfeature import (config)
+      style: secondary
+      start: 0
+      end: 75
+  ? |
+    def start():
+        from ddtrace.internal.settings.openfeature import config
+  : labels:
+    - source: from ddtrace.internal.settings.openfeature import config
+      style: primary
+      start: 17
+      end: 73
+    - source: |-
+        def start():
+            from ddtrace.internal.settings.openfeature import config
+      style: secondary
+      start: 0
+      end: 73
+  from ddtrace.internal.settings.aiguard import aiguard_config:
+    labels:
+    - source: from ddtrace.internal.settings.aiguard import aiguard_config
+      style: primary
+      start: 0
+      end: 60
+  from ddtrace.internal.settings.aiguard import aiguard_config as ai_guard_config:
+    labels:
+    - source: from ddtrace.internal.settings.aiguard import aiguard_config as ai_guard_config
+      style: primary
+      start: 0
+      end: 79
+  from ddtrace.internal.settings.openfeature import config as ffe_config:
+    labels:
+    - source: from ddtrace.internal.settings.openfeature import config as ffe_config
+      style: primary
+      start: 0
+      end: 70

@@ -840,6 +840,23 @@ import opentelemetry
     assert "OTEL_EXPORTER_OTLP_TIMEOUT" in configurations
 
 
+def test_ai_guard_configuration_telemetry(test_agent_session, run_python_code_in_subprocess):
+    endpoint_sentinel = "https://user:SENTINEL_AI_GUARD_PASSWORD@example.test/?token=SENTINEL_AI_GUARD_TOKEN"
+    env = os.environ.copy()
+    env["DD_AI_GUARD_ENABLED"] = "true"
+    env["DD_AI_GUARD_BLOCK"] = "false"
+    env["DD_AI_GUARD_ENDPOINT"] = endpoint_sentinel
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
+    assert configurations["DD_AI_GUARD_ENABLED"]["value"] == _to_config_str(True)
+    assert configurations["DD_AI_GUARD_BLOCK"]["value"] == _to_config_str(False)
+    assert "DD_AI_GUARD_ENDPOINT" not in configurations
+    assert all(endpoint_sentinel not in str(configuration["value"]) for configuration in configurations.values())
+
+
 def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):
     """DD_API_KEY and DD_APP_KEY values are excluded from configuration telemetry.
 

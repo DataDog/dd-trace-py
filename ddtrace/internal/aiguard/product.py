@@ -1,4 +1,4 @@
-from ddtrace.internal.settings.aiguard import aiguard_config
+from ddtrace.internal.settings.aiguard import aiguard_config as config
 
 
 requires: list[str] = []
@@ -9,7 +9,7 @@ def post_preload() -> None:
 
 
 def enabled() -> bool:
-    return bool(aiguard_config._ai_guard_enabled)
+    return bool(config._ai_guard_enabled)
 
 
 def start() -> None:

@@ -1,3 +1,5 @@
+import importlib
+from types import ModuleType
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
@@ -5,6 +7,21 @@ import pytest
 
 from ddtrace.internal.products import Product
 from ddtrace.internal.products import ProductManager
+from ddtrace.internal.settings._core import DDConfig
+
+
+_SHARED_PRODUCT_CONFIG_BINDINGS = {
+    "ddtrace.internal.iast.product": {"asm_config"},
+    "ddtrace.internal.remoteconfig.products.client": {"agent_config"},
+    "ddtrace.internal.sca.product": {"appsec_telemetry_config"},
+}
+_PRODUCTS_WITHOUT_OWNED_CONFIG = {
+    "ddtrace._trace.product",
+    "ddtrace.internal.iast.product",
+    "ddtrace.internal.remoteconfig.products.apm_tracing",
+    "ddtrace.internal.sca.product",
+    "ddtrace.llmobs._product",
+}
 
 
 class ProductManagerTest(ProductManager):
@@ -165,6 +182,61 @@ def _make_entry_point(name, dist_name, module_path, product_obj):
     ep.dist.metadata = {"Name": dist_name}
     ep.load.return_value = product_obj
     return ep
+
+
+def _validate_product_ddconfig_bindings(module_path, product):
+    ddconfig_bindings = {name for name, value in vars(product).items() if isinstance(value, DDConfig)}
+    shared_bindings = _SHARED_PRODUCT_CONFIG_BINDINGS.get(module_path, set())
+    owned_bindings = set() if module_path in _PRODUCTS_WITHOUT_OWNED_CONFIG else {"config"}
+    assert ddconfig_bindings == shared_bindings | owned_bindings, (module_path, ddconfig_bindings)
+
+
+@pytest.mark.subprocess
+def test_product_ddconfig_bindings():
+    from importlib.metadata import distribution
+
+    from tests.internal.test_products import _validate_product_ddconfig_bindings
+
+    product_entry_points = [
+        entry_point for entry_point in distribution("ddtrace").entry_points if entry_point.group == "ddtrace.products"
+    ]
+    assert product_entry_points
+
+    for entry_point in product_entry_points:
+        module_path, _, _ = entry_point.value.partition(":")
+        product = entry_point.load()
+        _validate_product_ddconfig_bindings(module_path, product)
+
+
+def test_product_ddconfig_bindings_require_owned_config():
+    product = ModuleType("ddtrace.internal.example.product")
+    product.settings = importlib.import_module("ddtrace.internal.settings.aiguard")
+
+    with pytest.raises(AssertionError):
+        _validate_product_ddconfig_bindings(product.__name__, product)
+
+
+@pytest.mark.parametrize(
+    ("name", "module_path"),
+    [
+        ("aiguard", "ddtrace.internal.aiguard.product"),
+        ("openfeature", "ddtrace.internal.openfeature.product"),
+        ("remote-configuration", "ddtrace.internal.remoteconfig.products.client"),
+    ],
+)
+def test_load_products_reports_product_config(name, module_path):
+    product = importlib.import_module(module_path)
+    entry_point = _make_entry_point(name, "ddtrace", module_path, product)
+
+    manager = ProductManager()
+    manager.__products__ = {}
+    with (
+        patch("ddtrace.internal.products.get_product_entry_points", return_value=[entry_point]),
+        patch("ddtrace.internal.products.report_configuration") as report_configuration,
+    ):
+        manager._load_products()
+
+    report_configuration.assert_called_once_with(product.config)
 
 
 def test_load_products_trusted():

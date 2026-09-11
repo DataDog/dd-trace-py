@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    AI Guard: Fixes an issue where ``DD_AI_GUARD_ENABLED`` and ``DD_AI_GUARD_BLOCK``
+    do not appear in configuration telemetry.
+  - |
+    openfeature: Fixes an issue where feature flagging settings do not appear in
+    configuration telemetry.

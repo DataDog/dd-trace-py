@@ -1,6 +1,6 @@
-from ddtrace import config
+from ddtrace import config as tracer_config
 from ddtrace.internal.native import RemoteConfigProduct
-from ddtrace.internal.remoteconfig.client import config as rc_config
+from ddtrace.internal.remoteconfig.client import config
 from ddtrace.internal.settings._agent import config as agent_config
 
 
@@ -19,7 +19,9 @@ def _register_rc_products() -> None:
     from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
     flare = Flare(
-        trace_agent_url=str(agent_config.trace_agent_url), api_key=config._dd_api_key, ddconfig=config.__dict__
+        trace_agent_url=str(agent_config.trace_agent_url),
+        api_key=tracer_config._dd_api_key,
+        ddconfig=tracer_config.__dict__,
     )
 
     # Create shared state
@@ -40,7 +42,7 @@ def post_preload():
 
 
 def enabled():
-    return config._remote_config_enabled
+    return tracer_config._remote_config_enabled
 
 
 def start():
@@ -51,7 +53,7 @@ def start():
 
 
 def restart(join=False):
-    if config._remote_config_enabled:
+    if tracer_config._remote_config_enabled:
         from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 
         remoteconfig_poller.reset_at_fork()
@@ -64,4 +66,4 @@ def stop(join=False):
 
 
 def skip_exit():
-    return rc_config.skip_shutdown
+    return config.skip_shutdown

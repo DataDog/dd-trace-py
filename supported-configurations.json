@@ -177,7 +177,8 @@
       {
         "implementation": "A",
         "type": "string",
-        "default": null
+        "default": null,
+        "sensitive": true
       }
     ],
     "DD_AI_GUARD_LANGCHAIN_ENABLED": [
