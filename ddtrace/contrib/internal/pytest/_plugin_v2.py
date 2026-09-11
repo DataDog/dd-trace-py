@@ -431,7 +431,7 @@ def _handle_coverage_patch_early(config):
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol, skipped_suites
 
-    # AIDEV-NOTE: Reset per-session module-level state for every new main-process
+    # Reset per-session module-level state for every new main-process
     # session. This is necessary when inline_run() calls pytest.main() inside an
     # outer xdist worker: the module is already imported, so module-level
     # initialisations don't re-run. Without this reset, skipped_suites accumulates
@@ -498,7 +498,7 @@ def pytest_configure(config: pytest_Config) -> None:
 
                 if not hasattr(config, "workerinput"):
                     # Main process: reset per-session xdist ITR skip counter.
-                    # AIDEV-NOTE: Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
+                    # Do NOT guard with PYTEST_XDIST_WORKER_VALUE is None here.
                     # PYTEST_XDIST_WORKER_VALUE is a module-level constant frozen at import time.
                     # When inline_run() is called inside an outer xdist worker, the constant is
                     # "gw0" for the entire process lifetime, so the reset would never fire and
