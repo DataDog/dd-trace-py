@@ -19,15 +19,40 @@ class NativeRuntime(SharedRuntime):
     The SharedRuntime wraps a Tokio async runtime shared across TraceExporter
     instances. Native pthread_atfork hooks ensure the runtime is correctly
     paused and resumed even when a native caller bypasses Python's fork hooks.
+    Python-level before_fork / after_fork_parent / after_fork_child hooks also
+    run so this instance can track `_paused` for callers on the Python side.
     """
 
     def __init__(self) -> None:
         super().__init__()
+        # True from before_fork until whichever of after_fork_parent/after_fork_child runs. No
+        # runtime exists in that window, so a blocking flush issued from a fork hook (this one's
+        # own, or another product's, since forksafe dispatches every registered hook in order) would
+        # wait on a condvar nothing can ever notify and hang os.fork() forever. Anything that wants
+        # to flush should check this first and fall back to a fire-and-forget flush instead.
+        self._paused = False
         self.register_at_fork()
+        forksafe.register_before_fork(self.before_fork)
+        forksafe.register_after_parent(self.after_fork_parent)
+        forksafe.register(self.after_fork_child)
         forksafe.register_before_child_hooks(self.defer_after_fork_child)
         forksafe.register_after_child_hooks(self.allow_after_fork_child)
         atexit.register(self._atexit)
         atexit.register_on_exit_signal(self._atexit)
+
+    def before_fork(self) -> None:
+        # Set before the super call: that call is what pauses (and, on the last worker, drops) the
+        # runtime, so _paused must already be true by the time any of it can observe.
+        self._paused = True
+        super().before_fork()
+
+    def after_fork_parent(self) -> None:
+        super().after_fork_parent()
+        self._paused = False
+
+    def after_fork_child(self) -> None:
+        super().after_fork_child()
+        self._paused = False
 
     def _atexit(self) -> None:
         try:
@@ -48,6 +73,9 @@ class NativeRuntime(SharedRuntime):
         else:
             super().shutdown(timeout_ms=timeout_ms)
         atexit.unregister(self._atexit)
+        forksafe.unregister_before_fork(self.before_fork)
+        forksafe.unregister_parent(self.after_fork_parent)
+        forksafe.unregister(self.after_fork_child)
         forksafe.unregister_before_child_hooks(self.defer_after_fork_child)
         forksafe.unregister_after_child_hooks(self.allow_after_fork_child)
 

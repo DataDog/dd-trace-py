@@ -5,6 +5,7 @@ mod span_data;
 mod span_event;
 mod span_link;
 pub mod utils;
+pub(crate) mod wire;
 
 pub use span_data::SpanData;
 pub use span_event::SpanEvent;
