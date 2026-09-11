@@ -1,0 +1,11 @@
+_v: 1
+name: gevent
+display_name: gevent
+description: Instruments gevent greenlet creation, execution, and context switches to propagate active trace context across
+  spawned and pooled greenlet tasks.
+packages:
+- name: gevent
+category:
+- task.execution
+systems: []
+creation_date: '2016-10-16'

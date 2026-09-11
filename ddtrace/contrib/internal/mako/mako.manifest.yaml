@@ -1,0 +1,11 @@
+_v: 1
+name: mako
+display_name: Mako
+description: Instruments Mako template rendering operations and records each rendered template's file or definition identity
+  as the span resource.
+packages:
+- name: mako
+category:
+- template.render
+systems: []
+creation_date: '2019-01-04'

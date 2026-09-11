@@ -1,0 +1,10 @@
+_v: 1
+name: logging
+display_name: Logging
+description: Instruments Python log record creation and formatting to inject active trace correlation and configured service,
+  version, and environment metadata.
+packages: []
+category:
+- other
+systems: []
+creation_date: '2019-01-08'

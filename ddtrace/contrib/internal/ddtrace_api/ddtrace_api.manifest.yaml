@@ -1,0 +1,10 @@
+_v: 1
+name: ddtrace_api
+display_name: ddtrace-api
+description: Instruments the ddtrace-api tracing facade by proxying tracer and span operations to Datadog tracing while recording
+  API usage telemetry.
+packages: []
+category:
+- other
+systems: []
+creation_date: '2025-02-24'
