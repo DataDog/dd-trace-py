@@ -722,7 +722,7 @@ venv = Venv(
         Venv(
             name="lib_injection",
             command="pytest {cmdargs} tests/lib_injection/",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.15"),
             pkgs={
                 "PyYAML": latest,
                 "pytest-randomly": latest,
