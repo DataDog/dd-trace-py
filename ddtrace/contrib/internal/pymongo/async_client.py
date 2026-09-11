@@ -4,8 +4,6 @@ from types import FunctionType
 from typing import Any
 
 import pymongo
-from pymongo.asynchronous.pool import AsyncConnection
-from pymongo.asynchronous.server import Server as AsyncServer
 
 # project
 from ddtrace.ext import db
@@ -21,6 +19,7 @@ from .client import parse_socket_write_command_msg
 from .client import trace_cmd
 from .utils import create_checkout_span
 from .utils import dbm_dispatch
+from .utils import dbm_dispatch_client_operation
 from .utils import process_server_operation_result
 from .utils import setup_checkout_span_tags
 
@@ -29,6 +28,31 @@ log = get_logger(__name__)
 
 
 VERSION = pymongo.version_tuple
+
+
+if VERSION >= (4, 18):
+    from pymongo.asynchronous.mongo_client import AsyncMongoClient
+    from pymongo.asynchronous.pool import AsyncConnection
+    from pymongo.asynchronous.pool import Pool as AsyncPool
+else:
+    from pymongo.asynchronous.pool import AsyncConnection
+    from pymongo.asynchronous.server import Server as AsyncServer
+
+
+async def trace_async_mongo_client_run_operation(
+    func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    """Wrapper for AsyncMongoClient._run_operation to trace operations."""
+    client_instance = get_argument_value(args, kwargs, 0, "self")
+    operation = get_argument_value(args, kwargs, 1, "operation")
+
+    span = datadog_trace_operation(operation, client_instance)
+    if span is None:
+        return await func(*args, **kwargs)
+    with span:
+        span, args, kwargs = dbm_dispatch_client_operation(span, args, kwargs)
+        result = await func(*args, **kwargs)
+        return process_server_operation_result(span, operation, result)
 
 
 async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
@@ -45,6 +69,12 @@ async def trace_async_server_run_operation(func: FunctionType, args: tuple[Any, 
         return process_server_operation_result(span, operation, result)
 
 
+
+
+
+# AIDEV-NOTE: AsyncServer.checkout is awaitable through PyMongo 4.17, while
+# AsyncPool.checkout in 4.18+ is synchronous and returns an async context manager.
+# Keep separate wrappers so each patched method preserves its calling protocol.
 async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Wrapper for AsyncServer.checkout to trace socket checkout.
 
@@ -55,6 +85,18 @@ async def trace_async_server_checkout(func: FunctionType, args: tuple[Any, ...],
     # Call the original async function which returns an async context manager
     cm = await func(*args, **kwargs)
 
+    return _trace_async_checkout_context_manager(cm, instance)
+
+
+def trace_async_pool_checkout(func: FunctionType, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Wrapper for AsyncPool.checkout to trace socket checkout."""
+    instance = get_argument_value(args, kwargs, 0, "self")
+    cm = func(*args, **kwargs)
+    return _trace_async_checkout_context_manager(cm, instance)
+
+
+def _trace_async_checkout_context_manager(cm: Any, instance: Any) -> Any:
+    """Wrap an async checkout context manager with tracing."""
     if not tracer.enabled:
         # Return the original context manager unchanged
         return cm
@@ -117,17 +159,31 @@ def patch_pymongo_async_modules():
     """Patch asynchronous pymongo modules."""
     if not _check_async_support():
         return
-    _w(AsyncServer.run_operation, trace_async_server_run_operation)
-    _w(AsyncServer.checkout, trace_async_server_checkout)
+
+    if VERSION >= (4, 18):
+        _w(AsyncMongoClient._run_operation, trace_async_mongo_client_run_operation)
+        _w(AsyncPool.checkout, trace_async_pool_checkout)
+    else:
+        _w(AsyncServer.run_operation, trace_async_server_run_operation)
+        _w(AsyncServer.checkout, trace_async_server_checkout)
+
     _w(AsyncConnection.command, trace_async_socket_command)
-    _w(AsyncConnection.write_command, trace_async_socket_write_command)
+    if VERSION < (4, 18):
+        _w(AsyncConnection.write_command, trace_async_socket_write_command)
 
 
 def unpatch_pymongo_async_modules():
     """Unpatch asynchronous pymongo modules."""
     if not _check_async_support():
         return
-    _u(AsyncServer.run_operation, trace_async_server_run_operation)
-    _u(AsyncServer.checkout, trace_async_server_checkout)
+
+    if VERSION >= (4, 18):
+        _u(AsyncMongoClient._run_operation, trace_async_mongo_client_run_operation)
+        _u(AsyncPool.checkout, trace_async_pool_checkout)
+    else:
+        _u(AsyncServer.run_operation, trace_async_server_run_operation)
+        _u(AsyncServer.checkout, trace_async_server_checkout)
+
     _u(AsyncConnection.command, trace_async_socket_command)
-    _u(AsyncConnection.write_command, trace_async_socket_write_command)
+    if VERSION < (4, 18):
+        _u(AsyncConnection.write_command, trace_async_socket_write_command)
