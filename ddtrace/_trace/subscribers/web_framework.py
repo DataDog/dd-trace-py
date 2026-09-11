@@ -61,7 +61,9 @@ class WebFrameworkRequestSubscriber(TracingSubscriber):
             for handler in cls._ended_handlers:
                 handler(ctx, exc_info)
         finally:
-            if getattr(ctx.event, "_end_span", True) and not ctx.get_item("defer_span_finish", False):
+            if getattr(ctx.event, "_end_span", True) and (
+                not ctx.get_item("defer_span_finish", False) or exc_info[0] is not None
+            ):
                 _finish_span(ctx, exc_info)
 
     @classmethod
