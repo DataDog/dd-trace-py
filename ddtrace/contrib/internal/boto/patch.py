@@ -5,10 +5,10 @@ import boto.connection
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -67,8 +67,6 @@ def patch():
     # For example EC2 uses AWSQueryConnection and S3 uses AWSAuthConnection
     wrapt.wrap_function_wrapper("boto.connection", "AWSQueryConnection.make_request", patched_query_request)
     wrapt.wrap_function_wrapper("boto.connection", "AWSAuthConnection.make_request", patched_auth_request)
-    Pin(service="aws").onto(boto.connection.AWSQueryConnection)
-    Pin(service="aws").onto(boto.connection.AWSAuthConnection)
 
 
 def unpatch():
@@ -80,8 +78,7 @@ def unpatch():
 
 # ec2, sqs, kinesis
 def patched_query_request(original_func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return original_func(*args, **kwargs)
 
     endpoint_name = instance.host.split(".")[0]
@@ -92,7 +89,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         ),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, schematize_service_name("{}.{}".format(pin.service, endpoint_name)), config.boto)
+        set_service_and_source(span, schematize_service_name("aws.{}".format(endpoint_name)), config.boto)
         span._set_attribute(COMPONENT, config.boto.integration_name)
 
         # set span.kind to the type of request being performed
@@ -160,8 +157,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
             break
         frame = frame.f_back
 
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return original_func(*args, **kwargs)
 
     endpoint_name = instance.host.split(".")[0]
@@ -172,7 +168,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         ),
         span_type=SpanTypes.HTTP,
     ) as span:
-        set_service_and_source(span, schematize_service_name("{}.{}".format(pin.service, endpoint_name)), config.boto)
+        set_service_and_source(span, schematize_service_name("aws.{}".format(endpoint_name)), config.boto)
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
         if args:
             http_method = get_argument_value(args, kwargs, 0, "method")
