@@ -115,7 +115,7 @@ class ModuleCodeCollector(ModuleWatchdog):
         self._import_time_contexts: dict[str, "ModuleCodeCollector.CollectInContext"] = {}
         self._import_time_name_to_path: dict[str, str] = {}
         self._import_names_by_path: dict[str, set[tuple[str, tuple[str, ...]]]] = defaultdict(set)
-        # AIDEV-NOTE: Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
+        # Import metadata can grow during late/dynamic imports. Clear this cache whenever import coverage
         # metadata changes so per-test import-time augmentation does not miss newly discovered dependencies.
         self._direct_import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}
         self._import_time_dependency_paths_cache: dict[str, frozenset[str]] = {}

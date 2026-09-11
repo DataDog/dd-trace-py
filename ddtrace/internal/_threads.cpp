@@ -479,7 +479,7 @@ typedef struct periodic_thread
     std::chrono::time_point<std::chrono::steady_clock> _next_call_time;
 
     std::unique_ptr<Event> _started;
-    // AIDEV-NOTE: _stopped uses shared_ptr so the lambda can capture a copy.
+    // _stopped uses shared_ptr so the lambda can capture a copy.
     // When PyRef's Py_DECREF drops the Python refcount to zero during thread
     // teardown, dealloc resets self->_stopped (decrementing the shared_ptr
     // refcount), but the lambda's captured copy keeps the Event alive until
@@ -631,7 +631,7 @@ PeriodicThread__on_shutdown(PeriodicThread* self)
 static PyObject*
 _PeriodicThread_do_start(PeriodicThread* self, bool reset_next_call_time = false)
 {
-    // AIDEV-NOTE: PyRef is constructed before the lock — it only requires the
+    // PyRef is constructed before the lock — it only requires the
     // GIL (held here), not _thread_mutex. This keeps self alive across the
     // entire window between std::thread creation and the moment the lambda
     // acquires the GIL, during which the OS thread holds only a raw C pointer.
