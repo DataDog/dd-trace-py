@@ -8,12 +8,10 @@ class ThreadInfoTaskTraversalTest : public ::testing::Test
   protected:
 #if PY_VERSION_HEX >= 0x030e0000
     // Keep the production traversal private while allowing deterministic linked-list topologies in this test.
-    static Result<void> traverse(ThreadInfo& thread,
-                                 EchionSampler& echion,
-                                 uintptr_t head,
-                                 std::vector<TaskInfo::Ptr>& tasks)
+    static Result<void> traverse(ThreadInfo& thread, uintptr_t head, std::vector<TaskObj*>& task_addresses)
     {
-        return thread.get_tasks_from_linked_list(echion, head, tasks);
+        return thread.get_tasks_from_linked_list(
+          head, [&task_addresses](TaskObj* task_address) { task_addresses.push_back(task_address); });
     }
 
     static Result<std::vector<TaskInfo::Ptr>> get_all_tasks(ThreadInfo& thread,
@@ -63,12 +61,8 @@ task = loop.create_task(wait_forever())
 #endif
     thread.asyncio_loop = reinterpret_cast<uintptr_t>(loop);
 
-    // Seed the output to verify a failed source preserves tasks previously found by another source.
-    std::vector<TaskInfo::Ptr> tasks;
-    auto maybe_task = TaskInfo::create(echion, task);
-    ASSERT_TRUE(maybe_task);
-    tasks.push_back(std::move(*maybe_task));
-    TaskInfo* sentinel = tasks.front().get();
+    // Seed the output to verify a failed source does not publish addresses while preserving earlier results.
+    std::vector<TaskObj*> task_addresses{ task };
 
     // Model Echion reading A and V from A <-> V <-> T before CPython moves T under head B. Reading T afterward
     // produces this mixed-time view:
@@ -76,7 +70,7 @@ task = loop.create_task(wait_forever())
     //   copied nodes: A -> V -> T
     //   live task:              B <-> T
     //
-    // Traversal appends V before T.prev != V reveals the malformed edge and requires source-local rollback.
+    // Traversal reads V before T.prev != V reveals the malformed edge. It must not publish V to the callback.
     const llist_node original_valid_task_node = valid_task->task_node;
     const llist_node original_task_node = task->task_node;
     llist_node expected_head{};
@@ -89,18 +83,15 @@ task = loop.create_task(wait_forever())
     task->task_node.next = task->task_node.prev = &moved_head;
 
     result = nullptr;
-    auto traversal = traverse(thread, echion, reinterpret_cast<uintptr_t>(&expected_head), tasks);
+    auto traversal = traverse(thread, reinterpret_cast<uintptr_t>(&expected_head), task_addresses);
 
-    // Reject the malformed source and roll back only the entries it appended.
+    // Reject the malformed source without publishing any of its addresses.
     EXPECT_FALSE(traversal);
-    EXPECT_EQ(tasks.size(), 1);
-    if (!tasks.empty()) {
-        EXPECT_EQ(tasks.front().get(), sentinel);
-    }
+    ASSERT_EQ(task_addresses.size(), 1);
+    EXPECT_EQ(task_addresses.front(), task);
 
     valid_task->task_node = original_valid_task_node;
     task->task_node = original_task_node;
-    tasks.clear();
 
     // Expose the same Task through a valid thread list and the eager-task set. Cross-source discovery must still
     // return one TaskInfo because downstream accounting and wall-time scaling operate on this result.
