@@ -1,6 +1,9 @@
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Literal  # noqa:F401
-from typing import Union  # noqa:F401
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+from typing import Literal
+from typing import Optional
+from typing import Union
 
 import ddtrace
 from ddtrace import config as dd_config
@@ -18,9 +21,7 @@ from ..internal.utils import set_argument_value
 
 
 if TYPE_CHECKING:
-    from typing import Optional  # noqa:F401
-
-    from ddtrace.trace import Span  # noqa:F401
+    from ddtrace.trace import Span
 
 
 DBM_PARENT_SERVICE_NAME_KEY: Literal["ddps"] = "ddps"
@@ -39,15 +40,13 @@ _DBM_INJECTION_MODES = ("full", "service", DBM_PROPAGATION_MODE_DYNAMIC_SERVICE)
 log = get_logger(__name__)
 
 
-def _should_inject_sql_basehash():
-    # type: () -> bool
+def _should_inject_sql_basehash() -> bool:
     return dbm_config.propagation_mode == DBM_PROPAGATION_MODE_DYNAMIC_SERVICE or (
         dbm_config.propagation_mode == "service" and dbm_config.inject_sql_basehash
     )
 
 
-def default_sql_injector(dbm_comment, sql_statement):
-    # type: (str, Union[str, bytes]) -> Union[str, bytes]
+def default_sql_injector(dbm_comment: str, sql_statement: Union[str, bytes]) -> Union[str, bytes]:
     try:
         if isinstance(sql_statement, bytes):
             return dbm_comment.encode("utf-8", errors="strict") + sql_statement
@@ -102,8 +101,7 @@ class _DBM_Propagator(object):
         args, kwargs = set_argument_value(args, kwargs, self.sql_pos, self.sql_kw, sql_with_dbm_tags)
         return args, kwargs
 
-    def _get_dbm_comment(self, db_span):
-        # type: (Span) -> Optional[str]
+    def _get_dbm_comment(self, db_span: Span) -> Optional[str]:
         """Generate DBM trace injection comment and updates span tags
         This method will set the ``_dd.dbm_trace_injected: "true"`` tag
         on ``db_span`` if the configured injection mode is ``"full"``.
