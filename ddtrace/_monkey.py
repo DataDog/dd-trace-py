@@ -107,6 +107,7 @@ PATCH_MODULES = {
     "azure_durable_functions": True,
     "azure_servicebus": True,
     "tornado": False,
+    "trio": True,
     "openai": True,
     "langchain": True,
     "anthropic": True,
