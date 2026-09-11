@@ -31,10 +31,7 @@ class InvalidLine(Exception):
     """
 
 
-# mypy only folds sys.version_info against literals. NEXT_MAX_PY is the
-# runtime floor; the literal keeps this 3.15-only import off the 3.10 checker.
-assert NEXT_MAX_PY == (3, 15)  # nosec B101
-if sys.version_info >= (3, 15):
+if sys.version_info >= NEXT_MAX_PY:
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos
