@@ -1,0 +1,14 @@
+_v: 1
+name: openai
+display_name: OpenAI
+description: Instruments OpenAI and Azure OpenAI API operations plus OpenAI Realtime WebSocket conversations, capturing model
+  inputs, outputs, streams, and tool calls.
+packages:
+- name: openai
+category:
+- gen_ai
+- websocket.client
+systems:
+- azure.ai.openai
+- openai
+creation_date: '2023-04-26'

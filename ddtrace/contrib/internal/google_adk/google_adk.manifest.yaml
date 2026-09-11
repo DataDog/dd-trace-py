@@ -1,0 +1,10 @@
+_v: 1
+name: google_adk
+display_name: Google ADK
+description: Instruments Google ADK agent runs, tool calls, and code execution for distributed tracing and LLM Observability.
+packages:
+- name: google-adk
+category:
+- gen_ai
+systems: []
+creation_date: '2025-09-24'
