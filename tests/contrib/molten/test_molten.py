@@ -490,3 +490,22 @@ class TestMolten(TracerTestCase):
                         else:
                             web_span = traces[0][0]
                             assert web_span._parent is None
+
+    def test_route_metadata_available_during_handler_execution(self):
+        observed = {}
+
+        def handler():
+            span = self.tracer.current_root_span()
+            assert span is not None
+            observed["resource"] = span.resource
+            observed["http.route"] = span.get_tag(http.ROUTE)
+            return "ok"
+
+        app = molten.App(routes=[molten.Route("/inspect", handler)])
+        client = TestClient(app)
+
+        response = client.get("/inspect")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(observed["resource"], "GET /inspect")
+        self.assertEqual(observed["http.route"], "/inspect")
