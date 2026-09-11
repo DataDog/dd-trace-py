@@ -7,6 +7,20 @@ from ddtrace.internal.settings._inferred_base_service import detect_service
 
 class TelemetryConfig(DDConfig):
     __prefix__ = "dd"
+    # Shared tracer settings and install metadata are reported by their existing telemetry payloads.
+    __telemetry_exclude__ = frozenset(
+        {
+            "DD_ENV",
+            "DD_INSTRUMENTATION_INSTALL_ID",
+            "DD_INSTRUMENTATION_INSTALL_TIME",
+            "DD_INSTRUMENTATION_INSTALL_TYPE",
+            "DD_INSTRUMENTATION_TELEMETRY_ENABLED",
+            "DD_SERVICE",
+            "DD_TELEMETRY_DEPENDENCY_COLLECTION_ENABLED",
+            "DD_TELEMETRY_HEARTBEAT_INTERVAL",
+            "DD_VERSION",
+        }
+    )
 
     ENV = DDConfig.v(str, "env", default="")
     SERVICE = DDConfig.v(str, "service", default=detect_service(sys.argv) or "unnamed-python-service")

@@ -132,13 +132,13 @@ else:
 telemetry_writer = TelemetryWriter()
 
 
-def _report_configuration(config: DDConfig, names: t.Optional[frozenset[str]] = None) -> None:
+def report_configuration(config: DDConfig) -> None:
     for name, e in type(config).items(recursive=True):
         if e.private:
             continue
 
         env_name = e.full_name
-        if names is not None and env_name not in names:
+        if env_name in config.__telemetry_exclude__:
             continue
 
         # Configurations marked ``sensitive: true`` in the registry are excluded
@@ -152,10 +152,6 @@ def _report_configuration(config: DDConfig, names: t.Optional[frozenset[str]] = 
             env_val = getattr(env_val, p)
 
         telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id(env_name))
-
-
-def report_configuration(config: DDConfig) -> None:
-    _report_configuration(config)
 
 
 def _invalid_otel_config(otel_env):
@@ -239,23 +235,7 @@ def _hiding_otel_config(otel_env, dd_env):
 report_configuration(appsec_telemetry_config)
 report_configuration(agent_config)
 report_configuration(dbm_config)
-# AIDEV-NOTE: DD_TAGS is reported by the global tracer config, while the repository URL is
-# sensitive. Report only the remaining Git metadata settings here to avoid duplicate/raw values.
-_report_configuration(
-    gitmetadata_config,
-    frozenset(
-        {
-            "DD_GIT_COMMIT_SHA",
-            "DD_GIT_REPOSITORY_URL",
-            "DD_MAIN_PACKAGE",
-            "DD_TRACE_GIT_METADATA_ENABLED",
-        }
-    ),
-)
+report_configuration(gitmetadata_config)
 report_configuration(process_tags_config)
-# The global tracer config reports the shared settings and install metadata has its own payload.
-_report_configuration(
-    telemetry_config,
-    frozenset({"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED", "DD_TELEMETRY_LOG_COLLECTION_ENABLED"}),
-)
+report_configuration(telemetry_config)
 report_configuration(third_party_config)

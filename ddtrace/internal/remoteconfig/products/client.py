@@ -1,11 +1,7 @@
 from ddtrace import config as tracer_config
 from ddtrace.internal.native import RemoteConfigProduct
 from ddtrace.internal.remoteconfig.client import config
-from ddtrace.internal.remoteconfig.client import tuf_config
 from ddtrace.internal.settings._agent import config as agent_config
-
-
-additional_configs = (tuf_config,)
 
 
 # Flare state - managed globally

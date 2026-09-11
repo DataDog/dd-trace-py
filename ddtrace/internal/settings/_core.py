@@ -47,6 +47,8 @@ class _ParsedValues:
 class DDConfig(Env):
     """Provides support for loading configurations from multiple sources."""
 
+    __telemetry_exclude__: frozenset[str] = frozenset()
+
     def __init__(
         self,
         source: Optional[dict[str, str]] = None,

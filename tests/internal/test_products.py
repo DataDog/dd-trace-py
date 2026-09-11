@@ -174,7 +174,7 @@ def _make_entry_point(name, dist_name, module_path, product_obj):
     [
         ("aiguard", "ddtrace.internal.aiguard.product", ("config",)),
         ("openfeature", "ddtrace.internal.openfeature.product", ("config",)),
-        ("remote-configuration", "ddtrace.internal.remoteconfig.products.client", ("config", "tuf_config")),
+        ("remote-configuration", "ddtrace.internal.remoteconfig.products.client", ("config",)),
     ],
 )
 def test_load_products_reports_product_config(name, module_path, config_attributes):

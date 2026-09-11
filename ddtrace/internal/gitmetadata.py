@@ -19,6 +19,9 @@ log = get_logger(__name__)
 
 class GitMetadataConfig(DDConfig):
     __prefix__ = "dd"
+    # AIDEV-NOTE: DD_TAGS is reported by the global tracer config, which also removes raw Git metadata.
+    # The repository URL remains covered by the central sensitive-configuration filter.
+    __telemetry_exclude__ = frozenset({"DD_TAGS"})
 
     # DD_TRACE_GIT_METADATA_ENABLED
     enabled = DDConfig.var(bool, "trace_git_metadata_enabled", default=True)
@@ -57,7 +60,7 @@ def _get_tags_from_env() -> tuple[str, str, str]:
     if not commit_sha:
         commit_sha = tags.get(COMMIT_SHA, "")
     filtered_git_url = _filter_sensitive_info(repository_url)
-    if type(filtered_git_url) != str:
+    if type(filtered_git_url) is not str:
         return "", commit_sha, main_package
     return filtered_git_url, commit_sha, main_package
 
@@ -83,7 +86,7 @@ def _get_tags_from_package(main_package: str) -> tuple[str, str]:
             repository_url, commit_sha = source_code_link.split("#")
             commit_sha = commit_sha.split("&")[0]
             filtered_git_url = _filter_sensitive_info(repository_url)
-            if type(filtered_git_url) != str:
+            if type(filtered_git_url) is not str:
                 return "", commit_sha
             return filtered_git_url, commit_sha
         return "", ""

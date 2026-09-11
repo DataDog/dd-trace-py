@@ -31,8 +31,10 @@ class _SyntheticDDConfig(DDConfig):
     """
 
     __prefix__ = "dd.test.synthetic"
+    __telemetry_exclude__ = frozenset({"DD_TEST_SYNTHETIC_EXCLUDED_SETTING"})
 
     public_setting = DDConfig.v(str, "public_setting", default="pub_default")
+    excluded_setting = DDConfig.v(str, "excluded_setting", default="excluded_default")
     _private_setting = DDConfig.v(str, "private_setting", default="priv_default", private=True)
     sensitive_setting = DDConfig.v(str, "sensitive_setting", default="sens_default")
     bool_setting = DDConfig.v(bool, "bool_setting", default=False)
@@ -859,8 +861,6 @@ def test_ai_guard_configuration_telemetry(test_agent_session, run_python_code_in
 
 def test_non_product_ddconfig_configuration_telemetry(test_agent_session, run_python_code_in_subprocess):
     git_url_sentinel = "https://user:SENTINEL_GIT_PASSWORD@example.test/repository.git"
-    config_root_sentinel = "SENTINEL_CONFIG_ROOT"
-    director_root_sentinel = "SENTINEL_DIRECTOR_ROOT"
     env = os.environ.copy()
     env.update(
         {
@@ -870,8 +870,6 @@ def test_non_product_ddconfig_configuration_telemetry(test_agent_session, run_py
             "DD_GIT_REPOSITORY_URL": git_url_sentinel,
             "DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true",
             "DD_MAIN_PACKAGE": "example-package",
-            "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": config_root_sentinel,
-            "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": director_root_sentinel,
             "DD_TELEMETRY_LOG_COLLECTION_ENABLED": "false",
             "DD_THIRD_PARTY_DETECTION_EXCLUDES": "requests,urllib3",
             "DD_THIRD_PARTY_DETECTION_INCLUDES": "example-package",
@@ -889,8 +887,6 @@ def test_non_product_ddconfig_configuration_telemetry(test_agent_session, run_py
         "DD_GIT_COMMIT_SHA": "abcdef123456",
         "DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": _to_config_str(True),
         "DD_MAIN_PACKAGE": "example-package",
-        "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": config_root_sentinel,
-        "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": director_root_sentinel,
         "DD_TELEMETRY_LOG_COLLECTION_ENABLED": _to_config_str(False),
         "DD_THIRD_PARTY_DETECTION_EXCLUDES": "requests,urllib3",
         "DD_THIRD_PARTY_DETECTION_INCLUDES": "example-package",
@@ -1174,8 +1170,8 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
 
 
 def test_report_configuration_walks_ddconfig(telemetry_writer, test_agent_session, monkeypatch):
-    """report_configuration() reports every public, non-sensitive item of a DDConfig with its
-    resolved value, source and config_id, and skips private and sensitive items entirely.
+    """report_configuration() reports every eligible DDConfig item with its resolved value,
+    source and config_id, and skips private, sensitive and config-excluded items entirely.
     """
     monkeypatch.setenv("DD_TEST_SYNTHETIC_PUBLIC_SETTING", "from_env")
     monkeypatch.setenv("DD_TEST_SYNTHETIC_BOOL_SETTING", "true")
@@ -1206,6 +1202,7 @@ def test_report_configuration_walks_ddconfig(telemetry_writer, test_agent_sessio
 
     assert "DD_TEST_SYNTHETIC_PRIVATE_SETTING" not in reported
     assert "DD_TEST_SYNTHETIC_SENSITIVE_SETTING" not in reported
+    assert "DD_TEST_SYNTHETIC_EXCLUDED_SETTING" not in reported
 
     # The native worker serializes every configuration value as a string, so compare against
     # the wire form (see _to_config_str) rather than the DDConfig item's declared type.
