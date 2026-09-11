@@ -9,36 +9,24 @@ from types import CoroutineType
 
 import pytest
 
-from ddtrace.internal.compat import CURRENT_MAX_PY_VERSION
 from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
-from ddtrace.internal.compat import NEXT_PY_VERSION
-from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 
 
-# wrap() is live on CURRENT_MAX_PY_VERSION until NEXT_PY_VERSION_INFO.
-# Do not skipif on NEXT_MAX_PY (packaging +1, still 3.15).
-_WRAP_ON_315: bool = CURRENT_MAX_PY_VERSION <= PYTHON_VERSION_INFO[:2] < NEXT_PY_VERSION_INFO
+# wrap() is live on NEXT_MAX_PY until NEXT_MAX_PY + 1 minor.
+_FAIL_CLOSE: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
+_WRAP_ON_315: bool = NEXT_MAX_PY <= PYTHON_VERSION_INFO[:2] < _FAIL_CLOSE
 
 
 def test_max_and_next_max_py_version_constants() -> None:
     assert MAX_PY == (3, 14)
-    assert NEXT_MAX_PY == (MAX_PY[0], MAX_PY[1] + 1)
     assert NEXT_MAX_PY == (3, 15)
 
 
-def test_current_max_py_version_is_not_aliased_to_packaging() -> None:
-    assert CURRENT_MAX_PY_VERSION == (3, 15)
-    assert CURRENT_MAX_PY_VERSION is not MAX_PY
-    assert CURRENT_MAX_PY_VERSION is not NEXT_MAX_PY
-
-
-def test_next_py_version_is_wrap_fail_close() -> None:
-    assert NEXT_PY_VERSION_INFO == (3, 16)
-    assert NEXT_PY_VERSION == "3.16"
-    assert NEXT_PY_VERSION_INFO is not NEXT_MAX_PY
-    assert NEXT_PY_VERSION_INFO is not CURRENT_MAX_PY_VERSION
+def test_wrap_fail_close_is_next_max_plus_one() -> None:
+    fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
+    assert fail_close == (3, 16)
 
 
 def test_wrapping_modules_import():
@@ -112,7 +100,8 @@ def test_wrap_raises_not_implemented_on_future_py(monkeypatch):
     """wrap() must fail closed from 3.16 on."""
     import ddtrace.internal.wrapping as wrapping
 
-    monkeypatch.setattr(wrapping, "PY", NEXT_PY_VERSION_INFO)
+    fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
+    monkeypatch.setattr(wrapping, "PY", fail_close)
 
     def f() -> None:
         return None

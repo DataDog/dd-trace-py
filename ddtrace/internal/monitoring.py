@@ -21,16 +21,16 @@ from typing import NamedTuple
 from typing import Optional
 import weakref
 
-from ddtrace.internal.compat import CURRENT_MAX_PY_VERSION
+from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if sys.version_info < CURRENT_MAX_PY_VERSION:
-    raise ImportError("ddtrace.internal.monitoring requires Python %s.%s+" % CURRENT_MAX_PY_VERSION)
+if sys.version_info < NEXT_MAX_PY:
+    raise ImportError("ddtrace.internal.monitoring requires Python %s.%s+" % NEXT_MAX_PY)
 # mypy only folds sys.version_info against literals. A named alias leaves this
 # 3.15-only body reachable under python_version 3.10, where sys.monitoring is
-# missing (attr-defined / no-any-return). Keep the tuple equal to CURRENT_MAX_PY_VERSION.
+# missing (attr-defined / no-any-return). Keep the literal equal to NEXT_MAX_PY.
 assert sys.version_info >= (3, 15)  # nosec B101
 
 log = get_logger(__name__)

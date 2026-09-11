@@ -3,7 +3,7 @@ from types import FrameType
 from types import FunctionType
 import typing as t
 
-from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.wrapping.context import WrappingContext
 
@@ -46,14 +46,15 @@ def lazy(f: t.Callable[[], None]) -> None:
     _globals = sys._getframe(1).f_globals
     _initialized = False
 
-    # WrappingContext.wrap() (sys.monitoring) is live through CURRENT_MAX_PY_VERSION;
-    # fallback from NEXT_PY_VERSION_INFO.
-    if PYTHON_VERSION_INFO < NEXT_PY_VERSION_INFO:
+    # WrappingContext.wrap() (sys.monitoring) is live through NEXT_MAX_PY;
+    # fallback from NEXT_MAX_PY + 1 minor.
+    fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
+    if PYTHON_VERSION_INFO < fail_close:
         _LazyModuleLoadingContext(t.cast(FunctionType, f)).wrap()
 
     def __getattr__(name: str) -> t.Any:
         nonlocal _initialized
-        if PYTHON_VERSION_INFO >= NEXT_PY_VERSION_INFO:
+        if PYTHON_VERSION_INFO >= fail_close:
             if not _initialized:
                 _exec_lazy_init(t.cast(FunctionType, f), _globals)
                 _initialized = True
