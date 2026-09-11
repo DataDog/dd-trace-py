@@ -142,9 +142,6 @@ def _env_truthy(name: str, default: str = "0") -> bool:
     return os.getenv(name, default).lower() in ("1", "yes", "on", "true")
 
 
-BUILD_PROFILING_NATIVE_TESTS = _env_truthy("DD_PROFILING_NATIVE_TESTS")
-
-
 def is_musl_libc() -> bool:
     """Whether the current interpreter is a musl (Alpine / musllinux) build."""
     return any(
@@ -678,6 +675,17 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
 
 
 class LibraryDownloader(BuildPyCommand):
+    # Opt out of bundling libddwaf, for distribution packagers that must build
+    # from source and package libddwaf separately. See docs/build_system.rst.
+    user_options = BuildPyCommand.user_options + [
+        ("no-bundle-libddwaf", None, "do not download libddwaf; load the system library at runtime"),
+    ]
+    boolean_options = BuildPyCommand.boolean_options + ["no-bundle-libddwaf"]
+
+    def initialize_options(self) -> None:
+        BuildPyCommand.initialize_options(self)
+        self.no_bundle_libddwaf = 0
+
     def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
         # is set to True when the package is being installed in editable mode, which we need to know
@@ -696,9 +704,32 @@ class LibraryDownloader(BuildPyCommand):
         # version changes even when CleanLibraries.remove_artifacts() is skipped.
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
-        LibDDWafDownload.run()
+        if self.no_bundle_libddwaf:
+            if CURRENT_OS != "Linux":
+                raise RuntimeError(
+                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no system "
+                    "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
+                    "so libddwaf must be bundled" % CURRENT_OS
+                )
+            print("Not bundling libddwaf: the runtime will load the system library")
+            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
+        else:
+            LibDDWafDownload.run()
+        self._clean_staged_libddwaf()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
+
+    def _clean_staged_libddwaf(self):
+        """Drop a previously staged libddwaf so the wheel mirrors the source tree.
+
+        Setuptools copies new and updated files into build_lib but never removes
+        files that disappeared from the source tree, so a library staged by an
+        earlier build would still reach the wheel of a --no-bundle-libddwaf
+        build and shadow the system one at load time.
+        """
+        if not self.build_lib:
+            return
+        shutil.rmtree(Path(self.build_lib) / LIBDDWAF_DOWNLOAD_DIR.relative_to(HERE), ignore_errors=True)
 
     def find_data_files(self, package, src_dir):
         """Strip build/source artifacts from wheel data files."""
@@ -1456,10 +1487,7 @@ class CustomBuildExt(build_ext):
             ext.source_dir, cmake_build_dir, output_dir, extension_basename, ext.build_type
         )
 
-        if BUILD_PROFILING_NATIVE_TESTS:
-            cmake_args += ["-DBUILD_TESTING=ON"]
-        else:
-            cmake_args += ["-DBUILD_TESTING=OFF"]
+        cmake_args += ["-DBUILD_TESTING=OFF"]
 
         # If this is an inplace build, propagate this fact to CMake in case it's helpful
         # In particular, this is needed for build products which are not otherwise managed
@@ -1918,7 +1946,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"]
             + (["libdd_heap_gotter*.so", "libdd_heap_gotter*.dylib"] if BUILD_NATIVE_HEAP_GOTTER else [])
-            + (["test/*"] if BUILD_PROFILING_NATIVE_TESTS else [])
         ),
     },
     zip_safe=False,
