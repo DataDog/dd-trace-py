@@ -1974,6 +1974,16 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="anyio",
+            command="pytest {cmdargs} tests/contrib/anyio",
+            pkgs={"pytest-randomly": latest},
+            venvs=[
+                Venv(pys="3.9", pkgs={"anyio": "==3.4.0", "trio": "<0.22"}),
+                Venv(pys="3.10", pkgs={"anyio": "<4.0", "trio": "<0.22"}),
+                Venv(pys=select_pys(), pkgs={"anyio": latest, "trio": latest}),
+            ],
+        ),
+        Venv(
             name="aiomysql",
             command="pytest {cmdargs} tests/contrib/aiomysql",
             venvs=[
@@ -4746,7 +4756,7 @@ venv = Venv(
             pys=select_pys(),
             pkgs={
                 "pytest-asyncio": "==0.23.7",
-                # AIDEV-NOTE: ``pyyaml`` lets the cassette smoke test parse the
+                # ``pyyaml`` lets the cassette smoke test parse the
                 # anthropic contrib VCR fixtures. Pinned to a single version
                 # because the suite only uses ``yaml.safe_load``.
                 "pyyaml": latest,
