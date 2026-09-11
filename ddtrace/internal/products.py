@@ -109,6 +109,9 @@ class ProductManager:
             # Report configuration via telemetry
             if isinstance(config := getattr(product, "config", None), DDConfig):
                 report_configuration(config)
+            for config in getattr(product, "additional_configs", ()):
+                if isinstance(config, DDConfig):
+                    report_configuration(config)
 
             log.debug("Product plugin '%s' loaded successfully", name)
 

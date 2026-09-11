@@ -857,6 +857,51 @@ def test_ai_guard_configuration_telemetry(test_agent_session, run_python_code_in
     assert all(endpoint_sentinel not in str(configuration["value"]) for configuration in configurations.values())
 
 
+def test_non_product_ddconfig_configuration_telemetry(test_agent_session, run_python_code_in_subprocess):
+    git_url_sentinel = "https://user:SENTINEL_GIT_PASSWORD@example.test/repository.git"
+    config_root_sentinel = "SENTINEL_CONFIG_ROOT"
+    director_root_sentinel = "SENTINEL_DIRECTOR_ROOT"
+    env = os.environ.copy()
+    env.update(
+        {
+            "DD_DBM_INJECT_SQL_BASEHASH": "true",
+            "DD_DBM_PROPAGATION_MODE": "service",
+            "DD_GIT_COMMIT_SHA": "abcdef123456",
+            "DD_GIT_REPOSITORY_URL": git_url_sentinel,
+            "DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": "true",
+            "DD_MAIN_PACKAGE": "example-package",
+            "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": config_root_sentinel,
+            "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": director_root_sentinel,
+            "DD_TELEMETRY_LOG_COLLECTION_ENABLED": "false",
+            "DD_THIRD_PARTY_DETECTION_EXCLUDES": "requests,urllib3",
+            "DD_THIRD_PARTY_DETECTION_INCLUDES": "example-package",
+            "DD_TRACE_GIT_METADATA_ENABLED": "false",
+        }
+    )
+
+    _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
+    assert status == 0, stderr
+
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
+    expected = {
+        "DD_DBM_INJECT_SQL_BASEHASH": _to_config_str(True),
+        "DD_DBM_PROPAGATION_MODE": "service",
+        "DD_GIT_COMMIT_SHA": "abcdef123456",
+        "DD_INTERNAL_TELEMETRY_DEBUG_ENABLED": _to_config_str(True),
+        "DD_MAIN_PACKAGE": "example-package",
+        "DD_REMOTE_CONFIGURATION_CONFIG_ROOT": config_root_sentinel,
+        "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT": director_root_sentinel,
+        "DD_TELEMETRY_LOG_COLLECTION_ENABLED": _to_config_str(False),
+        "DD_THIRD_PARTY_DETECTION_EXCLUDES": "requests,urllib3",
+        "DD_THIRD_PARTY_DETECTION_INCLUDES": "example-package",
+        "DD_TRACE_GIT_METADATA_ENABLED": _to_config_str(False),
+    }
+    assert {name: configurations[name]["value"] for name in expected} == expected
+
+    assert "DD_GIT_REPOSITORY_URL" not in configurations
+    assert all(git_url_sentinel not in str(configuration["value"]) for configuration in configurations.values())
+
+
 def test_dd_api_key_app_key_telemetry_omitted(telemetry_writer, test_agent_session):
     """DD_API_KEY and DD_APP_KEY values are excluded from configuration telemetry.
 

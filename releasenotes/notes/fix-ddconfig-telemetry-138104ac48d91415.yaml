@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    configuration: Fixes missing configuration telemetry for AI Guard, feature
+    flagging, Remote Configuration, Database Monitoring, Git metadata,
+    telemetry controls, and third-party package detection settings. Sensitive
+    endpoint and repository URL values remain excluded.

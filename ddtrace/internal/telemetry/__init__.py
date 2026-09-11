@@ -6,6 +6,7 @@ This is normally started automatically when ``ddtrace`` is imported. It can be d
 
 import typing as t
 
+from ddtrace.internal.gitmetadata import config as gitmetadata_config
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._agent import config as agent_config
@@ -13,13 +14,16 @@ from ddtrace.internal.settings._core import FLEET_CONFIG
 from ddtrace.internal.settings._core import FLEET_CONFIG_IDS
 from ddtrace.internal.settings._core import LOCAL_CONFIG
 from ddtrace.internal.settings._core import DDConfig
+from ddtrace.internal.settings._database_monitoring import dbm_config
 from ddtrace.internal.settings._otel_remapper import ENV_VAR_MAPPINGS
 from ddtrace.internal.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.internal.settings._otel_remapper import parse_otel_env
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
 from ddtrace.internal.settings._supported_configurations import SENSITIVE_CONFIGURATIONS
+from ddtrace.internal.settings._telemetry import config as telemetry_config
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
 from ddtrace.internal.settings.process_tags import process_tags_config
+from ddtrace.internal.settings.third_party import config as third_party_config
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.formats import asbool
 
@@ -128,12 +132,14 @@ else:
 telemetry_writer = TelemetryWriter()
 
 
-def report_configuration(config: DDConfig) -> None:
+def _report_configuration(config: DDConfig, names: t.Optional[frozenset[str]] = None) -> None:
     for name, e in type(config).items(recursive=True):
         if e.private:
             continue
 
         env_name = e.full_name
+        if names is not None and env_name not in names:
+            continue
 
         # Configurations marked ``sensitive: true`` in the registry are excluded
         # from configuration telemetry.
@@ -146,6 +152,10 @@ def report_configuration(config: DDConfig) -> None:
             env_val = getattr(env_val, p)
 
         telemetry_writer.add_configuration(env_name, env_val, config.value_source(env_name), config.config_id(env_name))
+
+
+def report_configuration(config: DDConfig) -> None:
+    _report_configuration(config)
 
 
 def _invalid_otel_config(otel_env):
@@ -224,7 +234,28 @@ def _hiding_otel_config(otel_env, dd_env):
     )
 
 
-# TODO: Remove this once the telemetry feature is refactored to a better design
+# TODO: Remove this once the telemetry feature is refactored to a better design.
+# These configs need reporting even when ProductManager is not run.
 report_configuration(appsec_telemetry_config)
 report_configuration(agent_config)
+report_configuration(dbm_config)
+# AIDEV-NOTE: DD_TAGS is reported by the global tracer config, while the repository URL is
+# sensitive. Report only the remaining Git metadata settings here to avoid duplicate/raw values.
+_report_configuration(
+    gitmetadata_config,
+    frozenset(
+        {
+            "DD_GIT_COMMIT_SHA",
+            "DD_GIT_REPOSITORY_URL",
+            "DD_MAIN_PACKAGE",
+            "DD_TRACE_GIT_METADATA_ENABLED",
+        }
+    ),
+)
 report_configuration(process_tags_config)
+# The global tracer config reports the shared settings and install metadata has its own payload.
+_report_configuration(
+    telemetry_config,
+    frozenset({"DD_INTERNAL_TELEMETRY_DEBUG_ENABLED", "DD_TELEMETRY_LOG_COLLECTION_ENABLED"}),
+)
+report_configuration(third_party_config)
