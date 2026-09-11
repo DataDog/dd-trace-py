@@ -1,0 +1,40 @@
+[
+  {
+    "attributes": {},
+    "defaultValue": 42,
+    "flag": "numeric_flag",
+    "result": {
+      "reason": "STATIC",
+      "value": 3.1415926
+    },
+    "targetingKey": null,
+    "variationType": "NUMERIC"
+  },
+  {
+    "attributes": {
+      "country": "France"
+    },
+    "defaultValue": "default",
+    "flag": "new-user-onboarding",
+    "result": {
+      "reason": "ERROR",
+      "value": "default"
+    },
+    "targetingKey": null,
+    "variationType": "STRING"
+  },
+  {
+    "attributes": {
+      "country": "France",
+      "email": "null@mycompany.com"
+    },
+    "defaultValue": "default",
+    "flag": "new-user-onboarding",
+    "result": {
+      "reason": "TARGETING_MATCH",
+      "value": "green"
+    },
+    "targetingKey": null,
+    "variationType": "STRING"
+  }
+]
