@@ -51,28 +51,26 @@ def _install_llmobs_processor(tracer):
 def ai_guard_standalone_tracer(tracer):
     """AI Guard enabled with APM tracing disabled, restored afterwards."""
     with override_ai_guard_config(_STANDALONE_AI_GUARD_CONFIG):
-        # compute_stats_enabled forces tracer._recreate so the sampling processor picks up
-        # apm_opt_out, which is now True (AI Guard enabled + APM tracing disabled).
-        tracer.configure(apm_tracing_disabled=True, compute_stats_enabled=False)
+        tracer.configure(apm_tracing_disabled=True)
         original_processor = tracer._span_aggregator.llmobs_processor
         try:
             yield tracer
         finally:
             tracer._span_aggregator.llmobs_processor = original_processor
-            tracer.configure(apm_tracing_disabled=False, compute_stats_enabled=False)
+            tracer.configure(apm_tracing_disabled=False)
             ddtrace.config._reset()
 
 
 @pytest.fixture
 def appsec_standalone_tracer(tracer):
     """AppSec enabled with APM tracing disabled, restored afterwards."""
-    tracer.configure(appsec_enabled=True, apm_tracing_disabled=True, compute_stats_enabled=False)
+    tracer.configure(appsec_enabled=True, apm_tracing_disabled=True)
     original_processor = tracer._span_aggregator.llmobs_processor
     try:
         yield tracer
     finally:
         tracer._span_aggregator.llmobs_processor = original_processor
-        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, compute_stats_enabled=False)
+        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
         ddtrace.config._reset()
 
 
@@ -134,4 +132,34 @@ class TestAppSecStandaloneWithLLMObs:
 
         written = [span.name for trace in writer.pop_traces() for span in trace]
         assert "appsec_root" in written, "LLMObs processor dropped the standalone AppSec trace"
+        assert span.get_metric("_dd.apm.enabled") == 0.0
+
+
+class TestRuntimeSwitchIntoStandalone:
+    """tracer.configure(apm_tracing_disabled=True) is a supported runtime switch, and it has to
+    refresh the sampling processor: otherwise the trace is delivered without the standalone rate
+    limit or _dd.apm.enabled=0, and is billed as ordinary APM.
+    """
+
+    def test_sampling_processor_picks_up_the_opt_out(self, ai_guard_standalone_tracer):
+        tracer = ai_guard_standalone_tracer
+        sampling_processor = tracer._span_aggregator.sampling_processor
+
+        assert standalone_config.apm_opt_out is True
+        assert sampling_processor.apm_opt_out is True, "sampling processor kept a stale apm_opt_out"
+        # The opt-out limiter keeps the service visible at 1 trace per minute.
+        assert sampling_processor.sampler._rate_limit_always_on is True
+
+    def test_delivered_trace_is_still_opted_out_of_apm_billing(self, ai_guard_standalone_tracer):
+        """The pairing that matters: the trace survives the LLMObs processor *and* carries the
+        opt-out metric. Delivering it without the metric would start billing it as APM.
+        """
+        tracer = ai_guard_standalone_tracer
+        writer = _install_llmobs_processor(tracer)
+
+        with tracer.trace("root_span", span_type=SpanTypes.WEB) as span:
+            pass
+
+        written = [s.name for trace in writer.pop_traces() for s in trace]
+        assert "root_span" in written
         assert span.get_metric("_dd.apm.enabled") == 0.0
