@@ -160,12 +160,6 @@ services:
           DD_USE_SCCACHE: "1"
           SCCACHE_DIR: "/home/bits/.cache/sccache"
           DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: "1"
-          # Store riot venvs in a subdir separate from the host's .riot/venv* dirs
-          # (shared via the project bind mount below). Without this, venvs built
-          # inside the Linux container and venvs built natively on the host (e.g.
-          # macOS) collide in the same path, and riot picks up incompatible
-          # prebuilt binaries.
-          RIOT_ENV_BASE_PATH: ".riot/docker"
         userns_mode: host
         working_dir: /home/bits/project/
         volumes:

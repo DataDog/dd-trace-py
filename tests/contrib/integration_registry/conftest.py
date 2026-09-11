@@ -1,13 +1,10 @@
 import json
 from pathlib import Path
 import re
-from typing import Any
 from typing import cast
 
 import pytest
 import yaml
-
-import riotfile
 
 
 @pytest.fixture(scope="module")
@@ -144,32 +141,6 @@ def integration_dir_names(internal_contrib_dir: Path) -> set[str]:
 
     if not names:
         pytest.fail(f"No directories (excluding __pycache__) found in {internal_contrib_dir}")
-    return names
-
-
-@pytest.fixture(scope="module")
-def riot_venvs() -> Any:
-    """Gets all Venv defined in riotfile.py."""
-    return riotfile.venv.venvs  # type: ignore[attr-defined]
-
-
-@pytest.fixture(scope="module")
-def riot_venv_names() -> set[str]:
-    """Finds all Venv names defined in riotfile.py."""
-
-    names: set[str] = set()
-    nodes_to_visit: list[Any] = [riotfile.venv]  # type: ignore[attr-defined]
-
-    while nodes_to_visit:
-        current_node = nodes_to_visit.pop()
-        if hasattr(current_node, "name") and isinstance(current_node.name, str):
-            names.add(current_node.name)
-
-        if hasattr(current_node, "venvs") and isinstance(current_node.venvs, list):
-            nodes_to_visit.extend(current_node.venvs)
-
-    if not names:
-        pytest.fail("No integration Venv names found in riotfile.venv structure.")
     return names
 
 

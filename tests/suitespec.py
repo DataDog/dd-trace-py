@@ -60,26 +60,23 @@ def _collect_suitespecs() -> dict:
     for s, root, ns_prefix in specfiles:
         path_parts = s.relative_to(root).parts[:-1]
         namespace = "::".join(path_parts) if path_parts else ns_prefix or None
-        with YAML() as yaml:
+        with YAML(typ="safe") as yaml:
             data = yaml.load(s)
-            suites = data.get("suites", {})
-            source = s.relative_to(TESTS.parent).as_posix()
-            for spec in suites.values():
-                spec["paths"].append(source)
-            if namespace is not None:
-                for name, spec in list(suites.items()):
-                    if "pattern" not in spec:
-                        spec["pattern"] = name
-                    suites[f"{namespace}::{name}"] = spec
-                    del suites[name]
-            for k, v in suitespec.items():
-                v.update(data.get(k, {}))
+        suitespec["components"].update(data["components"])
+
+        source = s.relative_to(TESTS.parent).as_posix()
+        for name, value in data["suites"].items():
+            spec = value.copy()
+            spec["paths"] = [*spec["paths"], source]
+            full_name = f"{namespace}::{name}" if namespace is not None else name
+            if namespace is not None and "pattern" not in spec:
+                spec["pattern"] = name
+            suitespec["suites"][full_name] = spec
 
     return suitespec
 
 
 SUITESPEC = _collect_suitespecs()
-UV_TEST_SUITES = tuple(suite for suite, config in SUITESPEC["suites"].items() if "matrix" in config)
 
 
 @cache
@@ -126,11 +123,6 @@ def get_suites() -> dict[str, dict]:
     return SUITESPEC["suites"]
 
 
-def get_components() -> dict[str, list[str]]:
-    """Get the list of jobs."""
-    return SUITESPEC.get("components", {})
-
-
 @dataclass(frozen=True)
 class TestRun:
     """One command and environment executed in a test environment."""
@@ -152,22 +144,15 @@ class TestEnvironment:
     integration_name: str
     python: str
     direct_dependencies: tuple[str, ...]
-    # Preserve historical Riot lock hashes when uv requires a different dependency declaration.
-    riot_lock_dependencies: tuple[str, ...]
     runs: tuple[TestRun, ...]
 
     @property
     def lockfile(self) -> Path:
-        return LOCK_ROOT / f"{self.lock_hash}.txt"
-
-    @property
-    def lock_hash(self) -> str:
-        return _test_environment_hash(self.name, self.python, self.riot_lock_dependencies)
+        return LOCK_ROOT / f"{self.hash}.txt"
 
     @property
     def hash(self) -> str:
-        name = f"{self.suite}::{self.name}"
-        return _test_environment_hash(name, self.python, self.direct_dependencies)
+        return _test_environment_hash(self.name, self.python, self.direct_dependencies)
 
 
 def _requirement_key(requirement: str) -> str:
@@ -209,7 +194,8 @@ def _runs(
     runs = []
     for run in run_specs:
         run_environment = base_environment.copy()
-        run_environment.update(run.get("env", {}))
+        if "env" in run:
+            run_environment.update(run["env"])
         run_command = run.get("command", command)
         if not isinstance(run_command, str):
             raise MatrixError("each matrix run needs a command")
@@ -223,7 +209,7 @@ def _variant_settings(
     matrix: dict[str, Any],
     variant: dict[str, Any],
     nightly: bool,
-) -> tuple[tuple[str, ...], tuple[str, ...], str, tuple[TestRun, ...]]:
+) -> tuple[tuple[str, ...], str, tuple[TestRun, ...]]:
     dependencies = _merge_dependencies(DEFAULT_DEPENDENCIES, tuple(variant.get("dependencies", ())))
     environment = DEFAULT_ENVIRONMENT.copy()
     if nightly:
@@ -236,8 +222,7 @@ def _variant_settings(
     command = variant.get("command", matrix.get("command"))
     run_specs = variant.get("runs", matrix.get("runs"))
     integration = variant.get("integration", suite_config.get("integration", variant["name"].split(":", 1)[0]))
-    riot_lock_dependencies = tuple(variant.get("riot_lock_dependencies", dependencies))
-    return dependencies, riot_lock_dependencies, integration, _runs(command, environment, run_specs)
+    return dependencies, integration, _runs(command, environment, run_specs)
 
 
 def _expand_suite_matrix(
@@ -261,7 +246,7 @@ def _expand_suite_matrix(
         python_versions = tuple(python_value)
         if not python_versions:
             raise MatrixError(f"variant {name} for {suite} needs a Python version")
-        dependencies, riot_lock_dependencies, integration, runs = _variant_settings(
+        dependencies, integration, runs = _variant_settings(
             suite,
             suite_config,
             matrix,
@@ -276,7 +261,6 @@ def _expand_suite_matrix(
                     integration_name=integration,
                     python=python,
                     direct_dependencies=dependencies,
-                    riot_lock_dependencies=riot_lock_dependencies,
                     runs=runs,
                 )
             )

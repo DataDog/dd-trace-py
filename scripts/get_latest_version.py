@@ -10,10 +10,10 @@ from mappings import INTEGRATION_TO_DEPENDENCY_MAPPING  # noqa: E402
 
 
 def normalize_to_pypi_name(name: str) -> str:
-    """Resolve a riot venv / integration name to its PyPI project name.
+    """Resolve a test suite or integration name to its PyPI project name.
 
     PyPI already normalizes ``-``/``_``/case per PEP 503, so the only cases
-    that actually need translating are the ones where the venv name and the
+    that actually need translating are the ones where the suite name and the
     PyPI project name are different words (e.g. ``asyncio`` -> ``pytest-asyncio``,
     ``azure_durable_functions`` -> ``azure-functions-durable``). Those live in
     ``scripts/integration_registry/mappings.py``.
@@ -27,7 +27,7 @@ def normalize_to_pypi_name(name: str) -> str:
     if deps and len(deps) == 1:
         return next(iter(deps))
     if deps and len(deps) > 1:
-        raise SystemExit(f"Venv '{name}' maps to multiple PyPI packages: {sorted(deps)}. Pass the exact PyPI name.")
+        raise SystemExit(f"Suite '{name}' maps to multiple PyPI packages: {sorted(deps)}. Pass the exact PyPI name.")
 
     return key
 

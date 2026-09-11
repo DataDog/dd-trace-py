@@ -14,8 +14,6 @@
       "Bash(pyenv virtualenv:*)",
       "Bash(mkdir:*)",
       "Bash(docker compose build:*)",
-      "Bash(riot list:*)",
-      "Bash(riot -v run:*)",
       "Bash(scripts/lint:*)",
       "Bash(cargo:*)",
       "Bash(source:*)",

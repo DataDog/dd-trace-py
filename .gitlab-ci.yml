@@ -632,7 +632,7 @@ prof-correctness:
       gh run watch "${RUN_ID}" --repo DataDog/prof-correctness --exit-status
 
 lib_injection_tests:
-  # tests for sitecustomize safety that intentionally run outside of riot to simulate a fresh system
+  # These sitecustomize safety tests intentionally run outside managed test environments to simulate a fresh system.
   needs: []
   stage: tests
   tags: [ "arch:amd64" ]

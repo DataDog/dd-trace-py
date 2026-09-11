@@ -164,6 +164,11 @@ the locks and commit both changes:
 
 Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
 environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+On Apple Silicon, select that image architecture explicitly:
+
+.. code-block:: bash
+
+  $ DOCKER_DEFAULT_PLATFORM=linux/amd64 scripts/ddtest scripts/test-requirements lock <environment-name>
 
 Use ``scripts/test-requirements`` to inspect and maintain locks:
 
@@ -212,10 +217,6 @@ How do I add a new test suite?
 
 Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
 locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
-
-Until the test-runner migration is complete, mirror environment changes in ``riotfile.py``. The
-`test_uv_suitespec_matches_riot <https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py>`_
-regression test verifies that the suitespec and Riot definitions remain equivalent.
 
 How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------

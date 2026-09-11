@@ -422,11 +422,6 @@ class TestRunner:
             contents = "".join(f"{dependency}\n" for dependency in environment.direct_dependencies)
         else:
             contents = lockfile.read_text()
-            contents += "".join(
-                f"{dependency}\n"
-                for dependency in environment.direct_dependencies
-                if dependency not in environment.riot_lock_dependencies
-            )
         package_hash = hashlib.sha256(contents.encode()).hexdigest()[:12]
         if project_artifact is None:
             project_file = self.root / "pyproject.toml"
@@ -639,8 +634,9 @@ class TestRunner:
 
         run_env = dict(forwarded_env)
         run_env.update(run.environment)
+        run_env["TEST_SUITE"] = environment.integration_name
         if self.in_ci:
-            _configure_ci_itr_environment(run_env, environment.python, environment.lock_hash)
+            _configure_ci_itr_environment(run_env, environment.python, environment.hash)
         return self._ddtest_command(expanded, self._uv_command_environment(prepared, run_env))
 
     def _run_uv_suite(

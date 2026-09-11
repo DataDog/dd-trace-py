@@ -1,4 +1,3 @@
-import os
 import subprocess
 from unittest import mock
 
@@ -10,12 +9,7 @@ from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
 
-######
-# Skip these tests if they are not running under riot
-riot_env_value = os.getenv("RIOT", None)
-if not riot_env_value:
-    pytest.importorskip("xdist", reason="Pytest xdist tests, not running under riot")
-######
+pytest.importorskip("xdist", reason="Pytest xdist tests require pytest-xdist")
 
 
 _USE_PLUGIN_V2 = True

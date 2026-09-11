@@ -58,6 +58,8 @@ suites:
         DD_IAST_REQUEST_SAMPLING: '100'
         PYTHONFAULTHANDLER: '1'
         _DD_IAST_PATCH_MODULES: benchmarks.,tests.appsec.
+      # pip 25+ changed dist-info registration, so pip is absent from packages_distributions().
+      # TODO: fix the first-party detection logic in iastpatch.c
       variants:
         - name: appsec_iast_default
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
@@ -148,7 +150,6 @@ suites:
       variants:
         - name: appsec_iast_packages
           dependencies: [requests, flask, 'pip==26.2.1', pytest-xdist, 'psutil==7.1.3']
-          riot_lock_dependencies: [mock, pytest, pytest-mock, coverage, pytest-cov, opentracing, 'hypothesis<6.45.1', requests, flask, pytest-xdist, 'psutil==7.1.3']
   iast_tdd_propagation:
     venvs_per_job: 1
     paths:
