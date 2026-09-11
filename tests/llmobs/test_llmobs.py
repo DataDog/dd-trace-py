@@ -1437,6 +1437,148 @@ def test_sampling_decisions_follow_configured_rate():
     )
 
 
+@pytest.mark.subprocess(
+    env={
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_SAMPLING_RULES": '[{"env": "prod", "sample_rate": 0.5}]',
+    }
+)
+def test_enable_sampling_rules_configures_sampler():
+    """DD_LLMOBS_SAMPLING_RULES is parsed onto the sampler at enable()."""
+    from ddtrace.llmobs import LLMObs
+
+    LLMObs.enable(agentless_enabled=False)
+    rules = LLMObs._instance._sampler.rules
+    assert len(rules) == 1
+    assert rules[0].sample_rate == 0.5
+    assert LLMObs._instance._sampler.sample_rate == 1.0
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_ENV": "prod",
+        "DD_LLMOBS_SAMPLE_RATE": "1",
+        "DD_LLMOBS_SAMPLING_RULES": '[{"env": "prod", "sample_rate": 0}]',
+    },
+)
+def test_sampling_rule_matching_env_overrides_global_rate():
+    """A rule matching the configured env wins over DD_LLMOBS_SAMPLE_RATE."""
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sample_rate
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    with LLMObs.workflow("w") as span:
+        pass
+
+    assert get_llmobs_sampling_decision(span) == LLMObsSamplingDecision.DROPPED
+    assert get_llmobs_sample_rate(span) == "0"
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_ENV": "staging",
+        "DD_LLMOBS_SAMPLE_RATE": "0",
+        "DD_LLMOBS_SAMPLING_RULES": '[{"env": "prod", "sample_rate": 1}]',
+    },
+)
+def test_non_matching_sampling_rule_falls_back_to_global_rate():
+    """When no rule matches the configured env, DD_LLMOBS_SAMPLE_RATE still applies."""
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sample_rate
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    with LLMObs.workflow("w") as span:
+        pass
+
+    assert get_llmobs_sampling_decision(span) == LLMObsSamplingDecision.DROPPED
+    assert get_llmobs_sample_rate(span) == "0"
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_LLMOBS_SAMPLE_RATE": "0",
+        "DD_LLMOBS_SAMPLING_RULES": '[{"env": "prod", "sample_rate": 1}]',
+    },
+)
+def test_unset_env_falls_back_to_global_rate():
+    """With no DD_ENV set, an env rule cannot match and the global rate applies."""
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    with LLMObs.workflow("w") as span:
+        pass
+
+    assert get_llmobs_sampling_decision(span) == LLMObsSamplingDecision.DROPPED
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_ENV": "prod",
+        "DD_LLMOBS_SAMPLE_RATE": "0",
+        "DD_LLMOBS_SAMPLING_RULES": '[{"env": "prod", "sample_rate": 1}]',
+    },
+)
+def test_sampling_rule_rate_inherited_by_child_span():
+    """The matched rule's rate and decision are inherited by descendants, not re-evaluated."""
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sample_rate
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    with LLMObs.workflow("parent") as parent:
+        with LLMObs.workflow("child") as child:
+            pass
+
+    assert get_llmobs_sampling_decision(parent) == LLMObsSamplingDecision.SAMPLED
+    assert get_llmobs_sample_rate(parent) == "1"
+    assert get_llmobs_sample_rate(child) == "1"
+    assert get_llmobs_sampling_decision(child) == get_llmobs_sampling_decision(parent)
+
+
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LLMOBS_ENABLED": "1",
+        "DD_LLMOBS_ML_APP": "test-app",
+        "DD_LLMOBS_AGENTLESS_ENABLED": "0",
+        "DD_ENV": "prod",
+        "DD_LLMOBS_SAMPLE_RATE": "0",
+        "DD_LLMOBS_SAMPLING_RULES": "not-valid-json",
+    },
+    err=None,  # the sampler logs a warning about the unparseable rules
+)
+def test_invalid_sampling_rules_fall_back_to_global_rate():
+    """Unparseable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""
+    from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._constants import LLMObsSamplingDecision
+    from ddtrace.llmobs._utils import get_llmobs_sampling_decision
+
+    assert LLMObs._instance._sampler.rules == []
+    with LLMObs.workflow("w") as span:
+        pass
+
+    assert get_llmobs_sampling_decision(span) == LLMObsSamplingDecision.DROPPED
+
+
 class TestSpanEventJSONSafety:
     """Span data must be JSON-safe by span finish, or agentless APM exporter will drop the entire trace.
 

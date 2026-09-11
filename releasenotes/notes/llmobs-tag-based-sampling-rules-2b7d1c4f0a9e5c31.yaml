@@ -1,0 +1,9 @@
+features:
+  - |
+    LLM Observability: Introduces env-based head sampling via the ``DD_LLMOBS_SAMPLING_RULES`` environment variable,
+    which mirrors the format of ``DD_TRACE_SAMPLING_RULES``. Each rule declares a ``sample_rate`` and an optional
+    ``env`` that is glob-matched against ``DD_ENV`` and evaluated against the root span of an LLM Observability
+    trace. Rules are evaluated in order and the first match wins; traces matching no rule fall back to
+    ``DD_LLMOBS_SAMPLE_RATE``. For example,
+    ``DD_LLMOBS_SAMPLING_RULES='[{"env": "prod", "sample_rate": 0.5}, {"env": "staging", "sample_rate": 0.1}]'``
+    samples production traces at 50% and staging traces at 10%.
