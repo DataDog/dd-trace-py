@@ -1,3 +1,6 @@
+import os
+import select
+import signal
 import socket
 import threading
 import typing
@@ -5,11 +8,14 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
+from ddtrace.internal.openfeature import _evp_transport
 from ddtrace.internal.openfeature._evp_transport import DIRECT_RETRY_STATUSES
 from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
 from ddtrace.internal.openfeature._evp_transport import AmbiguousLocalEVPDeliveryError
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature._evp_transport import get_evp_connection
+from ddtrace.internal.openfeature._evp_transport import get_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._evp_transport import reset_feature_flag_evp_route_selector
 from ddtrace.internal.openfeature._flagevaluation_writer import FlagEvaluationWriter
 from ddtrace.internal.openfeature.writer import ExposureWriter
@@ -29,6 +35,7 @@ def _selector(
     site: str = "datadoghq.com",
     clock: typing.Callable[[], float] = lambda: 0.0,
     recovery_interval: float = 30.0,
+    agent_url: str = "http://agent:8126",
 ):
     calls = []
 
@@ -38,7 +45,7 @@ def _selector(
 
     selector = FeatureFlagEVPRouteSelector(
         configuration_source=source,
-        agent_url="http://agent:8126",
+        agent_url=agent_url,
         api_key=api_key,
         site=site,
         info_provider=info_provider,
@@ -69,6 +76,26 @@ def test_local_route_prefers_v4_and_never_carries_direct_credentials():
     }
     assert selector.select() is route
     assert info_calls == ["http://agent:8126"]
+
+
+@pytest.mark.parametrize(
+    ("agent_url", "expected_base_path"),
+    [
+        ("http://gateway:8126/datadog/", "/datadog/evp_proxy/v4"),
+        ("https://gateway:8126/datadog/nested", "/datadog/nested/evp_proxy/v4"),
+        ("unix:///var/run/datadog/apm.socket", "/evp_proxy/v4"),
+    ],
+)
+def test_local_route_preserves_http_agent_path_prefix_but_not_unix_socket_path(agent_url, expected_base_path):
+    selector, info_calls = _selector(endpoints=("/evp_proxy/v4/",), agent_url=agent_url)
+
+    route = selector.select()
+
+    assert route is not None
+    assert route.intake == agent_url
+    assert route.base_path == expected_base_path
+    assert route.endpoint("/api/v2/exposures") == expected_base_path + "/api/v2/exposures"
+    assert info_calls == [agent_url]
 
 
 def test_agentless_uses_direct_when_discovery_fails_before_send():
@@ -170,12 +197,17 @@ def test_default_writers_share_one_route_selector():
 
 
 def test_remote_configuration_keeps_historical_fixed_v2_without_discovery_or_direct_fallback():
-    selector, info_calls = _selector(source=REMOTE_CONFIG, endpoints=(), api_key="must-not-be-used")
+    selector, info_calls = _selector(
+        source=REMOTE_CONFIG,
+        endpoints=(),
+        api_key="must-not-be-used",
+        agent_url="http://gateway:8126/datadog/",
+    )
 
     route = selector.select()
 
     assert route is not None
-    assert route.base_path == "/evp_proxy/v2"
+    assert route.base_path == "/datadog/evp_proxy/v2"
     assert route.direct is False
     assert route.fallback is None
     assert "DD-API-KEY" not in route.headers
@@ -374,6 +406,56 @@ def test_pid_change_resets_route_and_repeats_discovery(monkeypatch):
     assert len(info_calls) == 2
 
 
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires os.fork")
+@pytest.mark.parametrize("lock_owner", ["route", "singleton"])
+def test_route_selector_locks_are_reinitialized_after_fork(lock_owner):
+    reset_feature_flag_evp_route_selector()
+    selector, _ = _selector(endpoints=("/evp_proxy/v4/",))
+    lock = selector._lock if lock_owner == "route" else _evp_transport._SELECTOR_LOCK
+    entered = threading.Event()
+    release = threading.Event()
+
+    def hold_lock():
+        with lock:
+            entered.set()
+            assert release.wait(timeout=5.0)
+
+    holder = threading.Thread(target=hold_lock)
+    holder.start()
+    assert entered.wait(timeout=2.0)
+
+    read_fd, write_fd = os.pipe()
+    child_pid = os.fork()
+    if child_pid == 0:
+        os.close(read_fd)
+        try:
+            if lock_owner == "route":
+                assert selector.select() is not None
+            else:
+                assert get_feature_flag_evp_route_selector() is not None
+            os.write(write_fd, b"ok")
+        except Exception:
+            os.write(write_fd, b"error")
+        finally:
+            os.close(write_fd)
+            os._exit(0)
+
+    os.close(write_fd)
+    try:
+        release.set()
+        holder.join(timeout=2.0)
+        assert not holder.is_alive()
+        readable, _, _ = select.select([read_fd], [], [], 3.0)
+        if not readable:
+            os.kill(child_pid, signal.SIGKILL)
+        assert readable, "child blocked on a lock inherited from a vanished parent thread"
+        assert os.read(read_fd, 2) == b"ok"
+    finally:
+        os.close(read_fd)
+        os.waitpid(child_pid, 0)
+        reset_feature_flag_evp_route_selector()
+
+
 def test_direct_https_uses_datadog_proxy(monkeypatch):
     monkeypatch.setenv("DD_PROXY_HTTPS", "http://proxy.example.test:8443")
     monkeypatch.delenv("NO_PROXY", raising=False)
@@ -389,6 +471,7 @@ def test_direct_https_uses_datadog_proxy(monkeypatch):
         connection = get_evp_connection(route, 2.0)
 
     assert connection is proxy_connection
+    assert getattr(connection, _HTTPLIB_NO_TRACE_REQUEST) is True
     https_connection.assert_called_once_with("proxy.example.test", 8443, timeout=2.0)
     proxy_connection.set_tunnel.assert_called_once_with("event-platform-intake.datadoghq.com", 443, headers={})
 
@@ -402,9 +485,13 @@ def test_direct_https_uses_standard_proxy(monkeypatch):
     route = selector.select()
     assert route is not None
 
-    with mock.patch("ddtrace.internal.openfeature._evp_transport.httplib.HTTPSConnection") as https_connection:
-        get_evp_connection(route, 1.5)
+    proxy_connection = mock.Mock()
+    with mock.patch(
+        "ddtrace.internal.openfeature._evp_transport.httplib.HTTPSConnection", return_value=proxy_connection
+    ) as https_connection:
+        connection = get_evp_connection(route, 1.5)
 
+    assert getattr(connection, _HTTPLIB_NO_TRACE_REQUEST) is True
     https_connection.assert_called_once_with("standard-proxy.example.test", 8080, timeout=1.5)
 
 
@@ -422,6 +509,7 @@ def test_direct_https_honors_no_proxy(monkeypatch):
         connection = get_evp_connection(route, 2.0)
 
     assert connection is direct_connection
+    assert getattr(connection, _HTTPLIB_NO_TRACE_REQUEST) is True
     https_connection.assert_called_once_with("event-platform-intake.datadoghq.com", 443, timeout=2.0)
 
 
@@ -442,6 +530,7 @@ def test_direct_https_without_proxy_uses_non_redirecting_stdlib_connection(monke
         connection = get_evp_connection(route, 2.0)
 
     assert connection is direct_connection
+    assert getattr(connection, _HTTPLIB_NO_TRACE_REQUEST) is True
     https_connection.assert_called_once_with("event-platform-intake.datadoghq.com", 443, timeout=2.0)
 
 

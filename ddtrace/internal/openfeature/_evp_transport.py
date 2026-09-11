@@ -7,7 +7,6 @@ import errno
 import http.client as httplib
 import os
 import socket
-import threading
 import time
 from typing import Any
 from typing import Optional
@@ -18,6 +17,8 @@ from urllib.parse import urlsplit
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
+from ddtrace.internal import forksafe
+from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH_V4
 from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE
@@ -49,6 +50,14 @@ EVP_ORIGIN_HEADERS = {
 WINDOWS_WSAECONNREFUSED = 10061
 
 _T = TypeVar("_T")
+
+
+def _mark_direct_connection_untraced(connection: _T) -> _T:
+    # AIDEV-NOTE: Direct EVP is internal telemetry. Mark every stdlib connection
+    # so httplib instrumentation cannot create an application span or inject
+    # trace headers into the authenticated request.
+    setattr(connection, _HTTPLIB_NO_TRACE_REQUEST, True)
+    return connection
 
 
 def _build_direct_intake(site: str) -> Optional[str]:
@@ -123,13 +132,17 @@ def get_evp_connection(
     if origin.scheme != "https" or origin.hostname is None:
         raise ValueError("Feature Flagging direct intake must use HTTPS")
     if urllib_request.proxy_bypass(origin.netloc):
-        return httplib.HTTPSConnection(origin.hostname, origin.port or 443, timeout=timeout)
+        return _mark_direct_connection_untraced(
+            httplib.HTTPSConnection(origin.hostname, origin.port or 443, timeout=timeout)
+        )
 
     # DD_PROXY_HTTPS is the tracer-specific spelling used by system-tests and
     # HTTPS_PROXY/https_proxy are the standard process-wide equivalents.
     proxy_url = dd_environ.get("DD_PROXY_HTTPS") or urllib_request.getproxies().get("https")
     if not proxy_url:
-        return httplib.HTTPSConnection(origin.hostname, origin.port or 443, timeout=timeout)
+        return _mark_direct_connection_untraced(
+            httplib.HTTPSConnection(origin.hostname, origin.port or 443, timeout=timeout)
+        )
     if "://" not in proxy_url:
         proxy_url = "http://" + proxy_url
 
@@ -143,7 +156,9 @@ def get_evp_connection(
         encoded = base64.b64encode(credentials.encode("utf-8")).decode("ascii")
         tunnel_headers["Proxy-Authorization"] = "Basic " + encoded
 
-    connection = httplib.HTTPSConnection(proxy.hostname, proxy.port or 80, timeout=timeout)
+    connection = _mark_direct_connection_untraced(
+        httplib.HTTPSConnection(proxy.hostname, proxy.port or 80, timeout=timeout)
+    )
     connection.set_tunnel(origin.hostname, origin.port or 443, headers=tunnel_headers)
     return connection
 
@@ -188,7 +203,7 @@ class FeatureFlagEVPRouteSelector:
         self._info_provider = info_provider
         self._clock = clock
         self._recovery_interval = recovery_interval
-        self._lock = threading.RLock()
+        self._lock = forksafe.Lock()
         self._pid = os.getpid()
         self._selected = False
         self._route: Optional[EVPRoute] = None
@@ -308,9 +323,10 @@ class FeatureFlagEVPRouteSelector:
         return self._local_route(base_path)
 
     def _local_route(self, base_path: str) -> EVPRoute:
+        agent_base_path = agent._agent_base_path(self._agent_url)
         return EVPRoute(
             intake=self._agent_url,
-            base_path=base_path,
+            base_path=agent_base_path + base_path,
             headers={
                 "Content-Type": "application/json",
                 EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_PLATFORM_VALUE,
@@ -346,7 +362,7 @@ class FeatureFlagEVPRouteSelector:
                 self._recover_at = self._clock() + self._recovery_interval
 
 
-_SELECTOR_LOCK = threading.RLock()
+_SELECTOR_LOCK = forksafe.Lock()
 _SELECTOR: Optional[FeatureFlagEVPRouteSelector] = None
 
 
