@@ -1,5 +1,3 @@
-from ddtrace.internal.runtime import get_runtime_id
-
 from ...constants import ENV_KEY
 from ...constants import VERSION_KEY
 from .. import process_tags
@@ -72,28 +70,6 @@ class PlatformTagCollector(RuntimeTagCollector):
             (LANG_VERSION, platform.python_version()),
             (TRACER_VERSION, version.__version__),
         ]
-        return tags
-
-
-class PlatformTagCollectorV2(PlatformTagCollector):
-    """Tag collector for the Python interpreter implementation.
-
-    Tags collected:
-    - ``lang_interpreter``:
-
-      * For CPython this is 'CPython'.
-      * For Pypy this is ``PyPy``
-      * For Jython this is ``Jython``
-
-    - `lang_version``,  eg ``2.7.10``
-    - ``lang`` e.g. ``Python``
-    - ``tracer_version`` e.g. ``0.29.0``
-    - ``runtime-id`` e.g. `e4724609efa84cf58424a8b1ef44b17d`
-    """
-
-    def collect_fn(self, keys):
-        tags = super(PlatformTagCollectorV2, self).collect_fn(keys)
-        tags.append(("runtime-id", get_runtime_id()))
         return tags
 
 
