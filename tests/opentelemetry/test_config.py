@@ -103,6 +103,28 @@ def test_otel_service_configuration():
     assert config.service == "Test", config.service
 
 
+@pytest.mark.subprocess(
+    env={
+        "OTEL_SERVICE_NAME": "",
+        "OTEL_RESOURCE_ATTRIBUTES": "service.name=resource-service",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_TIMEOUT": "",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "",
+        "OTEL_METRIC_EXPORT_TIMEOUT": "",
+        "OTEL_TRACES_SPAN_METRICS_ENABLED": "",
+    }
+)
+def test_empty_otel_configuration_is_unset():
+    from ddtrace import config
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert config.service == "resource-service"
+    assert config._otel_stats_computation_enabled is None
+    assert otel_config.exporter.TIMEOUT == 10000
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 7500
+
+
 @pytest.mark.subprocess(env={"OTEL_LOG_LEVEL": "debug"})
 def test_otel_log_level_configuration_debug():
     from ddtrace import config
