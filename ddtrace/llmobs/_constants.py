@@ -22,6 +22,7 @@ class LLMObsExportMode(str, Enum):
 
 CACHED_LLMOBS_EVENT_CTX_KEY = "_llmobs.cached_event"
 CACHED_LLMOBS_EXPORT_MODE_CTX_KEY = "_llmobs.export_mode"
+LLMOBS_SAMPLING = "_llmobs.sampling"
 
 
 SESSION_ID = "_ml_obs.session_id"
