@@ -19,6 +19,8 @@ import pytest
 # The module only imports on 3.15+ (it raises ImportError below that). On older
 # interpreters importorskip skips the whole module at collection time. Under a
 # type checker we import it directly so member/base-class references resolve.
+# TODO: that means this whole module is skipped in CI today -- riotfile.py caps
+# MAX_PYTHON_VERSION at 3.14 and only the smoke_test venv opts into 3.15.
 if TYPE_CHECKING:
     from ddtrace.internal import monitoring
 else:
@@ -37,6 +39,61 @@ class _MonitoringEvents(Protocol):
 _E: _MonitoringEvents = cast(_MonitoringEvents, monitoring._E)  # type: ignore[has-type]
 _DISABLE: object = cast(object, monitoring._DISABLE)  # type: ignore[has-type]
 _sys_monitoring: Any = getattr(sys, "monitoring", None)
+
+
+class _FakeMonitoring:
+    def __init__(self, occupied: dict[int, str]) -> None:
+        self.tools: dict[int, str] = occupied.copy()
+        self.claimed: list[int] = []
+
+    def get_tool(self, tool_id: int) -> str | None:
+        return self.tools.get(tool_id)
+
+    def use_tool_id(self, tool_id: int, name: str) -> None:
+        if tool_id in self.tools:
+            raise ValueError("tool ID is occupied")
+        self.tools[tool_id] = name
+        self.claimed.append(tool_id)
+
+    def register_callback(self, tool_id: int, event: int, callback: Any) -> None:
+        pass
+
+
+def test_setup_uses_free_candidate_when_preferred_id_is_occupied(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_monitoring: _FakeMonitoring = _FakeMonitoring({4: "foreign"})
+    previous_tool_id: int | None = monitoring._tool_id
+    monkeypatch.setattr(sys, "monitoring", fake_monitoring)
+    monitoring._tool_id = None
+
+    try:
+        assert monitoring._setup() == 3
+        assert fake_monitoring.claimed == [3]
+    finally:
+        monitoring._tool_id = previous_tool_id
+
+
+def test_setup_fails_without_a_free_candidate(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_monitoring: _FakeMonitoring = _FakeMonitoring({3: "foreign", 4: "foreign"})
+    previous_tool_id: int | None = monitoring._tool_id
+    monkeypatch.setattr(sys, "monitoring", fake_monitoring)
+    monitoring._tool_id = None
+
+    try:
+        with pytest.raises(RuntimeError, match="No free sys.monitoring tool ID"):
+            monitoring._setup()
+        assert fake_monitoring.claimed == []
+    finally:
+        monitoring._tool_id = previous_tool_id
+
+
+def test_get_tool_id_returns_the_shared_setup_tool_id() -> None:
+    """get_tool_id() is the public face of _setup(): the same ID, and idempotent."""
+    tool_id: int = monitoring.get_tool_id()
+
+    assert tool_id in monitoring._CANDIDATE_TOOL_IDS  # type: ignore[has-type]
+    assert monitoring._tool_id == tool_id
+    assert monitoring._setup() == tool_id
+    assert monitoring.get_tool_id() == tool_id
 
 
 class UnwindHandler(monitoring.MonitoringEventHandler):
