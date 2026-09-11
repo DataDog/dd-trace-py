@@ -1,0 +1,12 @@
+_v: 1
+name: azure_servicebus
+display_name: Azure Service Bus
+description: Instruments synchronous and asynchronous Azure Service Bus message production, including immediate and scheduled
+  sends, distributed trace propagation, and batch span links.
+packages:
+- name: azure-servicebus
+category:
+- messaging.producer
+systems:
+- servicebus
+creation_date: '2025-06-26'
