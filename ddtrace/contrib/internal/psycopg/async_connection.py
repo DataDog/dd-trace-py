@@ -1,11 +1,11 @@
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3TracedAsyncCursor
 from ddtrace.contrib.internal.psycopg.connection import patch_conn
 from ddtrace.contrib.internal.trace_utils import ext_service
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -45,21 +45,18 @@ def patched_connect_async_factory(psycopg_module):
     async def patched_connect_async(connect_func, _, args, kwargs):
         traced_conn_cls = Psycopg3TracedAsyncConnection
 
-        pin = Pin.get_from(psycopg_module)
-
-        if not pin or not pin.enabled() or not pin._config.trace_connect:
+        if not is_tracing_enabled() or not config.psycopg.trace_connect:
             conn = await connect_func(*args, **kwargs)
         else:
             with core.context_with_data(
                 "psycopg.patched_connect",
                 span_name="{}.{}".format(connect_func.__module__, connect_func.__name__),
-                service=ext_service(pin, pin._config),
+                service=ext_service(None, config.psycopg),
                 span_type=SpanTypes.SQL,
-                pin=pin,
                 tags={
                     SPAN_KIND: SpanKind.CLIENT,
-                    COMPONENT: pin._config.integration_name,
-                    db.SYSTEM: pin._config.dbms_name,
+                    COMPONENT: config.psycopg.integration_name,
+                    db.SYSTEM: config.psycopg.dbms_name,
                 },
                 measured=True,
                 integration_config=config.psycopg,
