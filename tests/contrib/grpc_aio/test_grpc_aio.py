@@ -221,6 +221,11 @@ def _get_spans(tracer):
     return tracer._span_aggregator.writer.spans
 
 
+async def test_server_accepts_explicit_none_interceptors():
+    server = aio.server(interceptors=None)
+    await server.stop(None)
+
+
 def _check_client_span(span, service, method_name, method_kind, resource="helloworld.Hello", *, expected_port):
     assert_is_measured(span)
     assert span.name == "grpc"
