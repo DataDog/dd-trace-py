@@ -19,26 +19,33 @@ TMPDIR_TEST=$(mktemp -d)
 trap 'rm -rf "$TMPDIR_TEST"' EXIT
 
 CALLS_FILE="$TMPDIR_TEST/clang-format-calls.txt"
+GIT_ADD_CALLS="$TMPDIR_TEST/git-add-calls.txt"
 
 # Writes a mock git that emits $1 (newline-separated filenames) for the
 # staged-files query, answers `rev-parse --show-toplevel` with $2 (default
-# $TMPDIR_TEST, which has no .venv-lint), and delegates everything else to the
-# real git.
+# $TMPDIR_TEST, which has no .venv-lint), optionally emits $3 as unstaged
+# files, records `git add`, and delegates everything else to the real git.
 mock_staged() {
     files="$1"
     root="${2:-$TMPDIR_TEST}"
+    unstaged="${3:-}"
     cat > "$TMPDIR_TEST/git" << EOF
 #!/usr/bin/env sh
 case "\$*" in
     "diff --staged --name-only HEAD --diff-filter=ACMR")
         printf '%s\n' $files ;;
+    "diff --name-only")
+        printf '%s\n' $unstaged ;;
     "rev-parse --show-toplevel")
         printf '%s\n' "$root" ;;
+    add\ *)
+        echo "\$*" >> "$GIT_ADD_CALLS" ;;
     *)
         exec "$(command -v git)" "\$@" ;;
 esac
 EOF
     chmod +x "$TMPDIR_TEST/git"
+    : > "$GIT_ADD_CALLS"
 }
 
 # Writes a mock clang-format at $1 that reports the pinned version (so the hook's
@@ -192,6 +199,20 @@ if PATH="$TMPDIR_TEST:$PATH" CFORMAT_BIN= sh "$HOOK" > "$OUT_FILE" 2>&1; then rc
 check "mismatched PATH clang-format is not used" "! grep -qF 'drift.cpp' '$CALLS_FILE'"
 check "mismatched version fails the hook"        "[ \"$rc\" -ne 0 ]"
 check "mismatched version prints instruction"    "grep -q 'scripts/lint cformat' '$OUT_FILE'"
+
+# ── tests: re-stage after -i (the CI-escape hatch this hook used to leave open) ─
+
+setup_clang_format_mock
+mock_staged "sample.cpp"
+: > "$CALLS_FILE"
+run_hook > /dev/null
+check "formatted .cpp is re-staged" "grep -qF 'add sample.cpp' '$GIT_ADD_CALLS'"
+
+setup_clang_format_mock
+mock_staged "partial.cpp" "$TMPDIR_TEST" "partial.cpp"
+: > "$CALLS_FILE"
+run_hook > /dev/null
+check "partially staged file is not re-added" "! grep -qF 'add partial.cpp' '$GIT_ADD_CALLS'"
 
 # ── summary ──────────────────────────────────────────────────────────────────
 

@@ -26,7 +26,19 @@ if [ -n "$staged_files" ]; then
             exit 1
         fi
     fi
+    # Capture files with unstaged changes before formatting; skip re-adding
+    # those so a partially staged file is not overwritten in the index.
+    # Without git add, clang-format -i only updates the working tree and the
+    # unformatted staged blob is what gets committed — which is how this
+    # class of clang-format CI failure slips through a locally installed hook.
+    unstaged_before=$(git diff --name-only)
+
     "$clang_format" -i $staged_files
+
+    echo "$staged_files" | while read -r f; do
+        [ -n "$f" ] || continue
+        echo "$unstaged_before" | grep -qFx "$f" || git add "$f"
+    done
 else
     echo 'Run clang-format skipped: No C/C++ files were found in `git diff --staged`'
 fi
