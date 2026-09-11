@@ -231,7 +231,6 @@ def _hiding_otel_config(otel_env, dd_env):
 
 
 # TODO: Remove this once the telemetry feature is refactored to a better design.
-# These configs need reporting even when ProductManager is not run.
 report_configuration(appsec_telemetry_config)
 report_configuration(agent_config)
 report_configuration(dbm_config)

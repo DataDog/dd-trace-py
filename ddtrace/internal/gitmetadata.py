@@ -19,8 +19,6 @@ log = get_logger(__name__)
 
 class GitMetadataConfig(DDConfig):
     __prefix__ = "dd"
-    # AIDEV-NOTE: DD_TAGS is reported by the global tracer config, which also removes raw Git metadata.
-    # The repository URL remains covered by the central sensitive-configuration filter.
     __telemetry_exclude__ = frozenset({"DD_TAGS"})
 
     # DD_TRACE_GIT_METADATA_ENABLED
@@ -35,7 +33,7 @@ class GitMetadataConfig(DDConfig):
     # DD_MAIN_PACKAGE
     main_package = DDConfig.var(str, "main_package", default="")
 
-    # DD_TAGS
+    # AIDEV-NOTE: DD_TAGS
     tags = DDConfig.var(str, "tags", default="")
 
 

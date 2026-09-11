@@ -7,7 +7,6 @@ from ddtrace.internal.settings._inferred_base_service import detect_service
 
 class TelemetryConfig(DDConfig):
     __prefix__ = "dd"
-    # Shared tracer settings and install metadata are reported by their existing telemetry payloads.
     __telemetry_exclude__ = frozenset(
         {
             "DD_ENV",

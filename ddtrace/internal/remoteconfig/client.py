@@ -64,6 +64,12 @@ class RemoteConfigTufConfig(DDConfig):
     """TUF trust roots for testing agentless Remote Configuration."""
 
     __prefix__ = "dd.remote_configuration"
+    __telemetry_exclude__ = frozenset(
+        {
+            "DD_REMOTE_CONFIGURATION_CONFIG_ROOT",
+            "DD_REMOTE_CONFIGURATION_DIRECTOR_ROOT",
+        }
+    )
 
     config_root = DDConfig.v(Optional[str], "config_root", default=None)
     director_root = DDConfig.v(Optional[str], "director_root", default=None)

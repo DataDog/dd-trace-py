@@ -1,6 +1,5 @@
 import importlib
 from unittest.mock import MagicMock
-from unittest.mock import call
 from unittest.mock import patch
 
 import pytest
@@ -170,14 +169,14 @@ def _make_entry_point(name, dist_name, module_path, product_obj):
 
 
 @pytest.mark.parametrize(
-    ("name", "module_path", "config_attributes"),
+    ("name", "module_path"),
     [
-        ("aiguard", "ddtrace.internal.aiguard.product", ("config",)),
-        ("openfeature", "ddtrace.internal.openfeature.product", ("config",)),
-        ("remote-configuration", "ddtrace.internal.remoteconfig.products.client", ("config",)),
+        ("aiguard", "ddtrace.internal.aiguard.product"),
+        ("openfeature", "ddtrace.internal.openfeature.product"),
+        ("remote-configuration", "ddtrace.internal.remoteconfig.products.client"),
     ],
 )
-def test_load_products_reports_product_config(name, module_path, config_attributes):
+def test_load_products_reports_product_config(name, module_path):
     product = importlib.import_module(module_path)
     entry_point = _make_entry_point(name, "ddtrace", module_path, product)
 
@@ -189,7 +188,7 @@ def test_load_products_reports_product_config(name, module_path, config_attribut
     ):
         manager._load_products()
 
-    assert report_configuration.call_args_list == [call(getattr(product, attribute)) for attribute in config_attributes]
+    report_configuration.assert_called_once_with(product.config)
 
 
 def test_load_products_trusted():
