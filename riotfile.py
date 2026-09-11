@@ -3543,6 +3543,27 @@ venv = Venv(
             },
         ),
         Venv(
+            name="aio_pika",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
+            command="pytest {cmdargs} tests/contrib/aio_pika",
+            pkgs={
+                "pytest-asyncio": latest,
+                "pytest-randomly": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.10"),
+                    pkgs={"aio-pika": ["==9.0.0", ">=9,<10"]},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.11"),
+                    pkgs={"aio-pika": ["==9.0.0", ">=9,<10", ">=10,<11"]},
+                ),
+            ],
+        ),
+        Venv(
             name="aiokafka",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",

@@ -1,4 +1,6 @@
 components:
+  aio_pika:
+    - ddtrace/contrib/internal/aio_pika/*
   aiohttp:
     - ddtrace/contrib/aiohttp.py
     - ddtrace/contrib/internal/aiohttp/*
@@ -225,6 +227,31 @@ components:
     - ddtrace/contrib/wsgi.py
     - ddtrace/contrib/internal/wsgi/*
 suites:
+  aio_pika:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@aio_pika'
+      - tests/contrib/aio_pika/*
+      - tests/snapshots/tests.contrib.aio_pika.*
+    snapshot: true
+    services:
+      - rabbitmq
+      - testagent
+    matrix:
+      command: pytest {cmdargs} tests/contrib/aio_pika
+      variants:
+        - name: aio_pika
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, pytest-randomly, 'aio-pika>=9,<10']
+        - name: aio_pika
+          python: ['3.9']
+          dependencies: [pytest-asyncio, pytest-randomly, 'aio-pika==9.0.0']
+        - name: aio_pika
+          python: ['3.11', '3.12', '3.13', '3.14']
+          dependencies: [pytest-asyncio, pytest-randomly, 'aio-pika>=10,<11']
   aiobotocore:
     paths:
       - '@bootstrap'
