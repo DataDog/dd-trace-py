@@ -23,6 +23,37 @@ All patch modules live in `ddtrace/contrib/internal/{name}/`.
 | orchestration | `celery/patch.py` | -- | Task orchestration, distributed tracing, Pin + `tracer.trace` via signals |
 | rpc | `grpc/patch.py` | -- | RPC frameworks, client + server spans, Pin + `tracer.trace` |
 
+## DBAPI Cursor Subclasses
+
+Render queries for DbQueryEvent subscribers with the driver-specific
+_render_dbapi_query() hook. Call it only when a subscriber is present, and suppress
+only rendering failures. Dispatch outside that exception boundary so blocking
+listeners can stop execution. The rendered value is event data only: tracing and
+the driver must continue to receive the original query and parameters.
+
+For psycopg3 templates, inspect SQL structure with $n placeholders for bound values
+(default, :s, :t, :b), never by literal-adapting those values. Normalization supports
+nested :q templates and built-in SQL/Composed/Identifier nodes, plus :i strings.
+Literal interpolation (:l), Literal-containing composed trees, custom composable
+subclasses, conversions, and unsupported formats fail open without rendering or
+emitting a query event. These forms can invoke stateful adapters and must be left
+to the driver. Legacy psycopg tracing still renders SQL/Composed resources in
+_trace_method(); do not extend that APM behavior to arbitrary as_string methods,
+custom composable subclasses, or other query types.
+Discover the already loaded driver/template modules independently of psycopg
+patch/config state, since Django-only instrumentation supplies its own
+IntegrationConfig and wrapper cursor.
+
+aiopg did not previously render composables. Its event rendering uses the native
+_impl cursor and only built-in SQL/Identifier/Placeholder nodes and Composed trees
+containing those nodes. Literal/custom nodes fail open, leaving adaptation to the
+driver. Reuse _render_composable_query() instead of calling as_string() on an
+unchecked tree.
+
+Do not inherit from TracedCursor or TracedAsyncCursor solely to reuse event rendering.
+Inherited methods assume the shared _trace_method signature and can change adapter
+behavior outside the event scope.
+
 ## LLM / Generative AI Detail
 
 This APM reference lists LLM/AI integrations only to help choose comparable

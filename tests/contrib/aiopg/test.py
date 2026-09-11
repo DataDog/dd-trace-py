@@ -1,8 +1,13 @@
+import json
 import time
 
 import aiopg
 import mock
 from psycopg2 import extras
+from psycopg2.sql import SQL
+from psycopg2.sql import Identifier
+from psycopg2.sql import Literal
+from psycopg2.sql import Placeholder
 import pytest
 
 # project
@@ -40,15 +45,65 @@ class AiopgTestCase(AsyncioTestCase):
     @mark_asyncio
     async def test_query_is_blocked_before_execution(self):
         cursor = mock.AsyncMock()
+        cursor._impl = mock.Mock()
         traced_cursor = AIOTracedCursor(cursor, Pin())
 
         for method in ("execute", "executemany"):
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
-                with pytest.raises(BlockingException):
-                    await getattr(traced_cursor, method)("SELECT 1")
+            query = SQL("SELECT 1")
+            expected = BlockingException()
 
-            dispatch_event.assert_called_once_with(DbQueryEvent(query="SELECT 1", span_name_prefix="postgres"))
+            def block(event: DbQueryEvent) -> None:
+                assert event == DbQueryEvent(query="SELECT 1", span_name_prefix="postgres")
+                raise expected
+
+            core.on(DbQueryEvent.event_name, block)
+            try:
+                with pytest.raises(BlockingException) as exc_info:
+                    await getattr(traced_cursor, method)(query)
+            finally:
+                core.reset_listeners(DbQueryEvent.event_name, block)
+
+            assert exc_info.value is expected
             getattr(cursor, method).assert_not_awaited()
+
+    @mark_asyncio
+    async def test_composable_query_is_normalized(self):
+        self._conn = await aiopg.connect(**POSTGRES_CONFIG)
+        raw_cursor = await self._conn.cursor()
+        cursor = AIOTracedCursor(raw_cursor, Pin())
+        query = SQL("SELECT {} AS {}").format(Placeholder(), Identifier('re"sult'))
+        events = []
+
+        def capture_event(event: DbQueryEvent) -> None:
+            events.append(event)
+
+        core.on(DbQueryEvent.event_name, capture_event)
+        try:
+            await cursor.execute(query, (1,))
+            assert await cursor.fetchall() == [(1,)]
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, capture_event)
+
+        assert events == [DbQueryEvent(query=query.as_string(raw_cursor._impl), span_name_prefix="postgres")]
+
+    @mark_asyncio
+    async def test_literal_composable_query_preserves_parameter_adaptation(self):
+        self._conn = await aiopg.connect(**POSTGRES_CONFIG)
+        raw_cursor = await self._conn.cursor()
+        cursor = AIOTracedCursor(raw_cursor, Pin())
+        dumps = mock.Mock(side_effect=lambda values: json.dumps(list(values)))
+        payload = extras.Json(iter([1, 2]), dumps=dumps)
+        query = SQL("SELECT {}::json").format(Literal(payload))
+        listener = mock.Mock()
+        core.on(DbQueryEvent.event_name, listener)
+        try:
+            await cursor.execute(query)
+            assert await cursor.fetchone() == ([1, 2],)
+        finally:
+            core.reset_listeners(DbQueryEvent.event_name, listener)
+
+        dumps.assert_called_once_with(payload.adapted)
+        listener.assert_not_called()
 
     @pytest.mark.asyncio
     async def _get_conn(self):

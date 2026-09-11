@@ -2,6 +2,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -21,6 +22,39 @@ from tests.utils import assert_is_measured
 
 
 TEST_TABLE = "test_table"
+
+
+@pytest.mark.parametrize("method, keyword", [("execute", "operation"), ("copy", "sql")])
+@pytest.mark.parametrize("use_keyword", [False, True])
+@pytest.mark.parametrize("trace_enabled", [False, True])
+def test_patched_query_bytes_block_before_driver(method, keyword, use_keyword, trace_enabled, monkeypatch):
+    from vertica_python.vertica.cursor import Cursor
+
+    unpatch()
+    driver = mock.Mock()
+
+    def operation(self, *args, **kwargs):
+        return driver(*args, **kwargs)
+
+    monkeypatch.setattr(Cursor, method, operation)
+    patch()
+    cursor = Cursor.__new__(Cursor)
+    Pin(_config={"routines": {method: {"trace_enabled": trace_enabled}}}).onto(cursor)
+    query = b"SELECT 1"
+    args, kwargs = ((), {keyword: query}) if use_keyword else ((query,), {})
+    expected = BlockingException()
+    listener = mock.Mock(side_effect=expected)
+    core.on(DbQueryEvent.event_name, listener)
+    try:
+        with pytest.raises(BlockingException) as exc_info:
+            getattr(cursor, method)(*args, **kwargs)
+    finally:
+        core.reset_listeners(DbQueryEvent.event_name, listener)
+        unpatch()
+
+    assert exc_info.value is expected
+    listener.assert_called_once_with(DbQueryEvent(query=query, span_name_prefix="vertica"))
+    driver.assert_not_called()
 
 
 @pytest.fixture(scope="function")
@@ -58,21 +92,22 @@ class TestVerticaPatching(TracerTestCase):
         unpatch()
 
     def test_query_event_can_block(self):
-        cases = (
-            ("execute", ("SELECT 1",)),
-            ("copy", ("COPY test_table (a, b) FROM STDIN DELIMITER ','", "1,foo")),
-        )
+        for query in ("SELECT 1", b"SELECT 1"):
+            cases = (("execute", (query,)), ("copy", (query, "1,foo")))
 
-        for method, args in cases:
-            with mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event:
-                with pytest.raises(BlockingException):
-                    _dispatch_query_event(method, args, {})
+            for method, args in cases:
+                with (
+                    mock.patch.object(core, "has_listeners", return_value=True),
+                    mock.patch.object(core, "dispatch_event", side_effect=BlockingException) as dispatch_event,
+                ):
+                    with pytest.raises(BlockingException):
+                        _dispatch_query_event(method, args, {})
 
-            dispatch_event.assert_called_once_with(DbQueryEvent(query=args[0], span_name_prefix="vertica"))
+                dispatch_event.assert_called_once_with(DbQueryEvent(query=args[0], span_name_prefix="vertica"))
 
     def test_non_string_query_does_not_dispatch_event(self):
         with mock.patch.object(core, "dispatch_event") as dispatch_event:
-            _dispatch_query_event("execute", (b"SELECT 1",), {})
+            _dispatch_query_event("execute", (object(),), {})
 
         dispatch_event.assert_not_called()
 

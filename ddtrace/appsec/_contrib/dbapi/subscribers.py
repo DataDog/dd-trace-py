@@ -10,6 +10,7 @@ from ddtrace.internal.core.subscriber import Subscriber
 
 
 _SPAN_NAME_PREFIX_TO_SQL_TOKENIZER: dict[str, DDWafSqlTokenizer] = {
+    "mariadb": DDWafSqlTokenizer.MYSQL,
     "mysql": DDWafSqlTokenizer.MYSQL,
     "oracle": DDWafSqlTokenizer.ORACLE,
     "postgres": DDWafSqlTokenizer.POSTGRESQL,
