@@ -74,6 +74,7 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
+# TODO(py-315): update / remove this when 3.15 is fully GA'd.
 # 3.15 is listed so select_pys(max_version=NEXT_PYTHON_VERSION) can opt in. Default stays
 # 3.14 so uncapped suites do not mix 3.15 hashes into 3.9-3.14 --exitfirst jobs.
 # Wrap-heavy suites stay at the default until wrap() is live on 3.15.
