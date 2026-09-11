@@ -306,7 +306,10 @@ Traces
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
      type: Boolean
      default: False
-     description: Whether the propagator stops after extracting the first header.
+     description: |
+         Whether the propagator stops after successfully extracting the first trace context,
+         in the order configured by ``DD_TRACE_PROPAGATION_STYLE_EXTRACT``. Missing or invalid
+         trace headers are skipped. Baggage is extracted independently when enabled.
 
      version_added:
        v2.3.0:
