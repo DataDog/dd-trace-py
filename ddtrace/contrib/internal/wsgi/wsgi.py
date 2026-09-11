@@ -101,11 +101,8 @@ class _DDWSGIMiddlewareBase(object):
         "Returns the name of a response span. Example: `flask.response`"
         raise NotImplementedError
 
-    def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
-        headers = get_request_headers(environ)
-        closing_iterable = ()
-        not_blocked = True
-        with core.context_with_data(
+    def _request_context(self, environ: Iterable, headers: Mapping[str, str]):
+        return core.context_with_data(
             "wsgi.__call__",
             remote_addr=environ.get("REMOTE_ADDR"),
             headers=headers,
@@ -120,7 +117,46 @@ class _DDWSGIMiddlewareBase(object):
             middleware=self,
             span_key="req_span",
             activate_distributed_headers=True,
-        ) as ctx:
+        )
+
+    def _request_context_started(self, ctx: core.ExecutionContext, environ: Iterable) -> None:
+        """Hook for middleware variants that attach framework-specific request data."""
+
+    def __call__(self, environ: Iterable, start_response: Callable) -> wrapt.ObjectProxy:
+        headers = get_request_headers(environ)
+        closing_iterable = ()
+        not_blocked = True
+        with self._request_context(environ, headers) as ctx:
+            # Event-backed middleware contexts still need the shared WSGI data
+            # consumed by the application and response lifecycle handlers.
+            ctx.set_items(
+                {
+                    "remote_addr": environ.get("REMOTE_ADDR"),
+                    "headers": headers,
+                    "headers_case_sensitive": True,
+                    "service": trace_utils.int_service(None, self._config),
+                    "span_type": SpanTypes.WEB,
+                    "span_name": (
+                        self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name
+                    ),
+                    "middleware_config": self._config,
+                    "integration_config": self._config,
+                    "distributed_headers": environ,
+                    "environ": environ,
+                    "middleware": self,
+                    "span_key": "req_span",
+                    "activate_distributed_headers": True,
+                }
+            )
+            if getattr(ctx, "_event", None) is not None:
+                ctx.set_items(
+                    {
+                        "request_context": ctx,
+                        "request_exception_callback": ctx.dispatch_ended_event,
+                        "request_prepared": False,
+                    }
+                )
+            self._request_context_started(ctx, environ)
             ctx.set_item("wsgi.construct_url", construct_url)
 
             def blocked_view():
@@ -185,6 +221,14 @@ class _DDWSGIMiddlewareBase(object):
             result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                 "wsgi.request.complete", (ctx, closing_iterable, self.app_is_iterator)
             ).traced_iterable
+
+            request_context = ctx.get_item("request_context")
+            if request_context is not None:
+                exc_info = ctx.get_item("request_exc_info")
+                if exc_info is None:
+                    request_context.dispatch_ended_event()
+                else:
+                    request_context.dispatch_ended_event(*exc_info)
 
             if stop_iteration_exception:
                 if result.value:

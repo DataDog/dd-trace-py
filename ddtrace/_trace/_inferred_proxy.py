@@ -2,10 +2,14 @@ from dataclasses import dataclass
 import logging
 from typing import Callable
 from typing import Optional
+from typing import Union
 
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace.constants import _INFERRED_SPAN_KEY
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
+from ddtrace.constants import ERROR_TYPE
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
@@ -166,6 +170,22 @@ def set_inferred_proxy_span_tags(span: Span, proxy_context: ProxyHeaderContext, 
 
     span._set_attribute(_INFERRED_SPAN_KEY, 1)
     return span
+
+
+def _set_inferred_proxy_tags(span: Span, status_code: Optional[Union[str, int, float]]) -> None:
+    if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
+        inferred_span = span._parent
+        status_code = status_code or span._get_attribute("http.status_code")
+        if status_code:
+            inferred_span._set_attribute("http.status_code", status_code)
+        if span.error == 1:
+            inferred_span.error = span.error
+            if (error_msg := span._get_attribute(ERROR_MSG)) is not None:
+                inferred_span._set_attribute(ERROR_MSG, error_msg)
+            if (error_type := span._get_attribute(ERROR_TYPE)) is not None:
+                inferred_span._set_attribute(ERROR_TYPE, error_type)
+            if (error_stack := span._get_attribute(ERROR_STACK)) is not None:
+                inferred_span._set_attribute(ERROR_STACK, error_stack)
 
 
 def extract_inferred_proxy_context(headers) -> Optional[ProxyHeaderContext]:

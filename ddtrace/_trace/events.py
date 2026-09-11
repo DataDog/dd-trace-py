@@ -51,6 +51,7 @@ class TracingEvent(Event):
     resource: Optional[str] = None
     measured: bool = True
     activate_distributed_headers: bool = False
+    ignored_exception_type: Optional[type[BaseException]] = None
 
     @classmethod
     def create(
@@ -68,6 +69,7 @@ class TracingEvent(Event):
         resource: Optional[str] = None,
         measured: bool = True,
         activate_distributed_headers: bool = False,
+        ignored_exception_type: Optional[type[BaseException]] = None,
     ) -> "TracingEvent":
         """This methods allow to dispatch a TracingEvent to create/finish a span
         without having to define a subclass when the span has no additional properties.
@@ -87,6 +89,7 @@ class TracingEvent(Event):
             resource=resource,
             measured=measured,
             activate_distributed_headers=activate_distributed_headers,
+            ignored_exception_type=ignored_exception_type,
         )
         event.operation_name = operation_name
         setattr(event, "span_type", span_type)

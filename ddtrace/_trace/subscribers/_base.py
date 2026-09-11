@@ -40,7 +40,8 @@ def _finish_span(
     if not span:
         return
 
-    set_service_and_source(span, ctx.get_item("service", ctx.event.service), ctx.event.integration_config or dict())
+    service = ctx.get_item("service", ctx.event.service)
+    set_service_and_source(span, service or "", ctx.event.integration_config or dict())
 
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
@@ -72,12 +73,11 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
             override=getattr(event, "distributed_headers_config_override", None),
         )
 
-    span_kwargs: dict[str, Any] = {
-        "span_type": event.span_type,
-        "resource": event.resource,
-        "service": event.service,
-        "activate": event.activate,
-    }
+    span_kwargs: dict[str, Any] = {"resource": event.resource, "activate": event.activate}
+    if event.span_type:
+        span_kwargs["span_type"] = event.span_type
+    if event.service:
+        span_kwargs["service"] = event.service
 
     if config._inferred_proxy_services_enabled:
         # TODO(IDM): Subscriber should be added for Inferred Proxy span handling
@@ -91,15 +91,25 @@ def _start_span(ctx: core.ExecutionContext[TracingEventType]) -> Span:
         span_kwargs.setdefault("child_of", default_child_of)
 
     span = tracer.start_span(event.operation_name, **span_kwargs)
-    span._set_attribute(COMPONENT, event.component)
-    span._set_attribute(SPAN_KIND, event.span_kind)
+    if event.component:
+        span._set_attribute(COMPONENT, event.component)
+    if event.span_kind:
+        span._set_attribute(SPAN_KIND, event.span_kind)
     for _k, _v in event.tags.items():
         span._set_attribute(_k, _v)
 
     if event.measured:
         span._set_attribute(_SPAN_MEASURED_KEY, 1)
 
-    set_service_and_source(span, event.service or ctx.get_item("service") or "", integration_config or dict())
+    if event.ignored_exception_type is not None:
+        span._ignore_exception(event.ignored_exception_type)
+
+    service = event.service or ctx.get_item("service")
+    set_service_and_source(
+        span,
+        service or "",
+        integration_config or dict(),
+    )
     store_span_on_context(ctx, span)
 
     if config._inferred_proxy_services_enabled:

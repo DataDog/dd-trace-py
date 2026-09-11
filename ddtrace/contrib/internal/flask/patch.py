@@ -6,17 +6,17 @@ import werkzeug
 from werkzeug.exceptions import BadRequest
 from werkzeug.exceptions import NotFound
 
+from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.packages import get_version_for_package
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.settings.appsec_telemetry import config as appsec_telemetry_config
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils import get_blocked
 
 
@@ -40,15 +40,15 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
+from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.utils.version import parse_version
 
-from .wrappers import _wrap_call_with_tracing_check
+from .wrappers import _wrap_call_with_event_check
 from .wrappers import simple_call_wrapper
-from .wrappers import with_tracing_enabled
 from .wrappers import wrap_function
 from .wrappers import wrap_view
 
@@ -117,25 +117,77 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
     _application_call_name = "flask.application"
     _response_call_name = "flask.response"
 
+    def _request_context(self, environ, headers):
+        request = _RequestType(environ)
+        event = WebFrameworkRequestEvent(
+            http_operation="flask.request",
+            component="",
+            integration_config=config.flask,
+            service=trace_utils.int_service(None, config.flask),
+            request_headers=request.headers,
+            request_method=request.method,
+            request_url=request.base_url,
+            query=request.query_string,
+            peer_ip=request.remote_addr,
+            raw_uri=construct_url(environ),
+            headers_case_sensitive=True,
+            measured=False,
+            activate_distributed_headers=True,
+        )
+        event.span_kind = ""
+        return core.context_with_event(
+            event,
+            context_name_override="wsgi.__call__",
+            dispatch_end_event=False,
+        )
+
+    def _request_context_started(self, ctx, environ):
+        request = _RequestType(environ)
+        ctx.set_items({"flask_request": request, "flask_config": config.flask})
+
+    @staticmethod
+    def _set_request_event_fields(event, request):
+        event.request_headers = request.headers
+        event.request_method = request.method
+        event.request_url = request.base_url
+        event.query = request.query_string
+        event.parsed_query = request.args
+        event.request_cookies = request.cookies
+        event.peer_ip = request.remote_addr
+        event.request_path_params = getattr(request, "view_args", None)
+
     def _wrapped_start_response(self, start_response, ctx, status_code, headers, exc_info=None):
-        core.dispatch("flask.start_response.pre", (flask.request, ctx, config.flask, status_code, headers))
+        event: WebFrameworkRequestEvent = ctx.event
+        request = flask.request
+        ctx.set_item("flask_request", request)
+        self._set_request_event_fields(event, request)
+
+        code, _, status_message = status_code.partition(" ")
+        event.response_status_code = code
+        event.response_status_msg = status_message or None
+        event.response_headers = dict(headers)
+        event.response_cookies = _cookies_from_response_headers(headers)
+        core.dispatch("flask.start_response.pre", (request, ctx, config.flask, status_code, headers))
         if not get_blocked():
             core.dispatch("flask.start_response", ("Flask",))
             if block_config := get_blocked():
-                # response code must be set here, or it will be too late
                 result_content = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
                     "flask.block.request.content", ()
                 ).block_requested
                 if result_content:
                     _, status, response_headers = result_content.value
-                    result = start_response(str(status), response_headers)
+                    event.response_status_code = status
                 else:
                     response_headers = (
                         [] if block_config.type == "none" else [("content-type", block_config.content_type)]
                     )
-                    result = start_response(str(block_config.status_code), response_headers)
+                    event.response_status_code = block_config.status_code
+                event.response_headers = dict(response_headers)
+                event.response_cookies = _cookies_from_response_headers(response_headers)
+                result = start_response(str(event.response_status_code), response_headers)
                 core.dispatch(
-                    "flask.start_response.blocked", (ctx, config.flask, response_headers, block_config.status_code)
+                    "flask.start_response.blocked",
+                    (ctx, config.flask, response_headers, event.response_status_code),
                 )
             else:
                 result = start_response(status_code, headers)
@@ -148,6 +200,8 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         # Create a werkzeug request from the `environ` to make interacting with it easier
         # DEV: This executes before a request context is created
         request = _RequestType(environ)
+        event: WebFrameworkRequestEvent = ctx.event
+        self._set_request_event_fields(event, request)
 
         req_body = None
         result = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -165,7 +219,18 @@ class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
         ).request_body
         if result:
             req_body = result.value
+        event.request_body = req_body
+        event.raw_uri = construct_url(environ)
         core.dispatch("flask.request_call_modifier.post", (ctx, config.flask, request, req_body))
+
+
+def _cookies_from_response_headers(response_headers):
+    cookies = {}
+    for header_name, header_value in response_headers:
+        if header_name == "Set-Cookie":
+            cookie_tokens = header_value.split("=", 1)
+            cookies[cookie_tokens[0]] = cookie_tokens[1]
+    return cookies
 
 
 def patch():
@@ -391,7 +456,7 @@ def unpatch():
 
 def patched_wsgi_app(wrapped, instance, args, kwargs):
     environ, start_response = args
-    # Registration is gated on asm_config, not tracing — keep this above the tracing short-circuit.
+    # Endpoint registration is gated on AppSec telemetry and must happen before request handling.
     _collect_routes_once(instance, environ.get("SCRIPT_NAME") or "")
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
@@ -556,16 +621,15 @@ def _build_render_template_wrapper(name):
     def traced_render(wrapped, instance, args, kwargs):
         if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
-        with (
-            core.context_with_data(
-                "flask.render_template",
-                span_name=name,
-                flask_config=config.flask,
-                tags={COMPONENT: config.flask.integration_name},
-                span_type=SpanTypes.TEMPLATE,
+        with core.context_with_event(
+            TracingEvent.create(
+                component=config.flask.integration_name,
                 integration_config=config.flask,
-            ) as ctx,
-            span_from_context(ctx),
+                operation_name=name,
+                span_type=SpanTypes.TEMPLATE,
+                span_kind="",
+                measured=False,
+            )
         ):
             return wrapped(*args, **kwargs)
 
@@ -579,7 +643,7 @@ def patched_render(wrapped, instance, args, kwargs):
     template_position = 1 if flask_version >= (2, 2, 0) else 0
     try:
         template = get_argument_value(args, kwargs, template_position, "template")
-    except ArgumentError:
+    except (ArgumentError, IndexError, TypeError, ValueError):
         template = None
 
     core.dispatch("flask.render", (template, config.flask))
@@ -601,21 +665,23 @@ def patched_register_error_handler(wrapped, instance, args, kwargs):
 
 
 def request_patcher(name):
-    @with_tracing_enabled
     def _patched_request(wrapped, instance, args, kwargs):
-        with (
-            core.context_with_data(
-                "flask._patched_request",
-                span_name=".".join(("flask", name)),
-                service=trace_utils.int_service(None, config.flask),
-                flask_config=config.flask,
-                flask_request=flask.request,
-                ignored_exception_type=NotFound,
-                tags={COMPONENT: config.flask.integration_name},
+        if not is_tracing_enabled():
+            return wrapped(*args, **kwargs)
+
+        with core.context_with_event(
+            TracingEvent.create(
+                component=config.flask.integration_name,
                 integration_config=config.flask,
-            ) as ctx,
-            span_from_context(ctx),
-        ):
+                operation_name=".".join(("flask", name)),
+                service=trace_utils.int_service(None, config.flask),
+                span_type="",
+                span_kind="",
+                measured=False,
+                ignored_exception_type=NotFound,
+            )
+        ) as ctx:
+            ctx.set_item("flask_request", flask.request)
             core.dispatch("flask._patched_request", (ctx,))
             return wrapped(*args, **kwargs)
 
@@ -630,7 +696,7 @@ def patched_signal_receivers_for(signal):
         if isinstance(sender, flask.Flask):
             app = sender
         for receiver in wrapped(*args, **kwargs):
-            yield _wrap_call_with_tracing_check(receiver, app, func_name(receiver), signal=signal)
+            yield _wrap_call_with_event_check(receiver, app, func_name(receiver), signal=signal)
 
     return outer
 
@@ -639,13 +705,14 @@ def patched_jsonify(wrapped, instance, args, kwargs):
     if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
-    with (
-        core.context_with_data(
-            "flask.jsonify",
-            span_name="flask.jsonify",
-            flask_config=config.flask,
-            tags={COMPONENT: config.flask.integration_name},
-        ) as ctx,
-        span_from_context(ctx),
+    with core.context_with_event(
+        TracingEvent.create(
+            component=config.flask.integration_name,
+            integration_config=config.flask,
+            operation_name="flask.jsonify",
+            span_type="",
+            span_kind="",
+            measured=False,
+        )
     ):
         return wrapped(*args, **kwargs)

@@ -2,12 +2,11 @@ import flask
 from wrapt import function_wrapper
 
 from ddtrace import config
+from ddtrace._trace.events import TracingEvent
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
-from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.importlib import func_name
 
 
@@ -15,7 +14,7 @@ log = get_logger(__name__)
 
 
 def wrap_view(instance, func, name=None, resource=None):
-    return _wrap_call_with_tracing_check(func, instance, name or func_name(func), resource=resource, do_dispatch=True)
+    return _wrap_call_with_event_check(func, instance, name or func_name(func), resource=resource, do_dispatch=True)
 
 
 def get_current_app():
@@ -31,20 +30,21 @@ def get_current_app():
 def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dispatch=False, args=None, kwargs=None):
     args = args or []
     kwargs = kwargs or {}
-    tags = {COMPONENT: config.flask.integration_name}
+    tags = {}
     if signal:
         tags["flask.signal"] = signal
-    with (
-        core.context_with_data(
-            "flask.call",
-            span_name=name,
-            resource=resource,
-            service=trace_utils.int_service(None, config.flask),
-            span_type=span_type,
-            tags=tags,
+    with core.context_with_event(
+        TracingEvent.create(
+            component=config.flask.integration_name,
             integration_config=config.flask,
-        ) as ctx,
-        span_from_context(ctx),
+            service=trace_utils.int_service(None, config.flask),
+            operation_name=name,
+            span_type=span_type or "",
+            span_kind="",
+            resource=resource,
+            tags=tags,
+            measured=False,
+        )
     ):
         if do_dispatch:
             dispatch = core.dispatch_with_results(  # ast-grep-ignore: core-dispatch-with-results
@@ -68,7 +68,7 @@ def _wrap_call(wrapped, name, resource=None, signal=None, span_type=None, do_dis
         return wrapped(*args, **kwargs)
 
 
-def _wrap_call_with_tracing_check(func, instance, name, resource=None, signal=None, do_dispatch=False):
+def _wrap_call_with_event_check(func, instance, name, resource=None, signal=None, do_dispatch=False):
     @function_wrapper
     def patch_func(wrapped, _instance, args, kwargs):
         if not is_tracing_enabled():
@@ -81,23 +81,13 @@ def _wrap_call_with_tracing_check(func, instance, name, resource=None, signal=No
 
 
 def wrap_function(instance, func, name=None, resource=None):
-    return _wrap_call_with_tracing_check(func, instance, name or func_name(func), resource=resource)
+    return _wrap_call_with_event_check(func, instance, name or func_name(func), resource=resource)
 
 
 def simple_call_wrapper(name, span_type=None):
-    @with_tracing_enabled
-    def wrapper(wrapped, instance, args, kwargs):
-        return _wrap_call(wrapped, name, span_type=span_type, args=args, kwargs=kwargs)
-
-    return wrapper
-
-
-def with_tracing_enabled(func):
-    """Helper to wrap a function wrapper and ensure tracing is enabled."""
-
     def wrapper(wrapped, instance, args, kwargs):
         if not is_tracing_enabled():
             return wrapped(*args, **kwargs)
-        return func(wrapped, instance, args, kwargs)
+        return _wrap_call(wrapped, name, span_type=span_type, args=args, kwargs=kwargs)
 
     return wrapper

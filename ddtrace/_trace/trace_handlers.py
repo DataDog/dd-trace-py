@@ -11,9 +11,9 @@ from urllib import parse
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace._inferred_proxy import INFERRED_SPAN_NAMES
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_MESSAGE_ID
 from ddtrace._trace._inferred_proxy import POSSIBLE_HEADER_PUBSUB_SUBSCRIPTION
+from ddtrace._trace._inferred_proxy import _set_inferred_proxy_tags
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLinkKind as _SpanLinkKind
@@ -26,7 +26,6 @@ from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _INFERRED_SPAN_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -64,14 +63,8 @@ from ddtrace.ext.kafka import RECEIVED_MESSAGE
 from ddtrace.ext.kafka import TOMBSTONE
 from ddtrace.ext.kafka import TOPIC
 from ddtrace.internal import core
-from ddtrace.internal import span_bus
 from ddtrace.internal.compat import is_valid_ip
-from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import FLASK_ENDPOINT
-from ddtrace.internal.constants import FLASK_RESOURCE_FULL
-from ddtrace.internal.constants import FLASK_URL_RULE
-from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import HTTP_REQUEST_UPGRADED
 from ddtrace.internal.constants import MESSAGING_BATCH_COUNT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
@@ -97,7 +90,7 @@ _WEBSOCKET_LINK_ATTRS_RESUMING = {SPAN_LINK_KIND: SpanLinkKind.RESUMING}
 
 
 class _TracedIterable(wrapt.ObjectProxy):
-    def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False):
+    def __init__(self, wrapped, span, parent_span, wrapped_is_iterator=False, request_context=None):
         self._self_wrapped_is_iterator = wrapped_is_iterator
         if self._self_wrapped_is_iterator:
             super(_TracedIterable, self).__init__(wrapped)
@@ -106,6 +99,7 @@ class _TracedIterable(wrapt.ObjectProxy):
             super(_TracedIterable, self).__init__(iter(wrapped))
         self._self_span = span
         self._self_parent_span = parent_span
+        self._self_request_context = request_context
         self._self_span_finished = False
 
     def __iter__(self):
@@ -133,7 +127,17 @@ class _TracedIterable(wrapt.ObjectProxy):
     def _finish_spans(self):
         if not self._self_span_finished:
             self._self_span.finish()
-            self._self_parent_span.finish()
+            if self._self_request_context is not None:
+                exc_info = self._self_request_context.get_item("request_exc_info")
+                try:
+                    if exc_info is None:
+                        self._self_request_context.dispatch_ended_event()
+                    else:
+                        self._self_request_context.dispatch_ended_event(*exc_info)
+                finally:
+                    _finish_span(self._self_request_context, exc_info or (None, None, None))
+            else:
+                self._self_parent_span.finish()
             self._self_span_finished = True
 
     def __getattribute__(self, name):
@@ -222,6 +226,13 @@ def _finish_span(
     span.finish()
 
 
+def _start_legacy_wsgi_call(ctx: core.ExecutionContext) -> None:
+    # Typed WSGI request contexts are handled by their subscriber; keep legacy
+    # WSGI contexts on the existing lifecycle path.
+    if getattr(ctx, "_event", None) is None:
+        _start_span(ctx)
+
+
 def _set_web_frameworks_tags(ctx, span, int_config):
     span._set_attribute(COMPONENT, int_config.integration_name)
     span._set_attribute(SPAN_KIND, SpanKind.SERVER)
@@ -262,22 +273,6 @@ def _on_web_framework_finish_request(
 
     if finish:
         span.finish()
-
-
-def _set_inferred_proxy_tags(span: Span, status_code):
-    if span._parent and span._parent.name in INFERRED_SPAN_NAMES:
-        inferred_span = span._parent
-        status_code = status_code or span._get_attribute("http.status_code")
-        if status_code:
-            inferred_span._set_attribute("http.status_code", status_code)
-        if span.error == 1:
-            inferred_span.error = span.error
-            if (error_msg := span._get_attribute(ERROR_MSG)) is not None:
-                inferred_span._set_attribute(ERROR_MSG, error_msg)
-            if (error_type := span._get_attribute(ERROR_TYPE)) is not None:
-                inferred_span._set_attribute(ERROR_TYPE, error_type)
-            if (error_stack := span._get_attribute(ERROR_STACK)) is not None:
-                inferred_span._set_attribute(ERROR_STACK, error_stack)
 
 
 def _set_pubsub_receive_attributes(
@@ -345,7 +340,7 @@ def _on_inferred_proxy_start(ctx, span_kwargs, call_trace):
 
     event = getattr(ctx, "event", None)
 
-    # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
+    # Some WSGI integrations store headers from environ in 'distributed_headers'.
     # and normalized headers in 'headers'
     headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
     if headers is None and event is not None:
@@ -390,24 +385,6 @@ def _on_inferred_proxy_finish(ctx):
         span_from_context(ctx)._on_finish_callbacks.append(inferred_proxy_finish_callback)
 
 
-def _on_traced_request_context_started_flask(ctx):
-    current_span = tracer.current_span()
-    if not current_span:
-        return
-
-    store_span_on_context(ctx, current_span)
-    flask_config = ctx.get_item("flask_config")
-    flask_request = ctx.get_item("flask_request")
-    _set_flask_request_tags(flask_request, current_span, flask_config)
-    # The active span here is flask.application. Also update the outer request
-    # span before start_response so timed-out workers keep the route resource.
-    req_span = ctx.find_item("req_span")
-    if req_span is not None and req_span is not current_span:
-        _set_flask_request_route_tags(flask_request, req_span)
-    request_span = _start_span(ctx)
-    request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
-
-
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
     request_span = ctx.get_item("request_span")
     middleware = ctx.get_item("middleware")
@@ -431,6 +408,9 @@ def _on_request_prepare(ctx, start_response):
     req_span._set_attribute(COMPONENT, middleware._config.integration_name)
     # set span.kind to the type of operation being performed
     req_span._set_attribute(SPAN_KIND, SpanKind.SERVER)
+    if getattr(ctx, "_event", None) is not None:
+        ctx.set_item("request_prepared", True)
+        req_span._set_attribute(_SPAN_MEASURED_KEY, 1)
     if hasattr(middleware, "_request_call_modifier"):
         modifier = middleware._request_call_modifier
         args = [ctx]
@@ -441,7 +421,8 @@ def _on_request_prepare(ctx, start_response):
     app_span = tracer.trace(
         middleware._application_call_name
         if hasattr(middleware, "_application_call_name")
-        else middleware._application_span_name
+        else middleware._application_span_name,
+        service=trace_utils.int_service(None, middleware._config),
     )
 
     app_span._set_attribute(COMPONENT, middleware._config.integration_name)
@@ -472,16 +453,24 @@ def _on_app_success(ctx, closing_iterable):
 def _on_app_exception(ctx):
     req_span = ctx.get_item("req_span")
     app_span = ctx.get_item("app_span")
-    req_span.set_exc_info(*sys.exc_info())
+    exc_info = sys.exc_info()
+    request_context = ctx.get_item("request_context")
+    if request_context is not None:
+        ctx.set_item("request_exc_info", exc_info)
+    else:
+        req_span.set_exc_info(*exc_info)
     app_span.set_exc_info(*sys.exc_info())
     app_span.finish()
-    req_span.finish()
+    if request_context is not None:
+        ctx.get_item("request_exception_callback")(*exc_info)
+    else:
+        req_span.finish()
 
 
 def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     middleware = ctx.get_item("middleware")
     req_span = ctx.get_item("req_span")
-    # start flask.response span. This span will be finished after iter(result) is closed.
+    # Start the response span. It is finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
     resp_span = tracer.start_span(
         (
@@ -502,7 +491,13 @@ def _on_request_complete(ctx, closing_iterable, app_is_iterator):
     )
     modifier(resp_span, closing_iterable)
 
-    return _TracedIterable(closing_iterable, resp_span, req_span, wrapped_is_iterator=app_is_iterator)
+    return _TracedIterable(
+        closing_iterable,
+        resp_span,
+        req_span,
+        wrapped_is_iterator=app_is_iterator,
+        request_context=ctx.get_item("request_context"),
+    )
 
 
 def _on_response_prepared(resp_span, response):
@@ -520,132 +515,6 @@ def _on_request_prepared(middleware, req_span, url, request_headers, environ):
     )
     if middleware.span_modifier:
         middleware.span_modifier(req_span, environ)
-
-
-def _set_flask_request_tags(request, span, flask_config):
-    try:
-        span._set_attribute(COMPONENT, flask_config.integration_name)
-
-        if span.name.split(".")[-1] == "request":
-            span._set_attribute(SPAN_KIND, SpanKind.SERVER)
-
-        _set_flask_request_route_tags(request, span)
-
-        if not span.get_tag(FLASK_VIEW_ARGS) and request.view_args and flask_config.get("collect_view_args"):
-            for k, v in request.view_args.items():
-                # DEV: Do not use `set_tag_str` here since view args can be string/int/float/path/uuid/etc
-                #      https://flask.palletsprojects.com/en/1.1.x/api/#url-route-registrations
-                span.set_tag(".".join((FLASK_VIEW_ARGS, k)), v)
-            trace_utils.set_http_meta(span, flask_config, request_path_params=request.view_args)
-    except Exception:
-        log.debug('failed to set tags for "flask.request" span', exc_info=True)
-
-
-def _set_flask_request_route_tags(request, span):
-    try:
-        # DEV: This name will include the blueprint name as well (e.g. `bp.index`)
-        if not span.get_tag(FLASK_ENDPOINT) and request.endpoint:
-            span.resource = " ".join((request.method, request.endpoint))
-            span._set_attribute(FLASK_ENDPOINT, request.endpoint)
-
-        if not span.get_tag(FLASK_URL_RULE) and request.url_rule and request.url_rule.rule:
-            span.resource = " ".join((request.method, request.url_rule.rule))
-            span._set_attribute(FLASK_URL_RULE, request.url_rule.rule)
-            # Side-channel tag for backend resource remapping; resource itself stays app-local.
-            if request.script_root:
-                span._set_attribute(
-                    FLASK_RESOURCE_FULL,
-                    " ".join((request.method, request.script_root + request.url_rule.rule)),
-                )
-    except Exception:
-        log.debug('failed to set route tags for "flask.request" span', exc_info=True)
-
-
-def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
-    span = ctx.get_item("req_span")
-    code, _, _ = status_code.partition(" ")
-    # If values are accessible, set the resource as `<method> <path>` and add other request tags
-    _set_flask_request_tags(request, span, flask_config)
-    # Override root span resource name to be `<method> 404` for 404 requests
-    # DEV: We do this because we want to make it easier to see all unknown requests together
-    #      Also, we do this to reduce the cardinality on unknown urls
-    # DEV: If we have an endpoint or url rule tag, then we don't need to do this,
-    #      we still want `GET /product/<int:product_id>` grouped together,
-    #      even if it is a 404
-    if not span.get_tag(FLASK_ENDPOINT) and not span.get_tag(FLASK_URL_RULE):
-        span.resource = " ".join((request.method, code))
-
-    response_cookies = _cookies_from_response_headers(headers)
-    _on_web_framework_finish_request(
-        span=span,
-        int_config=flask_config,
-        method=request.method,
-        url=None,
-        status_code=code,
-        query=None,
-        req_headers=None,
-        res_headers=headers,
-        route=span.get_tag(FLASK_URL_RULE),
-        finish=False,
-        response_cookies=response_cookies,
-    )
-
-
-def _cookies_from_response_headers(response_headers):
-    cookies = {}
-    for header_tuple in response_headers:
-        if header_tuple[0] == "Set-Cookie":
-            cookie_tokens = header_tuple[1].split("=", 1)
-            cookies[cookie_tokens[0]] = cookie_tokens[1]
-
-    return cookies
-
-
-def _on_flask_render(template, flask_config):
-    span = span_bus.get_span()
-    if not span:
-        return
-    name = maybe_stringify(getattr(template, "name", None) or flask_config.get("template_default_name"))
-    if name is not None:
-        span.resource = name
-        span._set_attribute("flask.template_name", name)
-
-
-def _on_request_span_modifier(
-    ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
-):
-    span = ctx.get_item("req_span")
-    # Default resource is method and path:
-    #   GET /
-    #   POST /save
-    # We will override this below in `traced_dispatch_request` when we have a `
-    # RequestContext` and possibly a url rule
-    span.resource = " ".join((request.method, request.path))
-
-    span._set_attribute(_SPAN_MEASURED_KEY, 1)
-
-    span._set_attribute(flask_version, flask_version_str)
-
-
-def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
-    span = ctx.get_item("req_span")
-    try:
-        raw_uri = ctx.get_item("wsgi.construct_url")(ctx.get_item("environ"))
-    except Exception:
-        raw_uri = request.url
-    trace_utils.set_http_meta(
-        span,
-        flask_config,
-        method=request.method,
-        url=request.base_url,
-        raw_uri=raw_uri,
-        query=request.query_string,
-        parsed_query=request.args,
-        request_headers=request.headers,
-        request_cookies=request.cookies,
-        request_body=req_body,
-        peer_ip=request.remote_addr,
-    )
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
@@ -1922,12 +1791,7 @@ def listen():
     core.on("wsgi.app.exception", _on_app_exception)
     core.on("wsgi.request.complete", _on_request_complete, "traced_iterable")
     core.on("wsgi.response.prepared", _on_response_prepared)
-    core.on("flask.start_response.pre", _on_start_response_pre)
-    core.on("flask.request_call_modifier", _on_request_span_modifier)
-    core.on("flask.request_call_modifier.post", _on_request_span_modifier_post)
-    core.on("flask.render", _on_flask_render)
     core.on("context.started.wsgi.response", _maybe_start_http_response_span)
-    core.on("context.started.flask._patched_request", _on_traced_request_context_started_flask)
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
@@ -2032,14 +1896,10 @@ def listen():
         "pyramid.request",
         "sanic.request",
         "tornado.request",
-        "flask.call",
-        "flask.jsonify",
-        "flask.render_template",
         "asgi.websocket.close.message",
         "asgi.websocket.disconnect.message",
         "asgi.websocket.receive.message",
         "asgi.websocket.send.message",
-        "wsgi.__call__",
         "django.cache",
         "django.middleware.__call__",
         "django.middleware.func",
@@ -2089,6 +1949,8 @@ def listen():
         "ray.serve.deployment",
     ):
         core.on(f"context.started.{context_name}", _start_span)
+
+    core.on("context.started.wsgi.__call__", _start_legacy_wsgi_call)
 
     for name in (
         "asgi.request",

@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any
+from typing import Mapping
 from typing import Optional
 
 from ddtrace._trace.events import TracingEvent
@@ -40,6 +42,15 @@ class WebFrameworkRequestEvent(HttpRequestBaseEvent, TracingEvent):
     # Optional per-request override for query string tagging.
     # aiohttp supports app-level trace_query_string that can differ from integration_config.
     trace_query_string: Optional[bool] = event_field(default=None)
+
+    # Additional HTTP metadata resolved by the framework during request handling.
+    raw_uri: Optional[str] = event_field(default=None)
+    parsed_query: Optional[Mapping[str, str]] = event_field(default=None)
+    request_cookies: Optional[dict[str, str]] = event_field(default=None)
+    request_path_params: Optional[Mapping[str, Any]] = event_field(default=None)
+    request_body: Optional[Any] = event_field(default=None)
+    peer_ip: Optional[str] = event_field(default=None)
+    response_cookies: Optional[dict[str, str]] = event_field(default=None)
 
     def __post_init__(self):
         self.operation_name = schematize_url_operation(
