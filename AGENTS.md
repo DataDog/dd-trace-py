@@ -62,15 +62,6 @@ Do not add a comment if the comment simply states what the code does, and not wh
 - **Configuration is via environment variables** — follow existing patterns in `ddtrace/internal/settings/`.
 - **Integrations are modular** — each lives under `ddtrace/contrib/` and follows the `Pin`/`patch`/`unpatch` pattern.
 
-## AIDEV Anchor Comments
-
-Add `AIDEV-NOTE:`, `AIDEV-TODO:`, or `AIDEV-QUESTION:` comments as inline knowledge for AI and developers.
-
-- Before scanning files, **grep for existing `AIDEV-*` anchors** in relevant subdirectories first.
-- **Update relevant anchors** when modifying associated code.
-- **Never remove** `AIDEV-NOTE`s without explicit human instruction.
-- Add anchors when code is complex, important, confusing, or potentially buggy.
-
 ## PR Guidelines
 
 Follow **`docs/contributing.rst`** ("Pull Request Requirements" and "Branches and Pull Requests" sections).
@@ -140,3 +131,15 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | Repository Structure                                            | `.cursor/rules/repo-structure.mdc`                                      | —                                                                                                                                                   |
 | Linting                                                         | `.cursor/rules/linting.mdc`                                             | —                                                                                                                                                   |
 | Testing                                                         | `.cursor/rules/testing.mdc`                                             | —                                                                                                                                                   |
+
+## AIDE&#x56; Anchor Comments
+
+The guild deprecated `AIDEV-NOTE:`, `AIDEV-TODO:`, and `AIDEV-QUESTION:` labels.
+
+- Existing `AIDEV-*` anchors are protected by default. Do not remove or rewrite
+  an existing anchored comment merely because nearby code is being edited.
+- An explicit instruction or a dedicated anchor-migration task may replace an
+  old label with plain comment syntax; never delete the protected comment, and
+  preserve its substantive text.
+- New `AIDEV-*` anchor comments are forbidden. CI blocks new anchors on
+  changed lines.
