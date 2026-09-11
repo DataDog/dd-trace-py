@@ -64,8 +64,10 @@ def _collect_suitespecs() -> dict:
             data = yaml.load(s)
         suitespec["components"].update(data["components"])
 
+        source = s.relative_to(TESTS.parent).as_posix()
         for name, value in data["suites"].items():
             spec = value.copy()
+            spec["paths"] = [*spec["paths"], source]
             full_name = f"{namespace}::{name}" if namespace is not None else name
             if namespace is not None and "pattern" not in spec:
                 spec["pattern"] = name
@@ -81,6 +83,8 @@ SUITESPEC = _collect_suitespecs()
 def get_patterns(suite: str) -> set[str]:
     """Get the patterns for a suite
 
+    >>> "tests/ci_visibility/suitespec.yml" in get_patterns("ci_visibility::pytest")
+    True
     >>> SUITESPEC["components"] = {"$h": ["tests/s.py"], "core": ["core/*"], "debugging": ["ddtrace/d/*"]}
     >>> SUITESPEC["suites"] = {"debugger": {"paths": ["@core", "@debugging", "tests/d/*"]}}
     >>> sorted(get_patterns("debugger"))  # doctest: +NORMALIZE_WHITESPACE

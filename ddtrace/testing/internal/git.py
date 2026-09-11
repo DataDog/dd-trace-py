@@ -41,7 +41,7 @@ _LOCK_ERROR_RE = re.compile(
 _LOCK_MAX_RETRIES = 5
 _LOCK_BASE_DELAY_SECONDS = 0.5
 
-# AIDEV-NOTE: Keep this cross-process lock on a stable file in Git's actual
+# Keep this cross-process lock on a stable file in Git's actual
 # metadata directory. The timeout, inode, and fallback behavior are part of the
 # coordination protocol; changing them can reintroduce concurrent fetch races.
 # Every call to unshallow_repository acquires an exclusive flock before issuing

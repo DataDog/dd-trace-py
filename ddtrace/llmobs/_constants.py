@@ -97,6 +97,19 @@ LLMOBS_APM_SHADOW_MODEL_NAME_TAG_KEY = "_dd.llmobs.model_name"
 LLMOBS_APM_SHADOW_MODEL_PROVIDER_TAG_KEY = "_dd.llmobs.model_provider"
 LLMOBS_APM_SHADOW_ENABLED_METRIC_KEY = "_dd.llmobs.enabled"
 
+GEN_AI_OPERATION_NAME_TAG_KEY = "gen_ai.operation.name"
+GEN_AI_REQUEST_MODEL_TAG_KEY = "gen_ai.request.model"
+GEN_AI_PROVIDER_NAME_TAG_KEY = "gen_ai.provider.name"
+GEN_AI_APPLICATION_NAME_TAG_KEY = "gen_ai.application.name"
+GEN_AI_CONVERSATION_ID_TAG_KEY = "gen_ai.conversation.id"
+
+GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.input_tokens"
+GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.output_tokens"
+GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY = "gen_ai.usage.total_tokens"
+GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_read_input_tokens"
+GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "gen_ai.usage.cache_write_input_tokens"
+GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY = "gen_ai.usage.reasoning_output_tokens"
+
 TIME_TO_FIRST_TOKEN_METRIC_KEY = "time_to_first_token"  # nosec B105
 TIME_IN_QUEUE_METRIC_KEY = "time_in_queue"
 TIME_IN_MODEL_PREFILL_METRIC_KEY = "time_in_model_prefill"
