@@ -88,6 +88,7 @@ class TraceMiddleware(object):
 
     def process_response(self, req, resp, resource, req_succeeded=None):
         # req_succeeded is unavailable in Falcon 1.0.
+        # TODO[manu]: drop the support at some point
         ctx = req.env.pop(self._request_context_key, None)
         if ctx is None:
             return
@@ -110,10 +111,7 @@ class TraceMiddleware(object):
                 err_type = sys.exc_info()[0]
                 if err_type is not None:
                     if req_succeeded is None or req_succeeded is False:
-                        status = _detect_and_set_status_error(
-                            err_type,
-                            span,
-                        )
+                        status = _detect_and_set_status_error(err_type, span)
 
                 event.request_route = (req.root_path or "") + (req.uri_template or "")
                 event.response_headers = resp._headers
