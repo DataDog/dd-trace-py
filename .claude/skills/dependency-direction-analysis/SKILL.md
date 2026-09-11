@@ -18,7 +18,7 @@ allowed-tools:
 # Dependency Direction Analysis Skill
 
 This skill runs the dependency direction detector locally and proposes sound
-architectural fixes for any violations found. It enforces two rules:
+architectural fixes for any violations found. It enforces three rules:
 
 1. **`ddtrace.internal` and `ddtrace.contrib` must not depend on product code.**
    They are shared foundation layers; every product depends on them, so a
@@ -29,6 +29,14 @@ architectural fixes for any violations found. It enforces two rules:
    Visibility, Error Tracking, OpenFeature, OpenTelemetry, and Runtime metrics
    are each isolated: none of them are mandatory for a given dd-trace-py
    install, so one product can't assume another is present.
+3. **Products must not depend on `ddtrace.contrib` directly** (config:
+   `rules.forbid_products_into_contrib` in `layers.json`, enabled by default).
+   Contrib exists to attach integration-specific behaviour to a product
+   (Pattern 1 below: dispatch events, let contrib listen), never the other
+   way round. A product module importing `ddtrace.contrib` directly means
+   integration-specific knowledge (a per-library constant, a per-library
+   helper) leaked into code every install runs, regardless of which
+   integrations are active.
 
 The guiding principle is the same as circular-import analysis: **Separation of
 Concerns**. Fixes must restructure ownership or add a decoupling layer, not
@@ -100,6 +108,107 @@ Clean up afterwards:
 ```bash
 rm violations.json violations-base.json violations-pr.json
 ```
+
+## Finding hidden per-product ownership in shared zones
+
+`layers.py` only catches internal-core/contrib code that *imports* a
+product. It can't catch the opposite smell: a module that lives in one of
+the zones supposed to serve every product but is, in practice, only ever
+*used by* one (e.g. `ddtrace.internal.writer` is only imported by tracing
+code) -- that module was never generic and belongs in that product's own
+namespace instead of the shared foundation layer.
+
+`affinity.py` looks the other direction across the same import graph: for
+every module in a zone under analysis, who imports it, and does that set of
+importers belong overwhelmingly to one product?
+
+```bash
+uv run --script scripts/import-analysis/affinity.py analyze affinity.json
+uv run --script scripts/import-analysis/affinity.py report affinity.json
+```
+
+By default it checks every zone in `layers.json`'s
+`rules.forbid_from_zones_into_products` -- the same list `layers.py` already
+uses to mean "must serve every product" -- rather than hardcoding a single
+zone name. Today that's `internal-core` and `contrib`. Pass `--zones
+internal-core` to narrow it if you only want one.
+
+`analyze` writes `affinity.json` with a `candidates` list, each entry giving
+the module, its resolved `dominant_zone`, a `confidence` tier, the breakdown
+of importer zones, a `confirmed_violations` list (see below), and (for the
+weaker tier) which importers don't fit the pattern:
+
+- **Confirmed** — `confirmed_violations` is non-empty: at least one direct
+  importer of this module already trips a `layers.py` rule (most often rule 3
+  above, a product importing straight into `contrib`). This isn't a
+  heuristic judgement call, it's the same exact-edge detection `layers.py`
+  uses for CI, just surfaced here alongside the affinity data, and it's
+  reported regardless of `dominant_ratio` -- a module used broadly enough
+  that no single product dominates (e.g. `ddtrace.contrib.trace_utils`,
+  `ratio` well under the dominant threshold) can still contain a confirmed
+  violation; breadth of use doesn't excuse one bad edge. Fix these the same
+  way you'd fix a `layers.py` violation (see the patterns below); `report`
+  lists these first, separately from the two heuristic tiers.
+- **`exclusive`** — every importer with a resolvable zone belongs to the same
+  product, and none of those imports are themselves confirmed violations.
+  Strongest heuristic signal; a good candidate to move into
+  `ddtrace.internal.<product>` (see Pattern 4/5 below) or reclassify in
+  `layers.json`.
+- **`dominant`** — one product accounts for most (≥60%) of the importers, but
+  not all, and none of those imports are confirmed violations. The
+  `minority_importers` field lists the outliers -- read those first: they're
+  either a legitimate shared use (leave the module where it is) or evidence
+  that *they* are the ones reaching into the wrong place (e.g. another
+  product borrowing this one's internals informally).
+
+`dominant_ratio` is votes for the top product divided by *all* importers with
+any resolvable zone, not just the ones that voted -- an importer with no
+usable signal (foundation code like `ddtrace.bootstrap.preload`, or a
+same-zone importer that hasn't itself resolved to a product) still counts
+against the denominator instead of being dropped. This matters: a module
+imported once by a product and once by generic bootstrap/plugin code isn't
+"100% exclusive" to that product just because the bootstrap caller doesn't
+vote for anyone -- its presence is itself evidence the module is more
+broadly used than the vote count alone would suggest.
+
+Detection propagates through same-zone chains: if module A is only imported
+by module B, and B itself resolved to product X, A inherits X's vote too.
+This lets it catch indirection (a low-level helper used only by a
+product-specific wrapper) that a single-hop check would miss. This makes the
+`exclusive`/`dominant` tiers heuristic rather than exact -- unlike
+`confirmed_violations`, they aren't wired into CI and shouldn't gate
+anything; treat them as a prioritized list of places to look, not a verdict.
+
+**Namespace buckets:** some packages are deliberately structured so each
+child module belongs to a different product by design -- e.g.
+`ddtrace.internal.settings` holds the generic `Config` aggregator
+(`_config.py`) plus one settings module per product (`settings.profiling`,
+`settings.aiguard`, ...), each contributed independently. Flagging
+`settings.profiling` as "exclusive to profiling" would be true but not
+actionable: it was never meant to be generic, so there's nothing to
+relocate. `layers.json`'s `affinity.namespace_buckets` lists such packages;
+`affinity.py` drops their direct children from the `exclusive`/`dominant`
+tiers (a `confirmed_violations` hit still surfaces regardless -- the bucket
+doesn't excuse an actual `layers.py` rule violation). Add a new prefix here
+when you hit the same shape elsewhere, rather than treating every
+single-product hit under it as a relocation candidate.
+
+**On contrib results:** most `ddtrace.contrib` modules come back `exclusive`
+by construction -- each integration patches one library for one product, so
+"this contrib module is only used by product X" is rarely surprising on its
+own, and that's expected (see the `contrib -> product:tracing` exception in
+`layers.json`). But don't dismiss every contrib entry as noise: check
+`confirmed_violations` first. A contrib module whose only importer is, say,
+`ddtrace._trace.trace_handlers` isn't "product-specific by design" -- it's
+evidence of rule 3 above being broken (integration-specific logic living in
+code the product runs unconditionally). Run with `--zones internal-core` only
+once you've looked at the confirmed section, if you want to drop the
+remaining structural contrib noise.
+
+Once you've picked a real candidate, apply Pattern 4 or 5 from "Architectural
+Patterns for Fixing Violations" below, then re-run `layers.py analyze` to
+confirm the move didn't introduce a `layers.json`-visible violation the other
+way.
 
 ## Zone Configuration
 
