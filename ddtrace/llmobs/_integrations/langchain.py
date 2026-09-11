@@ -11,15 +11,18 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import AUDIO_FALLBACK_MARKER
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import IMAGE_FALLBACK_MARKER
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LANGCHAIN_ROLE_MAPPING
+from ddtrace.llmobs._integrations.utils import _extract_content_parts
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import set_prompt_tracking_tags
@@ -30,7 +33,9 @@ from ddtrace.llmobs._utils import _validate_prompt
 from ddtrace.llmobs._utils import get_llmobs_span_links
 from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.types import AudioPart
 from ddtrace.llmobs.types import Document
+from ddtrace.llmobs.types import ImagePart
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import ToolCall
 from ddtrace.llmobs.types import _SpanLink
@@ -128,6 +133,41 @@ def _is_google_genai_backed(instance) -> bool:
     client = getattr(client, "client", client)
     module = type(client).__module__ if client is not None else ""
     return module == "google.genai" or module.startswith("google.genai.")
+
+
+# AIDEV-NOTE: langchain builds its own message content instead of delegating to the provider
+# integration, so this runs on both the llm and the demoted path.
+def _extract_message_content(content: Any, is_workflow: bool) -> tuple[str, list[AudioPart], list[ImagePart]]:
+    """Render message content, keeping inline media payloads out of the text.
+
+    Workflow spans carry input_value rather than messages, so parts have nowhere to land there and
+    get a marker instead; the provider's child llm span carries the payload.
+    """
+    if not isinstance(content, list):
+        return str(content), [], []
+    # Content is str | list[str | dict]. The shared extractor only reads dicts, and a bare string
+    # would fall through it as an empty "[]" block.
+    parts = [{"type": "text", "text": part} if isinstance(part, str) else part for part in content]
+    text, audio_parts, image_parts = _extract_content_parts(parts)
+    if not is_workflow:
+        return text, audio_parts, image_parts
+    segments = [text] if text else []
+    segments.extend([AUDIO_FALLBACK_MARKER] * len(audio_parts))
+    segments.extend([IMAGE_FALLBACK_MARKER] * len(image_parts))
+    return "\n".join(segments), [], []
+
+
+def _build_message(content: Any, role: Optional[str], is_workflow: bool) -> Message:
+    """Build a Message, omitting the media keys entirely when nothing was captured."""
+    text, audio_parts, image_parts = _extract_message_content(content, is_workflow)
+    message = Message(content=text)
+    if role is not None:
+        message["role"] = role
+    if audio_parts:
+        message["audio_parts"] = audio_parts
+    if image_parts:
+        message["image_parts"] = image_parts
+    return message
 
 
 class LangChainIntegration(BaseLLMIntegration):
@@ -482,7 +522,7 @@ class LangChainIntegration(BaseLLMIntegration):
             prompts = [prompts]
         if stream:
             # chat and llm take the same input types for streamed calls
-            input_messages = self._handle_stream_input_messages(prompts)
+            input_messages = self._handle_stream_input_messages(prompts, is_workflow)
         else:
             input_messages = [Message(content=str(prompt)) for prompt in prompts]
 
@@ -535,7 +575,7 @@ class LangChainIntegration(BaseLLMIntegration):
         input_messages: list[Message] = []
         if stream:
             chat_messages = get_argument_value(args, kwargs, 0, "input")
-            input_messages = self._handle_stream_input_messages(chat_messages)
+            input_messages = self._handle_stream_input_messages(chat_messages, is_workflow)
         else:
             chat_messages = get_argument_value(args, kwargs, 0, "messages", optional=True) or []
             if not isinstance(chat_messages, list):
@@ -546,7 +586,7 @@ class LangChainIntegration(BaseLLMIntegration):
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
-                    input_messages.append(Message(content=str(content), role=str(role)))
+                    input_messages.append(_build_message(content, str(role), is_workflow))
                     tool_call_id = _get_attr(message, "tool_call_id", "")
                     if not is_workflow and tool_call_id:
                         core.dispatch(
@@ -654,28 +694,25 @@ class LangChainIntegration(BaseLLMIntegration):
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
 
-    def _handle_stream_input_messages(self, inputs) -> list[Message]:
+    def _handle_stream_input_messages(self, inputs, is_workflow: bool = False) -> list[Message]:
         input_messages: list[Message] = []
         if hasattr(inputs, "to_messages"):  # isinstance(inputs, langchain_core.prompt_values.PromptValue)
             inputs = inputs.to_messages()
         elif not isinstance(inputs, list):
             inputs = [inputs]
         for inp in inputs:
-            inp_message = Message()
-            content, role = None, None
+            content: Any = None
+            role = None
             if isinstance(inp, dict):
-                content = str(inp.get("content", ""))
+                content = inp.get("content", "")
                 role = inp.get("role")
             elif hasattr(inp, "content"):  # isinstance(inp, langchain_core.messages.BaseMessage)
-                content = str(inp.content)
+                content = inp.content
                 role = inp.__class__.__name__
             else:
-                content = str(inp)
+                content = str(inp)  # not a message shape, nothing to parse
 
-            inp_message["content"] = content
-            if role is not None:
-                inp_message["role"] = role
-            input_messages.append(inp_message)
+            input_messages.append(_build_message(content, role, is_workflow))
 
         return input_messages
 
