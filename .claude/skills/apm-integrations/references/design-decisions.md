@@ -16,7 +16,7 @@ The `_datadog_patch` flag on the module prevents double-patching. Always check
 `Pin` attaches tracing metadata (service name, tracer) to library instances.
 Many existing integrations use `Pin().onto(module)` and `Pin.get_from(instance)`.
 Pin is DEPRECATED -- do NOT use it in new integrations. It remains in existing
-integrations (redis, kafka, grpc, graphql, psycopg, flask, celery, etc.) but
+integrations (redis, kafka, grpc, psycopg, flask, celery, etc.) but
 new code should use `context_with_event` or `context_with_data` instead.
 
 ## The contrib/internal/ Split
@@ -46,7 +46,7 @@ flask, httpx, django. This pattern decouples patch code from span creation.
 **Pin + tracer.trace** (DEPRECATED — do not use in new code): Patch code attaches
 a `Pin` to the library module/instance, wrapper functions call
 `Pin.get_from(instance)` to get the tracer, then use `tracer.trace()` to create
-spans directly. Still used by redis, kafka, grpc, graphql, requests, celery, etc.
+spans directly. Still used by redis, kafka, grpc, requests, celery, etc.
 
 ## LLM Integration Pattern
 
