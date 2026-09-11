@@ -3,7 +3,6 @@ import importlib.util
 import os
 import platform
 import sys
-import traceback
 from types import TracebackType
 from typing import Optional
 
@@ -12,6 +11,7 @@ from ddtrace import version
 from ddtrace.internal import excepthook
 from ddtrace.internal import forksafe
 from ddtrace.internal import process_tags
+from ddtrace.internal._instrumentation_frames import extract_reportable_frames
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.runtime import get_runtime_id
@@ -225,7 +225,7 @@ def _unhandled_exception_reporter(
         if is_available and is_started() and exc_type is not None and issubclass(exc_type, Exception):
             frames = []
             if exc_traceback is not None:
-                for filename, lineno, name, _ in traceback.extract_tb(exc_traceback):
+                for filename, lineno, name, _ in extract_reportable_frames(exc_traceback):
                     frames.append(
                         {
                             "function": name,

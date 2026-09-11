@@ -8,6 +8,7 @@ from typing import Optional
 from wrapt import FunctionWrapper
 from wrapt import resolve_path
 
+from ddtrace.internal._instrumentation_frames import mark_passthrough
 from ddtrace.internal._unpatched import _gc as gc
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
@@ -122,6 +123,9 @@ def wrap_object(
 ) -> Any:
     if kwargs is None:
         kwargs = {}
+    # Both wrapt paths reach here - try_wrap_function_wrapper and IAST's forced wrapper - so this
+    # is where a forwarding wrapper gets recorded, or the forced path would go unregistered.
+    mark_passthrough(*args)
     (parent, attribute, original) = resolve_path(module, name)
     wrapper = factory(original, *args, **kwargs)
     apply_patch(parent, attribute, wrapper)
