@@ -250,6 +250,25 @@ impl TelemetryWorkerPy {
             .map_err(|e| PyValueError::new_err(format!("failed to start telemetry worker: {e}")))
     }
 
+    /// Configure whether this worker restarts when the shared runtime restarts in a fork child.
+    fn set_fork_restart(&self, restart_on_fork: bool) -> PyResult<()> {
+        if let Some(worker_handle) = self
+            .worker_handle
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .as_ref()
+        {
+            worker_handle
+                .set_fork_restart(restart_on_fork)
+                .map_err(|e| {
+                    PyValueError::new_err(format!(
+                        "failed to configure telemetry worker fork restart: {e}"
+                    ))
+                })?;
+        }
+        Ok(())
+    }
+
     /// Flush + tear the worker down, emitting app-closing (in origin process).
     ///
     /// WARNING: `send_app_closing` is currently ineffective and ignored: since the
