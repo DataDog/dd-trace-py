@@ -3,9 +3,8 @@
 # /// script
 # requires-python = ">=3.9"
 # dependencies = [
-#     "riot>=0.22.0",
-#     "ruamel.yaml>=0.17.21",
 #     "lxml>=4.9.0",
+#     "ruamel.yaml>=0.17.21",
 # ]
 # ///
 """
@@ -25,7 +24,6 @@ import importlib
 import os
 import re
 import shlex
-import subprocess
 import typing as t
 
 
@@ -48,6 +46,13 @@ def _get_bool_env(name: str) -> str:
     if value not in ("", "true", "false"):
         LOGGER.warning("Ignoring unexpected value for %s, treating it as false", name)
     return "true" if value == "true" else "false"
+
+
+def _wait_lockfile() -> str:
+    from tests.suitespec import get_test_environments
+
+    environments = get_test_environments(nightly=False)["wait"]
+    return str(next(environment.lockfile for environment in environments if environment.python == "3.9"))
 
 
 @dataclass
@@ -78,16 +83,15 @@ class JobSpec:
     only: t.Optional[set[str]] = None  # ignored
     gpu: bool = False
     type: str = "test"  # ignored
-    skip_pip_cache: bool = False
+    skip_pip_cache: bool = False  # ignored
     suite: t.Optional[str] = None
-    uses_uv: bool = False
 
     python_versions: t.Optional[set[str]] = None
     environment_hashes: t.Optional[tuple[str, ...]] = None
 
     def __str__(self) -> str:
         lines = []
-        base = ".test_base_uv" if self.uses_uv else ".test_base_riot"
+        base = ".test_base"
         if self.gpu:
             base += "_gpu"
         if self.snapshot:
@@ -99,18 +103,18 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # Jobs need build_base_venvs artifacts
+        # Base environment artifacts provide the native extensions for test jobs.
         lines.append("  needs:")
         lines.append("    - prechecks")
         if self.python_versions:
-            lines.append("    - job: build_base_venvs")
+            lines.append("    - job: build_base_test_artifacts")
             lines.append("      artifacts: true")
             lines.append("      parallel:")
             lines.append("        matrix:")
             for pv in sorted(self.python_versions):
                 lines.append(f'          - PYTHON_VERSION: "{pv}"')
         else:
-            lines.append("    - job: build_base_venvs")
+            lines.append("    - job: build_base_test_artifacts")
             lines.append("      artifacts: true")
 
         # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
@@ -131,39 +135,28 @@ class JobSpec:
         if self.snapshot:
             wait_for.append("testagent")
 
-        # Bake NIGHTLY_BUILD into script (same approach as build_base_venvs template)
+        # Bake NIGHTLY_BUILD into script (same approach as build_base_test_artifacts template)
         # so the value is set when tests-gen runs and is present in the child job.
         _nightly_build = _get_bool_env("NIGHTLY_BUILD")
         lines.append("  before_script:")
         lines.append(f"    - !reference [{base}, before_script]")
-        if not self.uses_uv:
-            lines.append("    - pip cache info")
         lines.append(f'    - export NIGHTLY_BUILD="{_nightly_build}"')
         if wait_for:
-            # Retry up to twice on transient pip network failures; service-check
-            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
-            lines.append(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}")
+            wait_environment = ""
+            if "testagent" in wait_for:
+                wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
+            lines.append(
+                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
+                f"--with-requirements {_wait_lockfile()} --no-progress "
+                f"python tests/wait-for-services.py {' '.join(wait_for)}"
+            )
 
         env = dict(self.env or {})
         if not env or "SUITE_NAME" not in env:
             env["SUITE_NAME"] = self.pattern or self.name
-
-        if self.uses_uv:
-            env["TEST_SUITE"] = self.suite or self.name
-            if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
-                env["UV_PRERELEASE"] = "allow"
-
-        suite_name = env["SUITE_NAME"]
-        if not self.uses_uv:
-            env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-            env["PIP_CACHE_KEY"] = (
-                subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-            )
-        if not self.uses_uv and not self.skip_pip_cache:
-            lines.append("  cache:")
-            lines.append(f"    key: v1-pip-${'{PIP_CACHE_KEY}'}-{TESTRUNNER_IMAGE_HASH}-cache")
-            lines.append("    paths:")
-            lines.append("      - .cache")
+        env["TEST_SUITE"] = self.suite or self.name
+        if _get_bool_env("UNPIN_DEPENDENCIES") == "true":
+            env["UV_PRERELEASE"] = "allow"
 
         lines.append("  variables:")
         for key, value in env.items():
@@ -196,18 +189,19 @@ class JobSpec:
 
 @dataclass
 class SuiteVenvInfo:
-    venv_count: int
+    environment_hashes: tuple[str, ...]
     python_versions: set[str]
-    environment_hashes: tuple[str, ...] = ()
-    # Runner-specific metadata used to generate DDTest plan and run jobs.
-    riot_venvs: tuple[tuple[str, str], ...] = ()
-    uv_venvs: tuple[tuple[str, str], ...] = ()
-    venv_test_locations: t.Optional[dict[str, str]] = None
-    uv_metadata: t.Optional[dict[str, tuple[str, str, str, str]]] = None
+    environments: tuple[tuple[str, str], ...]
+    ddtest_metadata: dict[str, tuple[str, str, str, str]]
+
+    @property
+    def venv_count(self) -> int:
+        return len(self.environment_hashes)
 
 
-# Module-level state: populated by gen_required_suites, consumed by gen_build_base_venvs
+# Module-level state: populated by gen_required_suites, consumed by gen_build_base_test_artifacts
 _global_python_versions: set[str] = set()
+_needs_base_venvs = True
 
 # Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
 TARGET_JOBS = 200
@@ -221,10 +215,7 @@ def _shell_environment(environment: dict[str, str]) -> str:
 
 
 def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, SuiteVenvInfo]:
-    """Collect venv count and Python versions for multiple suites in a single pass.
-
-    Iterates riotfile.venv.instances() once and matches each instance against all
-    suite patterns simultaneously, which is much more efficient than per-suite iteration.
+    """Collect environment count and Python versions for multiple suites in a single pass.
 
     Args:
         suite_configs: mapping of suite name -> suite configuration
@@ -232,85 +223,47 @@ def collect_all_suite_venv_info(suite_configs: dict[str, dict]) -> dict[str, Sui
     Returns:
         mapping of suite name -> SuiteVenvInfo for suites that have matching venvs
     """
-    # Importing will load/evaluate the whole riotfile.py for suites that still use Riot.
-    import riotfile
-    from tests.suitespec import UV_TEST_SUITES
     from tests.suitespec import get_test_environments
 
-    compiled: dict[str, re.Pattern] = {}
-    for suite, config in suite_configs.items():
-        if suite in UV_TEST_SUITES and not config.get("ddtest"):
-            continue
-        pattern = config.get("pattern", suite)
-        try:
-            compiled[suite] = re.compile(pattern)
-        except re.error:
-            LOGGER.warning("Invalid pattern for suite %s: %s", suite, pattern)
-
-    venv_hashes: dict[str, set] = {s: set() for s in compiled}
-    python_versions: dict[str, set] = {s: set() for s in compiled}
-    venv_hash_hint: dict[str, dict[str, str]] = {s: {} for s in compiled}
-    venv_test_locations: dict[str, dict[str, str]] = {s: {} for s in compiled}
-
-    for inst in riotfile.venv.instances():  # type: ignore[attr-defined]
-        if not inst.name:
-            continue
-        hint = inst.py._hint  # type: ignore[attr-defined]
-        for suite, regex in compiled.items():
-            if inst.matches_pattern(regex):  # type: ignore[attr-defined]
-                venv_hashes[suite].add(inst.short_hash)  # type: ignore[attr-defined]
-                venv_hash_hint[suite][inst.short_hash] = hint
-                venv_test_locations[suite][inst.short_hash] = inst.env.get("DDTEST_TESTS_LOCATION", "")
-                # Only collect properly versioned hints (e.g. "3.10"), skip bare "3"
-                if re.match(r"^3\.\d+$", hint):
-                    python_versions[suite].add(hint)
+    all_environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
 
     result: dict[str, SuiteVenvInfo] = {}
-    for suite in compiled:
-        if venv_hashes[suite]:
+    for suite in suite_configs:
+        environments = all_environments.get(suite, ())
+        if environments:
+            ddtest_metadata = {}
+            if suite_configs[suite].get("ddtest"):
+                suite_environment = suite_configs[suite].get("env", {})
+                for environment in environments:
+                    if len(environment.runs) != 1:
+                        raise ValueError(f"ddtest suite {suite} must have one command per environment")
+                    run = environment.runs[0]
+                    command = run.command.replace("{cmdargs}", "--ddtrace")
+                    for name, value in run.environment.items():
+                        command = command.replace(f"${{{{{name}}}}}", value)
+                    test_location = run.environment.get("DDTEST_TESTS_LOCATION") or suite_environment.get(
+                        "DDTEST_TESTS_LOCATION", ""
+                    )
+                    ddtest_metadata[environment.hash] = (
+                        str(environment.lockfile),
+                        test_location,
+                        command,
+                        _shell_environment(run.environment),
+                    )
             result[suite] = SuiteVenvInfo(
-                venv_count=len(venv_hashes[suite]),
-                python_versions=python_versions[suite],
-                riot_venvs=tuple(sorted(venv_hash_hint[suite].items())),
-                venv_test_locations=venv_test_locations[suite],
+                environment_hashes=tuple(environment.hash for environment in environments),
+                python_versions={
+                    environment.python for environment in environments if re.match(r"^3\.\d+$", environment.python)
+                },
+                environments=tuple((environment.hash, environment.python) for environment in environments),
+                ddtest_metadata=ddtest_metadata,
             )
         else:
             LOGGER.warning(
-                "No riot venvs found for suite %s with pattern %s",
+                "No test environments found for suite %s with pattern %s",
                 suite,
                 suite_configs[suite].get("pattern", suite),
             )
-
-    uv_environments = get_test_environments(nightly=os.environ.get("NIGHTLY_BUILD", "").lower() == "true")
-    for suite in UV_TEST_SUITES:
-        if suite not in suite_configs:
-            continue
-        environments = uv_environments[suite]
-        uv_metadata = {}
-        if suite_configs[suite].get("ddtest"):
-            for environment in environments:
-                if len(environment.runs) != 1:
-                    raise ValueError(f"ddtest uv suite {suite} must have one command per environment")
-                run = environment.runs[0]
-                # Normal UV jobs pass --ddtrace through scripts/run-tests. DDTest invokes
-                # the command directly, so preserve that runner argument explicitly.
-                command = run.command.replace("{cmdargs}", "--ddtrace")
-                for name, value in run.environment.items():
-                    command = command.replace(f"${{{{{name}}}}}", value)
-                uv_metadata[environment.hash] = (
-                    environment.lockfile,
-                    run.environment.get("DDTEST_TESTS_LOCATION", ""),
-                    command,
-                    _shell_environment(run.environment),
-                )
-        result[suite] = SuiteVenvInfo(
-            venv_count=len(environments),
-            python_versions={environment.python for environment in environments},
-            environment_hashes=tuple(environment.hash for environment in environments),
-            uv_venvs=tuple((environment.hash, environment.python) for environment in environments),
-            venv_test_locations={hash_: metadata[1] for hash_, metadata in uv_metadata.items()},
-            uv_metadata=uv_metadata,
-        )
     return result
 
 
@@ -398,7 +351,7 @@ def _scale_suites(
 
 def gen_required_suites() -> None:
     """Generate the list of test and benchmark suites that need to be run."""
-    import suitespec
+    from tests import suitespec
 
     suites = suitespec.get_suites()
 
@@ -535,15 +488,13 @@ def gen_validate_slos() -> None:
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     global _global_python_versions
-
-    from tests.suitespec import UV_TEST_SUITES
+    global _needs_base_venvs
 
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
-
     # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
     for suite_name, suite_config in suites.items():
@@ -574,16 +525,19 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
     suite_configs = {s: suites[s] for s in non_skipped}
     suite_venv_info = collect_all_suite_venv_info(suite_configs)
+    _needs_base_venvs = bool(non_skipped)
 
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
         info = suite_venv_info[suite]
         _ddtest_module().validate_ddtest_venv_test_locations(
-            suite, info.uv_venvs if suite in UV_TEST_SUITES else info.riot_venvs, info.venv_test_locations
+            suite,
+            info.environments,
+            {environment_hash: metadata[1] for environment_hash, metadata in info.ddtest_metadata.items()},
         )
 
-    # Populate the module-level global so gen_build_base_venvs can use it
+    # Populate the module-level global so gen_build_base_test_artifacts can use it
     _global_python_versions = set()
     for info in suite_venv_info.values():
         _global_python_versions.update(info.python_versions)
@@ -632,33 +586,25 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
             stage = suite_config.pop("_stage", "core")
             clean_name = suite_config.pop("_clean_name", suite)
             suite_config.pop("matrix", None)
+            suite_config.pop("integration", None)
             suite_config["suite"] = suite
 
             py_versions = suite_venv_info[suite].python_versions if suite in suite_venv_info else None
-
             if suite_config.get("ddtest"):
                 info = suite_venv_info.get(suite)
                 if info is None:
                     LOGGER.warning("Suite %s opted into ddtest but has no environments; skipping", suite)
                     continue
-                runner = "uv" if suite in UV_TEST_SUITES else "riot"
-                environments = info.uv_venvs if runner == "uv" else info.riot_venvs
-                if not environments:
-                    LOGGER.warning("Suite %s opted into ddtest but has no %s environments; skipping", suite, runner)
-                    continue
-                k = _ddtest_module().ddtest_k(suite_config)
-                LOGGER.info("Suite %s: ddtest %s runner (venvs=%d, nodes/venv=%d)", suite, runner, len(environments), k)
                 _ddtest_module().emit_ddtest_jobs(
                     f,
                     suite,
                     stage,
                     clean_name,
                     suite_config,
-                    list(environments),
-                    k,
-                    TESTRUNNER_IMAGE_HASH,
-                    runner,
-                    info.uv_metadata,
+                    list(info.environments),
+                    _ddtest_module().ddtest_k(suite_config),
+                    info.ddtest_metadata,
+                    _wait_lockfile(),
                 )
                 continue
 
@@ -668,7 +614,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
                 stage=stage,
                 python_versions=py_versions,
                 environment_hashes=environment_hashes,
-                uses_uv=suite in UV_TEST_SUITES,
                 **suite_config,
             )
             if jobspec.skip:
@@ -689,6 +634,8 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
+    global _needs_base_venvs
+
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -697,13 +644,14 @@ def gen_build_docs() -> None:
             "ddtrace/*",
             "scripts/docs/*",
             "scripts/gen_gitlab_config.py",
+            ".uv/build-docs--py310--*.txt",
             "benchmarks/README.rst",
             ".readthedocs.yml",
-            ".uv/build-docs--py310--*.txt",
         }
     ):
-        # build_docs uses Python 3.10; ensure it's included in build_base_venvs
+        # build_docs uses Python 3.10; ensure it is included in build_base_test_artifacts
         _global_python_versions.add("3.10")
+        _needs_base_venvs = True
 
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
@@ -711,7 +659,7 @@ def gen_build_docs() -> None:
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print("    - job: build_base_venvs", file=f)
+            print("    - job: build_base_test_artifacts", file=f)
             print("      artifacts: true", file=f)
             print("      parallel:", file=f)
             print("        matrix:", file=f)
@@ -759,11 +707,6 @@ def gen_pre_checks() -> None:
         name="Security",
         command="scripts/lint security",
         paths={"docker*", "ddtrace/*", "pyproject.toml", "scripts/lint"},
-    )
-    check(
-        name="Run riotfile.py tests",
-        command="scripts/lint riot",
-        paths={"docker*", "riotfile.py", "pyproject.toml", "scripts/lint"},
     )
     check(
         name="Style: Test snapshots",
@@ -898,7 +841,7 @@ def gen_cached_testrunner() -> None:
         )
 
 
-def gen_build_base_venvs() -> None:
+def gen_build_base_test_artifacts() -> None:
     """Generate the list of base jobs for building virtual environments.
 
     We need to generate this dynamically from a template because it depends
@@ -907,6 +850,10 @@ def gen_build_base_venvs() -> None:
     Only builds venvs for the Python versions actually needed by the required suites,
     falling back to all supported versions when no venv info is available.
     """
+    if not _needs_base_venvs:
+        LOGGER.info("Skipping base environments because no test suites were selected")
+        return
+
     if _global_python_versions:
         py_versions = sorted(_global_python_versions)
         LOGGER.info("Building base venvs for Python versions: %s", py_versions)
@@ -919,7 +866,7 @@ def gen_build_base_venvs() -> None:
     with TESTS_GEN.open("a") as f:
         f.write(
             template(
-                "build-base-venvs",
+                "build-base-test-artifacts",
                 python_versions=python_versions_str,
                 unpin_dependencies=_get_bool_env("UNPIN_DEPENDENCIES"),
                 nightly_build=_get_bool_env("NIGHTLY_BUILD"),
@@ -993,10 +940,9 @@ import ruamel.yaml as _ruamel_yaml  # noqa: E402
 
 _testrunner_yaml = _ruamel_yaml.YAML().load((GITLAB / "testrunner.yml").read_text())
 TESTRUNNER_IMAGE_HASH = hashlib.sha256(_testrunner_yaml["variables"]["TESTRUNNER_IMAGE"].encode()).hexdigest()[:16]
-# Make the project root, scripts, and tests folders available for importing.
+# Make the project root and scripts folders available for importing.
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "scripts"))
-sys.path.append(str(ROOT / "tests"))
 
 # Single source of truth for the benchmark SLO naming regexes lives in
 # check_slo_ownership.py; import them here so both this generator and the
