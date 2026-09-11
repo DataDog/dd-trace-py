@@ -56,6 +56,8 @@ unwind_frame(EchionSampler& echion,
              bool detect_truncation)
 {
     seen_frames.clear();
+    // Having no remaining frame budget does not prove truncation: frame_addr
+    // may be null or lead only through ignored C/interpreter frames.
     if (!detect_truncation && (max_frames_to_add == 0 || stack.size() >= MAX_TASK_FRAMES)) {
         return UnwindResult::Unknown();
     }
