@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    aiobotocore: Adds LLM Observability tracing for Amazon Bedrock Runtime model calls,
+    including streaming and Converse operations.
