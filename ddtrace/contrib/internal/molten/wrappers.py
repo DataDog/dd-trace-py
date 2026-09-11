@@ -7,6 +7,7 @@ from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.ext import SpanKind
+from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.utils.importlib import func_name
 
@@ -90,7 +91,10 @@ class WrapperRouter(wrapt.ObjectProxy):
             event.set_resource = False
 
             request_span = core.find_item("req_span")
-            if request_span is not None and not request_span.get_tag(MOLTEN_ROUTE):
-                request_span._set_attribute(MOLTEN_ROUTE, route.name)
-
+            if request_span is not None:
+                request_span.resource = event.resource
+                if not request_span.get_tag(MOLTEN_ROUTE):
+                    request_span._set_attribute(MOLTEN_ROUTE, route.name)
+                if not request_span.get_tag(http.ROUTE):
+                    request_span._set_attribute(http.ROUTE, route.template)
         return route, params
