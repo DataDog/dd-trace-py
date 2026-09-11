@@ -24,6 +24,11 @@ from ddtrace.internal import telemetry
 from ddtrace.internal._exceptions import DDBlockException
 from ddtrace.internal.http import HTTPConnection
 import ddtrace.internal.logger as ddlogger
+from ddtrace.internal.native import ConnectionFailedError
+from ddtrace.internal.native import HttpClientError
+from ddtrace.internal.native import HttpIoError
+from ddtrace.internal.native import InvalidConfigError
+from ddtrace.internal.native import TimedOutError
 from ddtrace.internal.settings.aiguard import aiguard_config
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import MetricTagType
@@ -106,6 +111,52 @@ class AIGuardAbortError(DDBlockException):
         super().__init__(f"AIGuardAbortError(action='{action}', reason='{reason}', tags='{tags}')")
 
 
+# Transport failures the native HTTP client distinguishes. Ordered most specific first so a
+# subclass is never shadowed by its base.
+_TRANSPORT_ERROR_TYPES: tuple[tuple[type[BaseException], str], ...] = (
+    (ConnectionFailedError, AI_GUARD.ERROR_CONNECTION),
+    (TimedOutError, AI_GUARD.ERROR_TIMEOUT),
+    (InvalidConfigError, AI_GUARD.ERROR_INVALID_CONFIG),
+    (HttpIoError, AI_GUARD.ERROR_NETWORK),
+)
+
+
+def _classify_transport_error(exc: BaseException) -> str:
+    """Map a failure from the evaluate request onto an error metric type.
+
+    Splitting these apart is what separates "never reached the service" from "reached it and was
+    rejected"; client_error remains the catch-all for an unrecognised transport failure, and
+    anything that is not a transport failure at all is reported as an internal error.
+    """
+    for error_cls, error_type in _TRANSPORT_ERROR_TYPES:
+        if isinstance(exc, error_cls):
+            return error_type
+    return AI_GUARD.ERROR_CLIENT if isinstance(exc, HttpClientError) else AI_GUARD.ERROR_INTERNAL
+
+
+def _loggable_endpoint(url: str) -> str:
+    """The endpoint with any credentials stripped, for debug logs.
+
+    An endpoint override can carry userinfo or a query credential, and these logs are exactly what
+    customers are asked to share during an investigation, so keep only scheme, host, port and path.
+    """
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname or ""
+        if parsed.port:
+            host = f"{host}:{parsed.port}"
+        if not host:
+            return "<unparsable>"
+        return f"{parsed.scheme}://{host}{parsed.path}" if parsed.scheme else f"{host}{parsed.path}"
+    except Exception:
+        return "<unparsable>"
+
+
+def _status_tag(status: Optional[int]) -> str:
+    """Clamp a response status to the declared allowlist, keeping the tag bounded."""
+    return str(status) if status in AI_GUARD.STATUSES else AI_GUARD.STATUS_OTHER
+
+
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
 
@@ -131,6 +182,11 @@ class AIGuardClient:
 
         self._timeout = aiguard_config._ai_guard_timeout // 1000
 
+        # Logged once so a single debug capture answers which host was contacted and with which
+        # timeout, without asking for a reproduction.
+        self._loggable_endpoint = _loggable_endpoint(endpoint)
+        logger.debug("AI Guard client ready: endpoint=%s timeout=%ss", self._loggable_endpoint, self._timeout)
+
     @staticmethod
     def _call_path_tags(source: str, integration: str) -> tuple[tuple[str, str], ...]:
         """Tags identifying the call path that reached the evaluation, required on every metric.
@@ -149,9 +205,9 @@ class AIGuardClient:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     @staticmethod
-    def _add_error_to_telemetry(error_type: str, call_path_tags: tuple[tuple[str, str], ...], count: int = 1) -> None:
+    def _add_error_to_telemetry(error_type: str, tags: tuple[tuple[str, str], ...], count: int = 1) -> None:
         telemetry.telemetry_writer.add_count_metric(
-            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, count, (("type", error_type),) + call_path_tags
+            TELEMETRY_NAMESPACE.AI_GUARD, AI_GUARD.ERROR_METRIC, count, (("type", error_type),) + tags
         )
 
     @staticmethod
@@ -280,9 +336,12 @@ class AIGuardClient:
 
         from ddtrace.trace import tracer
 
-        # Classifies the error metric when a raise below escapes. Transport failures and
-        # unexpected internal errors keep the default; response-driven raises narrow it.
-        error_type: str = AI_GUARD.ERROR_CLIENT
+        # Classifies the error metric when a raise below escapes. Transport and response paths
+        # each set their own type, so anything still holding the default failed inside our own
+        # code, which is what internal_error means; client_error is reserved for a transport
+        # failure the native client reports but we do not recognise.
+        error_type: str = AI_GUARD.ERROR_INTERNAL
+        error_status: Optional[int] = None
         call_path_tags = self._call_path_tags(source, integration)
 
         with tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
@@ -299,6 +358,7 @@ class AIGuardClient:
                 try:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except Exception as e:
+                    error_type = _classify_transport_error(e)
                     raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
 
                 try:
@@ -306,7 +366,11 @@ class AIGuardClient:
                 except Exception as e:
                     # A body we cannot decode is a response problem, not a transport one, unless
                     # the status code already explains the failure.
-                    error_type = AI_GUARD.ERROR_BAD_RESPONSE if response.status == 200 else AI_GUARD.ERROR_BAD_STATUS
+                    if response.status == 200:
+                        error_type = AI_GUARD.ERROR_BAD_RESPONSE
+                    else:
+                        error_type = AI_GUARD.ERROR_BAD_STATUS
+                        error_status = response.status
                     raise AIGuardClientError(
                         message=f"AI Guard service returned an undecodable response body: {e}",
                         status=response.status,
@@ -369,6 +433,7 @@ class AIGuardClient:
                         meta_struct.update({"tag_probs": tag_probs})
                 else:
                     error_type = AI_GUARD.ERROR_BAD_STATUS
+                    error_status = response.status
                     raise AIGuardClientError(
                         message=f"AI Guard service call failed, status: {response.status}",
                         status=response.status,
@@ -431,10 +496,22 @@ class AIGuardClient:
 
             except Exception:
                 self._add_request_to_telemetry((("error", "true"),) + call_path_tags)
-                self._add_error_to_telemetry(error_type, call_path_tags)
-                # Log the size only: the messages may carry sensitive data that redaction would have
-                # removed, and this runs before any redaction decision is known.
-                logger.debug("AI Guard evaluation failed for %d messages", len(messages), exc_info=True)
+                error_tags = call_path_tags
+                # Only bad_status has a status to report, and an absent tag stays distinguishable
+                # from a status we deliberately clamped away.
+                if error_status is not None:
+                    error_tags += (("http_status", _status_tag(error_status)),)
+                self._add_error_to_telemetry(error_type, error_tags)
+                # Log the classification and target, but only the size of the conversation: the
+                # messages may carry sensitive data that redaction would have removed, and this
+                # runs before any redaction decision is known.
+                logger.debug(
+                    "AI Guard evaluation failed (%s) for %d messages via %s",
+                    error_type,
+                    len(messages),
+                    self._loggable_endpoint,
+                    exc_info=True,
+                )
                 raise
 
     def _execute_request(self, url: str, payload: Any) -> Response:
