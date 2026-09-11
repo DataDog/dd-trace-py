@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability, OpenAI: fixes an issue where truncated streamed Responses API calls could
+    drop the ``openai.request`` LLMObs span with ``missing span kind in span context`` when token
+    extraction encountered a partial response. Response output is now normalized before fallback
+    token estimation, and span identity is recorded before fallible response extraction.
