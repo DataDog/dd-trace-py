@@ -1,0 +1,11 @@
+_v: 1
+name: azure_cosmos
+display_name: Azure CosmosDB
+description: Instruments synchronous and asynchronous database requests issued through the Azure CosmosDB Python client library.
+packages:
+- name: azure-cosmos
+category:
+- db.client
+systems:
+- azure.cosmosdb
+creation_date: '2026-04-02'
