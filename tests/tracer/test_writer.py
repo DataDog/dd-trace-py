@@ -1213,6 +1213,7 @@ def test_writer_telemetry_platform_mock_does_not_rebuild_exporter_on_import_cold
             "set_language_interpreter",
             "set_tracer_version",
             "set_git_commit_sha",
+            "set_runtime_id",
             "set_client_computed_top_level",
             "set_input_format",
             "set_output_format",
