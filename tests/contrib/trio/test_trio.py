@@ -111,6 +111,9 @@ def test_from_thread_callback_publishes_and_clears_context(clean_patch, monkeypa
     main_thread = threading.get_ident()
     switches = []
 
+    class NoopInstrument(trio.abc.Instrument):
+        pass
+
     def dispatch(event):
         assert event == PYTHON_CONTEXT_SWITCH_EVENT
         if threading.get_ident() == main_thread:
@@ -134,8 +137,9 @@ def test_from_thread_callback_publishes_and_clears_context(clean_patch, monkeypa
     async def exercise():
         assert await trio.to_thread.run_sync(worker) == "done"
 
+    # Task-step publication is tested above; isolate this wrapper's exact event pair.
+    monkeypatch.setattr(trio_patch, "_ContextSwitchInstrument", NoopInstrument)
     _install_fallback(monkeypatch, dispatch)
     trio.run(exercise)
 
-    callback_index = switches.index("worker")
-    assert None in switches[callback_index + 1 :]
+    assert switches == ["worker", None]
