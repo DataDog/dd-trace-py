@@ -720,9 +720,6 @@ class TestPymongoPatchConfigured(TracerTestCase, PymongoCore):
 
     @TracerTestCase.run_in_subprocess(env_overrides=dict(DD_TRACE_ENABLED="false"))
     def test_patch_with_disabled_tracer(self):
-        # Run in a subprocess with the tracer disabled from process start so that no
-        # command is ever traced, including background SDAM ismaster/hello heartbeats.
-        # This keeps the "disabled tracer => zero spans" assertion strict and race-free.
         _, client = self.get_tracer_and_client()
 
         db = client.testdb
