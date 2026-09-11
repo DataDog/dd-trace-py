@@ -129,6 +129,7 @@ eventbridge
 exec
 Fargate
 fastapi
+frontend
 frozenset
 Firehose
 flamegraph
@@ -338,6 +339,7 @@ subpackages
 Subprocess
 substring
 suitespec
+symlink
 Temporality
 TensorBoard
 testagent
@@ -364,6 +366,7 @@ unpatched
 unregister
 unshallow
 unvendored
+unversioned
 uri
 url
 urls
@@ -373,6 +376,7 @@ uvloop
 uWSGI
 valkey
 vendored
+vendoring
 versioned
 vertexai
 vertica

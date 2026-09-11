@@ -1915,7 +1915,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    parallelism: 6
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
