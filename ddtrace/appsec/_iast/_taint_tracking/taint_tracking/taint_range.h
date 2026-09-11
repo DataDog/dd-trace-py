@@ -1,9 +1,9 @@
 #pragma once
+#include <pybind11/stl.h>
+
 #include <optional>
 #include <sstream>
 #include <utility>
-
-#include <pybind11/stl.h>
 
 #include "structmember.h"
 

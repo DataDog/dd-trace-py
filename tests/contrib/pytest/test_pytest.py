@@ -113,12 +113,12 @@ class PytestTestCaseBase(TracerTestCase):
         self.testdir = testdir
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
-        # AIDEV-NOTE: Anchor the pytester monkeypatch CWD *before* any test body
+        # Anchor the pytester monkeypatch CWD *before* any test body
         # runs. Tests that call os.chdir() directly before testdir.chdir() would
         # otherwise corrupt the saved CWD used during fixture teardown, leaking
         # wrong working directories to subsequent tests in the same xdist worker.
         testdir.chdir()
-        # AIDEV-NOTE: Clear outer xdist worker env vars for the duration of each
+        # Clear outer xdist worker env vars for the duration of each
         # test. Tests create CIVisibilityEncoderV01 instances and inline_run sessions
         # that read PYTEST_XDIST_WORKER at init/import time. If the outer test suite
         # runs with -n auto, the worker env var leaks and causes the encoder to filter
@@ -150,7 +150,7 @@ class PytestTestCaseBase(TracerTestCase):
         session starts and resumed after it completes, so that running this test suite with --ddtrace in the outer
         pytest does not disrupt the outer session.  The inner session creates its own instance on a clean stack.
         """
-        # AIDEV-NOTE: Suspend the outer CIVisibility instance (without stopping it) so that
+        # Suspend the outer CIVisibility instance (without stopping it) so that
         # the inner session starts with a clean stack.  The inner CIVisibilityPlugin does a
         # disable()/enable() cycle that would otherwise pop the outer instance off the stack.
         # _suspend() removes the outer instance without calling stop(); _resume() pushes it
