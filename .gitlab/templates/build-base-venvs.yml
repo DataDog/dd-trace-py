@@ -36,18 +36,15 @@ build_base_venvs:
       python scripts/allow_prerelease_dependencies.py
       export PIP_PRE=true
     fi
-    # PIP_IGNORE_REQUIRES_PYTHON lets riot's `pip install -e .` install the
-    # dev package despite requires-python = ">=3.9,<3.15". 3.15 only: other
-    # matrix versions already satisfy the bound.
-    # TODO(py-315): drop this once requires-python includes 3.15
-    case "$PYTHON_VERSION" in
-      3.15) export PIP_IGNORE_REQUIRES_PYTHON=1 ;;
-    esac
-    riot -P -v generate --python=$PYTHON_VERSION
-    .riot/venv_py3*/bin/pip freeze
     echo "Running smoke tests"
-    riot -v run -s --python=$PYTHON_VERSION smoke_test
-    # Build editable metadata once per Python for uv jobs; Riot jobs keep using the base venv above.
+    # Do not pass -s here: this job owns the editable install that materializes source-tree artifacts such as libddwaf.
+    smoke_hash=$(
+      scripts/run-tests --all-suites --list |
+        jq -r --arg python "$PYTHON_VERSION" '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == $python) | .hash'
+    )
+    rm -rf ".cache/uv-test-environments/${{smoke_hash}}-"*
+    scripts/run-tests --venv "$smoke_hash"
+    # Preserve source-tree imports while building editable metadata only once per Python.
     wheel_dir="$(pwd)/.cache/ddtrace-test-wheels/$PYTHON_VERSION"
     mkdir -p "$wheel_dir"
     find "$wheel_dir" -maxdepth 1 -type f -name 'ddtrace-*.whl' -delete
@@ -58,10 +55,12 @@ build_base_venvs:
       "$wheel_dir"
     sccache --show-stats || true
   artifacts:
-    name: venv_$PYTHON_VERSION
+    name: native_$PYTHON_VERSION
     when: always
     paths:
       - core.*
       - ddtrace/**/*.so*
-      - .riot/venv_*
+      - ddtrace/appsec/_ddwaf/libddwaf/.version
+      - src/native/target*/include/
+      - .download_cache/_cmake_deps/absl_install_*/
       - .cache/ddtrace-test-wheels/

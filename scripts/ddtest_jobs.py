@@ -11,7 +11,6 @@ Functions:
   - emit_ddtest_jobs: emit plan + run jobs for one ddtest suite
 """
 
-import subprocess
 import typing as t
 
 
@@ -60,9 +59,9 @@ def ddtest_k(config: dict) -> int:
     return int(k)
 
 
-def _ddtest_base(snapshot: bool, gpu: bool, runner: str) -> str:
+def _ddtest_base(snapshot: bool, gpu: bool) -> str:
     """Return the hidden base template a ddtest suite's before_script references."""
-    base = ".ddtest_base_uv" if runner == "uv" else ".ddtest_base"
+    base = ".ddtest_base"
     if gpu:
         base += "_gpu"
     if snapshot:
@@ -70,19 +69,19 @@ def _ddtest_base(snapshot: bool, gpu: bool, runner: str) -> str:
     return base
 
 
-def _ddtest_plan_template(gpu: bool, runner: str) -> str:
+def _ddtest_plan_template(gpu: bool) -> str:
     """Plan template. Plan only collects (glob + Datadog API); it sends
     no traces, so it never needs the testagent and has no snapshot
     variant — snapshot suites and non-snapshot suites plan the same way.
     """
-    tpl = ".ddtest_plan_uv" if runner == "uv" else ".ddtest_plan"
+    tpl = ".ddtest_plan"
     if gpu:
         tpl += "_gpu"
     return tpl
 
 
-def _ddtest_run_template(snapshot: bool, gpu: bool, runner: str) -> str:
-    tpl = ".ddtest_run_uv" if runner == "uv" else ".ddtest_run"
+def _ddtest_run_template(snapshot: bool, gpu: bool) -> str:
+    tpl = ".ddtest_run"
     if gpu:
         tpl += "_gpu"
     if snapshot:
@@ -98,9 +97,8 @@ def emit_ddtest_jobs(
     config: dict,
     environments: list[tuple[str, str]],
     k: int,
-    testrunner_image_hash: str,
-    runner: str,
-    uv_metadata: t.Optional[dict[str, tuple[str, str, str, str]]] = None,
+    metadata: dict[str, tuple[str, str, str, str]],
+    wait_lockfile: str,
 ) -> None:
     """Emit ddtest-plan and ddtest-run jobs for one suite.
 
@@ -116,16 +114,11 @@ def emit_ddtest_jobs(
     retry = config.get("retry")
     timeout = config.get("timeout")
     allow_failure = config.get("allow_failure", False)
-    skip_pip_cache = config.get("skip_pip_cache", False)
     suite_name = config.get("pattern") or clean_name
-    env["PIP_CACHE_DIR"] = "${CI_PROJECT_DIR}/.cache/pip"
-    env["PIP_CACHE_KEY"] = (
-        subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
-    )
-    base = _ddtest_base(snapshot, gpu, runner)
-    plan_base = _ddtest_base(False, gpu, runner)  # plan never needs the testagent
-    plan_tpl = _ddtest_plan_template(gpu, runner)
-    run_tpl = _ddtest_run_template(snapshot, gpu, runner)
+    base = _ddtest_base(snapshot, gpu)
+    plan_base = _ddtest_base(False, gpu)  # plan never needs the testagent
+    plan_tpl = _ddtest_plan_template(gpu)
+    run_tpl = _ddtest_run_template(snapshot, gpu)
     job_prefix = f"{stage}/{clean_name.replace('::', '/')}"
     plan_name = f"{job_prefix}::ddtest-plan"
     run_name = f"{job_prefix}::ddtest-run"
@@ -148,14 +141,19 @@ def emit_ddtest_jobs(
         print("  before_script:", file=f)
         ref_base = plan_base if plan else base
         print(f"    - !reference [{ref_base}, before_script]", file=f)
-        print("    - pip cache info", file=f)
         print(f'    - export NIGHTLY_BUILD="{_get_bool_env("NIGHTLY_BUILD")}"', file=f)
         # Plan only collects; it sends no traces, so it never waits for the
         # testagent even for snapshot suites.
         if wait_for and not plan:
-            # Retry up to twice on transient pip network failures; service-check
-            # failures are NOT retried.  See scripts/riot-wait-pip-retry.sh.
-            print(f"    - scripts/riot-wait-pip-retry.sh {' '.join(wait_for)}", file=f)
+            wait_environment = ""
+            if "testagent" in wait_for:
+                wait_environment = 'DD_TRACE_AGENT_URL="http://testagent:9126" AGENT_VERSION="testagent" '
+            print(
+                f"    - {wait_environment}uv run --no-project --python 3.9 --no-python-downloads "
+                f"--with-requirements {wait_lockfile} --no-progress "
+                f"python tests/wait-for-services.py {' '.join(wait_for)}",
+                file=f,
+            )
 
     def emit_variables(extra: t.Optional[dict[str, str]] = None) -> None:
         print("  variables:", file=f)
@@ -165,14 +163,6 @@ def emit_ddtest_jobs(
         if extra:
             for key, value in extra.items():
                 print(f"    {key}: {value}", file=f)
-
-    def emit_cache() -> None:
-        if skip_pip_cache:
-            return
-        print("  cache:", file=f)
-        print(f"    key: v1-pip-${{PIP_CACHE_KEY}}-{testrunner_image_hash}-cache", file=f)
-        print("    paths:", file=f)
-        print("      - .cache", file=f)
 
     def emit_needs_build_base_venvs(needed_environments: list[tuple[str, str]]) -> None:
         print("    - job: build_base_venvs", file=f)
@@ -195,25 +185,20 @@ def emit_ddtest_jobs(
     print(f"{plan_name}:", file=f)
     print(f"  extends: {plan_tpl}", file=f)
     print(f"  stage: {stage}", file=f)
-    emit_cache()
     print("  needs:", file=f)
     print("    - prechecks", file=f)
     emit_needs_build_base_venvs(environments)
     emit_services(plan=True)
     emit_before_script(plan=True)
-    metadata = uv_metadata or {}
-    hash_python = " ".join(
-        f"{h}:{py}:{metadata[h][0]}:{metadata[h][1]}" if runner == "uv" else f"{h}:{py}" for h, py in environments
-    )
+    hash_python = " ".join(f"{h}:{py}:{metadata[h][0]}:{metadata[h][1]}" for h, py in environments)
     extra_variables = {
         "DDTEST_NODES": str(k),
         "TEST_ENVIRONMENT_HASH_PYTHON": hash_python,
         "DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest",
     }
-    if runner == "uv":
-        for hash_, (_lockfile, _location, command, environment) in metadata.items():
-            extra_variables[f"DDTEST_UV_COMMAND_{hash_}"] = command
-            extra_variables[f"DDTEST_UV_ENV_{hash_}"] = environment
+    for hash_, (_lockfile, _location, command, environment) in metadata.items():
+        extra_variables[f"DDTEST_COMMAND_{hash_}"] = command
+        extra_variables[f"DDTEST_ENV_{hash_}"] = environment
     emit_variables(extra_variables)
     if retry is not None:
         print(f"  retry: {retry}", file=f)
@@ -237,7 +222,6 @@ def emit_ddtest_jobs(
         print(f"{py_run_name}:", file=f)
         print(f"  extends: {run_tpl}", file=f)
         print(f"  stage: {stage}", file=f)
-        emit_cache()
         print("  needs:", file=f)
         print("    - prechecks", file=f)
         emit_needs_build_base_venvs(python_environments)
@@ -248,10 +232,9 @@ def emit_ddtest_jobs(
         emit_services(plan=False)
         emit_before_script(plan=False)
         run_variables = {"DD_TEST_OPTIMIZATION_RUNNER_COMMAND": "pytest"}
-        if runner == "uv":
-            for hash_, (_lockfile, _location, command, environment) in metadata.items():
-                run_variables[f"DDTEST_UV_COMMAND_{hash_}"] = command
-                run_variables[f"DDTEST_UV_ENV_{hash_}"] = environment
+        for hash_, (_lockfile, _location, command, environment) in metadata.items():
+            run_variables[f"DDTEST_COMMAND_{hash_}"] = command
+            run_variables[f"DDTEST_ENV_{hash_}"] = environment
         emit_variables(run_variables)
         print("  parallel:", file=f)
         print("    matrix:", file=f)
@@ -259,8 +242,7 @@ def emit_ddtest_jobs(
             for node in range(k):
                 print(f'      - TEST_ENVIRONMENT_HASH: "{h}"', file=f)
                 print(f'        PYTHON_VERSION: "{py}"', file=f)
-                if runner == "uv":
-                    print(f'        TEST_ENVIRONMENT_LOCKFILE: "{metadata[h][0]}"', file=f)
+                print(f'        TEST_ENVIRONMENT_LOCKFILE: "{metadata[h][0]}"', file=f)
                 print(f"        CI_NODE_INDEX: {node}", file=f)
         if retry is not None:
             print(f"  retry: {retry}", file=f)
