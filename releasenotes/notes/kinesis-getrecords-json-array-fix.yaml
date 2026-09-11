@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    botocore: This fix resolves an issue where Kinesis ``GetRecords`` instrumentation
+    raised ``AttributeError: 'list' object has no attribute 'get'`` when a record
+    payload deserialized to a JSON array instead of a JSON object. Array-shaped
+    payloads are valid Kinesis data and no longer fail the API call.
