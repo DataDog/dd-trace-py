@@ -294,7 +294,7 @@ def test_iast_header_injection(iast_test_token, free_port):
 
         response = django_client.post("/appsec/header-injection/", data="master\r\nInjected-Header: 1234")
 
-        # AIDEV-NOTE: This test verifies IAST *detection* of header injection, not that the injected
+        # This test verifies IAST *detection* of header injection, not that the injected
         # header reaches the wire. The CPython security backport gh-144370 (CVE) makes
         # wsgiref.headers.Headers reject control characters (CR/LF) in response header values, raising
         # ValueError("Control characters not allowed in headers"). Django's `runserver` dev server
