@@ -487,14 +487,13 @@ Sampler::sampling_thread(const uint64_t seq_num)
             }
         }
 
-        // Reset per-cycle asyncio task accumulator before iterating sampled threads
-        echion->reset_asyncio_task_count();
+        // Reset per-cycle asyncio accumulators before iterating sampled threads.
+        echion->reset_asyncio_counts();
 
         try {
             capture_samples(wall_time_us);
 
-            // Collect greenlet count before acquiring the profile lock to avoid
-            // holding two locks simultaneously (greenlet lock then profile lock).
+            // Collect greenlet count before acquiring the profile lock to avoid holding two locks simultaneously.
             size_t greenlet_count;
             {
                 const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
@@ -526,7 +525,17 @@ Sampler::sampling_thread(const uint64_t seq_num)
                 borrow.stats().increment_sampling_event_count();
                 borrow.stats().set_string_table_count(echion->string_table().size());
                 update_fast_copy_stats(borrow.stats());
+                borrow.stats().set_asyncio_initialized(echion->asyncio_initialized());
+                borrow.stats().set_asyncio_loop_count(echion->asyncio_loop_count());
                 borrow.stats().set_asyncio_task_count(echion->asyncio_task_count());
+#if PY_VERSION_HEX >= 0x030e0000
+                const size_t asyncio_interpreter_offset = echion->asyncio_interpreter_tasks_head_offset();
+                const size_t asyncio_thread_offset = echion->asyncio_thread_tasks_head_offset();
+                borrow.stats().set_asyncio_runtime_offsets_discovered(asyncio_interpreter_offset != 0 &&
+                                                                      asyncio_thread_offset != 0);
+                borrow.stats().set_asyncio_interpreter_tasks_head_offset(asyncio_interpreter_offset);
+                borrow.stats().set_asyncio_thread_tasks_head_offset(asyncio_thread_offset);
+#endif
                 borrow.stats().set_greenlet_count(greenlet_count);
 
                 if (copy_errors > 0) {
