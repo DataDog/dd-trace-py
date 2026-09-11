@@ -781,6 +781,11 @@ def gen_pre_checks() -> None:
         paths={"*"},
     )
     check(
+        name="Check test locks",
+        command="scripts/test-requirements check",
+        paths={"**/suitespec.yml", ".riot/requirements/*", "scripts/test-requirements", "tests/suitespec.py"},
+    )
+    check(
         name="Check microbenchmark SLO ownership",
         command="scripts/lint slo-ownership",
         paths={
@@ -816,7 +821,17 @@ def gen_pre_checks() -> None:
     check(
         name="Check project dependencies",
         command="scripts/check-dependency-bounds && scripts/check-dependency-ci-coverage.py",
-        paths={"pyproject.toml", "riotfile.py", ".gitlab-ci.yml", ".gitlab/**/*.yml", ".github/workflows/*.yml"},
+        paths={
+            "pyproject.toml",
+            "tests/suitespec.py",
+            "tests/suitespec.yml",
+            "tests/**/suitespec.yml",
+            "benchmarks/suitespec.yml",
+            ".gitlab-ci.yml",
+            ".gitlab/**/*.yml",
+            ".github/workflows/*.yml",
+            "scripts/check-dependency-ci-coverage.py",
+        },
     )
     check(
         name="Check package version",
