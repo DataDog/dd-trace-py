@@ -1266,3 +1266,44 @@ def test_the_urllib3_contrib_no_longer_installs_the_appsec_wrappers():
         unpatch_common_modules()
 
     assert "appsec" not in pathlib.Path(urllib3_contrib.__file__).read_text()
+
+
+def test_urllib3_traceback_frames_come_only_from_the_tracing_contrib():
+    """The RASP hooks leave no frame of their own; urllib3 APM tracing still does.
+
+    urllib3 APM tracing is off by default, so the default configuration is clean. This pins
+    which side owns the residual frame so the release note cannot overstate the fix.
+    """
+    pytest.importorskip("urllib3")
+    import traceback
+
+    import urllib3
+
+    from ddtrace.contrib.internal.urllib3 import patch as urllib3_contrib
+
+    def failing_request():
+        # Nothing listens on port 1, so this fails below our hooks. retries=False keeps the
+        # original traceback instead of urllib3 re-raising a MaxRetryError.
+        pool = urllib3.PoolManager(num_pools=1, retries=False)
+        try:
+            with pytest.raises(Exception) as raised:
+                pool.request("GET", "http://127.0.0.1:1/", timeout=1)
+        finally:
+            pool.clear()
+        return traceback.extract_tb(raised.value.__traceback__)
+
+    unpatch_common_modules()
+    try:
+        patch_common_modules()
+        frames = failing_request()
+        assert not [f.filename for f in frames if "ddtrace" in f.filename]
+
+        urllib3_contrib.patch()
+        ours = [f for f in failing_request() if "ddtrace" in f.filename]
+        assert ours, "expected the tracing contrib to own a frame"
+        assert all("appsec" not in f.filename for f in ours), [f.filename for f in ours]
+        assert "_wrap_urlopen" in [f.name for f in ours], [(f.filename, f.name) for f in ours]
+    finally:
+        with contextlib.suppress(Exception):
+            urllib3_contrib.unpatch()
+        unpatch_common_modules()
