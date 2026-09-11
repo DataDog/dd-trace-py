@@ -32,6 +32,9 @@ def _get_schema_version() -> t.Any:
     version = env.get("DD_TRACE_SPAN_ATTRIBUTE_SCHEMA", default="v0")
     if not _validate_schema(version):
         version = "v0"
+    if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+        # Two module scopes call this, so the conflict is reported once from Config instead.
+        version = "v0"
     return version
 
 

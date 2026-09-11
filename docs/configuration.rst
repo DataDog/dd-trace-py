@@ -281,6 +281,18 @@ Traces
      version_added:
        v1.12.0:
 
+   OTEL_INSTRUMENTATION_HTTP_KNOWN_METHODS:
+     type: String
+     default: (empty)
+
+     description: |
+         Replaces the default set of HTTP request methods recognized by OpenTelemetry HTTP semantic conventions.
+         Set a comma-separated, case-sensitive list such as ``GET,POST,PROPFIND``. Methods not listed are reported
+         as ``_OTHER``.
+
+     version_added:
+       v4.16.0:
+
    DD_TRACE_PARTIAL_FLUSH_ENABLED:
      type: Boolean
      default: True
