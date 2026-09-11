@@ -50,7 +50,7 @@ def traced_chat_model_generate(func: Callable[..., Any], instance: Any, args: An
         instance=instance,
     )
 
-    # AIDEV-NOTE: For streaming, dispatch_end_event=False defers the ended event
+    # For streaming, dispatch_end_event=False defers the ended event
     # until the stream handler calls ctx.dispatch_ended_event() in finalize_stream().
     # For errors, we must manually dispatch so the span finishes with error info.
     with core.context_with_event(event, dispatch_end_event=False) as ctx:
@@ -121,7 +121,7 @@ def patch() -> None:
     integration = AnthropicIntegration(integration_config=config.anthropic)
     anthropic._datadog_integration = integration
 
-    # AIDEV-NOTE: AI Guard mirrors this wrap-target list in
+    # AI Guard mirrors this wrap-target list in
     # ddtrace/appsec/_ai_guard/_listener.py::_install_anthropic_wrappers to
     # install its outermost streaming buffer. If you add/rename a target or
     # change the >= (0, 37) beta gate below, update that list too or the new

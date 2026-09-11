@@ -231,6 +231,7 @@ suites:
         - name: appsec_integrations_packages
           dependencies: [gevent, pytest-xdist, pytest-asyncio, requests, SQLAlchemy, 'psycopg2-binary~=2.9.9', psycopg, pymysql, 'mysqlclient==2.1.1', mysql-connector-python, 'MarkupSafe~=2.1.1', 'Werkzeug~=3.0.6', babel]
   appsec_integrations_stripe:
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
