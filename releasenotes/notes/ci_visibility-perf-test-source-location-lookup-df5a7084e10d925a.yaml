@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    CI Visibility: This reduces the per-test overhead of the ``pytest`` plugin by speeding up the source
+    location lookup performed for every test. The improvement is most noticeable on large suites of fast tests.
