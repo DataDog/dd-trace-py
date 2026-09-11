@@ -18,8 +18,13 @@
 
 #include <cmath>
 #include <cstring>
+#include <optional>
 #include <string_view>
 #include <utility>
+
+#if PY_VERSION_HEX >= 0x030e0000 && defined(__GLIBCXX__)
+#include <cxxabi.h>
+#endif
 
 using namespace Datadog;
 
@@ -356,8 +361,29 @@ stack_init_asyncio(PyObject* self, PyObject* args)
 #if PY_VERSION_HEX >= 0x030e0000
     auto& echion = Sampler::get().get_echion();
     // Successful offsets remain valid for the process lifetime. Retry failures on later initialization calls.
-    if (echion.asyncio_thread_tasks_head_offset() == 0 || echion.asyncio_interpreter_tasks_head_offset() == 0) {
-        if (auto offsets = find_asyncio_debug_offsets()) {
+    // Discovery is optional, so do not release and reacquire the GIL once finalization is visible. CPython 3.14+ may
+    // hang a non-finalizing thread that tries to reacquire it.
+    if ((echion.asyncio_thread_tasks_head_offset() == 0 || echion.asyncio_interpreter_tasks_head_offset() == 0) &&
+        !Py_IsFinalizing()) {
+        std::optional<AsyncioOffsets> offsets;
+#ifdef __GLIBCXX__
+        try {
+#endif
+            // Linux discovery reads ELF metadata from the filesystem. Release the GIL so a slow read does not prevent
+            // unrelated Python threads from running. The calling initialization thread still waits for the result.
+            Py_BEGIN_ALLOW_THREADS;
+            offsets = find_asyncio_debug_offsets();
+            Py_END_ALLOW_THREADS;
+#ifdef __GLIBCXX__
+            // This block only runs on Python 3.14+, where GIL reacquisition normally hangs if finalization wins the
+            // race after the check above. If an embedding or patched runtime exits the thread instead, glibc represents
+            // pthread_exit() as this special C++ exception. Always rethrow it so it is never treated as a normal
+            // failure.
+        } catch (__cxxabiv1::__forced_unwind&) {
+            throw;
+        }
+#endif
+        if (offsets) {
             echion.set_asyncio_offsets(*offsets);
         }
     }

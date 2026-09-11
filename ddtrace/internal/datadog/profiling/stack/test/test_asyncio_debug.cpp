@@ -204,7 +204,8 @@ TEST(AsyncioElfDiscovery, ReadsBuildIdFreeProcessExecutableAndNamedMapping)
       },
       &results);
 
-    for (const auto& offsets : { results.executable, results.named_mapping }) {
+    auto discovered = find_asyncio_debug_offsets();
+    for (const auto& offsets : { results.executable, results.named_mapping, discovered }) {
         ASSERT_TRUE(offsets);
         EXPECT_EQ(offsets->interpreter_tasks_head, process_asyncio_debug_offsets.interpreter.asyncio_tasks_head);
         EXPECT_EQ(offsets->thread_tasks_head, process_asyncio_debug_offsets.thread.asyncio_tasks_head);

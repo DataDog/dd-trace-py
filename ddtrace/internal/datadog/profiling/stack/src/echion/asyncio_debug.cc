@@ -13,6 +13,8 @@
 #include <cstdio>
 #include <cstring>
 #include <limits>
+#include <memory>
+#include <new>
 
 #if defined(__linux__)
 #include <elf.h>
@@ -88,6 +90,8 @@ is_asyncio_binary(const char* path)
 
 #if defined(__linux__)
 
+constexpr size_t max_program_headers = 256;
+
 bool
 contains_span(uint64_t size, uint64_t offset, uint64_t length)
 {
@@ -137,7 +141,7 @@ read_and_validate_elf_header(int fd, uint64_t file_size)
 
     // Program headers describe the segments mapped by the dynamic loader. We later compare this table with
     // dl_iterate_phdr's in-memory table to ensure that the file still represents the loaded binary.
-    if (header.e_phentsize != sizeof(ElfW(Phdr)) || header.e_phnum == 0 || header.e_phnum > 256 ||
+    if (header.e_phentsize != sizeof(ElfW(Phdr)) || header.e_phnum == 0 || header.e_phnum > max_program_headers ||
         !contains_span(file_size, header.e_phoff, header.e_phnum * sizeof(ElfW(Phdr)))) {
         return std::nullopt;
     }
@@ -401,26 +405,70 @@ find_asyncio_debug_offsets_in_sections(int fd,
     return std::nullopt;
 }
 
+constexpr size_t max_asyncio_binaries = 16;
+constexpr size_t max_binary_path = 4096;
+
+struct LoadedBinarySnapshot
+{
+    ElfW(Addr) load_bias = 0;
+    ElfW(Half) program_header_count = 0;
+    bool is_process_executable = false;
+    std::array<char, max_binary_path> path{};
+    std::array<ElfW(Phdr), max_program_headers> program_headers{};
+
+    dl_phdr_info binary() const
+    {
+        dl_phdr_info result{};
+        result.dlpi_addr = load_bias;
+        result.dlpi_name = is_process_executable ? "" : path.data();
+        result.dlpi_phdr = program_headers.data();
+        result.dlpi_phnum = program_header_count;
+        return result;
+    }
+
+    const char* file_path() const { return is_process_executable ? "/proc/self/exe" : path.data(); }
+};
+
+struct LoadedBinarySnapshots
+{
+    std::array<LoadedBinarySnapshot, max_asyncio_binaries> binaries{};
+    size_t count = 0;
+};
+
 int
-find_asyncio_debug_section(dl_phdr_info* binary, size_t, void* data)
+snapshot_asyncio_binary(dl_phdr_info* binary, size_t, void* data)
 {
     if (!is_asyncio_binary(binary->dlpi_name)) {
         return 0;
     }
 
-    const char* path = binary->dlpi_name[0] == '\0' ? "/proc/self/exe" : binary->dlpi_name;
-    // O_NONBLOCK also avoids hanging on a FIFO substituted for a previously loaded library.
-    const int fd = open(path, O_RDONLY | O_CLOEXEC | O_NONBLOCK);
-    if (fd < 0) {
+    auto* snapshots = static_cast<LoadedBinarySnapshots*>(data);
+    if (snapshots->count == snapshots->binaries.size()) {
+        return 1;
+    }
+    if (binary->dlpi_phdr == nullptr || binary->dlpi_phnum == 0 || binary->dlpi_phnum > max_program_headers) {
         return 0;
     }
-    defer
-    {
-        close(fd);
-    };
-    auto* result = static_cast<std::optional<AsyncioOffsets>*>(data);
-    *result = read_asyncio_debug_offsets_from_elf(fd, *binary);
-    return result->has_value() ? 1 : 0;
+
+    const bool is_process_executable = binary->dlpi_name == nullptr || binary->dlpi_name[0] == '\0';
+    size_t path_length = 0;
+    if (!is_process_executable) {
+        const auto* path_end = static_cast<const char*>(std::memchr(binary->dlpi_name, '\0', max_binary_path));
+        if (path_end == nullptr) {
+            return 0;
+        }
+        path_length = static_cast<size_t>(path_end - binary->dlpi_name);
+    }
+
+    auto& snapshot = snapshots->binaries[snapshots->count++];
+    snapshot.load_bias = binary->dlpi_addr;
+    snapshot.program_header_count = binary->dlpi_phnum;
+    snapshot.is_process_executable = is_process_executable;
+    if (!is_process_executable) {
+        std::memcpy(snapshot.path.data(), binary->dlpi_name, path_length + 1);
+    }
+    std::memcpy(snapshot.program_headers.data(), binary->dlpi_phdr, binary->dlpi_phnum * sizeof(ElfW(Phdr)));
+    return 0;
 }
 
 #endif
@@ -457,9 +505,30 @@ std::optional<AsyncioOffsets>
 find_asyncio_debug_offsets()
 {
 #if defined(__linux__)
-    std::optional<AsyncioOffsets> result;
-    dl_iterate_phdr(find_asyncio_debug_section, &result);
-    return result;
+    // glibc invokes dl_iterate_phdr callbacks while holding the dynamic loader lock. Copy the candidate metadata in the
+    // callbacks, then perform all filesystem and guarded-memory reads after iteration releases that lock.
+    auto snapshots = std::unique_ptr<LoadedBinarySnapshots>(new (std::nothrow) LoadedBinarySnapshots{});
+    if (!snapshots) {
+        return std::nullopt;
+    }
+    dl_iterate_phdr(snapshot_asyncio_binary, snapshots.get());
+
+    for (size_t i = 0; i < snapshots->count; ++i) {
+        const auto& snapshot = snapshots->binaries[i];
+        // O_NONBLOCK avoids hanging on a FIFO substituted for a previously loaded library. Regular files can still
+        // block, but no dynamic loader lock is held while opening or reading them.
+        const int fd = open(snapshot.file_path(), O_RDONLY | O_CLOEXEC | O_NONBLOCK);
+        if (fd < 0) {
+            continue;
+        }
+        auto binary = snapshot.binary();
+        auto offsets = read_asyncio_debug_offsets_from_elf(fd, binary);
+        close(fd);
+        if (offsets) {
+            return offsets;
+        }
+    }
+    return std::nullopt;
 #elif defined(__APPLE__)
     for (uint32_t index = 0; index < _dyld_image_count(); ++index) {
         const mach_header* binary = _dyld_get_image_header(index);
