@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
 from dataclasses import field
@@ -7,6 +8,7 @@ import sys
 import time
 from typing import Any
 from typing import Callable
+from typing import Iterator
 from typing import Literal
 from typing import Optional
 from typing import Sequence
@@ -55,6 +57,7 @@ from ddtrace.llmobs._constants import AGENT_VERSION_TAG_KEY
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
 from ddtrace.llmobs._constants import CLAUDE_AGENT_SDK_APM_SPAN_NAME
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -147,6 +150,9 @@ from ddtrace.llmobs._prompt_optimization import validate_test_dataset
 from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
+from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
+from ddtrace.llmobs._routing import build_routing_context
+from ddtrace.llmobs._routing import get_routing_context
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -632,6 +638,11 @@ class LLMObs(Service):
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
             self._activate_llmobs_span(span)
+            # Capture routing at start: the span may finish in a different execution context,
+            # where the contextvar set by routing_context() is no longer visible.
+            routing = get_routing_context()
+            if routing is not None:
+                span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
             telemetry.record_span_started()
             self._do_annotations(span)
 
@@ -1902,6 +1913,49 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
+
+    @classmethod
+    @contextmanager
+    def routing_context(
+        cls,
+        dd_api_key: Optional[str] = None,
+        dd_site: Optional[str] = None,
+        targets: Optional[list[dict[str, Any]]] = None,
+    ) -> Iterator[None]:
+        """Send LLMObs data created in this context to other Datadog organizations.
+
+        Pass ``dd_api_key`` to route to a single organization: spans and evaluation metrics
+        created while the context is active go to that organization *instead of* the one this
+        process is otherwise configured for. That exclusivity is the point -- it keeps a
+        tenant's data out of the default organization, which query-time access controls cannot
+        do, since they filter what is displayed rather than where data is stored.
+
+        Pass ``targets`` to send the same data to several organizations (dual shipping), each
+        entry being a dict with ``dd_api_key`` and an optional ``dd_site``.
+
+        Routed data is sent directly to the LLM Observability intake even when the rest of the
+        process submits through the Datadog Agent, because the Agent stamps its own API key on
+        everything it forwards. The process must therefore be able to reach the intake.
+
+        :param dd_api_key: API key of a single destination organization.
+        :param dd_site: Site of that organization, for example ``datadoghq.eu``. Defaults to
+                        the site the tracer is configured with.
+        :param targets: List of destinations for dual shipping. Mutually exclusive with
+                        dd_api_key.
+        :raises ValueError: If neither or both forms are supplied, if targets is empty, or if
+                            any destination is missing an API key.
+        """
+        context = build_routing_context(dd_api_key=dd_api_key, dd_site=dd_site, targets=targets)
+        if _ROUTING_CONTEXTVAR.get() is not None:
+            log.warning(
+                "Nested routing_context detected. The inner context takes precedence: data "
+                "created within it is sent only to the inner context's destinations."
+            )
+        token = _ROUTING_CONTEXTVAR.set(context)
+        try:
+            yield
+        finally:
+            _ROUTING_CONTEXTVAR.reset(token)
 
     @classmethod
     def annotation_context(

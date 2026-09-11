@@ -10,9 +10,11 @@ from ddtrace.internal.settings.standalone import standalone_config
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EVENT_CTX_KEY
 from ddtrace.llmobs._constants import CACHED_LLMOBS_EXPORT_MODE_CTX_KEY
+from ddtrace.llmobs._constants import CACHED_LLMOBS_ROUTING_CTX_KEY
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import LLMObsExportMode
+from ddtrace.llmobs._routing import routing_targets
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 
 
@@ -73,11 +75,15 @@ class LLMObsProcessor(TraceProcessor):
             return
 
         mode = cast(LLMObsExportMode, span._get_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY))
+        targets = routing_targets(span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY))
 
         # The event rides the APM trace only when that trace is actually being sent
         # AND the mode keeps it on the trace (agentless = 100%, agent = kept priority).
+        # A routed span never rides the trace: the trace carries the default org's credentials,
+        # so riding it would deliver the event to precisely the org routing exists to avoid.
         rides_trace = (
-            not self._keep_meta_struct
+            not targets
+            and not self._keep_meta_struct
             and not drop_apm_trace
             and (
                 mode == LLMObsExportMode.APM_AGENTLESS
@@ -87,10 +93,15 @@ class LLMObsProcessor(TraceProcessor):
         if not rides_trace:
             mode = (
                 LLMObsExportMode.LLMOBS_AGENTLESS
-                if self._llmobs_span_writer._agentless
+                if targets or self._llmobs_span_writer._agentless
                 else LLMObsExportMode.LLMOBS_AGENT_PROXY
             )
             span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
-            self._scrub(span)
-            self._llmobs_span_writer.enqueue(event)
+            # Scrub unconditionally for routed spans, even under keep_meta_struct: leaving the
+            # payload on the trace would leak it to the default org.
+            if targets:
+                span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            else:
+                self._scrub(span)
+            self._llmobs_span_writer.enqueue(event, targets)
         telemetry.record_span_created(span, mode)

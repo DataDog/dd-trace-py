@@ -1,0 +1,11 @@
+---
+features:
+  - |
+    LLM Observability: Introduces ``LLMObs.routing_context(api_key=..., site=...)``, a context
+    manager that sends LLM Observability spans and evaluation metrics created within it to a
+    different Datadog organization. Data created inside a routing context is sent to the
+    organization owning the supplied API key and is not sent to the organization the tracer is
+    otherwise configured for, which allows a single multi-tenant process to keep one tenant's
+    data out of the default organization entirely. Routed data is always submitted directly to
+    the LLM Observability intake, even when the rest of the process submits through the Datadog
+    Agent, so the process must be able to reach the intake.
