@@ -4672,6 +4672,16 @@ venv = Venv(
             pys=select_pys(),
         ),
         Venv(
+            # Cross-product tests: a security/AI product in standalone mode alongside another
+            # product. Owned by no single product team, see tests/standalone/.
+            name="standalone",
+            env={
+                "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
+            },
+            command="pytest {cmdargs} tests/standalone/",
+            pys=select_pys(),
+        ),
+        Venv(
             name="ai_guard_langchain",
             env={
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
