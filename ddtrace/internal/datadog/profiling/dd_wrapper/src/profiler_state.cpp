@@ -1,6 +1,7 @@
 #include "profiler_state.hpp"
 
 #include "libdatadog_helpers.hpp"
+#include "uploader.hpp"
 
 #include <chrono>
 #include <iostream>
@@ -151,19 +152,11 @@ void
 ProfilerState::prefork()
 {
     // Cancel inflight uploads to prevent state leaking to children
-    auto current_cancel = upload_cancel.exchange({ .inner = nullptr });
-    if (current_cancel.inner != nullptr) {
-        ddog_CancellationToken_cancel(&current_cancel);
-        ddog_CancellationToken_drop(&current_cancel);
-    }
+    Uploader::cancel_inflight();
 
     // Keep cancelling and trying to acquire the lock until we succeed
     while (!upload_lock.try_lock()) {
-        current_cancel = upload_cancel.exchange({ .inner = nullptr });
-        if (current_cancel.inner != nullptr) {
-            ddog_CancellationToken_cancel(&current_cancel);
-            ddog_CancellationToken_drop(&current_cancel);
-        }
+        Uploader::cancel_inflight();
         std::this_thread::sleep_for(std::chrono::microseconds(50));
     }
     // upload_lock is now held - will be released in postfork_parent/child
@@ -197,8 +190,9 @@ ProfilerState::postfork_child()
         ~ProfileGuard() { self.profile_state.postfork_child(); }
     } guard{ *this };
 
-    // Re-init the mutex (placement-new to avoid UB with mutex in undefined state after fork)
+    // Re-init the mutexes (placement-new to avoid UB with mutexes in undefined state after fork)
     new (&upload_lock) std::mutex();
+    new (&upload_cancel_lock) std::mutex();
 
     // Re-init the native call registry mutex (data is preserved so forked
     // children can still see native frames from the parent's warmup phase)
