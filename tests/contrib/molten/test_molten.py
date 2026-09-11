@@ -511,3 +511,5 @@ class TestMolten(TracerTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(observed["resource"], "GET /inspect")
         self.assertEqual(observed["http.route"], "/inspect")
+        self.assertEqual(observed["http.method"], "GET")
+        self.assertEqual(observed["http.url"], "http://127.0.0.1:8000/inspect")
