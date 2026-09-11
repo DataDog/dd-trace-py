@@ -34,6 +34,41 @@ def test_undecorated():
     assert undecorated(undecorated, name, path) is undecorated
 
 
+def test_undecorated_methods():
+    # Bound methods reach undecorated() from the pytest plugin, for class-based tests.
+    def d(f):
+        def wrapper(*args, **kwargs):
+            return f(*args, **kwargs)
+
+        return wrapper
+
+    class C:
+        def plain(self):
+            pass
+
+        @d
+        def decorated(self):
+            pass
+
+    path = Path(__file__).resolve()
+    instance = C()
+
+    # An undecorated method resolves to the function behind the bound method.
+    assert undecorated(instance.plain, "plain", path) is C.plain
+    assert undecorated(C.plain, "plain", path) is C.plain
+
+    # A name that matches nothing reachable falls back to the object it was given.
+    # Bind once: attribute access builds a new bound method object each time.
+    plain = instance.plain
+    assert undecorated(plain, "nonexistent", path) is plain
+
+    # Decorated *methods* are a long-standing gap, unrelated to the shortcut above: the
+    # closure walk only runs for plain functions, so a bound method wrapping a
+    # closure-based decorator resolves to the wrapper rather than the decorated body.
+    decorated = instance.decorated
+    assert undecorated(decorated, "decorated", path) is decorated
+
+
 def test_class_decoration():
     class Decorator:
         def __init__(self, f):

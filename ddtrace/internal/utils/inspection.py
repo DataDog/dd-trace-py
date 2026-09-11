@@ -6,6 +6,7 @@ from functools import singledispatch
 from pathlib import Path
 from types import CodeType
 from types import FunctionType
+from types import MethodType
 from types import ModuleType
 from typing import Iterator
 from typing import Optional
@@ -52,6 +53,20 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
 
     def match(g):
         return g.__code__.co_name == name and resolved_code_origin(g.__code__) == path
+
+    # PERF: an undecorated callable is already the function we are looking for, and that
+    # is the common case (every plain test function). Without this shortcut the search
+    # below still probes every wrapper attribute and then, as a last resort, every name in
+    # object.__dir__(f) -- tens of attribute reads -- only to fall through and return f.
+    # Restricted to plain functions and bound methods, the two shapes whose result is
+    # known without searching: a matching function is itself the answer, and a matching
+    # bound method's answer is the underlying function, which is the only matching
+    # FunctionType the search could reach through it.
+    if _isinstance(f, FunctionType) and match(f):
+        return f
+    if _isinstance(f, MethodType) and match(f):
+        # f is annotated FunctionType, but callers pass bound methods for test methods.
+        return cast(FunctionType, cast(MethodType, f).__func__)
 
     seen_functions = {f}
     q = deque([f])  # FIFO: use popleft and append
