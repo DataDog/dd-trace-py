@@ -11,7 +11,6 @@ suites:
       - '@llmobs'
       - tests/standalone/*
       - tests/aiguard/utils.py
-    retry: 2
     venvs_per_job: 1
     matrix:
       command: pytest {cmdargs} tests/standalone/
