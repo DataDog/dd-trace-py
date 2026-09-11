@@ -146,10 +146,10 @@ def _loggable_endpoint(url: str) -> str:
         if parsed.port:
             host = f"{host}:{parsed.port}"
         if not host:
-            return "<unparseable>"
+            return "<unparsable>"
         return f"{parsed.scheme}://{host}{parsed.path}" if parsed.scheme else f"{host}{parsed.path}"
     except Exception:
-        return "<unparseable>"
+        return "<unparsable>"
 
 
 def _status_tag(status: Optional[int]) -> str:

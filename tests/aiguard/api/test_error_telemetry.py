@@ -167,8 +167,8 @@ class TestEndpointIsNotLoggedVerbatim:
             ("https://api.example.com/ai-guard?token=s3cret", "https://api.example.com/ai-guard"),
             ("https://user:s3cret@api.example.com/ai-guard?token=t0ken", "https://api.example.com/ai-guard"),
             # nothing usable to log, and never the raw value
-            ("not a url", "<unparseable>"),
-            ("", "<unparseable>"),
+            ("not a url", "<unparsable>"),
+            ("", "<unparsable>"),
         ],
     )
     def test_credentials_are_stripped(self, url, expected):
