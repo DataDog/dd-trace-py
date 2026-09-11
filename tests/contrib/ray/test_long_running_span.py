@@ -1,6 +1,7 @@
 import time
 
 from ddtrace import config
+from ddtrace._trace.span import Span
 from ddtrace.contrib.internal.ray.span_manager import get_span_manager
 from ddtrace.contrib.internal.ray.span_manager import start_long_running_span
 from ddtrace.contrib.internal.ray.span_manager import stop_long_running_span
@@ -8,6 +9,16 @@ from tests.utils import TracerTestCase
 
 
 _ray_span_manager = get_span_manager()
+
+
+def _wait_for_partial_flush(span: Span, timeout: float = 5.0) -> float:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        partial_version = span.get_metric("_dd.partial_version")
+        if partial_version is not None:
+            return partial_version
+        time.sleep(0.01)
+    raise AssertionError(f"{span.name} was not partially flushed within {timeout} seconds")
 
 
 class TestLongRunningSpan(TracerTestCase):
@@ -60,9 +71,7 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertIn(submission_id, _ray_span_manager._job_spans)
             self.assertIn((span.trace_id, span.span_id), _ray_span_manager._job_spans[submission_id])
 
-        time.sleep(1.5)
-
-        self.assertGreater(span.get_metric("_dd.partial_version"), 0)
+        self.assertGreater(_wait_for_partial_flush(span), 0)
         self.assertEqual(span.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(span)
@@ -118,12 +127,10 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertIn((span1.trace_id, span1.span_id), job_spans)
             self.assertIn((span2.trace_id, span2.span_id), job_spans)
 
-        time.sleep(2)
-
-        self.assertGreater(span1.get_metric("_dd.partial_version"), 0)
+        self.assertGreater(_wait_for_partial_flush(span1), 0)
         self.assertEqual(span1.get_tag("ray.job.status"), "RUNNING")
 
-        self.assertGreater(span2.get_metric("_dd.partial_version"), 0)
+        self.assertGreater(_wait_for_partial_flush(span2), 0)
         self.assertEqual(span2.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(span1)
@@ -145,7 +152,7 @@ class TestLongRunningSpan(TracerTestCase):
         child1._set_attribute("ray.submission_id", submission_id)
         start_long_running_span(child1)
 
-        time.sleep(3)
+        self.assertGreater(_wait_for_partial_flush(child1), 0)
         stop_long_running_span(child1)
         self.assertTrue(child1.finished)
         self.assertEqual(child1.get_metric("_dd.was_long_running"), 1)
@@ -166,11 +173,9 @@ class TestLongRunningSpan(TracerTestCase):
             self.assertNotIn((child1.trace_id, child1.span_id), job_spans)
             self.assertNotIn((child2.trace_id, child2.span_id), job_spans)
 
-        time.sleep(1.5)
-
+        self.assertGreater(_wait_for_partial_flush(child3), 0)
         self.assertGreater(parent_span.get_metric("_dd.partial_version"), 0)
         self.assertEqual(parent_span.get_tag("ray.job.status"), "RUNNING")
-        self.assertGreater(child3.get_metric("_dd.partial_version"), 0)
         self.assertEqual(child3.get_tag("ray.job.status"), "RUNNING")
 
         stop_long_running_span(child3)
