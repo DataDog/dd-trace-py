@@ -8,6 +8,7 @@ monitoring-based on NEXT_MAX_PY.
 # mypy: follow-imports=silent
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 import re
 from types import CoroutineType
@@ -32,6 +33,25 @@ _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
 )
 
 
+def _riotfile_simple_str_assignment(source: str, name: str) -> str | None:
+    """Parse a module-level string assignment without importing riotfile."""
+    tree: ast.Module = ast.parse(source)
+    for node in tree.body:
+        value: ast.expr | None = None
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and node.targets[0].id == name
+        ):
+            value = node.value
+        elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name) and node.target.id == name:
+            value = node.value
+        if value is not None and isinstance(value, ast.Constant) and isinstance(value.value, str):
+            return value.value
+    return None
+
+
 def test_max_py_matches_requires_python_upper_bound() -> None:
     pyproject: str = (_REPO_ROOT / "pyproject.toml").read_text()
     match: re.Match[str] | None = _REQUIRES_PYTHON_UPPER.search(pyproject)
@@ -40,6 +60,11 @@ def test_max_py_matches_requires_python_upper_bound() -> None:
     minor: int = int(match.group(2))
     last_supported: tuple[int, int] = (major, minor - 1)
     assert MAX_PY == last_supported
+    riotfile: str = (_REPO_ROOT / "riotfile.py").read_text()
+    next_python_version: str | None = _riotfile_simple_str_assignment(riotfile, "NEXT_PYTHON_VERSION")
+    assert next_python_version == f"{NEXT_MAX_PY[0]}.{NEXT_MAX_PY[1]}"
+    max_python_version: str | None = _riotfile_simple_str_assignment(riotfile, "MAX_PYTHON_VERSION")
+    assert max_python_version == f"{MAX_PY[0]}.{MAX_PY[1]}"
 
 
 def test_version_bound_helpers() -> None:

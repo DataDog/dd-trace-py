@@ -74,10 +74,12 @@ def str_to_version(version: str) -> tuple[int, int]:
 
 
 MIN_PYTHON_VERSION = version_to_str(min(SUPPORTED_PYTHON_VERSIONS))
-# 3.15 is listed so select_pys(max_version="3.15") can opt in. Default stays
+# 3.15 is listed so select_pys(max_version=NEXT_PYTHON_VERSION) can opt in. Default stays
 # 3.14 so uncapped suites do not mix 3.15 hashes into 3.9-3.14 --exitfirst jobs.
 # Wrap-heavy suites stay at the default until wrap() is live on 3.15.
 MAX_PYTHON_VERSION = "3.14"
+# Keep in sync with ddtrace.internal.compat.NEXT_MAX_PY.
+NEXT_PYTHON_VERSION: str = "3.15"
 
 
 def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYTHON_VERSION) -> list[str]:
@@ -790,7 +792,7 @@ venv = Venv(
         Venv(
             name="smoke_test",
             command="python tests/smoke_test.py {cmdargs}",
-            pys=select_pys(max_version="3.15"),
+            pys=select_pys(max_version=NEXT_PYTHON_VERSION),
         ),
         Venv(
             name="ddtracerun",
@@ -1236,7 +1238,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(max_version="3.15"),
+                    pys=select_pys(max_version=NEXT_PYTHON_VERSION),
                     pkgs={"dramatiq": latest, "pytest": latest, "redis": latest},
                 ),
             ],
@@ -3696,7 +3698,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/sourcecode",
-            pys=select_pys(max_version="3.15"),
+            pys=select_pys(max_version=NEXT_PYTHON_VERSION),
             pkgs={
                 "setuptools": latest,
                 "pytest-randomly": latest,
