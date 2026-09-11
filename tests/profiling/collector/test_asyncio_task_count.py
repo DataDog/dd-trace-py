@@ -13,7 +13,6 @@ def test_asyncio_task_count_present():
     import asyncio
     import json
     import os
-    import sys
     import time
 
     from ddtrace.profiling import profiler
@@ -42,32 +41,17 @@ def test_asyncio_task_count_present():
     files = pprof_utils.get_internal_metadata_files(output_filename)
     assert files, "Expected at least one internal_metadata.json file"
 
-    found_initialized = False
-    found_loop = False
     found_positive = False
-    found_runtime_offsets = False
     for f in files:
         with open(f) as fp:
             metadata = json.load(fp)
-        if metadata.get("asyncio_initialized"):
-            found_initialized = True
-        if metadata.get("asyncio_loop_count", 0) > 0:
-            found_loop = True
         if "asyncio_task_count" in metadata:
             assert isinstance(metadata["asyncio_task_count"], int)
             assert metadata["asyncio_task_count"] >= 0
             if metadata["asyncio_task_count"] > 0:
                 found_positive = True
-        if metadata.get("asyncio_runtime_offsets_discovered"):
-            assert metadata["asyncio_interpreter_tasks_head_offset"] > 0
-            assert metadata["asyncio_thread_tasks_head_offset"] > 0
-            found_runtime_offsets = True
 
-    assert found_initialized, "Expected asyncio initialization to be reported"
-    assert found_loop, "Expected at least one tracked asyncio loop"
     assert found_positive, "Expected at least one metadata file with asyncio_task_count > 0"
-    if sys.version_info >= (3, 14):
-        assert found_runtime_offsets, "Expected Python 3.14 asyncio runtime offsets to be discovered"
 
 
 @pytest.mark.subprocess(

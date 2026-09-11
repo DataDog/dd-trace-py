@@ -54,7 +54,6 @@ class EchionSampler
     PyObject* asyncio_scheduled_tasks_ = nullptr;
     PyObject* asyncio_eager_tasks_ = nullptr;
     // Asyncio may be initialized while the sampling thread is running.
-    std::atomic<bool> asyncio_initialized_{ false };
     std::atomic<size_t> asyncio_interpreter_tasks_head_offset_{ 0 };
     std::atomic<size_t> asyncio_thread_tasks_head_offset_{ 0 };
 
@@ -74,10 +73,10 @@ class EchionSampler
     // The pointer is borrowed and used as an address only by the sampling thread.
     PyObject* current_gc_frame_ = nullptr;
 
-    // Accumulated asyncio loop and task counts across sampled threads in the current sampling cycle.
-    // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), these only reflect the sampled subset,
-    // not all threads in the process. Only accessed from the sampling thread, so no lock/atomic is needed.
-    size_t asyncio_loop_count_ = 0;
+    // Accumulated asyncio task count across sampled threads in the current sampling cycle.
+    // When thread subsampling is enabled (_DD_PROFILING_STACK_MAX_THREADS), this only
+    // reflects tasks from the sampled subset, not all threads in the process.
+    // Only accessed from the sampling thread, so no lock/atomic is needed.
     size_t asyncio_task_count_ = 0;
 
     // Maximum number of leaf tasks / greenlets to unwind and emit per cycle.
@@ -136,7 +135,6 @@ class EchionSampler
 
     PyObject* asyncio_scheduled_tasks() const { return asyncio_scheduled_tasks_; }
     PyObject* asyncio_eager_tasks() const { return asyncio_eager_tasks_; }
-    bool asyncio_initialized() const { return asyncio_initialized_.load(std::memory_order_relaxed); }
 
     void set_asyncio_offsets(const AsyncioOffsets& offsets)
     {
@@ -158,7 +156,6 @@ class EchionSampler
     {
         asyncio_scheduled_tasks_ = scheduled_tasks;
         asyncio_eager_tasks_ = (eager_tasks != Py_None) ? eager_tasks : nullptr;
-        asyncio_initialized_.store(true, std::memory_order_relaxed);
     }
 
     std::optional<BoundaryFrame>& asyncio_boundary_frame() { return asyncio_boundary_frame_; }
@@ -170,13 +167,7 @@ class EchionSampler
     PyObject* current_gc_frame() const { return current_gc_frame_; }
     [[nodiscard]] GCFrameScope use_gc_frame(PyObject* frame) { return GCFrameScope(*this, frame); }
 
-    void reset_asyncio_counts()
-    {
-        asyncio_loop_count_ = 0;
-        asyncio_task_count_ = 0;
-    }
-    void increment_asyncio_loop_count() { asyncio_loop_count_++; }
-    size_t asyncio_loop_count() const { return asyncio_loop_count_; }
+    void reset_asyncio_task_count() { asyncio_task_count_ = 0; }
     void add_asyncio_task_count(size_t count) { asyncio_task_count_ += count; }
     size_t asyncio_task_count() const { return asyncio_task_count_; }
 
@@ -222,7 +213,6 @@ class EchionSampler
 
         asyncio_boundary_frame_.reset();
         uvloop_boundary_frame_.reset();
-        asyncio_loop_count_ = 0;
         asyncio_task_count_ = 0;
         rng_ = std::minstd_rand{ std::random_device{}() };
 
