@@ -74,6 +74,14 @@ class StubApp:
         return "hiya"
 
     @cherrypy.expose
+    def sampled_resource(self):
+        span = tracer.current_root_span()
+        assert span
+        resource = span.resource
+        tracer.sample(span)
+        return resource
+
+    @cherrypy.expose
     def response_headers(self):
         cherrypy.response.headers["my-response-header"] = "my_response_value"
         return "Hello CherryPy"

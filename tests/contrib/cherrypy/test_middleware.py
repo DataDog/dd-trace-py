@@ -3,6 +3,7 @@ import logging
 import os
 import re
 import time
+from unittest import mock
 from urllib.parse import quote as url_quote
 
 import cherrypy
@@ -59,7 +60,7 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         from ddtrace.contrib.internal.cherrypy.patch import get_version
 
         version = get_version()
-        assert type(version) == str
+        assert isinstance(version, str)
         assert version != ""
 
         emit_integration_and_version_to_test_agent("cherrypy", version)
@@ -364,6 +365,27 @@ class TestCherrypy(TracerTestCase, helper.CPWebCase):
         assert s.get_tag(http.METHOD) == "GET"
         assert s.get_tag("component") == "cherrypy"
         assert s.get_tag("span.kind") == "server"
+
+    def test_otel_semantics_preserves_custom_span_resource(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            self.getPage("/custom_span")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "overridden"
+
+    def test_otel_semantics_sets_method_resource_before_in_handler_sampling(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            self.getPage("/sampled_resource")
+            time.sleep(0.1)
+
+        self.assertStatus("200 OK")
+        self.assertBody("GET")
+        spans = self.pop_spans()
+        assert len(spans) == 1
+        assert spans[0].resource == "GET"
 
     def test_http_request_header_tracing(self):
         config.cherrypy.http.trace_headers(["Host", "my-header"])

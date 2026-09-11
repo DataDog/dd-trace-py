@@ -1,4 +1,5 @@
 import os
+from unittest import mock
 
 import pytest
 from webtest import TestApp
@@ -8,6 +9,7 @@ from ddtrace.contrib.internal.wsgi.wsgi import DDWSGIMiddleware
 from ddtrace.contrib.internal.wsgi.wsgi import _DDWSGIMiddlewareBase
 from ddtrace.contrib.internal.wsgi.wsgi import construct_url
 from ddtrace.contrib.internal.wsgi.wsgi import get_request_headers
+from ddtrace.trace import tracer as global_tracer
 from tests.utils import override_config
 from tests.utils import override_http_config
 from tests.utils import snapshot
@@ -99,6 +101,27 @@ def test_middleware(tracer, test_spans):
     spans = test_spans.pop()
     assert len(spans) == 2
     assert spans[0].error == 1
+
+
+def test_otel_semantics_keeps_method_resource_before_response_on_exception(tracer, test_spans):
+    observed_resources = []
+
+    def failing_application(environ, start_response):
+        root_span = global_tracer.current_root_span()
+        assert root_span is not None
+        observed_resources.append(root_span.resource)
+        global_tracer.sample(root_span)
+        raise RuntimeError("before start_response")
+
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        app = TestApp(DDWSGIMiddleware(failing_application, tracer=tracer))
+        with pytest.raises(RuntimeError, match="before start_response"):
+            app.get("/users/12345")
+
+    spans = test_spans.pop()
+    request_span = next(span for span in spans if span.name == "wsgi.request")
+    assert observed_resources == ["GET"]
+    assert request_span.resource == "GET"
 
 
 def test_distributed_tracing(tracer, test_spans):

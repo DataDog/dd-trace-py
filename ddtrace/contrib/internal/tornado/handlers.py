@@ -5,6 +5,7 @@ from tornado.routing import PathMatches
 from tornado.web import HTTPError
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -263,7 +264,7 @@ def on_finish(func, handler, args, kwargs):
         # default handler class will be used so we don't pollute the resource
         # space here
         klass = handler.__class__
-        request_span.resource = "{}.{}".format(klass.__module__, klass.__name__)
+        set_instrumentation_resource(request_span, "{}.{}".format(klass.__module__, klass.__name__))
         core.dispatch(
             "web.request.finish",
             (

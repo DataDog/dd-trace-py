@@ -11,6 +11,7 @@ from typing import Union
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace.processor.resource_renaming import SimplifiedEndpointComputer
+from ddtrace._trace.processor.resource_renaming import path_source_tag_value
 import ddtrace.appsec._asm_request_context as _asm_request_context
 from ddtrace.appsec._asm_request_context import ASM_Environment
 from ddtrace.appsec._constants import API_SECURITY
@@ -126,7 +127,7 @@ class APIManager(Service):
         if route is None and env.blocked is None and not is_404:
             endpoint = env.entry_span.get_tag(http.ENDPOINT)
             if endpoint is None:
-                url = env.entry_span.get_tag(http.URL)
+                url = path_source_tag_value(env.entry_span)
                 endpoint = self.simplified_endpoint_computer.from_url(url)
             route = endpoint
 

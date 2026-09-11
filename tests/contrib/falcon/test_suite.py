@@ -1,3 +1,5 @@
+from unittest import mock
+
 from ddtrace import config
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import USER_KEEP
@@ -132,6 +134,15 @@ class FalconTestCase(FalconTestMixin):
 
     def test_route_reporting_200(self):
         return self.make_route_reporting_test("/200", 200, "/200")
+
+    def test_otel_semantics_refines_resource_from_route(self):
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            self.make_test_call("/200", expected_status_code=200)
+
+        span = self.pop_traces()[0][0]
+        assert span.get_tag(httpx.OTEL_REQUEST_METHOD) == "GET"
+        assert span.get_tag(httpx.ROUTE) == "/200"
+        assert span.resource == "GET /200"
 
     def test_route_reporting_dynamic_match(self):
         return self.make_route_reporting_test("/hello/foo", 200, "/hello/{name}")

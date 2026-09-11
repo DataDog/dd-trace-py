@@ -2,6 +2,7 @@ import asyncio
 import os
 import random
 import re
+from unittest import mock
 
 import pytest
 from sanic import Sanic
@@ -272,6 +273,23 @@ async def test_resource_name(tracer, client, url, expected_json, expected_resour
     spans = test_spans.pop_traces()
     request_span = spans[0][0]
     assert request_span.resource == expected_resource
+
+
+@pytest.mark.asyncio
+async def test_otel_semantics_sets_complete_request_metadata(client, test_spans):
+    with (
+        mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+        mock.patch("ddtrace._trace.http_semantics.otel_number", side_effect=lambda value: value),
+    ):
+        response = await client.get("/hello/foo")
+
+    assert _response_status(response) == 200
+    request_span = test_spans.pop_traces()[0][0]
+    assert request_span.get_tag("http.request.method") == "GET"
+    assert request_span.get_tag("http.route") == "/hello/<first_name>"
+    assert request_span.get_metric("http.response.status_code") == 200
+    assert request_span.get_tag("url.path") == "/hello/foo"
+    assert request_span.resource == "GET /hello/<first_name>"
 
 
 @pytest.mark.asyncio
