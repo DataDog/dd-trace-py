@@ -35,8 +35,12 @@ section_end "docker_pull"
 section_start "build_wheel" "Building wheel (${UV_PYTHON}, ${WINDOWS_ARCH})"
 rm -rf "${PROJECT_DIR}/dist"
 
+# AIDEV-NOTE: Keep Rust build outputs off the bind-mounted checkout. Windows can
+# retain handles to proc-macro DLLs after the container exits, causing the next
+# GitLab checkout's git clean to fail before the job script starts.
 docker run --rm \
   -v "${PROJECT_DIR_WIN}:C:\\workspace" \
+  -v "C:\\workspace\\src\\native\\target${PYTHON_VERSION}" \
   -e "UV_PYTHON=${UV_PYTHON}" \
   -e "UV_PYTHON_INSTALL_DIR=C:\\tools\\uv-python" \
   -w 'C:\workspace' \
