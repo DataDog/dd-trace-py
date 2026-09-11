@@ -10,10 +10,11 @@ from bytecode import Instr
 from ddtrace.internal import bytecode_injection as _bytecode_injection
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.compat import NEXT_MAX_PY
 
 
 _INJECTION_ASSEMBLY: t.Optional[Assembly] = (
-    _bytecode_injection.INJECTION_ASSEMBLY if sys.version_info < (3, 15) else None
+    _bytecode_injection.INJECTION_ASSEMBLY if sys.version_info < NEXT_MAX_PY else None
 )
 # TODO(py-315): Accurate import-hook injection is intentionally unsupported on 3.15+; see the
 # comment at instrumentation_py3_12._USE_ACCURATE_IMPORTS for the full rationale and the work

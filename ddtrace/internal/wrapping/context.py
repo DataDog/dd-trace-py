@@ -17,6 +17,7 @@ from bytecode import Bytecode
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import should_wrap_fail_close
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.threads import RLock
@@ -223,8 +224,7 @@ CONTEXT_HEAD = Assembly()
 CONTEXT_RETURN = Assembly()
 CONTEXT_FOOT = Assembly()
 
-# Fail-close at NEXT_MAX_PY + 1 (3.16 today). Literal so mypy folds.
-if sys.version_info >= (3, 16):
+if should_wrap_fail_close():
     raise NotImplementedError("This version of Python is not supported yet")
 elif sys.version_info >= NEXT_MAX_PY:
     # We rely on sys.monitoring for wrapping, so no bytecode manipulation is
@@ -445,8 +445,7 @@ elif sys.version_info >= (3, 9):
 # so the monitored frame is three levels up.
 _ENTER_FRAME_DEPTH = 3 if sys.version_info >= NEXT_MAX_PY else 1
 
-# mypy folds sys.version_info against literals only
-if sys.version_info >= (3, 15):
+if sys.version_info >= NEXT_MAX_PY:
     from ddtrace.internal import monitoring as _monitoring
 
     # Keyed by code object: drives sys.monitoring dispatch and is_wrapped/extract lookup.
@@ -609,8 +608,7 @@ class WrappingContext(BaseWrappingContext):
             pass
 
 
-# mypy folds sys.version_info against literals only
-if sys.version_info >= (3, 15):
+if sys.version_info >= NEXT_MAX_PY:
     # Monitoring-based instrumentation has negligible per-function overhead, so
     # there is no benefit to deferring wrapping until first call. On Python 3.15+
     # this is a transparent alias for WrappingContext kept only for API compatibility.
@@ -618,7 +616,7 @@ if sys.version_info >= (3, 15):
 
 else:
 
-    class LazyWrappingContext(WrappingContext):
+    class LazyWrappingContext(WrappingContext):  # type: ignore[no-redef]
         def __init__(self, f: FunctionType):
             super().__init__(f)
 
@@ -705,8 +703,7 @@ class ContextWrappedFunction(Protocol):
 
 # On 3.15+ _UniversalWrappingContext also implements MonitoringEventHandler so
 # it can be registered directly with the multiplexer via register(code, self).
-# mypy folds sys.version_info against literals only
-if sys.version_info >= (3, 15):
+if sys.version_info >= NEXT_MAX_PY:
     from ddtrace.internal.monitoring import MonitoringEventHandler as _MonitoringEventHandler
 
     _UWC_BASES: tuple[type, ...] = (BaseWrappingContext, _MonitoringEventHandler)
@@ -871,8 +868,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         return t.cast(T, super().__return__(value))
 
-    # mypy folds sys.version_info against literals only
-    if sys.version_info >= (3, 15):
+    if sys.version_info >= NEXT_MAX_PY:
         # Exceptions here are deliberately left uncaught (see the propagation
         # warning on MonitoringEventHandler), which matches bytecode-path
         # with-statement semantics -- safe because this is the only handler
@@ -974,7 +970,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
 
         def unwrap(self) -> None:
             f: FunctionType = self.__wrapped__
-            finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)
+            finalize: t.Optional[weakref.finalize] = getattr(self, "_finalize", None)  # type: ignore[type-arg]
             if finalize is not None:
                 finalize.detach()
                 del self._finalize
@@ -1301,8 +1297,7 @@ class _UniversalWrappingContext(*_UWC_BASES):  # type: ignore[misc]
                             _registry.pop(f, None)
 
 
-# mypy folds sys.version_info against literals only
-if sys.version_info >= (3, 15):
+if sys.version_info >= NEXT_MAX_PY:
 
     def _finalize_monitoring_wrap(
         self_ref: "weakref.ref[_UniversalWrappingContext]",
