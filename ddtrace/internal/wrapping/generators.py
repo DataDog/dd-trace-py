@@ -5,6 +5,7 @@ from typing import Optional
 import bytecode as bc
 
 from ddtrace.internal.assembly import Assembly
+from ddtrace.internal.compat import is_at_least_next_max_py
 
 
 PY = sys.version_info[:2]
@@ -34,7 +35,7 @@ PY = sys.version_info[:2]
 GENERATOR_ASSEMBLY = Assembly()
 GENERATOR_HEAD_ASSEMBLY: Optional[Assembly] = None
 
-if PY >= (3, 15):
+if is_at_least_next_max_py(PY):
     GENERATOR_HEAD_ASSEMBLY = Assembly()
     GENERATOR_HEAD_ASSEMBLY.parse(
         r"""

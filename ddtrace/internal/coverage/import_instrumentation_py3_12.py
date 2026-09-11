@@ -1,6 +1,5 @@
 """Import dependency bytecode helpers for Python 3.12+ coverage instrumentation."""
 
-import sys
 from types import CodeType
 import typing as t
 
@@ -10,10 +9,11 @@ from bytecode import Instr
 from ddtrace.internal import bytecode_injection as _bytecode_injection
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.bytecode_injection import HookType
+from ddtrace.internal.compat import is_at_least_next_max_py
 
 
 _INJECTION_ASSEMBLY: t.Optional[Assembly] = (
-    _bytecode_injection.INJECTION_ASSEMBLY if sys.version_info < (3, 15) else None
+    _bytecode_injection.INJECTION_ASSEMBLY if not is_at_least_next_max_py() else None
 )
 # TODO(py-315): Accurate import-hook injection is intentionally unsupported on 3.15+; see the
 # comment at instrumentation_py3_12._USE_ACCURATE_IMPORTS for the full rationale and the work

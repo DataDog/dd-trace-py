@@ -9,6 +9,7 @@ from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
+from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
 from ddtrace.internal.wrapping import get_function_code
@@ -29,7 +30,7 @@ class InvalidLine(Exception):
     """
 
 
-if PY >= (3, 15):
+if is_at_least_next_max_py():
     from ddtrace.internal import monitoring as _monitoring
     from ddtrace.internal.threads import Lock
     from ddtrace.internal.utils.inspection import linenos
@@ -44,7 +45,7 @@ if PY >= (3, 15):
         def on_py_line(self, code: Any, line_number: int) -> Any:
             hooks: "list[tuple[HookType, Any]] | None" = self._hooks.get(line_number)
             if not hooks:
-                return _monitoring._DISABLE  # type: ignore[has-type]
+                return _monitoring._DISABLE
             for hook, arg in hooks:
                 hook(arg)
             return None
