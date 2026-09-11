@@ -15,6 +15,7 @@ from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
+from ddtrace.internal import _libddwaf_platform
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.settings import env
 from ddtrace.internal.settings._config import config as tracer_config
@@ -48,21 +49,12 @@ def _parse_optional_string(value: str) -> Optional[str]:
 def build_libddwaf_filename() -> str:
     """
     Build the filename of the libddwaf library to load.
-    """
-    _DIRNAME = os.path.dirname(os.path.dirname(__file__))
-    FILE_EXTENSION = {"Linux": "so", "Darwin": "dylib", "Windows": "dll"}[system()]
-    ARCHI = machine().lower()
-    # 32-bit-Python on 64-bit-Windows
-    if system() == "Windows" and ARCHI == "amd64":
-        from sys import maxsize
 
-        if maxsize <= (1 << 32):
-            ARCHI = "x86"
-    TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
-    ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
-    return os.path.join(
-        _DIRNAME, "..", "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION
-    )
+    This is the path of the library bundled in the package, or, when the build
+    did not bundle one, the SONAME for the dynamic linker to resolve.
+    """
+    libddwaf_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "..", "appsec", "_ddwaf", "libddwaf")
+    return _libddwaf_platform.resolve_library(libddwaf_dir, system(), machine(), sys.maxsize > (1 << 32))
 
 
 class ASMConfig(DDConfig):
@@ -109,7 +101,7 @@ class ASMConfig(DDConfig):
     # updated in API Manager enable/disable
     _api_security_active = False
     _asm_libddwaf = build_libddwaf_filename()
-    _asm_libddwaf_available = os.path.exists(_asm_libddwaf)
+    _asm_libddwaf_available = _libddwaf_platform.is_loadable(_asm_libddwaf, system())
     _ddwaf_version: str = "unloaded"
 
     _waf_timeout = DDConfig.var(

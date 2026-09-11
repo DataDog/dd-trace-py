@@ -20,7 +20,7 @@ outputs:
 runs:
   using: composite
   steps:
-    # AIDEV-NOTE: Keep patch application and validation in this single shell step,
+    # Keep patch application and validation in this single shell step,
     # and do not add repository-mutating steps between this action and PR creation.
     # The patch is untrusted data and must not replace code that is executed later.
     - id: patch
