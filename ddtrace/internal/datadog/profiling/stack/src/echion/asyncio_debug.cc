@@ -111,6 +111,76 @@ read_at(int fd, uint64_t file_size, uint64_t offset, void* buffer, size_t size)
     return false;
 }
 
+std::optional<ElfW(Ehdr)>
+read_and_validate_elf_header(int fd, uint64_t file_size)
+{
+    ElfW(Ehdr) header;
+    if (!read_at(fd, file_size, 0, &header, sizeof(header))) {
+        return std::nullopt;
+    }
+
+    // e_ident starts with the ELF magic bytes and records the file's word size, byte order, and format version. The
+    // loaded binary has the same word size and byte order as this process, so no cross-architecture decoding is needed.
+    if (std::memcmp(header.e_ident, ELFMAG, SELFMAG) != 0 || header.e_ident[EI_VERSION] != EV_CURRENT ||
+        header.e_ident[EI_CLASS] != (sizeof(void*) == 8 ? ELFCLASS64 : ELFCLASS32) ||
+        header.e_ident[EI_DATA] != (std::endian::native == std::endian::little ? ELFDATA2LSB : ELFDATA2MSB)) {
+        return std::nullopt;
+    }
+
+    // ET_EXEC covers traditional executables. ET_DYN covers shared libraries and position-independent executables.
+    if (header.e_version != EV_CURRENT || (header.e_type != ET_DYN && header.e_type != ET_EXEC) ||
+        header.e_ehsize != sizeof(header)) {
+        return std::nullopt;
+    }
+
+    // Program headers describe the segments mapped by the dynamic loader. We later compare this table with
+    // dl_iterate_phdr's in-memory table to ensure that the file still represents the loaded binary.
+    if (header.e_phentsize != sizeof(ElfW(Phdr)) || header.e_phnum == 0 || header.e_phnum > 256 ||
+        !contains_span(file_size, header.e_phoff, header.e_phnum * sizeof(ElfW(Phdr)))) {
+        return std::nullopt;
+    }
+
+    // Section headers locate named sections such as .AsyncioDebug. At least the first header must be readable because
+    // ELF stores extended section counts and string-table indexes there when they do not fit in the main header.
+    if (header.e_shentsize != sizeof(ElfW(Shdr)) || !contains_span(file_size, header.e_shoff, sizeof(ElfW(Shdr)))) {
+        return std::nullopt;
+    }
+    return header;
+}
+
+struct ElfSectionTable
+{
+    uint64_t section_headers_offset;
+    uint64_t section_count;
+    ElfW(Shdr) names_section;
+};
+
+std::optional<ElfSectionTable>
+read_elf_section_table(int fd, uint64_t file_size, const ElfW(Ehdr) & header)
+{
+    ElfW(Shdr) first_section;
+    if (!read_at(fd, file_size, header.e_shoff, &first_section, sizeof(first_section))) {
+        return std::nullopt;
+    }
+
+    const uint64_t section_count = header.e_shnum == 0 ? first_section.sh_size : header.e_shnum;
+    const uint64_t names_index = header.e_shstrndx == SHN_XINDEX ? first_section.sh_link : header.e_shstrndx;
+    // Bound initialization work independently of file size, including extended ELF section counts.
+    if (section_count == 0 || section_count > 4096 || names_index >= section_count ||
+        !contains_span(file_size, header.e_shoff, section_count * sizeof(ElfW(Shdr)))) {
+        return std::nullopt;
+    }
+
+    ElfW(Shdr) names_section;
+    if (!read_at(
+          fd, file_size, header.e_shoff + names_index * sizeof(names_section), &names_section, sizeof(names_section)) ||
+        names_section.sh_type != SHT_STRTAB ||
+        !contains_span(file_size, names_section.sh_offset, names_section.sh_size)) {
+        return std::nullopt;
+    }
+    return ElfSectionTable{ header.e_shoff, section_count, names_section };
+}
+
 bool
 section_is_loaded(const dl_phdr_info& binary, uint64_t address, uint64_t size)
 {
@@ -163,9 +233,18 @@ is_process_executable(int fd, const dl_phdr_info& binary)
            file_info.st_dev == executable_info.st_dev && file_info.st_ino == executable_info.st_ino;
 }
 
+// Section addresses come from the open file, but the load bias and section contents come from the loaded binary. The
+// library path may have been replaced since the loader mapped it, so combining metadata from different files could
+// produce a valid-looking address into unrelated memory. Match the file against loader-owned metadata before using it.
 bool
 matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, const dl_phdr_info& binary)
 {
+    // Program headers define the loaded segment layout. Require the file's complete table to equal the table retained
+    // by the dynamic loader before comparing identity metadata within those segments.
+    if (header.e_phnum != binary.dlpi_phnum) {
+        return false;
+    }
+
     bool matched_build_id = false;
     for (ElfW(Half) i = 0; i < header.e_phnum; ++i) {
         ElfW(Phdr) segment;
@@ -173,8 +252,9 @@ matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, con
             std::memcmp(&segment, &binary.dlpi_phdr[i], sizeof(segment)) != 0) {
             return false;
         }
-        // ELF notes are small, immutable metadata. Cap scratch space and reject binaries without a matching build ID
-        // rather than applying section addresses from a replacement file to an older loaded library.
+        // Matching layouts alone do not prove file identity because two builds can have identical program headers.
+        // Compare the GNU build ID note from the file with the copy mapped in memory. ELF notes are small, immutable
+        // metadata, so cap scratch space and avoid allocating while inspecting them.
         std::array<unsigned char, 4096> file_notes;
         std::array<unsigned char, 4096> loaded_notes;
         if (segment.p_type != PT_NOTE || segment.p_filesz > file_notes.size() ||
@@ -193,8 +273,43 @@ matches_loaded_binary(int fd, uint64_t file_size, const ElfW(Ehdr) & header, con
         }
     }
     // /proc/self/exe is a kernel reference to the exact executable backing this process, including after unlink or
-    // replacement. Other paths can race with replacement and therefore still require a matching GNU build ID.
+    // replacement, so its device and inode are sufficient when no build ID exists. Shared-library paths can race with
+    // replacement and therefore require a matching GNU build ID.
     return matched_build_id || is_process_executable(fd, binary);
+}
+
+std::optional<AsyncioOffsets>
+find_asyncio_debug_offsets_in_sections(int fd,
+                                       uint64_t file_size,
+                                       const ElfSectionTable& table,
+                                       const dl_phdr_info& binary)
+{
+    constexpr char section_name[] = ".AsyncioDebug";
+    for (uint64_t i = 0; i < table.section_count; ++i) {
+        ElfW(Shdr) section;
+        if (!read_at(fd, file_size, table.section_headers_offset + i * sizeof(section), &section, sizeof(section))) {
+            return std::nullopt;
+        }
+        if (section.sh_type != SHT_PROGBITS || (section.sh_flags & SHF_ALLOC) == 0 ||
+            section.sh_size < sizeof(PyAsyncioDebugOffsets)) {
+            continue;
+        }
+
+        char name[sizeof(section_name)];
+        if (!contains_span(table.names_section.sh_size, section.sh_name, sizeof(name)) ||
+            !read_at(fd, file_size, table.names_section.sh_offset + section.sh_name, name, sizeof(name)) ||
+            std::memcmp(name, section_name, sizeof(name)) != 0 ||
+            !section_is_loaded(binary, section.sh_addr, section.sh_size)) {
+            continue;
+        }
+        // The loader exposes the load bias and section address as integers.
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
+        const auto* debug_table = reinterpret_cast<const PyAsyncioDebugOffsets*>(binary.dlpi_addr + section.sh_addr);
+        if (auto offsets = read_asyncio_debug_table(debug_table)) {
+            return offsets;
+        }
+    }
+    return std::nullopt;
 }
 
 int
@@ -233,63 +348,18 @@ read_asyncio_debug_offsets_from_elf(int fd, const dl_phdr_info& binary)
         return std::nullopt;
     }
     const auto file_size = static_cast<uint64_t>(file_info.st_size);
-    ElfW(Ehdr) header;
-    if (!read_at(fd, file_size, 0, &header, sizeof(header)) || std::memcmp(header.e_ident, ELFMAG, SELFMAG) != 0 ||
-        header.e_ident[EI_VERSION] != EV_CURRENT ||
-        header.e_ident[EI_CLASS] != (sizeof(void*) == 8 ? ELFCLASS64 : ELFCLASS32) ||
-        header.e_ident[EI_DATA] != (std::endian::native == std::endian::little ? ELFDATA2LSB : ELFDATA2MSB) ||
-        header.e_version != EV_CURRENT || (header.e_type != ET_DYN && header.e_type != ET_EXEC) ||
-        header.e_ehsize != sizeof(header) || header.e_phentsize != sizeof(ElfW(Phdr)) || header.e_phnum == 0 ||
-        header.e_phnum > 256 || header.e_phnum != binary.dlpi_phnum ||
-        !contains_span(file_size, header.e_phoff, header.e_phnum * sizeof(ElfW(Phdr))) ||
-        header.e_shentsize != sizeof(ElfW(Shdr)) || !contains_span(file_size, header.e_shoff, sizeof(ElfW(Shdr))) ||
-        !matches_loaded_binary(fd, file_size, header, binary)) {
+
+    auto header = read_and_validate_elf_header(fd, file_size);
+    if (!header || !matches_loaded_binary(fd, file_size, *header, binary)) {
         return std::nullopt;
     }
 
-    ElfW(Shdr) first_section;
-    if (!read_at(fd, file_size, header.e_shoff, &first_section, sizeof(first_section))) {
-        return std::nullopt;
-    }
-    const uint64_t section_count = header.e_shnum == 0 ? first_section.sh_size : header.e_shnum;
-    const uint64_t names_index = header.e_shstrndx == SHN_XINDEX ? first_section.sh_link : header.e_shstrndx;
-    // Bound initialization work independently of file size, including extended ELF section counts.
-    if (section_count == 0 || section_count > 4096 || names_index >= section_count ||
-        !contains_span(file_size, header.e_shoff, section_count * sizeof(ElfW(Shdr)))) {
+    auto section_table = read_elf_section_table(fd, file_size, *header);
+    if (!section_table) {
         return std::nullopt;
     }
 
-    ElfW(Shdr) names_section;
-    if (!read_at(
-          fd, file_size, header.e_shoff + names_index * sizeof(names_section), &names_section, sizeof(names_section)) ||
-        names_section.sh_type != SHT_STRTAB ||
-        !contains_span(file_size, names_section.sh_offset, names_section.sh_size)) {
-        return std::nullopt;
-    }
-
-    for (uint64_t i = 0; i < section_count; ++i) {
-        ElfW(Shdr) section;
-        if (!read_at(fd, file_size, header.e_shoff + i * sizeof(section), &section, sizeof(section))) {
-            return std::nullopt;
-        }
-        constexpr char section_name[] = ".AsyncioDebug";
-        char name[sizeof(section_name)];
-        if (section.sh_type != SHT_PROGBITS || (section.sh_flags & SHF_ALLOC) == 0 ||
-            section.sh_size < sizeof(PyAsyncioDebugOffsets) ||
-            !contains_span(names_section.sh_size, section.sh_name, sizeof(name)) ||
-            !read_at(fd, file_size, names_section.sh_offset + section.sh_name, name, sizeof(name)) ||
-            std::memcmp(name, section_name, sizeof(name)) != 0 ||
-            !section_is_loaded(binary, section.sh_addr, section.sh_size)) {
-            continue;
-        }
-        // The loader exposes the load bias and section address as integers.
-        // NOLINTNEXTLINE(performance-no-int-to-ptr)
-        const auto* table = reinterpret_cast<const PyAsyncioDebugOffsets*>(binary.dlpi_addr + section.sh_addr);
-        if (auto offsets = read_asyncio_debug_table(table)) {
-            return offsets;
-        }
-    }
-    return std::nullopt;
+    return find_asyncio_debug_offsets_in_sections(fd, file_size, *section_table, binary);
 }
 
 #endif

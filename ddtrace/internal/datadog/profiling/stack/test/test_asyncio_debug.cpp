@@ -103,9 +103,10 @@ class AsyncioElfTest : public ::testing::Test
             char name[4] = "GNU";
             unsigned char id[4] = { 1, 2, 3, 4 };
         } note;
+        PyAsyncioDebugOffsets invalid_table{};
         PyAsyncioDebugOffsets table = valid_table();
         char names[sizeof(".AsyncioDebug")] = ".AsyncioDebug";
-        std::array<ElfW(Shdr), 3> sections{};
+        std::array<ElfW(Shdr), 4> sections{};
     } loaded, on_disk;
     dl_phdr_info binary{};
     FILE* file = nullptr;
@@ -136,10 +137,10 @@ class AsyncioElfTest : public ::testing::Test
         loaded.sections[1].sh_type = SHT_STRTAB;
         loaded.sections[1].sh_offset = offsetof(Binary, names);
         loaded.sections[1].sh_size = sizeof(loaded.names);
-        loaded.sections[2].sh_type = SHT_PROGBITS;
-        loaded.sections[2].sh_flags = SHF_ALLOC;
-        loaded.sections[2].sh_addr = loaded.sections[2].sh_offset = offsetof(Binary, table);
-        loaded.sections[2].sh_size = sizeof(loaded.table);
+        loaded.sections[3].sh_type = SHT_PROGBITS;
+        loaded.sections[3].sh_flags = SHF_ALLOC;
+        loaded.sections[3].sh_addr = loaded.sections[3].sh_offset = offsetof(Binary, table);
+        loaded.sections[3].sh_size = sizeof(loaded.table);
         binary.dlpi_addr = reinterpret_cast<ElfW(Addr)>(&loaded);
         binary.dlpi_phdr = loaded.segments.data();
         binary.dlpi_phnum = loaded.segments.size();
@@ -166,6 +167,7 @@ class AsyncioElfTest : public ::testing::Test
         write_field(on_disk.header, offsetof(Binary, header));
         write_field(on_disk.segments, offsetof(Binary, segments));
         write_field(on_disk.note, offsetof(Binary, note));
+        write_field(on_disk.invalid_table, offsetof(Binary, invalid_table));
         write_field(on_disk.table, offsetof(Binary, table));
         write_field(on_disk.names, offsetof(Binary, names));
         write_field(on_disk.sections, offsetof(Binary, sections));
@@ -211,6 +213,13 @@ TEST_F(AsyncioElfTest, ReadsLoadedTableAndSupportsExtendedSectionNumbering)
     on_disk.header.e_shstrndx = SHN_XINDEX;
     on_disk.sections[0].sh_size = loaded.sections.size();
     on_disk.sections[0].sh_link = 1;
+    EXPECT_TRUE(discover());
+}
+
+TEST_F(AsyncioElfTest, SkipsInvalidDuplicateSection)
+{
+    on_disk.sections[2] = loaded.sections[2] = loaded.sections[3];
+    on_disk.sections[2].sh_addr = loaded.sections[2].sh_addr = offsetof(Binary, invalid_table);
     EXPECT_TRUE(discover());
 }
 
@@ -265,16 +274,16 @@ TEST_F(AsyncioElfTest, RejectsMalformedMetadata)
     on_disk.sections[1].sh_offset = std::numeric_limits<ElfW(Off)>::max();
     EXPECT_FALSE(discover());
     on_disk = loaded;
-    on_disk.sections[2].sh_name = sizeof(loaded.names);
+    on_disk.sections[3].sh_name = sizeof(loaded.names);
     EXPECT_FALSE(discover());
     on_disk = loaded;
     on_disk.names[sizeof(loaded.names) - 1] = 'x';
     EXPECT_FALSE(discover());
     on_disk = loaded;
-    on_disk.sections[2].sh_addr = std::numeric_limits<ElfW(Addr)>::max();
+    on_disk.sections[3].sh_addr = std::numeric_limits<ElfW(Addr)>::max();
     EXPECT_FALSE(discover());
     on_disk = loaded;
-    on_disk.sections[2].sh_flags = 0;
+    on_disk.sections[3].sh_flags = 0;
     EXPECT_FALSE(discover());
     on_disk = loaded;
     loaded.table.thread.asyncio_tasks_head = 0;
