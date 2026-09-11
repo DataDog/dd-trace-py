@@ -501,15 +501,18 @@ class TestMolten(TracerTestCase):
             observed["http.route"] = span.get_tag(http.ROUTE)
             observed["http.method"] = span.get_tag(http.METHOD)
             observed["http.url"] = span.get_tag(http.URL)
+            span.resource = "custom"
             return "ok"
 
         app = molten.App(routes=[molten.Route("/inspect", handler)])
         client = TestClient(app)
 
         response = client.get("/inspect")
+        spans = self.pop_spans()
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(observed["resource"], "GET /inspect")
         self.assertEqual(observed["http.route"], "/inspect")
         self.assertEqual(observed["http.method"], "GET")
         self.assertEqual(observed["http.url"], "http://127.0.0.1:8000/inspect")
+        self.assertEqual(spans[0].resource, "custom")
