@@ -1958,7 +1958,8 @@
             {
                 "testedRuntimes": {
                     "python": [
-                        "3.14"
+                        "3.14",
+                        "3.15"
                     ]
                 },
                 "supportedRange": ">=2.10",
