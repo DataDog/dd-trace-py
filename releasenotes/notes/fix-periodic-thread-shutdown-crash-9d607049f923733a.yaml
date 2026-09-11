@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    internal: Fixes a rare crash at interpreter exit.
