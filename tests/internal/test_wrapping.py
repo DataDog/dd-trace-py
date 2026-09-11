@@ -10,7 +10,7 @@ from typing import cast
 
 import pytest
 
-from ddtrace.internal.compat import NEXT_MAX_PY
+from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
@@ -1344,7 +1344,7 @@ class DummyLazyWrappingContext(LazyWrappingContext):
         return super().__enter__()
 
 
-@pytest.mark.skipif(sys.version_info >= NEXT_MAX_PY, reason="LazyWrappingContext is eager on 3.15+")
+@pytest.mark.skipif(is_at_least_next_max_py(), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy():
     free = 42
 
@@ -1422,7 +1422,7 @@ def test_wrapping_context_lazy_multiple_wrappers():
     assert c1.count == c2.count == 0
 
 
-@pytest.mark.skipif(sys.version_info >= NEXT_MAX_PY, reason="LazyWrappingContext is eager on 3.15+")
+@pytest.mark.skipif(is_at_least_next_max_py(), reason="LazyWrappingContext is eager on 3.15+")
 def test_wrapping_context_lazy_unwrap_before_call():
     free = 42
 

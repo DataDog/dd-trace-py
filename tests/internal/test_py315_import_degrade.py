@@ -17,12 +17,13 @@ import pytest
 from ddtrace.internal.compat import MAX_PY
 from ddtrace.internal.compat import NEXT_MAX_PY
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
+from ddtrace.internal.compat import is_at_least_next_max_py
 from ddtrace.internal.compat import is_py_version_within_bounds
 from ddtrace.internal.compat import is_wrap_supported
 
 
 # wrap() is live on NEXT_MAX_PY while is_wrap_supported().
-_WRAP_ON_NEXT_MAX: bool = NEXT_MAX_PY <= PYTHON_VERSION_INFO[:2] and is_wrap_supported()
+_WRAP_ON_NEXT_MAX: bool = is_at_least_next_max_py() and is_wrap_supported()
 
 _REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 _REQUIRES_PYTHON_UPPER: re.Pattern[str] = re.compile(
@@ -44,9 +45,14 @@ def test_max_py_matches_requires_python_upper_bound() -> None:
 def test_version_bound_helpers() -> None:
     assert is_py_version_within_bounds(MAX_PY)
     assert not is_py_version_within_bounds(NEXT_MAX_PY)
+    assert not is_at_least_next_max_py(MAX_PY)
+    assert is_at_least_next_max_py(NEXT_MAX_PY)
     assert is_wrap_supported(NEXT_MAX_PY)
     fail_close: tuple[int, int] = (NEXT_MAX_PY[0], NEXT_MAX_PY[1] + 1)
+    assert is_at_least_next_max_py(fail_close)
     assert not is_wrap_supported(fail_close)
+    running: tuple[int, ...] = PYTHON_VERSION_INFO[:2]
+    assert is_at_least_next_max_py() is is_at_least_next_max_py(running)
 
 
 def test_wrapping_modules_import():
