@@ -1,0 +1,4 @@
+fixes:
+  - |
+    grpc: Fixes an issue where creating synchronous or asynchronous gRPC servers with
+    ``interceptors=None`` raises a ``TypeError`` when tracing is enabled.
