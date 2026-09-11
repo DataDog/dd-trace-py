@@ -570,10 +570,10 @@ suites:
       command: pytest {cmdargs} tests/contrib/aws_lambda
       variants:
         - name: aws_lambda
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [boto3, 'datadog-lambda>=6.105.0', 'pytest-asyncio==0.21.1', pytest-randomly]
         - name: aws_lambda
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [boto3, datadog-lambda, 'pytest-asyncio==0.21.1', pytest-randomly]
   aws_durable_execution_sdk_python:
     venvs_per_job: 2
@@ -872,7 +872,7 @@ suites:
           python: ['3.9']
           dependencies: [WebTest, pytest-randomly, 'bottle>=0.12,<0.13']
         - name: bottle
-          python: ['3.9']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [WebTest, pytest-randomly, bottle]
   celery:
     env:
@@ -1735,7 +1735,7 @@ suites:
           python: ['3.9', '3.10']
           dependencies: [pytest-randomly, pytest-xdist, 'confluent-kafka~=1.9.2']
         - name: kafka
-          python: ['3.9', '3.10', '3.11', '3.12', '3.13']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, pytest-xdist, confluent-kafka]
   kombu:
     parallelism: 1
@@ -1863,7 +1863,7 @@ suites:
           python: ['3.10', '3.11']
           dependencies: [pytest-randomly, 'mlflow~=2.11.0', 'setuptools<82']
         - name: mlflow
-          python: ['3.12', '3.13']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [pytest-randomly, mlflow, 'setuptools<82']
   molten:
     parallelism: 2
@@ -2142,7 +2142,7 @@ suites:
           python: ['3.9']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.1.22']
         - name: pynamodb
-          python: ['3.10', '3.11', '3.12']
+          python: ['3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pynamodb<6.0', pytest-randomly, pytest-xdist, 'moto==5.2.3']
   pytorch:
     venvs_per_job: 1
@@ -2198,7 +2198,7 @@ suites:
           python: ['3.12']
           dependencies: ['torch~=2.12.0']
         - name: pytorch
-          python: ['3.12']
+          python: ['3.12', '3.13', '3.14']
           dependencies: [torch]
   pyodbc:
     parallelism: 1
@@ -2456,6 +2456,9 @@ suites:
         - name: sanic
           python: ['3.12']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, requests, 'websockets<11.0', 'setuptools<82', 'sanic~=23.12', 'sanic-testing~=23.12.0']
+        - name: sanic
+          python: ['3.13', '3.14']
+          dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, requests, 'websockets<11.0', 'setuptools<82', sanic, sanic-testing]
   snowflake:
     paths:
       - '@bootstrap'
@@ -2803,7 +2806,7 @@ suites:
           python: ['3.9']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', 'yaaredis~=2.0.0']
         - name: yaaredis
-          python: ['3.9', '3.10']
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
           dependencies: ['pytest<8', 'pytest-asyncio==0.21.1', pytest-randomly, 'setuptools<82', yaaredis]
   valkey:
     parallelism: 1

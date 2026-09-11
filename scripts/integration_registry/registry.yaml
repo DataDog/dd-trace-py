@@ -885,7 +885,7 @@ integrations:
   tested_versions_by_dependency:
     torch:
       min: 2.0.1
-      max: 2.12.0
+      max: 2.14.0
 
 - integration_name: ray
   is_external_package: true
@@ -955,7 +955,7 @@ integrations:
   tested_versions_by_dependency:
     sanic:
       min: 20.12.7
-      max: 23.12.2
+      max: 25.12.1
 
 - integration_name: selenium
   is_external_package: true
