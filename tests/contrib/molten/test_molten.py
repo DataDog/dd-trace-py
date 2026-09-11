@@ -499,6 +499,8 @@ class TestMolten(TracerTestCase):
             assert span is not None
             observed["resource"] = span.resource
             observed["http.route"] = span.get_tag(http.ROUTE)
+            observed["http.method"] = span.get_tag(http.METHOD)
+            observed["http.url"] = span.get_tag(http.URL)
             return "ok"
 
         app = molten.App(routes=[molten.Route("/inspect", handler)])
