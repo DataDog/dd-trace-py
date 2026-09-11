@@ -851,6 +851,20 @@
         "default": "false"
       }
     ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "false"
+      }
+    ],
+    "DD_CIVISIBILITY_DYNAMIC_ATR_BUCKETS": [
+      {
+        "implementation": "A",
+        "type": "array",
+        "default": null
+      }
+    ],
     "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED": [
       {
         "implementation": "B",
@@ -2988,13 +3002,6 @@
         "default": "false"
       }
     ],
-    "DD_PROFILING_NATIVE_TESTS": [
-      {
-        "implementation": "A",
-        "type": "boolean",
-        "default": "false"
-      }
-    ],
     "DD_PROFILING_OUTPUT_PPROF": [
       {
         "implementation": "A",
@@ -3876,6 +3883,13 @@
         "implementation": "A",
         "type": "boolean",
         "default": "false"
+      }
+    ],
+    "DD_TRACE_ANYIO_ENABLED": [
+      {
+        "implementation": "A",
+        "type": "boolean",
+        "default": "true"
       }
     ],
     "DD_TRACE_AIOHTTP_CLIENT_ENABLED": [

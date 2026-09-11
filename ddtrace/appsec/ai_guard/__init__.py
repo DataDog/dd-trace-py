@@ -11,7 +11,7 @@ from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.deprecations import deprecate
 
 
-# AIDEV-NOTE: lazy re-export shim. Accessing any public symbol here warns once
+# lazy re-export shim. Accessing any public symbol here warns once
 # (cached back into globals()) and forwards to its new home. Most symbols moved
 # to ddtrace.aiguard; the Strands classes moved to
 # ddtrace.aiguard.integrations.strands (they are deliberately not re-exported

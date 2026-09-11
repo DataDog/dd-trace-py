@@ -1,8 +1,23 @@
+import contextlib
 import gc
+from typing import Iterator
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.runtime.gc_monitor import GCPauseMonitor
 from ddtrace.internal.runtime.gc_monitor import GCPauseSnapshot
+
+
+# Tests that call _on_gc manually while the monitor's gc.callbacks hook is
+# installed must run with automatic GC disabled.
+@contextlib.contextmanager
+def _automatic_gc_disabled() -> Iterator[None]:
+    was_enabled: bool = gc.isenabled()
+    gc.disable()
+    try:
+        yield
+    finally:
+        if was_enabled:
+            gc.enable()
 
 
 def test_callback_installed_only_while_acquired() -> None:
@@ -79,22 +94,23 @@ def test_snapshot_records_real_collection() -> None:
 
 
 def test_release_clears_in_flight_start() -> None:
-    monitor: GCPauseMonitor = GCPauseMonitor()
-    monitor.acquire()
-    monitor._on_gc("start", {"generation": 0})
-    assert monitor._start_ns[0] != 0
-    monitor.release()
-    assert monitor._start_ns == [0, 0, 0]
-
-    monitor.acquire()
-    try:
-        monitor._on_gc("stop", {"generation": 0})
-        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
-    finally:
+    with _automatic_gc_disabled():
+        monitor: GCPauseMonitor = GCPauseMonitor()
+        monitor.acquire()
+        monitor._on_gc("start", {"generation": 0})
+        assert monitor._start_ns[0] != 0
         monitor.release()
+        assert monitor._start_ns == [0, 0, 0]
 
-    assert snap.n_pauses == 0
-    assert snap.total_ns == 0
+        monitor.acquire()
+        try:
+            monitor._on_gc("stop", {"generation": 0})
+            snap: GCPauseSnapshot = monitor.snapshot_and_reset()
+        finally:
+            monitor.release()
+
+        assert snap.n_pauses == 0
+        assert snap.total_ns == 0
 
 
 def test_start_is_ignored_while_unheld() -> None:
@@ -104,22 +120,23 @@ def test_start_is_ignored_while_unheld() -> None:
     so without the refcount check the timestamp survives to pair with a stop after
     the next acquire and reports the whole gap as one pause.
     """
-    monitor: GCPauseMonitor = GCPauseMonitor()
-    monitor.acquire()
-    monitor.release()
-
-    monitor._on_gc("start", {"generation": 0})
-    assert monitor._start_ns == [0, 0, 0]
-
-    monitor.acquire()
-    try:
-        monitor._on_gc("stop", {"generation": 0})
-        snap: GCPauseSnapshot = monitor.snapshot_and_reset()
-    finally:
+    with _automatic_gc_disabled():
+        monitor: GCPauseMonitor = GCPauseMonitor()
+        monitor.acquire()
         monitor.release()
 
-    assert snap.n_pauses == 0
-    assert snap.total_ns == 0
+        monitor._on_gc("start", {"generation": 0})
+        assert monitor._start_ns == [0, 0, 0]
+
+        monitor.acquire()
+        try:
+            monitor._on_gc("stop", {"generation": 0})
+            snap: GCPauseSnapshot = monitor.snapshot_and_reset()
+        finally:
+            monitor.release()
+
+        assert snap.n_pauses == 0
+        assert snap.total_ns == 0
 
 
 def test_reset_drops_window() -> None:
