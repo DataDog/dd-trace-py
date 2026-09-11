@@ -1,0 +1,22 @@
+---
+suites:
+  standalone:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@settings'
+      - '@ai_guard'
+      - '@appsec'
+      - '@llmobs'
+      - tests/standalone/*
+      - tests/aiguard/utils.py
+    retry: 2
+    venvs_per_job: 1
+    matrix:
+      command: pytest {cmdargs} tests/standalone/
+      env:
+        DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB: 'true'
+      variants:
+        - name: standalone
+          dependencies: [requests]

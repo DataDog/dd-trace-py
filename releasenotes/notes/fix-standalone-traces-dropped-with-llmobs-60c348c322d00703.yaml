@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where enabling LLM Observability together with
+    ``DD_APM_TRACING_ENABLED=false`` discarded every trace, so AI Guard, App and API
+    Protection, Code Security and Software Composition Analysis reported no spans while
+    running in standalone mode. These traces are now sent, and APM billing stays opted out.
