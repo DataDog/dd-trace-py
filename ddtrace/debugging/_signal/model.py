@@ -20,13 +20,11 @@ from ddtrace.debugging._expressions import DDExpressionEvaluationError
 from ddtrace.debugging._probe.model import Probe
 from ddtrace.debugging._probe.model import ProbeConditionMixin
 from ddtrace.debugging._probe.model import ProbeEvalTiming
-from ddtrace.debugging._probe.model import RateLimitMixin
 from ddtrace.debugging._probe.model import TimingMixin
 from ddtrace.debugging._safety import get_args
 from ddtrace.debugging._session import Session
 from ddtrace.internal.compat import ExcInfoType
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.rate_limiter import BudgetRateLimiterWithJitter as RateLimiter
 from ddtrace.internal.rate_limiter import RateLimitExceeded
 from ddtrace.internal.settings.dynamic_instrumentation import config as di_config
 from ddtrace.internal.utils.time import Time
@@ -153,19 +151,6 @@ class Signal(abc.ABC):
         self.state = SignalState.SKIP_COND
         return False
 
-    def _rate_limit_exceeded(self) -> bool:
-        """Evaluate the probe rate limiter."""
-        probe = self.probe
-        if not isinstance(probe, RateLimitMixin):
-            # We don't have a rate limiter, so no rate was exceeded.
-            return False
-
-        exceeded = self.session is None and probe.limiter.limit() is RateLimitExceeded
-        if exceeded:
-            self.state = SignalState.SKIP_RATE_PROBE
-
-        return exceeded
-
     def _session_check(self) -> bool:
         # Check that we emit signals from probes with a session ID only if the
         # session is active. If the probe has no session ID, or the session ID
@@ -218,9 +203,6 @@ class Signal(abc.ABC):
         if not self._eval_condition(scope):
             return
 
-        if self._rate_limit_exceeded():
-            return
-
         if self._budget_exceeded():
             return
 
@@ -250,9 +232,6 @@ class Signal(abc.ABC):
             if not self._eval_condition(scope):
                 return
 
-            if self._rate_limit_exceeded():
-                return
-
             if self._budget_exceeded():
                 return
 
@@ -260,7 +239,7 @@ class Signal(abc.ABC):
 
         self.state = SignalState.DONE
 
-    def do_line(self, global_limiter: Optional[RateLimiter] = None) -> None:
+    def do_line(self) -> None:
         if not self._session_check():
             return
 
@@ -268,13 +247,6 @@ class Signal(abc.ABC):
         scope = ChainMap(frame.f_locals, frame.f_globals)
 
         if not self._eval_condition(scope):
-            return
-
-        if global_limiter is not None and global_limiter.limit() is RateLimitExceeded:
-            self.state = SignalState.SKIP_RATE_GLOBAL
-            return
-
-        if self._rate_limit_exceeded():
             return
 
         if self._budget_exceeded():
