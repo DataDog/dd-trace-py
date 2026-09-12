@@ -678,7 +678,7 @@ def test_ambiguous_failure_does_not_replay_current_batch_but_switches_future(err
 
 
 @pytest.mark.parametrize("status", [403, 429, 500, 503])
-def test_overload_and_server_errors_do_not_trigger_direct_fallback(status):
+def test_non_replayable_http_failure_switches_only_future_batches_to_direct(status):
     selector, _ = _selector(endpoints=("/evp_proxy/v2/",))
     route = selector.select()
     assert route is not None
@@ -688,4 +688,18 @@ def test_overload_and_server_errors_do_not_trigger_direct_fallback(status):
 
     assert response.status == status
     assert calls == [route]
-    assert selector.select() is route
+    assert selector.select() is route.fallback
+
+
+@pytest.mark.parametrize("status", [403, 429, 500, 503])
+def test_non_replayable_http_failure_without_direct_credentials_enters_cooldown(status):
+    selector, _ = _selector(endpoints=("/evp_proxy/v2/",), api_key=None)
+    route = selector.select()
+    assert route is not None
+    calls = []
+
+    response = selector.send(route, lambda active_route: calls.append(active_route) or _Response(status))
+
+    assert response.status == status
+    assert calls == [route]
+    assert selector.select() is None

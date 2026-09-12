@@ -254,13 +254,17 @@ class TestExposureWriter:
             timeout=2.0,
         )
 
-    def test_agentless_server_error_stays_local(self, sample_exposure_event):
+    def test_agentless_server_error_switches_only_future_batches_direct(self, sample_exposure_event):
         mock_get_connection = mock.Mock()
         local_conn = mock.Mock()
         local_resp = mock.Mock(status=503)
         local_resp.read.return_value = b"unavailable"
         local_conn.getresponse.return_value = local_resp
-        mock_get_connection.return_value = local_conn
+        direct_conn = mock.Mock()
+        direct_resp = mock.Mock(status=202)
+        direct_resp.read.return_value = b"accepted"
+        direct_conn.getresponse.return_value = direct_resp
+        mock_get_connection.side_effect = [local_conn, direct_conn]
         selector = _route_selector(source=AGENTLESS, api_key="secret")
         writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=mock_get_connection)
         writer.enqueue(sample_exposure_event)
@@ -268,4 +272,9 @@ class TestExposureWriter:
         writer.periodic()
 
         mock_get_connection.assert_called_once_with("http://agent:8126", timeout=2.0)
-        assert selector.select().direct is False
+        writer.enqueue(sample_exposure_event)
+        writer.periodic()
+        assert mock_get_connection.call_args_list[-1] == mock.call(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )

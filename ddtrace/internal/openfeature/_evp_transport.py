@@ -286,11 +286,20 @@ class FeatureFlagEVPRouteSelector:
             raise
 
         status = getattr(response, "status", None)
-        if route.agentless_local and status in DIRECT_RETRY_STATUSES:
-            if route.fallback is not None:
-                self._activate_direct(route, route.fallback)
-                return send_once(route.fallback)
-            self._mark_unavailable(route)
+        if route.agentless_local:
+            if status in DIRECT_RETRY_STATUSES:
+                if route.fallback is not None:
+                    self._activate_direct(route, route.fallback)
+                    return send_once(route.fallback)
+                self._mark_unavailable(route)
+            elif status in (403, 429) or (status is not None and 500 <= status < 600):
+                # The local relay may already have accepted this batch, so do not replay
+                # it. Route only later batch snapshots directly, or enter the bounded
+                # unavailable state when direct delivery is not configured.
+                if route.fallback is not None:
+                    self._activate_direct(route, route.fallback)
+                else:
+                    self._mark_unavailable(route)
         return response
 
     def _reset_after_fork(self) -> None:
