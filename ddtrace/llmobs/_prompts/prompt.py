@@ -39,7 +39,7 @@ class ManagedPrompt:
     template: Union[str, list[Message]]
     _uuid: Optional[str] = None
     _version_uuid: Optional[str] = None
-    _config: dict[str, Any] = field(default_factory=dict, repr=False)
+    _config: dict[str, Any] = field(default_factory=dict, repr=False, hash=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self._config, dict):

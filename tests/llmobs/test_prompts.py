@@ -251,6 +251,13 @@ class TestPrompts:
             assert prompt._serialize()["label"] == "production"
             assert prompt._with_source("cache").source == "cache"
 
+    def test_text_prompt_remains_hashable(self):
+        prompt = ManagedPrompt(id="greeting", version="v1", label=None, source="registry", template="Hello!")
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DDTraceDeprecationWarning)
+            assert prompt in {prompt}
+
     def test_string_fallback_on_error(self):
         """String fallback used when API returns 500."""
         with mock_api(500, "Internal Server Error"):

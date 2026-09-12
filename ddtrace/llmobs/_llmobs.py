@@ -188,6 +188,7 @@ from ddtrace.llmobs.types import ChatMessage
 from ddtrace.llmobs.types import DeletedPromptResponse
 from ddtrace.llmobs.types import ExportedLLMObsSpan
 from ddtrace.llmobs.types import FeedbackSubmitter
+from ddtrace.llmobs.types import JSONType as PromptJSONType
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
 from ddtrace.llmobs.types import PromptAuthError
@@ -2137,28 +2138,23 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
-        config: dict[str, JSONType] = _UNSET,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptResponse:
         """Create a new prompt in the registry.
 
-        Args:
-            prompt_id: Unique identifier for the prompt.
-            template: List of chat messages defining the prompt template.
-            title: Optional human-readable title.
-            description: Optional description of the prompt.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy the first version to.
-            config: Optional application-consumed JSON configuration stored with this version.
-
-        Returns:
-            The created prompt.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request (bad template, missing fields).
-            PromptConflictError: A prompt with this prompt_id already exists.
-            PromptServerError: Server-side error.
+        :param prompt_id: Unique identifier for the prompt.
+        :param template: List of chat messages defining the prompt template.
+        :param title: Optional human-readable title.
+        :param description: Optional description of the prompt.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy the first version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request (bad template, missing fields).
+        :raises PromptConflictError: A prompt with this prompt_id already exists.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt(
@@ -2182,27 +2178,22 @@ class LLMObs(Service):
         user_version: str = "",
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
-        config: dict[str, JSONType] = _UNSET,
+        config: dict[str, PromptJSONType] = _UNSET,
     ) -> PromptVersionResponse:
         """Create a new version of an existing prompt.
 
-        Args:
-            prompt_id: The prompt identifier.
-            template: List of chat messages defining the new version's template.
-            description: Optional description of this version.
-            user_version: Optional user-defined version string.
-            labels: Optional list containing ``production`` and/or ``development``.
-            env_ids: Optional feature-flag environment IDs to deploy this version to.
-            config: Optional application-consumed JSON configuration stored with this version.
-
-        Returns:
-            The created prompt version.
-
-        Raises:
-            PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
-            PromptValidationError: Invalid request.
-            PromptNotFoundError: Prompt does not exist.
-            PromptServerError: Server-side error.
+        :param prompt_id: The prompt identifier.
+        :param template: List of chat messages defining the new version's template.
+        :param description: Optional description of this version.
+        :param user_version: Optional user-defined version string.
+        :param labels: Optional list containing ``production`` and/or ``development``.
+        :param env_ids: Optional feature-flag environment IDs to deploy this version to.
+        :param config: Optional application-consumed JSON configuration stored with this version.
+        :returns: The created prompt version.
+        :raises PromptAuthError: Authentication failed (check DD_API_KEY and DD_APP_KEY).
+        :raises PromptValidationError: Invalid request.
+        :raises PromptNotFoundError: Prompt does not exist.
+        :raises PromptServerError: Server-side error.
         """
         prompt_manager = cls._ensure_prompt_manager()
         return prompt_manager.create_prompt_version(
