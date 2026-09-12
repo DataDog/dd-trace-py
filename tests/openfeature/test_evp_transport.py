@@ -28,6 +28,13 @@ class _Response:
         self.status = status
 
 
+def _agent_info(endpoints):
+    return {
+        "endpoints": endpoints,
+        "evp_proxy_allowed_headers": tuple(EVP_ORIGIN_HEADERS),
+    }
+
+
 def _selector(
     source: str = AGENTLESS,
     endpoints: tuple[str, ...] = (),
@@ -41,7 +48,7 @@ def _selector(
 
     def info_provider(url: str):
         calls.append(url)
-        return {"endpoints": endpoints}
+        return _agent_info(endpoints)
 
     selector = FeatureFlagEVPRouteSelector(
         configuration_source=source,
@@ -115,6 +122,49 @@ def test_discovery_requires_an_exact_advertised_proxy_path():
 
     assert route is not None
     assert route.direct is True
+
+
+@pytest.mark.parametrize(
+    "agent_info",
+    [
+        {"endpoints": ("/evp_proxy/v4/",)},
+        {"endpoints": ("/evp_proxy/v4/",), "evp_proxy_allowed_headers": None},
+        {"endpoints": ("/evp_proxy/v4/",), "evp_proxy_allowed_headers": ("DD-EVP-ORIGIN",)},
+        {"endpoints": ("/evp_proxy/v4/",), "evp_proxy_allowed_headers": ("DD-EVP-ORIGIN-VERSION",)},
+    ],
+)
+def test_agentless_uses_direct_when_local_proxy_cannot_forward_identity_headers(agent_info):
+    selector = FeatureFlagEVPRouteSelector(
+        configuration_source=AGENTLESS,
+        agent_url="http://agent:8126",
+        api_key="secret",
+        site="datadoghq.com",
+        info_provider=lambda _: agent_info,
+    )
+
+    route = selector.select()
+
+    assert route is not None
+    assert route.direct is True
+
+
+def test_local_proxy_header_capabilities_are_case_insensitive():
+    selector = FeatureFlagEVPRouteSelector(
+        configuration_source=AGENTLESS,
+        agent_url="http://agent:8126",
+        api_key="secret",
+        site="datadoghq.com",
+        info_provider=lambda _: {
+            "endpoints": ("/evp_proxy/v4/",),
+            "evp_proxy_allowed_headers": ("dd-evp-origin-version", "dd-evp-origin"),
+        },
+    )
+
+    route = selector.select()
+
+    assert route is not None
+    assert route.direct is False
+    assert route.base_path == "/evp_proxy/v4"
 
 
 def test_agentless_direct_route_accepts_custom_hostname_domain():
@@ -226,7 +276,7 @@ def test_unavailable_route_recovers_after_cooldown():
 
     def info_provider(url):
         info_calls.append(url)
-        return {"endpoints": tuple(endpoints)}
+        return _agent_info(tuple(endpoints))
 
     selector = FeatureFlagEVPRouteSelector(
         configuration_source=AGENTLESS,
@@ -262,7 +312,7 @@ def test_failed_local_route_without_direct_credentials_recovers_after_cooldown()
         agent_url="http://agent:8126",
         api_key=None,
         site="datadoghq.com",
-        info_provider=lambda _: {"endpoints": tuple(endpoints)},
+        info_provider=lambda _: _agent_info(tuple(endpoints)),
         clock=lambda: now[0],
         recovery_interval=30.0,
     )
@@ -292,7 +342,7 @@ def test_definitive_local_failure_without_direct_credentials_enters_cooldown():
         agent_url="http://agent:8126",
         api_key=None,
         site="datadoghq.com",
-        info_provider=lambda _: {"endpoints": ("/evp_proxy/v2/",)},
+        info_provider=lambda _: _agent_info(("/evp_proxy/v2/",)),
         clock=lambda: now[0],
         recovery_interval=30.0,
     )
@@ -316,7 +366,7 @@ def test_rejected_local_route_without_direct_credentials_recovers_after_cooldown
         agent_url="http://agent:8126",
         api_key=None,
         site="datadoghq.com",
-        info_provider=lambda _: {"endpoints": tuple(endpoints)},
+        info_provider=lambda _: _agent_info(tuple(endpoints)),
         clock=lambda: now[0],
         recovery_interval=30.0,
     )
@@ -340,7 +390,7 @@ def test_direct_route_is_sticky_and_never_reprobes_local():
 
     def info_provider(url):
         info_calls.append(url)
-        return {"endpoints": tuple(endpoints)}
+        return _agent_info(tuple(endpoints))
 
     selector = FeatureFlagEVPRouteSelector(
         configuration_source=AGENTLESS,
@@ -368,7 +418,7 @@ def test_concurrent_first_selection_serializes_one_discovery():
         info_calls.append(url)
         entered.set()
         assert release.wait(timeout=2.0)
-        return {"endpoints": ("/evp_proxy/v4/",)}
+        return _agent_info(("/evp_proxy/v4/",))
 
     selector = FeatureFlagEVPRouteSelector(
         configuration_source=AGENTLESS,

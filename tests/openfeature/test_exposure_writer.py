@@ -7,6 +7,7 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
 from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature.writer import ExposureEvent
 from ddtrace.internal.openfeature.writer import ExposureWriter
@@ -22,7 +23,10 @@ def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key
         agent_url="http://agent:8126",
         api_key=api_key,
         site="datadoghq.com",
-        info_provider=lambda _: {"endpoints": endpoints},
+        info_provider=lambda _: {
+            "endpoints": endpoints,
+            "evp_proxy_allowed_headers": tuple(EVP_ORIGIN_HEADERS),
+        },
     )
 
 

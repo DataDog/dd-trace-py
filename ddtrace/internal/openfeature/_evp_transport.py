@@ -47,6 +47,7 @@ EVP_ORIGIN_HEADERS = {
     "DD-EVP-ORIGIN": "dd-trace-py",
     "DD-EVP-ORIGIN-VERSION": __version__,
 }
+REQUIRED_EVP_PROXY_HEADERS = frozenset(header.lower() for header in EVP_ORIGIN_HEADERS)
 WINDOWS_WSAECONNREFUSED = 10061
 
 _T = TypeVar("_T")
@@ -313,6 +314,13 @@ class FeatureFlagEVPRouteSelector:
         raw_endpoints = agent_info.get("endpoints", ()) if agent_info else ()
         endpoints = raw_endpoints if isinstance(raw_endpoints, (list, tuple)) else ()
         advertised = {str(endpoint).rstrip("/") for endpoint in endpoints}
+        raw_allowed_headers = agent_info.get("evp_proxy_allowed_headers", ()) if agent_info else ()
+        allowed_headers = raw_allowed_headers if isinstance(raw_allowed_headers, (list, tuple)) else ()
+        forwarded_headers = {str(header).strip().lower() for header in allowed_headers}
+        # AIDEV-NOTE: Older relays omit this capability. Agentless mode must use direct intake
+        # rather than select a route that can silently strip the logical SDK identity.
+        if not REQUIRED_EVP_PROXY_HEADERS.issubset(forwarded_headers):
+            return None
         base_path = None
         if EVP_PROXY_AGENT_BASE_PATH_V4 in advertised:
             base_path = EVP_PROXY_AGENT_BASE_PATH_V4
