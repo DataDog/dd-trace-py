@@ -1,13 +1,17 @@
 import json
 import re
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Mapping
 from typing import Optional
 from typing import Union
-from typing import cast
 
 from ddtrace.llmobs.types import ChatTemplateItem
 from ddtrace.llmobs.types import Message
+
+
+if TYPE_CHECKING:
+    from typing_extensions import TypeGuard
 
 
 _VARIABLE_PATTERN = re.compile(r"\{\{?\s*(\w+)\s*\}\}?")
@@ -45,6 +49,21 @@ def cache_key(prompt_id: str, label: Optional[str]) -> str:
     return f"{prompt_id}:{label or ''}"
 
 
+def _is_message(value: object) -> "TypeGuard[Message]":
+    if not isinstance(value, dict) or not isinstance(value.get("role"), str):
+        return False
+    if value.get("type") == "placeholder":
+        return False
+    content = value.get("content")
+    if content is not None:
+        return isinstance(content, str)
+    for field in ("tool_calls", "tool_results"):
+        items = value.get(field)
+        if isinstance(items, list) and items:
+            return True
+    return False
+
+
 def render_chat(messages: list[ChatTemplateItem], variables: dict[str, Any]) -> list[Message]:
     """Render authored messages and expand named runtime message lists."""
     rendered: list[Message] = []
@@ -59,27 +78,18 @@ def render_chat(messages: list[ChatTemplateItem], variables: dict[str, Any]) -> 
             if not isinstance(value, list):
                 raise ValueError(f"Message placeholder '{name}' must be a list of messages")
             for message in value:
-                content = message.get("content") if isinstance(message, dict) else None
-                if (
-                    not isinstance(message, dict)
-                    or not isinstance(message.get("role"), str)
-                    or message.get("type") == "placeholder"
-                    or ("content" in message and content is not None and not isinstance(content, str))
-                    or (
-                        not isinstance(content, str)
-                        and not any(
-                            isinstance(message.get(field), list) and message[field]
-                            for field in ("tool_calls", "tool_results")
-                        )
-                    )
-                ):
+                if not _is_message(message):
                     raise ValueError(
                         f"Message placeholder '{name}' must contain messages with "
                         "a string role and text or tool content"
                     )
-                rendered.append(cast(Message, dict(message)))
+                rendered.append(message.copy())
             continue
-        role = cast(str, msg.get("role") or "")
-        content = cast(str, msg.get("content") or "")
+        role = msg.get("role")
+        content = msg.get("content")
+        if not isinstance(role, str):
+            role = ""
+        if not isinstance(content, str):
+            content = ""
         rendered.append({"role": role, "content": safe_substitute(content, variables)})
     return rendered

@@ -609,7 +609,7 @@ class PromptManager:
         labels: Optional[list[str]] = None,
         env_ids: Optional[list[str]] = None,
     ) -> PromptResponse:
-        body: dict[str, Any] = {"prompt_id": prompt_id, "template": template}
+        body: dict[str, Any] = {"prompt_id": prompt_id, "template": list(template)}
         if title:
             body["title"] = title
         if description:
@@ -635,7 +635,7 @@ class PromptManager:
         env_ids: Optional[list[str]] = None,
     ) -> PromptVersionResponse:
         escaped_id = quote(prompt_id, safe="")
-        body: dict[str, Any] = {"template": template}
+        body: dict[str, Any] = {"template": list(template)}
         if description:
             body["description"] = description
         if user_version:

@@ -1,3 +1,4 @@
+from collections import UserList
 from contextlib import contextmanager
 import json
 import os
@@ -883,6 +884,16 @@ class TestPromptManagement:
             call()
 
         assert json.loads(conn.requests[-1]["body"])["env_ids"] == ["env-1"]
+
+    @pytest.mark.parametrize("method", ["create_prompt", "create_prompt_version"])
+    def test_write_prompt_accepts_sequence(self, method):
+        manager = _make_manager()
+        conn, mock_patch = _mock_write_api(200, {})
+        template = UserList([{"role": "user", "content": "hi"}])
+        with mock_patch:
+            getattr(manager, method)("p1", template)
+
+        assert json.loads(conn.requests[-1]["body"])["template"] == list(template)
 
     @pytest.mark.parametrize(
         "status,exc_type",
