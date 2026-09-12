@@ -7,16 +7,33 @@ from unittest import mock
 
 import pytest
 
+from ddtrace.internal.openfeature._evp_transport import EVP_ORIGIN_HEADERS
+from ddtrace.internal.openfeature._evp_transport import FeatureFlagEVPRouteSelector
 from ddtrace.internal.openfeature.writer import ExposureEvent
 from ddtrace.internal.openfeature.writer import ExposureWriter
 from ddtrace.internal.service import ServiceStatus
+from ddtrace.internal.settings.openfeature import AGENTLESS
+from ddtrace.internal.settings.openfeature import REMOTE_CONFIG
 from tests.utils import override_global_config
+
+
+def _route_selector(source=REMOTE_CONFIG, endpoints=("/evp_proxy/v2/",), api_key=None):
+    return FeatureFlagEVPRouteSelector(
+        configuration_source=source,
+        agent_url="http://agent:8126",
+        api_key=api_key,
+        site="datadoghq.com",
+        info_provider=lambda _: {
+            "endpoints": endpoints,
+            "evp_proxy_allowed_headers": tuple(EVP_ORIGIN_HEADERS),
+        },
+    )
 
 
 @pytest.fixture
 def writer():
     """Create an ExposureWriter instance for testing."""
-    w = ExposureWriter(interval=0.1, timeout=2.0)
+    w = ExposureWriter(interval=0.1, timeout=2.0, route_selector=_route_selector())
     w.start()
     yield w
     w.stop()
@@ -39,7 +56,7 @@ class TestExposureWriter:
 
     def test_writer_initialization(self):
         """Test writer initializes with correct configuration."""
-        writer = ExposureWriter(interval=1.0, timeout=2.0)
+        writer = ExposureWriter(interval=1.0, timeout=2.0, route_selector=_route_selector())
 
         assert writer._timeout == 2.0
         assert writer._endpoint == "/evp_proxy/v2/api/v2/exposures"
@@ -101,7 +118,11 @@ class TestExposureWriter:
         call_args = mock_conn.request.call_args
         assert call_args[0][0] == "POST"
         assert "/evp_proxy/v2/api/v2/exposures" in call_args[0][1]
-        assert call_args[0][3] == writer._headers
+        assert call_args[0][3]["Content-Type"] == "application/json"
+        assert call_args[0][3]["X-Datadog-EVP-Subdomain"] == "event-platform-intake"
+        assert call_args[0][3]["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert call_args[0][3]["DD-EVP-ORIGIN-VERSION"]
+        assert "DD-API-KEY" not in call_args[0][3]
 
     def test_periodic_flushes_buffer(self, writer, sample_exposure_event):
         """Test that periodic() flushes the buffer."""
@@ -137,8 +158,123 @@ class TestExposureWriter:
             writer = ExposureWriter()
             assert writer._interval == 5.0
 
-    def test_writer_retry_mechanism(self, writer, sample_exposure_event):
-        """Test that _send_payload_with_retry is set up correctly."""
-        # Verify retry wrapper exists
-        assert hasattr(writer, "_send_payload_with_retry")
-        assert callable(writer._send_payload_with_retry)
+    def test_transport_failure_is_attempted_once(self, sample_exposure_event):
+        mock_get_connection = mock.Mock()
+        mock_conn = mock.Mock()
+        mock_conn.getresponse.side_effect = TimeoutError("ambiguous")
+        mock_get_connection.return_value = mock_conn
+        writer = ExposureWriter(
+            interval=0.001,
+            route_selector=_route_selector(),
+            connection_factory=mock_get_connection,
+        )
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        mock_get_connection.assert_called_once_with("http://agent:8126", timeout=2.0)
+        mock_conn.request.assert_called_once()
+
+    def test_agentless_direct_route_has_authentication_and_no_local_header(self, sample_exposure_event):
+        mock_get_connection = mock.Mock()
+        mock_conn = mock.Mock()
+        mock_resp = mock.Mock(status=202)
+        mock_resp.read.return_value = b"OK"
+        mock_conn.getresponse.return_value = mock_resp
+        mock_get_connection.return_value = mock_conn
+        writer = ExposureWriter(
+            interval=0.1,
+            route_selector=_route_selector(source=AGENTLESS, endpoints=(), api_key="secret"),
+            connection_factory=mock_get_connection,
+        )
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        mock_get_connection.assert_called_once_with(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )
+        _, endpoint, _, headers = mock_conn.request.call_args[0]
+        assert endpoint == "/api/v2/exposures"
+        assert headers["DD-API-KEY"] == "secret"
+        assert headers["DD-EVP-ORIGIN"] == "dd-trace-py"
+        assert headers["DD-EVP-ORIGIN-VERSION"]
+        assert "X-Datadog-EVP-Subdomain" not in headers
+
+    def test_agentless_definitive_local_rejection_replays_direct(self, sample_exposure_event):
+        mock_get_connection = mock.Mock()
+        local_conn = mock.Mock()
+        local_resp = mock.Mock(status=404)
+        local_resp.read.return_value = b"not found"
+        local_conn.getresponse.return_value = local_resp
+        direct_conn = mock.Mock()
+        direct_resp = mock.Mock(status=202)
+        direct_resp.read.return_value = b"OK"
+        direct_conn.getresponse.return_value = direct_resp
+        mock_get_connection.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=mock_get_connection)
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        assert mock_get_connection.call_args_list == [
+            mock.call("http://agent:8126", timeout=2.0),
+            mock.call("https://event-platform-intake.datadoghq.com", timeout=2.0),
+        ]
+        assert local_conn.request.call_args[0][1] == "/evp_proxy/v2/api/v2/exposures"
+        assert direct_conn.request.call_args[0][1] == "/api/v2/exposures"
+        assert selector.select().direct is True
+
+    def test_agentless_ambiguous_local_failure_never_replays_current_batch_direct(self, sample_exposure_event):
+        mock_get_connection = mock.Mock()
+        local_conn = mock.Mock()
+        local_conn.getresponse.side_effect = BrokenPipeError("ambiguous")
+        direct_conn = mock.Mock()
+        direct_resp = mock.Mock(status=202)
+        direct_resp.read.return_value = b"OK"
+        direct_conn.getresponse.return_value = direct_resp
+        mock_get_connection.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = ExposureWriter(
+            interval=0.001,
+            route_selector=selector,
+            connection_factory=mock_get_connection,
+        )
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        assert mock_get_connection.call_args_list == [mock.call("http://agent:8126", timeout=2.0)]
+        writer.enqueue(sample_exposure_event)
+        writer.periodic()
+        assert mock_get_connection.call_args_list[-1] == mock.call(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )
+
+    def test_agentless_server_error_switches_only_future_batches_direct(self, sample_exposure_event):
+        mock_get_connection = mock.Mock()
+        local_conn = mock.Mock()
+        local_resp = mock.Mock(status=503)
+        local_resp.read.return_value = b"unavailable"
+        local_conn.getresponse.return_value = local_resp
+        direct_conn = mock.Mock()
+        direct_resp = mock.Mock(status=202)
+        direct_resp.read.return_value = b"accepted"
+        direct_conn.getresponse.return_value = direct_resp
+        mock_get_connection.side_effect = [local_conn, direct_conn]
+        selector = _route_selector(source=AGENTLESS, api_key="secret")
+        writer = ExposureWriter(interval=0.1, route_selector=selector, connection_factory=mock_get_connection)
+        writer.enqueue(sample_exposure_event)
+
+        writer.periodic()
+
+        mock_get_connection.assert_called_once_with("http://agent:8126", timeout=2.0)
+        writer.enqueue(sample_exposure_event)
+        writer.periodic()
+        assert mock_get_connection.call_args_list[-1] == mock.call(
+            "https://event-platform-intake.datadoghq.com",
+            timeout=2.0,
+        )
