@@ -10,11 +10,10 @@ from starlette.middleware import Middleware
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
-from ddtrace.contrib.internal.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
@@ -207,7 +206,6 @@ def patch():
     starlette._datadog_patch = True
 
     _w("starlette.applications", "Starlette.__init__", traced_init)
-    Pin().onto(starlette)
 
     core.on("asgi.collect_routes", _collect_routes_from_app)
 
@@ -363,23 +361,28 @@ def traced_handler(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-@with_traced_module
-def _trace_background_tasks(module, pin, wrapped, instance, args, kwargs):
-    task = get_argument_value(args, kwargs, 0, "func")
-    current_span = tracer.current_span()
-    module_name = getattr(module, "__name__", "<unknown>")
-    task_name = getattr(task, "__name__", "<unknown>")
+def _trace_background_tasks(module):
+    def traced_background_tasks(wrapped, instance, args, kwargs):
+        if not is_tracing_enabled():
+            return wrapped(*args, **kwargs)
 
-    async def traced_task(*args, **kwargs):
-        with tracer.start_span(
-            f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
-        ) as span:
-            if current_span:
-                span.link_span(current_span.context)
-            if inspect.iscoroutinefunction(task):
-                await task(*args, **kwargs)
-            else:
-                await run_in_threadpool(task, *args, **kwargs)
+        task = get_argument_value(args, kwargs, 0, "func")
+        current_span = tracer.current_span()
+        module_name = getattr(module, "__name__", "<unknown>")
+        task_name = getattr(task, "__name__", "<unknown>")
 
-    args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
-    wrapped(*args, **kwargs)
+        async def traced_task(*args, **kwargs):
+            with tracer.start_span(
+                f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
+            ) as span:
+                if current_span:
+                    span.link_span(current_span.context)
+                if inspect.iscoroutinefunction(task):
+                    await task(*args, **kwargs)
+                else:
+                    await run_in_threadpool(task, *args, **kwargs)
+
+        args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
+        return wrapped(*args, **kwargs)
+
+    return traced_background_tasks
