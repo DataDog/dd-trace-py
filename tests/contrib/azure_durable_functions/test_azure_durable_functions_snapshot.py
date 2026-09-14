@@ -20,14 +20,17 @@ from ddtrace.contrib.internal.azure_durable_functions.patch import patched_get_c
 from ddtrace.contrib.internal.azure_durable_functions.patch import patched_legacy_post_async_request
 from ddtrace.contrib.internal.azure_functions import shared as azure_functions_shared
 from ddtrace.contrib.internal.azure_functions._worker import _run_sync_with_context
+from ddtrace.contrib.internal.azure_functions.shared import _context_from_carrier
 from ddtrace.contrib.internal.azure_functions.shared import patched_get_functions
 from ddtrace.contrib.internal.azure_functions.shared import wrap_durable_trigger
 from ddtrace.contrib.internal.azure_functions.shared import wrap_orchestration_trigger
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from tests.utils import TracerSpanContainer
+from tests.utils import override_global_config
 from tests.utils import scoped_tracer
 from tests.webclient import Client
 
@@ -261,6 +264,86 @@ def test_durable_trigger_preserves_propagated_keep_when_host_clears_sampled_flag
         assert span.context.sampling_priority == 2
 
 
+@pytest.mark.parametrize(
+    "traceparent,tracestate,expected_priority",
+    [
+        ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01", "dd=s:1", 1),
+        ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00", "dd=s:-1", -1),
+        ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00", "other=vendor", 0),
+    ],
+)
+def test_durable_context_preserves_non_conflicting_sampling_decisions(traceparent, tracestate, expected_priority):
+    context = _context_from_carrier({"traceparent": traceparent, "tracestate": tracestate})
+
+    assert context is not None
+    assert context.sampling_priority == expected_priority
+
+
+def test_durable_context_preserves_sampling_decision_maker_when_restoring_keep():
+    context = _context_from_carrier(
+        {
+            "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00",
+            "tracestate": "dd=s:2;t.dm:-3",
+        }
+    )
+
+    assert context is not None
+    assert context.sampling_priority == 2
+    assert context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == "-3"
+
+
+def test_durable_context_does_not_reparse_sampled_traceparent(monkeypatch):
+    calls = 0
+    get_traceparent_values = azure_functions_shared._TraceContext._get_traceparent_values
+
+    def count_traceparent_values(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return get_traceparent_values(*args, **kwargs)
+
+    monkeypatch.setattr(azure_functions_shared._TraceContext, "_get_traceparent_values", count_traceparent_values)
+
+    context = _context_from_carrier(
+        {
+            "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+            "tracestate": "dd=s:1",
+        }
+    )
+
+    assert context is not None
+    assert calls == 1
+
+
+def test_durable_context_honors_ignore_extract_behavior():
+    with override_global_config(dict(_propagation_behavior_extract="ignore")):
+        context = _context_from_carrier({"traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"})
+
+    assert context is None
+
+
+def test_durable_context_honors_restart_extract_behavior():
+    with override_global_config(dict(_propagation_behavior_extract="restart")):
+        context = _context_from_carrier(
+            {
+                "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+                "tracestate": "dd=s:2",
+            }
+        )
+
+    assert context is not None
+    assert context.trace_id is None
+    assert context.span_id is None
+    assert context.sampling_priority is None
+    assert len(context._span_links) == 1
+    link = context._span_links[0]
+    assert link.trace_id == int("4bf92f3577b34da6a3ce929d0e0e4736", 16)
+    assert link.span_id == int("00f067aa0ba902b7", 16)
+    assert link.attributes == {
+        "reason": "propagation_behavior_extract",
+        "context_headers": "tracecontext",
+    }
+
+
 def _orchestration_context(has_previous_activation: bool = False, parent_carrier=None) -> OrchestrationContext:
     history = [
         {
@@ -340,6 +423,24 @@ def test_orchestration_trigger_wrapper():
         assert span.get_tag(SPAN_KIND) == SpanKind.SERVER
 
 
+def test_orchestration_trigger_wrapper_traces_initial_activation_error():
+    def orchestrator(_):
+        if False:
+            yield None
+        raise RuntimeError("initial orchestration failed")
+
+    handler = Orchestrator.create(orchestrator)
+    wrapped = wrap_orchestration_trigger(handler, "sample_orchestrator", "context")
+
+    with scoped_tracer() as tracer:
+        with pytest.raises(Exception, match="initial orchestration failed"):
+            wrapped(_orchestration_context())
+
+        span = TracerSpanContainer(tracer).pop()[0]
+        assert span.resource == "Orchestration sample_orchestrator"
+        assert span.error == 1
+
+
 def test_orchestration_trigger_parses_history_once(monkeypatch):
     calls = 0
     get_orchestration_data = azure_functions_shared._get_orchestration_data
@@ -398,7 +499,8 @@ def test_orchestration_trigger_is_wrapped_during_function_discovery():
             return {}
 
     class Function:
-        _func = handler
+        def __init__(self):
+            self._func = handler
 
         def get_trigger(self):
             return Trigger()
@@ -414,6 +516,50 @@ def test_orchestration_trigger_is_wrapped_during_function_discovery():
 
     assert function._func is not handler
     assert function._func.__wrapped__.__code__ is handler.__code__
+
+
+def test_orchestration_trigger_discovery_is_idempotent():
+    def orchestrator(_):
+        return "ok"
+
+    handler = Orchestrator.create(orchestrator)
+
+    class Trigger:
+        name = "context"
+
+        def get_binding_name(self):
+            return "orchestrationTrigger"
+
+        def get_dict_repr(self):
+            return {}
+
+    class Function:
+        def __init__(self):
+            self._func = handler
+
+        def get_trigger(self):
+            return Trigger()
+
+        def get_function_name(self):
+            return "sample_orchestrator"
+
+        def get_user_function(self):
+            return self._func
+
+    function = Function()
+    patched_get_functions(lambda: [function], None, (), {})
+    first_wrapper = function._func
+    patched_get_functions(lambda: [function], None, (), {})
+
+    assert function._func is first_wrapper
+    with scoped_tracer() as tracer:
+        result = function._func(_orchestration_context())
+
+        assert json.loads(result)["output"] == "ok"
+        orchestration_spans = [
+            span for span in TracerSpanContainer(tracer).pop() if span.resource == "Orchestration sample_orchestrator"
+        ]
+        assert len(orchestration_spans) == 1
 
 
 def test_activity_trigger_wrapper_traces_error():
@@ -498,6 +644,31 @@ def test_activity_trigger_distributed_tracing_end_to_end(azure_functions_client:
     spans_by_resource = {resource: _span_by_resource(traces, resource) for resource in resources}
     trace_ids_by_resource = {resource: span["trace_id"] for resource, span in spans_by_resource.items()}
     assert len(set(trace_ids_by_resource.values())) == 1, trace_ids_by_resource
+    # Durable Task inserts host-owned spans between these spans. Those remote
+    # parents are not emitted by ddtrace, but their IDs must still be retained.
+    for resource in resources[1:]:
+        assert spans_by_resource[resource]["parent_id"] != 0
+
+
+def test_failed_activity_trigger_distributed_tracing_end_to_end(
+    azure_functions_client: tuple[Client, str],
+) -> None:
+    client, token = azure_functions_client
+    response = client.get("/api/startfailedactivity", headers=DEFAULT_HEADERS)
+    traces = _wait_for_durable_spans(
+        token,
+        {
+            "GET /api/startfailedactivity",
+            "Orchestration failed_activity_orchestrator",
+            "Activity failing_activity",
+        },
+    )
+    assert response.status_code == 500
+
+    activity_span = _span_by_resource(traces, "Activity failing_activity")
+    assert activity_span["error"] == 1
+    assert activity_span["meta"]["error.type"] == "builtins.RuntimeError"
+    assert activity_span["meta"]["error.message"] == "simulated durable activity failure"
 
 
 def test_entity_trigger_distributed_tracing_end_to_end(azure_functions_client: tuple[Client, str]) -> None:
@@ -512,4 +683,5 @@ def test_entity_trigger_distributed_tracing_end_to_end(azure_functions_client: t
     orchestration_span = _span_by_resource(traces, "Orchestration entity_orchestrator")
     entity_span = _span_by_resource(traces, "Entity counter")
     assert orchestration_span["trace_id"] == http_span["trace_id"]
+    assert orchestration_span["parent_id"] != 0
     assert entity_span["trace_id"] != http_span["trace_id"]

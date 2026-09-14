@@ -19,6 +19,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_eventhubs as azure_eventhubsx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
+from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.schema import schematize_cloud_faas_operation
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.propagation.http import HTTPPropagator
@@ -30,6 +33,7 @@ from ._worker import get_current_invocation_carrier
 _EXECUTION_STARTED_EVENT_TYPE = 0
 # Numeric value serialized by Azure for HistoryEventType.ORCHESTRATOR_COMPLETED.
 _ORCHESTRATOR_COMPLETED_EVENT_TYPE = 13
+_DD_FUNCTION_WRAPPED_ATTR = "__datadog_azure_functions_wrapped__"
 
 
 def create_context(
@@ -57,15 +61,22 @@ def create_context(
 
 
 def _context_from_carrier(carrier: dict[str, str]) -> Optional[Context]:
+    if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_IGNORE:
+        return None
+
     context = _TraceContext._extract(carrier)
     if context is None or not context.trace_id:
         return None
 
-    traceparent = carrier.get("traceparent")
+    if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+        link = HTTPPropagator._context_to_span_link(
+            context, _PROPAGATION_STYLE_W3C_TRACECONTEXT, "propagation_behavior_extract"
+        )
+        return Context(span_links=[link] if link is not None else [])
+
     tracestate = carrier.get("tracestate")
-    if traceparent and tracestate:
+    if context.sampling_priority is not None and context.sampling_priority < AUTO_KEEP and tracestate:
         try:
-            _, _, sampled = _TraceContext._get_traceparent_values(traceparent)
             propagated_priority, _, _, _ = _TraceContext._get_tracestate_values(
                 [member.strip() for member in tracestate.split(",")]
             )
@@ -75,7 +86,7 @@ def _context_from_carrier(carrier: dict[str, str]) -> Optional[Context]:
             # The Durable host can clear the W3C sampled flag while retaining a
             # Datadog keep decision in tracestate. Preserve that decision, as the
             # JavaScript tracer does, so the reconnected trace is not dropped.
-            if sampled == 0 and propagated_priority is not None and propagated_priority >= AUTO_KEEP:
+            if propagated_priority is not None and propagated_priority >= AUTO_KEEP:
                 context.sampling_priority = propagated_priority
 
     return context
@@ -451,25 +462,34 @@ def patched_get_functions(wrapped, instance, args, kwargs):
         function_name = function.get_function_name()
         func = function.get_user_function()
 
+        # AIDEV-NOTE: Azure can discover the same Function objects repeatedly.
+        # Wrapping the previously assigned handler again creates duplicate spans.
+        if getattr(func, _DD_FUNCTION_WRAPPED_ATTR, False):
+            continue
+
+        wrapped_func = None
+
         if trigger_type == "httpTrigger":
-            function._func = wrap_http_trigger(func, function_name, trigger_arg_name)
+            wrapped_func = wrap_http_trigger(func, function_name, trigger_arg_name)
         elif trigger_type == "timerTrigger":
-            function._func = wrap_timer_trigger(func, function_name)
+            wrapped_func = wrap_timer_trigger(func, function_name)
         elif trigger_type == "serviceBusTrigger":
-            function._func = wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_details)
+            wrapped_func = wrap_service_bus_trigger(func, function_name, trigger_arg_name, trigger_details)
         elif trigger_type == "eventHubTrigger":
-            function._func = wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_details)
+            wrapped_func = wrap_event_hubs_trigger(func, function_name, trigger_arg_name, trigger_details)
         elif trigger_type == "activityTrigger":
-            function._func = wrap_durable_trigger(
+            wrapped_func = wrap_durable_trigger(
                 func, function_name, "Activity", "azure.durable_functions.patched_activity"
             )
         elif trigger_type == "entityTrigger":
-            function._func = wrap_durable_trigger(
-                func, function_name, "Entity", "azure.durable_functions.patched_entity"
-            )
+            wrapped_func = wrap_durable_trigger(func, function_name, "Entity", "azure.durable_functions.patched_entity")
         elif trigger_type == "cosmosDBTrigger":
-            function._func = wrap_cosmos_trigger(func, function_name)
+            wrapped_func = wrap_cosmos_trigger(func, function_name)
         elif trigger_type == "orchestrationTrigger":
-            function._func = wrap_orchestration_trigger(func, function_name, trigger_arg_name)
+            wrapped_func = wrap_orchestration_trigger(func, function_name, trigger_arg_name)
+
+        if wrapped_func is not None:
+            setattr(wrapped_func, _DD_FUNCTION_WRAPPED_ATTR, True)
+            function._func = wrapped_func
 
     return functions
