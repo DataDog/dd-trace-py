@@ -4,6 +4,7 @@ tests for Tracer and utilities.
 """
 
 import contextlib
+import contextvars
 import gc
 import logging
 from os import getpid
@@ -790,6 +791,27 @@ class TracerTestCases(TracerTestCase):
         assert not self.tracer._new_process
 
         child.finish()
+        self.tracer.context_provider.activate(None)
+
+    def test_tracer_cleans_inherited_span_from_each_context(self):
+        parent = self.tracer.trace("parent")
+        first_context = contextvars.copy_context()
+        second_context = contextvars.copy_context()
+        self.tracer._child_after_fork()
+
+        def start_child():
+            child = self.tracer.start_span("child", child_of=self.tracer.context_provider.active())
+            child.finish()
+            return child
+
+        first_child = first_context.run(start_child)
+        second_child = second_context.run(start_child)
+
+        for child in (first_child, second_child):
+            assert child.parent_id == parent.span_id
+            assert child._parent is None
+            assert child._local_root is child
+
         self.tracer.context_provider.activate(None)
 
     def test_tracer_post_fork_writer_recreation_is_single_flight(self):

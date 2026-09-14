@@ -15,6 +15,7 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 from typing import cast
+import weakref
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.processor import SpanAggregator
@@ -193,6 +194,7 @@ class Tracer(object):
         self._shutdown_lock = Lock()
         self._post_fork_lock = forksafe.Lock()
         self._post_fork_writer_pending = False
+        self._post_fork_parent: Optional[Callable[[], Optional[Span]]] = None
         self._new_process = False
 
         self._store_metadata()
@@ -425,6 +427,7 @@ class Tracer(object):
         self._store_metadata()
         # Re-dispatch activation post-fork: native code clears profiler span links; inherited context is unchanged.
         active = self.context_provider.active()
+        self._post_fork_parent = weakref.ref(active) if isinstance(active, Span) else None
         if active is not None:
             core.dispatch("ddtrace.context_provider.activate", (self.context_provider, active))
 
@@ -513,7 +516,8 @@ class Tracer(object):
         # PERF: avoid a helper call on the normal span-start path.
         if self._post_fork_writer_pending:
             self._ensure_post_fork_writer()
-        if self._new_process:
+        inherited_parent = self._post_fork_parent() if self._post_fork_parent is not None else None
+        if self._new_process or child_of is inherited_parent:
             self._new_process = False
             # The spans remaining in the context can not and will not be
             # finished in this new process. So to avoid memory leaks the
@@ -1015,6 +1019,7 @@ class Tracer(object):
             # Do not recreate an inherited writer only to shut it down. The span aggregator
             # discards its buffered traces during shutdown.
             self._post_fork_writer_pending = False
+            self._post_fork_parent = None
             self._new_process = False
             for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:

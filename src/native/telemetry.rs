@@ -425,8 +425,8 @@ impl TelemetryWorkerPy {
         metric_type: MetricType,
         tags: Vec<String>,
         common: bool,
-    ) -> MetricContextPy {
-        let _ = self.ensure_runtime_after_fork();
+    ) -> PyResult<MetricContextPy> {
+        self.ensure_runtime_after_fork()?;
         let parsed_tags = parse_tag_list(&tags);
         let key = self.handle.register_metric_context(
             name,
@@ -435,7 +435,7 @@ impl TelemetryWorkerPy {
             common,
             namespace.0,
         );
-        MetricContextPy(key)
+        Ok(MetricContextPy(key))
     }
 
     /// Add `value` to a metric context previously returned by [`register_metric_context`].

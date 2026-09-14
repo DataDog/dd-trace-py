@@ -254,6 +254,45 @@ assert os.waitstatus_to_exitcode(status) == 0
     assert child_metrics[0]["points"][0][1] == 4096
 
 
+@pytest.mark.skipif(os.name != "posix", reason="requires os.fork")
+def test_abandoned_worker_rejects_metric_context_registration(run_python_code_in_subprocess):
+    """An inherited worker must not access its metric registry after a Python-managed fork."""
+    code = """
+import os
+
+import ddtrace
+from ddtrace.internal.native import MetricNamespace
+from ddtrace.internal.native import MetricType
+from ddtrace.internal.telemetry import telemetry_writer
+
+
+worker = telemetry_writer._worker
+assert worker is not None
+
+pid = os.fork()
+if pid == 0:
+    try:
+        worker.register_metric_context(
+            MetricNamespace.tracers,
+            "abandoned_worker",
+            MetricType.count,
+            [],
+            True,
+        )
+    except RuntimeError as error:
+        assert "abandoned" in str(error)
+        os._exit(0)
+    os._exit(1)
+
+_, status = os.waitpid(pid, 0)
+assert os.waitstatus_to_exitcode(status) == 0
+"""
+
+    _, stderr, status, _ = run_python_code_in_subprocess(code)
+
+    assert status == 0, stderr
+
+
 @pytest.mark.skipif(os.name != "posix", reason="requires native atfork handlers")
 def test_native_atfork_does_not_start_runtime_before_exec(run_python_code_in_subprocess):
     """Fork-exec children must not start Tokio before exec closes inherited descriptors."""
