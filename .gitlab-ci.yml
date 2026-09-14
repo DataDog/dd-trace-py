@@ -124,7 +124,14 @@ tests-gen:
 
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs:
+   - tests-gen
+   - job: "build linux"
+     parallel:
+       matrix:
+         - ARCH_TAG: "amd64"
+           PYTHON_TAG: ["cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312", "cp313-cp313", "cp314-cp314", "cp315-cp315"]
+           IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
  variables:
    PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
