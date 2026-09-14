@@ -107,7 +107,7 @@ def test_distributed_tracing_injects_request_span(patched_niquests, tracer, test
     request_span = next(span for span in traces[0] if span.name == "niquests.request")
     assert request_span.parent_id == parent.span_id
     assert request_span.trace_id == parent.trace_id
-    assert headers["X-Datadog-Parent-Id"] == [str(request_span.span_id)]
+    assert headers["X-Datadog-Parent-Id"] == str(request_span.span_id)
 
 
 def test_distributed_tracing_can_be_disabled(patched_niquests, tracer, test_spans):
