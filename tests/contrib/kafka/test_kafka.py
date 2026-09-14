@@ -211,6 +211,106 @@ def test_commit_with_consume_with_multiple_messages(producer, consumer, kafka_to
         assert len(messages) == 2
 
 
+def test_consume_batch_links_all_producer_traces(kafka_tracer, producer, fresh_consumer, empty_kafka_topic, test_spans):
+    # A batched consume() must not continue any single producer's trace. Instead it links
+    # every producer in the batch, so no source record is privileged and no producer trace
+    # is polluted by the consume span's children. Use a freshly emptied topic + consumer so
+    # only the messages produced here are read.
+    with override_config(
+        "kafka",
+        dict(distributed_tracing_enabled=True, trace_empty_poll_enabled=False, propagation_as_span_links=True),
+    ):
+        # Each produce() runs without an active span, so each message carries its own
+        # distinct producer trace context in its headers.
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        messages = fresh_consumer.consume(num_messages=2, timeout=10)
+        assert len(messages) == 2
+
+    traces = test_spans.pop_traces()
+    produce_spans = [span for trace in traces for span in trace if span.name == "kafka.produce"]
+    consume_spans = [span for trace in traces for span in trace if span.name == "kafka.consume"]
+    assert len(produce_spans) == 2
+    assert len(consume_spans) == 1
+    consume_span = consume_spans[0]
+
+    producer_trace_ids = {span.trace_id for span in produce_spans}
+    producer_span_ids = {span.span_id for span in produce_spans}
+
+    # The consume span is its own root: it does not join any single producer's trace.
+    assert consume_span.parent_id not in producer_span_ids
+    assert consume_span.trace_id not in producer_trace_ids
+
+    # It links to every producer trace in the batch.
+    linked = {(link.trace_id, link.span_id) for link in consume_span._get_links()}
+    for produce_span in produce_spans:
+        assert (produce_span.trace_id, produce_span.span_id) in linked
+
+
+def test_consume_preserves_terminated_context_links(
+    kafka_tracer, producer, fresh_consumer, empty_kafka_topic, test_spans
+):
+    # A message can carry multiple propagation styles with conflicting trace ids. extract()
+    # keeps the primary context and turns the others into "terminated_context" span links on
+    # that context. Both must end up as links on the consume span. Use a freshly emptied
+    # topic + consumer so only the crafted message below is read.
+    conflicting_headers = {
+        "x-datadog-trace-id": "1234567890",
+        "x-datadog-parent-id": "9876543210",
+        "x-datadog-sampling-priority": "1",
+        "traceparent": "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+    }
+    # Produce with distributed tracing disabled so the producer does not overwrite the
+    # crafted headers with its own injected context.
+    with override_config(
+        "kafka",
+        dict(distributed_tracing_enabled=False, trace_empty_poll_enabled=False, propagation_as_span_links=True),
+    ):
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY, headers=conflicting_headers)
+        producer.flush()
+    with override_config(
+        "kafka",
+        dict(distributed_tracing_enabled=True, trace_empty_poll_enabled=False, propagation_as_span_links=True),
+    ):
+        messages = fresh_consumer.consume(num_messages=1, timeout=10)
+        assert len(messages) == 1
+
+    traces = test_spans.pop_traces()
+    consume_spans = [span for trace in traces for span in trace if span.name == "kafka.consume"]
+    assert len(consume_spans) == 1
+    linked_trace_ids = {link.trace_id for link in consume_spans[0]._get_links()}
+
+    # Both the primary (datadog) and the terminated-context (tracecontext) links are present.
+    assert 1234567890 in linked_trace_ids
+    assert 0x4BF92F3577B34DA6A3CE929D0E0E4736 in linked_trace_ids
+
+
+def test_consume_batch_continues_first_producer_trace_by_default(
+    kafka_tracer, producer, fresh_consumer, empty_kafka_topic, test_spans
+):
+    # Without propagation_as_span_links, the consume span keeps the legacy behaviour: it
+    # continues the first consumed message's producer trace and adds no links of its own.
+    with override_config("kafka", dict(distributed_tracing_enabled=True, trace_empty_poll_enabled=False)):
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY)
+        producer.produce(empty_kafka_topic, PAYLOAD, key=KEY)
+        producer.flush()
+        messages = fresh_consumer.consume(num_messages=2, timeout=10)
+        assert len(messages) == 2
+
+    traces = test_spans.pop_traces()
+    produce_spans = [span for trace in traces for span in trace if span.name == "kafka.produce"]
+    consume_spans = [span for trace in traces for span in trace if span.name == "kafka.consume"]
+    assert len(produce_spans) == 2
+    assert len(consume_spans) == 1
+    consume_span = consume_spans[0]
+
+    # The consume span joins one producer's trace rather than starting its own.
+    assert consume_span.parent_id in {span.span_id for span in produce_spans}
+    assert consume_span.trace_id in {span.trace_id for span in produce_spans}
+    assert consume_span._get_links() == []
+
+
 @pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 @pytest.mark.parametrize("should_filter_empty_polls", [False])
 @pytest.mark.skip(reason="FIXME: This test requires the initialization of a new tracer. This is not supported")
@@ -419,15 +519,16 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
     while message is None or str(message.value()) != str(PAYLOAD):
         message = consumer.poll()
 
+    produce_span = None
     consume_span = None
     traces = test_spans.pop_traces()
-    produce_span = traces[0][0]
     for trace in traces:
         for span in trace:
+            if span.name == "kafka.produce":
+                produce_span = span
             if span.get_tag('kafka.received_message') == 'True':
                 if span.get_tag('kafka.message_key') == test_key:
                     consume_span = span
-                    break
 
     assert str(message.value()) == str(PAYLOAD)
 
@@ -435,7 +536,7 @@ def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
     assert produce_span.name == "kafka.produce"
     assert produce_span.parent_id is None
 
-    # kafka.consume span has a parent
+    # kafka.consume span continues the producer's trace
     assert consume_span.name == "kafka.consume"
     assert consume_span.parent_id == produce_span.span_id
 
@@ -449,6 +550,88 @@ if __name__ == "__main__":
 
     env = os.environ.copy()
     env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    env["KAFKA_TEST_TOPIC"] = kafka_topic
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, out.decode() + err.decode()
+
+
+# Context is attached as span links when the integration is listed in
+# DD_TRACE_PROPAGATION_AS_SPAN_LINKS
+def test_tracing_context_is_linked_when_span_links_enabled(ddtrace_run_python_code_in_subprocess, kafka_topic):
+    code = """
+import os
+import pytest
+import random
+import sys
+
+from ddtrace.contrib.internal.kafka.patch import patch
+from tests.conftest import use_dummy_writer
+from tests.conftest import test_spans
+from tests.contrib.kafka.conftest import group_id
+from tests.contrib.kafka.conftest import patch_kafka
+from tests.contrib.kafka.conftest import producer
+from tests.conftest import tracer
+from tests.contrib.kafka.conftest import kafka_tracer
+from tests.contrib.kafka.conftest import should_filter_empty_polls
+
+@pytest.fixture
+def kafka_topic():
+    # Also controls group_id (via conftest.group_id which inherits kafka_topic)
+    return os.environ["KAFKA_TEST_TOPIC"]
+
+from tests.contrib.kafka.conftest import consumer
+
+def test(kafka_tracer, consumer, producer, kafka_topic, test_spans):
+    from ddtrace import config
+
+    assert config.kafka.propagation_as_span_links is True
+
+    # use a random int in this string to prevent reading a message produced by a previous test run
+    test_string = "span links enabled test " + str(random.randint(0, 1000))
+    test_key = "span links key " + str(random.randint(0, 1000))
+    PAYLOAD = bytes(test_string, encoding="utf-8")
+
+    producer.produce(kafka_topic, PAYLOAD, key=test_key)
+    producer.flush()
+
+    message = None
+    while message is None or str(message.value()) != str(PAYLOAD):
+        message = consumer.poll()
+
+    produce_span = None
+    consume_span = None
+    traces = test_spans.pop_traces()
+    for trace in traces:
+        for span in trace:
+            if span.name == "kafka.produce":
+                produce_span = span
+            if span.get_tag('kafka.received_message') == 'True':
+                if span.get_tag('kafka.message_key') == test_key:
+                    consume_span = span
+
+    assert str(message.value()) == str(PAYLOAD)
+
+    # kafka.produce span is created without a parent
+    assert produce_span.name == "kafka.produce"
+    assert produce_span.parent_id is None
+
+    # kafka.consume span links to the producer instead of continuing its trace
+    assert consume_span.name == "kafka.consume"
+    assert consume_span.parent_id is None
+    linked = {(link.trace_id, link.span_id) for link in consume_span._get_links()}
+    assert (produce_span.trace_id, produce_span.span_id) in linked
+
+    # The producer and consumer spans are in different traces, related by a span link
+    assert produce_span.trace_id != consume_span.trace_id
+
+
+if __name__ == "__main__":
+    sys.exit(pytest.main(["-x", __file__]))
+    """
+
+    env = os.environ.copy()
+    env["DD_KAFKA_PROPAGATION_ENABLED"] = "true"
+    env["DD_TRACE_PROPAGATION_AS_SPAN_LINKS"] = "kafka"
     env["KAFKA_TEST_TOPIC"] = kafka_topic
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()

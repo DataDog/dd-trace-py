@@ -1,5 +1,7 @@
 #pragma once
 
+#include <Python.h>
+
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -16,8 +18,6 @@
 
 #include "echion/task_name.h"
 #include "echion/timing.h"
-
-#include <Python.h>
 
 class EchionSampler;
 
