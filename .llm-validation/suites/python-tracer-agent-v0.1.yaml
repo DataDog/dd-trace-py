@@ -154,3 +154,34 @@ cases:
     bad_signals:
       - Claims Python threads run CPU-bound work fully in parallel on CPython.
       - Invents a non-existent GIL-removal flag as the standard fix.
+
+  # Starter case for the dd-apm-sdk-review skill (one pattern on purpose).
+  - id: py-perf-hotpath-pure-python
+    files:
+      - AGENTS.md
+      - .agents/skills/dd-apm-sdk-review/reviewers/performance.md
+      - .agents/skills/dd-apm-sdk-review/reviewers/_common.md
+      - .agents/dd-apm-sdk-review-overrides/reviewers/performance.md
+    input: |
+      Apply this repo's performance-review criteria (reviewers/performance.md, its
+      .agents/dd-apm-sdk-review-overrides/reviewers/performance.md override, _common.md,
+      and AGENTS.md) to the following change. No git checkout available — this snippet
+      is the entire change to review.
+
+      ```python
+      # Called from the WSGI/ASGI integration on every request.
+      def on_request_start(method, path):
+          tags = {"http.method": method, "http.url": path, "span.kind": "server"}
+          items = []
+          for key, value in tags.items():
+              items.append((key, str(value)))
+          return dict(items)
+      ```
+    expected_criteria:
+      - Flags that this builds dicts/lists on every request for span-tag work.
+      - Notes that hot-path encoding/tag work in this repo belongs in C/Cython
+        (e.g. ddtrace/internal/_encoding.pyx, ddtrace/internal/_tagset.pyx).
+      - Classifies the finding as at least P1, not a style nit.
+    bad_signals:
+      - Approves the snippet as the recommended per-request pattern.
+      - Treats the Python loop as equivalent to the existing Cython helpers.

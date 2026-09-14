@@ -6,6 +6,10 @@ runs: 3
 # List more than one to validate the combined instruction set (e.g. AGENTS.md + a Claude skill file).
 instruction_files:
   - AGENTS.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/performance.md
+  - .agents/skills/dd-apm-sdk-review/reviewers/_common.md
+  - .agents/dd-apm-sdk-review-overrides/reviewers/performance.md
+  - .agents/dd-apm-sdk-review-overrides/repo-context.md
 default_level: full
 presets:
   minimum: # the 1 flagship case. The gating default.

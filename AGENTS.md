@@ -123,6 +123,7 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `debug-build-times`             | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow.                                                                                                                                       |
 | `apm-integrations`              | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration.                                     |
 | `llmobs-integrations`           | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
+| `dd-apm-sdk-review`             | Pre-push multi-perspective code review. Run before pushing or opening a PR. Does not replace `run-tests`, `lint`, or `review-ci`. Codex: read `.agents/skills/dd-apm-sdk-review/review-without-harness.md`. |
 
 ## Domain Guides
 
