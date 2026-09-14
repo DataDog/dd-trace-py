@@ -984,6 +984,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def shutdown_exporter(self) -> None:
         """Tear down the native exporter without going through ``stop()``."""
         self._shutdown_exporter(self._exporter)
+        self._exporter = None  # prevent __del__ double-shutdown
 
     def recreate(
         self,
@@ -1250,6 +1251,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self.periodic()
         finally:
             self._shutdown_exporter(self._exporter)
+            self._exporter = None  # prevent __del__ double-shutdown
 
 
 def _use_log_writer() -> bool:
