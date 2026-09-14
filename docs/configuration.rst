@@ -479,9 +479,6 @@ Traces
          * a partial flush (see ``DD_TRACE_PARTIAL_FLUSH_MIN_SPANS``, 300 spans by default);
          * the root span finishing.
 
-         In practice this leaves the whole body of the root span available for annotation, and tagging
-         the root as soon as you open it is always safe.
-
          **Example:** ``DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5}, {"tags": {"env": "staging"}, "sample_rate": 0.1}]'`` keeps 50% of production traces and 10% of staging traces.
 
      version_added:
