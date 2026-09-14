@@ -44,19 +44,19 @@ class LLMObsProcessor(TraceProcessor):
         self._keep_meta_struct = keep_meta_struct
 
     def process_trace(self, trace: list[Span]) -> Optional[list[Span]]:
-        # Standalone products (AI Guard, AppSec, IAST, SCA) run with APM tracing off and the tracer
-        # disabled on purpose, and still need their traces delivered, so never drop them here.
-        drop_apm_trace = not standalone_config.apm_opt_out and (
-            not standalone_config.apm_tracing_enabled or not self._tracer.enabled
-        )
+        # Two decisions, deliberately separate. No APM trace can carry an LLMObs event once APM
+        # tracing is off, including in standalone, where it survives but is rate limited to 1/min.
+        no_apm_carrier = not standalone_config.apm_tracing_enabled or not self._tracer.enabled
         for span in trace:
             if span.span_type != SpanTypes.LLM:
                 continue
             try:
-                self._route_span(span, drop_apm_trace)
+                self._route_span(span, no_apm_carrier)
             except Exception:
                 log.debug("Failed to route LLMObs event for span %s.", span, exc_info=True)
-        if drop_apm_trace:
+        # Standalone products (AI Guard, AppSec, IAST, SCA) run with APM tracing off and the tracer
+        # disabled on purpose, and still need their traces delivered, so never drop them here.
+        if no_apm_carrier and not standalone_config.apm_opt_out:
             return None
         return trace
 
@@ -70,7 +70,7 @@ class LLMObsProcessor(TraceProcessor):
         priority = root.context.sampling_priority
         return priority is not None and priority <= 0
 
-    def _route_span(self, span: Span, drop_apm_trace: bool) -> None:
+    def _route_span(self, span: Span, no_apm_carrier: bool) -> None:
         event = span._get_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY)
         if event is None:
             # Half-built payload: scrub so a partial never rides the APM trace.
@@ -83,7 +83,7 @@ class LLMObsProcessor(TraceProcessor):
         # AND the mode keeps it on the trace (agentless = 100%, agent = kept priority).
         rides_trace = (
             not self._keep_meta_struct
-            and not drop_apm_trace
+            and not no_apm_carrier
             and (
                 mode == LLMObsExportMode.APM_AGENTLESS
                 or (mode == LLMObsExportMode.APM_AGENT and not self._predicted_drop(span))

@@ -19,10 +19,16 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.settings.standalone import standalone_config
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
+from ddtrace.llmobs._constants import LLMObsExportMode
 from ddtrace.llmobs._processor import LLMObsProcessor
+from ddtrace.llmobs._utils import _annotate_llmobs_span_data
+from ddtrace.llmobs._utils import _get_llmobs_data_metastruct
 from tests.aiguard.utils import mock_evaluate_response
 from tests.aiguard.utils import override_ai_guard_config
 from tests.utils import DummyWriter
+from tests.utils import override_global_config
 
 
 MESSAGES = [{"role": "user", "content": "What is the meaning of life?"}]
@@ -163,3 +169,56 @@ class TestRuntimeSwitchIntoStandalone:
         written = [s.name for trace in writer.pop_traces() for s in trace]
         assert "root_span" in written
         assert span.get_metric("_dd.apm.enabled") == 0.0
+
+
+@pytest.fixture
+def llmobs_enabled_before_the_switch(tracer):
+    """LLM Observability enabled while APM tracing is still on, then switched into standalone.
+
+    This is the order a real application hits: LLMObs starts at import time and the product only
+    turns APM tracing off afterwards, through the public tracer.configure() API.
+    """
+    LLMObs.disable()
+    with override_global_config({"_llmobs_ml_app": "test-ml-app", "_dd_api_key": "<not-a-real-key>"}):
+        LLMObs.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+        LLMObs._instance._llmobs_span_writer.stop()
+        llmobs_writer = MagicMock()
+        LLMObs._instance._llmobs_span_writer = llmobs_writer
+        with override_ai_guard_config(_STANDALONE_AI_GUARD_CONFIG):
+            tracer.configure(apm_tracing_disabled=True)
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(llmobs_writer, tracer)
+            try:
+                yield llmobs_writer
+            finally:
+                tracer.configure(apm_tracing_disabled=False)
+                ddtrace.config._reset()
+        LLMObs.disable()
+
+
+class TestLLMObsEnabledBeforeTheSwitch:
+    """LLMObs resolves its export mode once, in LLMObs.__init__, and the switch into standalone
+    never refreshes it. Keeping the standalone trace must not reroute the event onto it: standalone
+    traces are rate limited to 1/minute and opted out of APM, so the event would be lost.
+    """
+
+    def test_llmobs_event_still_reaches_its_own_intake(self, llmobs_enabled_before_the_switch, tracer):
+        llmobs_writer = llmobs_enabled_before_the_switch
+        assert standalone_config.apm_opt_out is True
+        # Stale on purpose: nothing refreshes it, which is the whole point of this test.
+        assert LLMObs._instance._export_mode == LLMObsExportMode.APM_AGENT
+        writer = DummyWriter(trace_flush_enabled=False)
+        tracer._span_aggregator.writer = writer
+
+        with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+            _annotate_llmobs_span_data(
+                span,
+                kind="llm",
+                input_messages=[{"role": "user", "content": "What is the meaning of life?"}],
+                output_messages=[{"role": "assistant", "content": "42"}],
+            )
+
+        assert "llm-span" in [s.name for trace in writer.pop_traces() for s in trace]
+        assert span.get_metric("_dd.apm.enabled") == 0.0
+        llmobs_writer.enqueue.assert_called_once()
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+        assert not _get_llmobs_data_metastruct(span)

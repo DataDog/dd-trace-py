@@ -463,3 +463,61 @@ class TestStandaloneKeepsLLMObsRoutingIntact:
         assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
         # Scrubbed, so the payload does not also ride the now-kept trace.
         assert not _get_llmobs_data_metastruct(span)
+
+
+class TestStandaloneRuntimeSwitchKeepsLLMObsRouting:
+    """LLMObs enabled *before* the switch into standalone keeps an APM_* export mode, since
+    _export_mode is resolved once in LLMObs.__init__ and never refreshed. Keeping the standalone
+    trace must not let the event ride it: that trace is rate limited to 1/minute and opted out of
+    APM, so the event would be delivered late or not at all.
+    """
+
+    @pytest.fixture
+    def llmobs_before_switch(self, request, tracer):
+        llmobs_service.disable()
+        with override_global_config(
+            {
+                "_llmobs_ml_app": "test-ml-app",
+                "_dd_api_key": "<not-a-real-key>",
+                "service": "tests.llmobs",
+            }
+        ):
+            # APM tracing is still on, so enable() resolves an APM_* mode on its own, exactly as it
+            # does for a user who enables LLMObs before tracer.configure(apm_tracing_disabled=True).
+            llmobs_service.enable(_tracer=tracer, agentless_enabled=False, integrations_enabled=False)
+            assert llmobs_service._instance._export_mode == LLMObsExportMode.APM_AGENT
+            llmobs_service._instance._export_mode = request.param
+            llmobs_service._instance._llmobs_span_writer.stop()
+            mock_writer = mock.MagicMock()
+            llmobs_service._instance._llmobs_span_writer = mock_writer
+            tracer._span_aggregator.llmobs_processor = LLMObsProcessor(mock_writer, tracer)
+            yield mock_writer
+            llmobs_service.disable()
+
+    @pytest.mark.parametrize(
+        "llmobs_before_switch",
+        [LLMObsExportMode.APM_AGENT, LLMObsExportMode.APM_AGENTLESS],
+        indirect=True,
+    )
+    # AUTO_REJECT is what the 1/minute opt-out limiter leaves on every trace but the first, and is
+    # the case APM_AGENT's predicted-drop rescue already covered.
+    @pytest.mark.parametrize("priority", [USER_KEEP, AUTO_REJECT])
+    def test_event_reaches_llmobs_intake_not_the_kept_trace(self, llmobs_before_switch, tracer, priority):
+        mock_writer = llmobs_before_switch
+        # Installed after enable(), which recreates the writer.
+        apm_writer = DummyWriter(trace_flush_enabled=False)
+        tracer._span_aggregator.writer = apm_writer
+
+        with mock.patch("ddtrace.llmobs._processor.standalone_config") as config:
+            config.apm_opt_out = True
+            config.apm_tracing_enabled = False
+            with tracer.trace("llm-span", span_type=SpanTypes.LLM) as span:
+                _annotate_llm_span(span)
+                span.context.sampling_priority = priority
+
+        # The standalone product's trace still ships...
+        assert [s.name for t in apm_writer.pop_traces() for s in t] == ["llm-span"]
+        # ...and the LLMObs event still goes to its own intake instead of riding it.
+        mock_writer.enqueue.assert_called_once()
+        assert span.get_tag(LLMOBS_SUBMITTED_TAG_KEY) == "1"
+        assert not _get_llmobs_data_metastruct(span)
