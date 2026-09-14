@@ -176,6 +176,7 @@ from ddtrace.llmobs._utils import get_tool_version_from_llm_span
 from ddtrace.llmobs._utils import resolve_llmobs_git_metadata
 from ddtrace.llmobs._utils import resolve_ml_app
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import set_gen_ai_apm_tags_from_llmobs_data
 from ddtrace.llmobs._writer import LLMObsAPIClient
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsExperimentsClient
@@ -720,6 +721,12 @@ class LLMObs(Service):
             llmobs_data.setdefault(LLMOBS_STRUCT.TAGS, {})[AGENT_VERSION_TAG_KEY] = str(agent_annotation)
 
         llmobs_meta = llmobs_data.setdefault(LLMOBS_STRUCT.META, _Meta())
+        # Before the user processor and _normalize_llmobs_meta, either of which can strip values
+        # these tags read.
+        try:
+            set_gen_ai_apm_tags_from_llmobs_data(span, llmobs_data, span_kind)
+        except Exception:
+            log.debug("Error setting gen_ai APM tags for span %s", span, exc_info=True)
         llmobs_input = llmobs_meta.get(LLMOBS_STRUCT.INPUT) or _MetaIO()
         llmobs_output = llmobs_meta.get(LLMOBS_STRUCT.OUTPUT) or _MetaIO()
 

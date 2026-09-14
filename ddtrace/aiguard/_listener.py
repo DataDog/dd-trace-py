@@ -76,7 +76,7 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.llm.agenerate.before", partial(_langchain_llm_generate_before, client))
     core.on("langchain.llm.stream.before", partial(_langchain_llm_stream_before, client))
 
-    # AIDEV-NOTE: ``.stream.started`` is dispatched lazily from
+    # ``.stream.started`` is dispatched lazily from
     # ``BaseLangchainStreamHandler.start_stream`` (called by
     # ``TracedStream.__iter__`` / ``__aiter__`` on iteration entry), so a
     # stream created but never consumed cannot leak the counter into the
@@ -85,7 +85,7 @@ def _langchain_listen(client: AIGuardClient) -> None:
     core.on("langchain.chatmodel.stream.started", _langchain_stream_started)
     core.on("langchain.llm.stream.started", _langchain_stream_started)
 
-    # AIDEV-NOTE: ``.finally`` listeners release the AI Guard active-context
+    # ``.finally`` listeners release the AI Guard active-context
     # counter. For non-streaming ``*.generate.*`` paths the counter is bumped
     # by the matching ``.before`` listener (``func(...)`` runs synchronously
     # so set + reset wrap the SDK call). For streaming the counter is bumped
@@ -169,7 +169,7 @@ def _install_openai_wrappers(client: AIGuardClient) -> None:
         client, reconstruct_openai_responses, _openai_response_create_after
     )
 
-    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/openai/patch.py::patch() (the
     # ``_RESOURCES`` loop). ``parse`` is intentionally skipped: it is non-streaming
     # in the inspected SDKs. If the contrib adds/renames a streaming target, that
@@ -383,7 +383,7 @@ def _install_anthropic_wrappers(client: AIGuardClient) -> None:
 
         return BufferedAIGuardAsyncStream(result, reconstruct=reconstruct_anthropic, evaluate=evaluate)
 
-    # AIDEV-NOTE: this wrap-target list MUST stay in sync with the contrib's own
+    # this wrap-target list MUST stay in sync with the contrib's own
     # wrap() calls in ddtrace/contrib/internal/anthropic/patch.py::patch(). If the
     # contrib adds/renames a streaming target or changes the >= (0, 37) beta gate,
     # that surface silently goes unbuffered here -- a security gap with no failing
