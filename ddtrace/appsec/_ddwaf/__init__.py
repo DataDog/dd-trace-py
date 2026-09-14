@@ -1,6 +1,7 @@
 """ctypes bindings for AppSec's security library: libddwaf
 
-Importing this module will load `libddwaf.so` as a side-effect and update `_asm_libddwaf_available` accordingly.
+Importing this module loads libddwaf as a side-effect, from the package or from the system,
+and updates `_asm_libddwaf_available` accordingly.
 """
 
 from ddtrace.appsec._ddwaf.ddwaf_types import DDWafInputType
