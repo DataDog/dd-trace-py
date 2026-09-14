@@ -672,7 +672,7 @@ render_raw_sample(EchionSampler& echion, CaptureState& state, const RawSample& r
 
     auto& renderer = echion.renderer();
     renderer.render_cpu_sample_begin(state.name, cpu_us, raw.python_thread_id, raw.native_tid);
-    stack.render(echion);
+    stack.render(echion, TruncationStatus::Unknown);
     renderer.render_stack_end();
 }
 

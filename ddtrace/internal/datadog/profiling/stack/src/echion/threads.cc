@@ -20,13 +20,22 @@ ThreadInfo::reset_cycle_state() noexcept
     current_greenlets.clear();
 }
 
-void
+Result<void>
 ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t wall_time_us)
 {
     // This entry reset is a precondition for a new snapshot: never append to logical state from an earlier cycle.
     reset_cycle_state();
 
-    unwind_python_stack(echion, tstate, python_stack);
+    // Asyncio stitching needs the root-side event-loop boundary and overlap
+    // metadata, so preserve Echion's existing discovery depth for task-aware
+    // stacks. Non-task thread stacks can stop at the configured reporting limit.
+    const size_t max_frames = asyncio_loop ? MAX_TASK_FRAMES : echion.stack_max_frames();
+    python_stack_unwind_result = UnwindResult::Unknown();
+    auto frame_unwind_result = unwind_python_stack(echion, tstate, python_stack, max_frames);
+    if (!frame_unwind_result) {
+        return frame_unwind_result.error();
+    }
+    python_stack_unwind_result = *frame_unwind_result;
 
     if (asyncio_loop) {
         // unwind_tasks returns a [[nodiscard]] Result<void>.
@@ -38,6 +47,7 @@ ThreadInfo::unwind(EchionSampler& echion, PyThreadState* tstate, microsecond_t w
         // should there be a substantial demand for it.
         unwind_greenlets(echion, tstate, native_id, wall_time_us);
     }
+    return Result<void>::ok();
 }
 
 // ----------------------------------------------------------------------------
@@ -318,15 +328,15 @@ ThreadInfo::unwind_tasks(EchionSampler& echion, PyThreadState* tstate, microseco
             // FrameStack order is leaf-to-root. For on-CPU tasks, synchronous frames from
             // python_stack must be appended before coroutine frames.
             // Decide how many coroutine frames to keep before appending the on-CPU sync frames below.
-            // This preserves the previous max_frames truncation behavior while avoiding front insertion.
+            // This preserves the previous task-stack truncation behavior while avoiding front insertion.
             const FrameStack* task_stack = nullptr;
             size_t task_stack_size = 0;
             size_t task_frames_to_push = 0;
             if (auto it = task_coro_stacks.find(task.origin); it != task_coro_stacks.end()) {
                 task_stack = &it->second;
                 task_stack_size = task_stack->size();
-                if (stack.size() < max_frames) {
-                    task_frames_to_push = std::min(task_stack_size, max_frames - stack.size());
+                if (stack.size() < MAX_TASK_FRAMES) {
+                    task_frames_to_push = std::min(task_stack_size, MAX_TASK_FRAMES - stack.size());
                 }
             }
             if (task.is_on_cpu) {
@@ -1090,7 +1100,8 @@ matching_active_fingerprint(EchionSampler& echion, const TaskInfo& task, const R
     }
 
     FrameStack active_stack;
-    if (unwind_frame(echion, active->frame, active_stack, echion.seen_frames_scratch(), 1) != 1) {
+    auto unwind_result = unwind_frame(echion, active->frame, active_stack, echion.seen_frames_scratch(), 1, false);
+    if (unwind_result.frames_added != 1) {
         return nullptr;
     }
     return fingerprint_matches_frame(*fingerprint, active_stack[0]) ? fingerprint : nullptr;
@@ -1129,7 +1140,7 @@ append_greenlet_parents(EchionSampler& echion,
         GreenletInfo parent(0, parent_frame, parent_name);
         parent.unwind(echion, parent_frame, tstate, parent_stack);
         for (const Frame& frame : parent_stack) {
-            if (captured_stack.size() >= max_frames) {
+            if (captured_stack.size() >= MAX_TASK_FRAMES) {
                 return;
             }
             const bool already_captured =
@@ -1155,11 +1166,11 @@ stitch_captured_stack(FrameStack captured_stack,
         return fingerprint_matches_frame(fingerprint, frame);
     });
     if (captured_boundary == captured_stack.end() || logical_boundary == logical_stack.end() ||
-        captured_stack.size() >= max_frames) {
+        captured_stack.size() >= MAX_TASK_FRAMES) {
         return captured_stack;
     }
 
-    const size_t available = max_frames - captured_stack.size();
+    const size_t available = MAX_TASK_FRAMES - captured_stack.size();
     std::vector<Frame> logical_ancestors;
     logical_ancestors.reserve(std::min(available, static_cast<size_t>(logical_stack.end() - logical_boundary - 1)));
     for (auto it = logical_boundary + 1; it != logical_stack.end() && logical_ancestors.size() < available; ++it) {
@@ -1194,7 +1205,7 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
                   task_name, task_stack_info->on_cpu, task_stack_info->task_id, task_stack_info->walltime_ns);
             });
 
-            task_stack_info->stack.render(echion);
+            task_stack_info->stack.render(echion, TruncationStatus::Unknown);
 
             renderer.render_stack_end();
         }
@@ -1206,12 +1217,12 @@ ThreadInfo::render_unwound_stacks(EchionSampler& echion)
             });
 
             auto& stack = greenlet_stack->stack;
-            stack.render(echion);
+            stack.render(echion, TruncationStatus::Unknown);
 
             renderer.render_stack_end();
         }
     } else {
-        python_stack.render(echion);
+        python_stack.render(echion, python_stack_unwind_result.truncation);
         renderer.render_stack_end();
     }
 }
@@ -1232,17 +1243,24 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
+    microsecond_t cpu_time_delta = 0;
     if (include_cpu_time) {
         microsecond_t previous_cpu_time = cpu_time;
         auto update_cpu_time_success = update_cpu_time();
         if (!update_cpu_time_success) {
             return ErrorKind::CpuTimeError;
         }
-
-        renderer.render_cpu_time(cpu_time - previous_cpu_time);
+        cpu_time_delta = cpu_time - previous_cpu_time;
     }
 
-    this->unwind(echion, tstate, delta);
+    auto unwind_result = this->unwind(echion, tstate, delta);
+    if (!unwind_result) {
+        return unwind_result.error();
+    }
+
+    if (include_cpu_time) {
+        renderer.render_cpu_time(cpu_time_delta);
+    }
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
@@ -1269,7 +1287,7 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
     if (asyncio_loop) {
         // Without signal-time task identity, no drain-time task snapshot can be matched safely.
         if (raw.asyncio_task == 0 && raw.coroutine_fingerprint_count == 0) {
-            captured_stack.render(echion);
+            captured_stack.render(echion, TruncationStatus::Unknown);
             renderer.render_stack_end();
             return;
         }
@@ -1301,7 +1319,7 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
             }
         }
 
-        captured_stack.render(echion);
+        captured_stack.render(echion, TruncationStatus::Unknown);
         renderer.render_stack_end();
         return;
     }
@@ -1315,7 +1333,7 @@ ThreadInfo::sample_cpu_timer(EchionSampler& echion,
         }
     }
 
-    captured_stack.render(echion);
+    captured_stack.render(echion, TruncationStatus::Unknown);
     renderer.render_stack_end();
 }
 
