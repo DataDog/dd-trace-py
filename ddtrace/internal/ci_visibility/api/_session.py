@@ -58,9 +58,8 @@ class TestVisibilitySession(
         self.set_tag(test.ITR_TEST_CODE_COVERAGE_ENABLED, session_settings.coverage_enabled)
 
     def _get_hierarchy_tags(self) -> dict[str, Any]:
-        session_span = self.get_span()
         return {
-            SESSION_ID: str(session_span.parent_id if session_span and session_span.parent_id else self.get_span_id()),
+            SESSION_ID: str(self.get_span_id()),
         }
 
     def get_session_settings(self) -> TestVisibilitySessionSettings:
