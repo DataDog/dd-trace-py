@@ -19,7 +19,7 @@ components:
     - ddtrace/appsec/sca/*
 suites:
   appsec:
-    parallelism: 4
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -68,7 +68,7 @@ suites:
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
-    parallelism: 6
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -174,7 +174,7 @@ suites:
         - name: iast_tdd_propagation
           dependencies: [requests, flask, cryptography, 'sqlalchemy~=2.0.23', pony, aiosqlite, tortoise-orm, peewee, 'psutil==7.1.3']
   appsec_integrations_pygoat:
-    parallelism: 3
+    venvs_per_job: 1
     paths:
       - '@bootstrap'
       - '@core'

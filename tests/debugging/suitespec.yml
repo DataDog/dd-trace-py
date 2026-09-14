@@ -6,7 +6,7 @@ components:
     - ddtrace/internal/settings/exception_replay.py
 suites:
   debugger:
-    parallelism: 1
+    venvs_per_job: 6
     paths:
       - '@debugging'
       - '@bootstrap'
