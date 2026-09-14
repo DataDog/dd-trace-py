@@ -729,9 +729,13 @@ integrations:
 
 - integration_name: niquests
   is_external_package: true
-  is_tested: false
+  is_tested: true
   dependency_names:
   - niquests
+  tested_versions_by_dependency:
+    niquests:
+      min: 3.0.0
+      max: 3.21.1
 
 - integration_name: openai
   is_external_package: true
