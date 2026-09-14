@@ -1252,14 +1252,14 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
 
     renderer.render_thread_begin(tstate, name, delta, thread_id, native_id);
 
+    microsecond_t cpu_time_delta = 0;
     if (include_cpu_time) {
         microsecond_t previous_cpu_time = cpu_time;
         auto update_cpu_time_success = update_cpu_time();
         if (!update_cpu_time_success) {
             return ErrorKind::CpuTimeError;
         }
-
-        renderer.render_cpu_time(cpu_time - previous_cpu_time);
+        cpu_time_delta = cpu_time - previous_cpu_time;
     }
 
     auto unwind_result = this->unwind(echion, tstate, delta);
@@ -1267,6 +1267,9 @@ ThreadInfo::sample(EchionSampler& echion, PyThreadState* tstate, microsecond_t d
         return unwind_result.error();
     }
 
+    if (include_cpu_time) {
+        renderer.render_cpu_time(cpu_time_delta);
+    }
     this->render_unwound_stacks(echion);
 
     return Result<void>::ok();
