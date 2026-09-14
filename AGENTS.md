@@ -123,7 +123,22 @@ Use the Skill tool to invoke these. **Always prefer skills over raw commands.**
 | `debug-build-times`             | Diagnosing slow base venv builds or warm rebuild regressions. Use when ext_cache isn't saving time or when CI venv builds are unexpectedly slow.                                                                                                                                       |
 | `apm-integrations`              | Creating or modifying contrib integrations (`ddtrace/contrib/internal/`). Covers patch module system, context_with_event, BaseLLMIntegration, streaming, integration testing, VCR cassettes, and anti-patterns. Use when touching any integration.                                     |
 | `llmobs-integrations`           | Creating or modifying LLMObs integrations (`ddtrace/llmobs/_integrations/`). Covers BaseLLMIntegration, stream handling, message/tool extraction, token counting, and VCR-based test patterns. Use when touching LLM/AI library integrations, in addition to `apm-integrations` skill. |
-| `dd-apm-sdk-review`             | Pre-push multi-perspective code review. Run before pushing or opening a PR. Does not replace `run-tests`, `lint`, or `review-ci`. Codex: read `.agents/skills/dd-apm-sdk-review/review-without-harness.md`. |
+| [`dd-apm-sdk-review`](./.agents/skills/dd-apm-sdk-review/) | Pre-push multi-perspective code review. Run before pushing or opening a PR. Does not replace `run-tests`, `lint`, or `review-ci`. |
+
+## Review Guidelines
+
+**Local agent with a skill harness:** Before pushing code or creating a pull request, you must run
+the [dd-apm-sdk-review](./.agents/skills/dd-apm-sdk-review/) skill on your unpushed changes. If any
+`P0` issues are reported, you must either fix them or get explicit authorization from the human you
+are working with and record the unresolved finding verbatim in the PR description. `P1` and `P2`
+findings should be fixed before pushing, but can be dismissed by the human.
+
+Exception: security findings are never pasted into a PR description — a PR is a public forum, so
+posting one there is an improper disclosure. Route them privately.
+
+**Reviewer without a skill harness** (for example, GitHub Codex): read and follow
+[`.agents/skills/dd-apm-sdk-review/review-without-harness.md`](./.agents/skills/dd-apm-sdk-review/review-without-harness.md).
+Do not load `SKILL.md` or `reviewers/report-template.md`.
 
 ## Domain Guides
 
