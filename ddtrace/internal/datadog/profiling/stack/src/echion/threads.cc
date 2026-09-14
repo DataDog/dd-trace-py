@@ -474,21 +474,35 @@ ThreadInfo::get_tasks_from_interpreter_linked_list(EchionSampler& echion,
 Result<void>
 ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_addr, std::vector<TaskInfo::Ptr>& tasks)
 {
-    if (head_addr == 0 || this->asyncio_loop == 0) {
+    if (this->asyncio_loop == 0) {
         return ErrorKind::TaskInfoError;
     }
 
-    const size_t tasks_start_size = tasks.size();
-    // This traversal only appends to tasks. On structural failure, remove its partial results while preserving entries
-    // from earlier sources.
-    auto fail = [&tasks, tasks_start_size]() -> Result<void> {
-        tasks.resize(tasks_start_size);
+    auto maybe_task_addresses = get_task_addresses_from_linked_list(head_addr);
+    if (!maybe_task_addresses) {
+        return maybe_task_addresses.error();
+    }
+
+    for (TaskObj* task_addr : *maybe_task_addresses) {
+        auto maybe_task = TaskInfo::create(echion, task_addr);
+        if (maybe_task && (*maybe_task)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
+            tasks.push_back(std::move(*maybe_task));
+        }
+    }
+
+    return Result<void>::ok();
+}
+
+Result<std::vector<TaskObj*>>
+ThreadInfo::get_task_addresses_from_linked_list(uintptr_t head_addr)
+{
+    if (head_addr == 0) {
         return ErrorKind::TaskInfoError;
-    };
+    }
 
     struct llist_node head_node;
     if (copy_type(reinterpret_cast<void*>(head_addr), head_node)) {
-        return fail();
+        return ErrorKind::TaskInfoError;
     }
     llist_node current_node = head_node;
 
@@ -496,40 +510,38 @@ ThreadInfo::get_tasks_from_linked_list(EchionSampler& echion, uintptr_t head_add
     size_t iteration_count = 0;
     uintptr_t current_node_addr = head_addr;
     std::unordered_set<uintptr_t> visited;
+    std::vector<TaskObj*> task_addresses;
 
     // A valid circular list must return to the expected head within the hard bound without null, repeated, unreadable,
-    // or backward-inconsistent nodes. Any violation rolls back this source.
+    // or backward-inconsistent nodes. Do not return any addresses until the whole source has been validated.
     while (reinterpret_cast<uintptr_t>(current_node.next) != head_addr) {
         if (++iteration_count > max_iterations || current_node.next == nullptr) {
-            return fail();
+            return ErrorKind::TaskInfoError;
         }
 
         const uintptr_t next_node_addr = reinterpret_cast<uintptr_t>(current_node.next);
         if (!visited.insert(next_node_addr).second) {
-            return fail();
+            return ErrorKind::TaskInfoError;
         }
 
         struct llist_node next_node;
         if (copy_type(reinterpret_cast<void*>(next_node_addr), next_node) ||
             reinterpret_cast<uintptr_t>(next_node.prev) != current_node_addr) {
-            return fail();
+            return ErrorKind::TaskInfoError;
         }
 
         const uintptr_t task_addr = next_node_addr - offsetof(TaskObj, task_node);
-        auto maybe_task = TaskInfo::create(echion, reinterpret_cast<TaskObj*>(task_addr));
-        if (maybe_task && (*maybe_task)->loop == reinterpret_cast<PyObject*>(this->asyncio_loop)) {
-            tasks.push_back(std::move(*maybe_task));
-        }
+        task_addresses.push_back(reinterpret_cast<TaskObj*>(task_addr));
 
         current_node_addr = next_node_addr;
         current_node = next_node;
     }
 
     if (reinterpret_cast<uintptr_t>(head_node.prev) != current_node_addr) {
-        return fail();
+        return ErrorKind::TaskInfoError;
     }
 
-    return Result<void>::ok();
+    return task_addresses;
 }
 
 Result<std::vector<TaskInfo::Ptr>>

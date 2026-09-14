@@ -76,7 +76,7 @@ task = loop.create_task(wait_forever())
     //   copied nodes: A -> V -> T
     //   live task:              B <-> T
     //
-    // Traversal appends V before T.prev != V reveals the malformed edge and requires source-local rollback.
+    // Traversal reads V before T.prev != V reveals the malformed edge. It must not publish V to the output.
     const llist_node original_valid_task_node = valid_task->task_node;
     const llist_node original_task_node = task->task_node;
     llist_node expected_head{};
@@ -91,7 +91,7 @@ task = loop.create_task(wait_forever())
     result = nullptr;
     auto traversal = traverse(thread, echion, reinterpret_cast<uintptr_t>(&expected_head), tasks);
 
-    // Reject the malformed source and roll back only the entries it appended.
+    // Reject the malformed source without changing results from earlier sources.
     EXPECT_FALSE(traversal);
     EXPECT_EQ(tasks.size(), 1);
     if (!tasks.empty()) {

@@ -137,6 +137,7 @@ class ThreadInfo
     [[nodiscard]] Result<void> get_tasks_from_linked_list(EchionSampler& echion,
                                                           uintptr_t head_addr,
                                                           std::vector<TaskInfo::Ptr>& tasks);
+    [[nodiscard]] Result<std::vector<TaskObj*>> get_task_addresses_from_linked_list(uintptr_t head_addr);
 #endif
 };
 
