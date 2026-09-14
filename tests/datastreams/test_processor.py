@@ -61,7 +61,7 @@ def test_periodic_payload_process_tags():
 
 
 def test_periodic_logs_warning_on_flush_failure(caplog):
-    # AIDEV-NOTE: DSMS-144 — when retry-budget is exhausted, the customer-facing log
+    # DSMS-144 — when retry-budget is exhausted, the customer-facing log
     # must (a) be WARNING (not ERROR) so it doesn't trip alerting on benign flush
     # failures, (b) preserve the leading phrase for customers' existing log-based
     # alerts, (c) explain impact, (d) include the exception cause inline for triage,

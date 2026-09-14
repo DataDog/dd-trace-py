@@ -225,7 +225,7 @@ impl TelemetryWorkerPy {
             });
         }
 
-        // AIDEV-NOTE: Keep this worker alive across native libc forks. The SharedRuntime's
+        // Keep this worker alive across native libc forks. The SharedRuntime's
         // pthread_atfork child handler marks the runtime for restart; the first Python-facing
         // telemetry operation rebuilds the runtime and resets this worker. Deferring the restart
         // avoids starting Tokio threads in transient fork+exec children.
