@@ -5,6 +5,38 @@
 #include <gtest/gtest.h>
 
 #include <memory>
+#include <optional>
+
+namespace {
+
+constexpr char STACK_CAPTURE_CONTEXT[] = "StackCaptureContext";
+
+struct StackCaptureContext
+{
+    EchionSampler* echion;
+    FrameStack stack;
+    std::optional<UnwindResult> unwind_result;
+};
+
+PyObject*
+capture_stack(PyObject* capsule, PyObject* Py_UNUSED(args))
+{
+    auto* context = static_cast<StackCaptureContext*>(PyCapsule_GetPointer(capsule, STACK_CAPTURE_CONTEXT));
+    if (context == nullptr) {
+        return nullptr;
+    }
+
+    auto unwind_result = unwind_python_stack(*context->echion, PyThreadState_Get(), context->stack, 2);
+    if (!unwind_result) {
+        PyErr_SetString(PyExc_RuntimeError, "failed to unwind test stack");
+        return nullptr;
+    }
+
+    context->unwind_result = *unwind_result;
+    Py_RETURN_NONE;
+}
+
+} // namespace
 
 #if defined PL_LINUX
 TEST(ThreadInfoCreate, IgnoresNonPthreadPythonThreadId)
@@ -63,6 +95,59 @@ TEST(SamplingCycleState, UnwindReplacesTaskAndGreenletStacksFromPriorCycle)
 
     EXPECT_TRUE(thread.current_tasks.empty());
     EXPECT_TRUE(thread.current_greenlets.empty());
+}
+
+TEST(StackUnwind, ReportsFramesAndTruncationAtLimit)
+{
+    if (!Py_IsInitialized()) {
+        Py_Initialize();
+    }
+    _set_pid(getpid());
+
+    EchionSampler echion;
+    StackCaptureContext context{ &echion, {}, std::nullopt };
+    PyObject* capsule = PyCapsule_New(&context, STACK_CAPTURE_CONTEXT, nullptr);
+    ASSERT_NE(capsule, nullptr);
+
+    static PyMethodDef capture_method = {
+        "capture_stack",
+        capture_stack,
+        METH_NOARGS,
+        nullptr,
+    };
+    PyObject* capture = PyCFunction_NewEx(&capture_method, capsule, nullptr);
+    ASSERT_NE(capture, nullptr);
+
+    PyObject* globals = PyDict_New();
+    ASSERT_NE(globals, nullptr);
+    ASSERT_EQ(PyDict_SetItemString(globals, "__builtins__", PyEval_GetBuiltins()), 0);
+    ASSERT_EQ(PyDict_SetItemString(globals, "capture_stack", capture), 0);
+
+    PyObject* result = PyRun_String(R"(
+def outer():
+    middle()
+def middle():
+    inner()
+def inner():
+    capture_stack()
+outer()
+)",
+                                    Py_file_input,
+                                    globals,
+                                    globals);
+    if (result == nullptr) {
+        PyErr_Print();
+    }
+    ASSERT_NE(result, nullptr);
+    ASSERT_TRUE(context.unwind_result.has_value());
+    EXPECT_EQ(context.stack.size(), 2);
+    EXPECT_EQ(context.unwind_result->frames_added, 2);
+    EXPECT_EQ(context.unwind_result->truncation, TruncationStatus::Truncated);
+
+    Py_DECREF(result);
+    Py_DECREF(globals);
+    Py_DECREF(capture);
+    Py_DECREF(capsule);
 }
 
 TEST(StackUnwind, DisabledDetectionRemainsUnknown)

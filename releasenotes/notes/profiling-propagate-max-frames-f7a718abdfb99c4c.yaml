@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    profiling: This fix reduces profiler memory and CPU overhead by truncating stacks at the configured limits.
+    profiling: Stack collection now honors configured frame limits, reducing profiler CPU and memory overhead for deep Python call stacks.

@@ -603,7 +603,7 @@ Sampler::set_max_frames(uint64_t value)
         return false;
     }
 
-    // Zero preserves the existing exporter behavior: retain the default limit.
+    // Setting to 0 uses the default limit.
     const size_t requested = value == 0 ? g_default_max_nframes : static_cast<size_t>(value);
     echion->configure_frame_limits(requested, calculate_frame_cache_capacity(requested));
     return true;
