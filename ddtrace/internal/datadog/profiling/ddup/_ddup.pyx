@@ -71,36 +71,71 @@ cdef extern from "sample.hpp" namespace "Datadog":
 cdef extern from "sample_manager.hpp" namespace "Datadog":
     cdef cppclass SampleManager:
         @staticmethod
+        void add_type(unsigned int type)
+
+        @staticmethod
+        void set_max_nframes(unsigned int max_nframes)
+
+        @staticmethod
+        void set_timeline(bint enable)
+
+        @staticmethod
+        void set_sample_pool_capacity(size_t capacity)
+
+        @staticmethod
         Sample* start_sample()
 
         @staticmethod
         void drop_sample(Sample* sample)
 
-cdef extern from "ddup_interface.hpp":
-    void ddup_config_env(string_view env)
-    void ddup_config_service(string_view service)
-    void ddup_config_version(string_view version)
-    void ddup_config_runtime(string_view runtime)
-    void ddup_config_runtime_version(string_view runtime_version)
-    void ddup_config_profiler_version(string_view profiler_version)
-    void ddup_config_url(string_view url)
-    void ddup_config_max_nframes(int max_nframes)
-    void ddup_config_timeline(bint enable)
-    void ddup_config_output_filename(string_view output_filename)
-    void ddup_config_sample_pool_capacity(uint64_t sample_pool_capacity)
-    void ddup_config_process_tags(string_view process_tags)
+cdef extern from "uploader_builder.hpp" namespace "Datadog":
+    cdef cppclass UploaderBuilder:
+        @staticmethod
+        void set_env(string_view env)
 
-    void ddup_config_user_tag(string_view key, string_view val)
-    void ddup_config_sample_type(unsigned int type)
+        @staticmethod
+        void set_service(string_view service)
+
+        @staticmethod
+        void set_version(string_view version)
+
+        @staticmethod
+        void set_runtime(string_view runtime)
+
+        @staticmethod
+        void set_runtime_id(string_view runtime_id)
+
+        @staticmethod
+        void set_process_id()
+
+        @staticmethod
+        void set_runtime_version(string_view runtime_version)
+
+        @staticmethod
+        void set_profiler_version(string_view profiler_version)
+
+        @staticmethod
+        void set_url(string_view url)
+
+        @staticmethod
+        void set_tag(string_view key, string_view val)
+
+        @staticmethod
+        void set_process_tags(string_view process_tags)
+
+        @staticmethod
+        void set_output_filename(string_view output_filename)
+
+        @staticmethod
+        void set_max_timeout_ms(uint64_t max_timeout_ms)
+
+cdef extern from "ddup_interface.hpp":
     void ddup_set_profiler_settings_json(string_view settings_json)
 
     bint ddup_is_initialized()
     void ddup_start()
-    void ddup_set_runtime_id(string_view _id)
-    void ddup_set_process_id()
     void ddup_profile_set_endpoints(unordered_map[int64_t, string_view] span_ids_to_endpoints)
     void ddup_profile_add_endpoint_counts(unordered_map[string_view, int64_t] trace_endpoints_to_counts)
-    void ddup_config_set_max_timeout_ms(uint64_t max_timeout_ms)
     bint ddup_upload() nogil
 
 
@@ -121,11 +156,11 @@ cdef call_func_with_str(func_ptr_t func, str_arg: StringType):
     if utf8_data != NULL:
         func(string_view(utf8_data, utf8_size))
 
-cdef call_ddup_config_user_tag(key: StringType, val: StringType):
+cdef call_uploader_builder_set_tag(key: StringType, val: StringType):
     if not key or not val:
         return
     if isinstance(key, bytes) and isinstance(val, bytes):
-        ddup_config_user_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
+        UploaderBuilder.set_tag(string_view(<const char*>key, len(key)), string_view(<const char*>val, len(val)))
         return
     cdef const char* key_utf8_data
     cdef Py_ssize_t key_utf8_size
@@ -134,7 +169,7 @@ cdef call_ddup_config_user_tag(key: StringType, val: StringType):
     key_utf8_data = PyUnicode_AsUTF8AndSize(key, &key_utf8_size)
     val_utf8_data = PyUnicode_AsUTF8AndSize(val, &val_utf8_size)
     if key_utf8_data != NULL and val_utf8_data != NULL:
-        ddup_config_user_tag(
+        UploaderBuilder.set_tag(
             string_view(key_utf8_data, key_utf8_size),
             string_view(val_utf8_data, val_utf8_size)
         )
@@ -367,37 +402,37 @@ def config(
 
     # Try to provide a ddtrace-specific default service if one is not given
     service = service or DEFAULT_SERVICE_NAME
-    call_func_with_str(ddup_config_service, service)
+    call_func_with_str(UploaderBuilder.set_service, service)
 
     # Empty values are auto-populated in the backend (omitted in client)
     if env:
-        call_func_with_str(ddup_config_env, env)
+        call_func_with_str(UploaderBuilder.set_env, env)
     if version:
-        call_func_with_str(ddup_config_version, version)
+        call_func_with_str(UploaderBuilder.set_version, version)
     if output_filename:
-        call_func_with_str(ddup_config_output_filename, output_filename)
+        call_func_with_str(UploaderBuilder.set_output_filename, output_filename)
     if process_tags:
-        call_func_with_str(ddup_config_process_tags, process_tags)
+        call_func_with_str(UploaderBuilder.set_process_tags, process_tags)
 
     # Inherited
-    call_func_with_str(ddup_config_runtime, platform.python_implementation())
-    call_func_with_str(ddup_config_runtime_version, platform.python_version())
-    call_func_with_str(ddup_config_profiler_version, ddtrace.__version__)
+    call_func_with_str(UploaderBuilder.set_runtime, platform.python_implementation())
+    call_func_with_str(UploaderBuilder.set_runtime_version, platform.python_version())
+    call_func_with_str(UploaderBuilder.set_profiler_version, ddtrace.__version__)
 
     if max_nframes is not None:
-        ddup_config_max_nframes(clamp_to_int64_unsigned(max_nframes))
+        SampleManager.set_max_nframes(<int>clamp_to_int64_unsigned(max_nframes))
     if tags is not None:
         for key, val in tags.items():
             if key and val:
-                call_ddup_config_user_tag(key, val)
+                call_uploader_builder_set_tag(key, val)
 
     if timeline_enabled is True:
-        ddup_config_timeline(True)
+        SampleManager.set_timeline(True)
     if sample_pool_capacity:
-        ddup_config_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
+        SampleManager.set_sample_pool_capacity(clamp_to_uint64_unsigned(sample_pool_capacity))
 
     if timeout is not None:
-        ddup_config_set_max_timeout_ms(clamp_to_uint64_unsigned(timeout))
+        UploaderBuilder.set_max_timeout_ms(clamp_to_uint64_unsigned(timeout))
 
 
 def start() -> None:
@@ -421,12 +456,12 @@ def _get_endpoint(tracer)-> str:
 def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Optional[bool] = None) -> None:
     global _code_provenance_set
 
-    call_func_with_str(ddup_set_runtime_id, get_runtime_id())
-    ddup_set_process_id()
+    call_func_with_str(UploaderBuilder.set_runtime_id, get_runtime_id())
+    UploaderBuilder.set_process_id()
 
     role = get_process_role()
     if role is not None:
-        call_ddup_config_user_tag("process_type", role)
+        call_uploader_builder_set_tag("process_type", role)
 
     processor = tracer._endpoint_call_counter_span_processor
     endpoint_counts, endpoint_to_span_ids = processor.reset()
@@ -435,7 +470,7 @@ def upload(tracer: Optional[Tracer] = ddtrace.tracer, enable_code_provenance: Op
     call_ddup_profile_add_endpoint_counts(endpoint_counts)
 
     endpoint = _get_endpoint(tracer)
-    call_func_with_str(ddup_config_url, endpoint)
+    call_func_with_str(UploaderBuilder.set_url, endpoint)
 
     if enable_code_provenance and not _code_provenance_set:
         code_provenance_file = get_code_provenance_file()
