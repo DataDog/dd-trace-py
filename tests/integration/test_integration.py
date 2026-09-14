@@ -419,6 +419,11 @@ s2.finish()
             {
                 "DD_TRACE_LOGS_INJECTION": str(logs_injection).lower(),
                 "DD_TRACE_DEBUG": str(debug_mode).lower(),
+                # DD_TRACE_DEBUG=true makes tracer startup synchronously probe the agent's
+                # /info endpoint.
+                # localhost:8125 has nothing listening so the probe fails instantly and
+                # doesn't block the test / consume timeout budget.
+                "DD_TRACE_AGENT_URL": "http://localhost:8125",
             }
         )
 

@@ -36,11 +36,13 @@ scenarios that need a live Datadog agent — currently those whose names start w
 core. All other scenarios bypass this file and run through the platform's `run-benchmarks.sh`
 directly.
 
-**`bp-runner.microbenchmarks.fail-on-breach.template.yml`** — SLO thresholds for every
-microbenchmark scenario, currently one `execution_time` limit per scenario config. This is the file
-you edit. It is **not** read by CI directly: `tests-gen` filters it down to the scenarios actually
-running in this pipeline and writes `bp-runner.microbenchmarks.fail-on-breach.yml`, which is what
-the gate reads. That generated file is a build artifact and is not committed.
+**`.gitlab/benchmarks/slos/<team>.yml`** — SLO thresholds for every microbenchmark scenario,
+currently one `execution_time` limit per scenario config. There is one file per team, each owned
+by its team via `.github/CODEOWNERS` so editing a threshold routes review to that team. This is
+the file you edit. It is **not** read by CI directly: `tests-gen` merges all the per-team files
+and filters them down to the scenarios actually running in this pipeline, then writes
+`bp-runner.microbenchmarks.fail-on-breach.yml`, which is what the gate reads. That generated file
+is a build artifact and is not committed.
 
 **`bp-runner.macrobenchmarks.fail-on-breach.yml`** — SLO thresholds for the macrobenchmark
 scenarios — latency percentiles, throughput, CPU, and RSS per application configuration. Read as-is
@@ -139,7 +141,7 @@ Two gates block on performance, and they answer different questions.
 |  | PR gate | Pre-release gate |
 |--|---------|------------------|
 | Job | `check-slo-breaches` in the `microbenchmarks` child pipeline | `check-slo-breaches` in the `macrobenchmarks` child pipeline |
-| Thresholds | `bp-runner.microbenchmarks.fail-on-breach.template.yml` | `bp-runner.macrobenchmarks.fail-on-breach.yml` |
+| Thresholds | `.gitlab/benchmarks/slos/<team>.yml` | `bp-runner.macrobenchmarks.fail-on-breach.yml` |
 | Blocks | Merging the pull request | Pushing a release tag or branch |
 | Catches | A single change making an operation obviously slower | Regression accumulated across many changes, each too small to trip the PR gate |
 
@@ -206,7 +208,7 @@ and deliberate: a correctness or security fix that cannot be made cheaper, or a 
 always too tight.
 
 * For a **PR gate** breach, raise the breached threshold in
-  `bp-runner.microbenchmarks.fail-on-breach.template.yml`, in the same pull request.
+  `.gitlab/benchmarks/slos/<team>.yml`, in the same pull request.
 * For a **pre-release gate** breach, raise the breached threshold in
   `bp-runner.macrobenchmarks.fail-on-breach.yml`.
 

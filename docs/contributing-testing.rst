@@ -160,7 +160,18 @@ the locks and commit both changes:
 
 .. code-block:: bash
 
-  $ scripts/ddtest scripts/compile-and-prune-test-requirements
+  $ scripts/test-requirements lock <environment-name>
+
+Omit the environment name to generate all missing locks and prune locks that no longer have a corresponding
+environment. Lock generation requires a Linux x86-64 host or the Linux x86-64 testrunner image used by CI.
+
+Use ``scripts/test-requirements`` to inspect and maintain locks:
+
+* ``check`` reports missing or obsolete lock files across all environments.
+* ``lock [environment-name ...]`` generates missing locks for exact environment names.
+* ``lock --upgrade [environment-name ...]`` upgrades existing locks for exact environment names.
+
+Without an environment name, ``lock`` operates on all environments.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
 ---------------------------------------------------------------------------------------------
@@ -199,53 +210,18 @@ The library includes automated SLO checks that monitor performance thresholds fo
 How do I add a new test suite?
 ------------------------------
 
-Test environments are defined in ``riotfile.py``. Add a ``Venv`` alongside a similar suite with its command,
-supported Python versions, and oldest/latest dependency constraints. Add the corresponding CI suite to the nearest
-``suitespec.yml`` file; see ``tests/README.md`` for that schema. Then regenerate the dependency locks and use
-``scripts/run-tests`` for local validation.
+Add the suite and its dependency variants to the nearest ``suitespec.yml`` file, then regenerate the dependency
+locks. See ``tests/README.md`` for the schema and use ``scripts/run-tests`` for local validation.
 
-.. code-block:: python
-
-    Venv(
-        name="your_integration",
-        command="pytest {cmdargs} tests/contrib/your_integration",
-        venvs=[
-            Venv(
-                pys=select_pys(min_version="3.9"),
-                pkgs={"your-dependency": ["~=1.0", latest]},
-            ),
-        ],
-    )
-
-Next, add the CI suite to ``tests/contrib/suitespec.yml``. The suite's ``pattern`` selects the matching test
-environment, while ``paths`` determines which changes schedule the CI job:
-
-.. code-block:: yaml
-
-    components:
-      your_integration:
-        - ddtrace/contrib/internal/your_integration/*
-
-    suites:
-      your_integration:
-        pattern: ^your_integration$
-        paths:
-          - '@bootstrap'
-          - '@core'
-          - '@contrib'
-          - '@tracing'
-          - '@your_integration'
-          - tests/contrib/your_integration/*
-
-Add fields such as ``services``, ``env``, ``snapshot``, and ``parallelism`` when the suite needs them. See
-``tests/README.md`` for the complete schema and nearby suites for working examples.
+Until the test-runner migration is complete, mirror environment changes in ``riotfile.py``. The
+`test_uv_suitespec_matches_riot <https://github.com/DataDog/dd-trace-py/blob/main/tests/contrib/integration_registry/test_riotfile.py>`_
+regression test verifies that the suitespec and Riot definitions remain equivalent.
 
 How do I update a test environment to use the latest version of a package?
 ----------------------------------------------------------------------------
 
-Update the dependency constraint in the suite's ``Venv`` in ``riotfile.py``, run
-``scripts/ddtest scripts/compile-and-prune-test-requirements``, and commit both ``riotfile.py`` and the resulting
-``.riot/requirements`` lock changes.
+Update the dependency constraint in the suite's ``suitespec.yml`` matrix, run
+``scripts/test-requirements lock --upgrade <environment-name>``, and commit the definition and resulting lock changes.
 
 Why isn't my lint dependency change taking effect?
 --------------------------------------------------

@@ -8,6 +8,7 @@ import re
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Iterator
+from typing import Mapping
 from typing import Optional
 from typing import Sequence
 from typing import Union
@@ -22,16 +23,35 @@ from ddtrace.internal._tagset import TagsetEncodeError
 from ddtrace.internal._tagset import encode_tagset_values
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import DEFAULT_PROMPT_NAME
+from ddtrace.llmobs._constants import GEN_AI_APPLICATION_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_CONVERSATION_ID_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_OPERATION_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_PROVIDER_NAME_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_REQUEST_MODEL_TAG_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_PROMPT
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import ML_APP_DEFAULT
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_NAME_KEY
+from ddtrace.llmobs._constants import REASONING_OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SESSION_ID
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_NAME
+from ddtrace.llmobs._constants import UNKNOWN_MODEL_PROVIDER
 from ddtrace.llmobs.types import Document
 from ddtrace.llmobs.types import Message
 from ddtrace.llmobs.types import Prompt
@@ -1058,3 +1078,71 @@ class LinkTracker:
         since output guardrails are only linked to the last LLM span for a particular agent.
         """
         self._last_llm_span = None
+
+
+# Other kinds carry unrelated metrics that would be misleading under a gen_ai.usage.* key.
+_TOKEN_METRIC_SPAN_KINDS = ("llm", "embedding")
+
+_TOKEN_METRIC_KEYS = (
+    (INPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_INPUT_TOKENS_METRIC_KEY),
+    (OUTPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_OUTPUT_TOKENS_METRIC_KEY),
+    (TOTAL_TOKENS_METRIC_KEY, GEN_AI_USAGE_TOTAL_TOKENS_METRIC_KEY),
+    (CACHE_READ_INPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_CACHE_READ_INPUT_TOKENS_METRIC_KEY),
+    (CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_CACHE_WRITE_INPUT_TOKENS_METRIC_KEY),
+    (REASONING_OUTPUT_TOKENS_METRIC_KEY, GEN_AI_USAGE_REASONING_OUTPUT_TOKENS_METRIC_KEY),
+)
+
+
+def set_gen_ai_apm_tags(
+    span: Span,
+    span_kind: Optional[str],
+    model_name: Optional[str] = None,
+    model_provider: Optional[str] = None,
+    metrics: Optional[dict[str, Any]] = None,
+    ml_app: Optional[str] = None,
+    session_id: Optional[str] = None,
+) -> None:
+    """Write the scalar gen_ai.* attributes onto the APM span.
+
+    Normalization happens here, not in the caller, so the LLMObs-disabled and finish-time paths
+    agree on a facet value instead of splitting it.
+    """
+    if span_kind:
+        span.set_tag(GEN_AI_OPERATION_NAME_TAG_KEY, span_kind)
+    if span_kind in _TOKEN_METRIC_SPAN_KINDS:
+        # Mirrors _normalize_llmobs_meta: model-backed spans always report a model and provider.
+        span.set_tag(GEN_AI_REQUEST_MODEL_TAG_KEY, model_name or UNKNOWN_MODEL_NAME)
+        span.set_tag(GEN_AI_PROVIDER_NAME_TAG_KEY, (model_provider or UNKNOWN_MODEL_PROVIDER).lower())
+    else:
+        if model_name:
+            span.set_tag(GEN_AI_REQUEST_MODEL_TAG_KEY, model_name)
+        if model_provider:
+            span.set_tag(GEN_AI_PROVIDER_NAME_TAG_KEY, model_provider.lower())
+    if ml_app:
+        span.set_tag(GEN_AI_APPLICATION_NAME_TAG_KEY, ml_app)
+    if session_id:
+        span.set_tag(GEN_AI_CONVERSATION_ID_TAG_KEY, session_id)
+    if span_kind in _TOKEN_METRIC_SPAN_KINDS and metrics:
+        for llmobs_key, gen_ai_key in _TOKEN_METRIC_KEYS:
+            value = metrics.get(llmobs_key)
+            if value is not None:
+                span._set_attribute(gen_ai_key, value)
+
+
+def set_gen_ai_apm_tags_from_llmobs_data(span: Span, llmobs_data: Mapping[str, Any], span_kind: Optional[str]) -> None:
+    """Write gen_ai.* attributes from a span's LLMObs meta_struct.
+
+    Must run before _normalize_llmobs_meta, which pops model_name and model_provider for every
+    kind other than llm/embedding. span_kind is passed in because normalization is also what
+    writes meta.span.kind.
+    """
+    llmobs_meta = llmobs_data.get(LLMOBS_STRUCT.META) or {}
+    set_gen_ai_apm_tags(
+        span,
+        span_kind=span_kind,
+        model_name=llmobs_meta.get(LLMOBS_STRUCT.MODEL_NAME),
+        model_provider=llmobs_meta.get(LLMOBS_STRUCT.MODEL_PROVIDER),
+        metrics=llmobs_data.get(LLMOBS_STRUCT.METRICS),
+        ml_app=llmobs_data.get(LLMOBS_STRUCT.ML_APP),
+        session_id=llmobs_data.get(LLMOBS_STRUCT.SESSION_ID),
+    )
