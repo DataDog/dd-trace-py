@@ -444,7 +444,7 @@ class TestRunner:
             identity = f"{artifact.name}:{artifact_stat.st_size}:{artifact_stat.st_mtime_ns}"
             project_hash = hashlib.sha256(identity.encode()).hexdigest()[:12]
             project_requirement = str(artifact)
-            editable_mode = "prebuilt-editable"
+            editable_mode = "prebuilt-wheel"
 
         requirements = UV_ENVIRONMENT_ROOT / ".requirements" / (f"{lockfile.stem}-{package_hash}-{project_hash}.txt")
         filtered = "".join(

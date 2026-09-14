@@ -22,6 +22,8 @@ include:
     - !reference [.testrunner, before_script]
     # Artifact extraction preserves build timestamps, so refresh native outputs after checkout.
     - find ddtrace -type f -name '*.so*' -exec touch {} +
+    # Keep Python coverage and subprocess imports on the checkout while using native modules from the published wheel.
+    - export PYTHONPATH="$CI_PROJECT_DIR${PYTHONPATH:+:$PYTHONPATH}"
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS

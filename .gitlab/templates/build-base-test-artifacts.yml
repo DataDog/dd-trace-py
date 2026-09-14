@@ -1,66 +1,39 @@
 build_base_test_artifacts:
-  extends: .cached_testrunner
+  extends: .testrunner
   stage: setup
-  needs: []
-  parallel:
-    matrix:
-      - PYTHON_VERSION: [{python_versions}]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
-    DD_USE_SCCACHE: '1'
-    # S3-backed sccache, matches the wheel-build jobs in .gitlab/package.yml
-    SCCACHE_BUCKET: 'dd-trace-py-builds'
-    SCCACHE_S3_KEY_PREFIX: 'sccache'
-    SCCACHE_REGION: 'us-east-1'
-    DD_PROFILING_MEMALLOC_ASSERT_ON_REENTRY: '1'
-    # Pin resources and disable the VPA. This job compiles every native
-    # extension in parallel (CMAKE_BUILD_PARALLEL_LEVEL=12, set above) whenever
-    # the ext_cache is cold (e.g. a newly added Python version), which peaks
-    # well above the ~5Gi the VPA otherwise tunes it down to and gets OOMKilled.
-    # Matches the resource requests used by the native package build jobs.
-    KUBERNETES_CPU_REQUEST: '6'
-    KUBERNETES_MEMORY_REQUEST: '10Gi'
-    KUBERNETES_MEMORY_LIMIT: '10Gi'
-    DD_DISABLE_VPA: 'true'
-    # Disable link time optimization settings to improve build times, the impact will be larger binary sizes
-    CARGO_PROFILE_RELEASE_LTO: 'off'
-    CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
-    CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
+  needs:
+{wheel_needs}
   script: |
-    set -e -o pipefail
-    echo "UNPIN_DEPENDENCIES: {unpin_dependencies}"
-    echo "NIGHTLY_BUILD: {nightly_build}"
-    if [[ "{unpin_dependencies}" == "true" ]]
-    then
-      python scripts/allow_prerelease_dependencies.py
-      export PIP_PRE=true
+    set -euo pipefail
+    shopt -s nullglob
+    wheels=(pywheels/ddtrace-*-cp3*-cp3*-manylinux*_x86_64.whl)
+    if [[ ${{#wheels[@]}} -eq 0 ]]; then
+      echo "No amd64 manylinux wheels were downloaded"
+      exit 1
     fi
-    echo "Running smoke tests"
-    # Do not pass -s here: this job owns the editable install that materializes source-tree artifacts such as libddwaf.
-    smoke_hash=$(
-      scripts/run-tests --all-suites --list |
-        jq -r --arg python "$PYTHON_VERSION" '.suites[] | select(.name == "smoke_test") | .venvs[] | select(.python_version == $python) | .hash'
-    )
-    rm -rf ".cache/uv-test-environments/${{smoke_hash}}-"*
-    scripts/run-tests --venv "$smoke_hash"
-    # Preserve source-tree imports while building editable metadata only once per Python.
-    wheel_dir="$(pwd)/.cache/ddtrace-test-wheels/$PYTHON_VERSION"
-    mkdir -p "$wheel_dir"
-    find "$wheel_dir" -maxdepth 1 -type f -name 'ddtrace-*.whl' -delete
-    uv run --isolated --no-project --python "python$PYTHON_VERSION" --no-python-downloads \
-      --with setuptools --with cython --with 'cmake>=3.24.2,<3.28' --with 'setuptools-rust<2' \
-      --with "patchelf>=0.17.0.0; sys_platform == 'linux'" \
-      python -c 'import sys; from setuptools.build_meta import build_editable; build_editable(sys.argv[1], {{"editable_mode": "compat"}})' \
-      "$wheel_dir"
-    sccache --show-stats || true
+
+    for wheel in "${{wheels[@]}}"; do
+      if [[ "${{wheel##*/}}" =~ -cp3([0-9]+)-cp3[0-9]+- ]]; then
+        python_version="3.${{BASH_REMATCH[1]}}"
+      else
+        echo "Cannot determine the Python version for $wheel"
+        exit 1
+      fi
+      wheel_dir="$CI_PROJECT_DIR/.cache/ddtrace-test-wheels/$python_version"
+      mkdir -p "$wheel_dir"
+      cp "$wheel" "$wheel_dir/"
+
+      # Fresh subprocesses can import the checkout before site-packages. Use the
+      # published wheel's native modules so those source imports remain valid.
+      extracted="$(mktemp -d)"
+      python -m zipfile -e "$wheel" "$extracted"
+      (
+        cd "$extracted"
+        find ddtrace -type f -name '*.so*' -exec cp --parents --target-directory="$CI_PROJECT_DIR" {{}} +
+      )
+    done
   artifacts:
-    name: native_$PYTHON_VERSION
-    when: always
+    name: test_wheels
     paths:
-      - core.*
       - ddtrace/**/*.so*
-      - ddtrace/appsec/_ddwaf/libddwaf/.version
-      - src/native/target*/include/
-      - .download_cache/_cmake_deps/absl_install_*/
       - .cache/ddtrace-test-wheels/

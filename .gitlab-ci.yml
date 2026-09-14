@@ -126,6 +126,7 @@ run-tests-trigger:
  stage: tests
  needs: [ tests-gen ]
  variables:
+   PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked
