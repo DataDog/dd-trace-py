@@ -6,6 +6,7 @@ from ddtrace.internal.settings._agentless import config as agentless_config
 from ddtrace.internal.settings._core import DDConfig
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
+from ddtrace.internal.utils.formats import asbool
 
 
 def _agentless_endpoint(signal_path: str = "") -> str:
@@ -151,6 +152,8 @@ def _derive_trace_metrics_endpoint(config: "ExporterConfig"):
 
 
 def _is_otlp_traces_exporter_enabled(exporter_config: "ExporterConfig") -> bool:
+    if asbool(env.get("DD_TRACE_OTEL_SEMANTICS_ENABLED", default=False)):
+        return True
     if env.get("DD_TRACE_AGENT_PROTOCOL_VERSION"):
         return False
     return env.get("OTEL_TRACES_EXPORTER", "").lower() == "otlp"
@@ -175,6 +178,8 @@ def _is_otlp_trace_metrics_enabled(
 
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
+
+    HTTP_KNOWN_METHODS = DDConfig.v(t.Optional[str], "instrumentation.http.known_methods", default=None)
 
 
 class ExporterConfig(DDConfig):
