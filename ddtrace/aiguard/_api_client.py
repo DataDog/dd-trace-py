@@ -135,19 +135,22 @@ def _classify_transport_error(exc: BaseException) -> str:
 
 
 def _loggable_endpoint(url: str) -> str:
-    """The endpoint with any credentials stripped, for debug logs.
+    """The endpoint origin only, for debug logs.
 
-    An endpoint override can carry userinfo or a query credential, and these logs are exactly what
-    customers are asked to share during an investigation, so keep only scheme, host, port and path.
+    An override can carry a credential in userinfo, a path segment or a query parameter, and
+    customers are asked to share these logs, so keep nothing but scheme, host and port.
     """
     try:
         parsed = urlparse(url)
         host = parsed.hostname or ""
-        if parsed.port:
-            host = f"{host}:{parsed.port}"
         if not host:
             return "<unparsable>"
-        return f"{parsed.scheme}://{host}{parsed.path}" if parsed.scheme else f"{host}{parsed.path}"
+        # hostname strips the brackets an IPv6 literal needs to stay unambiguous against the port.
+        if ":" in host:
+            host = f"[{host}]"
+        if parsed.port is not None:
+            host = f"{host}:{parsed.port}"
+        return f"{parsed.scheme}://{host}" if parsed.scheme else host
     except Exception:
         return "<unparsable>"
 

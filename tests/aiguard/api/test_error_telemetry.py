@@ -160,27 +160,34 @@ class TestEndpointIsNotLoggedVerbatim:
     @pytest.mark.parametrize(
         "url,expected",
         [
-            ("https://api.example.com/ai-guard", "https://api.example.com/ai-guard"),
-            ("https://api.example.com:8443/ai-guard", "https://api.example.com:8443/ai-guard"),
-            # userinfo and query credentials are dropped
-            ("https://user:s3cret@api.example.com/ai-guard", "https://api.example.com/ai-guard"),
-            ("https://api.example.com/ai-guard?token=s3cret", "https://api.example.com/ai-guard"),
-            ("https://user:s3cret@api.example.com/ai-guard?token=t0ken", "https://api.example.com/ai-guard"),
+            ("https://api.example.com/ai-guard", "https://api.example.com"),
+            ("https://api.example.com:8443/ai-guard", "https://api.example.com:8443"),
+            # userinfo, path and query credentials are all dropped
+            ("https://user:s3cret@api.example.com/ai-guard", "https://api.example.com"),
+            ("https://api.example.com/ai-guard?token=s3cret", "https://api.example.com"),
+            ("https://proxy.example.com/customer-token/ai-guard", "https://proxy.example.com"),
+            ("https://user:s3cret@proxy.example.com/t0ken/ai-guard?token=k3y", "https://proxy.example.com"),
+            # IPv6 literals keep their brackets, so the host stays unambiguous against the port
+            ("https://[2001:db8::1]/ai-guard", "https://[2001:db8::1]"),
+            ("https://[2001:db8::1]:8443/ai-guard", "https://[2001:db8::1]:8443"),
+            # an explicit port is reported even when it is falsy
+            ("https://api.example.com:0/ai-guard", "https://api.example.com:0"),
             # nothing usable to log, and never the raw value
             ("not a url", "<unparsable>"),
             ("", "<unparsable>"),
+            ("https://api.example.com:99999/ai-guard", "<unparsable>"),
         ],
     )
-    def test_credentials_are_stripped(self, url, expected):
+    def test_only_the_origin_is_kept(self, url, expected):
         assert _loggable_endpoint(url) == expected
 
-    @pytest.mark.parametrize("secret", ["s3cret", "t0ken"])
+    @pytest.mark.parametrize("secret", ["s3cret", "t0ken", "k3y"])
     def test_no_secret_reaches_the_startup_log(self, secret, caplog):
         from ddtrace.aiguard._api_client import AIGuardClient
 
         with caplog.at_level("DEBUG", logger="ddtrace.aiguard._api_client"):
             AIGuardClient(
-                endpoint="https://user:s3cret@api.example.com/ai-guard?token=t0ken",
+                endpoint="https://user:s3cret@api.example.com/t0ken/ai-guard?token=k3y",
                 api_key="test-api-key",
                 app_key="test-app-key",
             )
