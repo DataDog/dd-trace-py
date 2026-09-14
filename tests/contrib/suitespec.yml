@@ -862,9 +862,9 @@ suites:
     snapshot: true
     matrix:
       runs:
-        - command: pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py'
+        - command: python -m pytest {cmdargs} --ignore='tests/contrib/bottle/test_autopatch.py'
             tests/contrib/bottle/
-        - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
+        - command: python tests/ddtrace_run.py python -m pytest {cmdargs} tests/contrib/bottle/test_autopatch.py
           env:
             DD_SERVICE: bottle-app
       variants:
@@ -919,7 +919,7 @@ suites:
     snapshot: true
     venvs_per_job: 2
     matrix:
-      command: pytest {cmdargs} tests/contrib/cherrypy
+      command: python -m pytest {cmdargs} tests/contrib/cherrypy
       variants:
         - name: cherrypy
           python: ['3.9', '3.10']
@@ -1529,7 +1529,7 @@ suites:
     snapshot: true
     venvs_per_job: 3
     matrix:
-      command: pytest -v {cmdargs} tests/contrib/grpc
+      command: python -m pytest -v {cmdargs} tests/contrib/grpc
       variants:
         - name: grpc
           python: ['3.9']
@@ -1557,25 +1557,25 @@ suites:
           dependencies: [googleapis-common-protos, pytest-randomly, 'grpcio~=1.34.0', 'pytest-asyncio==0.23.7']
           env:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
-          command: pytest {cmdargs} tests/contrib/grpc_aio
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
         - name: grpc:grpc_aio
           python: ['3.9', '3.10', '3.11']
           dependencies: [googleapis-common-protos, pytest-randomly, 'grpcio~=1.59.0', 'pytest-asyncio==0.23.7']
           env:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
-          command: pytest {cmdargs} tests/contrib/grpc_aio
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
         - name: grpc:grpc_aio
           python: ['3.10']
           dependencies: [googleapis-common-protos, pytest-randomly, 'grpcio~=1.42.0', 'pytest-asyncio==0.23.7']
           env:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
-          command: pytest {cmdargs} tests/contrib/grpc_aio
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
         - name: grpc:grpc_aio
           python: ['3.11']
           dependencies: [googleapis-common-protos, pytest-randomly, 'grpcio~=1.49.0', 'pytest-asyncio==0.23.7']
           env:
             _DD_TRACE_GRPC_AIO_ENABLED: 'true'
-          command: pytest {cmdargs} tests/contrib/grpc_aio
+          command: python -m pytest {cmdargs} tests/contrib/grpc_aio
   gunicorn:
     parallelism: 6
     paths:
@@ -2691,7 +2691,7 @@ suites:
       - tests/contrib/tornado/*
     snapshot: true
     matrix:
-      command: pytest {cmdargs} tests/contrib/tornado
+      command: python -m pytest {cmdargs} tests/contrib/tornado
       variants:
         - name: tornado
           python: ['3.9']

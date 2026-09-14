@@ -151,10 +151,18 @@ build_base_test_artifacts:
       wheel_dir="$CI_PROJECT_DIR/.cache/ddtrace-test-wheels/$python_version"
       mkdir -p "$wheel_dir"
       cp "$wheel" "$wheel_dir/"
+
+      extracted="$(mktemp -d)"
+      python -m zipfile -e "$wheel" "$extracted"
+      (
+        cd "$extracted"
+        find ddtrace -type f -name '*.so*' -exec cp --parents --target-directory="$CI_PROJECT_DIR" {} +
+      )
     done
   artifacts:
     name: test_wheels
     paths:
+      - ddtrace/**/*.so*
       - .cache/ddtrace-test-wheels/
 
 run-tests-trigger:

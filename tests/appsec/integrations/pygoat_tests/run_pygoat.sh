@@ -8,8 +8,8 @@ pip install -r pygoat/requirements.txt
 pip install --no-cache-dir --force-reinstall pyyaml==6.0.1 --global-option='--without-libyaml'
 python3 pygoat/manage.py migrate
 python3 pygoat/manage.py loaddata tests/appsec/integrations/pygoat_tests/fixtures/*.json
-ddtrace-run python3 pygoat/manage.py runserver 0.0.0.0:8321 > /dev/null 2>&1 & echo $! > pygoat.pid
+python -m ddtrace.commands.ddtrace_run python3 pygoat/manage.py runserver 0.0.0.0:8321 > /dev/null 2>&1 & echo $! > pygoat.pid
 sleep 5
-pytest -vvv $1
+python -m pytest -vvv $1
 kill $(cat pygoat.pid) || true
 rm -f pygoat.pid pygoat || true

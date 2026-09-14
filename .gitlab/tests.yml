@@ -21,7 +21,11 @@ include:
   before_script:
     - !reference [.testrunner, before_script]
     - export DD_TEST_PUBLISHED_WHEEL=true
-    - unset PYTHONPATH
+    - export DDTRACE_NATIVE_TEST_SOURCE="$CI_PROJECT_DIR/.test-source/appsec/_iast/_taint_tracking"
+    - mkdir -p "$(dirname "$DDTRACE_NATIVE_TEST_SOURCE")"
+    - mv ddtrace/appsec/_iast/_taint_tracking "$DDTRACE_NATIVE_TEST_SOURCE"
+    - rm -r "$CI_PROJECT_DIR/ddtrace"
+    - export PYTHONPATH="$CI_PROJECT_DIR"
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS

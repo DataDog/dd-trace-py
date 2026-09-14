@@ -4643,10 +4643,9 @@ venv = Venv(
         ),
         Venv(
             name="appsec_iast_native",
-            command="cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python "
-            "-S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking && "
-            "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests && "
-            "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests",
+            command='bash -c \'source_path="${DDTRACE_NATIVE_TEST_SOURCE:-ddtrace/appsec/_iast/_taint_tracking}"; '
+            'cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S "$source_path" -B "$source_path" && '
+            'make -f "$source_path/tests/Makefile" native_tests && "$source_path/tests/native_tests"\'',
             pys=select_pys(),
             pkgs={
                 "cmake": latest,

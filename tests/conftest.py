@@ -442,10 +442,9 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
-    pythonpath = os.getenv("PYTHONPATH")
-    installed_root = str(Path(ddtrace.__file__).resolve().parent.parent)
+    pythonpath = os.getenv("PYTHONPATH", None)
     base_path = os.path.dirname(os.path.dirname(__file__))
-    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(filter(None, (installed_root, base_path, pythonpath))))
+    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
 
     for key, value in marker.kwargs.get("env", {}).items():
         if value is None:  # None means remove the variable
