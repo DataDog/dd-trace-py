@@ -122,7 +122,21 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             except AttributeError:
                 pass
 
-        # Last resort
+        # PERF: g itself is the answer when it already matches and none of the explicit
+        # wrapper relationships above led elsewhere. Checking here, rather than before those
+        # probes, preserves their precedence: a wrapper that happens to share the target's
+        # name and file must still resolve to the original it closes over. This skips the
+        # __dir__() scan below, which dominates the cost for a plain test function.
+        if _isinstance(g, FunctionType) and match(g):
+            return g
+
+        # Last resort.
+        # NOTE: the try wraps the whole loop, so the first name in object.__dir__(g) that is
+        # not gettable via object.__getattribute__ ends the scan early. Bound methods hit
+        # this: object.__dir__ merges in the underlying function's attributes, so a wrapper
+        # decorated with functools.wraps surfaces __wrapped__, which a method object does not
+        # forward, and the scan stops before reaching __func__. That is why a bound method
+        # can come back unresolved, and why the shortcut above is restricted to functions.
         try:
             for v in (object.__getattribute__(g, a) for a in object.__dir__(g)):
                 if _isinstance(v, FunctionType) and v not in seen_functions and match(v):
