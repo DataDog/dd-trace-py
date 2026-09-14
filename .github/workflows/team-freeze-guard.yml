@@ -45,4 +45,3 @@ jobs:
             @DataDog/apm-core-python
             @DataDog/debugger-python
             @DataDog/apm-sdk-capabilities-python
-            @DataDog/apm-idm-python
