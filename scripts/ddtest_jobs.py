@@ -165,7 +165,8 @@ def emit_ddtest_jobs(
                 print(f"    {key}: {value}", file=f)
 
     def emit_needs_build_base_test_artifacts() -> None:
-        print("    - job: build_base_test_artifacts", file=f)
+        print('    - pipeline: "$PARENT_PIPELINE_ID"', file=f)
+        print("      job: build_base_test_artifacts", file=f)
         print("      artifacts: true", file=f)
 
     # ---- plan job: single job per suite (groups hashes by Python version) ----

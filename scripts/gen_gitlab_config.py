@@ -100,10 +100,10 @@ class JobSpec:
         # Set stage
         lines.append(f"  stage: {self.stage}")
 
-        # The shared artifact provides the published wheels and native extensions.
         lines.append("  needs:")
         lines.append("    - prechecks")
-        lines.append("    - job: build_base_test_artifacts")
+        lines.append('    - pipeline: "$PARENT_PIPELINE_ID"')
+        lines.append("      job: build_base_test_artifacts")
         lines.append("      artifacts: true")
 
         # Preserve declared order (dedup via dict.fromkeys) rather than using a set:
@@ -187,14 +187,8 @@ class SuiteVenvInfo:
         return len(self.environment_hashes)
 
 
-# Populated by gen_required_suites and gen_build_docs, then consumed by gen_build_base_test_artifacts.
-_test_python_versions: set[str] = set()
-_needs_base_test_artifacts = True
-
 # Target minimum number of GitLab job instances for a CI run (used to scale up sparse runs)
 TARGET_JOBS = 200
-
-DEFAULT_TEST_PYTHON_VERSIONS = ["3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
 
 
 def _shell_environment(environment: dict[str, str]) -> str:
@@ -471,9 +465,6 @@ def gen_validate_slos() -> None:
 
 
 def _gen_tests(suites: dict, required_suites: list[str]) -> None:
-    global _test_python_versions
-    global _needs_base_test_artifacts
-
     suites = {k: v for k, v in suites.items() if v.get("type", "test") == "test"}
     required_suites = [a for a in required_suites if a in list(suites.keys())]
 
@@ -509,11 +500,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
     non_skipped = [s for s in required_suites if not suites[s].get("skip", False)]
     suite_configs = {s: suites[s] for s in non_skipped}
     suite_venv_info = collect_all_suite_venv_info(suite_configs)
-    _test_python_versions = {
-        python for info in suite_venv_info.values() for _, python in info.environments if re.match(r"^3\.\d+$", python)
-    }
-    _needs_base_test_artifacts = bool(non_skipped)
-
     for suite in non_skipped:
         if not suites[suite].get("ddtest") or suite not in suite_venv_info:
             continue
@@ -614,9 +600,6 @@ def _gen_tests(suites: dict, required_suites: list[str]) -> None:
 
 def gen_build_docs() -> None:
     """Include the docs build step if the docs have changed."""
-    global _test_python_versions
-    global _needs_base_test_artifacts
-
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
@@ -630,16 +613,14 @@ def gen_build_docs() -> None:
             ".readthedocs.yml",
         }
     ):
-        _test_python_versions.add("3.10")
-        _needs_base_test_artifacts = True
-
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
             print("  stage: core", file=f)
             print("  needs:", file=f)
             print("    - prechecks", file=f)
-            print("    - job: build_base_test_artifacts", file=f)
+            print('    - pipeline: "$PARENT_PIPELINE_ID"', file=f)
+            print("      job: build_base_test_artifacts", file=f)
             print("      artifacts: true", file=f)
             print("  script:", file=f)
             print("    - |", file=f)
@@ -804,38 +785,6 @@ prechecks:
       - .cache
 """
         )
-
-
-def gen_build_base_test_artifacts() -> None:
-    """Collect publishable wheels needed by the child test pipeline.
-
-    Python versions come directly from the selected suitespec environments.
-    """
-    if not _needs_base_test_artifacts:
-        LOGGER.info("Skipping base test artifacts because no test suites were selected")
-        return
-
-    python_versions = sorted(_test_python_versions) or DEFAULT_TEST_PYTHON_VERSIONS
-    LOGGER.info("Collecting test wheels for Python versions: %s", python_versions)
-
-    package_config = (GITLAB / "package.yml").read_text()
-    image_match = re.search(r'^\s*MANYLINUX_AMD64_IMAGE_TAG:\s*["\']([^"\']+)["\']', package_config, re.MULTILINE)
-    if image_match is None:
-        raise ValueError("MANYLINUX_AMD64_IMAGE_TAG is not defined in .gitlab/package.yml")
-    image_tag = image_match.group(1)
-
-    wheel_needs = "\n".join(
-        line
-        for python_tag in (f"cp{version.replace('.', '')}" for version in python_versions)
-        for line in (
-            '    - pipeline: "$PARENT_PIPELINE_ID"',
-            f'      job: "build linux: [amd64, {python_tag}-{python_tag}, {image_tag}]"',
-            "      artifacts: true",
-        )
-    )
-
-    with TESTS_GEN.open("a") as f:
-        f.write(template("build-base-test-artifacts", wheel_needs=wheel_needs))
 
 
 # -----------------------------------------------------------------------------

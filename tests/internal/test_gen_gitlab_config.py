@@ -138,20 +138,6 @@ def test_ddtest_jobs_preserve_environment_values_with_spaces(gen_gitlab_config_m
     assert (gen_gitlab_config_mod.GITLAB / "tests.yml").read_text().count('eval "export ${!env_var}"') == 2
 
 
-def test_build_base_test_artifacts_uses_parent_manylinux_wheel(gen_gitlab_config_mod, monkeypatch, tmp_path):
-    monkeypatch.setattr(gen_gitlab_config_mod, "TESTS_GEN", tmp_path / "tests-gen.yml")
-    monkeypatch.setattr(gen_gitlab_config_mod, "_test_python_versions", {"3.11", "3.15"})
-
-    gen_gitlab_config_mod.gen_build_base_test_artifacts()
-
-    config = (tmp_path / "tests-gen.yml").read_text()
-    assert "parallel:" not in config
-    assert 'pipeline: "$PARENT_PIPELINE_ID"' in config
-    assert "build linux: [amd64, cp311-cp311," in config
-    assert "build linux: [amd64, cp315-cp315," in config
-    assert "cp314" not in config
-
-
 def test_jobs_use_declared_environments(gen_gitlab_config_mod):
     environment_hashes = ("first", "second", "third")
     config = str(
@@ -165,6 +151,8 @@ def test_jobs_use_declared_environments(gen_gitlab_config_mod):
     )
 
     assert "  extends: .test_base" in config
+    assert '    - pipeline: "$PARENT_PIPELINE_ID"' in config
+    assert "      job: build_base_test_artifacts" in config
     assert "    TEST_SUITE: tracer" in config
     configured_hashes = {
         environment_hash
