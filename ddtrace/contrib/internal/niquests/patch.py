@@ -12,6 +12,7 @@ import niquests
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.subscribers.http_client import _http_propagation_suppressed
 from ddtrace.contrib._events.http_client import HttpClientRequestEvent
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -135,6 +136,28 @@ async def _wrap_async_send(
         return response
 
 
+def _wrap_adapter_send(
+    wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    # AIDEV-NOTE: Suppress only nested transport injection. The urllib3 span remains
+    # observable when that integration is patched, but wire headers identify this request span.
+    token = _http_propagation_suppressed.set(True)
+    try:
+        return wrapped(*args, **kwargs)
+    finally:
+        _http_propagation_suppressed.reset(token)
+
+
+async def _wrap_async_adapter_send(
+    wrapped: Callable[..., Awaitable[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
+) -> Any:
+    token = _http_propagation_suppressed.set(True)
+    try:
+        return await wrapped(*args, **kwargs)
+    finally:
+        _http_propagation_suppressed.reset(token)
+
+
 def _wrap_iter_content(
     wrapped: Callable[..., Iterator[Any]], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Iterator[Any]:
@@ -255,6 +278,7 @@ def patch() -> None:
 
     niquests._datadog_patch = True
     _w(niquests.Session, "send", _wrap_send)
+    _w(niquests.adapters.HTTPAdapter, "send", _wrap_adapter_send)
     _w(niquests.models.Response, "iter_content", _wrap_iter_content)
     _w(niquests.models.Response, "close", _wrap_close)
 
@@ -265,10 +289,10 @@ def patch() -> None:
         _w(niquests.models.AsyncResponse, "close", _wrap_async_close)
     if hasattr(niquests.adapters.HTTPAdapter, "_future_handler"):
         _w(niquests.adapters.HTTPAdapter, "_future_handler", _wrap_future_handler)
-    if hasattr(niquests.adapters, "AsyncHTTPAdapter") and hasattr(
-        niquests.adapters.AsyncHTTPAdapter, "_future_handler"
-    ):
-        _w(niquests.adapters.AsyncHTTPAdapter, "_future_handler", _wrap_async_future_handler)
+    if hasattr(niquests.adapters, "AsyncHTTPAdapter"):
+        _w(niquests.adapters.AsyncHTTPAdapter, "send", _wrap_async_adapter_send)
+        if hasattr(niquests.adapters.AsyncHTTPAdapter, "_future_handler"):
+            _w(niquests.adapters.AsyncHTTPAdapter, "_future_handler", _wrap_async_future_handler)
 
 
 def unpatch() -> None:
@@ -277,6 +301,7 @@ def unpatch() -> None:
 
     niquests._datadog_patch = False
     _u(niquests.Session, "send")
+    _u(niquests.adapters.HTTPAdapter, "send")
     _u(niquests.models.Response, "iter_content")
     _u(niquests.models.Response, "close")
 
@@ -287,7 +312,7 @@ def unpatch() -> None:
         _u(niquests.models.AsyncResponse, "close")
     if hasattr(niquests.adapters.HTTPAdapter, "_future_handler"):
         _u(niquests.adapters.HTTPAdapter, "_future_handler")
-    if hasattr(niquests.adapters, "AsyncHTTPAdapter") and hasattr(
-        niquests.adapters.AsyncHTTPAdapter, "_future_handler"
-    ):
-        _u(niquests.adapters.AsyncHTTPAdapter, "_future_handler")
+    if hasattr(niquests.adapters, "AsyncHTTPAdapter"):
+        _u(niquests.adapters.AsyncHTTPAdapter, "send")
+        if hasattr(niquests.adapters.AsyncHTTPAdapter, "_future_handler"):
+            _u(niquests.adapters.AsyncHTTPAdapter, "_future_handler")

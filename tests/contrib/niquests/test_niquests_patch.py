@@ -22,12 +22,15 @@ def test_version_reporting():
 
 def test_patch_and_unpatch_sync_send():
     assert not is_wrapted(niquests.Session.send)
+    assert not is_wrapted(niquests.adapters.HTTPAdapter.send)
 
     patch()
     assert is_wrapted(niquests.Session.send)
+    assert is_wrapted(niquests.adapters.HTTPAdapter.send)
 
     unpatch()
     assert not is_wrapted(niquests.Session.send)
+    assert not is_wrapted(niquests.adapters.HTTPAdapter.send)
 
 
 def test_repeated_patch_does_not_double_wrap_sync_send():
@@ -43,9 +46,12 @@ def test_patch_and_unpatch_async_send():
         pytest.skip("AsyncSession requires niquests>=3.14")
 
     assert not is_wrapted(niquests.AsyncSession.send)
+    assert not is_wrapted(niquests.adapters.AsyncHTTPAdapter.send)
 
     patch()
     assert is_wrapted(niquests.AsyncSession.send)
+    assert is_wrapted(niquests.adapters.AsyncHTTPAdapter.send)
 
     unpatch()
     assert not is_wrapted(niquests.AsyncSession.send)
+    assert not is_wrapted(niquests.adapters.AsyncHTTPAdapter.send)

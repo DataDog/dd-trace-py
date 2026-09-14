@@ -10,6 +10,7 @@ from ddtrace.ext import http
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_config
+from tests.utils import override_http_config
 
 from .conftest import HTTPBIN
 
@@ -121,6 +122,73 @@ def test_distributed_tracing_can_be_disabled(patched_niquests, tracer, test_span
     assert len(traces[0]) == 2
     assert "X-Datadog-Trace-Id" not in headers
     assert "X-Datadog-Parent-Id" not in headers
+
+
+def test_distributed_tracing_with_urllib3_patched(patched_niquests, tracer, test_spans):
+    from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
+    from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
+
+    urllib3_patch()
+    try:
+        with tracer.trace("parent"):
+            response = niquests.get(HTTPBIN + "/headers")
+
+        headers = response.json()["headers"]
+        spans = [span for trace in test_spans.pop_traces() for span in trace]
+        request_span = next(span for span in spans if span.name == "niquests.request")
+        assert headers["X-Datadog-Parent-Id"] == str(request_span.span_id)
+    finally:
+        urllib3_unpatch()
+
+
+@pytest.mark.subprocess(env={"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"})
+def test_schema_v1_and_peer_service():
+    import niquests
+
+    from ddtrace import config
+    from ddtrace.contrib.internal.niquests.patch import patch
+    from ddtrace.trace import tracer
+    from tests.contrib.niquests.conftest import HTTPBIN
+    from tests.utils import DummyWriter
+
+    writer = DummyWriter()
+    tracer._span_aggregator.writer = writer
+    patch()
+
+    response = niquests.get(HTTPBIN + "/status/200")
+
+    assert response.status_code == 200
+    spans = writer.pop()
+    assert len(spans) == 1
+    span = spans[0]
+    assert span.name == "http.client.request"
+    assert span.service == config.service
+    assert span.get_tag("peer.service") == "localhost"
+    assert span.get_tag("_dd.peer.service.source") == "out.host"
+
+
+def test_configured_header_tracing(patched_niquests, test_spans):
+    path = "/response-headers?X-Response-Header=response-value"
+    with override_http_config("niquests", {"trace_headers": ["X-Request-Header", "X-Response-Header"]}):
+        response = niquests.get(HTTPBIN + path, headers={"X-Request-Header": "request-value"})
+
+    assert response.status_code == 200
+    span = _pop_request_span(test_spans)
+    assert span.get_tag("http.request.headers.x-request-header") == "request-value"
+    assert span.get_tag("http.response.headers.x-response-header") == "response-value"
+
+
+def test_configured_query_string_tracing(patched_niquests, test_spans):
+    path = "/get"
+    query = "key=value"
+    with override_http_config("niquests", {"trace_query_string": True}):
+        response = niquests.get("{}{}?{}".format(HTTPBIN, path, query))
+
+    assert response.status_code == 200
+    span = _pop_request_span(test_spans)
+    assert span.resource == "GET {}".format(path)
+    assert span.get_tag(http.URL) == "{}{}?{}".format(HTTPBIN, path, query)
+    assert span.get_tag(http.QUERY_STRING) == query
 
 
 def test_stream_span_finishes_after_body_consumption(patched_niquests, test_spans):
