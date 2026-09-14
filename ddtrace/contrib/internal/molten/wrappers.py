@@ -5,14 +5,13 @@ from ddtrace import config
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRouteEvent
 from ddtrace.ext import SpanKind
-from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.utils.importlib import func_name
 
 
-MOLTEN_REQUEST_EVENT_KEY = "molten.request.event"
+MOLTEN_REQUEST_CONTEXT_KEY = "molten.request.context"
 MOLTEN_ROUTE = "molten.route"
 
 
@@ -84,19 +83,14 @@ class WrapperRouter(wrapt.ObjectProxy):
         route, params = route_and_params
         route.handler = trace_func(func_name(route.handler))(route.handler)
 
-        event = core.find_item(MOLTEN_REQUEST_EVENT_KEY)
-        if isinstance(event, WebFrameworkRequestEvent):
-            route_resource = "{} {}".format(route.method, route.template)
-            event.resource = route_resource
-            event.request_route = route.template
-            event.set_resource = False
-
-            request_span = core.find_item("req_span")
-            if request_span is not None:
-                request_span.resource = route_resource
-                event.resource = None
-                if not request_span.get_tag(MOLTEN_ROUTE):
-                    request_span._set_attribute(MOLTEN_ROUTE, route.name)
-                if not request_span.get_tag(http.ROUTE):
-                    request_span._set_attribute(http.ROUTE, route.template)
+        request_context = core.find_item(MOLTEN_REQUEST_CONTEXT_KEY)
+        if request_context is not None:
+            core.dispatch_event(
+                WebFrameworkRouteEvent(
+                    request_context=request_context,
+                    resource="{} {}".format(route.method, route.template),
+                    request_route=route.template,
+                    span_tags={MOLTEN_ROUTE: route.name},
+                )
+            )
         return route, params

@@ -16,7 +16,7 @@ from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 
-from .wrappers import MOLTEN_REQUEST_EVENT_KEY
+from .wrappers import MOLTEN_REQUEST_CONTEXT_KEY
 from .wrappers import WrapperComponent
 from .wrappers import WrapperMiddleware
 from .wrappers import WrapperRenderer
@@ -114,7 +114,7 @@ def patch_app_call(wrapped, instance, args, kwargs):
 
     with core.context_with_event(event) as ctx:
         ctx.set_item("req_span", span_from_context(ctx))
-        ctx.set_item(MOLTEN_REQUEST_EVENT_KEY, event)
+        ctx.set_item(MOLTEN_REQUEST_CONTEXT_KEY, ctx)
 
         def traced_start_response(status, response_headers, exc_info=None):
             event.response_status_code = _parse_status_code(status)
