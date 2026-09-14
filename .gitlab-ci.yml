@@ -596,9 +596,12 @@ prof-correctness:
   script:
     - |
       if [ -z "${GH_TOKEN:-}" ]; then
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)
+        export GH_TOKEN="$(dd-octo-sts token --scope DataDog/prof-correctness --policy dd-trace-py.gitlab.trigger-ci)"
       fi
-    - |
+      if [ -z "${GH_TOKEN:-}" ]; then
+        echo "error: GH_TOKEN is empty after dd-octo-sts (policy dd-trace-py.gitlab.trigger-ci)" >&2
+        exit 1
+      fi
       TEST_SCENARIOS='python_(mem_domain|exceptions|async_gen|lock)_3\.(14|15)'
       # downstream-python.yml run-name: "dd-trace-py downstream (<sha>)"
       TRIGGERED_AT="$(date -u -d "@$(($(date +%s) - 30))" +%Y-%m-%dT%H:%M:%SZ)"
