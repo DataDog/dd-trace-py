@@ -612,6 +612,37 @@ class TestSkippingAndITRFeatures:
         mock_manager.coverage_writer.put_coverage.assert_called_once()
         mock_manager.coverage_writer.put_suite_coverage.assert_not_called()
 
+    def test_coverage_collection_skipped_when_coverage_disabled(self) -> None:
+        """When coverage is disabled, the per-test coverage CM must not be entered.
+
+        ModuleCodeCollector is only installed when settings.coverage_enabled is True.
+        Entering coverage_collection() without it made
+        ModuleCodeCollector.coverage_enabled() report True for the duration of every
+        test and called the global sys.monitoring restart_events() per test, for a
+        collector that does not exist. The plugin substitutes an empty CoverageData,
+        which is what the disabled collector yielded anyway.
+        """
+        test_ref = TestDataFactory.create_test_ref("", "test_suite.py", "test_function")
+
+        mock_manager = session_manager_mock().build_mock()  # coverage_enabled defaults to False
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+        plugin.tests_by_nodeid = {"/test_suite.py::test_function": test}
+        mock_item = pytest_item_mock("/test_suite.py::test_function").build()
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection") as mock_coverage_collection,
+        ):
+            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+
+        # The real coverage_collection CM was never entered.
+        mock_coverage_collection.assert_not_called()
+        # Coverage is still dispatched (with empty bitmaps) via the same put_coverage path.
+        mock_manager.coverage_writer.put_coverage.assert_called_once()
+
 
 class TestFinalStatusFeatures:
     """Test final status tag functionality."""
