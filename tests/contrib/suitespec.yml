@@ -2680,7 +2680,7 @@ suites:
         - name: logging
           dependencies: [pytest-randomly, pytest-xdist]
   tornado:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
