@@ -35,6 +35,13 @@ import pytest
 
 import ddtrace
 
+
+if os.environ.get("DD_TEST_PUBLISHED_WHEEL") == "true":
+    checkout_package = (Path(os.environ["CI_PROJECT_DIR"]) / "ddtrace").resolve()
+    imported_package = Path(ddtrace.__file__).resolve().parent
+    if imported_package == checkout_package:
+        raise RuntimeError(f"CI must import ddtrace from the published wheel, not {checkout_package}")
+
 # DEV: Consumed by detect_service() during ddtrace import above; unset now so
 # it doesn't leak into tests (e.g. unit tests that call detect_service directly).
 # Save it so pytest_configure can propagate the correct value to xdist workers
@@ -435,9 +442,10 @@ def run_function_from_file(item, params=None):
 
     # Override environment variables for the subprocess
     env = os.environ.copy()
-    pythonpath = os.getenv("PYTHONPATH", None)
+    pythonpath = os.getenv("PYTHONPATH")
+    installed_root = str(Path(ddtrace.__file__).resolve().parent.parent)
     base_path = os.path.dirname(os.path.dirname(__file__))
-    env["PYTHONPATH"] = os.pathsep.join((base_path, pythonpath)) if pythonpath is not None else base_path
+    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(filter(None, (installed_root, base_path, pythonpath))))
 
     for key, value in marker.kwargs.get("env", {}).items():
         if value is None:  # None means remove the variable

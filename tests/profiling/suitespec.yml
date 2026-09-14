@@ -21,7 +21,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        python tests/profiling/run.py pytest -v --no-cov --capture=no --benchmark-disable
         --ignore='tests/profiling/collector/test_memalloc.py' --ignore='tests/profiling/test_memalloc_fork.py'
         {cmdargs} tests/profiling
       env:
@@ -63,7 +63,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        python tests/profiling/run.py pytest -v --no-cov --capture=no --benchmark-disable
         {cmdargs} tests/profiling/test_uwsgi.py
       env:
         CPUCOUNT: '12'
@@ -91,7 +91,7 @@ suites:
     retry: 2
     matrix:
       command: >-
-        python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable
+        python tests/profiling/run.py pytest -v --no-cov --capture=no --benchmark-disable
         {cmdargs} tests/profiling/collector/test_memalloc.py tests/profiling/test_memalloc_fork.py
       env:
         CPUCOUNT: '12'

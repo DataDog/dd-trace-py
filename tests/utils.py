@@ -1591,11 +1591,13 @@ def _build_env(env=None, file_path=FILE_PATH):
     With this function, we always set the path to ensure consistent results both locally and across different
     CI environments
     """
-    environ = dict(PATH="%s:%s" % (DDTRACE_PATH, file_path), PYTHONPATH="%s:%s" % (DDTRACE_PATH, file_path))
+    installed_root = Path(ddtrace.__file__).resolve().parent.parent
+    pythonpath = os.pathsep.join(dict.fromkeys(str(path) for path in (installed_root, DDTRACE_PATH, file_path)))
+    environ = dict(PATH="%s:%s" % (DDTRACE_PATH, file_path), PYTHONPATH=pythonpath)
     if os.environ.get("PATH"):
         environ["PATH"] = "%s:%s" % (os.environ.get("PATH"), environ["PATH"])
     if os.environ.get("PYTHONPATH"):
-        environ["PYTHONPATH"] = "%s:%s" % (os.environ.get("PYTHONPATH"), environ["PYTHONPATH"])
+        environ["PYTHONPATH"] = "%s:%s" % (environ["PYTHONPATH"], os.environ.get("PYTHONPATH"))
     if env:
         for k, v in env.items():
             environ[k] = v
