@@ -39,7 +39,7 @@ def identify():
 
 @app.route("/shutdown")
 def shutdown():
-    # AIDEV-NOTE: The snapshot fixture kills this server after this response. Flush first so the
+    # The snapshot fixture kills this server after this response. Flush first so the
     # caller has a deterministic acknowledgement that the preceding request trace reached the writer.
     tracer.flush()
     return "OK"
