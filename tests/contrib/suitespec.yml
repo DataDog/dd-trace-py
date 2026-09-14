@@ -1917,6 +1917,28 @@ suites:
         - name: mysqldb
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
+  niquests:
+    parallelism: 2
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@niquests'
+      - tests/contrib/niquests/*
+    services:
+      - httpbin
+    matrix:
+      command: pytest {cmdargs} tests/contrib/niquests
+      variants:
+        - name: niquests
+          python: ['3.9']
+          dependencies: [pytest-asyncio, pytest-randomly, 'niquests==3.0.0']
+        - name: niquests
+          python: ['3.9']
+          dependencies: [pytest-asyncio, pytest-randomly, 'niquests==3.14.0']
+        - name: niquests
+          dependencies: [pytest-asyncio, pytest-randomly, niquests]
   opentelemetry:
     venvs_per_job: 4
     paths:
