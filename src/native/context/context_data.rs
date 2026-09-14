@@ -598,8 +598,8 @@ impl Context {
     ///
     /// Should be called once after ddtrace is fully initialised so that
     /// the OnceLock caches are warm before any restricted environment
-    /// (Temporal sandbox, etc.) invokes ``_tracestate``.
-    /// Without this, the first ``_tracestate`` call triggers ``py.import()``
+    /// (Temporal sandbox, etc.) invokes _tracestate.
+    /// Without this, the first _tracestate call triggers py.import()
     /// which may be blocked by the environment.
     #[staticmethod]
     fn _init_tracestate_helpers(py: Python<'_>) -> PyResult<()> {
