@@ -1,29 +1,3 @@
-"""Tag-based head sampling for LLM Observability traces.
-
-Rules are configured through ``DD_LLMOBS_SAMPLING_RULES``, which mirrors the shape of
-``DD_TRACE_SAMPLING_RULES``::
-
-    DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5},
-                              {"tags": {"env": "staging"}, "sample_rate": 0.1}]'
-
-Rules are evaluated in the order they are declared and the first one that matches wins. When no
-rule matches, the global ``DD_LLMOBS_SAMPLE_RATE`` is applied.
-
-Timing is the hard part. Tags land on the root span over its whole lifetime, but the decision must
-exist before anything leaves the process.
-
-The resolver below decides the sampling decision as late as it safely can and then freezes it on
-the trace's root span:
-
-* At root start, only a floor is stamped -- the global rate, since no tag exists yet to match a
-  rule on. This guarantees no span can ever ship without a decision.
-* The rule-aware decision is resolved the first time it is genuinely needed: an outbound
-  injection, a partial flush, or the root finishing. Whichever comes first wins and overwrites
-  the floor for every span of the trace.
-* From then on it never changes, which is what keeps a trace from being split across two
-  decisions. A tag set after that point cannot affect sampling.
-"""
-
 import json
 from json.decoder import JSONDecodeError
 from typing import Any
@@ -105,7 +79,16 @@ class LLMObsSamplingRule:
 
 
 class LLMObsSampler:
-    """Applies ``DD_LLMOBS_SAMPLING_RULES``, falling back to a global sample rate."""
+    """Applies ``DD_LLMOBS_SAMPLING_RULES``, falling back to a global sample rate.
+
+    The variable mirrors the shape of ``DD_TRACE_SAMPLING_RULES``::
+
+        DD_LLMOBS_SAMPLING_RULES='[{"tags": {"env": "prod"}, "sample_rate": 0.5},
+                                  {"tags": {"env": "staging"}, "sample_rate": 0.1}]'
+
+    Rules are evaluated in the order they are declared and the first one that matches wins. When
+    no rule matches, the global ``DD_LLMOBS_SAMPLE_RATE`` is applied.
+    """
 
     __slots__ = ("_default_rule", "rules")
 
@@ -177,19 +160,32 @@ class LLMObsSampler:
 class _TraceSampling:
     """One LLMObs trace's sampling state, shared by reference across every span of the trace.
 
-    Holding the root here rather than on each span avoids a self-reference on the root, so a
-    finished trace is reclaimed by reference counting instead of waiting on the cyclic collector.
+    The root is held only until the decision is frozen. The root's own ctx item points at this
+    object, so the two reference each other; dropping the root at freeze time breaks that cycle,
+    letting the trace be reclaimed by reference counting instead of by the cyclic collector.
     """
 
     __slots__ = ("frozen", "root")
 
     def __init__(self, root: Any) -> None:
-        self.root = root
+        self.root: Optional[Any] = root
         self.frozen: Optional[tuple[str, str]] = None
 
 
 class LLMObsSamplingResolver:
     """Resolves each LLMObs trace's decision once, storing it on the trace's root span.
+
+    Timing is the hard part. Tags land on the root span over its whole lifetime, but the decision
+    must exist before anything leaves the process. So it is made as late as it safely can be and
+    then frozen:
+
+    * At root start, only a floor is stamped -- the global rate, since no tag exists yet to match
+      a rule on. This guarantees no span can ever ship without a decision.
+    * The rule-aware decision is resolved the first time it is genuinely needed: an outbound
+      injection, a thread or asyncio hand-off, a partial flush, or the root finishing. Whichever
+      comes first wins and overwrites the floor for every span of the trace.
+    * From then on it never changes, which is what keeps a trace from being split across two
+      decisions. A tag set after that point cannot affect sampling.
 
     The frozen decision lives in a ctx item on the root rather than in its meta_struct, because
     a partial flush scrubs the meta_struct while later chunks of the same trace still need to
@@ -221,6 +217,9 @@ class LLMObsSamplingResolver:
         APM_AGENTLESS mode ``_prepare_llmobs_span_data`` rewrites dotted tag keys
         (``customer.tier`` -> ``customer_tier``) immediately afterwards, which would leave a rule
         on such a key permanently unmatchable.
+
+        An already-frozen trace has dropped its root reference, so the identity check below makes
+        this a no-op rather than a second resolution.
         """
         state: Optional[_TraceSampling] = span._get_ctx_item(LLMOBS_SAMPLING)
         if state is not None and state.root is span:
@@ -242,4 +241,7 @@ class LLMObsSamplingResolver:
                 frozen = (sample_rate, self._as_decision(sampled))
                 state.frozen = frozen
                 log.debug("LLMObs sampling resolved for %s: %s", state.root, frozen)
+                # Nothing reads the root once the decision is frozen, and the root's ctx item
+                # points back at this object -- drop it so the two are not a reference cycle.
+                state.root = None
             return frozen

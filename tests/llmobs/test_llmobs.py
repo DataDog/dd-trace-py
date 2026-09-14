@@ -1422,6 +1422,24 @@ def test_decision_survives_an_unresolvable_trace(llmobs, llmobs_events):
     assert event_dd["sample_rate"] == "1"
 
 
+@pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules=_DROP_GOLD_RULE)])
+def test_frozen_state_drops_its_root_reference(llmobs, llmobs_events):
+    """The root's ctx item points at the state, so the state must not point back once frozen.
+
+    Otherwise the pair is a cycle and the root waits on the cyclic collector instead of being
+    reclaimed by reference counting.
+    """
+    from ddtrace.llmobs._constants import LLMOBS_SAMPLING
+
+    with llmobs.workflow("root") as root:
+        llmobs.annotate(root, tags={"tier": "gold"})
+        state = root._get_ctx_item(LLMOBS_SAMPLING)
+        assert state.root is root  # held until the decision is frozen
+
+    assert state.frozen is not None
+    assert state.root is None
+
+
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules="not-valid-json")])
 def test_invalid_sampling_rules_fall_back_to_global_rate(llmobs, llmobs_events):
     """Unparsable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""
