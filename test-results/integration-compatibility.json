@@ -264,21 +264,20 @@
     },
     "aws_durable_execution_sdk_python": {
       "highest_tested_dependency_versions": {
-        "aws-durable-execution-sdk-python": "1.7.0"
+        "aws-durable-execution-sdk-python": "1.4.0"
       },
       "highest_tested_dependency_versions_by_python": {
         "aws-durable-execution-sdk-python": {
           "3.11": "1.4.0",
           "3.12": "1.4.0",
           "3.13": "1.4.0",
-          "3.14": "1.4.0",
-          "3.15": "1.7.0"
+          "3.14": "1.4.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "aws_lambda": {
@@ -335,7 +334,6 @@
           "3.12": "1.24.0",
           "3.13": "1.24.0",
           "3.14": "2.3.0",
-          "3.15": "2.3.0",
           "3.9": "1.24.0"
         },
         "azure-functions-durable": {
@@ -344,14 +342,13 @@
           "3.12": "1.5.0",
           "3.13": "1.5.0",
           "3.14": "1.7.0",
-          "3.15": "1.7.0",
           "3.9": "1.4.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "azure_eventhubs": {
@@ -386,14 +383,13 @@
           "3.12": "1.24.0",
           "3.13": "2.0.0",
           "3.14": "2.3.0",
-          "3.15": "2.3.0",
           "3.9": "1.23.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "azure_servicebus": {
@@ -644,13 +640,13 @@
     "elasticsearch": {
       "highest_tested_dependency_versions": {
         "elastic-transport": "9.4.2",
-        "elasticsearch": "9.5.0",
+        "elasticsearch": "9.4.1",
         "elasticsearch1": "1.10.0",
         "elasticsearch2": "2.5.1",
         "elasticsearch5": "5.5.6",
         "elasticsearch6": "6.8.2",
         "elasticsearch7": "7.17.13",
-        "opensearch-py": "3.2.0"
+        "opensearch-py": "3.0.0"
       },
       "highest_tested_dependency_versions_by_python": {
         "elastic-transport": {
@@ -659,7 +655,6 @@
           "3.12": "9.4.2",
           "3.13": "9.4.2",
           "3.14": "9.4.2",
-          "3.15": "9.4.2",
           "3.9": "9.1.0"
         },
         "elasticsearch": {
@@ -668,7 +663,6 @@
           "3.12": "9.4.1",
           "3.13": "9.4.1",
           "3.14": "9.4.1",
-          "3.15": "9.5.0",
           "3.9": "9.1.3"
         },
         "elasticsearch1": {
@@ -677,7 +671,6 @@
           "3.12": "1.10.0",
           "3.13": "1.10.0",
           "3.14": "1.10.0",
-          "3.15": "1.10.0",
           "3.9": "1.10.0"
         },
         "elasticsearch2": {
@@ -686,7 +679,6 @@
           "3.12": "2.5.1",
           "3.13": "2.5.1",
           "3.14": "2.5.1",
-          "3.15": "2.5.1",
           "3.9": "2.5.1"
         },
         "elasticsearch5": {
@@ -695,7 +687,6 @@
           "3.12": "5.5.6",
           "3.13": "5.5.6",
           "3.14": "5.5.6",
-          "3.15": "5.5.6",
           "3.9": "5.5.6"
         },
         "elasticsearch6": {
@@ -704,7 +695,6 @@
           "3.12": "6.8.2",
           "3.13": "6.8.2",
           "3.14": "6.8.2",
-          "3.15": "6.8.2",
           "3.9": "6.8.2"
         },
         "elasticsearch7": {
@@ -713,7 +703,6 @@
           "3.12": "7.17.13",
           "3.13": "7.17.13",
           "3.14": "7.17.13",
-          "3.15": "7.17.13",
           "3.9": "7.17.13"
         },
         "opensearch-py": {
@@ -722,14 +711,13 @@
           "3.12": "2.8.0",
           "3.13": "2.8.0",
           "3.14": "3.0.0",
-          "3.15": "3.2.0",
           "3.9": "2.8.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "falcon": {
@@ -810,14 +798,13 @@
           "3.12": "2.3.0",
           "3.13": "2.3.0",
           "3.14": "2.5.1",
-          "3.15": "2.5.1",
           "3.9": "2.1.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "futures": {
@@ -831,7 +818,7 @@
     },
     "gevent": {
       "highest_tested_dependency_versions": {
-        "gevent": "26.8.0"
+        "gevent": "26.5.0"
       },
       "highest_tested_dependency_versions_by_python": {
         "gevent": {
@@ -840,14 +827,13 @@
           "3.12": "26.5.0",
           "3.13": "26.5.0",
           "3.14": "26.5.0",
-          "3.15": "26.8.0",
           "3.9": "21.1.2"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "google_adk": {
@@ -873,7 +859,7 @@
     },
     "google_cloud_pubsub": {
       "highest_tested_dependency_versions": {
-        "google-cloud-pubsub": "2.40.0"
+        "google-cloud-pubsub": "2.37.0"
       },
       "highest_tested_dependency_versions_by_python": {
         "google-cloud-pubsub": {
@@ -882,14 +868,13 @@
           "3.12": "2.37.0",
           "3.13": "2.37.0",
           "3.14": "2.37.0",
-          "3.15": "2.40.0",
           "3.9": "2.37.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "google_genai": {
@@ -915,7 +900,7 @@
     },
     "graphql": {
       "highest_tested_dependency_versions": {
-        "graphql-core": "3.2.12"
+        "graphql-core": "3.2.6"
       },
       "highest_tested_dependency_versions_by_python": {
         "graphql-core": {
@@ -924,19 +909,18 @@
           "3.12": "3.2.6",
           "3.13": "3.2.6",
           "3.14": "3.2.6",
-          "3.15": "3.2.12",
           "3.9": "3.2.6"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "grpc": {
       "highest_tested_dependency_versions": {
-        "grpcio": "1.83.1"
+        "grpcio": "1.75.1"
       },
       "highest_tested_dependency_versions_by_python": {
         "grpcio": {
@@ -945,14 +929,13 @@
           "3.12": "1.66.1",
           "3.13": "1.68.1",
           "3.14": "1.75.1",
-          "3.15": "1.83.1",
           "3.9": "1.66.1"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "httplib": {
@@ -1038,14 +1021,13 @@
           "3.12": "2.14.0",
           "3.13": "2.14.0",
           "3.14": "2.15.0",
-          "3.15": "2.15.0",
           "3.9": "2.14.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "kombu": {
@@ -1317,26 +1299,23 @@
           "3.11": "2.11.4",
           "3.12": "3.15.1",
           "3.13": "3.15.1",
-          "3.14": "3.16.0",
-          "3.15": "3.16.0"
+          "3.14": "3.16.0"
         },
         "mlflow-skinny": {
           "3.12": "3.15.1",
           "3.13": "3.15.1",
-          "3.14": "3.16.0",
-          "3.15": "3.16.0"
+          "3.14": "3.16.0"
         },
         "mlflow-tracing": {
           "3.12": "3.15.1",
           "3.13": "3.15.1",
-          "3.14": "3.16.0",
-          "3.15": "3.16.0"
+          "3.14": "3.16.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "molten": {
@@ -1561,7 +1540,7 @@
     },
     "pymongo": {
       "highest_tested_dependency_versions": {
-        "pymongo": "4.18.0"
+        "pymongo": "4.17.0"
       },
       "highest_tested_dependency_versions_by_python": {
         "pymongo": {
@@ -1570,14 +1549,13 @@
           "3.12": "4.17.0",
           "3.13": "4.17.0",
           "3.14": "4.17.0",
-          "3.15": "4.18.0",
           "3.9": "4.17.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "pymysql": {
@@ -1654,14 +1632,13 @@
           "3.12": "2.1",
           "3.13": "2.1",
           "3.14": "2.1",
-          "3.15": "2.1",
           "3.9": "2.0.2"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "pytest": {
@@ -1739,7 +1716,7 @@
     },
     "redis": {
       "highest_tested_dependency_versions": {
-        "redis": "8.1.0"
+        "redis": "6.4.0"
       },
       "highest_tested_dependency_versions_by_python": {
         "redis": {
@@ -1748,14 +1725,13 @@
           "3.12": "5.2.0",
           "3.13": "5.1.1",
           "3.14": "6.4.0",
-          "3.15": "8.1.0",
           "3.9": "5.0.1"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "rediscluster": {
@@ -1811,14 +1787,13 @@
           "3.12": "2.12.0",
           "3.13": "2.12.0",
           "3.14": "2.12.0",
-          "3.15": "2.12.0",
           "3.9": "2.8.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "sanic": {
@@ -1832,14 +1807,13 @@
           "3.12": "23.12.2",
           "3.13": "23.12.2",
           "3.14": "23.12.2",
-          "3.15": "23.12.2",
           "3.9": "22.12.0"
         }
       },
-      "highest_tested_python": "3.15",
+      "highest_tested_python": "3.14",
       "python": {
         "3.14": "scheduled",
-        "3.15": "scheduled"
+        "3.15": "not_scheduled"
       }
     },
     "snowflake": {
@@ -2128,10 +2102,26 @@
       "vllm"
     ],
     "3.15": [
+      "aws_durable_execution_sdk_python",
+      "azure_durable_functions",
+      "azure_functions",
       "crewai",
+      "elasticsearch",
+      "flask_cache",
+      "gevent",
+      "google_cloud_pubsub",
+      "graphql",
+      "grpc",
+      "kafka",
+      "mlflow",
+      "pymongo",
+      "pyramid",
       "pytorch",
       "ray",
       "ray_serve",
+      "redis",
+      "rq",
+      "sanic",
       "sqlite3",
       "vllm"
     ]
@@ -2153,12 +2143,9 @@
     "asyncio",
     "asyncpg",
     "avro",
-    "aws_durable_execution_sdk_python",
     "aws_lambda",
     "azure_cosmos",
-    "azure_durable_functions",
     "azure_eventhubs",
-    "azure_functions",
     "azure_servicebus",
     "botocore",
     "bottle",
@@ -2170,23 +2157,16 @@
     "django",
     "dogpile_cache",
     "dramatiq",
-    "elasticsearch",
     "falcon",
     "fastapi",
     "flask",
-    "flask_cache",
     "futures",
-    "gevent",
     "google_adk",
-    "google_cloud_pubsub",
     "google_genai",
-    "graphql",
-    "grpc",
     "httplib",
     "httpx",
     "httpx2",
     "jinja2",
-    "kafka",
     "kombu",
     "langchain",
     "langgraph",
@@ -2199,7 +2179,6 @@
     "mariadb",
     "mcp",
     "mistralai",
-    "mlflow",
     "molten",
     "mysql",
     "mysqldb",
@@ -2210,17 +2189,12 @@
     "pydantic_ai",
     "pylibmc",
     "pymemcache",
-    "pymongo",
     "pymysql",
     "pynamodb",
     "pyodbc",
-    "pyramid",
     "pytest",
-    "redis",
     "rediscluster",
     "requests",
-    "rq",
-    "sanic",
     "snowflake",
     "sqlalchemy",
     "starlette",

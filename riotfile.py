@@ -764,7 +764,7 @@ venv = Venv(
                             },
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12"),
+                            pys=select_pys(min_version="3.12", max_version="3.14"),
                             pkgs={
                                 "gevent": [latest],
                             },
@@ -1028,7 +1028,7 @@ venv = Venv(
                 Venv(
                     # pymongo added support for Python 3.10 in 3.12.1
                     # pymongo added support for Python 3.11 in 3.12.3
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
                 ),
             ],
@@ -1244,7 +1244,7 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    pys=select_pys(),
+                    pys=select_pys(max_version="3.14"),
                     pkgs={
                         "elasticsearch": [
                             "~=7.13.0",  # latest to support unofficial Elasticsearch servers, released Jul 2021
@@ -1254,18 +1254,18 @@ venv = Venv(
                         ]
                     },
                 ),
-                Venv(pys=select_pys(), pkgs={"elasticsearch1": ["~=1.10.0"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch2": ["~=2.5.0"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch5": ["~=5.5.0"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch6": ["~=6.8.0"]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch7": ["~=7.13.0", latest]}),
-                Venv(pys=select_pys(), pkgs={"elasticsearch8": ["~=8.0.1", latest]}),
+                Venv(pys=select_pys(max_version="3.14"), pkgs={"elasticsearch1": ["~=1.10.0"]}),
+                Venv(pys=select_pys(max_version="3.14"), pkgs={"elasticsearch2": ["~=2.5.0"]}),
+                Venv(pys=select_pys(max_version="3.14"), pkgs={"elasticsearch5": ["~=5.5.0"]}),
+                Venv(pys=select_pys(max_version="3.14"), pkgs={"elasticsearch6": ["~=6.8.0"]}),
+                Venv(pys=select_pys(max_version="3.14"), pkgs={"elasticsearch7": ["~=7.13.0", latest]}),
+                Venv(pys=select_pys(max_version="3.14"), pkgs={"elasticsearch8": ["~=8.0.1", latest]}),
             ],
         ),
         Venv(
             name="elasticsearch:multi",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch_multi.py",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.14"),
             pkgs={
                 "elasticsearch": latest,
                 "elasticsearch7": latest,
@@ -1276,7 +1276,7 @@ venv = Venv(
             name="elasticsearch:async",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_async.py",
             env={"AIOHTTP_NO_EXTENSIONS": "1"},  # needed until aiohttp is updated to support python 3.12
-            pys=select_pys(),
+            pys=select_pys(max_version="3.14"),
             pkgs={
                 "elasticsearch[async]": latest,
                 "elasticsearch7[async]": latest,
@@ -1288,7 +1288,7 @@ venv = Venv(
             name="elasticsearch:opensearch",
             # avoid running tests in ElasticsearchPatchTest, only run tests with OpenSearchPatchTest configurations
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_opensearch.py -k 'not ElasticsearchPatchTest'",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.14"),
             pkgs={
                 "opensearch-py[requests]": ["~=1.1.0", "~=2.0.0", latest],
                 "pytest-randomly": latest,
@@ -1418,7 +1418,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12"),
+                            pys=select_pys(min_version="3.12", max_version="3.14"),
                             pkgs={
                                 "redis": latest,
                             },
@@ -1435,7 +1435,7 @@ venv = Venv(
                             pys=select_pys(min_version="3.9", max_version="3.11"),
                         ),
                         Venv(
-                            pys=select_pys(min_version="3.12"),
+                            pys=select_pys(min_version="3.12", max_version="3.14"),
                             pkgs={"redis": latest},
                         ),
                     ],
@@ -1467,7 +1467,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.14"),
                     pkgs={
                         "mlflow": [latest],
                         # pkg_resources was removed in v82.0.0
@@ -1908,7 +1908,7 @@ venv = Venv(
                 Venv(
                     # pyramid added support for Python 3.10/3.11 in 2.1
                     # FIXME[python-3.12]: blocked on venusian release https://github.com/Pylons/venusian/issues/85
-                    pys=select_pys(min_version="3.13"),
+                    pys=select_pys(min_version="3.13", max_version="3.14"),
                     pkgs={
                         "pyramid": [latest],
                         "legacy-cgi": latest,
@@ -2272,12 +2272,6 @@ venv = Venv(
                         "grpcio": ">=1.75.0",
                     },
                 ),
-                Venv(
-                    pys="3.15",
-                    pkgs={
-                        "grpcio": latest,
-                    },
-                ),
             ],
         ),
         Venv(
@@ -2332,7 +2326,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.14"),
+                    pys=select_pys(min_version="3.14", max_version="3.14"),
                     pkgs={
                         "graphene": latest,
                         "pytest-asyncio": ">=1.0",
@@ -2343,7 +2337,7 @@ venv = Venv(
         Venv(
             name="graphql",
             command="pytest {cmdargs} tests/contrib/graphql",
-            pys=select_pys(),
+            pys=select_pys(max_version="3.14"),
             pkgs={
                 "pytest-asyncio": "==0.21.1",
                 "graphql-core": ["~=3.2.0", latest],
@@ -2375,7 +2369,7 @@ venv = Venv(
                 ),
                 Venv(
                     # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10"),
+                    pys=select_pys(min_version="3.10", max_version="3.14"),
                     pkgs={"rq": latest},
                 ),
             ],
@@ -2614,7 +2608,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.14"),
+                    pys=select_pys(min_version="3.14", max_version="3.14"),
                     pkgs={
                         "redis": latest,
                         "pytest-asyncio": latest,
@@ -2729,7 +2723,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.12"),
+                    pys=select_pys(min_version="3.12", max_version="3.14"),
                     pkgs={
                         "sanic": ["~=23.12"],
                         "sanic-testing": "~=23.12.0",
@@ -3503,7 +3497,7 @@ venv = Venv(
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
                         Venv(
-                            pys=select_pys(min_version="3.11"),
+                            pys=select_pys(min_version="3.11", max_version="3.14"),
                             pkgs={"confluent-kafka": latest},
                         ),
                     ],
@@ -3530,7 +3524,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/aws_durable_execution_sdk_python",
-            pys=select_pys(min_version="3.11"),
+            pys=select_pys(min_version="3.11", max_version="3.14"),
             pkgs={
                 "aws-durable-execution-sdk-python": ["~=1.4.0", latest],
                 "aws-durable-execution-sdk-python-testing": [latest],
@@ -3576,7 +3570,7 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    pys=select_pys(min_version="3.13"),
+                    pys=select_pys(min_version="3.13", max_version="3.14"),
                     pkgs={
                         "google-cloud-pubsub": [latest],
                     },
@@ -3615,7 +3609,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_functions",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.14"),
             pkgs={
                 "azure.functions": ["~=1.10.1", latest],
                 "requests": latest,
@@ -3627,7 +3621,7 @@ venv = Venv(
                 "DD_TRACE_PY_ENABLE_ITR_TEST_SKIPPING_FOR_JOB": "true",
             },
             command="pytest {cmdargs} tests/contrib/azure_durable_functions",
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.14"),
             pkgs={
                 "azure-functions-durable": ["==1.2.1", latest],
             },
