@@ -1,7 +1,8 @@
 """Centralized environment variable access for dd-trace-py.
 
-This module provides a drop-in replacement for os.environ, enabling centralized
-control and validation of all environment variable access in ddtrace.
+This module provides a configuration-aware view of os.environ, enabling
+centralized control and validation of all environment variable access in
+ddtrace.
 
 All DD_*/_DD_*/OTEL_*/DATADOG_* environment variable accesses are validated
 against the registry in supported-configurations.json. Unregistered variables
@@ -17,6 +18,7 @@ from collections.abc import MutableMapping
 import logging
 import os
 from typing import Iterator
+from typing import Optional
 
 from ddtrace.internal.settings._supported_configurations import CONFIGURATION_ALIASES
 from ddtrace.internal.settings._supported_configurations import DEPRECATED_CONFIGURATIONS
@@ -30,6 +32,15 @@ logger = logging.getLogger(__name__)
 
 _ALIAS_TARGETS: frozenset[str] = frozenset(alias for aliases in CONFIGURATION_ALIASES.values() for alias in aliases)
 _warned_keys: set[str] = set()
+
+
+def _get_env_value(key: str) -> Optional[str]:
+    """Return the environment value, masking empty values for OTel config variables (OTel specification requirement)"""
+    value = os.environ.get(key)
+
+    if key.startswith("OTEL_") and value == "":
+        return None
+    return value
 
 
 def _validate_key(key: str) -> None:
@@ -56,8 +67,8 @@ class EnvConfig(MutableMapping):
     """A MutableMapping wrapper around os.environ.
 
     Serves as the centralized entry point for all environment variable access
-    in dd-trace-py. Drop-in replacement for os.environ — supports reads, writes,
-    deletes, containment checks, iteration, and all standard dict-like operations.
+    in dd-trace-py. Empty OTEL_* values are excluded from reads and iteration.
+    Writes and deletes operate directly on os.environ.
 
     Validates that DD_*/_DD_*/OTEL_*/DATADOG_* accesses use registered
     configuration variables from supported-configurations.json.
@@ -65,10 +76,10 @@ class EnvConfig(MutableMapping):
 
     def __getitem__(self, key: str) -> str:
         _validate_key(key)
-        if (value := os.environ.get(key)) is not None:
+        if (value := _get_env_value(key)) is not None:
             return value
         for alias in CONFIGURATION_ALIASES.get(key, ()):
-            if (value := os.environ.get(alias)) is not None:
+            if (value := _get_env_value(alias)) is not None:
                 return value
         raise KeyError(key)
 
@@ -82,16 +93,16 @@ class EnvConfig(MutableMapping):
     def __contains__(self, key: object) -> bool:
         if isinstance(key, str):
             _validate_key(key)
-            if key in os.environ:
+            if _get_env_value(key) is not None:
                 return True
-            return any(alias in os.environ for alias in CONFIGURATION_ALIASES.get(key, ()))
+            return any(_get_env_value(alias) is not None for alias in CONFIGURATION_ALIASES.get(key, ()))
         return key in os.environ
 
     def __iter__(self) -> Iterator[str]:
-        return iter(os.environ)
+        return (key for key in os.environ if _get_env_value(key) is not None)
 
     def __len__(self) -> int:
-        return len(os.environ)
+        return sum(1 for _ in self)
 
     def copy(self) -> dict:
         return dict(self)

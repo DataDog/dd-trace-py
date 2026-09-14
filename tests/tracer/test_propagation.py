@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import builtins
 import json
 import logging
 import os
@@ -3948,3 +3949,30 @@ def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     assert context_without_priority.dd_origin == "rum"
     # The key assertion: _dd.p.dm should NOT be present during extraction
     assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_without_priority._meta
+
+
+def test_tracestate_does_not_import_under_restricted_builtins():
+    """Regression: _tracestate must not call py.import after
+    _init_tracestate_helpers has warmed the OnceLock caches.
+    """
+    ctx = Context(
+        trace_id=1,
+        span_id=1,
+        meta={
+            W3C_TRACESTATE_KEY: "dd=s:1",
+            W3C_TRACEPARENT_KEY: "00-00000000000000000000000000000001-0000000000000001-01",
+        },
+    )
+
+    real_import = builtins.__import__
+
+    def _restricted_import(name: str, *args: object, **kwargs: object) -> object:
+        if name.startswith("ddtrace"):
+            raise ImportError(f"sandbox blocked import of {name!r}")
+        return real_import(name, *args, **kwargs)
+
+    with mock.patch.object(builtins, "__import__", side_effect=_restricted_import):
+        ts = ctx._tracestate
+
+    assert isinstance(ts, str)
+    assert "dd=" in ts
