@@ -105,23 +105,35 @@ def test_otel_service_configuration():
 
 @pytest.mark.subprocess(
     env={
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
+        "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "",
+    }
+)
+def test_empty_trace_protocol_falls_back_to_global_protocol():
+    from ddtrace.internal.settings._opentelemetry import otel_config
+
+    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+
+
+@pytest.mark.subprocess(
+    env={
         "OTEL_SERVICE_NAME": "",
         "OTEL_RESOURCE_ATTRIBUTES": "service.name=resource-service",
-        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
         "OTEL_EXPORTER_OTLP_TIMEOUT": "",
         "OTEL_EXPORTER_OTLP_TRACES_PROTOCOL": "",
         "OTEL_METRIC_EXPORT_TIMEOUT": "",
         "OTEL_TRACES_SPAN_METRICS_ENABLED": "",
     }
 )
-def test_empty_otel_configuration_is_unset():
+def test_empty_otel_configuration_uses_defaults():
     from ddtrace import config
     from ddtrace.internal.settings._opentelemetry import otel_config
 
     assert config.service == "resource-service"
     assert config._otel_stats_computation_enabled is None
     assert otel_config.exporter.TIMEOUT == 10000
-    assert otel_config.exporter.TRACES_PROTOCOL == "http/protobuf"
+    assert otel_config.exporter.PROTOCOL == "grpc"
+    assert otel_config.exporter.TRACES_PROTOCOL == "grpc"
     assert otel_config.exporter.METRICS_METRIC_READER_EXPORT_TIMEOUT == 7500
 
 
