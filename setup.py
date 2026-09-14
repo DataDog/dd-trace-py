@@ -675,6 +675,17 @@ _WHEEL_EXCLUDED_EXTENSIONS = frozenset(
 
 
 class LibraryDownloader(BuildPyCommand):
+    # Opt out of bundling libddwaf, for distribution packagers that must build
+    # from source and package libddwaf separately. See docs/build_system.rst.
+    user_options = BuildPyCommand.user_options + [
+        ("no-bundle-libddwaf", None, "do not download libddwaf; load the system library at runtime"),
+    ]
+    boolean_options = BuildPyCommand.boolean_options + ["no-bundle-libddwaf"]
+
+    def initialize_options(self) -> None:
+        BuildPyCommand.initialize_options(self)
+        self.no_bundle_libddwaf = 0
+
     def run(self) -> None:
         # The setuptools docs indicate the `editable_mode` attribute of the build_py command class
         # is set to True when the package is being installed in editable mode, which we need to know
@@ -693,9 +704,32 @@ class LibraryDownloader(BuildPyCommand):
         # version changes even when CleanLibraries.remove_artifacts() is skipped.
         if not CustomBuildExt.INCREMENTAL:
             CleanLibraries.remove_artifacts()
-        LibDDWafDownload.run()
+        if self.no_bundle_libddwaf:
+            if CURRENT_OS != "Linux":
+                raise RuntimeError(
+                    "--no-bundle-libddwaf is only supported on Linux, not on %s: the runtime has no system "
+                    "library to load there (ddtrace.internal._libddwaf_platform.system_library_names), "
+                    "so libddwaf must be bundled" % CURRENT_OS
+                )
+            print("Not bundling libddwaf: the runtime will load the system library")
+            shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, ignore_errors=True)
+        else:
+            LibDDWafDownload.run()
+        self._clean_staged_libddwaf()
         BuildPyCommand.run(self)
         self._strip_build_artifacts()
+
+    def _clean_staged_libddwaf(self):
+        """Drop a previously staged libddwaf so the wheel mirrors the source tree.
+
+        Setuptools copies new and updated files into build_lib but never removes
+        files that disappeared from the source tree, so a library staged by an
+        earlier build would still reach the wheel of a --no-bundle-libddwaf
+        build and shadow the system one at load time.
+        """
+        if not self.build_lib:
+            return
+        shutil.rmtree(Path(self.build_lib) / LIBDDWAF_DOWNLOAD_DIR.relative_to(HERE), ignore_errors=True)
 
     def find_data_files(self, package, src_dir):
         """Strip build/source artifacts from wheel data files."""
