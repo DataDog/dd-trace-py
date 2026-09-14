@@ -23,8 +23,8 @@ Overrides are owned by this repo. The shared core is not — never edit `.agents
 3. Add a case in [`suites/python-tracer-agent-v0.1.yaml`](./suites/python-tracer-agent-v0.1.yaml).
    Copy the starter case `py-perf-hotpath-pure-python`.
    A good case is a 10-line snippet plus 2–3 `expected_criteria` that would fail if the rule disappeared.
-4. CI `default_level` is `full`, so a new case in that YAML runs automatically. Add the id under
-   `presets.minimum.cases` only if you also want the cheap smoke to cover it.
+4. List the new case id under `presets.gate.cases` in [`config.yaml`](./config.yaml). CI
+   `default_level` is still `full` (every case), so a new suite entry also runs automatically.
 5. Open a PR. That is it.
 
 The starter case in this folder is the example. Keep new ones that short.

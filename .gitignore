@@ -162,6 +162,11 @@ CLAUDE.local.md
 .claude/scheduled_tasks.lock
 .claude/worktrees/
 
+# LLM Validation local/CI artifacts
+.llm-validation/results.json
+.llm-validation/report.md
+.llm-validation/details.json
+
 # oh-my-claudecode
 .omc/
 
