@@ -69,7 +69,7 @@ def _pep440_to_semver(version: Optional[str] = None) -> str:
     #
     # e.g. 1.7.1-rc2.dev3+gf258c7d9 is valid
 
-    tracer_version = version or __version__
+    tracer_version = version or __version__ or "0.0.0"
     if "rc" in tracer_version and "-rc" not in tracer_version:
         tracer_version = tracer_version.replace("rc", "-rc", 1)
     elif ".dev" in tracer_version:

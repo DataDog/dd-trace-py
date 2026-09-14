@@ -1,10 +1,12 @@
 import re
+import runpy
 import typing  # noqa:F401
 
 import pytest
 
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.internal.utils.version import parse_version
+import ddtrace.version
 
 
 def _assert_and_get_version_agent_format(version_agent_format):
@@ -41,6 +43,29 @@ def test_parse_version(version_str: str, expected: tuple[int, int, int]) -> None
 def test_default_version_agent_format():
     version_agent_format = _pep440_to_semver()
     _assert_and_get_version_agent_format(version_agent_format)
+
+
+def test_missing_package_version_agent_format(monkeypatch):
+    monkeypatch.setattr("ddtrace.internal.utils.version.__version__", None)
+
+    assert _pep440_to_semver() == "0.0.0"
+
+
+def test_missing_distribution_metadata_version(monkeypatch):
+    monkeypatch.setattr("importlib.metadata.version", lambda _: None)
+
+    assert runpy.run_path(ddtrace.version.__file__)["__version__"] == "0.0.0"
+
+
+def test_version_skips_invalid_distribution_candidates(monkeypatch):
+    monkeypatch.setattr(
+        "importlib.metadata.packages_distributions", lambda: {"ddtrace": [None, "incomplete-ddtrace", "ddtrace"]}
+    )
+    monkeypatch.setattr(
+        "importlib.metadata.version", lambda name: None if name == "incomplete-ddtrace" else "4.15.0rc2"
+    )
+
+    assert ddtrace.version._resolve_version() == "4.15.0rc2"
 
 
 @pytest.mark.parametrize(

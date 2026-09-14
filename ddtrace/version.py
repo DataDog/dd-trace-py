@@ -7,12 +7,26 @@ __all__ = ["__version__"]
 
 __version__: str
 
-try:
-    distributions = importlib.metadata.packages_distributions().get(__package__ or __name__)
-except Exception:
-    distributions = None
 
-try:
-    __version__ = importlib.metadata.version(distributions[0] if distributions else "ddtrace")
-except Exception:
-    __version__ = "0.0.0"
+def _resolve_version() -> str:
+    try:
+        distributions = importlib.metadata.packages_distributions().get(__package__ or __name__) or []
+    except Exception:
+        distributions = []
+
+    # packages_distributions() can include unnamed or incomplete distributions
+    # ahead of ddtrace in embedded runtimes. Try every candidate and always try
+    # the canonical distribution name before falling back.
+    for distribution in dict.fromkeys((*distributions, "ddtrace")):
+        if not distribution:
+            continue
+        try:
+            resolved = importlib.metadata.version(distribution)
+        except Exception:
+            continue
+        if resolved:
+            return resolved
+    return "0.0.0"
+
+
+__version__ = _resolve_version()
