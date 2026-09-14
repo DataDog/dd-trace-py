@@ -197,19 +197,25 @@ class LLMObsSamplingResolver:
         self._sampler = sampler
         self._tags_getter = tags_getter
         self._lock = forksafe.Lock()
+        # Only rules can make the decision depend on tags. With none configured the floor stamped
+        # at root start is already the final answer, so none of the machinery below has to run.
+        self.resolves_late = bool(sampler.rules)
 
     @staticmethod
     def _as_decision(sampled: bool) -> str:
         return LLMObsSamplingDecision.SAMPLED.value if sampled else LLMObsSamplingDecision.DROPPED.value
 
-    def start_trace(self, root: Any) -> tuple["_TraceSampling", str, str]:
-        """Open a trace's sampling state and return it with the global-rate floor.
+    def start_trace(self, root: Any) -> tuple[Optional["_TraceSampling"], str, str]:
+        """Return the global-rate floor, plus the trace's sampling state if it needs one.
 
         Rules cannot be evaluated this early -- the root has no tags yet -- but every span must
-        carry some decision, so the floor stands in until ``resolve`` overwrites it.
+        carry some decision, so the floor stands in until ``resolve`` overwrites it. With no rules
+        there is nothing to overwrite it with, so no state is opened and the trace behaves like one
+        activated from a Context: unresolvable, and already carrying its final decision.
         """
         sampled, sample_rate = self._sampler.sample(root)
-        return _TraceSampling(root), sample_rate, self._as_decision(sampled)
+        state = _TraceSampling(root) if self.resolves_late else None
+        return state, sample_rate, self._as_decision(sampled)
 
     def resolve_if_root(self, span: Any) -> None:
         """Resolve when ``span`` is its trace's root, called as the root finishes.

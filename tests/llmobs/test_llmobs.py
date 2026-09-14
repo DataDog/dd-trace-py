@@ -1440,6 +1440,34 @@ def test_frozen_state_drops_its_root_reference(llmobs, llmobs_events):
     assert state.root is None
 
 
+def test_no_rules_opens_no_sampling_state(llmobs, llmobs_events, patched_futures):
+    """With no rules configured, no tag can change the decision, so no state is opened.
+
+    The floor stamped at activation is already final. The spans must still agree on it across a
+    thread hand-off, which is one of the points that would otherwise freeze and restamp the trace.
+    """
+    import concurrent.futures
+
+    from ddtrace.llmobs._constants import LLMOBS_SAMPLING
+
+    assert llmobs._instance._sampler.rules == []
+    assert llmobs._instance._sampling_resolver.resolves_late is False
+
+    def fn():
+        with llmobs.task("thread-child"):
+            return 42
+
+    with llmobs.workflow("root") as root:
+        llmobs.annotate(root, tags={"tier": "gold"})
+        assert root._get_ctx_item(LLMOBS_SAMPLING) is None
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            assert executor.submit(fn).result() == 42
+
+    assert len(llmobs_events) == 2
+    decisions = {(e["name"], e["_dd"]["sample_rate"], e["_dd"]["sampling_decision"]) for e in llmobs_events}
+    assert decisions == {("root", "1", "1"), ("thread-child", "1", "1")}
+
+
 @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_sampling_rules="not-valid-json")])
 def test_invalid_sampling_rules_fall_back_to_global_rate(llmobs, llmobs_events):
     """Unparsable DD_LLMOBS_SAMPLING_RULES is ignored rather than fatal."""

@@ -74,8 +74,11 @@ class LLMObsProcessor(TraceProcessor):
         This is the last point at which the decision can still be influenced by the root's tags.
         A trace the resolver cannot answer for is left as it is, keeping either the
         global-rate floor stamped at activation or a decision inherited from upstream.
+
+        Skipped entirely when no sampling rules are configured: every span was stamped with the
+        floor at activation, and with no rules that floor is already the final decision.
         """
-        if self._sampling_resolver is None:
+        if self._sampling_resolver is None or not self._sampling_resolver.resolves_late:
             return
 
         groups: dict[str, list[Span]] = {}
