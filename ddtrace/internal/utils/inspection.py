@@ -122,12 +122,18 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
             except AttributeError:
                 pass
 
-        # PERF: g itself is the answer when it already matches and none of the explicit
-        # wrapper relationships above led elsewhere. Checking here, rather than before those
-        # probes, preserves their precedence: a wrapper that happens to share the target's
-        # name and file must still resolve to the original it closes over. This skips the
-        # __dir__() scan below, which dominates the cost for a plain test function.
-        if _isinstance(g, FunctionType) and match(g):
+        # PERF: g itself is the answer when it already matches, none of the explicit wrapper
+        # relationships above led elsewhere, and the queue holds no other candidate that the
+        # BFS would have reached first. Both conditions are load-bearing:
+        #   - checking here rather than before the probes preserves their precedence, so a
+        #     wrapper sharing the target's name and file still resolves to the original it
+        #     closes over;
+        #   - requiring an empty queue keeps the BFS honest when an outer wrapper matches but
+        #     a queued intermediate leads to the real original (see
+        #     test_undecorated_same_name_outer_wrapper_defers_to_queued_candidates).
+        # For a plain function neither applies and the expensive __dir__() scan below is
+        # skipped, which is the case the pytest plugin hits once per test.
+        if not q and _isinstance(g, FunctionType) and match(g):
             return g
 
         # Last resort.

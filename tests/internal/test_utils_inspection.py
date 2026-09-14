@@ -105,6 +105,35 @@ def test_undecorated_same_name_wrapper_returns_original():
     assert undecorated(wrapper, name="test_target", path=Path(__file__).resolve()) is original
 
 
+def test_undecorated_same_name_outer_wrapper_defers_to_queued_candidates():
+    # As above, but with a non-matching wrapper in between. The outer wrapper matches on
+    # name and file, so a self-match shortcut must not fire while the intermediate is still
+    # queued: the breadth-first search reaches it on the next iteration and finds the real
+    # original through its closure.
+    def outer_decorator(fn):
+        def test_target():  # matches the target name
+            return fn()
+
+        return test_target
+
+    def intermediate_decorator(fn):
+        def wrapper():  # does not match
+            return fn()
+
+        return wrapper
+
+    def test_target():
+        pass
+
+    original = test_target
+    intermediate = intermediate_decorator(original)
+    outer = outer_decorator(intermediate)
+
+    assert outer.__code__.co_name == original.__code__.co_name
+    assert intermediate.__code__.co_name != original.__code__.co_name
+    assert undecorated(outer, name="test_target", path=Path(__file__).resolve()) is original
+
+
 def test_class_decoration():
     class Decorator:
         def __init__(self, f):
