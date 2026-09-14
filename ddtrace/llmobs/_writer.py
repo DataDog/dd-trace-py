@@ -155,6 +155,11 @@ class BaseLLMObsWriter(PeriodicService):
             # we need to strip the base path from the endpoint so the eventual urljoin works properly
             # to form http://localhost:8080/foo/bar/buz/baz
             self._endpoint = self.ENDPOINT.lstrip("/")
+            self._direct_endpoint: str = self.ENDPOINT.lstrip("/")
+        else:
+            # Routed batches never traverse the Agent EVP proxy, so they need the intake path
+            # without its prefix.
+            self._direct_endpoint = self.ENDPOINT
 
         self._headers: dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
@@ -332,14 +337,17 @@ class BaseLLMObsWriter(PeriodicService):
 
         Routed batches bypass the Agent EVP proxy and go straight to the intake: the proxy
         stamps the Agent's own API key, which is the org routing exists to steer away from.
-        An override origin still wins, so tests and local proxies keep working.
+        They keep any configured extra headers, since a custom proxy may require them to accept
+        the request at all, but drop the EVP subdomain header, which only means something to the
+        Agent. An override origin still wins, so local proxies and tests keep working.
         """
         if target is None:
             return self._intake, self._endpoint, self._headers
-        headers = {"Content-Type": "application/json", "DD-API-KEY": target.api_key}
+        headers = {k: v for k, v in self._headers.items() if k != EVP_SUBDOMAIN_HEADER_NAME}
+        headers["DD-API-KEY"] = target.api_key
         if self._override_url:
-            return self._intake, self._endpoint, headers
-        return f"{self.AGENTLESS_BASE_URL}.{target.site or self._site}", self.ENDPOINT, headers
+            return self._intake, self._direct_endpoint, headers
+        return f"{self.AGENTLESS_BASE_URL}.{target.site or self._site}", self._direct_endpoint, headers
 
     def _send_payload(
         self,

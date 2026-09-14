@@ -6,14 +6,23 @@ Use case 2 (dual-shipping): Internal teams send the same spans to multiple stagi
 """
 
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import json
 import os
 import time
 
 import pytest
 
+from ddtrace.contrib.internal.futures.patch import patch as patch_futures
+from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.internal.evp_proxy.constants import EVP_PROXY_AGENT_BASE_PATH
+from ddtrace.internal.evp_proxy.constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs import LLMObs as llmobs_service
+from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
+from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._context import get_routing_context
+from ddtrace.llmobs._routing import RoutingTarget
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 
 
 DD_SITE = "datad0g.com"
@@ -393,3 +402,84 @@ def test_concurrent_async_routing_contexts_are_isolated(llmobs):
     asyncio.run(main())
     assert results["a"]["targets"][0]["api_key"] == TENANT_A_KEY
     assert results["b"]["targets"][0]["api_key"] == TENANT_B_KEY
+
+
+# ===========================================================================
+# Regressions from review of #20193
+# ===========================================================================
+
+
+def test_routing_survives_thread_pool(llmobs, _llmobs_backend):
+    """A span created in a worker thread must not fall back to the default org.
+
+    Contextvars do not cross into a worker thread, so the routing context set by the caller is
+    invisible there. The trace context does cross (that is what the futures integration is for),
+    so routing is inherited from the ancestor span instead. Without that, part of a routed trace
+    would go to the default org -- one tenant's data landing in another org.
+    """
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    def background_work():
+        with llmobs.workflow(name="child-in-thread"):
+            llmobs.annotate(input_data="threaded")
+
+    patch_futures()
+    try:
+        with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+            with llmobs.workflow(name="parent"):
+                with ThreadPoolExecutor() as pool:
+                    pool.submit(background_work).result()
+    finally:
+        unpatch_futures()
+
+    # Both spans route to the same tenant, so they batch into a single request.
+    _wait_for_requests(reqs, initial_count + 1)
+
+    sent = {}
+    for r in reqs[initial_count:]:
+        body = json.loads(r["body"])
+        for event in body if isinstance(body, list) else [body]:
+            for span in event.get("spans", []):
+                sent[span.get("name")] = _api_key(r)
+
+    assert sent.get("parent") == TENANT_A_KEY, f"parent span went to {sent.get('parent')}"
+    assert sent.get("child-in-thread") == TENANT_A_KEY, (
+        f"threaded child span went to {sent.get('child-in-thread')} instead of the tenant org"
+    )
+
+
+def test_routed_span_survives_disable_before_trace_flush(llmobs, _llmobs_backend):
+    """A routed span already finished must reach its org even if LLMObs is disabled after.
+
+    The span is shipped at finish rather than when the enclosing trace is processed, so
+    disabling in between cannot strand it (or leave its payload on the trace).
+    """
+    _, reqs = _llmobs_backend
+    initial_count = len(reqs)
+
+    request = llmobs._instance.tracer.trace("request")
+    with llmobs_service.routing_context(dd_api_key=TENANT_A_KEY):
+        with llmobs.workflow(name="tenant-work"):
+            llmobs.annotate(input_data="before-disable")
+    llmobs_service.flush()
+    request.finish()
+
+    _wait_for_requests(reqs, initial_count + 1)
+    tenant_reqs = [r for r in reqs[initial_count:] if _api_key(r) == TENANT_A_KEY]
+    assert tenant_reqs, f"routed span never reached the tenant org; keys: {[_api_key(r) for r in reqs[initial_count:]]}"
+
+
+def test_routed_requests_use_direct_path_and_keep_extra_headers(monkeypatch):
+    """Routed batches must not use the Agent proxy path, and must keep configured headers."""
+    monkeypatch.setenv("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", "Authorization:Bearer-custom-token")
+    writer = LLMObsSpanWriter(1.0, 1.0, is_agentless=False, _site=DD_SITE, _api_key=DD_API_KEY)
+
+    intake, endpoint, headers = writer._destination(RoutingTarget(api_key=TENANT_A_KEY))
+
+    assert endpoint == SPAN_ENDPOINT, f"routed batch used the Agent proxy path: {endpoint}"
+    assert not endpoint.startswith(EVP_PROXY_AGENT_BASE_PATH)
+    assert headers["DD-API-KEY"] == TENANT_A_KEY
+    assert headers["Authorization"] == "Bearer-custom-token", "configured proxy header was dropped"
+    assert EVP_SUBDOMAIN_HEADER_NAME not in headers
+    assert intake == f"{AGENTLESS_SPAN_BASE_URL}.{DD_SITE}"

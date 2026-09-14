@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from contextlib import contextmanager
 import csv
 from dataclasses import dataclass
@@ -5,6 +6,7 @@ from dataclasses import field
 import inspect
 import math
 import sys
+import threading
 import time
 from typing import Any
 from typing import Callable
@@ -83,6 +85,7 @@ from ddtrace.llmobs._constants import INSTRUMENTATION_METHOD_ANNOTATED
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import LLMOBS_STRUCT
+from ddtrace.llmobs._constants import LLMOBS_SUBMITTED_TAG_KEY
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PROMPT_TRACKING_INSTRUMENTATION_METHOD
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
@@ -151,8 +154,10 @@ from ddtrace.llmobs._prompts import ManagedPrompt
 from ddtrace.llmobs._prompts.cache import WarmCache
 from ddtrace.llmobs._prompts.manager import PromptManager
 from ddtrace.llmobs._routing import _ROUTING_CONTEXTVAR
+from ddtrace.llmobs._routing import RoutingContextType
 from ddtrace.llmobs._routing import build_routing_context
 from ddtrace.llmobs._routing import get_routing_context
+from ddtrace.llmobs._routing import routing_targets
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _annotate_llmobs_span_data
@@ -212,6 +217,9 @@ from ddtrace.version import __version__
 
 
 log = get_logger(__name__)
+
+# Upper bound on remembered per-trace routing entries; see LLMObs._remember_trace_routing.
+_ROUTING_TRACE_CACHE_SIZE = 1024
 
 _STANDARD_INTEGRATION_SPAN_NAMES = (
     CLAUDE_AGENT_SDK_APM_SPAN_NAME,
@@ -633,6 +641,62 @@ class LLMObs(Service):
         # True if enable() switched the APM writer to agentless; disable() reverts it.
         self._apm_writer_switched_to_agentless = False
         self._sampler = RateSampler(sample_rate=config._llmobs_sample_rate)
+        # Routing in effect per trace id, so spans created in worker threads (where the
+        # contextvar is not visible) still reach the right org. See _remember_trace_routing.
+        self._routing_by_trace: "OrderedDict[int, tuple[RoutingContextType, int]]" = OrderedDict()
+        self._routing_lock = RLock()
+
+    def _remember_trace_routing(self, span: Span, routing: RoutingContextType) -> None:
+        """Record the routing in effect for this trace so later spans in it can find it.
+
+        Deliberately process-local. The routing context holds an API key, so it must never go
+        into span meta or baggage, both of which are serialized and propagated over the wire.
+        A consequence is that routing does not follow a distributed trace into another service,
+        which is the behaviour we want: a downstream service should not silently inherit a
+        tenant credential it was never given.
+
+        Bounded rather than lifecycle-tracked: the LLM span is usually not the local root, so
+        there is no single finish event that reliably marks a trace as done. Evicting the oldest
+        entry keeps this from growing without bound in a long-lived process.
+
+        The originating thread is recorded alongside it so the fallback only fires across a
+        thread boundary. On the original thread an absent contextvar is a real answer.
+        """
+        with self._routing_lock:
+            self._routing_by_trace[span.trace_id] = (routing, threading.get_ident())
+            self._routing_by_trace.move_to_end(span.trace_id)
+            while len(self._routing_by_trace) > _ROUTING_TRACE_CACHE_SIZE:
+                self._routing_by_trace.popitem(last=False)
+
+    def _inherited_routing(self, span: Span) -> Optional[RoutingContextType]:
+        """Find the routing that applies to this span when none is ambient.
+
+        Contextvars do not cross into a worker thread, so a span created inside a
+        ThreadPoolExecutor sees no routing context even though the trace itself was propagated.
+        Without this, part of a routed trace goes to the default org -- for a multi-tenant
+        caller, one tenant's data landing in another org.
+
+        In-process ancestors are checked first, then the trace id. The thread hop clones the
+        Context and leaves the child span with no parent Span, so the trace id is the only
+        handle that survives it.
+        """
+        parent = span._parent
+        while parent is not None:
+            routing = parent._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY)
+            if routing is not None:
+                return cast(RoutingContextType, routing)
+            parent = parent._parent
+        with self._routing_lock:
+            entry = self._routing_by_trace.get(span.trace_id)
+        if entry is None:
+            return None
+        routing, origin_thread = entry
+        if origin_thread == threading.get_ident():
+            # Same thread that opened the routing context, so the contextvar is authoritative:
+            # its absence means the caller deliberately left the context, and this span belongs
+            # in the default org even though earlier spans of the trace were routed.
+            return None
+        return routing
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -640,6 +704,10 @@ class LLMObs(Service):
             # Capture routing at start: the span may finish in a different execution context,
             # where the contextvar set by routing_context() is no longer visible.
             routing = get_routing_context()
+            if routing is not None:
+                self._remember_trace_routing(span, routing)
+            else:
+                routing = self._inherited_routing(span)
             if routing is not None:
                 span._set_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY, routing)
             telemetry.record_span_started()
@@ -670,6 +738,18 @@ class LLMObs(Service):
 
         if self._evaluator_runner and span_kind == "llm":
             self._evaluator_runner.enqueue(span_event, span)
+
+        targets = routing_targets(span._get_ctx_item(CACHED_LLMOBS_ROUTING_CTX_KEY))
+        if targets:
+            # Ship routed spans here rather than leaving them for LLMObsProcessor. A routed span
+            # never rides the APM trace anyway, and deferring means the event is lost if LLMObs is
+            # disabled before the enclosing trace is flushed -- while its payload would still be
+            # on the trace, headed for the default org.
+            span._remove_struct_tag(LLMOBS_STRUCT.KEY)
+            span.set_tag(LLMOBS_SUBMITTED_TAG_KEY, "1")
+            self._llmobs_span_writer.enqueue(span_event, targets)
+            telemetry.record_span_created(span, LLMObsExportMode.LLMOBS_AGENTLESS)
+            return
 
         span._set_ctx_item(CACHED_LLMOBS_EXPORT_MODE_CTX_KEY, self._export_mode)
         span._set_ctx_item(CACHED_LLMOBS_EVENT_CTX_KEY, span_event)
