@@ -4,15 +4,6 @@
 #include <string_view>
 #include <unordered_map>
 
-// Forward declaration of Python types.
-// We avoid including Python.h in this public C++ header because CPython headers
-// use old-style casts and our build treats old-style casts as errors. Keep
-// Python includes in implementation files when full API access is required.
-// NOLINTBEGIN(bugprone-reserved-identifier) -- must match CPython's struct names
-struct _traceback;
-typedef struct _traceback PyTracebackObject;
-// NOLINTEND(bugprone-reserved-identifier)
-
 #ifdef __cplusplus
 extern "C"
 {

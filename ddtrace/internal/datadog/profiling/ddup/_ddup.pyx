@@ -71,9 +71,6 @@ cdef extern from "sample.hpp" namespace "Datadog":
 cdef extern from "sample_manager.hpp" namespace "Datadog":
     cdef cppclass SampleManager:
         @staticmethod
-        void add_type(unsigned int type)
-
-        @staticmethod
         void set_max_nframes(unsigned int max_nframes)
 
         @staticmethod
