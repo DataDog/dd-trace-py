@@ -1,4 +1,5 @@
 from contextvars import ContextVar
+import inspect
 import threading
 from types import SimpleNamespace
 
@@ -104,8 +105,25 @@ def test_worker_publishes_and_clears_context(clean_patch, monkeypatch, fails):
     assert switches == ["caller", None]
 
 
-@pytest.mark.parametrize("asynchronous", [False, True])
-def test_from_thread_callback_publishes_and_clears_context(clean_patch, monkeypatch, asynchronous):
+def test_worker_preserves_default_thread_name(clean_patch, monkeypatch):
+    """Wrapping a worker does not change Trio's callable-derived thread name."""
+    if "thread_name" not in inspect.signature(trio.to_thread.run_sync).parameters:
+        pytest.skip("Trio does not derive worker names from the callable")
+
+    def worker():
+        return threading.current_thread().name
+
+    async def exercise():
+        task_name = trio.lowlevel.current_task().name
+        assert await trio.to_thread.run_sync(worker) == f"worker from {task_name}"
+
+    _install_fallback(monkeypatch, lambda event: None)
+    trio.run(exercise)
+
+
+@pytest.mark.parametrize("keyword", [False, True])
+@pytest.mark.parametrize("callback_kind", ["sync", "async", "coroutine_factory"])
+def test_from_thread_callback_publishes_and_clears_context(clean_patch, monkeypatch, callback_kind, keyword):
     """Both public from_thread entry points publish each callback's copied ContextVars."""
     marker = ContextVar("marker", default=None)
     main_thread = threading.get_ident()
@@ -128,11 +146,20 @@ def test_from_thread_callback_publishes_and_clears_context(clean_patch, monkeypa
         await trio.lowlevel.checkpoint()
         return "done"
 
+    def coroutine_factory():
+        return async_callback()
+
     def worker():
         marker.set("worker")
-        if asynchronous:
-            return trio.from_thread.run(async_callback)
-        return trio.from_thread.run_sync(sync_callback)
+        if callback_kind == "sync":
+            if keyword:
+                return trio.from_thread.run_sync(fn=sync_callback)
+            return trio.from_thread.run_sync(sync_callback)
+
+        callback = async_callback if callback_kind == "async" else coroutine_factory
+        if keyword:
+            return trio.from_thread.run(afn=callback)
+        return trio.from_thread.run(callback)
 
     async def exercise():
         assert await trio.to_thread.run_sync(worker) == "done"

@@ -3,6 +3,7 @@
 from contextvars import Context
 from functools import partial
 from importlib.metadata import version
+import sys
 from typing import Any
 from typing import Callable
 from typing import Optional
@@ -79,8 +80,9 @@ def _run_with_context_switches(func: Callable[..., Any], *args: Any) -> Any:
 
 
 def _wrapped_run_sync(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Publish asyncio-backend worker transitions; Trio owns its native boundary."""
-    if current_async_library() == "trio":
+    """Publish worker transitions unless the active Trio integration owns the boundary."""
+    trio_module = sys.modules.get("trio")
+    if current_async_library() == "trio" and getattr(trio_module, "_datadog_patch", False):
         return wrapped(*args, **kwargs)
 
     func = cast(Callable[..., Any], get_argument_value(args, kwargs, 0, "func"))

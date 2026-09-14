@@ -7,14 +7,13 @@ from_thread wrappers publish the copied ContextVars while a worker callback exec
 
 from contextvars import Context
 from functools import partial
+from functools import update_wrapper
 from importlib.metadata import version
-import inspect
 from typing import Any
 from typing import Callable
 from typing import cast
 
 import trio
-from trio._core._run import Task
 import trio.abc
 import trio.from_thread
 import trio.lowlevel
@@ -40,12 +39,12 @@ def _supported_versions() -> dict[str, str]:
 class _ContextSwitchInstrument(trio.abc.Instrument):  # type: ignore[misc]
     """Publish the ContextVar state around each Trio task step."""
 
-    def before_task_step(self, task: Task) -> None:
+    def before_task_step(self, task: trio.lowlevel.Task) -> None:
         # Instruments run before Trio enters task.context, so publish from that task's Context.
         if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
             task.context.copy().run(core.dispatch, PYTHON_CONTEXT_SWITCH_EVENT)
 
-    def after_task_step(self, task: Task) -> None:
+    def after_task_step(self, task: trio.lowlevel.Task) -> None:
         # Trio has restored the run-loop context after the task yielded.
         if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
             core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
@@ -60,7 +59,7 @@ def patch() -> None:
     wrap(trio.lowlevel.start_guest_run, _wrapped_run)
     wrap(trio.to_thread.run_sync, _wrapped_run_sync)
     wrap(trio.from_thread.run, _wrapped_from_thread_run)
-    wrap(trio.from_thread.run_sync, _wrapped_from_thread_run)
+    wrap(trio.from_thread.run_sync, _wrapped_from_thread_run_sync)
     trio._datadog_patch = True
 
 
@@ -73,7 +72,7 @@ def unpatch() -> None:
     unwrap(trio.lowlevel.start_guest_run, _wrapped_run)
     unwrap(trio.to_thread.run_sync, _wrapped_run_sync)
     unwrap(trio.from_thread.run, _wrapped_from_thread_run)
-    unwrap(trio.from_thread.run_sync, _wrapped_from_thread_run)
+    unwrap(trio.from_thread.run_sync, _wrapped_from_thread_run_sync)
     trio._datadog_patch = False
 
 
@@ -98,7 +97,7 @@ def _run_with_context_switches(func: Callable[..., Any], *args: Any) -> Any:
 
 
 async def _run_async_with_context_switches(func: Callable[..., Any], *args: Any) -> Any:
-    """Publish context around a callback coroutine while preserving its asynchronous shape."""
+    """Publish context until the callback's result has been awaited."""
     if core.has_listeners(PYTHON_CONTEXT_SWITCH_EVENT):
         core.dispatch(PYTHON_CONTEXT_SWITCH_EVENT)
     try:
@@ -111,13 +110,22 @@ async def _run_async_with_context_switches(func: Callable[..., Any], *args: Any)
 def _wrapped_run_sync(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
     """Publish direct Trio worker boundaries."""
     sync_fn = cast(Callable[..., Any], get_argument_value(args, kwargs, 0, "sync_fn"))
-    args, kwargs = set_argument_value(args, kwargs, 0, "sync_fn", partial(_run_with_context_switches, sync_fn))
+    wrapped_sync_fn = update_wrapper(partial(_run_with_context_switches, sync_fn), sync_fn)
+    args, kwargs = set_argument_value(args, kwargs, 0, "sync_fn", wrapped_sync_fn)
     return wrapped(*args, **kwargs)
 
 
 def _wrapped_from_thread_run(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
-    """Publish callback boundaries for both synchronous and asynchronous Trio re-entry."""
+    """Publish callback boundaries for asynchronous Trio re-entry."""
+    afn = cast(Callable[..., Any], get_argument_value(args, kwargs, 0, "afn"))
+    wrapped_afn = update_wrapper(partial(_run_async_with_context_switches, afn), afn)
+    args, kwargs = set_argument_value(args, kwargs, 0, "afn", wrapped_afn)
+    return wrapped(*args, **kwargs)
+
+
+def _wrapped_from_thread_run_sync(wrapped: Callable[..., Any], args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+    """Publish callback boundaries for synchronous Trio re-entry."""
     fn = cast(Callable[..., Any], get_argument_value(args, kwargs, 0, "fn"))
-    context_runner = _run_async_with_context_switches if inspect.iscoroutinefunction(fn) else _run_with_context_switches
-    args, kwargs = set_argument_value(args, kwargs, 0, "fn", partial(context_runner, fn))
+    wrapped_fn = update_wrapper(partial(_run_with_context_switches, fn), fn)
+    args, kwargs = set_argument_value(args, kwargs, 0, "fn", wrapped_fn)
     return wrapped(*args, **kwargs)

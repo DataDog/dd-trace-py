@@ -30,10 +30,10 @@ def clean_patch(monkeypatch):
             trio_patch.patch()
 
 
-@pytest.mark.parametrize("backend", ["asyncio", "trio"])
+@pytest.mark.parametrize(("backend", "patch_trio"), [("asyncio", False), ("trio", False), ("trio", True)])
 @pytest.mark.parametrize("fails", [False, True])
-def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, fails):
-    """Each backend publishes one entry and exit pair for an AnyIO worker."""
+def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, patch_trio, fails):
+    """Each backend owner publishes one entry and exit pair for an AnyIO worker."""
     marker = ContextVar("marker", default=None)
     main_thread = threading.get_ident()
     switches = []
@@ -63,7 +63,8 @@ def test_run_sync_publishes_worker_context(clean_patch, monkeypatch, backend, fa
     monkeypatch.setattr(anyio_patch, "core", recorder)
     monkeypatch.setattr(trio_patch, "core", recorder)
     anyio_patch.patch()
-    trio_patch.patch()
+    if patch_trio:
+        trio_patch.patch()
     anyio.run(exercise, backend=backend)
 
     assert switches == ["caller", None]
