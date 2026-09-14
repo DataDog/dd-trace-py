@@ -1,21 +1,18 @@
 import asyncio
+import sys
 
 import sanic
 import wrapt
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
-from ddtrace.ext import SpanTypes
+from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.schema import schematize_url_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -23,6 +20,7 @@ log = get_logger(__name__)
 config._add("sanic", dict(_default_service=schematize_service_name("sanic"), distributed_tracing=True))
 
 SANIC_VERSION = (0, 0, 0)
+_REQUEST_CONTEXT_ATTR = "__ddtrace_sanic_request_context"
 
 
 def get_version() -> str:
@@ -33,28 +31,44 @@ def _supported_versions() -> dict[str, str]:
     return {"sanic": ">=20.12.0"}
 
 
-def _get_current_span(request):
-    pin = Pin._find(request.ctx)
-    if not pin or not pin.enabled():
+def _get_request_context(request):
+    return getattr(request.ctx, _REQUEST_CONTEXT_ATTR, None)
+
+
+def _get_request_span(request):
+    ctx = _get_request_context(request)
+    if ctx is None:
         return None
+    return span_from_context(ctx)
 
-    return tracer.current_span()
 
-
-def update_span(span, response):
-    # Check for response status or headers on the response object
-    # DEV: This object can either be a form of BaseResponse or an Exception
-    #      if we do not have a status code, we can assume this is an exception
-    #      and so use 500
-    status_code = getattr(response, "status", 500)
+def _update_request_event(ctx, response):
+    # DEV: response can be a BaseResponse or an exception. Preserve the
+    # existing fallback to status 500 when no response status is available.
+    event = ctx.event
+    event.response_status_code = getattr(response, "status", 500)
     response_headers = getattr(response, "headers", None)
-
-    core.dispatch(
-        "web.request.finish", (span, config.sanic, None, None, status_code, None, None, response_headers, None, False)
-    )
+    if response_headers is not None:
+        event.response_headers = response_headers
 
 
-def _wrap_response_callback(span, callback):
+def _finish_request(
+    request,
+    exc_type=None,
+    exc_value=None,
+    traceback=None,
+):
+    ctx = _get_request_context(request)
+    if ctx is None:
+        return
+
+    try:
+        ctx.dispatch_ended_event(exc_type, exc_value, traceback)
+    finally:
+        setattr(request.ctx, _REQUEST_CONTEXT_ATTR, None)
+
+
+def _wrap_response_callback(ctx, callback):
     # Only for sanic 20 and older
     # Wrap response callbacks (either sync or async function) to set HTTP
     # response span tags
@@ -63,14 +77,14 @@ def _wrap_response_callback(span, callback):
     def wrap_sync(wrapped, instance, args, kwargs):
         r = wrapped(*args, **kwargs)
         response = args[0]
-        update_span(span, response)
+        _update_request_event(ctx, response)
         return r
 
     @wrapt.function_wrapper
     async def wrap_async(wrapped, instance, args, kwargs):
         r = await wrapped(*args, **kwargs)
         response = args[0]
-        update_span(span, response)
+        _update_request_event(ctx, response)
         return r
 
     if asyncio.iscoroutinefunction(callback):
@@ -83,16 +97,16 @@ async def patch_request_respond(wrapped, instance, args, kwargs):
     # Only for sanic 21 and newer
     # Wrap the framework response to set HTTP response span tags
     response = await wrapped(*args, **kwargs)
-    span = _get_current_span(instance)
-    if not span:
+    ctx = _get_request_context(instance)
+    if ctx is None:
         return response
 
-    update_span(span, response)
+    _update_request_event(ctx, response)
 
     # Sanic 21.9.x does not dispatch `http.lifecycle.response` in `handle_exception`
     #  so we have to handle finishing the span here instead
     if (21, 9, 0) <= SANIC_VERSION < (21, 12, 0) and getattr(instance.ctx, "__dd_span_call_finish", False):
-        span.finish()
+        _finish_request(instance)
     return response
 
 
@@ -116,7 +130,7 @@ def _get_path(request):
 async def patch_run_request_middleware(wrapped, instance, args, kwargs):
     # Set span resource from the framework request
     request = args[0]
-    span = _get_current_span(request)
+    span = _get_request_span(request)
     if span is not None:
         span.resource = "{} {}".format(request.method, _get_path(request))
     return await wrapped(*args, **kwargs)
@@ -130,7 +144,7 @@ def patch():
         return
     sanic.__datadog_patch = True
 
-    SANIC_VERSION = tuple(map(int, sanic.__version__.split(".")))
+    SANIC_VERSION = tuple(map(int, get_version().split(".")))
 
     if SANIC_VERSION >= (21, 9, 0):
         _w("sanic", "Sanic.__init__", patch_sanic_init)
@@ -172,7 +186,12 @@ def patch_sanic_init(wrapped, instance, args, kwargs):
 async def patch_handle_request(wrapped, instance, args, kwargs):
     """Wrapper for Sanic.handle_request"""
 
-    def unwrap(request, write_callback=None, stream_callback=None, **kwargs):
+    def unwrap(
+        request,
+        write_callback=None,
+        stream_callback=None,
+        **kwargs,
+    ):
         return request, write_callback, stream_callback, kwargs
 
     request, write_callback, stream_callback, new_kwargs = unwrap(*args, **kwargs)
@@ -180,69 +199,59 @@ async def patch_handle_request(wrapped, instance, args, kwargs):
     if request.scheme not in ("http", "https"):
         return await wrapped(*args, **kwargs)
 
-    with _create_sanic_request_span(request) as span:
+    ctx = _create_sanic_request_context(request)
+    try:
         if write_callback is not None:
-            new_kwargs["write_callback"] = _wrap_response_callback(span, write_callback)
+            new_kwargs["write_callback"] = _wrap_response_callback(ctx, write_callback)
         if stream_callback is not None:
-            new_kwargs["stream_callback"] = _wrap_response_callback(span, stream_callback)
+            new_kwargs["stream_callback"] = _wrap_response_callback(ctx, stream_callback)
 
         return await wrapped(request, **new_kwargs)
+    finally:
+        exc_type, exc_value, traceback = sys.exc_info()
+        _finish_request(request, exc_type, exc_value, traceback)
 
 
-def _create_sanic_request_span(request):
-    """Helper to create sanic.request span and attach a pin to request.ctx"""
-    pin = Pin()
-    pin.onto(request.ctx)
-
-    if SANIC_VERSION < (21, 0, 0):
-        # Set span resource from the framework request
-        resource = "{} {}".format(request.method, _get_path(request))
-    else:
-        # The path is not available anymore in 21.x. Get it from
-        # the _run_request_middleware instrumented method.
-        resource = None
-
+def _create_sanic_request_context(request):
+    """Create the Sanic request event and retain its context until the response."""
     headers = request.headers.copy()
+    query_string = request.query_string
+    if isinstance(query_string, bytes):
+        query_string = query_string.decode()
 
-    with core.context_with_data(
-        "sanic.request",
-        span_name=schematize_url_operation("sanic.request", protocol="http", direction=SpanDirection.INBOUND),
-        span_type=SpanTypes.WEB,
-        service=trace_utils.int_service(None, config.sanic),
-        resource=resource,
-        tags={},
-        pin=pin,
-        distributed_headers=headers,
+    url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
+    event = WebFrameworkRequestEvent(
+        http_operation="sanic.request",
+        component=config.sanic.integration_name,
         integration_config=config.sanic,
+        service=trace_utils.int_service(None, config.sanic),
+        request_method=request.method,
+        request_url=url,
+        request_headers=headers,
+        query=query_string,
+        request_route=None,
         activate_distributed_headers=True,
         headers_case_sensitive=True,
-    ) as ctx:
-        req_span = span_from_context(ctx)
+    )
 
-        ctx.set_item("req_span", req_span)
-        core.dispatch("web.request.start", (ctx, config.sanic))
+    with core.context_with_event(event, dispatch_end_event=False) as ctx:
+        if SANIC_VERSION < (21, 0, 0):
+            request_span = span_from_context(ctx)
+            if request_span is not None:
+                request_span.resource = "{} {}".format(request.method, _get_path(request))
 
-        method = request.method
-        url = "{scheme}://{host}{path}".format(scheme=request.scheme, host=request.host, path=request.path)
-        query_string = request.query_string
-        if isinstance(query_string, bytes):
-            query_string = query_string.decode()
-
-        core.dispatch(
-            "web.request.finish", (req_span, config.sanic, method, url, None, query_string, headers, None, None, False)
-        )
-
-        return req_span
+        setattr(request.ctx, _REQUEST_CONTEXT_ATTR, ctx)
+        return ctx
 
 
 async def sanic_http_lifecycle_handle(request):
     """Lifecycle signal called when a new request is started."""
-    _create_sanic_request_span(request)
+    _create_sanic_request_context(request)
 
 
 async def sanic_http_routing_after(request, route, kwargs, handler):
     """Lifecycle signal called after routing has been resolved."""
-    span = _get_current_span(request)
+    span = _get_request_span(request)
     if not span:
         return
 
@@ -263,18 +272,16 @@ async def sanic_http_lifecycle_response(request, response):
     Note: This signal does not get called when exceptions occur
           in 21.9.x. The issue was resolved in 21.12.x
     """
-    span = _get_current_span(request)
-    if not span:
+    ctx = _get_request_context(request)
+    if ctx is None:
         return
-    try:
-        update_span(span, response)
-    finally:
-        span.finish()
+    _update_request_event(ctx, response)
+    _finish_request(request)
 
 
 async def sanic_http_lifecycle_exception(request, exception):
     """Lifecycle signal called when an exception occurs."""
-    span = _get_current_span(request)
+    span = _get_request_span(request)
     if not span:
         return
 
