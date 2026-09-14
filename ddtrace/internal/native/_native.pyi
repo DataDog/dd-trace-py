@@ -1113,6 +1113,8 @@ class Context:
     def _publish_sampling_decision(
         self, sampling_priority: Optional[Any], sample_rate: float, probabilistic_decision: bool
     ) -> None: ...
+    @staticmethod
+    def _init_tracestate_helpers() -> None: ...
 
 class SpanData:
     name: str
