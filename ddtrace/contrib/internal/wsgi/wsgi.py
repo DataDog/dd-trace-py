@@ -5,6 +5,7 @@ from typing import Callable
 from typing import Iterable
 from typing import Optional
 
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.span_bus import span_from_context
 
@@ -353,7 +354,9 @@ def get_request_headers(environ: Mapping[str, str]) -> Mapping[str, str]:
 
 
 def default_wsgi_span_modifier(span, environ):
-    span.resource = "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"])
+    if config._otel_trace_semantics_enabled:
+        return
+    set_instrumentation_resource(span, "{} {}".format(environ["REQUEST_METHOD"], environ["PATH_INFO"]))
 
 
 class DDWSGIMiddleware(_DDWSGIMiddlewareBase):

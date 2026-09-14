@@ -4,6 +4,7 @@ import os
 import subprocess
 import sys
 import time
+from unittest import mock
 
 import flask
 from flask import abort
@@ -15,6 +16,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.internal.flask.patch import flask_version
 from ddtrace.ext import http
+from ddtrace.internal.settings._config import config
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
@@ -108,6 +110,47 @@ class FlaskRequestTestCase(BaseFlaskTestCase):
         self.assertEqual(handler_span.name, "tests.contrib.flask.test_request.index")
         self.assertEqual(handler_span.resource, "/")
         self.assertEqual(req_span.error, 0)
+
+    def test_otel_semantics_replaces_flask_route_resource(self):
+        @self.app.route("/users/<int:user_id>")
+        def user(user_id):
+            return str(user_id)
+
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            response = self.client.get("/users/42")
+
+        self.assertEqual(response.status_code, 200)
+        request_span = self.get_spans()[0]
+        self.assertEqual(request_span.resource, "GET /users/<int:user_id>")
+
+    def test_otel_semantics_replaces_flask_method_not_allowed_resource(self):
+        @self.app.route("/")
+        def index():
+            return "Hello Flask"
+
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            response = self.client.open("/", method="PROPFIND")
+
+        self.assertEqual(response.status_code, 405)
+        request_span = self.get_spans()[0]
+        self.assertEqual(request_span.resource, "HTTP")
+
+    def test_otel_semantics_normalizes_route_resource_before_view(self):
+        from ddtrace.trace import tracer
+
+        captured = {}
+
+        @self.app.route("/items/<int:item_id>", methods=["PROPFIND"])
+        def item(item_id):
+            captured["resource"] = tracer.current_root_span().resource
+            return str(item_id)
+
+        with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+            response = self.client.open("/items/42", method="PROPFIND")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["resource"], "HTTP /items/<int:item_id>")
+        self.assertEqual(self.get_spans()[0].resource, "HTTP /items/<int:item_id>")
 
     def test_route_params_request(self):
         """

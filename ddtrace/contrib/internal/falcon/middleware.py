@@ -1,6 +1,7 @@
 import sys
 
 from ddtrace import config
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import SpanDirection
@@ -56,7 +57,7 @@ class TraceMiddleware(object):
         span = tracer.current_span()
         if not span:
             return  # unexpected
-        span.resource = "%s %s" % (req.method, _name(resource))
+        set_instrumentation_resource(span, "%s %s" % (req.method, _name(resource)))
 
     def process_response(self, req, resp, resource, req_succeeded=None):
         # req_succeded is not a kwarg in the API, but we need that to support
@@ -72,7 +73,7 @@ class TraceMiddleware(object):
         # here.
         if resource is None:
             status = "404"
-            span.resource = "%s 404" % req.method
+            set_instrumentation_resource(span, "%s 404" % req.method)
             core.dispatch("web.request.finish", (span, config.falcon, None, None, status, None, None, None, None, True))
             return
 

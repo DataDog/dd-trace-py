@@ -10,12 +10,17 @@ from starlette.middleware import Middleware
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.http_semantics import normalize_http_method
+from ddtrace._trace.http_semantics import server_url_tag
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
+from ddtrace._trace.otel_http_naming import set_otel_http_resource
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.middleware import _DD_ROUTE_RESOURCE_RESOLVER
 from ddtrace.contrib.internal.asgi.middleware import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
+from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_wrapted
@@ -149,7 +154,7 @@ def _resolve_route_resource(scope: Mapping[str, Any], span: Span) -> None:
 
     path, is_route = route_match
     method = scope.get("method")
-    span.resource = "{} {}".format(method, path) if method else path
+    _set_route_resource(span, method, path)
     if is_route:
         span._set_attribute(http.ROUTE, path)
 
@@ -260,6 +265,34 @@ def _get_fastapi_effective_path(scope: dict) -> Optional[str]:
     return getattr(effective_route_context, "path_format", None)
 
 
+def _set_route_resource(span: Span, method: Optional[str], route: str) -> None:
+    resource = f"{method} {route}" if method else route
+    set_instrumentation_resource(span, resource)
+    if config._otel_trace_semantics_enabled and method:
+        normalized_method, original_method = normalize_http_method(method)
+        set_otel_http_resource(span, normalized_method, original_method, route)
+
+
+def _copy_server_url_attributes(source: Span, destination: Span) -> None:
+    if not config._otel_trace_semantics_enabled:
+        url_tag = server_url_tag()
+        destination.set_tag(url_tag, source.get_tag(url_tag))
+        return
+
+    for key in (
+        http.OTEL_URL_SCHEME,
+        http.OTEL_URL_PATH,
+        http.OTEL_URL_QUERY,
+        net.SERVER_ADDRESS,
+        net.SERVER_PORT,
+    ):
+        value = source.get_tag(key)
+        if value is None:
+            value = source.get_metric(key)
+        if value is not None:
+            destination._set_attribute(key, value)
+
+
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
@@ -296,7 +329,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     if full_path is not None:
         if request_spans:
-            request_spans[0].resource = "{} {}".format(scope["method"], full_path)
+            _set_route_resource(request_spans[0], scope.get("method"), full_path)
             request_spans[0]._set_attribute(http.ROUTE, full_path)
     elif len(request_spans) == len(resource_paths):
         # Iterate through the request_spans and assign the correct resource name to each
@@ -307,20 +340,13 @@ def traced_handler(wrapped, instance, args, kwargs):
             # Second request span gets /hello/{name}
             path = "".join(resource_paths[index:])
 
-            if scope.get("method"):
-                span.resource = "{} {}".format(scope["method"], path)
-            else:
-                span.resource = path
+            _set_route_resource(span, scope.get("method"), path)
             # route should only be in the root span
             if index == 0:
                 span._set_attribute(http.ROUTE, path)
-    # at least always update the root asgi span resource name request_spans[0].resource = "".join(resource_paths)
     elif request_spans and resource_paths:
         route = "".join(resource_paths)
-        if scope.get("method"):
-            request_spans[0].resource = "{} {}".format(scope["method"], route)
-        else:
-            request_spans[0].resource = route
+        _set_route_resource(request_spans[0], scope.get("method"), route)
         request_spans[0]._set_attribute(http.ROUTE, route)
     else:
         log.debug(
@@ -358,7 +384,7 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     # https://github.com/encode/starlette/issues/1336
     if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
-        request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
+        _copy_server_url_attributes(request_spans[0], request_spans[-1])
 
     return wrapped(*args, **kwargs)
 

@@ -3,11 +3,13 @@ from functools import partial
 import logging
 import os
 import random
+from unittest import mock
 
 from asgiref.testing import ApplicationCommunicator
 import httpx
 import pytest
 
+from ddtrace import config
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
@@ -17,6 +19,7 @@ from ddtrace.contrib.internal.asgi.middleware import span_from_scope
 from ddtrace.propagation import http as http_propagation
 from tests.conftest import DEFAULT_DDTRACE_SUBPROCESS_TEST_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
+from tests.utils import override_config
 from tests.utils import override_global_config
 from tests.utils import override_http_config
 
@@ -180,6 +183,30 @@ async def test_basic_asgi(scope, test_spans):
     assert request_span.get_tag("component") == "asgi"
     assert request_span.get_tag("span.kind") == "server"
     _check_span_tags(scope, request_span)
+
+
+def test_otel_semantics_does_not_replace_resource_with_404():
+    from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+    from ddtrace.ext import SpanTypes
+    from ddtrace.trace import Span
+
+    middleware = TraceMiddleware(basic_app)
+    span = Span("asgi.request", resource="GET /items/{id}", span_type=SpanTypes.WEB)
+    span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+
+    with (
+        mock.patch.object(config, "_otel_trace_semantics_enabled", True),
+        override_config("asgi", dict(obfuscate_404_resource=True)),
+    ):
+        middleware._handle_http_response(
+            {},
+            {"type": "http.response.start", "status": 404},
+            span,
+            "GET",
+            {},
+        )
+
+    assert span.resource == "GET /items/{id}"
 
 
 @pytest.mark.asyncio
@@ -366,6 +393,20 @@ async def test_query_string(scope, test_spans):
         assert request_span.get_tag("component") == "asgi"
         assert request_span.get_tag("span.kind") == "server"
         _check_span_tags(scope, request_span)
+
+
+@pytest.mark.asyncio
+async def test_otel_semantics_preserves_query_without_datadog_query_tracing(scope, test_spans):
+    scope["query_string"] = b"q=public"
+    with mock.patch.object(config, "_otel_trace_semantics_enabled", True):
+        app = TraceMiddleware(basic_app)
+        instance = ApplicationCommunicator(app, scope)
+        await instance.send_input({"type": "http.request", "body": b""})
+        await instance.receive_output(1)
+        await instance.receive_output(1)
+
+    request_span = test_spans.pop_traces()[0][0]
+    assert request_span.get_tag("url.query") == "q=public"
 
 
 @pytest.mark.asyncio

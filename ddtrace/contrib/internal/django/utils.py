@@ -2,6 +2,7 @@ import io
 import json
 from typing import Any  # noqa:F401
 from typing import Mapping  # noqa:F401
+from typing import Optional
 from typing import Text  # noqa:F401
 from typing import Union  # noqa:F401
 import uuid
@@ -11,6 +12,11 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
+from ddtrace._trace.http_semantics import normalize_http_method
+from ddtrace._trace.otel_http_naming import INSTRUMENTATION_HTTP_RESOURCE
+from ddtrace._trace.otel_http_naming import RESOURCE_SET_BY_USER
+from ddtrace._trace.otel_http_naming import otel_http_resource
+from ddtrace._trace.otel_http_naming import set_instrumentation_resource
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -175,6 +181,7 @@ def get_request_uri(request):
 def _set_resolver_tags(pin, span, request):
     # Default to just the HTTP method when we cannot determine a reasonable resource
     resource = request.method
+    route = None
 
     try:
         # Get resolver match result and build resource name pieces
@@ -183,6 +190,8 @@ def _set_resolver_tags(pin, span, request):
             # The request quite likely failed (e.g. 404) so we do the resolution anyway.
             resolver = get_resolver(getattr(request, "urlconf", None))
             resolver_match = resolver.resolve(request.path_info)
+            # Early AppSec blocking bypasses Django's resolver assignment.
+            request.resolver_match = resolver_match
 
         if hasattr(resolver_match[0], "view_class"):
             # In django==4.0, view.__name__ defaults to <module>.views.view
@@ -191,7 +200,6 @@ def _set_resolver_tags(pin, span, request):
         else:
             handler = func_name(resolver_match[0])
 
-        route = None
         # In Django >= 2.2.0 we can access the original route or regex pattern
         # TODO: Validate if `resolver.pattern.regex.pattern` is available on django<2.2
         if DJANGO22:
@@ -235,10 +243,28 @@ def _set_resolver_tags(pin, span, request):
             exc_info=True,
         )
     finally:
+        if config._otel_trace_semantics_enabled:
+            normalized_method, _ = normalize_http_method(request.method)
+            resource = otel_http_resource(normalized_method, route)
+
         # Only update the resource name if it was not explicitly set
         # by anyone during the request lifetime
-        if span.resource == REQUEST_DEFAULT_RESOURCE:
+        otel_resource = span._get_ctx_item(INSTRUMENTATION_HTTP_RESOURCE)
+        if span.resource == REQUEST_DEFAULT_RESOURCE or (otel_resource is not None and span.resource == otel_resource):
             span.resource = resource
+            if config._otel_trace_semantics_enabled:
+                span._set_ctx_item(INSTRUMENTATION_HTTP_RESOURCE, span.resource)
+        else:
+            # Prevent final HTTP tagging from replacing a user-owned resource.
+            span._set_ctx_item(RESOURCE_SET_BY_USER, True)
+
+
+def _initial_otel_resource(request: Any) -> Optional[str]:
+    if not config._otel_trace_semantics_enabled:
+        return None
+
+    normalized_method, _ = normalize_http_method(request.method)
+    return otel_http_resource(normalized_method, None)
 
 
 def _before_request_tags(pin, span, request):
@@ -421,23 +447,20 @@ def _after_request_tags(pin, span: Span, request, response):
             core.dispatch("django.after_request_headers.finalize", (content, None))
     finally:
         if span.resource == REQUEST_DEFAULT_RESOURCE:
-            span.resource = request.method
+            set_instrumentation_resource(span, request.method)
 
 
 def _request_path_params(request):
     """Polymorphic Django path-params extraction.
 
-    Returns ``resolver_match.kwargs`` (named captures), else ``resolver_match.args`` (unnamed captures), else ``None``.
-    Pre-view hooks may run before Django sets ``request.resolver_match``; we fall back to a fresh resolve in that
-    case. The broad try/except shields request tagging from raising third-party ``ResolverMatch`` subclasses.
+    Returns resolver_match.kwargs (named captures), else resolver_match.args (unnamed captures),
+    else None. Pre-view hooks must not resolve the route themselves because converters are
+    application code and Django will invoke them during its own resolution.
     """
     try:
         resolver_match = getattr(request, "resolver_match", None)
         if resolver_match is None:
-            resolver = get_resolver(getattr(request, "urlconf", None))
-            if resolver is None:
-                return None
-            resolver_match = resolver.resolve(request.path_info)
+            return None
         return resolver_match.kwargs or resolver_match.args or None
     except Exception:
         log.debug("Django request_path_params extraction failed", exc_info=True)
