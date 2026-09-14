@@ -218,7 +218,7 @@ def patch():
         _w("starlette.routing", "Mount.handle", traced_handler)
 
     if not is_wrapted(starlette.background.BackgroundTasks.add_task):
-        _w("starlette.background", "BackgroundTasks.add_task", _trace_background_tasks)
+        _w("starlette.background", "BackgroundTasks.add_task", _trace_background_tasks(starlette))
 
 
 def unpatch():
@@ -361,25 +361,28 @@ def traced_handler(wrapped, instance, args, kwargs):
     return wrapped(*args, **kwargs)
 
 
-def _trace_background_tasks(wrapped, instance, args, kwargs):
-    if not is_tracing_enabled():
+def _trace_background_tasks(module):
+    def traced_background_tasks(wrapped, instance, args, kwargs):
+        if not is_tracing_enabled():
+            return wrapped(*args, **kwargs)
+
+        task = get_argument_value(args, kwargs, 0, "func")
+        current_span = tracer.current_span()
+        module_name = getattr(module, "__name__", "<unknown>")
+        task_name = getattr(task, "__name__", "<unknown>")
+
+        async def traced_task(*args, **kwargs):
+            with tracer.start_span(
+                f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
+            ) as span:
+                if current_span:
+                    span.link_span(current_span.context)
+                if inspect.iscoroutinefunction(task):
+                    await task(*args, **kwargs)
+                else:
+                    await run_in_threadpool(task, *args, **kwargs)
+
+        args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
         return wrapped(*args, **kwargs)
 
-    task = get_argument_value(args, kwargs, 0, "func")
-    current_span = tracer.current_span()
-    module_name = getattr(starlette, "__name__", "<unknown>")
-    task_name = getattr(task, "__name__", "<unknown>")
-
-    async def traced_task(*args, **kwargs):
-        with tracer.start_span(
-            f"{module_name}.background_task", resource=task_name, child_of=None, activate=True
-        ) as span:
-            if current_span:
-                span.link_span(current_span.context)
-            if inspect.iscoroutinefunction(task):
-                await task(*args, **kwargs)
-            else:
-                await run_in_threadpool(task, *args, **kwargs)
-
-    args, kwargs = set_argument_value(args, kwargs, 0, "func", traced_task)
-    return wrapped(*args, **kwargs)
+    return traced_background_tasks
