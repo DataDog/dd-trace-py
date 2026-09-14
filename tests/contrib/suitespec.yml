@@ -29,6 +29,8 @@ components:
     - ddtrace/contrib/internal/azure_cosmos/*
   azure_durable_functions:
     - ddtrace/contrib/internal/azure_durable_functions/*
+    - ddtrace/contrib/internal/azure_functions/_worker.py
+    - ddtrace/contrib/internal/azure_functions/shared.py
   azure_eventhubs:
     - ddtrace/contrib/internal/azure_eventhubs/*
     - ddtrace/ext/azure_eventhubs.py
