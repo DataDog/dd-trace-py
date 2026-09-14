@@ -84,12 +84,10 @@ def flask_client(
                 "Server failed to start\n======STDOUT=====%s\n\n======STDERR=====%s\n" % (stdout, stderr)
             )
         yield client
-        try:
-            client.get_ignored("/shutdown")
-        except Exception:
-            pass
-        # The test agent may not have finished processing the traces yet. Each test declares
-        # wait_for_num_traces so the snapshot polls for them rather than racing a fixed sleep.
+        response = client.get_ignored("/shutdown")
+        response.raise_for_status()
+        # The server flushes before acknowledging shutdown. The snapshot can now poll the test agent
+        # after this fixture kills the server without racing the process that produced the trace.
     finally:
         os.killpg(proc.pid, signal.SIGKILL)
         stdout, stderr = proc.communicate()
