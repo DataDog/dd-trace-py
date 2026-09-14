@@ -668,9 +668,6 @@ class Config(object):
         self._x_datadog_tags_max_length = x_datadog_tags_max_length
         self._x_datadog_tags_enabled = x_datadog_tags_max_length > 0
 
-        # Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
-        _native_config.set_raise(_get_config("DD_TESTING_RAISE", False, asbool))
-
         trace_compute_stats_default = (
             in_gcp_function() or in_azure_function() or sys.version_info >= (3, 14) or agentless.enabled
         )
@@ -948,3 +945,5 @@ def _get_global_config() -> Config:
 
 
 config = Config()
+# Raise certain errors only if in testing raise mode to prevent crashing in production with non-critical errors
+config._raise = _get_config("DD_TESTING_RAISE", False, asbool)
