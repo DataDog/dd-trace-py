@@ -1,0 +1,13 @@
+_v: 1
+name: aws_lambda
+display_name: AWS Lambda
+description: Instruments AWS Lambda handler executions to track cold starts and finish active spans before impending invocation
+  timeouts.
+packages:
+- name: datadog-lambda
+- name: datadog_lambda
+category:
+- faas
+systems:
+- aws.lambda
+creation_date: '2023-02-16'
