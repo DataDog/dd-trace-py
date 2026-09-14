@@ -643,6 +643,35 @@ class TestSkippingAndITRFeatures:
         # Coverage is still dispatched (with empty bitmaps) via the same put_coverage path.
         mock_manager.coverage_writer.put_coverage.assert_called_once()
 
+    @pytest.mark.parametrize("coverage_enabled", [False, True])
+    def test_coverage_telemetry_follows_coverage_enabled(self, coverage_enabled: bool, mock_telemetry: Mock) -> None:
+        """code_coverage_started/finished must describe coverage running, not a test running.
+
+        The legacy plugin only reaches record_code_coverage_started() when
+        InternalTestSession.should_collect_coverage() is true, so emitting these per test
+        regardless of the setting over-reports coverage activity.
+        """
+        test_ref = TestDataFactory.create_test_ref("", "test_suite.py", "test_function")
+
+        mock_manager = session_manager_mock().build_mock()
+        mock_manager.settings.coverage_enabled = coverage_enabled
+        plugin = TestOptPlugin(session_manager=mock_manager)
+
+        test = mock_test(test_ref)
+        mock_manager.discover_test.return_value = (test.module, test.suite, test)
+        plugin.tests_by_nodeid = {"/test_suite.py::test_function": test}
+        mock_item = pytest_item_mock("/test_suite.py::test_function").build()
+
+        with (
+            patch("ddtrace.testing.internal.pytest.plugin.trace_context"),
+            patch("ddtrace.testing.internal.pytest.plugin.coverage_collection"),
+        ):
+            list(plugin.pytest_runtest_protocol_wrapper(mock_item, None))
+
+        expected = 1 if coverage_enabled else 0
+        assert mock_telemetry.record_coverage_started.call_count == expected
+        assert mock_telemetry.record_coverage_finished.call_count == expected
+
 
 class TestFinalStatusFeatures:
     """Test final status tag functionality."""

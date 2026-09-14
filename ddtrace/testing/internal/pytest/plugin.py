@@ -291,10 +291,17 @@ def _maybe_collect_coverage(coverage_enabled: bool) -> t.Generator[CoverageData,
 
     An empty CoverageData is what the disabled collector produced anyway, and it flows
     through the same put_coverage empty fast path, so uploads are unchanged.
+
+    The code_coverage_started/finished telemetry is recorded here, so it describes
+    coverage actually running rather than merely a test executing. That matches the
+    legacy plugin, which only reaches record_code_coverage_started() when
+    InternalTestSession.should_collect_coverage() is true.
     """
     if coverage_enabled:
+        TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
         with coverage_collection() as coverage_data:
             yield coverage_data
+        TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
     else:
         yield CoverageData()
 
@@ -761,10 +768,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
             with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 yield
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -1361,12 +1366,10 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
             with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         test.finish()
 
