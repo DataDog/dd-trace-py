@@ -54,6 +54,56 @@ def test_ddup_start():
         pytest.fail(str(e))
 
 
+@pytest.mark.subprocess()
+def test_code_provenance_uploaded():
+    from http.server import BaseHTTPRequestHandler
+    from http.server import HTTPServer
+    import queue
+    import threading
+
+    from ddtrace.internal.datadog.profiling import ddup
+
+    requests = queue.Queue()
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            requests.put((self.path, self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *args):
+            pass
+
+    class EndpointProcessor:
+        def reset(self):
+            return {}, {}
+
+    class Tracer:
+        _endpoint_call_counter_span_processor = EndpointProcessor()
+
+        def __init__(self, agent_trace_url):
+            self.agent_trace_url = agent_trace_url
+
+    with HTTPServer(("127.0.0.1", 0), Handler) as server:
+        server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        server_thread.start()
+        url = f"http://127.0.0.1:{server.server_address[1]}"
+
+        ddup.config(env="my_env", service="my_service", version="my_version", tags={})
+        ddup.start()
+        sample = ddup.SampleHandle()
+        sample.push_walltime(1, 1)
+        sample.flush_sample()
+        ddup.upload(tracer=Tracer(url), enable_code_provenance=True)
+
+        path, body = requests.get(timeout=5)
+        server.shutdown()
+        server_thread.join()
+
+    assert path == "/profiling/v1/input"
+    assert b'filename="code-provenance.json"' in body
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_TAGS="hello:world",
