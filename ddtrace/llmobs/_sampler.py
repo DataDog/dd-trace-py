@@ -168,7 +168,8 @@ class _TraceSampling:
     __slots__ = ("frozen", "root")
 
     def __init__(self, root: Any) -> None:
-        self.root: Optional[Any] = root
+        # Set to None once frozen; only read while frozen is None, so it is never None there.
+        self.root: Any = root
         self.frozen: Optional[tuple[str, str]] = None
 
 
