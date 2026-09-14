@@ -56,6 +56,7 @@ PATCH_MODULES = {
     "litellm": True,
     "mysql": True,
     "mysqldb": True,
+    "niquests": True,
     "pymysql": True,
     "mariadb": True,
     "mcp": True,

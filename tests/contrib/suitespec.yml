@@ -157,6 +157,8 @@ components:
     - ddtrace/contrib/internal/mysqldb/*
     - ddtrace/contrib/internal/pymysql/*
     - ddtrace/contrib/internal/aiomysql/*
+  niquests:
+    - ddtrace/contrib/internal/niquests/*
   pg:
     - ddtrace/contrib/internal/aiopg/*
     - ddtrace/contrib/internal/psycopg/*
