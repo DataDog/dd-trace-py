@@ -1,8 +1,8 @@
 import asyncio
 from typing import Any
 
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.asyncio import _context_switch
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -25,7 +25,6 @@ def patch():
     """
     if getattr(asyncio, "_datadog_patch", False):
         return
-    Pin().onto(asyncio)
     _context_switch.install()
     wrap(asyncio.BaseEventLoop.create_task, _wrapped_create_task)
     asyncio._datadog_patch = True
@@ -45,8 +44,7 @@ def _wrapped_create_task(wrapped, args, kwargs):
     """This function ensures the current active trace context is propagated to scheduled tasks.
     By default the trace context is propagated when a task is executed and NOT when it is created.
     """
-    pin = Pin.get_from(asyncio)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return wrapped(*args, **kwargs)
 
     # Get current trace context
