@@ -379,7 +379,7 @@ suites:
       - '@tracing'
       - '@contrib'
       - '@lib_injection'
-    venvs_per_job: 3
+    venvs_per_job: 2
     pattern: ^lib_injection$
     matrix:
       command: pytest {cmdargs} tests/lib_injection/

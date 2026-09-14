@@ -287,7 +287,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'yarl~=1.0', 'pytest-asyncio>=1.0.0', pytest-aiohttp, aiohttp]
   aiohttp_jinja2:
-    venvs_per_job: 6
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -685,7 +685,7 @@ suites:
           python: ['3.9', '3.10', '3.11', '3.12', '3.13']
           dependencies: [azure-functions-durable]
   azure_functions:
-    venvs_per_job: 3
+    venvs_per_job: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -932,7 +932,7 @@ suites:
         - name: cherrypy
           dependencies: [pytest-randomly, cherrypy, 'more_itertools<8.11.0']
   consul:
-    venvs_per_job: 12
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -1498,7 +1498,7 @@ suites:
           python: ['3.14']
           dependencies: [graphql-relay, pytest-randomly, graphene, 'pytest-asyncio>=1.0']
   graphql:
-    venvs_per_job: 6
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -2332,7 +2332,7 @@ suites:
           python: ['3.14']
           dependencies: [pytest-randomly, redis, pytest-asyncio]
   rediscluster:
-    venvs_per_job: 6
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
@@ -2355,7 +2355,7 @@ suites:
           python: ['3.9', '3.10', '3.11']
           dependencies: [pytest-randomly, redis-py-cluster]
   requests:
-    venvs_per_job: 9
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
