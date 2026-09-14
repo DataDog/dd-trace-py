@@ -26,7 +26,7 @@ from ddtrace.internal.utils.formats import asbool
 
 log = logging.getLogger(__name__)
 
-
+# Configure default configuration
 config._add(
     "cherrypy",
     dict(
@@ -48,19 +48,12 @@ class TraceTool(cherrypy.Tool):
     def __init__(self, app, service, use_distributed_tracing=None):
         self.app = app
         config.cherrypy["service"] = schematize_service_name(service)
-
         if use_distributed_tracing is not None:
             self.use_distributed_tracing = use_distributed_tracing
 
-        # CherryPy uses priority to determine which tools act first on each
-        # event. The lower the number, the higher the priority.
-        # See: https://docs.cherrypy.org/en/latest/extend.html#tools-ordering
-        cherrypy.Tool.__init__(
-            self,
-            "on_start_resource",
-            self._on_start_resource,
-            priority=95,
-        )
+        # CherryPy uses priority to determine which tools act first on each event. The lower the number, the higher
+        # the priority. See: https://docs.cherrypy.org/en/latest/extend.html#tools-ordering
+        cherrypy.Tool.__init__(self, "on_start_resource", self._on_start_resource, priority=95)
 
     @property
     def use_distributed_tracing(self):
@@ -72,17 +65,8 @@ class TraceTool(cherrypy.Tool):
 
     def _setup(self):
         cherrypy.Tool._setup(self)
-
-        cherrypy.request.hooks.attach(
-            "on_end_request",
-            self._on_end_request,
-            priority=5,
-        )
-        cherrypy.request.hooks.attach(
-            "after_error_response",
-            self._after_error_response,
-            priority=5,
-        )
+        cherrypy.request.hooks.attach("on_end_request", self._on_end_request, priority=5)
+        cherrypy.request.hooks.attach("after_error_response", self._after_error_response, priority=5)
 
     def _on_start_resource(self):
         service = trace_utils.int_service(
@@ -137,7 +121,6 @@ class TraceTool(cherrypy.Tool):
             return
 
         exc_info = cherrypy._cperror._exc_info()
-
         span.error = 1
         span._set_attribute(ERROR_TYPE, str(exc_info[0]))
         span._set_attribute(ERROR_MSG, str(exc_info[1]))
@@ -185,15 +168,8 @@ class TraceTool(cherrypy.Tool):
 
 
 class TraceMiddleware(object):
-    def __init__(
-        self,
-        app,
-        tracer=None,
-        service="cherrypy",
-        distributed_tracing=None,
-    ):
+    def __init__(self, app, tracer=None, service="cherrypy", distributed_tracing=None):
         self.app = app
-
         if tracer is not None:
             deprecate(
                 "The tracer parameter is deprecated",
