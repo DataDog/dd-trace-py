@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI visibility: Fixes an issue where test events can be reported without their test session when running pytest with xdist.
