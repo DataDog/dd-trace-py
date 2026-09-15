@@ -7,11 +7,11 @@ from warnings import warn
 import mock
 import pytest
 
+import ddtrace
 from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
-from tests.utils import DDTRACE_PATH
 from tests.utils import _build_env
 
 
@@ -577,7 +577,7 @@ def test_public_modules_in_ddtrace_contrib():
     """Ensures that integration implementation details are not accidentally added to our public api.
     By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/
     """
-    contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
+    contrib_dir = Path(ddtrace.__file__).resolve().parent / "contrib"
 
     public_modules = set()
     for directory, _, file_names in os.walk(contrib_dir):

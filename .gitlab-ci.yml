@@ -122,10 +122,56 @@ tests-gen:
       - .gitlab/benchmarks/microbenchmarks-gen.yml
       - .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
 
+build_base_test_artifacts:
+  extends: .testrunner
+  stage: tests
+  needs:
+    - job: "build linux"
+      parallel:
+        matrix:
+          - ARCH_TAG: "amd64"
+            PYTHON_TAG: ["cp39-cp39", "cp310-cp310", "cp311-cp311", "cp312-cp312", "cp313-cp313", "cp314-cp314", "cp315-cp315"]
+            IMAGE_TAG: "v133965508-8f84bce-manylinux2014_x86_64"
+  script: |
+    set -euo pipefail
+    shopt -s nullglob
+    wheels=(pywheels/ddtrace-*-cp3*-cp3*-manylinux*_x86_64.whl)
+    if [[ ${#wheels[@]} -eq 0 ]]; then
+      echo "No amd64 manylinux wheels were downloaded"
+      exit 1
+    fi
+
+    for wheel in "${wheels[@]}"; do
+      if [[ "${wheel##*/}" =~ -cp3([0-9]+)-cp3[0-9]+- ]]; then
+        python_version="3.${BASH_REMATCH[1]}"
+      else
+        echo "Cannot determine the Python version for $wheel"
+        exit 1
+      fi
+      wheel_dir="$CI_PROJECT_DIR/.cache/ddtrace-test-wheels/$python_version"
+      mkdir -p "$wheel_dir"
+      cp "$wheel" "$wheel_dir/"
+
+      extracted="$(mktemp -d)"
+      python -m zipfile -e "$wheel" "$extracted"
+      (
+        cd "$extracted"
+        find ddtrace -type f -name '*.so*' -exec cp --parents --target-directory="$CI_PROJECT_DIR" {} +
+      )
+    done
+  artifacts:
+    name: test_wheels
+    paths:
+      - ddtrace/**/*.so*
+      - .cache/ddtrace-test-wheels/
+
 run-tests-trigger:
  stage: tests
- needs: [ tests-gen ]
+ needs:
+   - tests-gen
+   - build_base_test_artifacts
  variables:
+   PARENT_PIPELINE_ID: $CI_PIPELINE_ID
    UNPIN_DEPENDENCIES: "${UNPIN_DEPENDENCIES:-}"
    NIGHTLY_BUILD: "${NIGHTLY_BUILD:-}"
  # Allow the child job to fail if explicitly asked

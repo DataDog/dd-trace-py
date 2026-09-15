@@ -13,10 +13,10 @@ except ImportError:
 
 import pytest
 
-from ddtrace import __version__
+import ddtrace
 
 
-HOST_DDTRACE_VERSION = __version__
+HOST_DDTRACE_VERSION = ddtrace.__version__
 LIBS_INJECTION_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../lib-injection"))
 LIBS_INJECTION_SRC_DIR = os.path.join(LIBS_INJECTION_DIR, "sources")
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
@@ -54,10 +54,8 @@ def ddtrace_injection_artifact():
     """
     Session-scoped fixture to prepare the injection artifact:
     1. Copies injection source files (sitecustomize.py, etc.) into a temporary directory.
-    2. Copies the host's ddtrace package source into the expected `ddtrace_pkgs/site-packages...` structure.
-    3. Installs build dependencies necessary for setup.py to run.
-    4. Generates package metadata (.egg-info) for entry point discovery using setup.py.
-    5. Writes the host's ddtrace version to the `version` file.
+    2. Copies the installed ddtrace package and metadata into the expected site-packages structure.
+    3. Writes the host's ddtrace version to the `version` file.
     Yields: path_to_prepared_sources_dir
     """
     session_tmpdir = tempfile.mkdtemp(prefix="dd_injection_artifact_session_")
@@ -75,39 +73,22 @@ def ddtrace_injection_artifact():
         target_site_packages_path = os.path.join(sources_dir_in_session_tmp, "ddtrace_pkgs", target_site_packages_name)
         os.makedirs(target_site_packages_path, exist_ok=True)
 
-        # 3. Copy the ddtrace source code into our temp site-packages
-        host_ddtrace_path = os.path.join(PROJECT_ROOT, "ddtrace")
+        # 3. Copy the installed ddtrace package and metadata into our temp site-packages
+        host_ddtrace_path = os.path.dirname(ddtrace.__file__)
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
 
-        # 4. Install build dependencies necessary for setup.py to run.
-        with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
-            pyproject = tomllib.load(f)
-        build_requires = pyproject.get("build-system", {}).get("requires", [])
-        if build_requires:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install"] + build_requires,
-                stderr=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                text=True,
-                timeout=180,
-            )
+        host_site_packages = os.path.dirname(host_ddtrace_path)
+        metadata_dirs = [
+            entry.path
+            for entry in os.scandir(host_site_packages)
+            if entry.is_dir() and entry.name.startswith("ddtrace-") and entry.name.endswith(".dist-info")
+        ]
+        if len(metadata_dirs) != 1:
+            pytest.fail(f"Expected one installed ddtrace metadata directory, found {metadata_dirs}")
+        shutil.copytree(metadata_dirs[0], os.path.join(target_site_packages_path, os.path.basename(metadata_dirs[0])))
 
-        setup_py_path = os.path.join(PROJECT_ROOT, "setup.py")
-        if not os.path.exists(setup_py_path):
-            pytest.fail(f"setup.py not found at {setup_py_path}. This test requires it to generate package metadata.")
-
-        # 5. Generate the .egg-info metadata directory right into our site-packages.
-        subprocess.check_call(
-            [sys.executable, "setup.py", "egg_info", f"--egg-base={target_site_packages_path}"],
-            cwd=PROJECT_ROOT,
-            stderr=subprocess.DEVNULL,
-            stdout=subprocess.DEVNULL,
-            text=True,
-            timeout=120,
-        )
-
-        # 5. Write the ddtrace version file
+        # 4. Write the ddtrace version file
         version_file_path = os.path.join(sources_dir_in_session_tmp, "version")
         with open(version_file_path, "w") as f:
             f.write(HOST_DDTRACE_VERSION)

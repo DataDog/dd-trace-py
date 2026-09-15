@@ -10,6 +10,16 @@ import pytest
 from ddtrace.contrib.internal.coverage import patch as coverage_patch
 
 
+def _covered_function() -> None:
+    return None
+
+
+def _start_coverage_with_data() -> None:
+    # Enter a new measured frame so wheel-only runs collect deterministic coverage data.
+    coverage_patch.start_coverage(include=[__file__])
+    _covered_function()
+
+
 class TestCoverageIntegration:
     """Tests for coverage.py integration functions."""
 
@@ -81,10 +91,7 @@ class TestCoverageIntegration:
 
     def test_get_coverage_percentage(self) -> None:
         """Test retrieving stored coverage percentage."""
-        coverage_patch.start_coverage()
-
-        # Execute some code
-        _ = 1 + 1
+        _start_coverage_with_data()
 
         coverage_patch.stop_coverage()
 
@@ -176,16 +183,15 @@ class TestCoverageIntegration:
 
     def test_lcov_report_with_no_data(self) -> None:
         """Test generating LCOV report with no coverage data."""
-        # Start and immediately stop
-        coverage_patch.start_coverage()
+        # Limit measurement to an unexecuted file so incidental imports cannot create data.
+        coverage_patch.start_coverage(include=[str(Path(__file__).with_name("__init__.py"))])
         coverage_patch.stop_coverage(save=True, erase=False)
 
         with tempfile.TemporaryDirectory() as tmpdir:
             report_path = Path(tmpdir) / "coverage.lcov"
             pct = coverage_patch.generate_lcov_report(outfile=str(report_path))
 
-            # Should handle empty coverage gracefully
-            assert pct is not None or pct == 0.0
+            assert pct is None
 
         coverage_patch.erase_coverage()
 
@@ -220,7 +226,7 @@ class TestCoverageErrorHandling:
 
     def test_generate_report_with_invalid_path(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test generating report with invalid path."""
-        coverage_patch.start_coverage()
+        _start_coverage_with_data()
         coverage_patch.stop_coverage()
 
         # Try to generate report in non-existent directory
@@ -315,10 +321,7 @@ class TestCoveragePatching:
 
     def test_generate_coverage_report_with_different_formats(self) -> None:
         """Test generating coverage reports with different formats."""
-        coverage_patch.start_coverage()
-
-        # Execute some code
-        _ = 1 + 1
+        _start_coverage_with_data()
 
         coverage_patch.stop_coverage()
 
@@ -326,13 +329,14 @@ class TestCoveragePatching:
             # Test text report (without outfile parameter which is not supported by coverage.report())
             text_pct = coverage_patch.generate_coverage_report("text")
             assert text_pct is not None
-            assert text_pct >= 3.0
+            # Fixture size is incidental; verify each formatter returns a valid nonzero percentage.
+            assert 0.0 < text_pct <= 100.0
 
             # Test LCOV report
             lcov_path = Path(tmpdir) / "coverage.lcov"
             lcov_pct = coverage_patch.generate_coverage_report("lcov", outfile=str(lcov_path))
             assert lcov_pct is not None
-            assert lcov_pct >= 3.0
+            assert 0.0 < lcov_pct <= 100.0
 
             # Verify LCOV file was created
             if lcov_path.exists():
