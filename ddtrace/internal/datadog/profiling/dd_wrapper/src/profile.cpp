@@ -44,31 +44,6 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const
 
 } // namespace
 
-bool
-Datadog::Profile::reset_profile()
-{
-    const std::lock_guard<std::mutex> lock(profile_mtx);
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-
-    if (!cur_profile.has_value()) {
-        return false;
-    }
-
-    cur_profile.reset();
-    auto profile_result = make_profile(samplers, default_period);
-    if (const auto* err = Datadog::error_if_any(profile_result)) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Could not reset CXX profile: " << err->message << std::endl;
-        }
-        return false;
-    }
-    cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
-
-    cur_profiler_stats.reset_state();
-    return true;
-}
-
 void
 Datadog::Profile::cleanup()
 {
@@ -150,20 +125,6 @@ Datadog::ProfileBorrow
 Datadog::Profile::borrow()
 {
     return ProfileBorrow(*this);
-}
-
-Datadog::ddprof::Profile&
-Datadog::Profile::profile_borrow_internal()
-{
-    // Note: Caller is responsible for ensuring profile_release() is called
-    profile_mtx.lock();
-    return *cur_profile.value();
-}
-
-void
-Datadog::Profile::profile_release()
-{
-    profile_mtx.unlock();
 }
 
 bool

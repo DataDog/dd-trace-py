@@ -4,14 +4,13 @@
 Datadog::ProfileBorrow::ProfileBorrow(Profile& profile)
   : profile_ptr(&profile)
 {
-    // Lock the mutex on construction
-    profile_ptr->profile_borrow_internal();
+    profile_ptr->profile_mtx.lock();
 }
 
 Datadog::ProfileBorrow::~ProfileBorrow()
 {
     if (profile_ptr) {
-        profile_ptr->profile_release();
+        profile_ptr->profile_mtx.unlock();
     }
 }
 
@@ -27,7 +26,7 @@ Datadog::ProfileBorrow::operator=(ProfileBorrow&& other) noexcept
     if (this != &other) {
         // Release current lock if any
         if (profile_ptr) {
-            profile_ptr->profile_release();
+            profile_ptr->profile_mtx.unlock();
         }
 
         // Take ownership from other

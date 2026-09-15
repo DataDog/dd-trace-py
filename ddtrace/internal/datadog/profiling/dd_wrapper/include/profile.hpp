@@ -46,16 +46,11 @@ class Profile
     std::optional<rust::Box<ddprof::Profile>> cur_profile{};
     Datadog::ProfilerStats cur_profiler_stats{};
 
-    // Internal access methods - not for direct use
-    ddprof::Profile& profile_borrow_internal();
-    void profile_release();
-
     void one_time_init_impl(SampleType type, unsigned int _max_nframes);
 
   public:
     // State management
     bool one_time_init(SampleType type, unsigned int _max_nframes);
-    bool reset_profile();
     void cleanup();
     void prefork();
     void postfork_parent();

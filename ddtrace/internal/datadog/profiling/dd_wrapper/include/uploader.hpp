@@ -26,7 +26,6 @@ class Uploader
     bool export_to_file(const ddprof::EncodedProfile& encoded, std::string_view internal_metadata_json);
 
   public:
-    bool upload();
     bool upload_unlocked(); // Version that assumes lock is already held
     static void cancel_inflight();
     static void lock();
