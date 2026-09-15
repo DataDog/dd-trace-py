@@ -118,9 +118,12 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         return "Early Flake Detection"
 
     def max_retries_for_timeout(self, timeout_seconds: float) -> int:
-        # EFD's budget is dynamic (scales with test duration). Return the largest bucket so callers get a safe
-        # upper bound without a live Test object.
-        return self.settings.early_flake_detection.slow_test_retries_5s
+        # EFD aborts retries for tests that run longer than 5 minutes (EFD_ABORT_TEST_SECONDS). Honor that
+        # cutoff here so the crash re-queue cap is 0 (no re-queue) for long-running tests, matching the
+        # in-process EFD behavior. For shorter tests, derive the budget from the EFD retry buckets.
+        if timeout_seconds > self.EFD_ABORT_TEST_SECONDS:
+            return 0
+        return self.settings.early_flake_detection.retries_for_duration(timeout_seconds)
 
     def should_apply(self, test: Test) -> bool:
         # NOTE: currently we replicate dd-trace-py's behavior and disable EFD for parameterized tests. This is

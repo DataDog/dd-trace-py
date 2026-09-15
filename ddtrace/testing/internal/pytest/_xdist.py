@@ -55,11 +55,13 @@ The cap is ``max(handler.max_retries_for_timeout(duration) for handler in self._
 where ``duration`` is the wall-clock time the test ran before crashing (measured in the main process;
 see below). For ATR - the customer's feature - the budget is a flat ``max_retries_per_test`` (default 5),
 so the duration is ignored and the budget is honored exactly. For dynamic ATR, the budget is derived
-from the duration via the EFD retry buckets (``retries_for_duration``), so a 5-minute-timeout test gets
-2 retries (not the flat 5). The ``max`` across handlers is used because the main process cannot
-determine which handler would have applied to the crashed test (that depends on per-test properties like
-``is_new()`` / ``is_attempt_to_fix()`` that the main does not have without running the test). xdist's own
-``max_worker_restart`` remains the global backstop across all tests.
+from the duration via the EFD retry buckets (``retries_for_duration``). EFD's 5-minute abort
+threshold (``EFD_ABORT_TEST_SECONDS = 300``) is honored: a test that runs longer than 5 minutes gets 0
+retries from EFD, matching the in-process behavior. Dynamic ATR has no such cutoff. The ``max`` across
+handlers is used because the main process cannot determine which handler would have applied to the
+crashed test (that depends on per-test properties like ``is_new()`` / ``is_attempt_to_fix()`` that the main
+does not have without running the test); it also ensures that if ATR is also active, its budget still applies
+even when EFD aborts. xdist's own ``max_worker_restart`` remains the global backstop across all tests.
 
 The handlers are built in ``__init__`` from ``manager.settings`` (not ``manager.retry_handlers``)
 because the main (controller) process prohibits collection, so ``SessionManager.setup_retry_handlers``
