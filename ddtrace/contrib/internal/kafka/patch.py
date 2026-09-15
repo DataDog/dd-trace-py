@@ -5,10 +5,10 @@ from time import time_ns
 import confluent_kafka
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -81,8 +81,8 @@ class TracedProducerMixin:
             else config.get("metadata.broker.list")
         )
 
-    # in older versions of confluent_kafka, bool(Producer()) evaluates to False,
-    # which makes the Pin functionality ignore it.
+    # Preserve the truthiness behavior exposed by the traced producer across
+    # older confluent_kafka versions.
     def __bool__(self):
         return True
 
@@ -139,10 +139,6 @@ def patch():
 
     # Consume is not implemented in deserializing consumers
     trace_utils.wrap(TracedConsumer, "consume", traced_poll_or_consume)
-    Pin().onto(confluent_kafka.Producer)
-    Pin().onto(confluent_kafka.Consumer)
-    Pin().onto(confluent_kafka.SerializingProducer)
-    Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
 def _safe_unwrap(cls, attr):
@@ -182,8 +178,7 @@ def unpatch():
 
 
 def traced_produce(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     topic = get_argument_value(args, kwargs, 0, "topic") or ""
@@ -199,7 +194,7 @@ def traced_produce(func, instance, args, kwargs):
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         span_type=SpanTypes.WORKER,
     ) as span:
-        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
+        set_service_and_source(span, trace_utils.ext_service(None, config.kafka), config.kafka)
         cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
         if cluster_id:
@@ -238,8 +233,7 @@ def traced_produce(func, instance, args, kwargs):
 
 
 def traced_poll_or_consume(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     # we must get start time now since execute before starting a span in order to get distributed context
@@ -255,17 +249,17 @@ def traced_poll_or_consume(func, instance, args, kwargs):
     finally:
         if isinstance(result, confluent_kafka.Message):
             # poll returns a single message
-            _instrument_message([result], pin, start_ns, instance, err)
+            _instrument_message([result], start_ns, instance, err)
         elif isinstance(result, list):
             # consume returns a list of messages,
-            _instrument_message(result, pin, start_ns, instance, err)
+            _instrument_message(result, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
-            _instrument_message([None], pin, start_ns, instance, err)
+            _instrument_message([None], start_ns, instance, err)
 
     return result
 
 
-def _instrument_message(messages, pin, start_ns, instance, err):
+def _instrument_message(messages, start_ns, instance, err):
     ctx = None
     links = []
     first_message = messages[0] if len(messages) else None
@@ -293,7 +287,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
     ) as span:
         if links:
             core.dispatch("kafka.consume.link_spans", (span, links))
-        set_service_and_source(span, trace_utils.ext_service(pin, config.kafka), config.kafka)
+        set_service_and_source(span, trace_utils.ext_service(None, config.kafka), config.kafka)
         # reset span start time to before function call
         span.start_ns = start_ns
         cluster_id = None
@@ -342,8 +336,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
 
 
 def traced_commit(func, instance, args, kwargs):
-    pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not is_tracing_enabled():
         return func(*args, **kwargs)
 
     cluster_id = getattr(instance, "_dd_cluster_id", "")
