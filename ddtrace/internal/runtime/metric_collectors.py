@@ -23,7 +23,7 @@ from .gc_monitor import gc_pause_monitor
 
 
 class RuntimeMetricCollector(ValueCollector):
-    value = []  # type: list[tuple[str, str]]
+    value: list[tuple[str, str]] = []
     periodic = True
 
 
