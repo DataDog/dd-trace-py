@@ -108,7 +108,9 @@ ProfilerState::start()
         }
 
         // Initialize the Profile object
-        profile_state.one_time_init(type_mask, max_nframes);
+        if (!profile_state.one_time_init(type_mask, max_nframes)) {
+            return;
+        }
 
         // Install fork handlers
         pthread_atfork([]() { ProfilerState::get().prefork(); },
@@ -175,7 +177,14 @@ ProfilerState::postfork_child()
     struct ProfileGuard
     {
         ProfilerState& self;
-        ~ProfileGuard() { self.profile_state.postfork_child(); }
+        bool active{ true };
+        ~ProfileGuard()
+        {
+            if (active) {
+                self.profile_state.postfork_child(false);
+            }
+        }
+        void dismiss() { active = false; }
     } guard{ *this };
 
     // Re-init the mutexes (placement-new to avoid UB with mutexes in undefined state after fork)
@@ -207,6 +216,13 @@ ProfilerState::postfork_child()
         initialized_.store(false, std::memory_order_release);
         return;
     }
+
+    if (!profile_state.postfork_child()) {
+        guard.dismiss();
+        initialized_.store(false, std::memory_order_release);
+        return;
+    }
+    guard.dismiss();
 }
 
 } // namespace Datadog

@@ -3,6 +3,7 @@
 #include "profile_borrow.hpp"
 #include "profiler_state.hpp"
 #include "profiler_stats.hpp"
+#include "result.hpp"
 
 #include <iostream>
 #include <utility>
@@ -15,17 +16,16 @@
 // Inline helpers
 namespace {
 
-inline bool
-make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types,
-             const Datadog::ddprof::Period& period,
-             std::optional<rust::Box<Datadog::ddprof::Profile>>& profile)
+using ProfileResult = Datadog::Result<rust::Box<Datadog::ddprof::Profile>>;
+
+inline ProfileResult
+make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const Datadog::ddprof::Period& period)
 {
     // Private helper function for creating a CXX Profile from arguments
 
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     auto* dict = Datadog::ProfilerState::get().get_profiles_dictionary();
     if (dict == nullptr) {
-        return false;
+        return Datadog::ErrorMessage{ "CXX ProfileDictionary is not initialized" };
     }
 
     rust::Vec<Datadog::ddprof::SampleType> cxx_sample_types;
@@ -34,15 +34,12 @@ make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types,
     }
     auto result = Datadog::ddprof::Profile::create_with_dictionary(std::move(cxx_sample_types), period, *dict);
     if (!result->ok()) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Error creating CXX profile: " << std::string(result->message()) << std::endl;
-        }
-        return false;
+        return Datadog::ErrorMessage{ std::string(result->message()) };
     }
-    profile.emplace(result->take_value());
-    profile.value()->set_error_policy(Datadog::ddprof::ErrorPolicy::PrintOncePerOperation);
-    return true;
+
+    auto profile = result->take_value();
+    profile->set_error_policy(Datadog::ddprof::ErrorPolicy::PrintOncePerOperation);
+    return ProfileResult{ std::in_place_type<rust::Box<Datadog::ddprof::Profile>>, std::move(profile) };
 }
 
 } // namespace
@@ -58,13 +55,16 @@ Datadog::Profile::reset_profile()
     }
 
     cur_profile.reset();
-    if (!make_profile(samplers, default_period, cur_profile)) {
+    auto profile_result = make_profile(samplers, default_period);
+    if (std::holds_alternative<Datadog::ErrorMessage>(profile_result)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Could not reset CXX profile" << std::endl;
+            std::cerr << "Could not reset CXX profile: " << std::get<Datadog::ErrorMessage>(profile_result).message
+                      << std::endl;
         }
         return false;
     }
+    cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
 
     cur_profiler_stats.reset_state();
     return true;
@@ -167,10 +167,11 @@ Datadog::Profile::profile_release()
     profile_mtx.unlock();
 }
 
-void
+bool
 Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
 {
     std::call_once(init_once, [this, type, _max_nframes]() { one_time_init_impl(type, _max_nframes); });
+    return cur_profile.has_value();
 }
 
 void
@@ -197,12 +198,16 @@ Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
     setup_samplers();
 
     // We need to initialize the profiles
-    if (!make_profile(samplers, default_period, cur_profile)) {
+    auto profile_result = make_profile(samplers, default_period);
+    if (std::holds_alternative<Datadog::ErrorMessage>(profile_result)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Error initializing cur_profile" << std::endl;
+            std::cerr << "Error initializing cur_profile: " << std::get<Datadog::ErrorMessage>(profile_result).message
+                      << std::endl;
         }
+        return;
     }
+    cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
 }
 
 const Datadog::ValueIndex&
@@ -215,6 +220,9 @@ bool
 Datadog::Profile::collect(const ddprof::DictionarySample& sample, int64_t endtime_ns)
 {
     const std::lock_guard<std::mutex> lock(profile_mtx);
+    if (!cur_profile.has_value()) {
+        return false;
+    }
     const auto ok = endtime_ns == 0 ? cur_profile.value()->add_dictionary_sample(sample)
                                     : cur_profile.value()->add_dictionary_sample(sample, endtime_ns);
     if (!ok) {
@@ -240,8 +248,8 @@ Datadog::Profile::postfork_parent()
     profile_mtx.unlock();
 }
 
-void
-Datadog::Profile::postfork_child()
+bool
+Datadog::Profile::postfork_child(bool recreate_profile)
 {
     // Reset the profiler stats to clear any samples collected in the parent process
     cur_profiler_stats.reset_state();
@@ -249,11 +257,19 @@ Datadog::Profile::postfork_child()
     // Drop the old profile - it references the old (now-released) dictionary
     cur_profile.reset();
 
-    // Create a new profile with the new dictionary
-    if (!make_profile(samplers, default_period, cur_profile)) {
-        std::cerr << "Error re-initializing profile after fork" << std::endl;
+    bool ok = true;
+    if (recreate_profile) {
+        auto profile_result = make_profile(samplers, default_period);
+        if (std::holds_alternative<Datadog::ErrorMessage>(profile_result)) {
+            ok = false;
+            std::cerr << "Error re-initializing profile after fork: "
+                      << std::get<Datadog::ErrorMessage>(profile_result).message << std::endl;
+        } else {
+            cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
+        }
     }
 
     // Unlock profile_mtx, which was locked by prefork.
     profile_mtx.unlock();
+    return ok;
 }

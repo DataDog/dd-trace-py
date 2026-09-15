@@ -177,10 +177,11 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // be modified. It gets cleared and released as soon as serialization is complete (or has failed).
     auto uploader_or_err = Datadog::UploaderBuilder::build();
 
-    if (std::holds_alternative<std::string>(uploader_or_err)) {
+    if (std::holds_alternative<Datadog::ErrorMessage>(uploader_or_err)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Failed to create uploader: " << std::get<std::string>(uploader_or_err) << std::endl;
+            std::cerr << "Failed to create uploader: " << std::get<Datadog::ErrorMessage>(uploader_or_err).message
+                      << std::endl;
         }
         return false;
     }

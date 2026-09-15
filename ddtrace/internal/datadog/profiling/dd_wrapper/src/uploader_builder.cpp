@@ -131,7 +131,7 @@ join(const std::vector<std::string>& vec, const std::string& delim)
                            });
 }
 
-std::variant<Datadog::Uploader, std::string>
+Datadog::Result<Datadog::Uploader>
 Datadog::UploaderBuilder::build()
 {
     auto& state = ProfilerState::get();
@@ -172,10 +172,10 @@ Datadog::UploaderBuilder::build()
     }
 
     if (!reasons.empty()) {
-        return "Error initializing exporter, missing or bad configuration: " + join(reasons, ", ");
+        return Datadog::ErrorMessage{ "Error initializing exporter, missing or bad configuration: " +
+                                      join(reasons, ", ") };
     }
 
-    std::optional<rust::Box<ddprof::ProfileExporter>> profile_exporter;
     auto exporter_result = ddprof::ProfileExporter::create_agent_exporter(
       rust::Str(g_library_name.data(), g_library_name.size()),
       rust::Str(state.profiler_version.data(), state.profiler_version.size()),
@@ -185,9 +185,10 @@ Datadog::UploaderBuilder::build()
       state.max_timeout_ms,
       false);
     if (!exporter_result->ok()) {
-        return std::string("Error initializing CXX exporter: ") + std::string(exporter_result->message());
+        return Datadog::ErrorMessage{ std::string("Error initializing CXX exporter: ") +
+                                      std::string(exporter_result->message()) };
     }
-    profile_exporter = exporter_result->take_value();
+    auto profile_exporter = exporter_result->take_value();
 
     // Perform profile encoding before creating the Uploader.
     // Also take the Profiler Stats and reset the one being written to.
@@ -204,15 +205,15 @@ Datadog::UploaderBuilder::build()
 
         auto encoded_result = borrowed.profile().serialize();
         if (!encoded_result->ok()) {
-            return "Error serializing CXX profile: " + std::string(encoded_result->message());
+            return Datadog::ErrorMessage{ "Error serializing CXX profile: " + std::string(encoded_result->message()) };
         }
         encoded = encoded_result->take_value();
     }
 
-    return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
-                                                         state.output_filename,
-                                                         std::move(*profile_exporter),
-                                                         std::move(*encoded),
-                                                         stats,
-                                                         state.process_tags };
+    return Datadog::Result<Datadog::Uploader>{ std::in_place_type<Datadog::Uploader>,
+                                               state.output_filename,
+                                               std::move(profile_exporter),
+                                               std::move(*encoded),
+                                               stats,
+                                               state.process_tags };
 }

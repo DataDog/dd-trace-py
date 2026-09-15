@@ -13,15 +13,18 @@
 namespace Datadog {
 namespace ddprof = datadog::profiling;
 
+using string_id = ddprof::DictionaryStringId;
+using function_id = ddprof::DictionaryFunctionId;
+
 // Intern a string into libdatadog, returning a string ID
 // (or nullopt if interning failed).
 // Passing the same string twice will deduplicate the string and return
 // the same string ID.
-// Note: although this function is a wrapper around libdatadog utilities,
-// it maintains a local cache of string -> string ID mappings to avoid
-// redundant FFI boundary-crossing calls.
-std::optional<ddprof::DictionaryStringId>
+std::optional<string_id>
 intern_string(std::string_view s);
+
+std::optional<function_id>
+intern_function(string_id name, string_id filename);
 
 // There's currently no need to offer custom tags, so there's no interface for
 // it.  Instead, tags are keyed and populated based on this table, then

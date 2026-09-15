@@ -54,16 +54,19 @@ class Profile
 
   public:
     // State management
-    void one_time_init(SampleType type, unsigned int _max_nframes);
+    bool one_time_init(SampleType type, unsigned int _max_nframes);
     bool reset_profile();
     void cleanup();
     void prefork();
     void postfork_parent();
-    void postfork_child();
+    bool postfork_child(bool recreate_profile = true);
 
     // Getters
     size_t get_sample_type_length();
 
+    // Safety: call only while ProfilerState is initialized. ProfilerState sets
+    // initialized_ only after cur_profile is populated, and clears it if
+    // postfork_child cannot recreate the profile.
     ProfileBorrow borrow();
 
     // constref getters

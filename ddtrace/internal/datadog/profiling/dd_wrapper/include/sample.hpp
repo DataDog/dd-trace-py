@@ -5,7 +5,6 @@
 #include "profile_borrow.hpp"
 #include "types.hpp"
 
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -64,15 +63,6 @@ struct StringArena
 };
 
 } // namespace internal
-
-using string_id = ddprof::DictionaryStringId;
-using function_id = ddprof::DictionaryFunctionId;
-
-std::optional<string_id>
-intern_string(std::string_view s);
-
-std::optional<function_id>
-intern_function(string_id name, string_id filename);
 
 class SampleManager; // friend
 
