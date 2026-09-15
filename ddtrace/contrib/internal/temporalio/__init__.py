@@ -44,3 +44,21 @@ Configuration
 
    Default: ``True``
 """
+
+from ddtrace import config
+from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.settings._config import _get_config
+from ddtrace.internal.utils.formats import asbool
+
+
+config._add(
+    "temporalio",
+    {
+        # Schema functions are selected dynamically and are untyped.
+        "_default_service": schematize_service_name("temporalio"),  # type: ignore[operator]
+        "distributed_tracing": asbool(_get_config("DD_TEMPORALIO_DISTRIBUTED_TRACING", default=True)),
+    },
+)  # type: ignore[no-untyped-call]
+
+
+import ddtrace._trace.subscribers.temporalio  # noqa: E402,F401

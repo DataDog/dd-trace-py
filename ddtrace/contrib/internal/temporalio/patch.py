@@ -1,53 +1,31 @@
 from collections.abc import Callable
-from collections.abc import Mapping
 from typing import Any
-from typing import Optional
 from typing import cast
 from urllib.parse import urlsplit
 
 import temporalio
 import temporalio.activity
-import temporalio.api.common.v1
 import temporalio.client
 import temporalio.converter
 import temporalio.worker
 
 from ddtrace import config
-from ddtrace._trace.context import Context
-from ddtrace._trace.events import TracingEvent
-import ddtrace._trace.subscribers.temporalio  # noqa: F401
+from ddtrace.contrib._events.temporalio import TemporalContextForwardEvent
+from ddtrace.contrib._events.temporalio import TemporalEvent
 from ddtrace.contrib._events.temporalio import TemporalQueryWorkflowEvent
 from ddtrace.contrib._events.temporalio import TemporalRunActivityEvent
 from ddtrace.contrib._events.temporalio import TemporalSignalWorkflowEvent
 from ddtrace.contrib._events.temporalio import TemporalStartWorkflowEvent
-from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal import core
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.schema import schematize_service_name
-from ddtrace.internal.settings._config import _get_config
-from ddtrace.internal.span_bus import span_from_context
-from ddtrace.internal.utils.formats import asbool
-from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Span
-
-
-config._add(
-    "temporalio",
-    {
-        # Schema functions are selected dynamically and are untyped.
-        "_default_service": schematize_service_name("temporalio"),  # type: ignore[operator]
-        "distributed_tracing": asbool(_get_config("DD_TEMPORALIO_DISTRIBUTED_TRACING", default=True)),
-    },
-)  # type: ignore[no-untyped-call]
 
 
 log = get_logger(__name__)
 
-_CONTEXT_HEADER = "_datadog"
 _BASE_TAGS = {"messaging.system": "temporal"}
 
 
@@ -59,49 +37,18 @@ def _supported_versions() -> dict[str, str]:
     return {"temporalio": ">=1.0.0"}
 
 
-def _service() -> Optional[str]:
-    return ext_service(None, config.temporalio)
-
-
 def _enabled() -> bool:
     return getattr(temporalio, "_datadog_patch", False) and config.temporalio.get("enabled") is not False
 
 
-def _inject_context(input_data: Any, span: Span) -> None:
-    if not config.temporalio.distributed_tracing:
-        return
-    carrier: dict[str, str] = {}
-    try:
-        HTTPPropagator.inject(span, carrier)
-        if carrier:
-            payload = temporalio.converter.PayloadConverter.default.to_payloads([carrier])[0]
-            input_data.headers = {**input_data.headers, _CONTEXT_HEADER: payload}
-    except Exception:
-        log.debug("Failed to inject trace context into Temporal headers", exc_info=True)
-
-
-def _extract_context(headers: Mapping[str, temporalio.api.common.v1.Payload]) -> Optional[Context]:
-    if not config.temporalio.distributed_tracing:
-        return None
-    payload = headers.get(_CONTEXT_HEADER)
-    if payload is None:
-        return None
-    try:
-        carrier = temporalio.converter.PayloadConverter.default.from_payloads([payload])[0]
-        if not isinstance(carrier, dict):
-            return None
-        # HTTPPropagator.extract predates type annotations but returns a Context.
-        return cast(Context, HTTPPropagator.extract(carrier))  # type: ignore[no-untyped-call]
-    except Exception:
-        log.debug("Failed to extract trace context from Temporal headers", exc_info=True)
-        return None
-
-
-def _client_event(event_type: type[TracingEvent], resource: str, tags: dict[str, str]) -> TracingEvent:
+def _client_event(
+    event_type: type[TemporalEvent], input_data: Any, resource: str, tags: dict[str, str]
+) -> TemporalEvent:
     return event_type(
         component=config.temporalio.integration_name,
         integration_config=config.temporalio,
-        service=_service(),
+        input_data=input_data,
+        payload_converter=temporalio.converter.PayloadConverter.default,
         resource=resource,
         tags={**_BASE_TAGS, **tags},
     )
@@ -134,6 +81,7 @@ class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor): 
             return await self.next.start_workflow(input_data)
         event = _client_event(
             TemporalStartWorkflowEvent,
+            input_data,
             input_data.workflow,
             {
                 **self._peer_tags,
@@ -144,10 +92,7 @@ class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor): 
                 "temporal.workflow.type": input_data.workflow,
             },
         )
-        with core.context_with_event(event) as ctx:
-            span = span_from_context(ctx)
-            if span is not None:
-                _inject_context(input_data, span)
+        with core.context_with_event(event):
             return await self.next.start_workflow(input_data)
 
     async def signal_workflow(self, input_data: Any) -> Any:
@@ -155,13 +100,11 @@ class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor): 
             return await self.next.signal_workflow(input_data)
         event = _client_event(
             TemporalSignalWorkflowEvent,
+            input_data,
             input_data.signal,
             {**self._peer_tags, MESSAGING_OPERATION: "send", "temporal.namespace": self._namespace},
         )
-        with core.context_with_event(event) as ctx:
-            span = span_from_context(ctx)
-            if span is not None:
-                _inject_context(input_data, span)
+        with core.context_with_event(event):
             return await self.next.signal_workflow(input_data)
 
     async def query_workflow(self, input_data: Any) -> Any:
@@ -169,13 +112,11 @@ class _DatadogClientOutboundInterceptor(temporalio.client.OutboundInterceptor): 
             return await self.next.query_workflow(input_data)
         event = _client_event(
             TemporalQueryWorkflowEvent,
+            input_data,
             input_data.query,
             {**self._peer_tags, "temporal.namespace": self._namespace},
         )
-        with core.context_with_event(event) as ctx:
-            span = span_from_context(ctx)
-            if span is not None:
-                _inject_context(input_data, span)
+        with core.context_with_event(event):
             return await self.next.query_workflow(input_data)
 
 
@@ -198,36 +139,37 @@ class _DatadogActivityInboundInterceptor(temporalio.worker.ActivityInboundInterc
         event = TemporalRunActivityEvent(
             component=config.temporalio.integration_name,
             integration_config=config.temporalio,
-            service=_service(),
+            input_data=input_data,
+            payload_converter=temporalio.converter.PayloadConverter.default,
             resource=info.activity_type,
             tags=tags,
-            distributed_context=_extract_context(input_data.headers),
-            use_active_context=False,
         )
         with core.context_with_event(event):
             return await self.next.execute_activity(input_data)
 
 
 class _DatadogWorkflowInboundInterceptor(temporalio.worker.WorkflowInboundInterceptor):  # type: ignore[misc]
-    """Forward trace headers through replayed workflow code without creating spans there."""
+    """Collect workflow boundary data without instrumenting replayed workflow code."""
 
     def __init__(self, next_interceptor: Any) -> None:
         super().__init__(next_interceptor)
-        self._context_payload: Optional[temporalio.api.common.v1.Payload] = None
+        self._input_data: Any = None
 
     def init(self, outbound: Any) -> None:
         super().init(_DatadogWorkflowOutboundInterceptor(outbound, self))
 
     async def execute_workflow(self, input_data: Any) -> Any:
-        self._context_payload = input_data.headers.get(_CONTEXT_HEADER)
+        self._input_data = input_data
         return await self.next.execute_workflow(input_data)
 
-    def inject_headers(
-        self, headers: Mapping[str, temporalio.api.common.v1.Payload]
-    ) -> Mapping[str, temporalio.api.common.v1.Payload]:
-        if not _enabled() or not config.temporalio.distributed_tracing or self._context_payload is None:
-            return headers
-        return {**headers, _CONTEXT_HEADER: self._context_payload}
+    def collect_outbound(self, input_data: Any) -> None:
+        if _enabled() and self._input_data is not None:
+            core.dispatch_event(
+                TemporalContextForwardEvent(
+                    source_input_data=self._input_data,
+                    destination_input_data=input_data,
+                )
+            )
 
 
 class _DatadogWorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInterceptor):  # type: ignore[misc]
@@ -235,36 +177,36 @@ class _DatadogWorkflowOutboundInterceptor(temporalio.worker.WorkflowOutboundInte
         super().__init__(next_interceptor)
         self._root = root
 
-    def _inject(self, input_data: Any) -> None:
-        input_data.headers = self._root.inject_headers(input_data.headers)
+    def _collect(self, input_data: Any) -> None:
+        self._root.collect_outbound(input_data)
 
     def continue_as_new(self, input_data: Any) -> Any:
-        self._inject(input_data)
+        self._collect(input_data)
         return self.next.continue_as_new(input_data)
 
     async def signal_child_workflow(self, input_data: Any) -> Any:
-        self._inject(input_data)
+        self._collect(input_data)
         return await self.next.signal_child_workflow(input_data)
 
     async def signal_external_workflow(self, input_data: Any) -> Any:
-        self._inject(input_data)
+        self._collect(input_data)
         return await self.next.signal_external_workflow(input_data)
 
     def start_activity(self, input_data: Any) -> Any:
-        self._inject(input_data)
+        self._collect(input_data)
         return self.next.start_activity(input_data)
 
     async def start_child_workflow(self, input_data: Any) -> Any:
-        self._inject(input_data)
+        self._collect(input_data)
         return await self.next.start_child_workflow(input_data)
 
     def start_local_activity(self, input_data: Any) -> Any:
-        self._inject(input_data)
+        self._collect(input_data)
         return self.next.start_local_activity(input_data)
 
 
 class _DatadogTemporalInterceptor(temporalio.client.Interceptor, temporalio.worker.Interceptor):  # type: ignore[misc]
-    """Trace client and activity boundaries without entering replayed workflow code."""
+    """Collect client and activity operation data without instrumenting replayed workflow code."""
 
     def __init__(self, namespace: str, peer_tags: dict[str, str]) -> None:
         self._namespace = namespace
@@ -284,7 +226,7 @@ class _DatadogTemporalInterceptor(temporalio.client.Interceptor, temporalio.work
         return _DatadogWorkflowInboundInterceptor
 
 
-def _traced_client_init(
+def _intercepted_client_init(
     wrapped: Callable[..., Any], instance: Any, args: tuple[Any, ...], kwargs: dict[str, Any]
 ) -> Any:
     if not _enabled():
@@ -305,7 +247,7 @@ def patch() -> None:
     if getattr(temporalio, "_datadog_patch", False):
         return
     temporalio._datadog_patch = True
-    wrap("temporalio.client", "Client.__init__", _traced_client_init)
+    wrap("temporalio.client", "Client.__init__", _intercepted_client_init)
 
 
 def unpatch() -> None:

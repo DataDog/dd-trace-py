@@ -349,6 +349,23 @@ async def test_distributed_tracing_can_be_disabled_without_disabling_spans(trace
 
 
 @pytest.mark.asyncio
+async def test_distributed_tracing_disable_prevents_workflow_context_forwarding() -> None:
+    client = _new_client(_RecordingClientInterceptor())
+    datadog_interceptor = _datadog_interceptor(client)
+    workflow_interceptor_type = datadog_interceptor.workflow_interceptor_class(SimpleNamespace())
+    workflow_interceptor = workflow_interceptor_type(_ForwardingWorkflowInbound())
+    workflow_interceptor.init(_RecordingWorkflowOutbound())
+    context_payload = PayloadConverter.default.to_payloads([{"traceparent": "ignored"}])[0]
+
+    with override_config("temporalio", {"distributed_tracing": False}):
+        forwarded_headers = await workflow_interceptor.execute_workflow(
+            SimpleNamespace(headers={"_datadog": context_payload})
+        )
+
+    assert forwarded_headers == {}
+
+
+@pytest.mark.asyncio
 async def test_peer_service_source_tags(tracer: Any, test_spans: Any) -> None:
     input_data = _input_for("query_workflow")
 
