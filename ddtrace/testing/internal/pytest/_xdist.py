@@ -361,6 +361,10 @@ class XdistTestOptPlugin:
             return
 
         test_run = test.make_test_run()
+        # Override the auto-assigned attempt_number (which starts at 0 for the main's fresh Test
+        # object) with the crash count — the crash is retry #1, #2, etc., since the worker's initial
+        # attempt (attempt 0) died with the worker and is not in the main's test_runs list.
+        test_run.attempt_number = attempt_number
         test_run.set_status(TestStatus.FAIL)
         test_run.set_tags(
             {
