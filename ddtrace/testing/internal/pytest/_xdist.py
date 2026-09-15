@@ -83,6 +83,7 @@ Deferred follow-ups (not in this PR)
    a conservative ceiling; the timeout-peek refinement is a follow-up (it only matters for
    EFD+crash, a narrower case than ATR+crash).
 """
+
 from __future__ import annotations
 
 import typing as t
@@ -128,9 +129,7 @@ class XdistTestOptPlugin:
             self.main_plugin.session.tests_skipped_by_itr += tests_skipped_by_itr
 
     @pytest.hookimpl(tryfirst=True)
-    def pytest_handlecrashitem(
-        self, crashitem: str, report: pytest.TestReport, sched: t.Any
-    ) -> None:
+    def pytest_handlecrashitem(self, crashitem: str, report: pytest.TestReport, sched: t.Any) -> None:
         """Re-queue a test whose xdist worker crashed so a retry feature can reach it.
 
         See the module docstring for the full rationale (crash re-queue vs in-worker ATR, how the

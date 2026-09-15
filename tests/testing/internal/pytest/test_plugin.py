@@ -14,10 +14,10 @@ from unittest.mock import patch
 import pytest
 
 from ddtrace.testing.internal.constants import ITRSkippingLevel
+from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import DISABLED_BY_TEST_MANAGEMENT_REASON
 from ddtrace.testing.internal.pytest.plugin import SKIPPED_BY_ITR_REASON
 from ddtrace.testing.internal.pytest.plugin import TestOptPlugin
-from ddtrace.testing.internal.pytest._xdist import XdistTestOptPlugin
 from ddtrace.testing.internal.pytest.plugin import _get_exception_tags
 from ddtrace.testing.internal.pytest.plugin import _get_module_path_from_item
 from ddtrace.testing.internal.pytest.plugin import _get_source_lines
@@ -1878,7 +1878,7 @@ class TestXdistCrashRequeue:
         assert props["dd_retry_number"] == 1
 
     def test_cap_reached_stops_requeuing(self) -> None:
-        """A test that crashes repeatedly is only re-queued up to the handler's retry budget, then the failure stands."""
+        """A test that crashes repeatedly is only re-queued up to the handler's retry budget, then it stops."""
         handler = Mock()
         handler.max_retries = 2
         plugin = self._build_plugin(retry_handlers=[handler])
@@ -1908,16 +1908,11 @@ class TestXdistCrashRequeue:
         sched = Mock()
 
         for _ in range(3):
-            plugin.pytest_handlecrashitem(
-                crashitem="test_a.py::test_a", report=self._make_report(), sched=sched
-            )
+            plugin.pytest_handlecrashitem(crashitem="test_a.py::test_a", report=self._make_report(), sched=sched)
         for _ in range(3):
-            plugin.pytest_handlecrashitem(
-                crashitem="test_b.py::test_b", report=self._make_report(), sched=sched
-            )
+            plugin.pytest_handlecrashitem(crashitem="test_b.py::test_b", report=self._make_report(), sched=sched)
 
         assert sched.mark_test_pending.call_count == 6
-
 
 
 class TestOutcomeProcessing:

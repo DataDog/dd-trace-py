@@ -1508,7 +1508,6 @@ class RetryReports:
         return None
 
 
-
 def _make_reports_dict(reports: list[pytest.TestReport]) -> _ReportGroup:
     return {report.when: report for report in reports}
 
