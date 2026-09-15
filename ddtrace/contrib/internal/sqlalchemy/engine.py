@@ -4,9 +4,9 @@ from sqlalchemy.event import listen
 
 # project
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
+from ddtrace.contrib.internal.trace_utils import is_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import set_service_and_source
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -41,14 +41,9 @@ def trace_engine(engine, tracer=None, service=None):
 
 
 def _wrap_create_engine(func, module, args, kwargs):
-    """Trace the SQLAlchemy engine, creating an `EngineTracer`
-    object that will listen to SQLAlchemy events. A PIN object
-    is attached to the engine instance so that it can be
-    used later.
-    """
-    # the service name is set to `None` so that the engine
-    # name is used by default; users can update this setting
-    # using the PIN object
+    """Trace the SQLAlchemy engine using an event-listening EngineTracer."""
+    # A None service selects the engine name by default. trace_engine can
+    # update the EngineTracer service later.
     engine = func(*args, **kwargs)
     EngineTracer.attach(None, engine)
     return engine
@@ -67,9 +62,6 @@ class EngineTracer(object):
 
         if service is not None:
             engine_tracer.service = schematize_service_name(service)
-            pin = Pin.get_from(engine)
-            if pin is not None:
-                pin.clone(service=engine_tracer.service).onto(engine)
         return engine_tracer
 
     def __init__(self, service, engine):
@@ -77,10 +69,6 @@ class EngineTracer(object):
         self.vendor = sqlx.normalize_vendor(engine.name)
         self.service = schematize_service_name(service or self.vendor)
         self.name = schematize_database_operation("%s.query" % self.vendor, database_provider=self.vendor)
-
-        # attach the PIN
-        pin = Pin(service=self.service)
-        pin.onto(engine)
 
         listen(engine, "before_cursor_execute", self._before_cur_exec)
         listen(engine, "after_cursor_execute", self._after_cur_exec)
@@ -94,8 +82,7 @@ class EngineTracer(object):
         listen(engine, error_event, self._handle_db_error)
 
     def _before_cur_exec(self, conn, cursor, statement, *args):
-        pin = Pin.get_from(self.engine)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             # don't trace the execution
             return
 
@@ -105,7 +92,9 @@ class EngineTracer(object):
             resource=statement,
         )
         set_service_and_source(
-            span, pin.service, {"_default_service": self.vendor, "integration_name": config.sqlalchemy.integration_name}
+            span,
+            self.service,
+            {"_default_service": self.vendor, "integration_name": config.sqlalchemy.integration_name},
         )
         span._set_attribute(COMPONENT, config.sqlalchemy.integration_name)
 
@@ -118,8 +107,7 @@ class EngineTracer(object):
             _set_tags_from_cursor(span, self.vendor, cursor)
 
     def _after_cur_exec(self, conn, cursor, statement, *args):
-        pin = Pin.get_from(self.engine)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             # don't trace the execution
             return
 
@@ -134,8 +122,7 @@ class EngineTracer(object):
             span.finish()
 
     def _handle_db_error(self, *args):
-        pin = Pin.get_from(self.engine)
-        if not pin or not pin.enabled():
+        if not is_tracing_enabled():
             # don't trace the execution
             return
 
