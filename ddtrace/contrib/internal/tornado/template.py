@@ -24,7 +24,9 @@ def generate(func, renderer, args, kwargs):
 
     # trace the original call
     with tracer.trace("tornado.template", resource=resource, span_type=SpanTypes.TEMPLATE) as span:
-        set_service_and_source(span, config.tornado._default_service, config.tornado)
+        set_service_and_source(
+            span, config.tornado.get("_template_service", config.tornado._default_service), config.tornado
+        )
         span._set_attribute(COMPONENT, config.tornado.integration_name)
 
         span._set_attribute("tornado.template_name", template_name)
