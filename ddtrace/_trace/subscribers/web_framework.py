@@ -5,14 +5,39 @@ from ddtrace._trace.span import Span
 from ddtrace._trace.subscribers._base import TracingSubscriber
 from ddtrace._trace.trace_handlers import _set_inferred_proxy_tags
 from ddtrace.contrib._events.web_framework import WebFrameworkRequestEvent
+from ddtrace.contrib._events.web_framework import WebFrameworkRouteEvent
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal.core.subscriber import Subscriber
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.span_bus import span_from_context
 
 
 log = get_logger(__name__)
+
+
+class WebFrameworkRouteSubscriber(Subscriber):
+    """Apply resolved route metadata to an active web request span."""
+
+    event_names = (WebFrameworkRouteEvent.event_name,)
+
+    @classmethod
+    def on_event(cls, event: WebFrameworkRouteEvent) -> None:
+        request_event = event.request_context.event
+        request_event.request_route = event.request_route
+        request_event.set_resource = False
+
+        span = span_from_context(event.request_context)
+        span.resource = event.resource
+
+        # The route resource/tags are applied immediately so handlers can inspect
+        # them, but must not overwrite a resource customized by a handler at finish.
+        request_event.resource = None
+        if not span.get_tag(http.ROUTE):
+            span._set_attribute(http.ROUTE, event.request_route)
+        if event.route_name and event.route_name_tag and not span.get_tag(event.route_name_tag):
+            span._set_attribute(event.route_name_tag, event.route_name)
 
 
 class WebFrameworkRequestSubscriber(TracingSubscriber):

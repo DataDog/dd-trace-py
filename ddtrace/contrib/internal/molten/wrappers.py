@@ -5,10 +5,9 @@ from ddtrace import config
 from ddtrace._trace.events import TracingEvent
 from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib._events.web_framework import WebFrameworkRouteEvent
 from ddtrace.ext import SpanKind
-from ddtrace.ext import http
 from ddtrace.internal import core
-from ddtrace.internal.span_bus import span_from_context
 from ddtrace.internal.utils.importlib import func_name
 
 
@@ -82,19 +81,15 @@ class WrapperRouter(wrapt.ObjectProxy):
 
             request_context = core.find_item(MOLTEN_REQUEST_CONTEXT_KEY)
             if request_context is not None:
-                request_event = request_context.event
-                request_event.request_route = route.template
-                request_event.set_resource = False
-
-                span = span_from_context(request_context)
-                span.resource = "{} {}".format(route.method, route.template)
-                # The route resource/tags are applied immediately so handlers can inspect
-                # them, but must not overwrite a resource customized by a handler at finish.
-                request_event.resource = None
-                if not span.get_tag(http.ROUTE):
-                    span._set_attribute(http.ROUTE, route.template)
-                if not span.get_tag(MOLTEN_ROUTE):
-                    span._set_attribute(MOLTEN_ROUTE, route.name)
+                core.dispatch_event(
+                    WebFrameworkRouteEvent(
+                        request_context=request_context,
+                        resource="{} {}".format(route.method, route.template),
+                        request_route=route.template,
+                        route_name=route.name,
+                        route_name_tag=MOLTEN_ROUTE,
+                    )
+                )
 
             return route, params
         return route_and_params
