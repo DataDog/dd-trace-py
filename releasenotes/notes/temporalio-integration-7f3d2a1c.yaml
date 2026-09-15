@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    temporalio: Adds tracing for workflow starts, signals, queries, and activity execution, with distributed trace context propagated from clients to activities.

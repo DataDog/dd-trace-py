@@ -2,6 +2,12 @@
 The Temporal integration traces workflow and activity operations performed with
 the ``temporalio`` library.
 
+The integration traces workflow starts and signals as producer operations,
+workflow queries as client operations, and activity execution as consumer
+operations. Trace context is propagated through Temporal headers from client
+operations to activities. Workflow execution itself is not traced because
+Temporal may replay workflow code.
+
 
 Enabling
 ~~~~~~~~
