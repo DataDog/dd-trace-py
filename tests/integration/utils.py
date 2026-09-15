@@ -57,6 +57,18 @@ def skip_if_testagent(f):
     )(f)
 
 
+def skip_if_native_buffer(reason):
+    """Skip when _DD_TRACE_NATIVE_BUFFER_ENABLED is opted in via the venv's env, not just the default.
+
+    Use for tests whose mechanism (encoder/client swapping, dogstatsd wiring) has no NativeTraceBuffer
+    equivalent yet, rather than duplicating assertions that would otherwise need per-writer branches.
+    """
+    return pytest.mark.skipif(
+        os.environ.get("_DD_TRACE_NATIVE_BUFFER_ENABLED", "").lower() in ("1", "true", "yes"),
+        reason=reason,
+    )
+
+
 def import_ddtrace_in_subprocess(env):
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],
