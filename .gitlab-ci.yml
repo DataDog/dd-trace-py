@@ -30,6 +30,7 @@ variables:
   # One pipeline injection package size ratchet
   OCI_PACKAGE_MAX_SIZE_BYTES: 80_000_000
   LIB_INJECTION_IMAGE_MAX_SIZE_BYTES: 100_000_000
+  SUPPORTED_VERSIONS_GENERATOR: "scripts/integration_registry/generate_supported_versions.py"
 
 default:
   interruptible: true
@@ -80,6 +81,12 @@ include:
   - local: ".gitlab/system-tests.yml"
   - local: ".gitlab/fuzz.yml"
   - local: ".gitlab/config-registry.yml"
+
+# Temporary override for validating the supported versions WIP job on this branch.
+generate-supported-versions:
+  rules:
+    - when: manual
+      allow_failure: true
 
 "pipeline variables":
   stage: .pre
