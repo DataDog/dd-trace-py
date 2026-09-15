@@ -25,23 +25,35 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 
 
-if sys.version_info < (3, 15):
-    raise ImportError("ddtrace.internal.monitoring requires Python 3.15+")
-
 log = get_logger(__name__)
 
 _E = sys.monitoring.events
 _DISABLE = sys.monitoring.DISABLE
 
-# On Python 3.15+, PY_UNWIND is a per-code "other" event and can be enabled via
-# set_local_events alongside PY_START/PY_RETURN/LINE.
-_LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
+# PY_UNWIND became a per-code "other" event only in Python 3.15 (its event bit even
+# moved, 0x1000 -> 0x2000). On 3.12-3.14 it is a *global-only* "other" event:
+# set_local_events() rejects it with ValueError. The multiplexer is strictly per-code,
+# so it can only carry events that set_local_events accepts. PY_UNWIND handlers
+# therefore require 3.15+; the sole consumer (the universal wrapping context) is
+# itself 3.15+-gated, so this never triggers in practice.
+if sys.version_info >= (3, 15):
+    _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE | _E.PY_UNWIND
+    _SUPPORTS_LOCAL_PY_UNWIND = True
+else:
+    _LOCAL_EVENTS = _E.PY_START | _E.PY_RETURN | _E.LINE
+    _SUPPORTS_LOCAL_PY_UNWIND = False
+
+
+class MonitoringToolUnavailable(RuntimeError):
+    """Raised when no free sys.monitoring tool ID is available for ddtrace."""
+
 
 _MULTIPLEXER_TOOL_NAME = "ddtrace"
 # sys.monitoring exposes six tool IDs (0–5). 0/1/2/5 are conventionally reserved
 # for debugger/coverage/profiler/optimizer; 3 and 4 are the only undefined
-# slots for custom tools (see CPython docs). Prefer 4 first, consistent with
-# coverage's _DD_CANDIDATE_SLOTS, and fall back to 3 if another tool claimed it.
+# slots for custom tools (see CPython docs). Prefer 4 first, and fall back to 3 if
+# another tool claimed it. The multiplexer deliberately avoids slot 1 (COVERAGE_ID)
+# so it never collides with external coverage tools such as coverage.py.
 _CANDIDATE_TOOL_IDS = (4, 3)
 
 _tool_id: Optional[int] = None
@@ -133,8 +145,13 @@ class MonitoringEventHandler(ABC):
         handlers commonly share one code object's LINE registration.
     """
 
-    def on_py_start(self, code: CodeType, instruction_offset: int) -> None:
-        pass
+    def on_py_start(self, code: CodeType, instruction_offset: int) -> Optional[object]:
+        """Return ``sys.monitoring.DISABLE`` to request disabling future PY_START events.
+
+        The multiplexer forwards ``DISABLE`` to CPython only when every registered
+        PY_START handler for this code object returns it, mirroring ``on_py_line``.
+        """
+        return None
 
     def on_py_return(self, code: CodeType, instruction_offset: int, retval: object) -> None:
         pass
@@ -224,11 +241,12 @@ def _setup() -> int:
             except ValueError:
                 continue
         else:
-            raise RuntimeError("No free sys.monitoring tool ID available for ddtrace")
+            raise MonitoringToolUnavailable("No free sys.monitoring tool ID available for ddtrace")
 
         sys.monitoring.register_callback(_tool_id, _E.PY_START, _on_py_start)
         sys.monitoring.register_callback(_tool_id, _E.PY_RETURN, _on_py_return)
-        sys.monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
+        if _SUPPORTS_LOCAL_PY_UNWIND:
+            sys.monitoring.register_callback(_tool_id, _E.PY_UNWIND, _on_py_unwind)
         sys.monitoring.register_callback(_tool_id, _E.LINE, _on_py_line)
 
     return _tool_id
@@ -244,10 +262,15 @@ def _on_py_start(code: CodeType, instruction_offset: int) -> Optional[object]:
     if not handlers or not handlers.snapshot:
         return _DISABLE
     # Deliberately uncaught: see the propagation warning on MonitoringEventHandler.
+    # DISABLE is forwarded only when every PY_START handler for this code object
+    # returns it, mirroring on_py_line. Existing handlers (the wrapping context)
+    # return None, so behaviour is unchanged unless a handler opts into DISABLE.
+    disable: bool = True
     for e in handlers.snapshot:
         if e.events & _E.PY_START:
-            e.handler.on_py_start(code, instruction_offset)
-    return None
+            if e.handler.on_py_start(code, instruction_offset) is not _DISABLE:
+                disable = False
+    return _DISABLE if disable else None
 
 
 def _on_py_return(code: CodeType, instruction_offset: int, retval: object) -> Optional[object]:
@@ -308,6 +331,16 @@ def _rearm_local_events(tool_id: int, code: CodeType, events: int) -> None:
     _set_local_events(tool_id, code, events)
 
 
+def ensure_tool() -> int:
+    """Claim the shared sys.monitoring tool ID, returning it.
+
+    Idempotent: safe to call before every registration. Raises
+    :class:`MonitoringToolUnavailable` if no free tool ID exists, so callers can
+    degrade gracefully without first doing instrumentation work that would be thrown away.
+    """
+    return _setup()
+
+
 def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     """Register a monitoring event handler for *code*.
 
@@ -317,6 +350,8 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
     handler_events: int = _events_for_handler(handler)
     if not handler_events:
         raise ValueError("Handler overrides no MonitoringEventHandler methods")
+    if (handler_events & _E.PY_UNWIND) and not _SUPPORTS_LOCAL_PY_UNWIND:
+        raise RuntimeError("on_py_unwind handlers require Python 3.15+ (PY_UNWIND is a global-only event on 3.12-3.14)")
 
     tool_id: int = _setup()
     entry: _Entry = _Entry(handler, handler_events)
@@ -326,11 +361,16 @@ def register(code: CodeType, handler: MonitoringEventHandler) -> None:
         if handlers is None:
             _registry[code] = handlers = _CodeHandlers()
 
-        had_line: bool = any(e.events & _E.LINE for e in handlers.snapshot)
+        # Events already provided by an existing handler may have been DISABLE'd by
+        # that handler's callback return (LINE, or PY_START when a handler opts in).
+        # If the new handler shares any of those events, re-arm via the tool-scoped
+        # toggle so the new handler actually receives them. This generalises the
+        # previous LINE-only re-arm to every local event.
+        existing_events: int = _events_for(handlers)
         handlers.set_handler(id(handler), entry)
         local_events: int = _events_for(handlers) & _LOCAL_EVENTS
 
-        if (handler_events & _E.LINE) and had_line:
+        if handler_events & existing_events & _LOCAL_EVENTS:
             _rearm_local_events(tool_id, code, local_events)
         else:
             _set_local_events(tool_id, code, local_events)
@@ -340,7 +380,10 @@ def refresh(code: CodeType) -> None:
     """Re-apply local events for *code*, resetting any per-line DISABLE state.
 
     Call this after adding a new hook for a line that may have been previously
-    disabled via a DISABLE return from :meth:`MonitoringEventHandler.on_py_line`.
+    disabled via a DISABLE return from :meth:`MonitoringEventHandler.on_py_line`
+    (or :meth:`MonitoringEventHandler.on_py_start`). The toggle is tool-scoped:
+    it only clears this multiplexer's own DISABLE marks and never touches another
+    tool's disabled-event state, unlike the global ``sys.monitoring.restart_events()``.
     """
     with _registry_lock:
         handlers: Optional[_CodeHandlers] = _registry.get(code)

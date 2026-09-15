@@ -389,22 +389,19 @@ class ModuleCodeCollector(ModuleWatchdog):
                 _tls_coverage.covered = ctx_covered.get()[-1]
                 _tls_coverage.covered_files = ctx_covered_files.get()[-1]
 
-            # For Python 3.12+, dynamically detect whether other sys.monitoring tools are
-            # active and update the DISABLE optimisation flag accordingly.  Then re-enable
-            # monitoring only when the optimisation is active (restart_events is global and
-            # would corrupt other tools' state if called unnecessarily).
-            # NOTE: This global restart_events() call is safe specifically because it is
-            # gated on update_disable_optimization() having *just* confirmed no other tool is
-            # registered -- there is no other tool's disabled-event state for it to corrupt at
-            # this instant. Once another tool is detected, this branch stops firing for the rest
-            # of the run. This is deliberately different from the tool-scoped set_local_events()
-            # toggle in instrumentation_py3_12._rearm_all_events(), which handles the one case
-            # where a *known* other tool is present and must be left untouched.
+            # Re-arm the LINE/PY_START events this collector silenced with DISABLE during the
+            # previous context. Coverage routes through the shared sys.monitoring multiplexer,
+            # whose DISABLE is tool-scoped, so this refreshes only our own tool slot (via
+            # monitoring.refresh()) and never calls the global sys.monitoring.restart_events()
+            # that would reset other tools' disabled-event state. Re-arming on every context
+            # entry (including import-time) preserves transitive coverage: a module imported
+            # later that calls code from an earlier module still records those lines. The
+            # touched set is cleared each entry, so this is O(total instrumented code) across
+            # the whole run, not O(n) per context.
             if _PY_GE_312:
-                from ddtrace.internal.coverage.instrumentation_py3_12 import update_disable_optimization
+                from ddtrace.internal.coverage.instrumentation_py3_12 import _rearm_disabled
 
-                if update_disable_optimization():
-                    sys.monitoring.restart_events()
+                _rearm_disabled()
 
             return self
 

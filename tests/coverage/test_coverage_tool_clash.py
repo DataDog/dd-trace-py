@@ -8,8 +8,10 @@ import pytest
 def test_coverage_id_clash_does_not_affect_ddtrace():
     """Another tool holding COVERAGE_ID must not prevent ddtrace from collecting coverage.
 
-    ddtrace tries slots 4, 3, then 1, so if only COVERAGE_ID (slot 1) is taken it will still
-    collect coverage using slot 4 or 3.
+    ddtrace's coverage registers with the shared sys.monitoring multiplexer, which owns a single
+    tool slot on ddtrace's behalf and tries slots 4 then 3 (it never uses COVERAGE_ID/slot 1, the
+    slot conventionally held by coverage.py). So if only COVERAGE_ID (slot 1) is taken, ddtrace
+    still collects coverage using slot 4.
     """
     import os
     from pathlib import Path
@@ -53,21 +55,27 @@ def test_coverage_id_clash_does_not_affect_ddtrace():
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="sys.monitoring coverage is only used in Python 3.12+")
 @pytest.mark.subprocess(check_logs=False)
 def test_dd_tool_slot_clash_causes_graceful_degradation():
-    """If all candidate slots (4, 3, 1) are taken, ddtrace logs a warning and skips coverage."""
+    """If both multiplexer candidate slots (4, 3) are taken, ddtrace logs a warning and skips coverage.
+
+    Coverage routes through the shared multiplexer, which only tries slots 4 and 3 (it deliberately
+    avoids COVERAGE_ID/slot 1 so it never collides with external coverage tools). If another tool
+    already holds both 4 and 3, the multiplexer cannot claim a slot, coverage degrades gracefully,
+    and no lines are instrumented.
+    """
     import os
     from pathlib import Path
     import sys
 
     from ddtrace.internal.coverage.code import ModuleCodeCollector
     from ddtrace.internal.coverage.installer import install
-    from ddtrace.internal.coverage.instrumentation_py3_12 import _DD_CANDIDATE_SLOTS
     from tests.coverage.utils import _get_relpath_dict
 
     cwd_path = os.getcwd()
     include_path = Path(cwd_path + "/tests/coverage/included_path/")
 
-    # Claim all candidate slots before install — ddtrace must degrade gracefully
-    for slot in _DD_CANDIDATE_SLOTS:
+    # The multiplexer's candidate slots (ddtrace.internal.monitoring._CANDIDATE_TOOL_IDS).
+    # Claim both before install — ddtrace must degrade gracefully.
+    for slot in (4, 3):
         sys.monitoring.use_tool_id(slot, "something_else")
 
     install(include_paths=[include_path], collect_import_time_coverage=True)

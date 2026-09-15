@@ -285,8 +285,8 @@ def _maybe_collect_coverage(coverage_enabled: bool) -> t.Generator[CoverageData,
     Entering it regardless left the interpreter misreporting its own state for the
     duration of every test: CollectInContext sets the ctx_coverage_enabled ContextVar,
     which makes ModuleCodeCollector.coverage_enabled() answer True even though no
-    collector exists, and on Python 3.12+ it calls the global sys.monitoring
-    restart_events() once per test on behalf of a tool that was never registered. The
+    collector exists, and on Python 3.12+ it would run the per-test tool-scoped re-arm
+    (_rearm_disabled()) on behalf of a multiplexer tool that was never registered. The
     collected bitmaps were empty either way, so nothing was gained by it.
 
     An empty CoverageData is what the disabled collector produced anyway, and it flows
@@ -1633,9 +1633,11 @@ def pytest_load_initial_conftests(
     # NOTE: Coverage collection decision tree:
     # - coverage_enabled: Use ddtrace's ModuleCodeCollector (internal) for per-test ITR bitmaps.
     # - coverage_report_upload_enabled: Use coverage.py (external) to generate full-session reports.
-    # Both can run simultaneously. CollectInContext.__enter__ dynamically detects other
-    # sys.monitoring tools (e.g. coverage.py) and disables the DISABLE optimisation + restart_events()
-    # to avoid corrupting their state.
+    # Both can run simultaneously. Coverage registers with the shared sys.monitoring
+    # multiplexer, whose DISABLE optimisation is tool-scoped (cleared via the
+    # tool-scoped monitoring.refresh() in _rearm_disabled(), never the global
+    # restart_events()), so it cannot corrupt coverage.py's or any other tool's
+    # disabled-event state regardless of timing.
     # The coverage.py startup itself is handled later in pytest_configure.
     if session_manager.settings.coverage_enabled:
         setup_coverage_collection()
