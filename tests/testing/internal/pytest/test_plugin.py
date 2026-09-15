@@ -1961,6 +1961,90 @@ class TestXdistCrashRequeue:
         plugin.pytest_runtest_logfinish(nodeid=nodeid, location=None)
         assert nodeid not in plugin._start_times_by_nodeid
 
+    def test_crash_emits_backend_fail_test_run(self) -> None:
+        """A worker crash emits a fail-status TestRun to the backend with retry tags.
+
+        The crash attempt's buffered start event is lost to os._exit, so the backend would only see
+        the replacement worker's re-queue result. _emit_crash_test_run sends a fail-status TestRun
+        from the main process so the backend sees the full retry history (crash=fail, then re-queue).
+        """
+        from ddtrace.testing.internal.test_data import TestSession
+        from ddtrace.testing.internal.test_data import TestStatus
+        from ddtrace.testing.internal.test_data import TestTag
+
+        plugin = self._build_plugin(atr=True)
+        # Wire discover_test to return a real Test object (so make_test_run works).
+        real_session = TestSession(name="test-session")
+        plugin.main_plugin.manager.session = real_session
+        plugin.main_plugin.manager.discover_test = Mock(
+            side_effect=lambda test_ref, **kw: (
+                real_session.get_or_create_child(test_ref.suite.module.name)[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0].get_or_create_child(
+                    test_ref.suite.name
+                )[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0]
+                .get_or_create_child(test_ref.suite.name)[0]
+                .get_or_create_child(test_ref.name)[0],
+            )
+        )
+
+        nodeid = "test_foo.py::test_crash"
+        plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+        report = self._make_report()
+        plugin.pytest_handlecrashitem(crashitem=nodeid, report=report, sched=Mock())
+
+        # The writer should have received one TestRun (the crash event).
+        writer = plugin.main_plugin.manager.writer
+        writer.put_item.assert_called_once()
+        test_run = writer.put_item.call_args[0][0]
+        assert test_run.get_status() == TestStatus.FAIL
+        assert test_run.tags.get(TestTag.IS_RETRY) == "true"
+        assert test_run.tags.get(TestTag.RETRY_REASON) == "xdist_worker_crash"
+
+    def test_crash_test_run_attempt_number_matches_crash_count(self) -> None:
+        """The crash TestRun's attempt_number increments with each crash for the same test."""
+        from ddtrace.testing.internal.test_data import TestSession
+
+        plugin = self._build_plugin(atr=True)
+        real_session = TestSession(name="test-session")
+        plugin.main_plugin.manager.session = real_session
+        plugin.main_plugin.manager.discover_test = Mock(
+            side_effect=lambda test_ref, **kw: (
+                real_session.get_or_create_child(test_ref.suite.module.name)[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0].get_or_create_child(
+                    test_ref.suite.name
+                )[0],
+                real_session.get_or_create_child(test_ref.suite.module.name)[0]
+                .get_or_create_child(test_ref.suite.name)[0]
+                .get_or_create_child(test_ref.name)[0],
+            )
+        )
+
+        nodeid = "test_foo.py::test_crash"
+        writer = plugin.main_plugin.manager.writer
+
+        # First crash: attempt_number should be 1 (first retry).
+        plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+        plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
+        first_run = writer.put_item.call_args[0][0]
+        assert first_run.attempt_number == 1
+
+        # Second crash: attempt_number should be 2.
+        plugin.pytest_runtest_logstart(nodeid=nodeid, location=None)
+        plugin.pytest_handlecrashitem(crashitem=nodeid, report=self._make_report(), sched=Mock())
+        second_run = writer.put_item.call_args[0][0]
+        assert second_run.attempt_number == 2
+
+        # Two TestRuns emitted total.
+        assert writer.put_item.call_count == 2
+
+    def test_no_crash_test_run_when_retries_inactive(self) -> None:
+        """No backend TestRun is emitted when no retry feature is active."""
+        plugin = self._build_plugin()
+        plugin.pytest_runtest_logstart(nodeid="test_foo.py::test_a", location=None)
+        plugin.pytest_handlecrashitem(crashitem="test_foo.py::test_a", report=self._make_report(), sched=Mock())
+        plugin.main_plugin.manager.writer.put_item.assert_not_called()
+
 
 class TestOutcomeProcessing:
     """Test test outcome processing methods."""
