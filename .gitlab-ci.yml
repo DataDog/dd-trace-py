@@ -247,6 +247,10 @@ apm-sdks-benchmarks:
   needs:
     - job: "upload all"
   variables:
+    # https://github.com/DataDog/apm-sdks-benchmarks/blob/main/tracing-libs/python/fetch-tracing-libs.sh
+    # falls back to $CI_PIPELINE_ID to locate the wheels uploaded by "upload
+    # all". Inside a child pipeline that variable is the child's own ID, not
+    # this (parent) pipeline's, so it must be passed explicitly.
     TARGET_REF: $CI_PIPELINE_ID
   trigger:
     include: .gitlab/benchmarks/apm-sdks-benchmarks.yml
