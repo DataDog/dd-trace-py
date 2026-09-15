@@ -556,6 +556,59 @@ Metrics
      version_added:
        v3.11.0:
 
+   DD_TRACE_STATS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 7000
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct trace metrics aggregation keys tracked during a single flush period when
+         client-side stats computation is enabled. Once the limit is reached, further keys are
+         aggregated together under a sentinel key. Lower it to bound memory usage for applications
+         with very high cardinality.
+
+   DD_TRACE_STATS_RESOURCE_CARDINALITY_LIMIT:
+     type: Integer
+     default: 1024
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct resource names tracked during a single flush period when client-side stats
+         computation is enabled. Resource names beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_HTTP_ENDPOINT_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct HTTP endpoints tracked during a single flush period when client-side stats
+         computation is enabled. Endpoints beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_PEER_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 512
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct peer tag combinations tracked during a single flush period when client-side
+         stats computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
+   DD_TRACE_STATS_ADDITIONAL_TAGS_CARDINALITY_LIMIT:
+     type: Integer
+     default: 100
+     version_added:
+       v4.16.0:
+
+     description: |
+         Maximum number of distinct combinations of the tags configured with
+         ``DD_TRACE_STATS_ADDITIONAL_TAGS`` tracked during a single flush period when client-side stats
+         computation is enabled. Combinations beyond the limit are replaced by a sentinel value.
+
 Application & API Security
 --------------------------
 

@@ -753,6 +753,26 @@ class TraceExporterBuilder:
         """Set span tag keys included in computed stats."""
         ...
 
+    def set_stats_cardinality_limit(
+        self,
+        whole_key_limit: int,
+        resource_limit: int,
+        http_endpoint_limit: int,
+        peer_tags_limit: int,
+        additional_tags_limit: int,
+    ) -> TraceExporterBuilder:
+        """
+        Override the cardinality limits used by stats computation. Aggregation keys beyond a limit
+        are collapsed into a sentinel value. Requires stats computation to be enabled via
+        enable_stats.
+        :param whole_key_limit: Maximum number of distinct aggregation keys per time bucket.
+        :param resource_limit: Maximum number of distinct resource names.
+        :param http_endpoint_limit: Maximum number of distinct HTTP endpoints.
+        :param peer_tags_limit: Maximum number of distinct peer tag combinations.
+        :param additional_tags_limit: Maximum number of distinct additional tag combinations.
+        """
+        ...
+
     def enable_client_side_stats_obfuscation(self) -> TraceExporterBuilder:
         """
         Obfuscate client side stats buckets in the client instead of in the agent.
