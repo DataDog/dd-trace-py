@@ -203,6 +203,10 @@ ddup_profile_set_endpoints(
   // NOLINTNEXTLINE(performance-unnecessary-value-param)
   std::unordered_map<int64_t, std::string_view> span_ids_to_endpoints) // cppcheck-suppress unusedFunction
 {
+    if (!ddup_is_initialized()) {
+        return;
+    }
+
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     auto& profile = borrowed.profile();
     for (const auto& [span_id, trace_endpoint] : span_ids_to_endpoints) {
@@ -217,6 +221,10 @@ ddup_profile_add_endpoint_counts(
   // NOLINTNEXTLINE(performance-unnecessary-value-param)
   std::unordered_map<std::string_view, int64_t> trace_endpoints_to_counts)
 {
+    if (!ddup_is_initialized()) {
+        return;
+    }
+
     auto borrowed = Datadog::ProfilerState::get().profile_state.borrow();
     auto& profile = borrowed.profile();
     for (const auto& [trace_endpoint, count] : trace_endpoints_to_counts) {

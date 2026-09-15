@@ -8,7 +8,7 @@
 #include <string_view>
 #include <utility>
 
-#include <libdd-profiling/src/cxx.rs.h>
+#include <datadog/profiling.hpp>
 
 namespace Datadog {
 namespace ddprof = datadog::profiling;

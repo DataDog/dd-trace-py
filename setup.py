@@ -377,6 +377,7 @@ class ExtensionHashes(build_ext):
                 # needs to be rebuilt when its sources changed.
                 if isinstance(ext, RustExtension) and "profiling" in ext.features:
                     for generated in [
+                        CARGO_TARGET_DIR / "include" / "datadog" / "profiling.hpp",
                         CARGO_TARGET_DIR / "include" / "libdd-profiling" / "src" / "cxx.rs.h",
                         CARGO_TARGET_DIR / "include" / "rust" / "cxx.h",
                         CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc",
@@ -941,6 +942,7 @@ class CustomBuildExt(build_ext):
             if "profiling" in rust_features:
                 required_generated_files.extend(
                     [
+                        CARGO_TARGET_DIR / "include" / "datadog" / "profiling.hpp",
                         CARGO_TARGET_DIR / "include" / "libdd-profiling" / "src" / "cxx.rs.h",
                         CARGO_TARGET_DIR / "include" / "rust" / "cxx.h",
                         CARGO_TARGET_DIR / "cxxbridge" / "sources" / "libdd-profiling" / "src" / "cxx.rs.cc",
