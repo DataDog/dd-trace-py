@@ -1212,3 +1212,84 @@ def test_mock_settings_payload_is_parseable() -> None:
     assert settings.early_flake_detection.slow_test_retries_5s == 10
     assert settings.early_flake_detection.faulty_session_threshold == 30
     assert settings.test_management.attempt_to_fix_retries == 20
+
+
+class TestXdistTimeoutThreadCrashRequeue:
+    """Regression: a pytest-timeout ``method="thread"`` test that times out kills the worker via os._exit(1);
+    xdist reports the test as failed and replaces the worker but, without our pytest_handlecrashitem hook, never
+    retries the crashed test. With ATR active, our hook re-queues it via ``sched.mark_test_pending`` so a replacement
+    worker re-runs it.
+
+    These run pytest in a subprocess with xdist + a mock backend so the full multi-process path is exercised.
+    """
+
+    def test_crashed_thread_timeout_test_is_rerun_and_passes(
+        self, mock_server: MockCIVisibilityServer, test_project: Path
+    ) -> None:
+        """A thread-method test that times out once, then passes on re-queue, ends as passed.
+
+        The test uses a per-process attempt file to time out on the first run (hanging past the timeout so the worker's
+        thread timer fires os._exit) and pass on the re-queue. A short timeout + a single worker keeps the test fast
+        and deterministic. We assert the subprocess exits 0 (the re-queued run passed) and that the test event reaches
+        the backend with a pass status.
+        """
+        pytest.importorskip("pytest_timeout", reason="pytest-timeout not installed")
+
+        settings = _settings_attributes()
+        settings["flaky_test_retries_enabled"] = True  # enable ATR so the crash re-queue hook engages
+        settings["known_tests_enabled"] = True  # required so ATR treats the test as known (not EFD-new)
+        assert mock_server.server is not None
+        mock_server.server.settings_attributes = settings  # type: ignore[attr-defined]
+
+        # The test hangs past its timeout on the first attempt (worker is killed by os._exit), then passes on re-queue.
+        # The attempt counter is keyed by worker pid so each replacement worker starts fresh at 0.
+        (test_project / "test_timeout_crash.py").write_text(
+            textwrap.dedent("""\
+                import os
+                import time
+                import pytest
+
+                _ATTEMPT_FILE = os.path.join(os.path.dirname(__file__), f"attempts-{os.getpid()}.txt")
+
+                def _attempt_number():
+                    try:
+                        with open(_ATTEMPT_FILE) as f:
+                            return int(f.read().strip() or "0")
+                    except FileNotFoundError:
+                        return 0
+
+                def _bump_attempt():
+                    n = _attempt_number() + 1
+                    with open(_ATTEMPT_FILE, "w") as f:
+                        f.write(str(n))
+
+                @pytest.mark.timeout(1, method="thread", func_only=True)
+                def test_crash_then_pass():
+                    n = _attempt_number()
+                    _bump_attempt()
+                    if n == 0:
+                        # First attempt: hang well past the 1s timeout so the thread timer fires os._exit(1),
+                        # killing the xdist worker.
+                        time.sleep(10)
+                    # Re-queue attempt (new worker, fresh attempt file): pass.
+                    assert True
+            """)
+        )
+        _git_commit(test_project)
+
+        env = _make_env(mock_server.url)
+        # Single worker keeps the crash/re-queue sequence deterministic: only one worker dies and is replaced.
+        result = _run_pytest_subprocess(test_project, "-n", "1", "--max-worker-restart=2", env=env, timeout=90)
+
+        assert result.returncode == 0, (
+            f"pytest did not pass (expected the re-queued run to pass):\n"
+            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        )
+
+        # The test must have reached the backend as a passing test event (the re-queued run, not the crash).
+        test_events = [
+            e for e in mock_server.get_test_events() if e["content"]["meta"]["test.name"] == "test_crash_then_pass"
+        ]
+        assert test_events, "expected a test event for test_crash_then_pass, got none"
+        statuses = {e["content"]["meta"]["test.status"] for e in test_events}
+        assert "pass" in statuses, f"expected the re-queued run to report pass, got statuses={statuses}"
