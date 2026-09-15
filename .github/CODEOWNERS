@@ -398,6 +398,12 @@ tests/**/*appsec*                       @DataDog/asm-python
 tests/**/*iast*                         @DataDog/asm-python
 tests/tracer/test_propagation.py        @DataDog/apm-sdk-capabilities-python @DataDog/asm-python
 
+# Cross-product interaction tests (order matters)
+# tests/standalone/ covers products that interact rather than one product, so no single
+# product team owns it; the guild owns it like the other shared test tooling above. Kept
+# below the ASM globs so a future tests/**/* rule naming a product cannot claim it.
+tests/standalone/                       @DataDog/python-guild
+
 # Fuzzing
 .gitlab/fuzz.yml                  @DataDog/chaos-engineering @DataDog/profiling-python
 .gitlab/scripts/fuzz_infra.py     @DataDog/chaos-engineering @DataDog/profiling-python
