@@ -1854,7 +1854,9 @@ class TestXdistCrashRequeue:
 
     @staticmethod
     def _make_report() -> Mock:
-        report = Mock(spec=pytest.TestReport)
+        from _pytest.reports import TestReport
+
+        report = Mock(spec=TestReport)
         report.outcome = "failed"
         report.user_properties = []
         return report
