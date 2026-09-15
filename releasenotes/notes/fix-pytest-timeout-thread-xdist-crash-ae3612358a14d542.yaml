@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    CI visibility: Fixes an issue where tests using ``pytest-timeout`` with
+    CI Visibility: Fixes an issue where tests using ``pytest-timeout`` with
     ``method="thread"`` are not retried by Auto Test Retries when running under
     ``pytest-xdist``. When a test times out with ``method="thread"``,
     ``pytest-timeout`` calls ``os._exit(1)``, killing the xdist worker before
