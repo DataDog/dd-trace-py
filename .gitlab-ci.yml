@@ -14,6 +14,9 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
+  # AIDEV-NOTE: Keep these build-only controls CI-prefixed so ddtrace does not validate them as OTel SDK config.
+  CI_OTEL_OPERATOR_IMAGES_ENABLED: "true"
+  CI_OTEL_OPERATOR_LANGUAGE: python
   # VPA Template configuration
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"

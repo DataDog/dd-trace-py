@@ -9,6 +9,7 @@ variables:
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m
+  # AIDEV-NOTE: One-pipeline operator controls must stay CI-prefixed so tests do not treat them as OTel SDK config.
   before_script:
     - ulimit -c unlimited
     - git config --global --add safe.directory ${CI_PROJECT_DIR}
