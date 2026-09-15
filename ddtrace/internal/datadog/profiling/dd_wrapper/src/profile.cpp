@@ -56,11 +56,10 @@ Datadog::Profile::reset_profile()
 
     cur_profile.reset();
     auto profile_result = make_profile(samplers, default_period);
-    if (std::holds_alternative<Datadog::ErrorMessage>(profile_result)) {
+    if (const auto* err = Datadog::error_if_any(profile_result)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Could not reset CXX profile: " << std::get<Datadog::ErrorMessage>(profile_result).message
-                      << std::endl;
+            std::cerr << "Could not reset CXX profile: " << err->message << std::endl;
         }
         return false;
     }
@@ -199,11 +198,10 @@ Datadog::Profile::one_time_init_impl(SampleType type, unsigned int _max_nframes)
 
     // We need to initialize the profiles
     auto profile_result = make_profile(samplers, default_period);
-    if (std::holds_alternative<Datadog::ErrorMessage>(profile_result)) {
+    if (const auto* err = Datadog::error_if_any(profile_result)) {
         if (!already_warned) {
             already_warned = true;
-            std::cerr << "Error initializing cur_profile: " << std::get<Datadog::ErrorMessage>(profile_result).message
-                      << std::endl;
+            std::cerr << "Error initializing cur_profile: " << err->message << std::endl;
         }
         return;
     }
@@ -260,10 +258,9 @@ Datadog::Profile::postfork_child(bool recreate_profile)
     bool ok = true;
     if (recreate_profile) {
         auto profile_result = make_profile(samplers, default_period);
-        if (std::holds_alternative<Datadog::ErrorMessage>(profile_result)) {
+        if (const auto* err = Datadog::error_if_any(profile_result)) {
             ok = false;
-            std::cerr << "Error re-initializing profile after fork: "
-                      << std::get<Datadog::ErrorMessage>(profile_result).message << std::endl;
+            std::cerr << "Error re-initializing profile after fork: " << err->message << std::endl;
         } else {
             cur_profile.emplace(std::move(std::get<rust::Box<ddprof::Profile>>(profile_result)));
         }

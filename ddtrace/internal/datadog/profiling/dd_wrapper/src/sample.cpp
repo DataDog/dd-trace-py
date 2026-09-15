@@ -37,8 +37,7 @@ Datadog::intern_string(std::string_view s)
 std::optional<Datadog::function_id>
 Datadog::intern_function(string_id name, string_id filename)
 {
-    auto& state = ProfilerState::get();
-    auto* dict = state.get_profiles_dictionary();
+    auto* dict = ProfilerState::get().get_profiles_dictionary();
     if (dict == nullptr) {
         return std::nullopt;
     }
@@ -47,7 +46,7 @@ Datadog::intern_function(string_id name, string_id filename)
     if (!dict->intern_function(
           ddprof::DictionaryFunction{
             name,
-            state.cached_empty_string_id, // No support for system_name in Python
+            {}, // No support for system_name in Python; default string id means empty string.
             filename,
           },
           id)) {

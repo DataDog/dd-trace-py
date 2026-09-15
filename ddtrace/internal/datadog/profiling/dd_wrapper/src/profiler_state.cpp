@@ -61,22 +61,6 @@ ProfilerState::release_profiles_dictionary()
     profiles_dictionary.reset();
 }
 
-bool
-ProfilerState::init_interned_strings()
-{
-    auto* dict = get_profiles_dictionary();
-    if (dict == nullptr) {
-        return false;
-    }
-
-    // Intern the empty string, which is used frequently.
-    if (!dict->intern_string("", cached_empty_string_id)) {
-        return false;
-    }
-
-    return true;
-}
-
 void
 ProfilerState::reset_key_caches()
 {
@@ -86,7 +70,6 @@ ProfilerState::reset_key_caches()
     for (auto& entry : label_cache) {
         entry.store({}, std::memory_order_relaxed);
     }
-    cached_empty_string_id = {};
 }
 
 void
@@ -99,11 +82,6 @@ ProfilerState::start()
     std::call_once(init_flag_, [this]() {
         // Initialize the profiles dictionary at process start
         if (!init_profiles_dictionary()) {
-            return;
-        }
-
-        // Initialize cached interned strings (must happen after profiles dictionary is created)
-        if (!init_interned_strings()) {
             return;
         }
 
@@ -206,13 +184,6 @@ ProfilerState::postfork_child()
     if (!init_profiles_dictionary()) {
         std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
                   << std::endl;
-        initialized_.store(false, std::memory_order_release);
-        return;
-    }
-
-    // Initialize cached interned strings with the new ProfileDictionary
-    if (!init_interned_strings()) {
-        std::cerr << "failed to initialise interned strings in child process, profiler will be disabled" << std::endl;
         initialized_.store(false, std::memory_order_release);
         return;
     }
