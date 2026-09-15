@@ -1013,9 +1013,13 @@ integrations:
 
 - integration_name: temporalio
   is_external_package: true
-  is_tested: false
+  is_tested: true
   dependency_names:
   - temporalio
+  tested_versions_by_dependency:
+    temporalio:
+      min: 1.0.0
+      max: 1.32.0
 
 - integration_name: tornado
   is_external_package: true
