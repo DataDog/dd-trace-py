@@ -74,16 +74,58 @@ def trace_context(ddtrace_enabled: bool) -> t.ContextManager[TestContext]:
 @contextlib.contextmanager
 def _ddtrace_context() -> t.Generator[DDTraceTestContext, None, None]:
     import ddtrace
+    from ddtrace._trace.span import Span
+    from ddtrace.constants import ENV_KEY
+    from ddtrace.constants import VERSION_KEY
 
-    # TODO: check if this breaks async tests.
-    # This seems to be necessary because buggy ddtrace integrations can leave spans
-    # unfinished, and spans for subsequent tests will have the wrong parent.
+    # Clear any leftover context from previous tests: buggy ddtrace integrations can
+    # leave spans unfinished, causing wrong parenting for subsequent tests.
     ddtrace.tracer.context_provider.activate(None)
 
-    with ddtrace.tracer.trace(DDTESTOPT_ROOT_SPAN_RESOURCE) as root_span:
-        root_span.set_tag("type", "test")  # Selenium integration checks the span type.
-        root_span.set_tag("span.kind", "test")
+    # Create a lightweight root span directly, bypassing tracer.trace()'s full pipeline
+    # (span processors, aggregator registration, core dispatch). The root span exists only
+    # to:
+    #   1. provide trace_id/span_id for the test run,
+    #   2. parent child spans from instrumented libraries inside the test,
+    #   3. carry the type=test tag that the Selenium integration checks.
+    # It has no finish callbacks, so finishing it only marks it complete; it does not enter
+    # the tracer pipeline. TestOptSpanProcessor discards root spans anyway (parent_id is
+    # None), and child spans are processed independently when they finish. This saves most
+    # of tracer.trace()'s ~55 us/test cost on the per-test hot path.
+    #
+    # The service and env/version tags below are not decoration: Tracer.start_span()
+    # applies them, and child spans inherit from the root. A child that does not pass an
+    # explicit service takes parent.service, and the version tag is only propagated to a
+    # child when the root already carries it. Leaving them off the root therefore strips
+    # service and version from every span created inside a test, which the backend sees.
+    # This has to stay in step with Tracer.start_span(); see the tests that assert parity.
+    config = ddtrace.config
+    service = config.service_mapping.get(config.service, config.service) if config.service else config.service
+    root_span = Span(
+        name=DDTESTOPT_ROOT_SPAN_RESOURCE,
+        resource=DDTESTOPT_ROOT_SPAN_RESOURCE,
+        service=service,
+        on_finish=[],
+    )
+    root_span.set_tag("type", "test")  # Selenium integration checks the span type.
+    root_span.set_tag("span.kind", "test")
+    if not config._otel_trace_semantics_enabled:
+        if config.env:
+            root_span.set_tag(ENV_KEY, config.env)
+        if config.version and service == config.service:
+            root_span.set_tag(VERSION_KEY, config.version)
+    ddtrace.tracer.context_provider.activate(root_span)
+    try:
         yield DDTraceTestContext(root_span)
+    finally:
+        # A copied context can retain this span after the current context is cleared.
+        # Marking it finished lets the context provider replace that stale Span reference.
+        # NOTE: When patched, the asyncio integration separately snapshots
+        # root_span.context when creating a task. That Context deliberately remains valid
+        # so work spawned by the test stays parented to this root even after it has finished.
+        # TODO: Keep async-framework coverage for both cleanup and propagation as context handling evolves.
+        root_span.finish()
+        ddtrace.tracer.context_provider.activate(None)
 
 
 @contextlib.contextmanager
