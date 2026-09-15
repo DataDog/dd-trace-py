@@ -7,22 +7,27 @@ and the tag values that distinguish them.
 Spec: https://datadoghq.atlassian.net/wiki/spaces/AIGuard/pages/6600426215
 """
 
-from typing import Any
+import traceback
 from unittest.mock import Mock
 from unittest.mock import patch
 
 import pytest
 
 from ddtrace.aiguard import AIGuardClientError
+from ddtrace.aiguard._api_client import AIGuardClient
 from ddtrace.aiguard._api_client import _classify_transport_error
 from ddtrace.aiguard._api_client import _loggable_endpoint
+from ddtrace.aiguard._api_client import _scrub_urls
 from ddtrace.aiguard._api_client import _status_tag
 from ddtrace.aiguard._constants import AI_GUARD
+from ddtrace.constants import ERROR_MSG
+from ddtrace.constants import ERROR_STACK
 from ddtrace.internal.native import ConnectionFailedError
 from ddtrace.internal.native import HttpClientError
 from ddtrace.internal.native import HttpIoError
 from ddtrace.internal.native import InvalidConfigError
 from ddtrace.internal.native import TimedOutError
+from tests.aiguard.utils import find_ai_guard_span
 from tests.aiguard.utils import mock_evaluate_response
 
 
@@ -34,7 +39,9 @@ def _error_metrics(add_count_metric: Mock) -> list[dict[str, str]]:
     return [dict(args[3]) for args, _ in add_count_metric.call_args_list if args[1] == AI_GUARD.ERROR_METRIC]
 
 
-def _evaluate_failing_with(ai_guard_client: Any, exc: BaseException, add_count_metric: Mock) -> dict[str, str]:
+def _evaluate_failing_with(
+    ai_guard_client: AIGuardClient, exc: BaseException, add_count_metric: Mock
+) -> dict[str, str]:
     with patch.object(ai_guard_client, "_execute_request", side_effect=exc):
         with pytest.raises(AIGuardClientError):
             ai_guard_client.evaluate(MESSAGES)
@@ -183,8 +190,6 @@ class TestEndpointIsNotLoggedVerbatim:
 
     @pytest.mark.parametrize("secret", ["s3cret", "t0ken", "k3y"])
     def test_no_secret_reaches_the_startup_log(self, secret, caplog):
-        from ddtrace.aiguard._api_client import AIGuardClient
-
         with caplog.at_level("DEBUG", logger="ddtrace.aiguard._api_client"):
             AIGuardClient(
                 endpoint="https://user:s3cret@api.example.com/t0ken/ai-guard?token=k3y",
@@ -193,3 +198,82 @@ class TestEndpointIsNotLoggedVerbatim:
             )
 
         assert secret not in caplog.text
+
+
+# An endpoint override carrying a credential in all three places it can hide.
+SECRET_ENDPOINT = "https://user:s3cret@proxy.example.com/t0ken/ai-guard?token=k3y"
+SECRETS = ("s3cret", "t0ken", "k3y")
+
+
+def _rendered(exc: BaseException) -> str:
+    """The exception as exc_info logging and the span error stack render it, chained cause included."""
+    return "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
+
+
+class TestCredentialsNeverReachAFailureReport:
+    """The transport quotes the URL it was handed back at us, and that message is re-rendered by
+    the failure log, by the chained traceback and by the span error tags.
+    """
+
+    @pytest.mark.parametrize(
+        "message,expected",
+        [
+            # Messages the native client and libdd actually produce, credentials and all.
+            (
+                "invalid base_url 'https://user:s3cret@': empty host",
+                "invalid base_url '<unparsable>': empty host",
+            ),
+            (
+                "unsupported scheme 'ftp' in base_url 'ftp://user:s3cret@proxy.example.com' (use http, https)",
+                "unsupported scheme 'ftp' in base_url 'ftp://proxy.example.com' (use http, https)",
+            ),
+            (
+                "error sending request for url (https://user:s3cret@proxy.example.com/t0ken/evaluate?token=k3y)",
+                "error sending request for url (https://proxy.example.com)",
+            ),
+            ("base_url 'https://[2001:db8::1]:8443' has no host", "base_url 'https://[2001:db8::1]:8443' has no host"),
+            # Nothing to scrub, so nothing is lost.
+            ("client error (Connect)", "client error (Connect)"),
+        ],
+    )
+    def test_every_url_is_reduced_to_its_origin(self, message, expected):
+        assert _scrub_urls(message) == expected
+
+    @pytest.mark.parametrize("secret", SECRETS)
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_a_quoted_endpoint_is_scrubbed_everywhere_it_surfaces(
+        self, add_count_metric, secret, caplog, test_spans, ai_guard_client
+    ):
+        transport_error = ConnectionFailedError(f"error sending request for url ({SECRET_ENDPOINT}/evaluate)")
+
+        with caplog.at_level("DEBUG", logger="ddtrace.aiguard._api_client"):
+            with patch.object(ai_guard_client, "_execute_request", side_effect=transport_error):
+                with pytest.raises(AIGuardClientError) as raised:
+                    ai_guard_client.evaluate(MESSAGES)
+
+        assert secret not in str(raised.value)
+        assert secret not in _rendered(raised.value)
+        assert secret not in caplog.text
+        span = find_ai_guard_span(test_spans)
+        assert secret not in span.get_tag(ERROR_MSG)
+        assert secret not in span.get_tag(ERROR_STACK)
+        # The classification still has to survive the scrubbing.
+        assert _error_metrics(add_count_metric)[0]["type"] == AI_GUARD.ERROR_CONNECTION
+
+    @patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric")
+    def test_a_real_native_failure_does_not_leak_the_credential(self, add_count_metric, caplog, test_spans):
+        """No mocked transport: an empty host makes the native client reject and quote the URL."""
+        client = AIGuardClient(endpoint="https://user:s3cret@", api_key="test-api-key", app_key="test-app-key")
+
+        with caplog.at_level("DEBUG", logger="ddtrace.aiguard._api_client"):
+            with pytest.raises(AIGuardClientError) as raised:
+                client.evaluate(MESSAGES)
+
+        assert isinstance(raised.value.__cause__, InvalidConfigError)
+        assert "s3cret" not in str(raised.value)
+        assert "s3cret" not in _rendered(raised.value)
+        assert "s3cret" not in caplog.text
+        span = find_ai_guard_span(test_spans)
+        assert "s3cret" not in span.get_tag(ERROR_MSG)
+        assert "s3cret" not in span.get_tag(ERROR_STACK)
+        assert _error_metrics(add_count_metric)[0]["type"] == AI_GUARD.ERROR_INVALID_CONFIG

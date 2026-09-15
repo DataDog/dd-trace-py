@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 import json
+import re
 from typing import Any
 from typing import Literal
 from typing import Optional  # noqa:F401
@@ -153,6 +154,28 @@ def _loggable_endpoint(url: str) -> str:
         return f"{parsed.scheme}://{host}" if parsed.scheme else host
     except Exception:
         return "<unparsable>"
+
+
+# Any absolute URL, stopping at whitespace, at the quotes the native client wraps a URL in, and
+# at trailing punctuation that closes the surrounding message rather than the URL itself.
+_URL_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://[^\s'\"]*[^\s'\"(),.;]")
+
+
+def _scrub_urls(text: str) -> str:
+    """Reduce every URL in text to the origin _loggable_endpoint keeps."""
+    return _URL_RE.sub(lambda match: _loggable_endpoint(match.group(0)), text)
+
+
+def _scrub_exception(exc: BaseException) -> None:
+    """Rewrite a transport failure's message in place, dropping any credential it quoted.
+
+    The native client quotes the URL it was handed, and that message is rendered again by
+    exc_info logging and by the span error tags, so scrubbing only our wrapper is not enough.
+    """
+    try:
+        exc.args = tuple(_scrub_urls(arg) if isinstance(arg, str) else arg for arg in exc.args)
+    except Exception:  # a custom exception may reject the assignment; the wrapper is still scrubbed
+        logger.debug("Could not scrub AI Guard transport error message", exc_info=True)
 
 
 def _status_tag(status: Optional[int]) -> str:
@@ -362,7 +385,12 @@ class AIGuardClient:
                     response = self._execute_request(f"{self._endpoint}/evaluate", payload)
                 except Exception as e:
                     error_type = _classify_transport_error(e)
-                    raise AIGuardClientError(message=f"Unexpected error calling AI Guard service: {e}") from e
+                    # The message can quote the endpoint, credentials included, and the chained
+                    # traceback renders it again, so scrub the cause as well as our own message.
+                    _scrub_exception(e)
+                    raise AIGuardClientError(
+                        message=f"Unexpected error calling AI Guard service: {_scrub_urls(str(e))}"
+                    ) from e
 
                 try:
                     result = response.get_json() or {}  # type: ignore[no-untyped-call]
