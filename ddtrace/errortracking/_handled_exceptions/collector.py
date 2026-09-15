@@ -1,8 +1,9 @@
 import sys
 import typing as t
+from typing import Callable
 from typing import NamedTuple
+from typing import Protocol
 
-from ddtrace._trace.span import Span
 from ddtrace.internal import core
 from ddtrace.internal.constants import COLLECTOR_MAX_SIZE_PER_SPAN
 from ddtrace.internal.constants import SPAN_EVENTS_HAS_EXCEPTION
@@ -17,10 +18,31 @@ class SpanEventData(NamedTuple):
     time_unix_nano: t.Optional[int] = None
 
 
+class HandledExceptionSpanProtocol(Protocol):
+    """Structural span interface for handled-exception tracking.
+
+    Lets this module type-annotate spans without a runtime dependency on the concrete
+    ``ddtrace._trace.span.Span`` class.
+    """
+
+    span_id: int
+
+    def _set_attribute(self, key: str, value: t.Union[str, int, float]) -> None: ...
+
+    def _add_event(
+        self,
+        name: str,
+        attributes: t.Optional[t.Mapping[str, t.Any]] = None,
+        time_unix_nano: t.Optional[int] = None,
+    ) -> None: ...
+
+    def _add_on_finish_exception_callback(self, callback: Callable[["HandledExceptionSpanProtocol"], None]) -> None: ...
+
+
 log = get_logger(__name__)
 
 
-def _add_span_events(span: Span) -> None:
+def _add_span_events(span: HandledExceptionSpanProtocol) -> None:
     """
     If the same error is handled/rethrown multiple times, we want
     to report only one span events. Therefore, we do not add directly
@@ -115,7 +137,7 @@ class HandledExceptionCollector(Service):
             _disable_monitoring()
 
     @classmethod
-    def capture_exception_event(cls, span: Span, exc: Exception, event: SpanEventData):
+    def capture_exception_event(cls, span: HandledExceptionSpanProtocol, exc: Exception, event: SpanEventData):
         span_id = span.span_id
         events_dict = cls._span_exception_events.setdefault(span_id, {})
         if not events_dict:

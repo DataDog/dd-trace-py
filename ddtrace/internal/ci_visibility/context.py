@@ -2,11 +2,11 @@ import contextvars
 import typing as t
 
 from ddtrace._trace.provider import DefaultContextProvider
-from ddtrace._trace.span import Span
 from ddtrace.internal.native._native import Context
+from ddtrace.internal.native._native import SpanData
 
 
-ContextTypeValue = t.Optional[t.Union[Context, Span]]
+ContextTypeValue = t.Optional[t.Union[Context, SpanData]]
 
 
 _DD_CI_CONTEXTVAR: contextvars.ContextVar[ContextTypeValue] = contextvars.ContextVar(
@@ -36,11 +36,11 @@ class CIContextProvider(DefaultContextProvider):
     def activate(self, ctx: ContextTypeValue) -> None:
         """Makes the given context active in the current execution."""
         _DD_CI_CONTEXTVAR.set(ctx)
-        super(DefaultContextProvider, self).activate(ctx)
+        super(DefaultContextProvider, self).activate(t.cast(t.Any, ctx))
 
-    def active(self) -> ContextTypeValue:
+    def active(self) -> t.Optional[t.Any]:
         """Returns the active span or context for the current execution."""
         item = _DD_CI_CONTEXTVAR.get()
-        if isinstance(item, Span):
-            return self._update_active(item)
+        if isinstance(item, SpanData):
+            return self._update_active(t.cast(t.Any, item))
         return item
