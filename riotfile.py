@@ -3866,6 +3866,15 @@ venv = Venv(
             },
             venvs=[
                 Venv(
+                    name="profile-anyio",
+                    command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/collector/test_anyio_span_links.py",  # noqa: E501
+                    pys="3.12",
+                    pkgs={
+                        "anyio": latest,
+                        "protobuf": latest,
+                    },
+                ),
+                Venv(
                     name="profile-uwsgi",
                     command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling/test_uwsgi.py",  # noqa: E501
                     pys=select_pys(max_version="3.13"),  # uwsgi<2.0.30 is not compatible with Python 3.14
