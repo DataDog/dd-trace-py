@@ -122,8 +122,9 @@ log = get_logger(__name__)
 
 
 # User-property keys added to the crash report so the re-queue is visible in pytest's terminal output.
-_CRASH_RETRY_REASON = "xdist_worker_crash"
-_CRASH_RETRY_NUMBER = "dd_retry_number"
+_CRASH_RETRY_REASON_KEY = "dd_retry_reason"
+_CRASH_RETRY_NUMBER_KEY = "dd_retry_number"
+_CRASH_RETRY_REASON_VALUE = "xdist_worker_crash"
 
 
 class XdistTestOptPlugin:
@@ -223,7 +224,7 @@ class XdistTestOptPlugin:
         # the re-queued run will emit its own pass/fail report that determines the outcome.
         report.outcome = "rerun"
         report.user_properties = list(report.user_properties) + [
-            (_CRASH_RETRY_REASON, "xdist_worker_crash"),
-            (_CRASH_RETRY_NUMBER, count + 1),
+            (_CRASH_RETRY_REASON_KEY, _CRASH_RETRY_REASON_VALUE),
+            (_CRASH_RETRY_NUMBER_KEY, count + 1),
         ]
         return None
