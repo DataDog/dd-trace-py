@@ -51,6 +51,24 @@ ddup_set_process_id() // cppcheck-suppress unusedFunction
 }
 
 void
+ddup_register_thread_name(int64_t thread_id, std::string_view name) // cppcheck-suppress unusedFunction
+{
+    Datadog::ProfilerState::get().thread_name_registry.register_name(thread_id, name);
+}
+
+void
+ddup_unregister_thread_name(int64_t thread_id) // cppcheck-suppress unusedFunction
+{
+    Datadog::ProfilerState::get().thread_name_registry.unregister_name(thread_id);
+}
+
+size_t
+ddup_thread_name_count() // cppcheck-suppress unusedFunction
+{
+    return Datadog::ProfilerState::get().thread_name_registry.size();
+}
+
+void
 ddup_config_runtime_version(std::string_view runtime_version) // cppcheck-suppress unusedFunction
 {
     Datadog::UploaderBuilder::set_runtime_version(runtime_version);

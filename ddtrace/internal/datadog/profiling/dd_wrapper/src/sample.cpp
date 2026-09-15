@@ -601,6 +601,14 @@ Datadog::Sample::push_threadinfo(int64_t thread_id, int64_t thread_native_id, st
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
     std::string temp_string;
     if (thread_name.empty()) {
+        // The memory profiler cannot read the name itself: it samples inside
+        // CPython's allocator hook, where calling into the interpreter can
+        // release the GIL and corrupt interpreter state. It leaves the name
+        // empty and relies on the registry, which Python populates as threads
+        // start.
+        thread_name = ProfilerState::get().thread_name_registry.lookup(thread_id);
+    }
+    if (thread_name.empty()) {
         temp_string = std::to_string(thread_id);
         thread_name = temp_string;
     }

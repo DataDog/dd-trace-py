@@ -204,6 +204,10 @@ ProfilerState::postfork_child()
     // children can still see native frames from the parent's warmup phase)
     native_call_registry.postfork_child();
 
+    // Re-init the thread name registry mutex (data is preserved so the thread
+    // that forked keeps its name in the child)
+    thread_name_registry.postfork_child();
+
     // Free our copy of the Profiles Dictionary - its String IDs refer to memory
     // that doesn't exist in the child process
     release_profiles_dictionary();
