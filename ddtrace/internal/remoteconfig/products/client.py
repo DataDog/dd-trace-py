@@ -54,9 +54,15 @@ def start():
 
     # AIDEV-NOTE: Keep the poller behind this barrier until post_start. Product
     # dependencies start after remote-configuration and must advertise their RC
-    # products before the no-wait polling thread sends its first request.
+    # products before the no-wait polling thread sends its first request. Keep
+    # the failure cleanup too: a stale barrier would prevent later registration
+    # from starting the poller.
     remoteconfig_poller.defer_start()
-    _register_rc_products()
+    try:
+        _register_rc_products()
+    except Exception:
+        remoteconfig_poller.disable()
+        raise
 
 
 def restart(join=False):
