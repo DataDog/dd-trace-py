@@ -136,8 +136,12 @@ cdef extern from "ddup_interface.hpp":
     bint ddup_upload() nogil
 
 
-cdef extern from "code_provenance_interface.hpp":
-    void code_provenance_set_file_path(string_view file_path)
+cdef extern from "code_provenance.hpp" namespace "Datadog":
+    cdef cppclass CodeProvenance:
+        @staticmethod
+        CodeProvenance& get_instance()
+
+        void set_file_path(string_view file_path)
 
 
 # Create wrappers for cython
@@ -176,7 +180,7 @@ cdef call_code_provenance_set_file_path(str file_path):
     cdef Py_ssize_t file_path_size
     file_path_data = PyUnicode_AsUTF8AndSize(file_path, &file_path_size)
     if file_path_data != NULL:
-        code_provenance_set_file_path(string_view(file_path_data, file_path_size))
+        CodeProvenance.get_instance().set_file_path(string_view(file_path_data, file_path_size))
 
 cdef call_ddup_profile_set_endpoints(endpoint_to_span_ids):
     # We want to make sure that endpoint strings outlive the for loop below
