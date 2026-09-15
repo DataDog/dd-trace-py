@@ -1,0 +1,10 @@
+_v: 1
+name: httplib
+display_name: httplib
+description: Instruments outbound HTTP requests made through the Python standard library's httplib and http.client client
+  APIs.
+packages: []
+category:
+- http.client
+systems: []
+creation_date: '2017-05-30'

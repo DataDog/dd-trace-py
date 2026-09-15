@@ -112,18 +112,7 @@ class EarlyFlakeDetectionHandler(RetryHandler):
         return test.is_new() and not test.has_parameters()
 
     def _target_number_of_retries(self, test: Test) -> int:
-        efd_settings = self.settings.early_flake_detection
-        initial_attempt_seconds = test.test_runs[0].seconds_so_far()
-
-        if initial_attempt_seconds <= 5:
-            return efd_settings.slow_test_retries_5s
-        if initial_attempt_seconds <= 10:
-            return efd_settings.slow_test_retries_10s
-        if initial_attempt_seconds <= 30:
-            return efd_settings.slow_test_retries_30s
-        if initial_attempt_seconds <= 300:
-            return efd_settings.slow_test_retries_5m
-        return 0  # No retries if the test ran for more than 5 minutes.
+        return self.settings.early_flake_detection.retries_for_duration(test.test_runs[0].seconds_so_far())
 
     def should_retry(self, test: Test) -> bool:
         if test.seconds_so_far() > self.EFD_ABORT_TEST_SECONDS:

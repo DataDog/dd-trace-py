@@ -10,9 +10,48 @@ import sys
 import pytest
 
 
-# AIDEV-NOTE: Tests for the "Datadog is the only monitoring tool" branch run in-process
+# Tests for the "Datadog is the only monitoring tool" branch run in-process
 # and skip when a session-level tool such as pytest-cov already owns another slot. The
 # neighboring tests explicitly register another tool to cover the opposite branch.
+
+
+@pytest.fixture(autouse=True)
+def _restore_coverage_tool_state():
+    """Snapshot and restore the coverage module's shared sys.monitoring state around each test."""
+    if sys.version_info < (3, 12):
+        yield
+        return
+
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+
+    def _datadog_slot():
+        return next((s for s in range(6) if sys.monitoring.get_tool(s) == "datadog"), None)
+
+    orig_tool_id = m._DD_TOOL_ID
+    orig_use_disable = m._use_disable_optimization
+    orig_hooks = dict(m._CODE_HOOKS)
+    orig_datadog_slot = _datadog_slot()
+
+    try:
+        yield
+    finally:
+        # Restore module globals. _CODE_HOOKS is restored in place because the live plugin holds a
+        # reference to this same dict object.
+        m._CODE_HOOKS.clear()
+        m._CODE_HOOKS.update(orig_hooks)
+        m._use_disable_optimization = orig_use_disable
+        m._DD_TOOL_ID = orig_tool_id
+
+        # Restore the sys.monitoring "datadog" registration to exactly what it was pre-test.
+        current_datadog_slot = _datadog_slot()
+        if current_datadog_slot != orig_datadog_slot:
+            if current_datadog_slot is not None:
+                sys.monitoring.free_tool_id(current_datadog_slot)
+            if orig_datadog_slot is not None:
+                sys.monitoring.use_tool_id(orig_datadog_slot, "datadog")
+                sys.monitoring.register_callback(orig_datadog_slot, m.EVENT, m._event_handler)
+                # Re-arm local events on the restored code objects so per-test coverage still fires.
+                m._rearm_all_events()
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
@@ -336,6 +375,41 @@ def test_update_disable_optimization_rearmed_on_transition():
             sys.monitoring.free_tool_id(m._DD_TOOL_ID)
         m._DD_TOOL_ID = None
         m._use_disable_optimization = True
+
+
+@pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
+def test_update_disable_optimization_does_not_crash_without_registered_tool():
+    """A True to False transition must not crash when no tool slot is currently owned."""
+    import sys
+
+    import ddtrace.internal.coverage.instrumentation_py3_12 as m
+    from ddtrace.internal.coverage.instrumentation_py3_12 import _CODE_HOOKS
+
+    # Force the inconsistent state: no owned tool slot (_DD_TOOL_ID is None) but a populated hook
+    # registry. We only null the module global; we deliberately do not touch the real "datadog"
+    # tool registration so the surrounding session state is restored exactly afterwards.
+    prev_tool_id = m._DD_TOOL_ID
+    prev_use_disable_optimization = m._use_disable_optimization
+    m._DD_TOOL_ID = None
+    m._use_disable_optimization = True
+
+    code_obj = compile("x = 1", "<test_no_tool>", "exec")
+    _CODE_HOOKS[code_obj] = (lambda info: None, "/test/no_tool.py", {}, None, None, None)
+
+    # Register another tool in a free slot so update_disable_optimization() takes the True→False
+    # transition, which is what triggers _rearm_all_events().
+    other_slot = next(s for s in range(6) if not sys.monitoring.get_tool(s))
+    sys.monitoring.use_tool_id(other_slot, "other_tool")
+
+    try:
+        # Must not raise even though _DD_TOOL_ID is None.
+        result = m.update_disable_optimization()
+        assert result is False, "Another tool is present, so the optimisation must be disabled"
+    finally:
+        sys.monitoring.free_tool_id(other_slot)
+        _CODE_HOOKS.pop(code_obj, None)
+        m._DD_TOOL_ID = prev_tool_id
+        m._use_disable_optimization = prev_use_disable_optimization
 
 
 @pytest.mark.skipif(sys.version_info < (3, 12), reason="Python 3.12+ monitoring API only")
