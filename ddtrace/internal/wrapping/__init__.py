@@ -14,7 +14,7 @@ from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import NEXT_PY_UNSUPPORTED_MSG
-from ddtrace.internal.compat import NEXT_PY_VERSION_INFO
+from ddtrace.internal.compat import is_wrap_supported
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.obfuscation import is_obfuscated_code
@@ -304,7 +304,9 @@ def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     return a coroutine function, and so on. The signature is also preserved to
     avoid breaking, e.g., usages of the ``inspect`` module.
     """
-    if PY >= NEXT_PY_VERSION_INFO:
+    # wrap() trampoline is live on NEXT_MAX_PY. Fail closed from NEXT_MAX_PY + 1
+    # minor, not NEXT_MAX_PY itself.
+    if not is_wrap_supported(PY):
         raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
 
     code = wrapped.__code__
@@ -353,7 +355,7 @@ def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     Note that this changes the behavior of the original function with the
     wrapper function, instead of creating a new function object.
     """
-    if PY >= NEXT_PY_VERSION_INFO:
+    if not is_wrap_supported(PY):
         raise NotImplementedError(NEXT_PY_UNSUPPORTED_MSG)
 
     if is_obfuscated_code(f.__code__):
