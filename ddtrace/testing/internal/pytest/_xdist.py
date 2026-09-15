@@ -51,12 +51,19 @@ exactly, with no cross-process state needed.
   ...
   re-queue -> attempt 0 (retry N) -> crash       (N retries) -> cap reached, stop
 
-The cap is ``max(handler.max_retries for handler in retry_handlers)`` (the ``max_retries`` property
-on ``RetryHandler``). For ATR - the customer's feature - ``max_retries`` is ``max_retries_per_test``
-(default 5), so the budget is honored exactly. The ``max`` across handlers is used because the main
-process cannot determine which handler would have applied to the crashed test (that depends on
-per-test properties like ``is_new()`` / ``is_attempt_to_fix()`` that the main does not have without
-running the test). xdist's own ``max_worker_restart`` remains the global backstop across all tests.
+The cap is ``max(handler.max_retries for handler in self._retry_handlers)`` (the ``max_retries``
+property on ``RetryHandler``). For ATR - the customer's feature - ``max_retries`` is
+``max_retries_per_test`` (default 5), so the budget is honored exactly. The ``max`` across handlers is
+used because the main process cannot determine which handler would have applied to the crashed test
+(that depends on per-test properties like ``is_new()`` / ``is_attempt_to_fix()`` that the main does not
+have without running the test). xdist's own ``max_worker_restart`` remains the global backstop across
+all tests.
+
+The handlers are built in ``__init__`` from ``manager.settings`` (not ``manager.retry_handlers``)
+because the main (controller) process prohibits collection, so ``SessionManager.setup_retry_handlers``
+never runs there and ``manager.retry_handlers`` stays empty in the main. We only ever query
+``max_retries`` (a session-level constant), never ``should_apply``/``should_retry`` (which need
+per-test state the main does not have).
 
 Known bounded imprecision (the mixed path)
 ------------------------------------------
@@ -91,6 +98,10 @@ import typing as t
 import pytest
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.testing.internal.retry_handlers import AttemptToFixHandler
+from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+from ddtrace.testing.internal.retry_handlers import EarlyFlakeDetectionHandler
+from ddtrace.testing.internal.retry_handlers import RetryHandler
 
 
 log = get_logger(__name__)
@@ -113,6 +124,21 @@ class XdistTestOptPlugin:
         # Per-nodeid count of crash re-queues we have triggered, so a test that crashes repeatedly does not
         # re-queue forever. Capped at the retry budget of the active handlers (see pytest_handlecrashitem).
         self._crash_retries: dict[str, int] = {}
+        # Retry handlers for this session, built from settings. The main (controller) process prohibits
+        # collection (DSession.pytest_collection returns True), so pytest_collection_finish never fires in
+        # the main and SessionManager.setup_retry_handlers() never runs there — manager.retry_handlers stays
+        # empty in the main. Since pytest_handlecrashitem runs in the main, we cannot rely on that list.
+        # Instead we build the handler instances here from settings, purely to query max_retries for the cap.
+        # We never call should_apply/should_retry (those need per-test state the main doesn't have); we only
+        # need the retry budget, which is a session-level constant per handler.
+        s = main_plugin.manager.settings
+        self._retry_handlers: list[RetryHandler] = []
+        if s.auto_test_retries.enabled:
+            self._retry_handlers.append(AutoTestRetriesHandler(s))
+        if s.early_flake_detection.enabled:
+            self._retry_handlers.append(EarlyFlakeDetectionHandler(s))
+        if s.test_management.enabled:
+            self._retry_handlers.append(AttemptToFixHandler(s))
 
     @pytest.hookimpl
     def pytest_configure_node(self, node: t.Any) -> None:
@@ -139,7 +165,7 @@ class XdistTestOptPlugin:
         final failure. No-op when no retry feature is active, leaving xdist's default behavior
         (report failure, replace worker, no re-queue) untouched.
         """
-        retry_handlers = self.main_plugin.manager.retry_handlers
+        retry_handlers = self._retry_handlers
         if not retry_handlers:
             return None
 

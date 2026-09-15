@@ -1835,11 +1835,20 @@ class TestXdistCrashRequeue:
     """
 
     @staticmethod
-    def _build_plugin(retry_handlers: t.Optional[list] = None) -> XdistTestOptPlugin:
+    def _build_plugin(atr: bool = False, efd: bool = False, test_management: bool = False) -> XdistTestOptPlugin:
+        from ddtrace.testing.internal.settings_data import AutoTestRetriesSettings
+        from ddtrace.testing.internal.settings_data import EarlyFlakeDetectionSettings
+        from ddtrace.testing.internal.settings_data import Settings as _Settings
+        from ddtrace.testing.internal.settings_data import TestManagementSettings
+
         builder = session_manager_mock()
-        # ``retry_handlers`` is the single source of truth for "retries active". A non-empty list simulates
-        # ATR/EFD/ATF being enabled; an empty list simulates all retry features off.
-        builder._retry_handlers = retry_handlers if retry_handlers is not None else []
+        # XdistTestOptPlugin builds its retry handlers from manager.settings (not manager.retry_handlers,
+        # which is empty in the main process under xdist). Toggle the settings flags to enable each feature.
+        builder._settings = _Settings(
+            early_flake_detection=EarlyFlakeDetectionSettings(enabled=efd),
+            auto_test_retries=AutoTestRetriesSettings(enabled=atr),
+            test_management=TestManagementSettings(enabled=test_management),
+        )
         main_plugin = TestOptPlugin(session_manager=builder.build_mock())
         return XdistTestOptPlugin(main_plugin)
 
@@ -1852,7 +1861,7 @@ class TestXdistCrashRequeue:
 
     def test_no_requeue_when_retries_inactive(self) -> None:
         """With no retry feature active, xdist's default behavior is left untouched (no re-queue)."""
-        plugin = self._build_plugin(retry_handlers=[])
+        plugin = self._build_plugin()
         sched = Mock()
         report = self._make_report()
 
@@ -1862,10 +1871,8 @@ class TestXdistCrashRequeue:
         assert report.outcome == "failed"  # not relabeled
 
     def test_requeue_when_retries_active(self) -> None:
-        """With a retry feature active, the crashed test is re-queued and the crash report is relabeled rerun."""
-        handler = Mock()
-        handler.max_retries = 5
-        plugin = self._build_plugin(retry_handlers=[handler])
+        """With ATR active, the crashed test is re-queued and the crash report is relabeled rerun."""
+        plugin = self._build_plugin(atr=True)
         sched = Mock()
         report = self._make_report()
 
@@ -1878,14 +1885,21 @@ class TestXdistCrashRequeue:
         assert props["dd_retry_number"] == 1
 
     def test_cap_reached_stops_requeuing(self) -> None:
-        """A test that crashes repeatedly is only re-queued up to the handler's retry budget, then it stops."""
-        handler = Mock()
-        handler.max_retries = 2
-        plugin = self._build_plugin(retry_handlers=[handler])
+        """A test that crashes repeatedly is only re-queued up to the handler's retry budget, then it stops.
+
+        Asserts the cap is derived from the active handler's max_retries (not a hardcoded constant): we set the
+        ATR handler's max_retries_per_test to 2 after construction and expect exactly 2 re-queues.
+        """
+        plugin = self._build_plugin(atr=True)
+        # Override the ATR budget to 2 so the test is fast and the cap is explicit.
+        from ddtrace.testing.internal.retry_handlers import AutoTestRetriesHandler
+
+        atr_handler = next(h for h in plugin._retry_handlers if isinstance(h, AutoTestRetriesHandler))
+        atr_handler.max_retries_per_test = 2
         sched = Mock()
         crashitem = "test_foo.py::test_a"
 
-        # First two crashes: re-queued (handler.max_retries == 2).
+        # First two crashes: re-queued (max_retries == 2).
         for expected_number in (1, 2):
             report = self._make_report()
             plugin.pytest_handlecrashitem(crashitem=crashitem, report=report, sched=sched)
@@ -1902,9 +1916,7 @@ class TestXdistCrashRequeue:
 
     def test_per_nodeid_independent_counts(self) -> None:
         """Each crashed test gets its own re-queue budget."""
-        handler = Mock()
-        handler.max_retries = 5
-        plugin = self._build_plugin(retry_handlers=[handler])
+        plugin = self._build_plugin(atr=True)
         sched = Mock()
 
         for _ in range(3):
