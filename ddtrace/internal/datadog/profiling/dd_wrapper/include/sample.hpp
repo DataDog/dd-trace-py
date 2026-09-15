@@ -119,7 +119,6 @@ class Sample
     bool push_alloc(int64_t size, int64_t count);
     bool push_heap(int64_t size, int64_t count);
     void reset_alloc();
-    void reset_heap();
     bool push_gpu_gputime(int64_t time, int64_t count);
     bool push_gpu_memory(int64_t size, int64_t count);
     bool push_gpu_flops(int64_t flops, int64_t count);
