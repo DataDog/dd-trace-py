@@ -1999,7 +1999,7 @@ class TestXdistCrashRequeue:
         test_run = writer.put_item.call_args[0][0]
         assert test_run.get_status() == TestStatus.FAIL
         assert test_run.tags.get(TestTag.IS_RETRY) == "true"
-        assert test_run.tags.get(TestTag.RETRY_REASON) == "xdist_worker_crash"
+        assert test_run.tags.get(TestTag.RETRY_REASON) == "auto_test_retry"
 
     def test_crash_test_run_attempt_number_matches_crash_count(self) -> None:
         """The crash TestRun's attempt_number increments with each crash for the same test."""

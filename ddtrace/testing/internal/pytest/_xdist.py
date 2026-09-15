@@ -197,6 +197,10 @@ class XdistTestOptPlugin:
         # DynamicATRRetriesHandler's lru_cache behavior: the initial attempt's duration determines
         # the bucket for all subsequent retries of that test.
         self._cached_caps_by_nodeid: dict[str, int] = {}
+        # Per-nodeid cached retry reason (from the handler that determined the cap), used for
+        # the backend crash-attempt TestRun event so the backend knows which retry feature
+        # triggered the re-queue (e.g. "auto_test_retry", "early_flake_detection").
+        self._cached_reasons_by_nodeid: dict[str, str] = {}
         # Per-nodeid Test objects discovered in the main's session via logstart. Used to emit
         # backend crash-attempt events (see _emit_crash_test_run).
         self._tests_by_nodeid: dict[str, t.Any] = {}
@@ -295,13 +299,16 @@ class XdistTestOptPlugin:
         start_time = self._start_times_by_nodeid.pop(crashitem, None)
         duration = (time.monotonic() - start_time) if start_time is not None else 0.0
 
-        # Cache the cap from the first crash's duration, mirroring DynamicATRRetriesHandler's
-        # lru_cache: the initial attempt's duration determines the bucket for all subsequent
-        # re-queues of that test.
+        # Cache the cap and retry reason from the first crash's duration, mirroring
+        # DynamicATRRetriesHandler's lru_cache: the initial attempt's duration determines
+        # the bucket for all subsequent re-queues of that test. The retry reason comes
+        # from the handler that gave the max budget (the one that would retry the test).
         max_requeue = self._cached_caps_by_nodeid.get(crashitem)
         if max_requeue is None:
-            max_requeue = max(handler.max_retries_for_timeout(duration) for handler in retry_handlers)
+            winning_handler = max(retry_handlers, key=lambda h: h.max_retries_for_timeout(duration))
+            max_requeue = winning_handler.max_retries_for_timeout(duration)
             self._cached_caps_by_nodeid[crashitem] = max_requeue
+            self._cached_reasons_by_nodeid[crashitem] = winning_handler.retry_reason
 
         count = self._crash_retries.get(crashitem, 0)
         if count >= max_requeue:
@@ -313,7 +320,9 @@ class XdistTestOptPlugin:
         # Emit a backend event for the crashed attempt so the backend sees the full retry
         # history (crash = fail, then the re-queue's result). Without this, the backend would
         # only see the re-queue's result with no indication the test was retried.
-        self._emit_crash_test_run(crashitem, count + 1, duration)
+        self._emit_crash_test_run(
+            crashitem, count + 1, duration, self._cached_reasons_by_nodeid.get(crashitem, "xdist_worker_crash")
+        )
 
         # Relabel the crash report as a retry so pytest's terminal summary does not count it
         # as a final failure; the re-queued run will emit its own pass/fail report that
@@ -325,16 +334,17 @@ class XdistTestOptPlugin:
         ]
         return None
 
-    def _emit_crash_test_run(self, nodeid: str, attempt_number: int, duration: float) -> None:
+    def _emit_crash_test_run(self, nodeid: str, attempt_number: int, duration: float, retry_reason: str) -> None:
         """Emit a backend TestRun event for a crashed test attempt.
 
         The worker's in-progress test run is lost to os._exit (no flush), so the backend would
         only see the replacement worker's re-queue result. This emits a fail-status TestRun
-        from the main process, tagged as a retry with reason "xdist_worker_crash", so the backend
-        sees the full retry history: crash (fail) then re-queue (pass/fail). The TestRun is
-        correlated with the re-queue via the shared test_session_id / test_suite_id / test name
-        (the main and workers share the same session id, passed via workerinput at
-        pytest_configure_node).
+        from the main process, tagged as a retry with the active handler's retry reason (e.g.
+        "auto_test_retry", "early_flake_detection", "attempt_to_fix"), so the backend sees the
+        full retry history: crash (fail) then re-queue (pass/fail), and knows which retry feature
+        triggered the re-queue. The TestRun is correlated with the re-queue via the shared
+        test_session_id / test_suite_id / test name (the main and workers share the same
+        session id, passed via workerinput at pytest_configure_node).
         """
         test = self._tests_by_nodeid.get(nodeid)
         if test is None:
@@ -346,15 +356,11 @@ class XdistTestOptPlugin:
         test_run.set_tags(
             {
                 TestTag.IS_RETRY: TAG_TRUE,
-                TestTag.RETRY_REASON: _CRASH_RETRY_REASON_VALUE,
+                TestTag.RETRY_REASON: retry_reason,
             }
         )
         # Set a minimal duration so the backend has timing context. Use the measured crash
         # duration (setup + call up to the timeout) in nanoseconds.
-        import time as _time_mod
-
-        test_run.start_ns = (
-            int((_time_mod.monotonic() - duration) * 1e9) if duration > 0 else int(_time_mod.monotonic() * 1e9)
-        )
+        test_run.start_ns = int((time.monotonic() - duration) * 1e9) if duration > 0 else int(time.monotonic() * 1e9)
         test_run.finish()
         self.main_plugin.manager.writer.put_item(test_run)

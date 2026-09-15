@@ -62,6 +62,15 @@ class RetryHandler(ABC):
         Return a human-readable name of the retry handler.
         """
 
+    @property
+    @abstractmethod
+    def retry_reason(self) -> str:
+        """The backend tag value for the retry reason (e.g. "auto_test_retry").
+
+        Used by the xdist main process when emitting crash-attempt TestRun events so the
+        backend knows which retry feature triggered the re-queue.
+        """
+
     @abstractmethod
     def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         """The retry budget for a test whose initial attempt lasts ~``timeout_seconds``.
@@ -80,6 +89,10 @@ class AutoTestRetriesHandler(RetryHandler):
 
     def get_pretty_name(self) -> str:
         return "Auto Test Retries"
+
+    @property
+    def retry_reason(self) -> str:
+        return "auto_test_retry"
 
     def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         return self.max_retries_per_test
@@ -116,6 +129,10 @@ class EarlyFlakeDetectionHandler(RetryHandler):
 
     def get_pretty_name(self) -> str:
         return "Early Flake Detection"
+
+    @property
+    def retry_reason(self) -> str:
+        return "early_flake_detection"
 
     def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         # EFD aborts retries for tests that run longer than 5 minutes (EFD_ABORT_TEST_SECONDS). Honor that
@@ -179,6 +196,10 @@ class EarlyFlakeDetectionHandler(RetryHandler):
 class AttemptToFixHandler(RetryHandler):
     def get_pretty_name(self) -> str:
         return "Attempt to Fix"
+
+    @property
+    def retry_reason(self) -> str:
+        return "attempt_to_fix"
 
     def max_retries_for_timeout(self, timeout_seconds: float) -> int:
         return self.settings.test_management.attempt_to_fix_retries
