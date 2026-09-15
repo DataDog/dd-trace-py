@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from collections import defaultdict
+import contextlib
 from functools import lru_cache
 import inspect
 from io import StringIO
@@ -64,6 +65,7 @@ from ddtrace.testing.internal.test_data import TestTag
 from ddtrace.testing.internal.tracer_api.context import enable_all_ddtrace_integrations
 from ddtrace.testing.internal.tracer_api.context import install_global_trace_filter
 from ddtrace.testing.internal.tracer_api.context import trace_context
+from ddtrace.testing.internal.tracer_api.coverage import CoverageData
 from ddtrace.testing.internal.tracer_api.coverage import coverage_collection
 from ddtrace.testing.internal.tracer_api.coverage import get_coverage_percentage
 from ddtrace.testing.internal.tracer_api.coverage import install_coverage
@@ -274,6 +276,36 @@ def _get_source_lines(item: pytest.Item, item_path: Path) -> tuple[int, int]:
             return 0, 0
 
 
+@contextlib.contextmanager
+def _maybe_collect_coverage(coverage_enabled: bool) -> t.Generator[CoverageData, None, None]:
+    """Yield a per-test coverage collector, or a no-op when coverage is disabled.
+
+    Entering coverage_collection() is only meaningful when the ModuleCodeCollector is
+    installed, which setup_coverage_collection() gates on the same coverage_enabled flag.
+    Entering it regardless left the interpreter misreporting its own state for the
+    duration of every test: CollectInContext sets the ctx_coverage_enabled ContextVar,
+    which makes ModuleCodeCollector.coverage_enabled() answer True even though no
+    collector exists, and on Python 3.12+ it calls the global sys.monitoring
+    restart_events() once per test on behalf of a tool that was never registered. The
+    collected bitmaps were empty either way, so nothing was gained by it.
+
+    An empty CoverageData is what the disabled collector produced anyway, and it flows
+    through the same put_coverage empty fast path, so uploads are unchanged.
+
+    The code_coverage_started/finished telemetry is recorded here, so it describes
+    coverage actually running rather than merely a test executing. That matches the
+    legacy plugin, which only reaches record_code_coverage_started() when
+    InternalTestSession.should_collect_coverage() is true.
+    """
+    if coverage_enabled:
+        TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+        with coverage_collection() as coverage_data:
+            yield coverage_data
+        TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
+    else:
+        yield CoverageData()
+
+
 class TestPhase:
     SETUP = "setup"
     CALL = "call"
@@ -444,7 +476,7 @@ class TestOptPlugin(TestOptPluginProtocol):
         # If coverage report upload is enabled, generate and upload the report.
         # NOTE: Skip in payload-files mode (Bazel): coverage data is already
         # written as JSON files by TestCoverageWriter; network upload is not possible.
-        # AIDEV-NOTE: This hook runs in every process, so an xdist session uploads one report per process, each
+        # This hook runs in every process, so an xdist session uploads one report per process, each
         # covering only what that process ran. That is by design: the intake merges the coverage reports it receives
         # for a session, so the partial uploads add up to full coverage.
         #
@@ -736,10 +768,8 @@ class TestOptPlugin(TestOptPluginProtocol):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 yield
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         if not test.test_runs:
             # No test runs: our pytest_runtest_protocol did not run. This can happen if some other plugin (such as
@@ -1336,12 +1366,10 @@ class TestOptPluginWithProtocol(TestOptPlugin):
         self._apply_test_management_markers(item, test)
 
         with trace_context(self.enable_ddtrace_trace_filter) as _context:
-            TelemetryAPI.get().record_coverage_started(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
-            with coverage_collection() as coverage_data:
+            with _maybe_collect_coverage(self.manager.settings.coverage_enabled) as coverage_data:
                 item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
                 self._do_test_runs(item, nextitem)
                 item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-            TelemetryAPI.get().record_coverage_finished(test_framework=TEST_FRAMEWORK, coverage_library="ddtrace")
 
         test.finish()
 
@@ -1647,7 +1675,7 @@ def pytest_configure(config: pytest.Config) -> None:
     if is_discovery_mode_enabled():
         # Register hook specs so item_to_test_ref can call the custom name hooks during
         # discovery, giving the same module/suite/name resolution as a real test run.
-        # AIDEV-NOTE: BddTestOptPlugin is not registered here, so pytest-bdd tests will
+        # BddTestOptPlugin is not registered here, so pytest-bdd tests will
         # fall back to nodeid-based names rather than feature-file names during discovery.
         # TODO: register BddTestOptPlugin in discovery mode to support pytest-bdd.
         import ddtrace.testing.internal.pytest._discovery as _ddtrace_discovery

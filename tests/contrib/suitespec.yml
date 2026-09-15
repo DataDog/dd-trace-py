@@ -1916,7 +1916,7 @@ suites:
           python: ['3.13', '3.14']
           dependencies: [pytest-randomly, 'mysqlclient==2.2.6']
   opentelemetry:
-    parallelism: 6
+    venvs_per_job: 4
     paths:
       - '@bootstrap'
       - '@core'
@@ -2057,10 +2057,13 @@ suites:
         - command: python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/
       variants:
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'pymemcache~=3.4.2']
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, 'pymemcache~=3.5']
         - name: pymemcache
+          python: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
           dependencies: [pytest-randomly, pymemcache]
   pymongo:
     paths:
@@ -2680,7 +2683,7 @@ suites:
         - name: logging
           dependencies: [pytest-randomly, pytest-xdist]
   tornado:
-    parallelism: 1
+    venvs_per_job: 3
     paths:
       - '@bootstrap'
       - '@core'
