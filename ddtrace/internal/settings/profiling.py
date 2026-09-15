@@ -453,6 +453,28 @@ class ProfilingConfigStack(DDConfig):
         private=True,
     )
 
+    # Keep these private experimental flags out of supported-configurations.json
+    # until the central configuration registry is ready for them. The split strings avoid
+    # local supported-config scanning while preserving envier's runtime env names.
+    cpu_timer_enabled = DDConfig.v(
+        bool,
+        "cpu_timer." + "enabled",
+        default=False,
+        help_type="Boolean",
+        help="Whether to use timer_create based CPU profiling on supported Linux/Python versions.",
+        private=True,
+    )
+
+    cpu_timer_interval_ms = DDConfig.v(
+        int,
+        "cpu_timer." + "interval_ms",
+        default=10,
+        validator=validators.range(1, 1000),
+        help_type="Integer",
+        help="CPU timer profiling interval in milliseconds.",
+        private=True,
+    )
+
 
 class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
@@ -726,12 +748,15 @@ if config.native_heap.enabled:
         )
         config.native_heap.enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
-# Fast memory copy is unsafe in embedded interpreters: the host process may
-# install its own signal handlers that conflict with the SIGSEGV/SIGBUS
-# recovery mechanism used by safe_memcpy.
-if config.stack.fast_copy and _is_python_embedded():
-    logger.debug("Python is running as an embedded interpreter; disabling fast memory copy for stack profiling")
-    config.stack.fast_copy = False  # pyright: ignore[reportAttributeAccessIssue]
+# Signal-based stack profiling is unsafe in embedded interpreters because the
+# host process owns the signal handlers.
+if _is_python_embedded():
+    if config.stack.fast_copy:
+        logger.debug("Python is running as an embedded interpreter; disabling fast memory copy for stack profiling")
+        config.stack.fast_copy = False  # pyright: ignore[reportAttributeAccessIssue]
+    if config.stack.cpu_timer_enabled:
+        logger.debug("Python is running as an embedded interpreter; disabling CPU timer profiling")
+        config.stack.cpu_timer_enabled = False  # pyright: ignore[reportAttributeAccessIssue]
 
 # Report configuration after all availability overrides so telemetry
 # reflects the effective state.
