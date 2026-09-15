@@ -723,7 +723,7 @@ stack_postfork_cleanup()
     // Update PID in Echion
     _set_pid(getpid());
 
-    // Reset SpanLinks state (reset locks, clear span-thread mappings)
+    // Reset SpanLinks state (reset locks, clear span mappings)
     SpanLinks::postfork_child();
 
     // Reset OriginTaskLinks state (reset locks, clear origin-task mappings)
@@ -931,6 +931,14 @@ Sampler::track_asyncio_loop(uintptr_t thread_id, PyObject* loop)
     }
 }
 
+bool
+Sampler::is_asyncio_loop_registered(uintptr_t thread_id)
+{
+    std::lock_guard<std::mutex> guard(echion->thread_info_map_lock());
+    auto it = echion->thread_info_map().find(thread_id);
+    return it != echion->thread_info_map().end() && it->second->asyncio_loop != 0;
+}
+
 void
 Sampler::init_asyncio(PyObject* _asyncio_scheduled_tasks, PyObject* _asyncio_eager_tasks)
 {
@@ -968,6 +976,13 @@ Sampler::track_greenlet(uintptr_t greenlet_id, TaskName name, PyObject* frame)
     // Update the thread map
     auto native_id = PyThread_get_thread_native_id();
     echion->greenlet_thread_map()[native_id] = greenlet_id;
+}
+
+bool
+Sampler::is_greenlet_tracked(uintptr_t greenlet_id)
+{
+    const std::lock_guard<std::mutex> guard(echion->greenlet_info_map_lock());
+    return echion->greenlet_info_map().contains(greenlet_id);
 }
 
 void
