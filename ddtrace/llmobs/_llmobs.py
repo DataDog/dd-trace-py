@@ -2455,8 +2455,25 @@ class LLMObs(Service):
         if isinstance(active, Context):
             return active
         elif isinstance(active, Span):
+            # Everything stamped below describes this span, but active.context._meta is
+            # trace-scoped and shared by every span in the trace. The task and thread hooks store
+            # this context when work is submitted and activate it once that work runs, so writing
+            # into the shared dict would let a later span's values - or a later clear - reach work
+            # that was queued under this one. Snapshot the context and stamp the copy instead, so
+            # the caller gets the attribution that was current at submit time.
+            shared = active.context
+            context = Context(
+                trace_id=shared.trace_id,
+                span_id=shared.span_id,
+                dd_origin=shared.dd_origin,
+                sampling_priority=shared.sampling_priority,
+                meta=dict(shared._meta),
+                metrics=dict(shared._metrics),
+                span_links=list(shared._span_links),
+                baggage=shared.get_all_baggage_items(),
+                is_remote=shared._is_remote,
+            )
             # We store LLMObs trace ID on span context as decimal strings for distributed context propagation
-            context = active.context
             wire_trace_id = _trace_id_to_wire(get_llmobs_trace_id(active)) or str(active.trace_id)
             context._meta[PROPAGATED_LLMOBS_TRACE_ID_KEY] = wire_trace_id
             context._meta[PROPAGATED_PARENT_ID_KEY] = str(active.span_id)
