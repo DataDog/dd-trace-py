@@ -15,7 +15,7 @@ armed; it does not change the ``os._exit`` behavior.
 
 How it works
 ------------
-When a retry feature is active, we win pytest-timeout's ``firstresult=True``
+When retries are active, we win pytest-timeout's ``firstresult=True``
 ``pytest_timeout_set_timer`` hook (our impl is ``tryfirst=True``, pytest-timeout's is
 ``trylast=True``) and install a SIGALRM itimer instead. On timeout the signal handler
 calls ``pytest_timeout.timeout_sigalrm`` — pytest-timeout's *own* signal-method
@@ -24,10 +24,10 @@ dumps the stacks of other threads, and then raises ``pytest.fail`` (a catchable
 failure). The test becomes a normal failure that retries can handle, and the process
 stays alive.
 
-This is a no-op when no retry feature is active, so customers not using ATR/EFD/ATF
-see no behavior change. When SIGALRM is unavailable (e.g. Windows) or we are not in
-the main thread, we cannot install the signal timer; we fall back to pytest-timeout's
-thread timer and warn once that retries will not survive a timeout.
+This is a no-op when retries are inactive, so customers not using ATR/EFD/ATF see no
+behavior change. When SIGALRM is unavailable (e.g. Windows) or we are not in the main
+thread, we cannot install the signal timer; we fall back to pytest-timeout's thread
+timer and warn once that retries will not survive a timeout.
 """
 from __future__ import annotations
 
@@ -45,14 +45,22 @@ log = get_logger(__name__)
 
 try:
     from pytest_timeout import _get_item_settings as _get_pytest_timeout_settings
+    from pytest_timeout import timeout_sigalrm
 except (ImportError, AttributeError):
     # pytest-timeout is not installed. The functions below guard on this being None and
     # become no-ops, so this module remains safe to import (and to call) without it.
     _get_pytest_timeout_settings = None
+    timeout_sigalrm = None
+
+
+# Stashed on the item to record that *we* armed the timer, so our cancel hook only
+# claims cancellation for timers it owns and otherwise lets pytest-timeout's own
+# ``trylast`` cancel clean up the timer it installed.
+_OVERRIDE_ATTR = "_ddtrace_pytest_timeout_override"
 
 
 def reset_pytest_timeout_timer(item: pytest.Item) -> None:
-    """Cancel and re-arm pytest-timeout's timer so this attempt gets a fresh budget.
+    """Cancel and re-arm pytest-timeout's timer so this retry attempt gets a fresh budget.
 
     pytest-timeout installs its per-test timer in its ``pytest_runtest_protocol`` hookwrapper,
     which only fires once even when we retry by calling ``runtestprotocol()`` directly. Without
@@ -83,33 +91,29 @@ class PytestTimeoutRetryOverride:
 
     __test__ = False
 
-    # Attribute stashed on the item to record that *we* armed the timer, so our
-    # ``pytest_timeout_cancel_timer`` only claims the cancel for timers it owns and
-    # otherwise lets pytest-timeout's own ``trylast`` cancel clean up.
-    _OVERRIDE_ATTR = "_ddtrace_pytest_timeout_override"
-
     def __init__(self, plugin: t.Any) -> None:
-        # ``plugin`` is a TestOptPlugin; we only need its ``manager.settings`` to decide
-        # whether a retry feature is active. Typed as Any to avoid an import cycle with the
-        # plugin module (which imports this one lazily).
+        # ``plugin`` is a TestOptPlugin; we only need its ``manager`` to check whether any
+        # retry handlers are registered for this session. Typed as Any to avoid an import
+        # cycle with the plugin module (which imports this one lazily).
         self._plugin = plugin
         self._warned_no_sigalrm = False
 
-    def _retries_active(self) -> bool:
-        s = self._plugin.manager.settings
-        return s.auto_test_retries.enabled or s.early_flake_detection.enabled or s.test_management.enabled
-
     @pytest.hookimpl(tryfirst=True)
     def pytest_timeout_set_timer(self, item: pytest.Item, settings: t.Any) -> t.Optional[bool]:
-        # Lazy import: this module is only loaded when pytest-timeout is present, but keep
-        # the import local so the module remains importable in isolation for tooling/tests.
-        from pytest_timeout import timeout_sigalrm
-
-        if not self._retries_active():
+        # Let pytest-timeout do its own thing when retries aren't active, so customers not
+        # using ATR/EFD/ATF see no behavior change. ``manager.retry_handlers`` is the single
+        # source of truth for "are retries active" (populated in SessionManager.setup_retry_handlers),
+        # so this stays correct as new retry handlers are added without touching this code.
+        if not self._plugin.manager.retry_handlers:
             return None
+
         # Only the thread method calls os._exit(); the signal method already raises a catchable failure.
         if settings.method != "thread" or not settings.timeout or settings.timeout <= 0:
             return None
+
+        # We can only install a SIGALRM timer from the main thread on platforms that have SIGALRM.
+        # Otherwise fall back to pytest-timeout's thread timer and warn once that retries won't
+        # survive a timeout there.
         if not hasattr(signal, "SIGALRM") or threading.current_thread() is not threading.main_thread():
             if not self._warned_no_sigalrm:
                 self._warned_no_sigalrm = True
@@ -121,11 +125,10 @@ class PytestTimeoutRetryOverride:
                 )
             return None
 
-        # Delegate the actual timeout behavior to pytest-timeout's own signal-method callback:
-        # it honors debugger detection (is_debugging / SUPPRESS_TIMEOUT), dumps other threads'
-        # stacks, and raises pytest.fail — exactly what method="signal" already does. This keeps
-        # us consistent with pytest-timeout's semantics (e.g. a breakpoint()/pdb session is not
-        # interrupted) instead of reimplementing them.
+        # Delegate the actual timeout behavior to pytest-timeout's own signal-method callback: it
+        # honors debugger detection (is_debugging / SUPPRESS_TIMEOUT), dumps other threads' stacks,
+        # and raises pytest.fail — exactly what method="signal" already does. This keeps us
+        # consistent with pytest-timeout's semantics instead of reimplementing them.
         def handler(signum, frame):  # noqa: ARG001
             __tracebackhide__ = True
             timeout_sigalrm(item, settings)
@@ -135,7 +138,7 @@ class PytestTimeoutRetryOverride:
             signal.signal(signal.SIGALRM, signal.SIG_DFL)
 
         item.cancel_timeout = cancel
-        setattr(item, self._OVERRIDE_ATTR, True)
+        setattr(item, _OVERRIDE_ATTR, True)
         signal.signal(signal.SIGALRM, handler)
         signal.setitimer(signal.ITIMER_REAL, settings.timeout)
         return True
@@ -144,12 +147,12 @@ class PytestTimeoutRetryOverride:
     def pytest_timeout_cancel_timer(self, item: pytest.Item) -> t.Optional[bool]:
         # Only claim the cancel when we claimed the set; otherwise let pytest-timeout's own
         # cancel_timer (trylast) run so it can clean up the timer it installed.
-        if not getattr(item, self._OVERRIDE_ATTR, False):
+        if not getattr(item, _OVERRIDE_ATTR, False):
             return None
         try:
             cancel = getattr(item, "cancel_timeout", None)
             if cancel is not None:
                 cancel()
         finally:
-            setattr(item, self._OVERRIDE_ATTR, False)
+            setattr(item, _OVERRIDE_ATTR, False)
         return True
