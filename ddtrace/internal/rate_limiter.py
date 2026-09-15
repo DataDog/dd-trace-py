@@ -207,6 +207,7 @@ class BudgetRateLimiterWithJitter:
     max_budget: float = field(init=False)
     last_time: float = field(init=False, default_factory=time.monotonic)
     _lock: LockType = field(init=False, default_factory=Lock)
+    _pending: int = field(init=False, default=0)
 
     def __post_init__(self):
         if self.limit_rate == float("inf"):
@@ -217,20 +218,103 @@ class BudgetRateLimiterWithJitter:
             self.budget = self.max_budget = 1.0
         self._on_exceed_called = False
 
+    def _accrue(self) -> None:
+        """Add the budget that has become available since the last look.
+
+        The caller is expected to hold the lock.
+        """
+        now = time.monotonic()
+        self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+        self.last_time = now
+
+    def _cap(self) -> None:
+        """Discard any budget beyond the maximum."""
+        if self.budget > self.max_budget:
+            self.budget = self.max_budget
+
+    def has_budget(self) -> bool:
+        """Whether a call would be allowed, without consuming any budget.
+
+        For a caller that may take this decision several times, or make several
+        separate later commits, from one look -- a shared unit-of-execution
+        budget peeked once and spent by many independent probes as they each
+        emit. Leaves ``last_time`` untouched, so a peek does not shrink the
+        window a later :meth:`consume` or :meth:`limit` accrues over: whatever
+        elapsed since the last real accrual still counts, whether that was
+        another peek or a commit.
+        """
+        with self._lock:
+            elapsed = time.monotonic() - self.last_time
+            projected = self.budget + self.limit_rate * elapsed * (0.5 + random.random())
+            return min(self.max_budget, projected) >= 1.0
+
+    def reserve(self) -> bool:
+        """Accrue up to now and check, advancing the accrual clock.
+
+        For a caller that takes exactly one decision per unit of time and,
+        separately, spends it later via :meth:`spend` only if the decision
+        turned out to matter. Advancing the clock here -- unlike
+        :meth:`has_budget` -- is what keeps the accrual window anchored to the
+        cadence of those decisions (one every invocation) rather than to the
+        cadence of the spends that follow them (one every emission, which can
+        lag its decision by however long the invocation takes).
+
+        A reservation that returns ``True`` is allowed to go unspent -- the
+        caller may still decide, for unrelated reasons, not to follow through
+        -- but every :meth:`spend` must be matched by one. Returning ``False``
+        reserves nothing, since there is nothing for a later spend to draw on.
+        """
+        with self._lock:
+            self._accrue()
+            self._cap()
+            if self.budget < 1.0:
+                return False
+            self._pending += 1
+            return True
+
+    def spend(self, amount: float = 1.0) -> None:
+        """Debit budget already reserved via :meth:`reserve`, without accruing more.
+
+        The accrual for this decision already happened in :meth:`reserve`; the
+        time between that reservation and this spend belongs to whatever the
+        caller was doing in between, not to this limiter.
+
+        :raises RuntimeError: If there is no outstanding reservation to spend --
+            calling this without a preceding successful :meth:`reserve` is a
+            caller bug, not a rate-limiting outcome, so it is not silently
+            tolerated.
+        """
+        with self._lock:
+            if self._pending <= 0:
+                raise RuntimeError(f"{self!r}.spend() called without a matching reserve()")
+            self._pending -= 1
+            self.budget -= amount
+
+    def consume(self, amount: float = 1.0) -> None:
+        """Spend budget whether or not there is any left.
+
+        For callers that have already incurred the cost by the time they get
+        here, so refusing is not an option. The budget is allowed to go into
+        deficit, and the overspend is repaid before anything is let through
+        again.
+        """
+        with self._lock:
+            self._accrue()
+            self._cap()
+            self.budget -= amount
+
     def limit(self, f: Optional[Callable[..., Any]] = None, *args: Any, **kwargs: Any) -> Any:
         """Make rate-limited calls to a function with the given arguments."""
         should_call = False
         with self._lock:
-            now = time.monotonic()
-            self.budget += self.limit_rate * (now - self.last_time) * (0.5 + random.random())  # jitter
+            self._accrue()
             should_call = self.budget >= 1.0
-            if self.budget > self.max_budget:
-                self.budget = self.max_budget
-            self.last_time = now
+            self._cap()
+            if should_call:
+                self.budget -= 1.0
 
         if should_call:
             self._on_exceed_called = False
-            self.budget -= 1.0
             return f(*args, **kwargs) if f is not None else None
 
         if self.on_exceed is not None:
