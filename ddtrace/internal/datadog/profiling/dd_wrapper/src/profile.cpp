@@ -2,23 +2,16 @@
 
 #include "profile_borrow.hpp"
 #include "profiler_state.hpp"
-#include "profiler_stats.hpp"
 #include "result.hpp"
 
 #include <iostream>
 #include <utility>
 
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <unistd.h>
-
-// Inline helpers
 namespace {
 
 using ProfileResult = Datadog::Result<rust::Box<Datadog::ddprof::Profile>>;
 
-inline ProfileResult
+ProfileResult
 make_profile(const std::vector<Datadog::ddprof::SampleType>& sample_types, const Datadog::ddprof::Period& period)
 {
     // Private helper function for creating a CXX Profile from arguments

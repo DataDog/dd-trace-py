@@ -2,9 +2,6 @@
 
 #include "profile.hpp"
 
-#include <cstdint>
-#include <string_view>
-
 namespace Datadog {
 
 // Forward declaration

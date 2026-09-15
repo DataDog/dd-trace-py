@@ -153,6 +153,8 @@ ProfilerState::postfork_parent()
 void
 ProfilerState::postfork_child()
 {
+    const bool was_initialized = initialized_.exchange(false, std::memory_order_acq_rel);
+
     // profile_mtx was locked in prefork; ensure postfork_child is called on
     // every exit path to unlock it.
     // We need to call this at the end of the function because the Sampling Thread
@@ -186,20 +188,23 @@ ProfilerState::postfork_child()
     // Reset all caches that depend on the ProfileDictionary
     reset_key_caches();
 
+    if (!was_initialized) {
+        return;
+    }
+
     // Re-initialize the ProfileDictionary in the child process
     if (!init_profiles_dictionary()) {
         std::cerr << "failed to initialise profiles dictionary in child process, profiler will be disabled"
                   << std::endl;
-        initialized_.store(false, std::memory_order_release);
         return;
     }
 
     if (!profile_state.postfork_child()) {
         guard.dismiss();
-        initialized_.store(false, std::memory_order_release);
         return;
     }
     guard.dismiss();
+    initialized_.store(true, std::memory_order_release);
 }
 
 } // namespace Datadog

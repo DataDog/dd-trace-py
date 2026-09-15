@@ -48,10 +48,11 @@ ddup_cleanup()
 bool
 ddup_upload() // cppcheck-suppress unusedFunction
 {
-    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+    static bool already_warned_uninitialized = false; // cppcheck-suppress threadsafety-threadsafety
+    static bool already_warned_build = false;         // cppcheck-suppress threadsafety-threadsafety
     if (!ddup_is_initialized()) {
-        if (!already_warned) {
-            already_warned = true;
+        if (!already_warned_uninitialized) {
+            already_warned_uninitialized = true;
             std::cerr << "ddup_upload() called before ddup_start()" << std::endl;
         }
         return false;
@@ -73,8 +74,8 @@ ddup_upload() // cppcheck-suppress unusedFunction
     auto uploader_or_err = Datadog::UploaderBuilder::build();
 
     if (const auto* err = Datadog::error_if_any(uploader_or_err)) {
-        if (!already_warned) {
-            already_warned = true;
+        if (!already_warned_build) {
+            already_warned_build = true;
             std::cerr << "Failed to create uploader: " << err->message << std::endl;
         }
         return false;
@@ -86,9 +87,7 @@ ddup_upload() // cppcheck-suppress unusedFunction
     // Upload while holding the lock (encoding has already been done in UploaderBuilder::build)
     // This also cancels inflight uploads. There are better ways to do this, but this is what
     // we have for now.
-    bool result = uploader.upload_unlocked();
-
-    return result;
+    return uploader.upload_unlocked();
 }
 
 // Pass by value is intentional: the map may be modified concurrently by other threads,
