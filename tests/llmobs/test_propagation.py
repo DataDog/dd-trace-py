@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import urllib.parse
 
 import pytest
 
@@ -9,6 +10,14 @@ from ddtrace.contrib.internal.asyncio.patch import unpatch as unpatch_asyncio
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import BAGGAGE_LLMOBS_TRACE_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_ML_APP_KEY
+from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_PARENT_AGENT_NAME_KEY
+from ddtrace.llmobs._constants import BAGGAGE_PARENT_ID_KEY
+from ddtrace.llmobs._constants import BAGGAGE_SAMPLE_RATE_KEY
+from ddtrace.llmobs._constants import BAGGAGE_SAMPLING_DECISION_KEY
+from ddtrace.llmobs._constants import BAGGAGE_SESSION_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_LLMOBS_TRACE_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import PROPAGATED_PARENT_AGENT_ID_KEY
@@ -19,6 +28,7 @@ from ddtrace.llmobs._constants import PROPAGATED_SAMPLING_DECISION
 from ddtrace.llmobs._constants import PROPAGATED_SESSION_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import LLMObsSamplingDecision
+from ddtrace.llmobs._llmobs import LLMObsActivateDistributedHeadersError
 from ddtrace.llmobs._utils import get_llmobs_ml_app
 from ddtrace.llmobs._utils import get_llmobs_parent_id
 from ddtrace.llmobs._utils import get_llmobs_sample_rate
@@ -26,6 +36,7 @@ from ddtrace.llmobs._utils import get_llmobs_sampling_decision
 from ddtrace.llmobs._utils import get_llmobs_session_id
 from ddtrace.llmobs._utils import get_llmobs_span_kind
 from ddtrace.llmobs._utils import get_llmobs_trace_id
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
 
 
@@ -1029,3 +1040,232 @@ def test_agent_attribution_propagates_across_asyncio_task(llmobs, llmobs_events,
         "pagent_name": "my_agent",
         "pagent_span_id": holder["span_id"],
     }
+
+
+# ---------------------------------------------------------------------------
+# W3C baggage carrier
+#
+# The `_dd.p.llmobs_*` tags above ride x-datadog-tags, which every hop that drops the APM
+# trace/parent ID headers drops with them (an intermediary starting a fresh local trace, for
+# instance). Baggage is injected and extracted independently of APM trace identity, so these
+# tests cover the carrier that keeps an LLMObs trace whole across such a hop.
+# ---------------------------------------------------------------------------
+
+_APM_TRACE_HEADERS = (
+    "x-datadog-trace-id",
+    "x-datadog-parent-id",
+    "x-datadog-origin",
+    "x-datadog-sampling-priority",
+    "x-datadog-tags",
+    "traceparent",
+    "tracestate",
+)
+
+
+def _parse_baggage(headers):
+    """Decode the `baggage` header into a dict."""
+    raw = headers.get("baggage", "")
+    if not raw:
+        return {}
+    items = {}
+    for pair in raw.split(","):
+        key, _, value = pair.partition("=")
+        items[urllib.parse.unquote(key.strip())] = urllib.parse.unquote(value.strip())
+    return items
+
+
+def _drop_apm_trace_headers(headers):
+    """Simulate a hop that discards APM trace context but forwards everything else."""
+    return {k: v for k, v in headers.items() if k.lower() not in _APM_TRACE_HEADERS}
+
+
+def _make_baggage_llmobs_context(trace_id_value=None, parent_id="987654321", apm_trace_id=None, **extra_baggage_items):
+    """An inbound context carrying LLMObs context in baggage only (no `_dd.p.*` tags)."""
+    baggage = {BAGGAGE_PARENT_ID_KEY: parent_id}
+    if trace_id_value is not None:
+        baggage[BAGGAGE_LLMOBS_TRACE_ID_KEY] = trace_id_value
+    baggage.update(extra_baggage_items)
+    return Context(trace_id=apm_trace_id, span_id=None, baggage=baggage)
+
+
+def test_inject_writes_llmobs_context_to_baggage(llmobs):
+    with llmobs.workflow("w") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _parse_baggage(headers)
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+    assert baggage[BAGGAGE_ML_APP_KEY] == "unnamed-ml-app"
+    assert baggage[BAGGAGE_LLMOBS_TRACE_ID_KEY] == str(int(get_llmobs_trace_id(span), 16))
+
+
+def test_injected_baggage_trace_id_matches_tag_carrier(llmobs):
+    """Both carriers must encode the same wire value so a mixed-carrier hop reads one trace."""
+    with llmobs.workflow("w") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert _parse_baggage(headers)[BAGGAGE_LLMOBS_TRACE_ID_KEY] == span.context._meta.get(
+        PROPAGATED_LLMOBS_TRACE_ID_KEY
+    )
+
+
+def test_inject_does_not_write_llmobs_baggage_onto_context(llmobs):
+    """The LLMObs parent id is request-scoped: writing it onto the trace-shared Context would
+    leak one request's parent onto every other injection from the same trace.
+    """
+    with llmobs.workflow("w") as span:
+        HTTPPropagator.inject(span.context, {})
+        assert not [k for k in span.context._baggage if k.startswith("llmobs.")]
+
+
+def test_inject_preserves_user_baggage(llmobs):
+    with llmobs.workflow("w") as span:
+        span.context.set_baggage_item("user.id", "abc123")
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    baggage = _parse_baggage(headers)
+    assert baggage["user.id"] == "abc123"
+    assert baggage[BAGGAGE_PARENT_ID_KEY] == str(span.span_id)
+
+
+def test_inject_baggage_carries_session_id(llmobs):
+    with llmobs.workflow("w", session_id="test-session") as span:
+        headers = {}
+        HTTPPropagator.inject(span.context, headers)
+    assert _parse_baggage(headers)[BAGGAGE_SESSION_ID_KEY] == "test-session"
+
+
+def test_inject_baggage_carries_full_agent_name_when_tags_truncate(llmobs):
+    """Agent attribution degrades in x-datadog-tags to protect the 512-byte budget; baggage has
+    its own, far larger budget, so it keeps the untruncated name.
+    """
+    long_name = "a" * 600
+    with llmobs.agent(name=long_name) as agent_span:
+        headers = {}
+        HTTPPropagator.inject(agent_span.context, headers)
+    baggage = _parse_baggage(headers)
+    assert baggage[BAGGAGE_PARENT_AGENT_ID_KEY] == str(agent_span.span_id)
+    assert baggage[BAGGAGE_PARENT_AGENT_NAME_KEY] == long_name
+    assert agent_span.context._meta.get(PROPAGATED_PARENT_AGENT_NAME_KEY) != long_name
+
+
+def test_activate_baggage_only_context(llmobs):
+    """No APM trace context at all: baggage alone must re-parent the local LLMObs trace."""
+    ctx = _make_baggage_llmobs_context(_DECIMAL_TRACE_ID)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == "987654321"
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+
+
+def test_activate_baggage_only_context_carries_ml_app_and_session(llmobs):
+    ctx = _make_baggage_llmobs_context(
+        _DECIMAL_TRACE_ID,
+        **{BAGGAGE_ML_APP_KEY: "upstream-ml-app", BAGGAGE_SESSION_ID_KEY: "upstream-session"},
+    )
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_ml_app(span) == "upstream-ml-app"
+        assert get_llmobs_session_id(span) == "upstream-session"
+
+
+def test_activate_baggage_only_context_carries_sampling(llmobs):
+    ctx = _make_baggage_llmobs_context(
+        _DECIMAL_TRACE_ID,
+        **{
+            BAGGAGE_SAMPLE_RATE_KEY: "0.5",
+            BAGGAGE_SAMPLING_DECISION_KEY: LLMObsSamplingDecision.DROPPED.value,
+        },
+    )
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_sample_rate(span) == "0.5"
+        assert get_llmobs_sampling_decision(span) == LLMObsSamplingDecision.DROPPED.value
+
+
+def test_activate_baggage_only_agent_attribution(llmobs, llmobs_events):
+    ctx = _make_baggage_llmobs_context(
+        _DECIMAL_TRACE_ID,
+        **{
+            BAGGAGE_PARENT_AGENT_ID_KEY: "987654321",
+            BAGGAGE_PARENT_AGENT_NAME_KEY: "upstream_agent",
+        },
+    )
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.tool(name="downstream_tool"):
+        pass
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["meta"]["agent_attribution"] == {
+        "pagent_name": "upstream_agent",
+        "pagent_span_id": "987654321",
+    }
+
+
+def test_activate_baggage_wins_over_tags(llmobs):
+    """Both carriers present: baggage is the copy that cannot have been dropped en route."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID, parent_id="111111111")
+    ctx.set_baggage_item(BAGGAGE_PARENT_ID_KEY, "222222222")
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == "222222222"
+
+
+def test_activate_falls_back_to_tags_when_no_baggage(llmobs):
+    """An upstream on a pre-baggage SDK still propagates through the tag carrier."""
+    ctx = _make_upstream_llmobs_context(_DECIMAL_TRACE_ID, parent_id="111111111")
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == "111111111"
+        assert get_llmobs_trace_id(span) == _HEX_TRACE_ID
+
+
+def test_activate_baggage_only_without_trace_id_generates_one(llmobs):
+    """Degenerate upstream: a parent id but no LLMObs trace id and no APM trace id to borrow."""
+    ctx = _make_baggage_llmobs_context(trace_id_value=None)
+    llmobs._instance._activate_llmobs_distributed_context({}, ctx)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == "987654321"
+        assert get_llmobs_trace_id(span) is not None
+
+
+def test_activate_no_context_at_all_raises(llmobs):
+    """Neither carrier has anything: the hard-fail public API path still raises."""
+    with pytest.raises(LLMObsActivateDistributedHeadersError):
+        llmobs._instance._activate_llmobs_distributed_context({}, Context(), _soft_fail=False)
+
+
+def test_activate_no_context_at_all_soft_fails(llmobs):
+    llmobs._instance._activate_llmobs_distributed_context({}, Context(), _soft_fail=True)
+    with llmobs.workflow("w") as span:
+        assert get_llmobs_parent_id(span) == ROOT_PARENT_ID
+
+
+def test_round_trip_survives_dropped_apm_trace_headers(llmobs):
+    """The Bits-chat shape: an intermediary strips APM trace headers to start a fresh local
+    trace, and the LLMObs trace must still be continuous across the hop.
+    """
+    with llmobs.agent(name="upstream_agent") as upstream:
+        headers = {}
+        HTTPPropagator.inject(upstream.context, headers)
+        upstream_trace_id = get_llmobs_trace_id(upstream)
+        upstream_span_id = str(upstream.span_id)
+
+    forwarded = _drop_apm_trace_headers(headers)
+    assert "baggage" in forwarded
+    assert not [h for h in forwarded if h.lower().startswith("x-datadog")]
+
+    context = HTTPPropagator.extract(forwarded)
+    llmobs._instance._activate_llmobs_distributed_context(forwarded, context)
+    with llmobs.tool(name="downstream_tool") as downstream:
+        assert get_llmobs_parent_id(downstream) == upstream_span_id
+        assert get_llmobs_trace_id(downstream) == upstream_trace_id
+
+
+def test_activate_distributed_headers_survives_dropped_apm_trace_headers(llmobs):
+    """Same hop, through the public API, which used to raise without APM trace/span IDs."""
+    with llmobs.workflow("upstream") as upstream:
+        headers = llmobs.inject_distributed_headers({}, span=upstream)
+        upstream_span_id = str(upstream.span_id)
+
+    llmobs.activate_distributed_headers(_drop_apm_trace_headers(headers))
+    with llmobs.workflow("downstream") as downstream:
+        assert get_llmobs_parent_id(downstream) == upstream_span_id
