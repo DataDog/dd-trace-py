@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    ASM: Fixes an issue where an ordinary application error that passes through an Exploit
+    Prevention hook is reported as a Datadog crash, because the hook's frame appears in the
+    traceback sent to crash tracking and to telemetry error logs. The traceback the application
+    itself sees is unchanged, and errors that genuinely originate in the library are still
+    reported.
