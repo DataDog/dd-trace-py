@@ -108,6 +108,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         # the model call errors the span but keeps a valid response (APPSEC-68147).
         if response is not None:
             output_messages = self._extract_output_message(response)
+            # Recorded under "finish_reason" to match openai/litellm
+            finish_reason = _get_attr(response, "stop_reason", None) or _get_attr(response, "finish_reason", None)
+            if finish_reason:
+                parameters["finish_reason"] = str(finish_reason)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 
         usage = _get_attr(response, "usage", {})
