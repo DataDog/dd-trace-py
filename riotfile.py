@@ -2383,8 +2383,10 @@ venv = Venv(
                     },
                 ),
                 Venv(
-                    # rq added support for Python 3.10/3.11 in 1.13
-                    pys=select_pys(min_version="3.10", max_version="3.14"),
+                    # rq added support for Python 3.10/3.11 in 1.13. max_version="3.15" is a
+                    # forward test only: rq hasn't declared 3.15 support yet since CPython 3.15
+                    # isn't GA, same pattern used for dramatiq (#19909) and django.
+                    pys=select_pys(min_version="3.10", max_version="3.15"),
                     pkgs={"rq": latest},
                 ),
             ],
